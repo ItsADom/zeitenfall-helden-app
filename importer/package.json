@@ -1,0 +1,19 @@
+{
+  "name": "importer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "import": "tsx src/import-xlsx.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.2.0",
+    "shared": "*"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^24.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

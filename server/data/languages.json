@@ -1,0 +1,464 @@
+[
+  {
+    "kind": "sprache",
+    "familie": "Garethische Familie",
+    "name": "Garethi*1,2",
+    "komplexitaet": "18",
+    "sort": 0
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Kusliker Zeichen",
+    "komplexitaet": "10",
+    "sort": 1001
+  },
+  {
+    "kind": "sprache",
+    "familie": "Garethische Familie",
+    "name": "Bosparano",
+    "komplexitaet": "21",
+    "sort": 2
+  },
+  {
+    "kind": "sprache",
+    "familie": "Garethische Familie",
+    "name": "Aureliani",
+    "komplexitaet": "21",
+    "sort": 3
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Imperiale Schriftzeichen",
+    "komplexitaet": "12",
+    "sort": 1004
+  },
+  {
+    "kind": "sprache",
+    "familie": "Garethische Familie",
+    "name": "Zyklopäisch",
+    "komplexitaet": "18",
+    "sort": 5
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Tulamidya",
+    "komplexitaet": "18",
+    "sort": 6
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Tulamidva",
+    "komplexitaet": "14",
+    "sort": 1007
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "G. Glyphen v. Unau",
+    "komplexitaet": "13",
+    "sort": 1008
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Ur-Tulamidya**",
+    "komplexitaet": "21",
+    "sort": 9
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Ur-Tulamidva",
+    "komplexitaet": "16",
+    "sort": 1010
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Chrmk",
+    "komplexitaet": "18",
+    "sort": 1011
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Zelemia",
+    "komplexitaet": "18",
+    "sort": 12
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Alaani*3",
+    "komplexitaet": "21",
+    "sort": 13
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Altes Alaani",
+    "komplexitaet": "18",
+    "sort": 1014
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Zhulchammagra",
+    "komplexitaet": "15",
+    "sort": 15
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Ferkina",
+    "komplexitaet": "16",
+    "sort": 16
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Ruuz**",
+    "komplexitaet": "18",
+    "sort": 17
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Alte Kemi",
+    "komplexitaet": "18",
+    "sort": 18
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Altes Kemi",
+    "komplexitaet": "21",
+    "sort": 1019
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Molochisch",
+    "komplexitaet": "",
+    "sort": 20
+  },
+  {
+    "kind": "sprache",
+    "familie": "Tulamidyische-Familie",
+    "name": "Rabensprache",
+    "komplexitaet": "15",
+    "sort": 21
+  },
+  {
+    "kind": "sprache",
+    "familie": "Thorwalsche-Familie",
+    "name": "Hialdingsch",
+    "komplexitaet": "18",
+    "sort": 22
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Hialdingsche Runen",
+    "komplexitaet": "10",
+    "sort": 1023
+  },
+  {
+    "kind": "sprache",
+    "familie": "Thorwalsche-Familie",
+    "name": "Thorwalsch*1",
+    "komplexitaet": "18",
+    "sort": 24
+  },
+  {
+    "kind": "sprache",
+    "familie": "Thorwalsche-Familie",
+    "name": "Gialskisch*3",
+    "komplexitaet": "18",
+    "sort": 25
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Gialskisch",
+    "komplexitaet": "14",
+    "sort": 1026
+  },
+  {
+    "kind": "sprache",
+    "familie": "Thorwalsche-Familie",
+    "name": "Fiarnisch",
+    "komplexitaet": "18",
+    "sort": 27
+  },
+  {
+    "kind": "sprache",
+    "familie": "Thorwalsche-Familie",
+    "name": "Mohisch",
+    "komplexitaet": "15",
+    "sort": 28
+  },
+  {
+    "kind": "sprache",
+    "familie": "Elfische-Familie***",
+    "name": "Isdira",
+    "komplexitaet": "15(21)",
+    "sort": 29
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Isdira",
+    "komplexitaet": "15",
+    "sort": 1030
+  },
+  {
+    "kind": "sprache",
+    "familie": "Elfische-Familie***",
+    "name": "Asdharia** (B)",
+    "komplexitaet": "15(24)",
+    "sort": 31
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Asdharia",
+    "komplexitaet": "18",
+    "sort": 1032
+  },
+  {
+    "kind": "sprache",
+    "familie": "Zwergische-Familie",
+    "name": "Rogolan",
+    "komplexitaet": "21",
+    "sort": 33
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Rogolan",
+    "komplexitaet": "21",
+    "sort": 1034
+  },
+  {
+    "kind": "sprache",
+    "familie": "Zwergische-Familie",
+    "name": "Angram**",
+    "komplexitaet": "21",
+    "sort": 35
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Angram",
+    "komplexitaet": "21",
+    "sort": 1036
+  },
+  {
+    "kind": "sprache",
+    "familie": "Orkische-Familie",
+    "name": "Ologhaiian",
+    "komplexitaet": "15",
+    "sort": 37
+  },
+  {
+    "kind": "sprache",
+    "familie": "Orkische-Familie",
+    "name": "Oloarkh",
+    "komplexitaet": "10",
+    "sort": 38
+  },
+  {
+    "kind": "sprache",
+    "familie": "Rissoalische-Familie (Echsisch)",
+    "name": "Mahrisch",
+    "komplexitaet": "20",
+    "sort": 39
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Mahrische Glyphen",
+    "komplexitaet": "15",
+    "sort": 1040
+  },
+  {
+    "kind": "sprache",
+    "familie": "Rissoalische-Familie (Echsisch)",
+    "name": "Rissoal",
+    "komplexitaet": "20",
+    "sort": 41
+  },
+  {
+    "kind": "sprache",
+    "familie": "Rissoalische-Familie (Echsisch)",
+    "name": "Rssahh***",
+    "komplexitaet": "25",
+    "sort": 42
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Rssahhlische Glyphen",
+    "komplexitaet": "15",
+    "sort": 1043
+  },
+  {
+    "kind": "sprache",
+    "familie": "Drizzleranische-Familie (Dunkelelfisch)",
+    "name": "Rabensprache",
+    "komplexitaet": "15",
+    "sort": 44
+  },
+  {
+    "kind": "sprache",
+    "familie": "Drizzleranische-Familie (Dunkelelfisch)",
+    "name": "Drizzla",
+    "komplexitaet": "21",
+    "sort": 45
+  },
+  {
+    "kind": "sprache",
+    "familie": "Drizzleranische-Familie (Dunkelelfisch)",
+    "name": "Z'Lit***",
+    "komplexitaet": "-17",
+    "sort": 46
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Drachisch***",
+    "komplexitaet": "-40",
+    "sort": 47
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Drakned",
+    "komplexitaet": "40",
+    "sort": 1048
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Trollisch",
+    "komplexitaet": "15",
+    "sort": 49
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Golbinisch",
+    "komplexitaet": "12",
+    "sort": 50
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Grolmisch***",
+    "komplexitaet": "6(17)",
+    "sort": 51
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Koboldisch***",
+    "komplexitaet": "-15",
+    "sort": 52
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Neckergesang",
+    "komplexitaet": "24",
+    "sort": 53
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Gedankenbild",
+    "komplexitaet": "",
+    "sort": 1054
+  },
+  {
+    "kind": "sprache",
+    "familie": "Einzelne Sprachen",
+    "name": "Nujuka (Urmensch)",
+    "komplexitaet": "15",
+    "sort": 55
+  },
+  {
+    "kind": "sprache",
+    "familie": "Geheimsprache",
+    "name": "Zhavad",
+    "komplexitaet": "15",
+    "sort": 56
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Zhavad",
+    "komplexitaet": "18",
+    "sort": 1057
+  },
+  {
+    "kind": "sprache",
+    "familie": "Geheimsprache",
+    "name": "Atak",
+    "komplexitaet": "12",
+    "sort": 58
+  },
+  {
+    "kind": "sprache",
+    "familie": "Geheimsprache",
+    "name": "Füchsisch",
+    "komplexitaet": "12",
+    "sort": 59
+  },
+  {
+    "kind": "sprache",
+    "familie": "Geheimsprache",
+    "name": "Sechu",
+    "komplexitaet": "15",
+    "sort": 60
+  },
+  {
+    "kind": "schrift",
+    "familie": "Schriften",
+    "name": "Sechu",
+    "komplexitaet": "18",
+    "sort": 1061
+  },
+  {
+    "kind": "schrift",
+    "familie": "Geheimschriften",
+    "name": "Gimaril",
+    "komplexitaet": "10",
+    "sort": 62
+  },
+  {
+    "kind": "schrift",
+    "familie": "Geheimschriften",
+    "name": "Nanduria",
+    "komplexitaet": "10",
+    "sort": 63
+  },
+  {
+    "kind": "schrift",
+    "familie": "Geheimschriften",
+    "name": "Arkanil",
+    "komplexitaet": "24",
+    "sort": 64
+  },
+  {
+    "kind": "schrift",
+    "familie": "Geheimschriften",
+    "name": "Drakhard-Zinken",
+    "komplexitaet": "9(+)",
+    "sort": 65
+  }
+]

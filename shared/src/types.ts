@@ -1,0 +1,220 @@
+// Attribute
+export type AttrCode = 'MU' | 'KL' | 'IN' | 'CH' | 'FF' | 'GE' | 'KO' | 'KK';
+export const ATTR_CODES: AttrCode[] = ['MU', 'KL', 'IN', 'CH', 'FF', 'GE', 'KO', 'KK'];
+// Sozialstatus steht mit in der Attributtabelle, wird aber nie in Proben verwendet
+export type AttrRowCode = AttrCode | 'SO';
+export const ATTR_ROW_CODES: AttrRowCode[] = [...ATTR_CODES, 'SO'];
+
+export const ATTR_LABELS: Record<AttrRowCode, string> = {
+  MU: 'Mut',
+  KL: 'Klugheit',
+  IN: 'Intuition',
+  CH: 'Charisma',
+  FF: 'Fingerfertigkeit',
+  GE: 'Gewandtheit',
+  KO: 'Konstitution',
+  KK: 'Körperkraft',
+  SO: 'Sozialstatus',
+};
+
+export interface AttributeValue {
+  akt: number;
+  mod: number;
+}
+export type Attributes = Record<AttrRowCode, AttributeValue>;
+
+// Basiswerte (Heldenbrief rechte Spalte)
+export type BaseValueKey =
+  | 'at'
+  | 'pa'
+  | 'bl'
+  | 'fk'
+  | 'ini'
+  | 'artefaktkontrolle'
+  | 'todesschwelle'
+  | 'wundschwelle'
+  | 'ausweichen'
+  | 'resilienz'
+  | 'gs';
+
+export const BASE_VALUE_KEYS: BaseValueKey[] = [
+  'at', 'pa', 'bl', 'fk', 'ini', 'artefaktkontrolle',
+  'todesschwelle', 'wundschwelle', 'ausweichen', 'resilienz', 'gs',
+];
+
+export const BASE_VALUE_LABELS: Record<BaseValueKey, { label: string; formel: string }> = {
+  at: { label: 'Attacke-Basis', formel: '(MU+GE+KK):5' },
+  pa: { label: 'Parade-Basis', formel: '(IN+GE+FF):5' },
+  bl: { label: 'Blocken-Basis', formel: '(KO+KK+IN):5' },
+  fk: { label: 'Fernkampf-Basis', formel: '(IN+FF+KK):5' },
+  ini: { label: 'Initiative-Basis', formel: '(MU+MU+IN+GE):5' },
+  artefaktkontrolle: { label: 'Artefaktkontrolle', formel: '(IN+MR+MU)' },
+  todesschwelle: { label: 'Todesschwelle', formel: '(Wundschwelle+MU):4' },
+  wundschwelle: { label: 'Wundschwelle', formel: '(KO):2' },
+  ausweichen: { label: 'Ausweichen', formel: '(GE+GE+IN):3' },
+  resilienz: { label: 'Resilienz', formel: '(MU+MU+MR):5' },
+  gs: { label: 'Geschwindigkeit', formel: '' },
+};
+
+// Basiswert-Eingaben: Modifikator je Wert, GS hat zusätzlich einen Basiswert als Eingabe
+export interface BaseValueInputs {
+  mods: Record<BaseValueKey, number>;
+  gsBase: number;
+}
+
+// Energien/Ressourcen (LE, AUS, AsE, MR)
+export type ResourceKey = 'le' | 'aus' | 'ase' | 'mr';
+export const RESOURCE_KEYS: ResourceKey[] = ['le', 'aus', 'ase', 'mr'];
+export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: string }> = {
+  le: { label: 'Lebensenergie', formel: '(KO+KO+KK):2' },
+  aus: { label: 'Ausdauer', formel: '(MU+GE+KO):2' },
+  ase: { label: 'Astralenergie', formel: '(MU+IN+CH):2' },
+  mr: { label: 'Magieresistenz', formel: '(MU+KL+KO):5' },
+};
+
+export interface ResourceInput {
+  permanent: number;
+  kauf: number;
+  kaufMax: number;
+  maxPlus: number;
+  aktuell: number;
+  besonderes: string;
+}
+export type Resources = Record<ResourceKey, ResourceInput>;
+
+// Bio (Heldenbrief Kopf)
+export interface Bio {
+  alterGeburtstag: string;
+  geschlecht: string;
+  groesse: string;
+  gewicht: string;
+  augenfarbe: string;
+  haarfarbe: string;
+  hautfarbe: string;
+  familienstand: string;
+  anrede: string;
+  rasse: string;
+  rasseMod: string;
+  kultur: string;
+  kulturMod: string;
+  profession: string;
+  zweitprofession: string;
+  gottheit: string;
+  goettergeschenke: string;
+}
+
+// Meta (Stufe, AP, Karma, Geld, Psyche, Ruf)
+export interface Meta {
+  stufe: number;
+  ap: number;
+  apNextLevel: number;
+  apGuthaben: number;
+  karma: number;
+  karmaGuthaben: number;
+  ruf: number;
+  psycheAkt: number;
+  psycheMax: number;
+  geldD: number;
+  geldS: number;
+  geldH: number;
+  geldK: number;
+  bank: number;
+}
+
+// Talente
+export type TalentKategorie = 'kampf' | 'koerper' | 'gesellschaft' | 'natur' | 'wissen' | 'handwerk' | 'gaben';
+export const TALENT_KATEGORIE_LABELS: Record<TalentKategorie, string> = {
+  kampf: 'Kampftalente',
+  koerper: 'Körperliche Talente',
+  gesellschaft: 'Gesellschaftliche Talente',
+  natur: 'Natur-Talente',
+  wissen: 'Wissenstalente',
+  handwerk: 'Handwerkstalente',
+  gaben: 'Gaben',
+};
+
+export interface TalentCatalogEntry {
+  id: number;
+  kategorie: TalentKategorie;
+  gruppe: string; // z.B. "Hiebwaffen" bei Kampftalenten, sonst ''
+  name: string;
+  klasse: string; // A-F aus "(D)"-Suffix
+  probe: [AttrCode, AttrCode, AttrCode] | null; // null bei Kampftalenten
+  ableiten: string; // "Verwandte Fertigkeiten (+5)" bzw. "Ableiten (+10)"
+  sort: number;
+}
+
+export interface CharTalent {
+  talentId: number;
+  taw: number;
+  // Nur Kampftalente: Aufteilung des TaW auf AT/PA/BL
+  at: number;
+  pa: number;
+  bl: number;
+  billiger: string;
+  spezialisierung: string;
+  waffenmeister: string;
+  berufsbonus: string;
+}
+
+// Sprachen & Schriften
+export type SpracheKind = 'sprache' | 'schrift';
+export interface LanguageCatalogEntry {
+  id: number;
+  kind: SpracheKind;
+  familie: string;
+  name: string;
+  komplexitaet: string;
+  sort: number;
+}
+export interface CharLanguage {
+  languageId: number;
+  taw: number;
+  muttersprache: boolean;
+}
+
+// Charakter / Verwaltung
+export interface UserInfo {
+  id: number;
+  username: string;
+  displayName: string;
+  isGm: boolean;
+}
+
+export interface GroupInfo {
+  id: number;
+  name: string;
+  memberIds: number[];
+}
+
+export interface CharacterInfo {
+  id: number;
+  name: string;
+  ownerUserId: number;
+  groupId: number;
+}
+
+// Sichtbarkeits-Sektionen für die Gruppen-Zusammenfassung (Bio ist immer sichtbar)
+export const VISIBILITY_SECTIONS = [
+  'attribute', 'basiswerte', 'ressourcen', 'vorteile', 'talente', 'waffen', 'zauber',
+  'ausruestung', 'inventar', 'sprachen', 'artefakte', 'besitz', 'bibliothek', 'boni', 'vorlieben',
+] as const;
+export type VisibilitySection = (typeof VISIBILITY_SECTIONS)[number];
+
+export const VISIBILITY_LABELS: Record<VisibilitySection, string> = {
+  attribute: 'Attribute',
+  basiswerte: 'Basiswerte',
+  ressourcen: 'Energien',
+  vorteile: 'Vorteile/Nachteile',
+  talente: 'Talente',
+  waffen: 'Waffen',
+  zauber: 'Zauber/Techniken',
+  ausruestung: 'Ausrüstung',
+  inventar: 'Inventar',
+  sprachen: 'Sprachen',
+  artefakte: 'Artefakte',
+  besitz: 'Besitz',
+  bibliothek: 'Bibliothek',
+  boni: 'Boni',
+  vorlieben: 'Vorlieben',
+};

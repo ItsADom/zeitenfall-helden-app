@@ -1,0 +1,1433 @@
+[
+  {
+    "kategorie": "kampf",
+    "gruppe": "Waffenlose Kampftechniken",
+    "name": "Raufen",
+    "klasse": "C",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 0
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Waffenlose Kampftechniken",
+    "name": "Ringen",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 1
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Kurzstielwaffen",
+    "name": "Dolche",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Fechtwaffen, Raufen, Messer",
+    "sort": 2
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Kurzstielwaffen",
+    "name": "Messer",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Fechtwaffen, Raufen, Dolche",
+    "sort": 3
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Hiebwaffen",
+    "name": "Äxte",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Säbel, Zweihand-Äxte",
+    "sort": 4
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Hiebwaffen",
+    "name": "Hämmer/Keulen",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Säbel, Zweihand-Hämmer/Keulen",
+    "sort": 5
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schwerter",
+    "name": "Anderthalbhänder",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Schwerter, Zweihandschwerter/-säbel",
+    "sort": 6
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schwerter",
+    "name": "Säbel",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Anderthalbhänder, Zweihand-Säbel",
+    "sort": 7
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schwerter",
+    "name": "Fechtwaffen",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Dolche, Messer, Schwerter",
+    "sort": 8
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schwerter",
+    "name": "Schwerter",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Hiebwaffen, Zweihandschwerter",
+    "sort": 9
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Peitschen",
+    "name": "Peitsche",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 10
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Kettenwaffen",
+    "name": "Einhand-Kettenwaffen",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Zweihand-Kettenwaffen, Kettenstäbe",
+    "sort": 11
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Kettenwaffen",
+    "name": "Zweihand-Kettenwaffen",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Einhand-Kettenwaffen, Kettenstäbe",
+    "sort": 12
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Kettenwaffen",
+    "name": "Kettenstäbe",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Kettenwaffen, Stäbe",
+    "sort": 13
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Stangenwaffen",
+    "name": "Stäbe",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Speere",
+    "sort": 14
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Stangenwaffen",
+    "name": "Speere",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Stäbe, Lanzen, Hellebarden, Wurfspeere",
+    "sort": 15
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Stangenwaffen",
+    "name": "Lanzen",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Speere",
+    "sort": 16
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Stangenwaffen",
+    "name": "Hellebarden",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Speere, Zwiehand-Äxte",
+    "sort": 17
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Zweihandwaffen",
+    "name": "Zweihand-Hämmer",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Hämmer/Keulen",
+    "sort": 18
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Zweihandwaffen",
+    "name": "Zweihand-Äxte",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Hellebarden, Äxte",
+    "sort": 19
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Zweihandwaffen",
+    "name": "Zweihandschwerter",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Zweihandsäbel, Schwerter",
+    "sort": 20
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Zweihandwaffen",
+    "name": "Zweihandsäbel",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Zweihandschwerter",
+    "sort": 21
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schilde",
+    "name": "Schilde",
+    "klasse": "",
+    "probe": "",
+    "ableiten": "Großschilde",
+    "sort": 22
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schilde",
+    "name": "Großschilde",
+    "klasse": "",
+    "probe": "",
+    "ableiten": "Schilde",
+    "sort": 23
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Blasrohre",
+    "name": "Blasrohre",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 24
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Bögen",
+    "name": "Kurzbögen",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Jagdbögen",
+    "sort": 25
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Bögen",
+    "name": "Jagdbögen",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Kurzbögen",
+    "sort": 26
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Bögen",
+    "name": "Langbögen",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "Jagdbögen",
+    "sort": 27
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Wurfwaffen",
+    "name": "Wurfmesser",
+    "klasse": "C",
+    "probe": "",
+    "ableiten": "Wurfbeile",
+    "sort": 28
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Wurfwaffen",
+    "name": "Wurfbeile",
+    "klasse": "C",
+    "probe": "",
+    "ableiten": "Wurfmesser",
+    "sort": 29
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Wurfwaffen",
+    "name": "Wurfspeere",
+    "klasse": "C",
+    "probe": "",
+    "ableiten": "Speere",
+    "sort": 30
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Wurfwaffen",
+    "name": "Bomben",
+    "klasse": "C",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 31
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Armbrüste",
+    "name": "Leichte Armbrüste",
+    "klasse": "C",
+    "probe": "",
+    "ableiten": "Schwere Armbrüste",
+    "sort": 32
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Armbrüste",
+    "name": "Schwere Armbrüste",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "Leichte Armbrüste, Ballisten",
+    "sort": 33
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Schleuder",
+    "name": "Schleuder",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 34
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Diskus",
+    "name": "Diskus",
+    "klasse": "D",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 35
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Belagerungswaffen",
+    "name": "Katapulte",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 36
+  },
+  {
+    "kategorie": "kampf",
+    "gruppe": "Belagerungswaffen",
+    "name": "Ballisten",
+    "klasse": "E",
+    "probe": "",
+    "ableiten": "-",
+    "sort": 37
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Akrobatik",
+    "klasse": "D",
+    "probe": "MU/GE/KK",
+    "ableiten": "Körperbeherrschung, Athletik",
+    "sort": 38
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Athletik",
+    "klasse": "D",
+    "probe": "GE/KO/KK",
+    "ableiten": "Körperbeherrschung, Akrobatik",
+    "sort": 39
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Fliegen",
+    "klasse": "D",
+    "probe": "MU/IN/GE",
+    "ableiten": "Akrobatik",
+    "sort": 40
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Gaukeleien",
+    "klasse": "D",
+    "probe": "MU/CH/FF",
+    "ableiten": "Taschendiebstahl, Falschspiel",
+    "sort": 41
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Klettern",
+    "klasse": "D",
+    "probe": "MU/GE/KK",
+    "ableiten": "Athletik o. Akrobatik, Körperbeherrschung",
+    "sort": 42
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Körperbeherrschung",
+    "klasse": "D",
+    "probe": "KO/IN/GE",
+    "ableiten": "Akrobatik, Athletik",
+    "sort": 43
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Reiten",
+    "klasse": "D",
+    "probe": "CH/GE/KO",
+    "ableiten": "Körperbeherrschung, Akrobatik",
+    "sort": 44
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Schleichen",
+    "klasse": "D",
+    "probe": "MU/IN/GE",
+    "ableiten": "Körperbeherrschung, Sich Verstecken",
+    "sort": 45
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Schwimmen",
+    "klasse": "D",
+    "probe": "GE/KO/KK",
+    "ableiten": "Athletik, Körperbeherrschung",
+    "sort": 46
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Selbstbeherrschung",
+    "klasse": "D",
+    "probe": "MU/KL/CH",
+    "ableiten": "Etikette",
+    "sort": 47
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Sich verstecken",
+    "klasse": "D",
+    "probe": "MU/IN/GE",
+    "ableiten": "Schleichen, Körperbeherrschung",
+    "sort": 48
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Singen",
+    "klasse": "D",
+    "probe": "IN/CH/CH",
+    "ableiten": "Sagen/Legenden",
+    "sort": 49
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Sinnesschärfe",
+    "klasse": "D",
+    "probe": "KL/IN/IN",
+    "ableiten": "-",
+    "sort": 50
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Skifahren",
+    "klasse": "D",
+    "probe": "GE/GE/KO",
+    "ableiten": "Athletik, Körperbeherrschung",
+    "sort": 51
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Stimmen imitieren",
+    "klasse": "D",
+    "probe": "KL/IN/CH",
+    "ableiten": "Gaukeleien",
+    "sort": 52
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Tanzen",
+    "klasse": "D",
+    "probe": "CH/GE/GE",
+    "ableiten": "Körperbeherrschung, Akrobatik",
+    "sort": 53
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Taschendiebstahl",
+    "klasse": "D",
+    "probe": "MU/IN/FF",
+    "ableiten": "Gaukeleien",
+    "sort": 54
+  },
+  {
+    "kategorie": "koerper",
+    "gruppe": "",
+    "name": "Zechen",
+    "klasse": "D",
+    "probe": "IN/KO/KK",
+    "ableiten": "-",
+    "sort": 55
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Betören",
+    "klasse": "B",
+    "probe": "IN/CH/CH",
+    "ableiten": "Überreden, Einschüchtern",
+    "sort": 56
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Einschüchtern",
+    "klasse": "B",
+    "probe": "KK/IN/CH",
+    "ableiten": "Überreden",
+    "sort": 57
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Etikette",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Selbstbeherrschung, Heraldik",
+    "sort": 58
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Gassenwissen",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Menschenkenntnis",
+    "sort": 59
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Lehren",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Einschüchtern",
+    "sort": 60
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Menschenkenntnis",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Heilkunde Seele, Überreden",
+    "sort": 61
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Schauspielerei",
+    "klasse": "B",
+    "probe": "MU/KL/CH",
+    "ableiten": "Überreden",
+    "sort": 62
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Schriftlicher Ausdruck",
+    "klasse": "B",
+    "probe": "KL/IN/IN",
+    "ableiten": "Lesen/Schreiben, Überzeugen (Rhetorik schriftlich)",
+    "sort": 63
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Sich Verkleiden",
+    "klasse": "B",
+    "probe": "MU/CH/GE",
+    "ableiten": "Schauspielerei",
+    "sort": 64
+  },
+  {
+    "kategorie": "gesellschaft",
+    "gruppe": "",
+    "name": "Überreden",
+    "klasse": "B",
+    "probe": "MU/IN/CH",
+    "ableiten": "Einschüchtern",
+    "sort": 65
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Fährtensuchen",
+    "klasse": "B",
+    "probe": "KL/IN/KO",
+    "ableiten": "Sinnenschärfe",
+    "sort": 66
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Fallenstellen",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Wildnisleben",
+    "sort": 67
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Fesseln/Entfesseln",
+    "klasse": "B",
+    "probe": "FF/GE/KK",
+    "ableiten": "Seiler, Seefahrt, Entfesseln",
+    "sort": 68
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Fischen/Angeln",
+    "klasse": "B",
+    "probe": "IN/FF/KK",
+    "ableiten": "Wildnisleben",
+    "sort": 69
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Orientierung",
+    "klasse": "B",
+    "probe": "KL/IN/IN",
+    "ableiten": "Sternkunde",
+    "sort": 70
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Wettervorhersage",
+    "klasse": "B",
+    "probe": "KL/IN/IN",
+    "ableiten": "Wildnisleben",
+    "sort": 71
+  },
+  {
+    "kategorie": "natur",
+    "gruppe": "",
+    "name": "Wildnisleben",
+    "klasse": "B",
+    "probe": "IN/GE/KO",
+    "ableiten": "Tierkunde, Pflanzenkunde",
+    "sort": 72
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Anatomie",
+    "klasse": "B",
+    "probe": "MU/KL/FF",
+    "ableiten": "Heilkunde Wunde, Heilkunde Krankheiten",
+    "sort": 73
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Baukunst",
+    "klasse": "B",
+    "probe": "KL/KL/FF",
+    "ableiten": "Zimmermann, Maurer, Steinmetz",
+    "sort": 74
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Brett-/Kartenspiel",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Kriegskunst, Rechnen",
+    "sort": 75
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Geographie",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Sagen/Legenden",
+    "sort": 76
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Geschichtswissen",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Sagen/Legenden",
+    "sort": 77
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Gesteinskunde",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Baukunst, Steinschneider, Bergbau, Hüttenkunde, Steinmetz",
+    "sort": 78
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Götter/Kulte",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Geschichtswissen, Sagen/Legenden",
+    "sort": 79
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Heraldik",
+    "klasse": "B",
+    "probe": "KL/KL/FF",
+    "ableiten": "Etikette",
+    "sort": 80
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Hüttenkunde",
+    "klasse": "B",
+    "probe": "KL/IN/KO",
+    "ableiten": "Alchemie, Grobschmied , Metallguss",
+    "sort": 81
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Kriegskunst",
+    "klasse": "B",
+    "probe": "MU/KL/CH",
+    "ableiten": "Brettspiel",
+    "sort": 82
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Kryptographie",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Sprachenkunde, Rechnen",
+    "sort": 83
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Magiekunde",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Sagen/Legenden, Götter/Kulte",
+    "sort": 84
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Mechanik",
+    "klasse": "B",
+    "probe": "KL/KL/FF",
+    "ableiten": "Feinmechanik",
+    "sort": 85
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Mutationskunst",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Alchemie",
+    "sort": 86
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Pflanzenkunde",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Wildnisleben",
+    "sort": 87
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Philosophie",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Götter/Kulte, Magiekunde, Geschichtswissen , Sagen/Legenden",
+    "sort": 88
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Rechnen",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Brett-/Kartenspiel",
+    "sort": 89
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Rechtskunde",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Etikette, Staatskunst",
+    "sort": 90
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Sagen/Legenden",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Geschichtswissen, Götter/Kulte",
+    "sort": 91
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Schätzen",
+    "klasse": "B",
+    "probe": "KL/IN/IN",
+    "ableiten": "Handel o. Juwelier o. Feinm. (Goldschmied), Zimmermann",
+    "sort": 92
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Sprachenkunde",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Überreden, Etikette",
+    "sort": 93
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Staatskunst",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Hauswirtschaft, Rechtskunde (Staatsrecht)",
+    "sort": 94
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Sternkunde",
+    "klasse": "B",
+    "probe": "KL/KL/IN",
+    "ableiten": "Gabe Prophezeien (Astrologie)",
+    "sort": 95
+  },
+  {
+    "kategorie": "wissen",
+    "gruppe": "",
+    "name": "Tierkunde",
+    "klasse": "B",
+    "probe": "MU/KL/IN",
+    "ableiten": "Viehzucht, Seefischerei, Reiten, Wildnisleben",
+    "sort": 96
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Abrichten",
+    "klasse": "B",
+    "probe": "MU/IN/CH",
+    "ableiten": "Viehzucht, Tierkunde, Reiten",
+    "sort": 97
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Ackerbau",
+    "klasse": "B",
+    "probe": "IN/FF/KO",
+    "ableiten": "Viehzucht, Pflanzenkunde",
+    "sort": 98
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Alchemie",
+    "klasse": "B",
+    "probe": "MU/KL/FF",
+    "ableiten": "Kochen (Tränke), Pflanzenkunde",
+    "sort": 99
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Bergbau",
+    "klasse": "B",
+    "probe": "IN/KO/KK",
+    "ableiten": "Steinmetz, Maurer, Baukunst, Gesteinskunde",
+    "sort": 100
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Bogenbau",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Holzbearbeitung, Feinmechanik, Grobschmied",
+    "sort": 101
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Boote Fahren",
+    "klasse": "B",
+    "probe": "GE/KO/KK",
+    "ableiten": "Seefahrt",
+    "sort": 102
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Brauer",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Alchemie",
+    "sort": 103
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Drucker",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Mechanik",
+    "sort": 104
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Fahrzeug lenken",
+    "klasse": "B",
+    "probe": "IN/CH/FF",
+    "ableiten": "Mechanik",
+    "sort": 105
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Falschspiel",
+    "klasse": "B",
+    "probe": "MU/CH/FF",
+    "ableiten": "Gaukeleien (Taschenspielereien)",
+    "sort": 106
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Feinmechanik",
+    "klasse": "B",
+    "probe": "KL/FF/FF",
+    "ableiten": "Mechanik",
+    "sort": 107
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Feuersteinbearbeitung",
+    "klasse": "B",
+    "probe": "KL/FF/FF",
+    "ableiten": "Steinmetz",
+    "sort": 108
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Fleischer",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Viehzucht, Fischen/Angeln, Tierkunde, Kochen, Anatomie, Gerber/Kürschner (Trophäen)",
+    "sort": 109
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Gerber/Kürschner",
+    "klasse": "B",
+    "probe": "KL/FF/KO",
+    "ableiten": "Alchemie, Fleischer",
+    "sort": 110
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Glaskunst",
+    "klasse": "B",
+    "probe": "FF/FF/KO",
+    "ableiten": "Juwelier",
+    "sort": 111
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Grobschmied",
+    "klasse": "B",
+    "probe": "FF/KO/KK",
+    "ableiten": "Metallguss",
+    "sort": 112
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Handel",
+    "klasse": "B",
+    "probe": "KL/IN/CH",
+    "ableiten": "Hauswirtschaft, Geographie, Schätzen",
+    "sort": 113
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Hauswirtschaft",
+    "klasse": "B",
+    "probe": "IN/CH/FF",
+    "ableiten": "Rechnen (Buchführung)",
+    "sort": 114
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Heilkunde Gift",
+    "klasse": "B",
+    "probe": "MU/KL/IN",
+    "ableiten": "Alchemie (Gifte), HK Krankheiten, Kochen, Brauen",
+    "sort": 115
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Heilkunde Krankheiten",
+    "klasse": "B",
+    "probe": "MU/KL/CH",
+    "ableiten": "Heilkunde Gift",
+    "sort": 116
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Heilkunde Seele",
+    "klasse": "B",
+    "probe": "IN/CH/CH",
+    "ableiten": "Menschenkenntnis, Überzeugen",
+    "sort": 117
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Heilkunde Wunden",
+    "klasse": "B",
+    "probe": "KL/CH/FF",
+    "ableiten": "Anatomie",
+    "sort": 118
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Holzbearbeitung",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Zimmermann, Pflanzenkunde",
+    "sort": 119
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Instrumentenbauer",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Holzbearbeitung, Feinmechanik",
+    "sort": 120
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Juwelier/Feinschmied",
+    "klasse": "B",
+    "probe": "IN/FF/FF",
+    "ableiten": "Feinmechanik, Kristallzüchter",
+    "sort": 121
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Kartographie",
+    "klasse": "B",
+    "probe": "KL/KL/FF",
+    "ableiten": "Orientierung, Sternenkunde",
+    "sort": 122
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Kochen",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Fleischer, Fischen/Angeln, Wildnisleben, Alchemie",
+    "sort": 123
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Kristallzucht",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Alchemie",
+    "sort": 124
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Lederarbeiten",
+    "klasse": "B",
+    "probe": "KL/FF/FF",
+    "ableiten": "Gerber/Kürschner, Schneidern",
+    "sort": 125
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Malen/Zeichnen",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Kartographie, Steinmetz (Bildhauer), Tätowieren",
+    "sort": 126
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Maurer",
+    "klasse": "B",
+    "probe": "FF/GE/KK",
+    "ableiten": "Baukunst",
+    "sort": 127
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Metallguss",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Hüttenkunde, Grobschmied",
+    "sort": 128
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Musizieren",
+    "klasse": "B",
+    "probe": "IN/CH/FF",
+    "ableiten": "-",
+    "sort": 129
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Schlösserknacken",
+    "klasse": "B",
+    "probe": "IN/FF/FF",
+    "ableiten": "Feinmechanik",
+    "sort": 130
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Schnapsbrennen",
+    "klasse": "B",
+    "probe": "KL/IN/FF",
+    "ableiten": "Alchemie, Brauer, Winzer",
+    "sort": 131
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Schneidern",
+    "klasse": "B",
+    "probe": "KL/FF/FF",
+    "ableiten": "Webkunst, Lederarbeiten",
+    "sort": 132
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Seefahrt",
+    "klasse": "B",
+    "probe": "FF/GE/KK",
+    "ableiten": "Boote Fahren, Steuermann",
+    "sort": 133
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Seiler",
+    "klasse": "B",
+    "probe": "FF/FF/KK",
+    "ableiten": "Fesseln",
+    "sort": 134
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Steinmetz",
+    "klasse": "B",
+    "probe": "FF/FF/KK",
+    "ableiten": "Baukunst, Maurer, Bergbau",
+    "sort": 135
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Stellmacher",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Zimmermann, Schiffbau",
+    "sort": 136
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Stoffe Färben",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Alchemie, Brauer",
+    "sort": 137
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Tätowieren",
+    "klasse": "B",
+    "probe": "IN/FF/FF",
+    "ableiten": "Malen/Zeichnen",
+    "sort": 138
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Töpfern",
+    "klasse": "B",
+    "probe": "KL/FF/FF",
+    "ableiten": "Maurer, Steinmetz",
+    "sort": 139
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Viehzucht",
+    "klasse": "B",
+    "probe": "KL/IN/KK",
+    "ableiten": "Tierkunde",
+    "sort": 140
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Webkunst",
+    "klasse": "B",
+    "probe": "FF/FF/KK",
+    "ableiten": "Schneidern",
+    "sort": 141
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Winzer",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "-",
+    "sort": 142
+  },
+  {
+    "kategorie": "handwerk",
+    "gruppe": "",
+    "name": "Zimmermann",
+    "klasse": "B",
+    "probe": "KL/FF/KK",
+    "ableiten": "Holzbearbeitung, Schiffbau",
+    "sort": 143
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Empathie",
+    "klasse": "F",
+    "probe": "MU/IN/IN",
+    "ableiten": "MU/IN/CH",
+    "sort": 144
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Gefahreninstinkt",
+    "klasse": "F",
+    "probe": "KL/IN/IN",
+    "ableiten": "MU/IN/CH",
+    "sort": 145
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Geräuschhexerei",
+    "klasse": "F",
+    "probe": "IN/CH/KO",
+    "ableiten": "",
+    "sort": 146
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Kräfteschub",
+    "klasse": "F",
+    "probe": "MU/IN/KO",
+    "ableiten": "",
+    "sort": 147
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Magiegespür",
+    "klasse": "F",
+    "probe": "MU/IN/IN",
+    "ableiten": "",
+    "sort": 148
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Prophezeien",
+    "klasse": "F",
+    "probe": "IN/IN/CH",
+    "ableiten": "",
+    "sort": 149
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Talentschub",
+    "klasse": "F",
+    "probe": "MU/IN/KO",
+    "ableiten": "",
+    "sort": 150
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Tierempathie",
+    "klasse": "F",
+    "probe": "MU/IN/CH",
+    "ableiten": "",
+    "sort": 151
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "",
+    "name": "Zwergennase",
+    "klasse": "F",
+    "probe": "IN/IN/FF",
+    "ableiten": "",
+    "sort": 152
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "Ritualkenntnis",
+    "name": "RK 1 (D/E)",
+    "klasse": "",
+    "probe": "",
+    "ableiten": "",
+    "sort": 153
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "Ritualkenntnis",
+    "name": "RK 2 (G)",
+    "klasse": "",
+    "probe": "",
+    "ableiten": "",
+    "sort": 154
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "Ritualkenntnis",
+    "name": "RK 3 (G)",
+    "klasse": "",
+    "probe": "",
+    "ableiten": "",
+    "sort": 155
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "Ritualkenntnis",
+    "name": "RK 4 (G)",
+    "klasse": "",
+    "probe": "",
+    "ableiten": "",
+    "sort": 156
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "Liturgiekenntnis",
+    "name": "LK 1",
+    "klasse": "",
+    "probe": "MU/IN/CH",
+    "ableiten": "",
+    "sort": 157
+  },
+  {
+    "kategorie": "gaben",
+    "gruppe": "Liturgiekenntnis",
+    "name": "LK 2",
+    "klasse": "",
+    "probe": "MU/IN/CH",
+    "ableiten": "",
+    "sort": 158
+  }
+]
