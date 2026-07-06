@@ -2,6 +2,7 @@ import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
+import { ResizeHandle, useResizableColumns } from '../components/resize';
 import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
@@ -41,6 +42,9 @@ export default function TalenteTab() {
   );
 }
 
+const KAMPF_HEADS = ['Talent', 'TaW', 'AT', 'PA', 'BL', 'Billiger', 'Spezialisierung', 'Waffenmeister', 'Verwandte Fertigkeiten (+5)'];
+const KAMPF_WIDTHS = [210, 70, 70, 70, 70, 100, 130, 130, 260];
+
 function KampfTable({
   entries,
   values,
@@ -50,6 +54,7 @@ function KampfTable({
   values: Map<number, CharTalent>;
   setValue: (id: number, patch: Partial<CharTalent>) => void;
 }) {
+  const { widths, startDrag } = useResizableColumns('talente-kampf', KAMPF_WIDTHS);
   const rows: React.ReactNode[] = [];
   let lastGruppe = '';
   for (const e of entries) {
@@ -57,61 +62,67 @@ function KampfTable({
       lastGruppe = e.gruppe;
       rows.push(
         <tr className="subtle-head" key={`g-${e.gruppe}`}>
-          <td colSpan={9}>{e.gruppe}</td>
+          <td colSpan={9}><span className="sticky-label">{e.gruppe}</span></td>
         </tr>,
       );
     }
     const v = values.get(e.id);
     rows.push(
       <tr key={e.id}>
-        <td>
+        <td title={e.name}>
           {e.name}
           {e.klasse ? ` (${e.klasse})` : ''}
         </td>
-        <td className="num" style={{ width: 65 }}>
+        <td className="num">
           <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />
         </td>
-        <td className="num" style={{ width: 65 }}>
+        <td className="num">
           <NumInput value={v?.at ?? 0} onChange={(x) => setValue(e.id, { at: x })} />
         </td>
-        <td className="num" style={{ width: 65 }}>
+        <td className="num">
           <NumInput value={v?.pa ?? 0} onChange={(x) => setValue(e.id, { pa: x })} />
         </td>
-        <td className="num" style={{ width: 65 }}>
+        <td className="num">
           <NumInput value={v?.bl ?? 0} onChange={(x) => setValue(e.id, { bl: x })} />
         </td>
-        <td style={{ width: 90 }}>
+        <td>
           <TextInput value={v?.billiger ?? ''} onChange={(x) => setValue(e.id, { billiger: x })} />
         </td>
-        <td style={{ width: 120 }}>
+        <td>
           <TextInput value={v?.spezialisierung ?? ''} onChange={(x) => setValue(e.id, { spezialisierung: x })} />
         </td>
-        <td style={{ width: 120 }}>
+        <td>
           <TextInput value={v?.waffenmeister ?? ''} onChange={(x) => setValue(e.id, { waffenmeister: x })} />
         </td>
-        <td className="muted">{e.ableiten}</td>
+        <td className="muted" title={e.ableiten}>
+          {e.ableiten}
+        </td>
       </tr>,
     );
   }
   return (
     <div className="panel">
       <h3>Kampftalente (Spezialisierung: A: 20 AP, B: 40 AP, C: 60 AP, D: 80 AP, E: 100 AP, F: 150 AP)</h3>
-      <table className="sheet">
-        <thead>
-          <tr>
-            <th>Talent</th>
-            <th>TaW</th>
-            <th>AT</th>
-            <th>PA</th>
-            <th>BL</th>
-            <th>Billiger</th>
-            <th>Spezialisierung</th>
-            <th>Waffenmeister</th>
-            <th>Verwandte Fertigkeiten (+5)</th>
-          </tr>
-        </thead>
-        <tbody>{rows}</tbody>
-      </table>
+      <div className="table-wrap">
+        <table className="sheet" style={{ tableLayout: 'fixed', minWidth: widths.reduce((s, w) => s + w, 0) }}>
+          <colgroup>
+            {widths.map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {KAMPF_HEADS.map((h, i) => (
+                <th key={h} title={h}>
+                  {h}
+                  <ResizeHandle index={i} startDrag={startDrag} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>{rows}</tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -128,52 +139,58 @@ function NormalTable({
   setValue: (id: number, patch: Partial<CharTalent>) => void;
 }) {
   const { data } = useChar();
+  const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)'];
+  const { widths, startDrag } = useResizableColumns(`talente-${kat}`, [220, 95, 95, 70, 100, 140, 170, 260]);
   return (
     <div className="panel">
       <h3>{TALENT_KATEGORIE_LABELS[kat]}</h3>
-      <table className="sheet">
-        <thead>
-          <tr>
-            <th>Talent</th>
-            <th style={{ width: 90 }}>Probe</th>
-            <th style={{ width: 90 }}>Probe (Zahl)</th>
-            <th style={{ width: 65 }}>TaW</th>
-            <th style={{ width: 90 }}>Erleichterung</th>
-            <th style={{ width: 130 }}>Spezialisierung</th>
-            <th style={{ width: 150 }}>Berufsbonus</th>
-            <th>Ableiten (+10)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((e) => {
-            const v = values.get(e.id);
-            const taw = v?.taw ?? 0;
-            const probe = e.probe ? (e.probe.split('/') as [AttrCode, AttrCode, AttrCode]) : null;
-            return (
-              <tr key={e.id}>
-                <td>
-                  {e.gruppe ? `${e.gruppe}: ` : ''}
-                  {e.name}
-                  {e.klasse ? ` (${e.klasse})` : ''}
-                </td>
-                <td className="muted">{e.probe || '—'}</td>
-                <td className="computed">{probe ? talentProbeZahl(data.attributes, probe, taw) : '—'}</td>
-                <td className="num">
-                  <NumInput value={taw} onChange={(x) => setValue(e.id, { taw: x })} />
-                </td>
-                <td className="computed">{erleichterung(taw)}</td>
-                <td>
-                  <TextInput value={v?.spezialisierung ?? ''} onChange={(x) => setValue(e.id, { spezialisierung: x })} />
-                </td>
-                <td>
-                  <TextInput value={v?.berufsbonus ?? ''} onChange={(x) => setValue(e.id, { berufsbonus: x })} />
-                </td>
-                <td className="muted">{e.ableiten}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <div className="table-wrap">
+        <table className="sheet" style={{ tableLayout: 'fixed', minWidth: widths.reduce((s, w) => s + w, 0) }}>
+          <colgroup>
+            {widths.map((w, i) => (
+              <col key={i} style={{ width: w }} />
+            ))}
+          </colgroup>
+          <thead>
+            <tr>
+              {heads.map((h, i) => (
+                <th key={h} title={h}>
+                  {h}
+                  <ResizeHandle index={i} startDrag={startDrag} />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((e) => {
+              const v = values.get(e.id);
+              const taw = v?.taw ?? 0;
+              const probe = e.probe ? (e.probe.split('/') as [AttrCode, AttrCode, AttrCode]) : null;
+              const name = `${e.gruppe ? `${e.gruppe}: ` : ''}${e.name}${e.klasse ? ` (${e.klasse})` : ''}`;
+              return (
+                <tr key={e.id}>
+                  <td title={name}>{name}</td>
+                  <td className="muted">{e.probe || '—'}</td>
+                  <td className="computed">{probe ? talentProbeZahl(data.attributes, probe, taw) : '—'}</td>
+                  <td className="num">
+                    <NumInput value={taw} onChange={(x) => setValue(e.id, { taw: x })} />
+                  </td>
+                  <td className="computed">{erleichterung(taw)}</td>
+                  <td>
+                    <TextInput value={v?.spezialisierung ?? ''} onChange={(x) => setValue(e.id, { spezialisierung: x })} />
+                  </td>
+                  <td>
+                    <TextInput value={v?.berufsbonus ?? ''} onChange={(x) => setValue(e.id, { berufsbonus: x })} />
+                  </td>
+                  <td className="muted" title={e.ableiten}>
+                    {e.ableiten}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

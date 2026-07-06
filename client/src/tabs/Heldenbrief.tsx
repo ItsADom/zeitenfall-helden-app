@@ -80,6 +80,7 @@ export default function HeldenbriefTab() {
       <div className="grid2">
         <div className="panel">
           <h3>Attribute</h3>
+          <div className="table-wrap">
           <table className="sheet">
             <thead>
               <tr>
@@ -105,9 +106,11 @@ export default function HeldenbriefTab() {
             </tbody>
           </table>
         </div>
+        </div>
 
         <div className="panel">
           <h3>Basiswerte</h3>
+          <div className="table-wrap">
           <table className="sheet">
             <thead>
               <tr>
@@ -138,12 +141,14 @@ export default function HeldenbriefTab() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
       <div className="panel">
         <h3>Energien</h3>
-        <table className="sheet">
+        <div className="table-wrap">
+        <table className="sheet" style={{ minWidth: 1050 }}>
           <thead>
             <tr>
               <th>Energie</th>
@@ -192,6 +197,7 @@ export default function HeldenbriefTab() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="grid2">

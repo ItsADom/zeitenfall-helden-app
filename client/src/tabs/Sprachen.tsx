@@ -25,7 +25,7 @@ export default function SprachenTab() {
         lastFamilie = e.familie;
         rows.push(
           <tr className="subtle-head" key={`f-${e.familie}`}>
-            <td colSpan={4}>{e.familie}</td>
+            <td colSpan={4}><span className="sticky-label">{e.familie}</span></td>
           </tr>,
         );
       }
@@ -50,17 +50,19 @@ export default function SprachenTab() {
     return (
       <div className="panel">
         <h3>{title}</h3>
-        <table className="sheet">
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Komplexität</th>
-              <th>TaW</th>
-              <th>{kind === 'sprache' ? 'Muttersprache' : ''}</th>
-            </tr>
-          </thead>
-          <tbody>{rows}</tbody>
-        </table>
+        <div className="table-wrap">
+          <table className="sheet" style={{ minWidth: 480 }}>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Komplexität</th>
+                <th>TaW</th>
+                <th>{kind === 'sprache' ? 'Muttersprache' : ''}</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>
       </div>
     );
   };

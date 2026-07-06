@@ -38,6 +38,7 @@ function RowsTable({ rows, sectionId }: { rows: Row[]; sectionId?: string }) {
   const keys = def ? def.columns.map((c) => c.key) : Object.keys(rows[0]).filter((k) => !skip.has(k));
   const label = (k: string) => def?.columns.find((c) => c.key === k)?.label ?? k;
   return (
+    <div className="table-wrap" style={{ marginBottom: 10 }}>
     <table className="sheet">
       <thead>
         <tr>
@@ -56,6 +57,7 @@ function RowsTable({ rows, sectionId }: { rows: Row[]; sectionId?: string }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 
