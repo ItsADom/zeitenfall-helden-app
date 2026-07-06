@@ -149,6 +149,18 @@ db.exec(`
   ${listTables}
 `);
 
+// Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen
+for (const s of LIST_SECTIONS) {
+  const existing = new Set(
+    (db.prepare(`PRAGMA table_info(sec_${s.id})`).all() as { name: string }[]).map((c) => c.name),
+  );
+  for (const c of s.columns) {
+    if (!existing.has(c.key)) {
+      db.exec(`ALTER TABLE sec_${s.id} ADD COLUMN ${colSql(c)}`);
+    }
+  }
+}
+
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
 export function initCharacterRows(characterId: number): void {
   const attr = db.prepare('INSERT OR IGNORE INTO char_attributes (character_id, attr) VALUES (?, ?)');

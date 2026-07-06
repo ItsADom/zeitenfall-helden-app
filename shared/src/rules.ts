@@ -123,13 +123,15 @@ export function weaponProbe(weaponMod: number, baseErgebnis: number, talentSplit
   return ceil(weaponMod + baseErgebnis + ceil(talentSplitValue / 5));
 }
 
+// atMax > 0 deckelt die Angriffs-Probe (z. B. Nachteil „Schildträger: AT maximal 10")
 export function weaponProbes(
-  weapon: { at: number; pa: number; bl: number },
+  weapon: { at: number; pa: number; bl: number; atMax?: number },
   base: { at: number; pa: number; bl: number },
   talent: WeaponTalentSplit,
 ): WeaponTalentSplit {
+  const at = weaponProbe(weapon.at, base.at, talent.at);
   return {
-    at: weaponProbe(weapon.at, base.at, talent.at),
+    at: weapon.atMax && weapon.atMax > 0 ? Math.min(at, weapon.atMax) : at,
     pa: weaponProbe(weapon.pa, base.pa, talent.pa),
     bl: weaponProbe(weapon.bl, base.bl, talent.bl),
   };

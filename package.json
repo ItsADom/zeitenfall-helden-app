@@ -11,6 +11,8 @@
   "scripts": {
     "dev:server": "npm run dev -w server",
     "dev:client": "npm run dev -w client",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
     "test": "npm run test -w shared",
     "seed": "npm run seed -w server",
     "import": "npm run import -w importer --"

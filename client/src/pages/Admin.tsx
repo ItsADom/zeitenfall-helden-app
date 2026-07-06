@@ -2,6 +2,111 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 
+interface CatalogColumn {
+  key: string;
+  label: string;
+  width?: number;
+}
+
+// Editierbarer Katalog (Talente / Sprachen) — speichert je Feld beim Verlassen
+function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages'; title: string; columns: CatalogColumn[] }) {
+  const [rows, setRows] = useState<Record<string, unknown>[]>([]);
+  const [error, setError] = useState('');
+  const [neu, setNeu] = useState<Record<string, string>>({});
+
+  const reload = () => {
+    apiGet<{ talents: Record<string, unknown>[]; languages: Record<string, unknown>[] }>('/api/catalogs').then((c) =>
+      setRows(c[type]),
+    );
+  };
+  useEffect(reload, [type]);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setError('');
+    try {
+      await fn();
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  };
+
+  return (
+    <details className="panel">
+      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+        {title} ({rows.length} Einträge)
+      </summary>
+      {error && <p className="error">{error}</p>}
+      <div className="table-wrap" style={{ marginTop: 10, maxHeight: 420, overflowY: 'auto' }}>
+        <table className="sheet">
+          <thead>
+            <tr>
+              {columns.map((c) => (
+                <th key={c.key} style={c.width ? { width: c.width } : undefined}>
+                  {c.label}
+                </th>
+              ))}
+              <th style={{ width: 40 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={String(r.id)}>
+                {columns.map((c) => (
+                  <td key={c.key}>
+                    <input
+                      defaultValue={String(r[c.key] ?? '')}
+                      onBlur={(e) => {
+                        if (e.target.value !== String(r[c.key] ?? '')) {
+                          run(() => apiPut(`/api/admin/catalogs/${type}/${r.id}`, { [c.key]: e.target.value }));
+                        }
+                      }}
+                    />
+                  </td>
+                ))}
+                <td>
+                  <button
+                    className="small"
+                    title="Eintrag löschen"
+                    onClick={() => confirm(`"${r.name}" aus dem Katalog löschen?`) && run(() => apiDelete(`/api/admin/catalogs/${type}/${r.id}`))}
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <h4>Neuer Eintrag</h4>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {columns
+          .filter((c) => c.key !== 'sort')
+          .map((c) => (
+            <input
+              key={c.key}
+              placeholder={c.label}
+              value={neu[c.key] ?? ''}
+              onChange={(e) => setNeu({ ...neu, [c.key]: e.target.value })}
+            />
+          ))}
+        <button
+          className="primary"
+          disabled={!neu.name}
+          onClick={() =>
+            run(async () => {
+              await apiPost(`/api/admin/catalogs/${type}`, { ...neu, sort: 9999 });
+              setNeu({});
+            })
+          }
+        >
+          Anlegen
+        </button>
+      </div>
+    </details>
+  );
+}
+
 interface AdminUser {
   id: number;
   username: string;
@@ -251,6 +356,35 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      <h2>Kataloge</h2>
+      <p className="muted">
+        Änderungen wirken für alle Charaktere. Einträge, die von Charakteren verwendet werden, lassen sich nicht löschen.
+      </p>
+      <CatalogPanel
+        type="talents"
+        title="Talent-Katalog"
+        columns={[
+          { key: 'kategorie', label: 'Kategorie', width: 110 },
+          { key: 'gruppe', label: 'Gruppe', width: 150 },
+          { key: 'name', label: 'Name' },
+          { key: 'klasse', label: 'Klasse', width: 70 },
+          { key: 'probe', label: 'Probe', width: 110 },
+          { key: 'ableiten', label: 'Ableiten' },
+          { key: 'sort', label: 'Sortierung', width: 80 },
+        ]}
+      />
+      <CatalogPanel
+        type="languages"
+        title="Sprachen-Katalog"
+        columns={[
+          { key: 'kind', label: 'Art', width: 100 },
+          { key: 'familie', label: 'Familie', width: 200 },
+          { key: 'name', label: 'Name' },
+          { key: 'komplexitaet', label: 'Komplexität', width: 110 },
+          { key: 'sort', label: 'Sortierung', width: 80 },
+        ]}
+      />
     </>
   );
 }

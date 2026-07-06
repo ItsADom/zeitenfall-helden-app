@@ -148,6 +148,14 @@ describe('Waffen-Proben (Waffen Zeilen 7/9)', () => {
     expect(p.pa).toBe(13);
     expect(p.bl).toBe(21);
   });
+  it('AT-Deckel begrenzt die Angriffs-Probe (Schildträger: max 10)', () => {
+    const p = weaponProbes({ at: 5, pa: 1, bl: 1, atMax: 10 }, base, { at: 36, pa: 14, bl: 0 });
+    expect(p.at).toBe(10);
+    // Deckel über dem Ergebnis ändert nichts
+    expect(weaponProbes({ at: 5, pa: 1, bl: 1, atMax: 99 }, base, { at: 36, pa: 14, bl: 0 }).at).toBe(25);
+    // Deckel 0 = kein Deckel
+    expect(weaponProbes({ at: 5, pa: 1, bl: 1, atMax: 0 }, base, { at: 36, pa: 14, bl: 0 }).at).toBe(25);
+  });
 });
 
 describe('Proben-Ausdrücke (Zauber-Blatt)', () => {

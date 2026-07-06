@@ -53,7 +53,7 @@ export const LIST_SECTIONS: ListSectionDef[] = [
     label: 'Nahkampfwaffen',
     columns: [
       t('name', 'Waffe', 3), t('typMaterial', 'Typ/Material', 2), t('rd', 'RD', 1), t('tp', 'TP', 1),
-      t('anforderung', 'Anforderung', 1), n('at', 'AT', 1), n('pa', 'PA', 1), n('bl', 'BL', 1),
+      t('anforderung', 'Anforderung', 1), n('at', 'AT', 1), n('pa', 'PA', 1), n('bl', 'BL', 1), n('atMax', 'AT-Deckel', 1),
       t('schaden', 'Schaden', 1), n('iniBonus', 'Ini-Bonus', 1), t('reichweite', 'Reichweite', 1),
       t('besonderes', 'Besonderes', 3), t('expLevel', 'EXP/LVL', 1), n('talentId', 'Kampftalent', 2),
     ],

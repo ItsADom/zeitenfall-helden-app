@@ -23,7 +23,7 @@ import {
   weaponProbes,
 } from 'shared';
 import type { AttrCode, Attributes, BaseValueInputs, Resources } from 'shared';
-import { readXlsx, cellStr, cellNum, cellFormula } from './xlsx.js';
+import { readXlsxFull, cellStr, cellNum, cellFormula } from './xlsx.js';
 import type { Sheet } from './xlsx.js';
 import { extractLanguages, extractTalentValues } from './extract.js';
 
@@ -52,12 +52,21 @@ if (!hasSchema || catalogCount === 0) {
   process.exit(1);
 }
 
-const wb = readXlsx(file);
+const workbook = readXlsxFull(file);
+const wb = workbook.sheets;
+const allComments = workbook.comments;
 const sheet = (name: string): Sheet => {
   const s = wb.get(name);
   if (!s) throw new Error(`Blatt "${name}" nicht gefunden`);
   return s;
 };
+// Zellkommentar als einzeilige Anmerkung an einen Feldtext anhängen
+function withComment(sheetName: string, ref: string, text: string): string {
+  const comment = allComments.get(sheetName)?.get(ref);
+  if (!comment) return text;
+  const oneLine = comment.replace(/\s*\n+\s*/g, '; ');
+  return text ? `${text} — Anmerkung: ${oneLine}` : `Anmerkung: ${oneLine}`;
+}
 const held = sheet('Heldenbrief');
 const ausruestung = sheet('Ausrüstung');
 const inventar = sheet('Inventar');
@@ -282,14 +291,28 @@ insertList('professionBoni', profBoni);
 const vorteile: Record<string, unknown>[] = [];
 for (let r = 3; r <= 9; r++) {
   const name = cellStr(held, `L${r}`);
-  if (name) vorteile.push({ name, wert: cellStr(held, `M${r}`), gp: cellStr(held, `N${r}`), beschreibung: cellStr(held, `O${r}`) });
+  if (name) {
+    vorteile.push({
+      name,
+      wert: cellStr(held, `M${r}`),
+      gp: cellStr(held, `N${r}`),
+      beschreibung: withComment('Heldenbrief', `O${r}`, cellStr(held, `O${r}`)),
+    });
+  }
 }
 insertList('vorteile', vorteile);
 
 const nachteile: Record<string, unknown>[] = [];
 for (let r = 12; r <= 15; r++) {
   const name = cellStr(held, `L${r}`);
-  if (name) nachteile.push({ name, wert: cellStr(held, `M${r}`), gp: cellStr(held, `N${r}`), beschreibung: cellStr(held, `O${r}`) });
+  if (name) {
+    nachteile.push({
+      name,
+      wert: cellStr(held, `M${r}`),
+      gp: cellStr(held, `N${r}`),
+      beschreibung: withComment('Heldenbrief', `O${r}`, cellStr(held, `O${r}`)),
+    });
+  }
 }
 insertList('nachteile', nachteile);
 
@@ -355,29 +378,35 @@ for (let r = 7; r <= 13; r++) {
   if (!name) continue;
   const talentId =
     talentIdFromFormula(waffen, `T${r}`) || talentIdFromFormula(waffen, `U${r}`) || talentIdFromFormula(waffen, `V${r}`);
+  const split = charTalents.get(talentId) ?? { at: 0, pa: 0, bl: 0 };
+  const base = { at: baseValues.at.ergebnis, pa: baseValues.pa.ergebnis, bl: baseValues.bl.ergebnis };
+  const at = cellNum(waffen, `F${r}`);
+  // Manuell eingetragene (formelfreie) AT-Proben werden als Deckel übernommen
+  // (z. B. Nachteil „Schildträger: AT maximal 10" bei der Sühne)
+  let atMax = 0;
+  const uncapped = weaponProbes({ at, pa: 0, bl: 0 }, base, split).at;
+  if (cellStr(waffen, `T${r}`) !== '' && !cellFormula(waffen, `T${r}`) && cellNum(waffen, `T${r}`) < uncapped) {
+    atMax = cellNum(waffen, `T${r}`);
+  }
   const row = {
     name,
     typMaterial: cellStr(waffen, `B${r}`),
     rd: cellStr(waffen, `C${r}`),
     tp: cellStr(waffen, `D${r}`),
     anforderung: cellStr(waffen, `E${r}`),
-    at: cellNum(waffen, `F${r}`),
+    at,
     pa: cellNum(waffen, `J${r}`),
     bl: cellNum(waffen, `K${r}`),
+    atMax,
     schaden: cellStr(waffen, `L${r}`),
     iniBonus: cellNum(waffen, `M${r}`),
     reichweite: cellStr(waffen, `N${r}`),
-    besonderes: cellStr(waffen, `P${r}`),
+    besonderes: withComment('Waffen', `P${r}`, cellStr(waffen, `P${r}`)),
     expLevel: cellStr(waffen, `W${r + 1}`),
     talentId,
   };
   waffenNah.push(row);
-  const split = charTalents.get(talentId) ?? { at: 0, pa: 0, bl: 0 };
-  const probes = weaponProbes(
-    { at: row.at, pa: row.pa, bl: row.bl },
-    { at: baseValues.at.ergebnis, pa: baseValues.pa.ergebnis, bl: baseValues.bl.ergebnis },
-    split,
-  );
+  const probes = weaponProbes({ at: row.at, pa: row.pa, bl: row.bl, atMax: row.atMax }, base, split);
   if (cellStr(waffen, `T${r}`) !== '') check(`Waffen!T${r} (${name} AT)`, cellNum(waffen, `T${r}`), probes.at);
   if (cellStr(waffen, `U${r}`) !== '') check(`Waffen!U${r} (${name} PA)`, cellNum(waffen, `U${r}`), probes.pa);
   if (cellStr(waffen, `V${r}`) !== '') check(`Waffen!V${r} (${name} BL)`, cellNum(waffen, `V${r}`), probes.bl);
@@ -448,7 +477,7 @@ for (let r = 5; r <= 19; r++) {
     stufe: cellStr(zauber, `D${r}`),
     kosten: cellStr(zauber, `E${r}`),
     probe,
-    effekt: cellStr(zauber, `H${r}`),
+    effekt: withComment('Zauber', `H${r}`, cellStr(zauber, `H${r}`)),
     fortschritt: cellNum(zauber, `L${r}`),
     probeZahlManuell: computed == null && expected !== '' && expected.toUpperCase() !== 'X' ? cellNum(zauber, `G${r}`) : 0,
   });
@@ -551,7 +580,7 @@ for (const range of invRanges) {
     if (!name) continue;
     invRows.push({
       kategorie: range.kategorie,
-      name,
+      name: withComment('Inventar', `${range.nameCol}${r}`, name),
       anzahl: cellNum(inventar, `${range.anzahlCol}${r}`),
       eGewicht: cellNum(inventar, `${range.gewichtCol}${r}`),
     });

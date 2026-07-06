@@ -24,6 +24,17 @@ npm run dev:client        # Web-UI auf http://localhost:5173
 
 Anmelden als `spielleiter` / `spielleiter` (Passwort danach im Dashboard ändern).
 
+## Für die Gruppe betreiben (ohne Dev-Server)
+
+```bash
+npm run build     # baut den Client nach client/dist
+npm start         # ein Prozess: API + Web-UI auf http://localhost:3001
+```
+
+Der Server liefert den gebauten Client selbst aus — für die Spielrunde reicht also
+`npm start` auf einem Rechner im Netzwerk (Port mit `PORT=…` änderbar, GM-Erstpasswort
+mit `GM_PASSWORD=…` beim ersten Seed).
+
 ## Charakter aus Excel importieren
 
 ```bash
@@ -33,6 +44,9 @@ npm run import -- pfad/zu/Charakter.xlsx --owner <benutzername> --group <gruppen
 - Fehlende Benutzer/Gruppen werden angelegt (Passwort wird ausgegeben).
 - Der Importer prüft alle berechneten Zellen des Blatts gegen die Regelwerk-Engine
   und meldet Abweichungen („ABWEICHUNG …").
+- Zellkommentare aus dem Blatt werden als „— Anmerkung: …" an die passenden Felder angehängt.
+- Manuell (ohne Formel) eingetragene AT-Proben werden als **AT-Deckel** der Waffe übernommen
+  (z. B. Nachteil „Schildträger: AT maximal 10").
 
 ## Rollen & Rechte
 
@@ -43,16 +57,22 @@ npm run import -- pfad/zu/Charakter.xlsx --owner <benutzername> --group <gruppen
   freigegebene Bereiche als schreibgeschützte Zusammenfassung.
 - Alle anderen: kein Zugriff (404).
 
-## Bekannte Abweichungen zum Excel-Blatt
+## Kataloge
 
-Der Import von Raskir.xlsx meldet zwei bewusste Abweichungen:
+Talent- und Sprachlisten sind Daten (aus dem Blatt extrahiert, per Seed geladen) und können
+vom Spielleiter unter **Verwaltung → Kataloge** bearbeitet werden. Einträge, die von
+Charakteren verwendet werden, sind gegen Löschen geschützt.
 
-1. **Waffen!V7** (Drachenturmschild, Blocken-Probe): Die Blatt-Formel verwendet versehentlich
-   das *Parade*-Ergebnis (9) statt des Blocken-Ergebnisses (20). Die App rechnet kanonisch
-   mit dem Blocken-Ergebnis (40 statt 29).
-2. **Waffen!T9** (Sühne, Angriffs-Probe): Im Blatt manuell auf 10 gesetzt (Nachteil
-   „Schildträger: AT ist immer maximal 10"). Die App zeigt den ungedeckelten Wert (25);
-   der Deckel steht als Nachteil im Heldenbrief.
+## Bekannte Abweichung zum Excel-Blatt
+
+Der Import von Raskir.xlsx meldet eine bewusste Abweichung:
+
+- **Waffen!V7** (Drachenturmschild, Blocken-Probe): Die Blatt-Formel verwendet versehentlich
+  das *Parade*-Ergebnis (9) statt des Blocken-Ergebnisses (20). Die App rechnet kanonisch
+  mit dem Blocken-Ergebnis (40 statt 29).
+
+(Die frühere zweite Abweichung — Sühne, AT manuell auf 10 — wird inzwischen als AT-Deckel
+importiert und stimmt damit überein.)
 
 ## Tests
 

@@ -286,6 +286,79 @@ api.delete('/admin/groups/:id', requireAuth, requireGm, (req, res) => {
   res.json({ ok: true });
 });
 
+// --- Kataloge bearbeiten (nur Spielleiter) ---
+
+const CATALOGS = {
+  talents: {
+    table: 'talents_catalog',
+    refTable: 'char_talents',
+    refCol: 'talent_id',
+    cols: ['kategorie', 'gruppe', 'name', 'klasse', 'probe', 'ableiten', 'sort'],
+  },
+  languages: {
+    table: 'languages_catalog',
+    refTable: 'char_languages',
+    refCol: 'language_id',
+    cols: ['kind', 'familie', 'name', 'komplexitaet', 'sort'],
+  },
+} as const;
+
+function catalogDef(type: string) {
+  return type in CATALOGS ? CATALOGS[type as keyof typeof CATALOGS] : null;
+}
+
+api.post('/admin/catalogs/:type', requireAuth, requireGm, (req, res) => {
+  const def = catalogDef(String(req.params.type));
+  if (!def) {
+    res.status(400).json({ error: 'Unbekannter Katalog' });
+    return;
+  }
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  if (!body.name) {
+    res.status(400).json({ error: 'Name erforderlich' });
+    return;
+  }
+  const values = def.cols.map((c) => (c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
+  const r = db
+    .prepare(`INSERT INTO ${def.table} (${def.cols.join(', ')}) VALUES (${def.cols.map(() => '?').join(', ')})`)
+    .run(...values);
+  res.json({ id: r.lastInsertRowid });
+});
+
+api.put('/admin/catalogs/:type/:id', requireAuth, requireGm, (req, res) => {
+  const def = catalogDef(String(req.params.type));
+  if (!def) {
+    res.status(400).json({ error: 'Unbekannter Katalog' });
+    return;
+  }
+  const id = Number(req.params.id);
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const cols = def.cols.filter((c) => c in body);
+  if (cols.length === 0) {
+    res.status(400).json({ error: 'Keine Felder' });
+    return;
+  }
+  const values = cols.map((c) => (c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
+  db.prepare(`UPDATE ${def.table} SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...values, id);
+  res.json({ ok: true });
+});
+
+api.delete('/admin/catalogs/:type/:id', requireAuth, requireGm, (req, res) => {
+  const def = catalogDef(String(req.params.type));
+  if (!def) {
+    res.status(400).json({ error: 'Unbekannter Katalog' });
+    return;
+  }
+  const id = Number(req.params.id);
+  const used = db.prepare(`SELECT COUNT(*) AS n FROM ${def.refTable} WHERE ${def.refCol} = ?`).get(id) as { n: number };
+  if (used.n > 0) {
+    res.status(400).json({ error: `Eintrag wird von ${used.n} Charakter(en) verwendet` });
+    return;
+  }
+  db.prepare(`DELETE FROM ${def.table} WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
 api.post('/admin/characters', requireAuth, requireGm, (req, res) => {
   const { name, ownerUserId, groupId } = (req.body ?? {}) as { name?: string; ownerUserId?: number; groupId?: number };
   if (!name || !ownerUserId || !groupId) {

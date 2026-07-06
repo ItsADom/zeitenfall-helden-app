@@ -48,7 +48,7 @@ function decodeXml(s: string): string {
 function parseSharedStrings(xml: string): string[] {
   const out: string[] = [];
   for (const m of xml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
-    const texts = [...m[1].matchAll(/<t[^>]*>([\s\S]*?)<\/t>/g)].map((x) => x[1]);
+    const texts = [...m[1].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((x) => x[1]);
     out.push(decodeXml(texts.join('')));
   }
   return out;
@@ -77,30 +77,61 @@ function parseSheet(xml: string, sharedStrings: string[]): Sheet {
   return sheet;
 }
 
-export function readXlsx(file: string): Map<string, Sheet> {
+// Zellkommentare eines Blatts: ref -> Text (Autor-Präfix wie "Olaf:" entfernt)
+function parseComments(xml: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of xml.matchAll(/<comment ref="([A-Z]+\d+)"[^>]*>([\s\S]*?)<\/comment>/g)) {
+    const texts = [...m[2].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((x) => decodeXml(x[1]));
+    let text = texts.join('').trim();
+    text = text.replace(/^[^\n:]{1,40}:\s*\n/, '').trim();
+    if (text) out.set(m[1], text);
+  }
+  return out;
+}
+
+export interface Workbook {
+  sheets: Map<string, Sheet>;
+  comments: Map<string, Map<string, string>>; // Blattname -> (ref -> Kommentar)
+}
+
+export function readXlsxFull(file: string): Workbook {
   const zip = readZip(file);
   const sharedStrings = parseSharedStrings(zip.get('xl/sharedStrings.xml')?.toString('utf8') ?? '');
   const workbookXml = zip.get('xl/workbook.xml')?.toString('utf8') ?? '';
   const relsXml = zip.get('xl/_rels/workbook.xml.rels')?.toString('utf8') ?? '';
   const relTargets = new Map<string, string>();
-  for (const m of relsXml.matchAll(/<Relationship [^>]*Id="([^"]+)"[^>]*Target="([^"]+)"/g)) {
-    relTargets.set(m[1], m[2]);
-  }
-  // Target kann auch vor der Id stehen
   for (const m of relsXml.matchAll(/<Relationship ([^>]+)>/g)) {
     const id = /Id="([^"]+)"/.exec(m[1])?.[1];
     const target = /Target="([^"]+)"/.exec(m[1])?.[1];
     if (id && target) relTargets.set(id, target);
   }
   const sheets = new Map<string, Sheet>();
+  const comments = new Map<string, Map<string, string>>();
   for (const m of workbookXml.matchAll(/<sheet name="([^"]+)"[^>]*r:id="([^"]+)"/g)) {
     const target = relTargets.get(m[2]);
     if (!target) continue;
     const path = target.startsWith('/') ? target.slice(1) : `xl/${target}`;
     const xml = zip.get(path)?.toString('utf8');
-    if (xml) sheets.set(decodeXml(m[1]), parseSheet(xml, sharedStrings));
+    if (!xml) continue;
+    const name = decodeXml(m[1]);
+    sheets.set(name, parseSheet(xml, sharedStrings));
+    // Kommentare über die Blatt-Beziehungen auflösen (xl/worksheets/_rels/sheetN.xml.rels)
+    const base = path.split('/').pop()!;
+    const sheetRels = zip.get(`xl/worksheets/_rels/${base}.rels`)?.toString('utf8');
+    if (sheetRels) {
+      const cm = /Target="([^"]*comments\d*\.xml)"/.exec(sheetRels);
+      if (cm) {
+        const commentPath = cm[1].replace(/^\.\.\//, 'xl/');
+        const commentXml = zip.get(commentPath)?.toString('utf8');
+        if (commentXml) comments.set(name, parseComments(commentXml));
+      }
+    }
   }
-  return sheets;
+  return { sheets, comments };
+}
+
+export function readXlsx(file: string): Map<string, Sheet> {
+  return readXlsxFull(file).sheets;
 }
 
 // --- Zugriffshelfer ---
