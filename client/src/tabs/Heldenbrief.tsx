@@ -7,7 +7,8 @@ import {
   RESOURCE_LABELS,
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
-import { computeBaseValues, computeResource, mrErgebnis, psycheProzent } from '@shared/rules';
+import { useState } from 'react';
+import { computeBaseValues, computeResource, levelForAp, mrErgebnis, nextLevelAp, psycheProzent } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
@@ -32,10 +33,6 @@ const BIO_FIELDS: [string, string][] = [
 ];
 
 const META_FIELDS: [string, string][] = [
-  ['stufe', 'Stufe'],
-  ['ap', 'Abenteuerpunkte'],
-  ['apNextLevel', 'Next Level'],
-  ['apGuthaben', 'AP-Guthaben'],
   ['karma', 'Karma'],
   ['karmaGuthaben', 'Karma-Guthaben'],
   ['ruf', 'Ruf'],
@@ -56,6 +53,30 @@ export default function HeldenbriefTab() {
     update('resources', { ...resources, [key]: { ...resources[key], [field]: v } });
   const setBio = (key: string, v: string) => update('bio', { ...bio, [key]: v });
   const setMeta = (key: string, v: number) => update('meta', { ...meta, [key]: v });
+
+  // Stufe wird aus den Abenteuerpunkten abgeleitet
+  const ap = meta.ap ?? 0;
+  const guthaben = meta.apGuthaben ?? 0;
+  const level = levelForAp(ap);
+  const nextAp = nextLevelAp(ap);
+
+  const [apDelta, setApDelta] = useState('');
+  const [guthabenDelta, setGuthabenDelta] = useState('');
+
+  // Erfahrungsgewinn: erhöht Abenteuerpunkte UND Guthaben (nur positiv)
+  const addAp = () => {
+    const x = Math.floor(Number(apDelta) || 0);
+    if (x <= 0) return;
+    update('meta', { ...meta, ap: ap + x, apGuthaben: guthaben + x });
+    setApDelta('');
+  };
+  // Guthaben ausgeben/anpassen: verändert nur das Guthaben (auch negativ)
+  const adjustGuthaben = () => {
+    const x = Math.floor(Number(guthabenDelta) || 0);
+    if (x === 0) return;
+    update('meta', { ...meta, apGuthaben: guthaben + x });
+    setGuthabenDelta('');
+  };
 
   return (
     <>
@@ -197,6 +218,43 @@ export default function HeldenbriefTab() {
       <div className="grid2">
         <div className="panel">
           <h3>Stufe &amp; Punkte</h3>
+          <div className="field">
+            <label>Stufe</label>
+            <span className="computed" style={{ padding: '3px 14px', fontSize: 16 }}>{level}</span>
+            <label style={{ width: 'auto', marginLeft: 20 }}>Next Level</label>
+            <span className="computed" style={{ padding: '3px 12px' }}>{nextAp.toLocaleString('de-DE')}</span>
+            <span className="muted">noch {(nextAp - ap).toLocaleString('de-DE')} AP</span>
+          </div>
+          <div className="field">
+            <label>Abenteuerpunkte</label>
+            <span style={{ minWidth: 100, fontWeight: 600 }}>{ap.toLocaleString('de-DE')}</span>
+            <input
+              type="number"
+              value={apDelta}
+              placeholder="Menge (+)"
+              style={{ width: 130 }}
+              onChange={(e) => setApDelta(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addAp()}
+            />
+            <button className="small" onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
+              + hinzufügen
+            </button>
+          </div>
+          <div className="field">
+            <label>AP-Guthaben</label>
+            <span style={{ minWidth: 100, fontWeight: 600 }}>{guthaben.toLocaleString('de-DE')}</span>
+            <input
+              type="number"
+              value={guthabenDelta}
+              placeholder="Menge (±)"
+              style={{ width: 130 }}
+              onChange={(e) => setGuthabenDelta(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
+            />
+            <button className="small" onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
+              ± anpassen
+            </button>
+          </div>
           {META_FIELDS.map(([key, label]) => (
             <div className="field" key={key}>
               <label>{label}</label>

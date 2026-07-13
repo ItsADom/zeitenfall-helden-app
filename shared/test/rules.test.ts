@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  apThresholdForLevel,
   computeBaseValues,
   computeResource,
   erleichterung,
+  levelForAp,
   maximaleLast,
   mrErgebnis,
+  nextLevelAp,
   probeExprZahl,
   schreibenProbe,
   sprechenProbe,
@@ -183,6 +186,32 @@ describe('Sprachen-Proben', () => {
   });
   it('Lesen/Schreiben (KL+KL+FF) → 40', () => {
     expect(schreibenProbe(raskir)).toBe(40);
+  });
+});
+
+describe('Stufen-Ableitung (LVLUP)', () => {
+  it('Schwellen EPges = 75·(L−1)·L', () => {
+    expect(apThresholdForLevel(1)).toBe(0);
+    expect(apThresholdForLevel(2)).toBe(150);
+    expect(apThresholdForLevel(5)).toBe(1500);
+    expect(apThresholdForLevel(44)).toBe(141900);
+    expect(apThresholdForLevel(45)).toBe(148500);
+  });
+  it('Raskir 145810 AP → Stufe 44', () => expect(levelForAp(145810)).toBe(44));
+  it('Riloana 89400 AP → Stufe 35', () => expect(levelForAp(89400)).toBe(35));
+  it('exakte Schwelle und knapp darunter', () => {
+    expect(levelForAp(148500)).toBe(45);
+    expect(levelForAp(148499)).toBe(44);
+    expect(levelForAp(150)).toBe(2);
+    expect(levelForAp(149)).toBe(1);
+  });
+  it('0 oder negativ → Stufe 1', () => {
+    expect(levelForAp(0)).toBe(1);
+    expect(levelForAp(-5)).toBe(1);
+  });
+  it('nextLevelAp = Schwelle der Folgestufe', () => {
+    expect(nextLevelAp(145810)).toBe(148500);
+    expect(nextLevelAp(0)).toBe(150);
   });
 });
 

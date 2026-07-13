@@ -173,6 +173,28 @@ export function gGewicht(anzahl: number, eGewicht: number): number {
   return anzahl * eGewicht;
 }
 
+// --- Stufen-Ableitung aus Abenteuerpunkten (LVLUP-Tabelle) ---
+
+// Kumulierte AP-Schwelle, um eine Stufe zu erreichen: EPges(L) = 75·(L−1)·L
+export function apThresholdForLevel(level: number): number {
+  return 75 * (level - 1) * level;
+}
+
+// Höchste Stufe, deren Schwelle ≤ den Abenteuerpunkten ist.
+export function levelForAp(ap: number): number {
+  if (ap <= 0) return 1;
+  // Geschlossene Näherung, danach gegen Rundungsfehler korrigiert.
+  let level = Math.max(1, Math.floor(0.5 + Math.sqrt(5625 + 300 * ap) / 150));
+  while (apThresholdForLevel(level + 1) <= ap) level++;
+  while (level > 1 && apThresholdForLevel(level) > ap) level--;
+  return level;
+}
+
+// AP-Schwelle für die nächste Stufe.
+export function nextLevelAp(ap: number): number {
+  return apThresholdForLevel(levelForAp(ap) + 1);
+}
+
 // --- Sonstiges ---
 
 export function psycheProzent(akt: number, max: number): number | null {
