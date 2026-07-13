@@ -12,6 +12,7 @@ import {
   erleichterung,
   listSectionById,
   mrErgebnis,
+  normalizeColumns,
   talentProbeZahl,
   weaponProbes,
 } from 'shared';
@@ -21,6 +22,8 @@ import type {
   BaseValueInputs,
   CharTalent,
   CharLanguage,
+  DynColumn,
+  DynSection,
   Resources,
   VisibilitySection,
 } from 'shared';
@@ -117,6 +120,81 @@ export function loadVisibility(charId: number): Record<VisibilitySection, boolea
   return out;
 }
 
+// --- Datengesteuerte Sektionen ---
+
+interface DynSectionRow {
+  id: number;
+  pos: number;
+  name: string;
+  type: string;
+  columns: string;
+}
+
+export function loadDynSections(charId: number): DynSection[] {
+  const sections = db
+    .prepare('SELECT id, pos, name, type, columns FROM char_sections WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as DynSectionRow[];
+  const rowStmt = db.prepare('SELECT id, pos, data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id');
+  return sections.map((s) => {
+    let columns: DynColumn[] = [];
+    try {
+      columns = normalizeColumns(JSON.parse(s.columns));
+    } catch {
+      columns = [];
+    }
+    const rows = (rowStmt.all(s.id) as { id: number; pos: number; data: string }[]).map((r) => {
+      let data: Record<string, unknown> = {};
+      try {
+        data = JSON.parse(r.data);
+      } catch {
+        data = {};
+      }
+      return { id: r.id, ...data } as Record<string, unknown>;
+    });
+    return { id: s.id, pos: s.pos, name: s.name, type: s.type as DynSection['type'], columns, rows };
+  });
+}
+
+export function createDynSection(charId: number, name: string, type: string, columns: DynColumn[]): number {
+  const pos = (db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_sections WHERE character_id = ?').get(charId) as { p: number }).p;
+  const r = db
+    .prepare('INSERT INTO char_sections (character_id, pos, name, type, columns) VALUES (?, ?, ?, ?, ?)')
+    .run(charId, pos, name, type === 'notes' ? 'notes' : 'table', JSON.stringify(columns));
+  return Number(r.lastInsertRowid);
+}
+
+export function sectionBelongsTo(sectionId: number, charId: number): boolean {
+  return !!db.prepare('SELECT 1 FROM char_sections WHERE id = ? AND character_id = ?').get(sectionId, charId);
+}
+
+export function updateDynSection(sectionId: number, patch: { name?: string; columns?: DynColumn[] }): void {
+  if (patch.name !== undefined) db.prepare('UPDATE char_sections SET name = ? WHERE id = ?').run(patch.name, sectionId);
+  if (patch.columns !== undefined) db.prepare('UPDATE char_sections SET columns = ? WHERE id = ?').run(JSON.stringify(patch.columns), sectionId);
+}
+
+export function deleteDynSection(sectionId: number): void {
+  db.prepare('DELETE FROM char_sections WHERE id = ?').run(sectionId);
+}
+
+export function reorderDynSections(charId: number, order: number[]): void {
+  const stmt = db.prepare('UPDATE char_sections SET pos = ? WHERE id = ? AND character_id = ?');
+  const tx = db.transaction(() => order.forEach((id, i) => stmt.run(i, id, charId)));
+  tx();
+}
+
+export function saveDynRows(sectionId: number, rows: Record<string, unknown>[]): void {
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_section_rows WHERE section_id = ?').run(sectionId);
+    const stmt = db.prepare('INSERT INTO char_section_rows (section_id, pos, data) VALUES (?, ?, ?)');
+    rows.forEach((r, i) => {
+      const { id, ...data } = r; // interne Zeilen-id nicht mitspeichern
+      void id;
+      stmt.run(sectionId, i, JSON.stringify(data));
+    });
+  });
+  tx();
+}
+
 export function loadFullCharacter(charId: number) {
   return {
     bio: loadSingleRow('char_bio', charId),
@@ -127,6 +205,7 @@ export function loadFullCharacter(charId: number) {
     talents: loadTalents(charId),
     languages: loadLanguages(charId),
     lists: loadAllLists(charId),
+    sections: loadDynSections(charId),
     visibility: loadVisibility(charId),
   };
 }

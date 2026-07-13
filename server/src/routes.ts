@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { LIST_SECTION_IDS } from 'shared';
+import { LIST_SECTION_IDS, normalizeColumns } from 'shared';
 import {
   createSession,
   destroySession,
@@ -10,7 +10,18 @@ import {
   verifyPassword,
 } from './auth.js';
 import { db, initCharacterRows } from './db.js';
-import { buildSummary, loadFullCharacter, saveSection, saveVisibility } from './characterData.js';
+import {
+  buildSummary,
+  createDynSection,
+  deleteDynSection,
+  loadFullCharacter,
+  reorderDynSections,
+  saveDynRows,
+  saveSection,
+  saveVisibility,
+  sectionBelongsTo,
+  updateDynSection,
+} from './characterData.js';
 
 export const api = Router();
 
@@ -171,6 +182,73 @@ api.put('/characters/:id/visibility', requireAuth, (req, res) => {
     return;
   }
   saveVisibility(char.id, (req.body ?? {}) as Record<string, unknown>);
+  res.json({ ok: true });
+});
+
+// --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---
+
+function editableChar(req: import('express').Request, res: import('express').Response): CharRow | null {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return null;
+  }
+  return char;
+}
+
+api.post('/characters/:id/sections', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const { name, type, columns } = (req.body ?? {}) as { name?: string; type?: string; columns?: unknown };
+  const id = createDynSection(char.id, String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
+  res.json({ id });
+});
+
+api.put('/characters/:id/sections/reorder', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const order = Array.isArray(req.body?.order) ? (req.body.order as unknown[]).map(Number) : [];
+  reorderDynSections(char.id, order);
+  res.json({ ok: true });
+});
+
+api.put('/characters/:id/sections/:sid', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const sid = Number(req.params.sid);
+  if (!sectionBelongsTo(sid, char.id)) {
+    res.status(404).json({ error: 'Sektion nicht gefunden' });
+    return;
+  }
+  const body = (req.body ?? {}) as { name?: string; columns?: unknown };
+  const patch: { name?: string; columns?: ReturnType<typeof normalizeColumns> } = {};
+  if (body.name !== undefined) patch.name = String(body.name);
+  if (body.columns !== undefined) patch.columns = normalizeColumns(body.columns);
+  updateDynSection(sid, patch);
+  res.json({ ok: true });
+});
+
+api.delete('/characters/:id/sections/:sid', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const sid = Number(req.params.sid);
+  if (!sectionBelongsTo(sid, char.id)) {
+    res.status(404).json({ error: 'Sektion nicht gefunden' });
+    return;
+  }
+  deleteDynSection(sid);
+  res.json({ ok: true });
+});
+
+api.put('/characters/:id/sections/:sid/rows', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const sid = Number(req.params.sid);
+  if (!sectionBelongsTo(sid, char.id)) {
+    res.status(404).json({ error: 'Sektion nicht gefunden' });
+    return;
+  }
+  saveDynRows(sid, Array.isArray(req.body) ? (req.body as Record<string, unknown>[]) : []);
   res.json({ ok: true });
 });
 

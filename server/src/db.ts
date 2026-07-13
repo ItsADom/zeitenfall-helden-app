@@ -147,6 +147,21 @@ db.exec(`
   );
 
   ${listTables}
+
+  CREATE TABLE IF NOT EXISTS char_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'table',
+    columns TEXT NOT NULL DEFAULT '[]'
+  );
+  CREATE TABLE IF NOT EXISTS char_section_rows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL REFERENCES char_sections(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    data TEXT NOT NULL DEFAULT '{}'
+  );
 `);
 
 // Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen
