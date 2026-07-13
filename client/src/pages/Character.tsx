@@ -1,8 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
+import type { DynSection } from '@shared/dynamicSections';
 import { apiGet, apiPut } from '../api';
 import type { Row } from '../components/inputs';
+import DynamicSectionsTab from '../tabs/Sektionen';
 import HeldenbriefTab from '../tabs/Heldenbrief';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
@@ -27,6 +29,7 @@ export interface FullData {
   talents: CharTalent[];
   languages: CharLanguage[];
   lists: Record<string, Row[]>;
+  sections: DynSection[];
   visibility: Record<string, boolean>;
 }
 
@@ -73,7 +76,7 @@ export const useChar = () => useContext(CharCtx)!;
 
 const TABS = [
   'Heldenbrief', 'Talente', 'Waffen', 'Zauber', 'Ausrüstung', 'Inventar', 'Sprachen',
-  'Artefakte', 'Besitz', 'Bibliothek', 'Boni', 'Vorlieben', 'Sichtbarkeit',
+  'Artefakte', 'Besitz', 'Bibliothek', 'Boni', 'Vorlieben', 'Sektionen', 'Sichtbarkeit',
 ] as const;
 
 export default function CharacterPage() {
@@ -195,6 +198,7 @@ export default function CharacterPage() {
       {tab === 'Bibliothek' && <BibliothekTab />}
       {tab === 'Boni' && <BoniTab />}
       {tab === 'Vorlieben' && <VorliebenTab />}
+      {tab === 'Sektionen' && <DynamicSectionsTab key={charId} charId={charId} initial={data!.sections} attributes={data!.attributes} />}
       {tab === 'Sichtbarkeit' && <SichtbarkeitTab />}
     </CharCtx.Provider>
   );
