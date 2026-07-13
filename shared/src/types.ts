@@ -194,27 +194,16 @@ export interface CharacterInfo {
   groupId: number;
 }
 
-// Sichtbarkeits-Sektionen für die Gruppen-Zusammenfassung (Bio ist immer sichtbar)
-export const VISIBILITY_SECTIONS = [
-  'attribute', 'basiswerte', 'ressourcen', 'vorteile', 'talente', 'waffen', 'zauber',
-  'ausruestung', 'inventar', 'sprachen', 'artefakte', 'besitz', 'bibliothek', 'boni', 'vorlieben',
-] as const;
+// Sichtbarkeits-Sektionen des berechneten Kerns (Bio ist immer sichtbar).
+// Generische Sektionen tragen ihre Sichtbarkeit selbst (DynSection.visible).
+export const VISIBILITY_SECTIONS = ['attribute', 'basiswerte', 'ressourcen', 'talente', 'waffen', 'sprachen'] as const;
 export type VisibilitySection = (typeof VISIBILITY_SECTIONS)[number];
 
 export const VISIBILITY_LABELS: Record<VisibilitySection, string> = {
   attribute: 'Attribute',
   basiswerte: 'Basiswerte',
   ressourcen: 'Energien',
-  vorteile: 'Vorteile/Nachteile',
   talente: 'Talente',
   waffen: 'Waffen',
-  zauber: 'Zauber/Techniken',
-  ausruestung: 'Ausrüstung',
-  inventar: 'Inventar',
   sprachen: 'Sprachen',
-  artefakte: 'Artefakte',
-  besitz: 'Besitz',
-  bibliothek: 'Bibliothek',
-  boni: 'Boni',
-  vorlieben: 'Vorlieben',
 };

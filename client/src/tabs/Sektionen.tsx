@@ -67,6 +67,11 @@ export default function DynamicSectionsTab({
     await apiPut(`/api/characters/${charId}/sections/${section.id}`, { name });
   };
 
+  const setVisible = async (section: DynSection, visible: boolean) => {
+    patchSection(section.id, { visible });
+    await apiPut(`/api/characters/${charId}/sections/${section.id}`, { visible });
+  };
+
   const deleteSection = async (section: DynSection) => {
     if (!confirm(`Sektion „${section.name}" mit ${section.rows.length} Zeile(n) löschen?`)) return;
     await apiDelete(`/api/characters/${charId}/sections/${section.id}`);
@@ -104,6 +109,7 @@ export default function DynamicSectionsTab({
           onRename={(name) => renameSection(section, name)}
           onDelete={() => deleteSection(section)}
           onMove={(dir) => move(i, dir)}
+          onVisible={(v) => setVisible(section, v)}
         />
       ))}
       {sections.length === 0 && <p className="muted">Noch keine eigenen Sektionen.</p>}
@@ -130,6 +136,7 @@ function SectionPanel({
   onRename,
   onDelete,
   onMove,
+  onVisible,
 }: {
   section: DynSection;
   attributes: Attributes;
@@ -140,6 +147,7 @@ function SectionPanel({
   onRename: (name: string) => void;
   onDelete: () => void;
   onMove: (dir: -1 | 1) => void;
+  onVisible: (visible: boolean) => void;
 }) {
   const [editCols, setEditCols] = useState(false);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
@@ -170,6 +178,9 @@ function SectionPanel({
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
         <span style={{ flex: 1 }} />
+        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} title="Für Gruppenmitglieder sichtbar">
+          <input type="checkbox" checked={section.visible} onChange={(e) => onVisible(e.target.checked)} /> sichtbar
+        </label>
         <button className="small" disabled={isFirst} onClick={() => onMove(-1)} title="nach oben">
           ↑
         </button>

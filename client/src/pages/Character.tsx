@@ -8,15 +8,7 @@ import DynamicSectionsTab from '../tabs/Sektionen';
 import HeldenbriefTab from '../tabs/Heldenbrief';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
-import ZauberTab from '../tabs/Zauber';
-import AusruestungTab from '../tabs/Ausruestung';
-import InventarTab from '../tabs/Inventar';
 import SprachenTab from '../tabs/Sprachen';
-import ArtefakteTab from '../tabs/Artefakte';
-import BesitzTab from '../tabs/Besitz';
-import BibliothekTab from '../tabs/Bibliothek';
-import BoniTab from '../tabs/Boni';
-import VorliebenTab from '../tabs/Vorlieben';
 import SichtbarkeitTab from '../tabs/Sichtbarkeit';
 import SummaryView from '../tabs/Summary';
 
@@ -74,10 +66,7 @@ interface CharCtxValue {
 const CharCtx = createContext<CharCtxValue | null>(null);
 export const useChar = () => useContext(CharCtx)!;
 
-const TABS = [
-  'Heldenbrief', 'Talente', 'Waffen', 'Zauber', 'Ausrüstung', 'Inventar', 'Sprachen',
-  'Artefakte', 'Besitz', 'Bibliothek', 'Boni', 'Vorlieben', 'Sektionen', 'Sichtbarkeit',
-] as const;
+const TABS = ['Heldenbrief', 'Talente', 'Waffen', 'Sprachen', 'Sektionen', 'Sichtbarkeit'] as const;
 
 export default function CharacterPage() {
   const { id } = useParams();
@@ -189,15 +178,7 @@ export default function CharacterPage() {
       {tab === 'Heldenbrief' && <HeldenbriefTab />}
       {tab === 'Talente' && <TalenteTab />}
       {tab === 'Waffen' && <WaffenTab />}
-      {tab === 'Zauber' && <ZauberTab />}
-      {tab === 'Ausrüstung' && <AusruestungTab />}
-      {tab === 'Inventar' && <InventarTab />}
       {tab === 'Sprachen' && <SprachenTab />}
-      {tab === 'Artefakte' && <ArtefakteTab />}
-      {tab === 'Besitz' && <BesitzTab />}
-      {tab === 'Bibliothek' && <BibliothekTab />}
-      {tab === 'Boni' && <BoniTab />}
-      {tab === 'Vorlieben' && <VorliebenTab />}
       {tab === 'Sektionen' && <DynamicSectionsTab key={charId} charId={charId} initial={data!.sections} attributes={data!.attributes} />}
       {tab === 'Sichtbarkeit' && <SichtbarkeitTab />}
     </CharCtx.Provider>

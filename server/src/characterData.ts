@@ -432,9 +432,6 @@ export function buildSummary(charId: number) {
       return { key, label: RESOURCE_LABELS[key].label, aktuell: resources[key].aktuell, ergebnis: r.ergebnis, max: r.max };
     });
   }
-  if (visibility.vorteile) {
-    sections.vorteile = { vorteile: lists.vorteile, nachteile: lists.nachteile, titel: lists.titel };
-  }
   if (visibility.talente) {
     const catalog = db.prepare('SELECT * FROM talents_catalog').all() as CatalogTalent[];
     const byId = new Map(catalog.map((c) => [c.id, c]));
@@ -471,21 +468,6 @@ export function buildSummary(charId: number) {
       waffenlos: lists.waffenlos,
     };
   }
-  if (visibility.zauber) {
-    sections.zauber = { sektionen: lists.zauberSektionen, eintraege: lists.zauberEintraege };
-  }
-  if (visibility.ausruestung) {
-    sections.ausruestung = {
-      slots: lists.ausruestungSlots,
-      behaelter: lists.behaelter,
-      proviant: lists.proviant,
-      kleidungen: lists.kleidungen,
-      tierAusruestung: lists.tierAusruestung,
-    };
-  }
-  if (visibility.inventar) {
-    sections.inventar = lists.inventar.map((r) => ({ ...r, gGewicht: Number(r.anzahl) * Number(r.eGewicht) }));
-  }
   if (visibility.sprachen) {
     const catalog = db.prepare('SELECT * FROM languages_catalog').all() as { id: number; kind: string; name: string; familie: string }[];
     const byId = new Map(catalog.map((c) => [c.id, c]));
@@ -493,20 +475,9 @@ export function buildSummary(charId: number) {
       .filter((l) => l.taw !== 0 || l.muttersprache)
       .map((l) => ({ ...byId.get(l.languageId), taw: l.taw, muttersprache: l.muttersprache }));
   }
-  if (visibility.artefakte) sections.artefakte = { kraftspeicher: lists.kraftspeicher, artefakte: lists.artefakte };
-  if (visibility.besitz) {
-    sections.besitz = {
-      waehrungen: lists.waehrungen,
-      schulden: lists.schulden,
-      wertgegenstaende: lists.wertgegenstaende,
-      einnahmequellen: lists.einnahmequellen,
-      immobilien: lists.immobilien,
-      sonstiges: lists.besitzSonstiges,
-    };
-  }
-  if (visibility.bibliothek) sections.bibliothek = lists.bibliothek;
-  if (visibility.boni) sections.boni = lists.boni;
-  if (visibility.vorlieben) sections.vorlieben = lists.vorlieben;
 
-  return { bio, sections, visibility };
+  // Sichtbar geschaltete generische Sektionen (Probe-Spalten rechnet der Client)
+  const dynSections = loadDynSections(charId).filter((s) => s.visible);
+
+  return { bio, sections, dynSections, attributes, visibility };
 }

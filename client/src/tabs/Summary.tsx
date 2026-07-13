@@ -1,6 +1,7 @@
-import { listSectionById } from '@shared/sections';
 import { VISIBILITY_LABELS } from '@shared/types';
-import type { Row } from '../components/inputs';
+import type { Attributes } from '@shared/types';
+import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
+import type { DynColumn, DynRow, DynSection } from '@shared/dynamicSections';
 
 interface Info {
   id: number;
@@ -11,6 +12,8 @@ interface Info {
 interface Summary {
   bio: Record<string, string>;
   sections: Record<string, unknown>;
+  dynSections: DynSection[];
+  attributes: Attributes;
 }
 
 const BIO_LABELS: [string, string][] = [
@@ -30,42 +33,56 @@ const BIO_LABELS: [string, string][] = [
   ['gottheit', 'Gottheit'],
 ];
 
-// Generische, schreibgeschützte Tabelle für Zeilen-Objekte
-function RowsTable({ rows, sectionId, hidden = [] }: { rows: Row[]; sectionId?: string; hidden?: string[] }) {
-  if (!rows || rows.length === 0) return <p className="muted">—</p>;
-  const def = sectionId ? listSectionById(sectionId) : undefined;
-  const skip = new Set(['id', 'character_id', 'pos', ...hidden]);
-  const keys = (def ? def.columns.map((c) => c.key) : Object.keys(rows[0])).filter((k) => !skip.has(k));
-  const label = (k: string) => def?.columns.find((c) => c.key === k)?.label ?? k;
+// Schreibgeschützte Darstellung einer generischen Sektion
+function DynSectionView({ section, attributes }: { section: DynSection; attributes: Attributes }) {
+  if (section.type === 'notes') {
+    return (
+      <div className="panel">
+        <h3>{section.name}</h3>
+        <p style={{ whiteSpace: 'pre-wrap' }}>{String(section.rows[0]?.text ?? '—')}</p>
+      </div>
+    );
+  }
+  const cols = section.columns.filter((c) => c.key !== DYN_NOTIZ_KEY);
+  const cellText = (col: DynColumn, row: DynRow): string => {
+    if (col.type === 'probe') {
+      const v = computeProbeCell(attributes, col, row);
+      return v == null ? '—' : String(v);
+    }
+    if (col.type === 'bool') return row[col.key] ? 'ja' : '';
+    return String(row[col.key] ?? '');
+  };
   return (
-    <div className="table-wrap" style={{ marginBottom: 10 }}>
-    <table className="sheet">
-      <thead>
-        <tr>
-          {keys.map((k) => (
-            <th key={k}>{label(k)}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i}>
-            {keys.map((k) => (
-              <td key={k}>{formatValue(r[k])}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="panel">
+      <h3>{section.name}</h3>
+      {section.rows.length === 0 ? (
+        <p className="muted">—</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="sheet" style={{ minWidth: cols.length * 120 }}>
+            <thead>
+              <tr>
+                {cols.map((c) => (
+                  <th key={c.key}>{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {section.rows.map((row, i) => (
+                <tr key={i}>
+                  {cols.map((c) => (
+                    <td key={c.key} className={c.type === 'number' || c.type === 'probe' ? 'num' : undefined}>
+                      {cellText(c, row)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
-}
-
-function formatValue(v: unknown): string {
-  if (v == null) return '';
-  if (typeof v === 'boolean') return v ? 'ja' : '';
-  if (typeof v === 'object') return Object.values(v as Record<string, unknown>).join(' / ');
-  return String(v);
 }
 
 export default function SummaryView({ info, summary }: { info: Info; summary: Summary }) {
@@ -143,152 +160,88 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
           </table>
         </div>
       )}
-      {s.vorteile && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.vorteile}</h3>
-          <h4>Vorteile</h4>
-          <RowsTable rows={(s.vorteile as { vorteile: Row[] }).vorteile} sectionId="vorteile" />
-          <h4>Nachteile</h4>
-          <RowsTable rows={(s.vorteile as { nachteile: Row[] }).nachteile} sectionId="nachteile" />
-          <h4>Titel / Orden</h4>
-          <RowsTable rows={(s.vorteile as { titel: Row[] }).titel} sectionId="titel" />
-        </div>
-      )}
       {s.talente && (
         <div className="panel">
           <h3>{VISIBILITY_LABELS.talente}</h3>
-          <table className="sheet">
-            <thead>
-              <tr>
-                <th>Talent</th>
-                <th>Probe</th>
-                <th>TaW</th>
-                <th>Probe (Zahl)</th>
-                <th>Spezialisierung</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(s.talente as { name: string; probe: string; taw: number; probeZahl: number | null; spezialisierung: string }[]).map(
-                (t, i) => (
-                  <tr key={i}>
-                    <td>{t.name}</td>
-                    <td className="muted">{t.probe || '—'}</td>
-                    <td className="num">{t.taw}</td>
-                    <td className="computed">{t.probeZahl ?? '—'}</td>
-                    <td>{t.spezialisierung}</td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
+          <div className="table-wrap">
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th>Talent</th>
+                  <th>Probe</th>
+                  <th>TaW</th>
+                  <th>Probe (Zahl)</th>
+                  <th>Spezialisierung</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(s.talente as { name: string; probe: string; taw: number; probeZahl: number | null; spezialisierung: string }[]).map(
+                  (t, i) => (
+                    <tr key={i}>
+                      <td>{t.name}</td>
+                      <td className="muted">{t.probe || '—'}</td>
+                      <td className="num">{t.taw}</td>
+                      <td className="computed">{t.probeZahl ?? '—'}</td>
+                      <td>{t.spezialisierung}</td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       {s.waffen && (
         <div className="panel">
           <h3>{VISIBILITY_LABELS.waffen}</h3>
-          <h4>Nahkampf</h4>
-          <RowsTable rows={(s.waffen as { nah: Row[] }).nah} />
-          <h4>Fernkampf</h4>
-          <RowsTable rows={(s.waffen as { fern: Row[] }).fern} sectionId="waffenFern" />
-          <h4>Waffenlos</h4>
-          <RowsTable rows={(s.waffen as { waffenlos: Row[] }).waffenlos} sectionId="waffenlos" />
-        </div>
-      )}
-      {s.zauber && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.zauber}</h3>
-          {(s.zauber as { sektionen: Row[] }).sektionen.map((sek, i) => (
-            <div key={i}>
-              <h4>{String(sek.name)}</h4>
-              <RowsTable
-                rows={(s.zauber as { eintraege: Row[] }).eintraege.filter((e) => e.sektion === sek.name)}
-                sectionId="zauberEintraege"
-                hidden={['sektion']}
-              />
-            </div>
-          ))}
-        </div>
-      )}
-      {s.ausruestung && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.ausruestung}</h3>
-          <h4>Getragen</h4>
-          <RowsTable rows={(s.ausruestung as { slots: Row[] }).slots} sectionId="ausruestungSlots" />
-          <h4>Proviant/Tränke</h4>
-          <RowsTable rows={(s.ausruestung as { proviant: Row[] }).proviant} sectionId="proviant" />
-          <h4>Kleidungen</h4>
-          <RowsTable rows={(s.ausruestung as { kleidungen: Row[] }).kleidungen} sectionId="kleidungen" />
-        </div>
-      )}
-      {s.inventar && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.inventar}</h3>
-          <RowsTable rows={s.inventar as Row[]} />
+          <div className="table-wrap">
+            <table className="sheet">
+              <thead>
+                <tr>
+                  <th>Waffe</th>
+                  <th>Schaden</th>
+                  <th>AT</th>
+                  <th>PA</th>
+                  <th>BL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(s.waffen as { nah: Record<string, unknown>[] }).nah.map((w, i) => {
+                  const p = w.probes as { at: number; pa: number; bl: number };
+                  return (
+                    <tr key={i}>
+                      <td>{String(w.name ?? '')}</td>
+                      <td>{String(w.schaden ?? '')}</td>
+                      <td className="computed">{p?.at ?? '—'}</td>
+                      <td className="computed">{p?.pa ?? '—'}</td>
+                      <td className="computed">{p?.bl ?? '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
       {s.sprachen && (
         <div className="panel">
           <h3>{VISIBILITY_LABELS.sprachen}</h3>
-          <RowsTable rows={s.sprachen as Row[]} />
+          <table className="sheet" style={{ maxWidth: 500 }}>
+            <tbody>
+              {(s.sprachen as { name: string; taw: number }[]).map((l, i) => (
+                <tr key={i}>
+                  <td>{l.name}</td>
+                  <td className="num">{l.taw}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
-      {s.artefakte && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.artefakte}</h3>
-          <h4>Kraftspeicher</h4>
-          <RowsTable rows={(s.artefakte as { kraftspeicher: Row[] }).kraftspeicher} sectionId="kraftspeicher" />
-          <h4>Artefakte</h4>
-          <RowsTable rows={(s.artefakte as { artefakte: Row[] }).artefakte} sectionId="artefakte" />
-        </div>
-      )}
-      {s.besitz && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.besitz}</h3>
-          <h4>Cambio</h4>
-          <RowsTable rows={(s.besitz as { waehrungen: Row[] }).waehrungen} sectionId="waehrungen" />
-          <h4>Wertgegenstände</h4>
-          <RowsTable rows={(s.besitz as { wertgegenstaende: Row[] }).wertgegenstaende} sectionId="wertgegenstaende" />
-          <h4>Einnahmequellen</h4>
-          <RowsTable rows={(s.besitz as { einnahmequellen: Row[] }).einnahmequellen} sectionId="einnahmequellen" />
-          <h4>Land &amp; Immobilien</h4>
-          <RowsTable rows={(s.besitz as { immobilien: Row[] }).immobilien} sectionId="immobilien" />
-        </div>
-      )}
-      {s.bibliothek && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.bibliothek}</h3>
-          <RowsTable rows={s.bibliothek as Row[]} sectionId="bibliothek" />
-        </div>
-      )}
-      {s.boni && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.boni}</h3>
-          <RowsTable rows={s.boni as Row[]} sectionId="boni" />
-        </div>
-      )}
-      {s.vorlieben && (
-        <div className="panel">
-          <h3>{VISIBILITY_LABELS.vorlieben}</h3>
-          <div className="grid2">
-            <div>
-              <h4>Mag</h4>
-              <ul>
-                {(s.vorlieben as Row[]).filter((r) => r.kind === 'mag').map((r, i) => (
-                  <li key={i}>{String(r.text)}</li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4>Mag nicht</h4>
-              <ul>
-                {(s.vorlieben as Row[]).filter((r) => r.kind === 'magNicht').map((r, i) => (
-                  <li key={i}>{String(r.text)}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      )}
+
+      {summary.dynSections.map((sec) => (
+        <DynSectionView key={sec.id} section={sec} attributes={summary.attributes} />
+      ))}
     </>
   );
 }

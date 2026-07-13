@@ -8,8 +8,7 @@ import {
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { computeBaseValues, computeResource, mrErgebnis, psycheProzent } from '@shared/rules';
-import { listSectionById } from '@shared/sections';
-import { ListEditor, NumInput, TextInput } from '../components/inputs';
+import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
 const BIO_FIELDS: [string, string][] = [
@@ -239,24 +238,9 @@ export default function HeldenbriefTab() {
         </div>
       </div>
 
-      <div className="panel">
-        <h3>Vorteile</h3>
-        <ListEditor def={listSectionById('vorteile')!} rows={data.lists.vorteile} onChange={(rows) => update('vorteile', rows)} />
-        <h3>Nachteile</h3>
-        <ListEditor def={listSectionById('nachteile')!} rows={data.lists.nachteile} onChange={(rows) => update('nachteile', rows)} />
-        <h3>Titel / Orden</h3>
-        <ListEditor def={listSectionById('titel')!} rows={data.lists.titel} onChange={(rows) => update('titel', rows)} />
-      </div>
-
-      <div className="panel">
-        <h3>20+ Perks</h3>
-        <ListEditor def={listSectionById('perks')!} rows={data.lists.perks} onChange={(rows) => update('perks', rows)} />
-      </div>
-
-      <div className="panel">
-        <h3>Professionsboni</h3>
-        <ListEditor def={listSectionById('professionBoni')!} rows={data.lists.professionBoni} onChange={(rows) => update('professionBoni', rows)} />
-      </div>
+      <p className="muted">
+        Vorteile, Nachteile, Titel, Perks, Professionsboni und alles Weitere findest du jetzt im Tab „Sektionen".
+      </p>
     </>
   );
 }

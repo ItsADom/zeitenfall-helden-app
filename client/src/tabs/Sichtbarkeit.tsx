@@ -12,8 +12,8 @@ export default function SichtbarkeitTab() {
     <div className="panel" style={{ maxWidth: 500 }}>
       <h3>Sichtbarkeit für Gruppenmitglieder</h3>
       <p className="muted">
-        Die Personenbeschreibung (Name, Alter, Größe usw.) ist für Gruppenmitglieder immer sichtbar. Zusätzlich freigegebene
-        Bereiche:
+        Die Personenbeschreibung (Name, Alter, Größe usw.) ist für Gruppenmitglieder immer sichtbar. Hier die festen
+        Bereiche freigeben; eigene Sektionen schaltest du direkt im Tab „Sektionen" sichtbar.
       </p>
       {VISIBILITY_SECTIONS.map((s) => (
         <div key={s} className="field">
