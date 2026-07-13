@@ -27,13 +27,16 @@ Anmelden als `spielleiter` / `spielleiter` (Passwort danach im Dashboard ändern
 ## Für die Gruppe betreiben (ohne Dev-Server)
 
 ```bash
-npm run build     # baut den Client nach client/dist
-npm start         # ein Prozess: API + Web-UI auf http://localhost:3001
+npm start         # baut den Client und startet API + Web-UI auf http://localhost:3001
 ```
 
-Der Server liefert den gebauten Client selbst aus — für die Spielrunde reicht also
-`npm start` auf einem Rechner im Netzwerk (Port mit `PORT=…` änderbar, GM-Erstpasswort
-mit `GM_PASSWORD=…` beim ersten Seed).
+`npm start` baut den Client jedes Mal frisch und liefert ihn selbst aus — für die
+Spielrunde reicht also ein Prozess auf einem Rechner im Netzwerk (Port mit `PORT=…`
+änderbar, GM-Erstpasswort mit `GM_PASSWORD=…` beim ersten Seed).
+
+**Beim Entwickeln** dagegen die beiden Dev-Server nutzen (`npm run dev:server` +
+`npm run dev:client`, Port 5173) — die zeigen Änderungen sofort. Port 3001 zeigt nur
+den zuletzt gebauten Stand; nach Code-Änderungen dort erst `npm start` (baut neu) laufen lassen.
 
 ## Charakter aus Excel importieren
 
