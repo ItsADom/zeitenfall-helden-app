@@ -1,10 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
-import type { DynSection } from '@shared/dynamicSections';
-import { apiGet, apiPut } from '../api';
+import type { DynTab } from '@shared/dynamicSections';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import type { Row } from '../components/inputs';
-import DynamicSectionsTab from '../tabs/Sektionen';
+import ContentTabView from '../tabs/Sektionen';
 import HeldenbriefTab from '../tabs/Heldenbrief';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
@@ -21,7 +21,7 @@ export interface FullData {
   talents: CharTalent[];
   languages: CharLanguage[];
   lists: Record<string, Row[]>;
-  sections: DynSection[];
+  tabs: DynTab[];
   visibility: Record<string, boolean>;
 }
 
@@ -66,7 +66,7 @@ interface CharCtxValue {
 const CharCtx = createContext<CharCtxValue | null>(null);
 export const useChar = () => useContext(CharCtx)!;
 
-const TABS = ['Heldenbrief', 'Talente', 'Waffen', 'Sprachen', 'Sektionen', 'Sichtbarkeit'] as const;
+const BUILTIN_TABS = ['Heldenbrief', 'Talente', 'Waffen', 'Sprachen'] as const;
 
 export default function CharacterPage() {
   const { id } = useParams();
@@ -76,7 +76,7 @@ export default function CharacterPage() {
   const [data, setData] = useState<FullData | null>(null);
   const [summary, setSummary] = useState<unknown>(null);
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
-  const [tab, setTab] = useState<(typeof TABS)[number]>('Heldenbrief');
+  const [activeKey, setActiveKey] = useState<string>('Heldenbrief');
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
 
@@ -158,6 +158,33 @@ export default function CharacterPage() {
     return <SummaryView info={info} summary={summary as never} />;
   }
 
+  const tabs = data!.tabs;
+  const setTabs = (fn: (t: DynTab[]) => DynTab[]) => setData((prev) => (prev ? { ...prev, tabs: fn(prev.tabs) } : prev));
+  const activeContentTab = tabs.find((t) => `c${t.id}` === activeKey) ?? null;
+
+  const addTab = async () => {
+    const { id: newId } = await apiPost<{ id: number }>(`/api/characters/${charId}/tabs`, { name: 'Neuer Tab' });
+    setTabs((t) => [...t, { id: newId, name: 'Neuer Tab', locked: false, pos: t.length, sections: [] }]);
+    setActiveKey(`c${newId}`);
+  };
+  const renameTab = async (tid: number, name: string) => {
+    setTabs((t) => t.map((x) => (x.id === tid ? { ...x, name } : x)));
+    await apiPut(`/api/characters/${charId}/tabs/${tid}`, { name });
+  };
+  const deleteTab = async (tid: number) => {
+    await apiDelete(`/api/characters/${charId}/tabs/${tid}`);
+    setTabs((t) => t.filter((x) => x.id !== tid));
+    setActiveKey('Heldenbrief');
+  };
+  const moveTab = async (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= tabs.length) return;
+    const next = tabs.slice();
+    [next[index], next[j]] = [next[j], next[index]];
+    setTabs(() => next);
+    await apiPut(`/api/characters/${charId}/tabs/reorder`, { order: next.map((t) => t.id) });
+  };
+
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
@@ -169,18 +196,41 @@ export default function CharacterPage() {
         <span className="savestate">{saveState}</span>
       </div>
       <div className="tabs">
-        {TABS.map((t) => (
-          <button key={t} className={t === tab ? 'active' : ''} onClick={() => setTab(t)}>
+        {BUILTIN_TABS.map((t) => (
+          <button key={t} className={t === activeKey ? 'active' : ''} onClick={() => setActiveKey(t)}>
             {t}
           </button>
         ))}
+        {tabs.map((t) => (
+          <button key={t.id} className={`c${t.id}` === activeKey ? 'active' : ''} onClick={() => setActiveKey(`c${t.id}`)}>
+            {t.name}
+          </button>
+        ))}
+        <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
+          + Tab
+        </button>
+        <button className={activeKey === 'Sichtbarkeit' ? 'active' : ''} onClick={() => setActiveKey('Sichtbarkeit')}>
+          Sichtbarkeit
+        </button>
       </div>
-      {tab === 'Heldenbrief' && <HeldenbriefTab />}
-      {tab === 'Talente' && <TalenteTab />}
-      {tab === 'Waffen' && <WaffenTab />}
-      {tab === 'Sprachen' && <SprachenTab />}
-      {tab === 'Sektionen' && <DynamicSectionsTab key={charId} charId={charId} initial={data!.sections} attributes={data!.attributes} />}
-      {tab === 'Sichtbarkeit' && <SichtbarkeitTab />}
+      {activeKey === 'Heldenbrief' && <HeldenbriefTab />}
+      {activeKey === 'Talente' && <TalenteTab />}
+      {activeKey === 'Waffen' && <WaffenTab />}
+      {activeKey === 'Sprachen' && <SprachenTab />}
+      {activeKey === 'Sichtbarkeit' && <SichtbarkeitTab />}
+      {activeContentTab && (
+        <ContentTabView
+          key={activeContentTab.id}
+          charId={charId}
+          tab={activeContentTab}
+          attributes={data!.attributes}
+          isFirst={tabs.indexOf(activeContentTab) === 0}
+          isLast={tabs.indexOf(activeContentTab) === tabs.length - 1}
+          onRenameTab={(name) => renameTab(activeContentTab.id, name)}
+          onDeleteTab={() => deleteTab(activeContentTab.id)}
+          onMoveTab={(dir) => moveTab(tabs.indexOf(activeContentTab), dir)}
+        />
+      )}
     </CharCtx.Provider>
   );
 }

@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
-import type { DynColumn, DynColType, DynRow, DynSection } from '@shared/dynamicSections';
+import type { DynColumn, DynColType, DynRow, DynSection, DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiPost, apiPut } from '../api';
 
-// Datengesteuerte Sektionen: der Spieler legt eigene Tabellen mit eigenen
-// Spalten an. Probe-Spalten rechnen live aus einem Attribut-Ausdruck.
+// Ein konfigurierbarer Inhalts-Tab: enthält mehrere generische Sektionen
+// (Tabellen/Notizfelder). Probe-Spalten rechnen live aus einem Attribut-Ausdruck.
 
 const COL_TYPES: { value: DynColType; label: string }[] = [
   { value: 'text', label: 'Text' },
@@ -17,16 +17,26 @@ const COL_TYPES: { value: DynColType; label: string }[] = [
 let keyCounter = 0;
 const freshKey = () => `c${Date.now().toString(36)}${keyCounter++}`;
 
-export default function DynamicSectionsTab({
+export default function ContentTabView({
   charId,
-  initial,
+  tab,
   attributes,
+  isFirst,
+  isLast,
+  onRenameTab,
+  onDeleteTab,
+  onMoveTab,
 }: {
   charId: number;
-  initial: DynSection[];
+  tab: DynTab;
   attributes: Attributes;
+  isFirst: boolean;
+  isLast: boolean;
+  onRenameTab: (name: string) => void;
+  onDeleteTab: () => void;
+  onMoveTab: (dir: -1 | 1) => void;
 }) {
-  const [sections, setSections] = useState<DynSection[]>(initial);
+  const [sections, setSections] = useState<DynSection[]>(tab.sections);
   const [saveState, setSaveState] = useState('');
   const timers = useRef<Map<number, number>>(new Map());
 
@@ -54,10 +64,9 @@ export default function DynamicSectionsTab({
   };
 
   const addSection = async (type: 'table' | 'notes') => {
-    const name = type === 'notes' ? 'Neue Notiz' : 'Neue Sektion';
-    const columns: DynColumn[] =
-      type === 'notes' ? [] : [{ key: freshKey(), label: 'Name', type: 'text' }];
-    const { id } = await apiPost<{ id: number }>(`/api/characters/${charId}/sections`, { name, type, columns });
+    const name = type === 'notes' ? 'Neue Notiz' : 'Neue Tabelle';
+    const columns: DynColumn[] = type === 'notes' ? [] : [{ key: freshKey(), label: 'Name', type: 'text' }];
+    const { id } = await apiPost<{ id: number }>(`/api/characters/${charId}/sections`, { tabId: tab.id, name, type, columns });
     setSections((prev) => [...prev, { id, name, type, columns, rows: [], pos: prev.length, visible: false }]);
   };
 
@@ -89,12 +98,34 @@ export default function DynamicSectionsTab({
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-        <p className="muted" style={{ margin: 0, flex: 1 }}>
-          Eigene Bereiche dieses Charakters. Spalten frei definierbar; „Probe"-Spalten berechnen sich aus einem
-          Attribut-Ausdruck (z.&nbsp;B. <code>FF+KL+GE</code>) und optional einem TaW-Wert.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <input
+          className="section-title"
+          defaultValue={tab.name}
+          key={tab.name}
+          disabled={tab.locked}
+          title={tab.locked ? 'Pflicht-Tab (nicht umbenennbar)' : 'Tab umbenennen'}
+          onBlur={(e) => onRenameTab(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+        />
+        {tab.locked && <span className="muted">🔒 Pflicht-Tab</span>}
+        <span style={{ flex: 1 }} />
         <span className="savestate">{saveState}</span>
+        <button className="small" disabled={isFirst} onClick={() => onMoveTab(-1)} title="Tab nach links">
+          ←
+        </button>
+        <button className="small" disabled={isLast} onClick={() => onMoveTab(1)} title="Tab nach rechts">
+          →
+        </button>
+        {!tab.locked && (
+          <button
+            className="small"
+            onClick={() => confirm(`Tab „${tab.name}" mit allen Sektionen löschen?`) && onDeleteTab()}
+            title="Tab löschen"
+          >
+            Tab löschen
+          </button>
+        )}
       </div>
 
       {sections.map((section, i) => (
@@ -112,7 +143,7 @@ export default function DynamicSectionsTab({
           onVisible={(v) => setVisible(section, v)}
         />
       ))}
-      {sections.length === 0 && <p className="muted">Noch keine eigenen Sektionen.</p>}
+      {sections.length === 0 && <p className="muted">Noch keine Sektionen in diesem Tab.</p>}
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button className="primary" onClick={() => addSection('table')}>

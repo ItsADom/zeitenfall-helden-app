@@ -13,15 +13,21 @@ import { db, initCharacterRows } from './db.js';
 import {
   buildSummary,
   createDynSection,
+  createTab,
   deleteDynSection,
+  deleteTab,
   instantiateStandardSections,
   loadFullCharacter,
   migrateCharacterPeriphery,
+  renameTab,
   reorderDynSections,
+  reorderTabs,
   saveDynRows,
   saveSection,
   saveVisibility,
   sectionBelongsTo,
+  tabBelongsTo,
+  tabIsLocked,
   updateDynSection,
 } from './characterData.js';
 
@@ -198,11 +204,62 @@ function editableChar(req: import('express').Request, res: import('express').Res
   return char;
 }
 
+// Tabs
+api.post('/characters/:id/tabs', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const { name } = (req.body ?? {}) as { name?: string };
+  const id = createTab(char.id, String(name ?? 'Neuer Tab'), false);
+  res.json({ id });
+});
+
+api.put('/characters/:id/tabs/reorder', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const order = Array.isArray(req.body?.order) ? (req.body.order as unknown[]).map(Number) : [];
+  reorderTabs(char.id, order);
+  res.json({ ok: true });
+});
+
+api.put('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const tid = Number(req.params.tid);
+  if (!tabBelongsTo(tid, char.id)) {
+    res.status(404).json({ error: 'Tab nicht gefunden' });
+    return;
+  }
+  const { name } = (req.body ?? {}) as { name?: string };
+  if (name !== undefined) renameTab(tid, String(name));
+  res.json({ ok: true });
+});
+
+api.delete('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const tid = Number(req.params.tid);
+  if (!tabBelongsTo(tid, char.id)) {
+    res.status(404).json({ error: 'Tab nicht gefunden' });
+    return;
+  }
+  if (tabIsLocked(tid)) {
+    res.status(400).json({ error: 'Pflicht-Tab kann nicht gelöscht werden' });
+    return;
+  }
+  deleteTab(tid);
+  res.json({ ok: true });
+});
+
+// Sektionen (innerhalb eines Tabs)
 api.post('/characters/:id/sections', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  const { name, type, columns } = (req.body ?? {}) as { name?: string; type?: string; columns?: unknown };
-  const id = createDynSection(char.id, String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
+  const { tabId, name, type, columns } = (req.body ?? {}) as { tabId?: number; name?: string; type?: string; columns?: unknown };
+  if (!tabId || !tabBelongsTo(Number(tabId), char.id)) {
+    res.status(400).json({ error: 'Tab nicht gefunden' });
+    return;
+  }
+  const id = createDynSection(char.id, Number(tabId), String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
   res.json({ id });
 });
 

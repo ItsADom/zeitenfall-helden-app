@@ -32,6 +32,16 @@ export interface DynSection {
   visible: boolean; // für Gruppenmitglieder sichtbar
 }
 
+// Konfigurierbarer Inhalts-Tab: gruppiert mehrere Sektionen (z. B. Ausrüstung).
+// locked = Pflicht-Tab, kann nicht gelöscht werden.
+export interface DynTab {
+  id: number;
+  name: string;
+  locked: boolean;
+  pos: number;
+  sections: DynSection[];
+}
+
 // Freitext-Notiz je Zeile (wie bei den bisherigen Listen)
 export const DYN_NOTIZ_KEY = 'notiz';
 

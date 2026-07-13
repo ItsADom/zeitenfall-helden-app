@@ -148,9 +148,17 @@ db.exec(`
 
   ${listTables}
 
+  CREATE TABLE IF NOT EXISTS char_tabs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    locked INTEGER NOT NULL DEFAULT 0
+  );
   CREATE TABLE IF NOT EXISTS char_sections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    tab_id INTEGER REFERENCES char_tabs(id) ON DELETE CASCADE,
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT '',
     type TEXT NOT NULL DEFAULT 'table',
@@ -165,10 +173,11 @@ db.exec(`
   );
 `);
 
-// Migration: 'visible'-Spalte an bestehende char_sections ergänzen
+// Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_sections)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('visible')) db.exec('ALTER TABLE char_sections ADD COLUMN visible INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('tab_id')) db.exec('ALTER TABLE char_sections ADD COLUMN tab_id INTEGER REFERENCES char_tabs(id) ON DELETE CASCADE');
 }
 
 // Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen
