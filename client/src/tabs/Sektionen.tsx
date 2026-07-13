@@ -58,7 +58,7 @@ export default function DynamicSectionsTab({
     const columns: DynColumn[] =
       type === 'notes' ? [] : [{ key: freshKey(), label: 'Name', type: 'text' }];
     const { id } = await apiPost<{ id: number }>(`/api/characters/${charId}/sections`, { name, type, columns });
-    setSections((prev) => [...prev, { id, name, type, columns, rows: [], pos: prev.length }]);
+    setSections((prev) => [...prev, { id, name, type, columns, rows: [], pos: prev.length, visible: false }]);
   };
 
   const renameSection = async (section: DynSection, name: string) => {

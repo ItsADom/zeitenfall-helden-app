@@ -29,6 +29,7 @@ export interface DynSection {
   columns: DynColumn[]; // bei type 'notes' leer
   rows: DynRow[];
   pos: number;
+  visible: boolean; // für Gruppenmitglieder sichtbar
 }
 
 // Freitext-Notiz je Zeile (wie bei den bisherigen Listen)

@@ -154,7 +154,8 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT '',
     type TEXT NOT NULL DEFAULT 'table',
-    columns TEXT NOT NULL DEFAULT '[]'
+    columns TEXT NOT NULL DEFAULT '[]',
+    visible INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS char_section_rows (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -163,6 +164,12 @@ db.exec(`
     data TEXT NOT NULL DEFAULT '{}'
   );
 `);
+
+// Migration: 'visible'-Spalte an bestehende char_sections ergänzen
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_sections)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('visible')) db.exec('ALTER TABLE char_sections ADD COLUMN visible INTEGER NOT NULL DEFAULT 0');
+}
 
 // Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen
 for (const s of LIST_SECTIONS) {

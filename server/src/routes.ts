@@ -14,7 +14,9 @@ import {
   buildSummary,
   createDynSection,
   deleteDynSection,
+  instantiateStandardSections,
   loadFullCharacter,
+  migrateCharacterPeriphery,
   reorderDynSections,
   saveDynRows,
   saveSection,
@@ -220,10 +222,11 @@ api.put('/characters/:id/sections/:sid', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Sektion nicht gefunden' });
     return;
   }
-  const body = (req.body ?? {}) as { name?: string; columns?: unknown };
-  const patch: { name?: string; columns?: ReturnType<typeof normalizeColumns> } = {};
+  const body = (req.body ?? {}) as { name?: string; columns?: unknown; visible?: boolean };
+  const patch: { name?: string; columns?: ReturnType<typeof normalizeColumns>; visible?: boolean } = {};
   if (body.name !== undefined) patch.name = String(body.name);
   if (body.columns !== undefined) patch.columns = normalizeColumns(body.columns);
+  if (body.visible !== undefined) patch.visible = !!body.visible;
   updateDynSection(sid, patch);
   res.json({ ok: true });
 });
@@ -444,6 +447,19 @@ api.post('/admin/characters', requireAuth, requireGm, (req, res) => {
     return;
   }
   const r = db.prepare('INSERT INTO characters (name, owner_user_id, group_id) VALUES (?, ?, ?)').run(name, ownerUserId, groupId);
-  initCharacterRows(Number(r.lastInsertRowid));
-  res.json({ id: r.lastInsertRowid });
+  const newId = Number(r.lastInsertRowid);
+  initCharacterRows(newId);
+  instantiateStandardSections(newId);
+  res.json({ id: newId });
+});
+
+// Einmalige Migration bestehender Listendaten in generische Sektionen
+api.post('/admin/characters/:id/migrate-sections', requireAuth, requireGm, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char) {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  const result = migrateCharacterPeriphery(char.id);
+  res.json(result);
 });

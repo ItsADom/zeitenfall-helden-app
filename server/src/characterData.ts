@@ -128,11 +128,12 @@ interface DynSectionRow {
   name: string;
   type: string;
   columns: string;
+  visible: number;
 }
 
 export function loadDynSections(charId: number): DynSection[] {
   const sections = db
-    .prepare('SELECT id, pos, name, type, columns FROM char_sections WHERE character_id = ? ORDER BY pos, id')
+    .prepare('SELECT id, pos, name, type, columns, visible FROM char_sections WHERE character_id = ? ORDER BY pos, id')
     .all(charId) as DynSectionRow[];
   const rowStmt = db.prepare('SELECT id, pos, data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id');
   return sections.map((s) => {
@@ -151,7 +152,7 @@ export function loadDynSections(charId: number): DynSection[] {
       }
       return { id: r.id, ...data } as Record<string, unknown>;
     });
-    return { id: s.id, pos: s.pos, name: s.name, type: s.type as DynSection['type'], columns, rows };
+    return { id: s.id, pos: s.pos, name: s.name, type: s.type as DynSection['type'], columns, rows, visible: !!s.visible };
   });
 }
 
@@ -167,9 +168,10 @@ export function sectionBelongsTo(sectionId: number, charId: number): boolean {
   return !!db.prepare('SELECT 1 FROM char_sections WHERE id = ? AND character_id = ?').get(sectionId, charId);
 }
 
-export function updateDynSection(sectionId: number, patch: { name?: string; columns?: DynColumn[] }): void {
+export function updateDynSection(sectionId: number, patch: { name?: string; columns?: DynColumn[]; visible?: boolean }): void {
   if (patch.name !== undefined) db.prepare('UPDATE char_sections SET name = ? WHERE id = ?').run(patch.name, sectionId);
   if (patch.columns !== undefined) db.prepare('UPDATE char_sections SET columns = ? WHERE id = ?').run(JSON.stringify(patch.columns), sectionId);
+  if (patch.visible !== undefined) db.prepare('UPDATE char_sections SET visible = ? WHERE id = ?').run(patch.visible ? 1 : 0, sectionId);
 }
 
 export function deleteDynSection(sectionId: number): void {
@@ -193,6 +195,92 @@ export function saveDynRows(sectionId: number, rows: Record<string, unknown>[]):
     });
   });
   tx();
+}
+
+// --- Standard-Vorlage & Migration der festen Listen in generische Sektionen ---
+
+// Waffen bleiben als berechneter Tab bestehen; diese IDs werden NICHT generisch.
+const KEEP_FIXED_IDS = new Set(['waffenNah', 'waffenFern', 'waffenlos', 'kampfstile', 'munition', 'zauberSektionen', 'zauberEintraege']);
+
+// Reihenfolge der Standard-Sektionen für neue Charaktere (aus LIST_SECTIONS abgeleitet)
+const PERIPHERY_IDS = LIST_SECTIONS.map((s) => s.id).filter((id) => !KEEP_FIXED_IDS.has(id));
+
+function toDynColumns(defs: { key: string; label: string; type: string; width?: number }[]): DynColumn[] {
+  return defs
+    .filter((c) => c.key !== 'notiz')
+    .map((c) => {
+      const type = (['text', 'number', 'bool'] as const).includes(c.type as never) ? (c.type as DynColumn['type']) : 'text';
+      const col: DynColumn = { key: c.key, label: c.label, type };
+      if (c.width) col.width = Math.max(90, c.width * 60);
+      return col;
+    });
+}
+
+const stripRowMeta = (row: Record<string, unknown>): Record<string, unknown> => {
+  const { id, character_id, pos, ...rest } = row;
+  void id;
+  void character_id;
+  void pos;
+  return rest;
+};
+
+// Leere Standard-Sektionen für einen neuen Charakter anlegen.
+export function instantiateStandardSections(charId: number): void {
+  const tx = db.transaction(() => {
+    for (const id of PERIPHERY_IDS) {
+      const def = listSectionById(id);
+      if (def) createDynSection(charId, def.label, 'table', toDynColumns(def.columns));
+    }
+  });
+  tx();
+}
+
+// Bestehende Listendaten eines Charakters in generische Sektionen überführen.
+// Idempotent: läuft nur, wenn noch keine generischen Sektionen existieren.
+export function migrateCharacterPeriphery(charId: number): { created: number } {
+  const already = (db.prepare('SELECT COUNT(*) AS n FROM char_sections WHERE character_id = ?').get(charId) as { n: number }).n;
+  if (already > 0) return { created: 0 };
+  let created = 0;
+  const tx = db.transaction(() => {
+    // Zauber: je Zauber-Sektion eine generische Sektion mit Probe-Spalte
+    const zSecs = loadList('zauberSektionen', charId);
+    const zEntries = loadList('zauberEintraege', charId);
+    for (const zs of zSecs) {
+      const name = String(zs.name);
+      const cols: DynColumn[] = [
+        { key: 'name', label: 'Name', type: 'text', width: 220 },
+        { key: 'stufe', label: 'Stufe', type: 'text', width: 80 },
+        { key: 'kosten', label: 'Kosten', type: 'text', width: 90 },
+        { key: 'probe', label: 'Probe', type: 'text', width: 120 },
+        { key: 'probeZahl', label: 'Probe (Zahl)', type: 'probe', width: 100, probeExprKey: 'probe' },
+        { key: 'probeZahlManuell', label: 'Probe (manuell)', type: 'number', width: 100 },
+        { key: 'effekt', label: 'Effekt', type: 'text', width: 300 },
+        { key: 'fortschritt', label: 'Fortschritt', type: 'number', width: 90 },
+      ];
+      const sid = createDynSection(charId, name, 'table', cols);
+      created++;
+      const rows = zEntries
+        .filter((e) => e.sektion === name)
+        .map((e) => {
+          const r = stripRowMeta(e);
+          delete r.sektion;
+          return r;
+        });
+      saveDynRows(sid, rows);
+    }
+    // Übrige Peripherie 1:1
+    for (const id of PERIPHERY_IDS) {
+      const def = listSectionById(id);
+      if (!def) continue;
+      const rows = loadList(id, charId).map(stripRowMeta);
+      if (rows.length === 0) continue; // leere Listen nicht migrieren
+      const sid = createDynSection(charId, def.label, 'table', toDynColumns(def.columns));
+      created++;
+      saveDynRows(sid, rows);
+    }
+  });
+  tx();
+  return { created };
 }
 
 export function loadFullCharacter(charId: number) {
