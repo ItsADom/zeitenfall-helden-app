@@ -23,12 +23,33 @@ export default function InventarTab() {
     );
   };
 
+  const sortByName = (a: Row, b: Row) => String(a.name).localeCompare(String(b.name), 'de');
+  const sortRows = (mode: 'kategorie' | 'name') => {
+    const sorted = [...rows].sort((a, b) => {
+      if (mode === 'kategorie') {
+        const kat = String(a.kategorie).localeCompare(String(b.kategorie), 'de');
+        if (kat !== 0) return kat;
+      }
+      return sortByName(a, b);
+    });
+    update('inventar', sorted);
+  };
+
   return (
     <div className="panel">
       <h3>Inventar</h3>
       <p>
         Gesamtgewicht: <strong>{gesamt.toFixed(1)} kg</strong> · Maximale Last: <strong>{max} kg</strong>{' '}
         {gesamt > max && <span className="error">— überladen!</span>}
+      </p>
+      <p>
+        <span className="muted">Sortieren: </span>
+        <button className="small" onClick={() => sortRows('kategorie')}>
+          Kategorie &amp; Name
+        </button>{' '}
+        <button className="small" onClick={() => sortRows('name')}>
+          Name
+        </button>
       </p>
       <ListEditor
         def={listSectionById('inventar')!}

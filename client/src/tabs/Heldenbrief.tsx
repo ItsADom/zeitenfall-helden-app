@@ -72,11 +72,6 @@ export default function HeldenbriefTab() {
         </div>
       </div>
 
-      <div className="panel">
-        <h3>Professionsboni</h3>
-        <ListEditor def={listSectionById('professionBoni')!} rows={data.lists.professionBoni} onChange={(rows) => update('professionBoni', rows)} />
-      </div>
-
       <div className="grid2">
         <div className="panel">
           <h3>Attribute</h3>
@@ -256,6 +251,11 @@ export default function HeldenbriefTab() {
       <div className="panel">
         <h3>20+ Perks</h3>
         <ListEditor def={listSectionById('perks')!} rows={data.lists.perks} onChange={(rows) => update('perks', rows)} />
+      </div>
+
+      <div className="panel">
+        <h3>Professionsboni</h3>
+        <ListEditor def={listSectionById('professionBoni')!} rows={data.lists.professionBoni} onChange={(rows) => update('professionBoni', rows)} />
       </div>
     </>
   );

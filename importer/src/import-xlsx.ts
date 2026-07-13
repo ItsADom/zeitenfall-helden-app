@@ -60,12 +60,9 @@ const sheet = (name: string): Sheet => {
   if (!s) throw new Error(`Blatt "${name}" nicht gefunden`);
   return s;
 };
-// Zellkommentar als einzeilige Anmerkung an einen Feldtext anhängen
-function withComment(sheetName: string, ref: string, text: string): string {
-  const comment = allComments.get(sheetName)?.get(ref);
-  if (!comment) return text;
-  const oneLine = comment.replace(/\s*\n+\s*/g, '; ');
-  return text ? `${text} — Anmerkung: ${oneLine}` : `Anmerkung: ${oneLine}`;
+// Zellkommentar als Zeilen-Notiz (mehrzeilig erhalten)
+function commentAt(sheetName: string, ref: string): string {
+  return allComments.get(sheetName)?.get(ref) ?? '';
 }
 const held = sheet('Heldenbrief');
 const ausruestung = sheet('Ausrüstung');
@@ -296,7 +293,8 @@ for (let r = 3; r <= 9; r++) {
       name,
       wert: cellStr(held, `M${r}`),
       gp: cellStr(held, `N${r}`),
-      beschreibung: withComment('Heldenbrief', `O${r}`, cellStr(held, `O${r}`)),
+      beschreibung: cellStr(held, `O${r}`),
+      notiz: commentAt('Heldenbrief', `O${r}`),
     });
   }
 }
@@ -310,7 +308,8 @@ for (let r = 12; r <= 15; r++) {
       name,
       wert: cellStr(held, `M${r}`),
       gp: cellStr(held, `N${r}`),
-      beschreibung: withComment('Heldenbrief', `O${r}`, cellStr(held, `O${r}`)),
+      beschreibung: cellStr(held, `O${r}`),
+      notiz: commentAt('Heldenbrief', `O${r}`),
     });
   }
 }
@@ -401,7 +400,8 @@ for (let r = 7; r <= 13; r++) {
     schaden: cellStr(waffen, `L${r}`),
     iniBonus: cellNum(waffen, `M${r}`),
     reichweite: cellStr(waffen, `N${r}`),
-    besonderes: withComment('Waffen', `P${r}`, cellStr(waffen, `P${r}`)),
+    besonderes: cellStr(waffen, `P${r}`),
+    notiz: commentAt('Waffen', `P${r}`),
     expLevel: cellStr(waffen, `W${r + 1}`),
     talentId,
   };
@@ -460,9 +460,13 @@ for (let r = 22; r <= 30; r++) {
 }
 insertList('kampfstile', kampfstile);
 
-// --- Zauber: Techniken, Liturgien, Allgemeinzauber ---
+// --- Zauber: frei benennbare Sektionen (Vorlage: die drei Blöcke des Blatts) ---
 
-const techniken: Record<string, unknown>[] = [];
+const zauberEintraege: Record<string, unknown>[] = [];
+const SEKTION_TECHNIKEN = 'Talente/Kampfstile/Stellungen';
+const SEKTION_LITURGIEN = 'Liturgien';
+const SEKTION_ZAUBER = 'Allgemeinzauber';
+
 for (let r = 5; r <= 19; r++) {
   const name = cellStr(zauber, `A${r}`);
   if (!name) continue;
@@ -472,39 +476,37 @@ for (let r = 5; r <= 19; r++) {
   if (computed != null && expected !== '' && expected.toUpperCase() !== 'X') {
     check(`Zauber!G${r} (${name})`, cellNum(zauber, `G${r}`), computed);
   }
-  techniken.push({
+  zauberEintraege.push({
+    sektion: SEKTION_TECHNIKEN,
     name,
     stufe: cellStr(zauber, `D${r}`),
     kosten: cellStr(zauber, `E${r}`),
     probe,
-    effekt: withComment('Zauber', `H${r}`, cellStr(zauber, `H${r}`)),
+    effekt: cellStr(zauber, `H${r}`),
+    notiz: commentAt('Zauber', `H${r}`),
     fortschritt: cellNum(zauber, `L${r}`),
     probeZahlManuell: computed == null && expected !== '' && expected.toUpperCase() !== 'X' ? cellNum(zauber, `G${r}`) : 0,
   });
 }
-insertList('techniken', techniken);
-
-const liturgien: Record<string, unknown>[] = [];
 for (let r = 5; r <= 12; r++) {
   const name = cellStr(zauber, `M${r}`);
   if (!name) continue;
-  liturgien.push({
+  zauberEintraege.push({
+    sektion: SEKTION_LITURGIEN,
     name,
     kosten: cellStr(zauber, `O${r}`),
     effekt: cellStr(zauber, `Q${r}`),
     probeZahlManuell: cellNum(zauber, `T${r}`),
   });
 }
-insertList('liturgien', liturgien);
-
-const allgemeinzauber: Record<string, unknown>[] = [];
 for (let r = 23; r <= 25; r++) {
   const name = cellStr(zauber, `A${r}`);
   if (!name) continue;
   const probe = cellStr(zauber, `F${r}`);
   const computed = probeExprZahl(attributes, probe);
   if (computed != null && cellStr(zauber, `K${r}`) !== '') check(`Zauber!K${r} (${name})`, cellNum(zauber, `K${r}`), computed);
-  allgemeinzauber.push({
+  zauberEintraege.push({
+    sektion: SEKTION_ZAUBER,
     name,
     stufe: cellStr(zauber, `C${r}`),
     kosten: cellStr(zauber, `D${r}`),
@@ -512,7 +514,8 @@ for (let r = 23; r <= 25; r++) {
     effekt: cellStr(zauber, `H${r}`),
   });
 }
-insertList('allgemeinzauber', allgemeinzauber);
+insertList('zauberSektionen', [{ name: SEKTION_TECHNIKEN }, { name: SEKTION_LITURGIEN }, { name: SEKTION_ZAUBER }]);
+insertList('zauberEintraege', zauberEintraege);
 
 // --- Ausrüstung ---
 
@@ -580,9 +583,10 @@ for (const range of invRanges) {
     if (!name) continue;
     invRows.push({
       kategorie: range.kategorie,
-      name: withComment('Inventar', `${range.nameCol}${r}`, name),
+      name,
       anzahl: cellNum(inventar, `${range.anzahlCol}${r}`),
       eGewicht: cellNum(inventar, `${range.gewichtCol}${r}`),
+      notiz: commentAt('Inventar', `${range.nameCol}${r}`),
     });
   }
 }

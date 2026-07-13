@@ -366,6 +366,35 @@ button.add-row {
   margin-top: 6px;
   font-weight: 600;
 }
+button.note-btn.has-note {
+  color: var(--accent);
+}
+tr.note-row td {
+  background: #fbf8ee;
+  padding: 6px 10px;
+}
+textarea.note-area {
+  resize: vertical;
+  min-height: 40px;
+  background: var(--input-bg);
+}
+input.section-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  font-weight: 700;
+  border-color: transparent;
+  background: transparent;
+  max-width: 420px;
+  padding-left: 0;
+}
+input.section-title:hover {
+  border-color: var(--border-strong);
+  background: var(--input-bg);
+}
+input.section-title:focus {
+  border-color: var(--accent);
+  background: var(--input-bg);
+}
 
 /* ---------- Layout-Hilfen ---------- */
 
@@ -378,6 +407,14 @@ button.add-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0 24px;
+}
+/* Breite Tabellen scrollen im Panel statt die Seite zu verbreitern */
+.grid2 > *,
+.grid3 > * {
+  min-width: 0;
+}
+main {
+  overflow-x: hidden;
 }
 @media (max-width: 950px) {
   .grid2, .grid3 {

@@ -305,7 +305,7 @@ export function buildSummary(charId: number) {
     };
   }
   if (visibility.zauber) {
-    sections.zauber = { techniken: lists.techniken, liturgien: lists.liturgien, allgemeinzauber: lists.allgemeinzauber };
+    sections.zauber = { sektionen: lists.zauberSektionen, eintraege: lists.zauberEintraege };
   }
   if (visibility.ausruestung) {
     sections.ausruestung = {

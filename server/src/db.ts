@@ -161,6 +161,37 @@ for (const s of LIST_SECTIONS) {
   }
 }
 
+// Migration: feste Zauber-Sektionen (techniken/liturgien/allgemeinzauber) in die
+// frei benennbaren Sektionen (zauberSektionen/zauberEintraege) überführen
+const hasTable = (name: string): boolean =>
+  !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name);
+if (hasTable('sec_techniken')) {
+  const migrate = db.transaction(() => {
+    const empty = (db.prepare('SELECT COUNT(*) AS n FROM sec_zauberEintraege').get() as { n: number }).n === 0;
+    if (empty) {
+      db.exec(`
+        INSERT INTO sec_zauberEintraege (character_id, pos, sektion, name, stufe, kosten, probe, effekt, fortschritt, probeZahlManuell, notiz)
+          SELECT character_id, pos, 'Talente/Kampfstile/Stellungen', name, stufe, kosten, probe, effekt, fortschritt, probeZahlManuell, ''
+          FROM sec_techniken;
+        INSERT INTO sec_zauberEintraege (character_id, pos, sektion, name, stufe, kosten, probe, effekt, fortschritt, probeZahlManuell, notiz)
+          SELECT character_id, 1000 + pos, 'Liturgien', name, '', kosten, '', effekt, 0, probeZahlManuell, ''
+          FROM sec_liturgien;
+        INSERT INTO sec_zauberEintraege (character_id, pos, sektion, name, stufe, kosten, probe, effekt, fortschritt, probeZahlManuell, notiz)
+          SELECT character_id, 2000 + pos, 'Allgemeinzauber', name, stufe, kosten, probe, effekt, 0, 0, ''
+          FROM sec_allgemeinzauber;
+      `);
+      // Für jeden Charakter mit Einträgen die drei Standard-Sektionen anlegen
+      const chars = db.prepare('SELECT DISTINCT character_id FROM sec_zauberEintraege').all() as { character_id: number }[];
+      const ins = db.prepare('INSERT INTO sec_zauberSektionen (character_id, pos, name, notiz) VALUES (?, ?, ?, ?)');
+      for (const c of chars) {
+        ['Talente/Kampfstile/Stellungen', 'Liturgien', 'Allgemeinzauber'].forEach((name, i) => ins.run(c.character_id, i, name, ''));
+      }
+    }
+    db.exec('DROP TABLE sec_techniken; DROP TABLE sec_liturgien; DROP TABLE sec_allgemeinzauber;');
+  });
+  migrate();
+}
+
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
 export function initCharacterRows(characterId: number): void {
   const attr = db.prepare('INSERT OR IGNORE INTO char_attributes (character_id, attr) VALUES (?, ?)');

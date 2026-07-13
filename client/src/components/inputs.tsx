@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
 import { ResizeHandle, useResizableColumns } from './resize';
 
@@ -94,12 +96,24 @@ export function ListEditor({
   customCell?: (col: ColumnDef, row: Row, update: (row: Row) => void) => React.ReactNode | undefined;
   emptyRow?: Row;
 }) {
-  const cols = def.columns.filter((c) => !hiddenColumns.includes(c.key));
+  const cols = def.columns.filter((c) => !hiddenColumns.includes(c.key) && c.key !== NOTIZ_KEY);
+  const hasNotiz = def.columns.some((c) => c.key === NOTIZ_KEY);
+  const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
   const { widths, startDrag } = useResizableColumns(
     def.id,
     cols.map(defaultWidth),
   );
-  const totalWidth = widths.reduce((s, w) => s + w, 0) + extraColumns.length * 90 + (disabled ? 0 : 40);
+  const trailingCols = extraColumns.length + (hasNotiz ? 1 : 0) + (disabled ? 0 : 1);
+  const totalWidth = widths.reduce((s, w) => s + w, 0) + extraColumns.length * 90 + (hasNotiz ? 40 : 0) + (disabled ? 0 : 40);
+
+  const toggleNote = (i: number) => {
+    setOpenNotes((prev) => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
 
   const setRow = (i: number, row: Row) => {
     const next = rows.slice();
@@ -126,6 +140,7 @@ export function ListEditor({
             {extraColumns.map((c) => (
               <col key={c.label} style={{ width: 90 }} />
             ))}
+            {hasNotiz && <col style={{ width: 40 }} />}
             {!disabled && <col style={{ width: 40 }} />}
           </colgroup>
           <thead>
@@ -141,36 +156,66 @@ export function ListEditor({
                   {c.label}
                 </th>
               ))}
+              {hasNotiz && <th />}
               {!disabled && <th />}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
-              <tr key={i}>
-                {cols.map((c) => (
-                  <td key={c.key} className={c.type === 'number' ? 'num' : undefined}>
-                    {customCell?.(c, row, (r) => setRow(i, r)) ?? (
-                      <CellInput col={c} row={row} disabled={disabled} onChange={(r) => setRow(i, r)} />
-                    )}
-                  </td>
-                ))}
-                {extraColumns.map((c) => (
-                  <td key={c.label} className="computed">
-                    {c.render(row, i)}
-                  </td>
-                ))}
-                {!disabled && (
-                  <td>
-                    <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
-                      ✕
-                    </button>
-                  </td>
-                )}
-              </tr>
-            ))}
+            {rows.map((row, i) => {
+              const notiz = String(row[NOTIZ_KEY] ?? '');
+              return [
+                <tr key={i}>
+                  {cols.map((c) => (
+                    <td key={c.key} className={c.type === 'number' ? 'num' : undefined}>
+                      {customCell?.(c, row, (r) => setRow(i, r)) ?? (
+                        <CellInput col={c} row={row} disabled={disabled} onChange={(r) => setRow(i, r)} />
+                      )}
+                    </td>
+                  ))}
+                  {extraColumns.map((c) => (
+                    <td key={c.label} className="computed">
+                      {c.render(row, i)}
+                    </td>
+                  ))}
+                  {hasNotiz && (
+                    <td>
+                      <button
+                        className={`small note-btn${notiz ? ' has-note' : ''}`}
+                        title={notiz || 'Notiz hinzufügen'}
+                        onClick={() => toggleNote(i)}
+                      >
+                        {notiz ? '📝' : '✎'}
+                      </button>
+                    </td>
+                  )}
+                  {!disabled && (
+                    <td>
+                      <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
+                        ✕
+                      </button>
+                    </td>
+                  )}
+                </tr>,
+                hasNotiz && openNotes.has(i) ? (
+                  <tr key={`note-${i}`} className="note-row">
+                    <td colSpan={cols.length + trailingCols}>
+                      <textarea
+                        className="note-area"
+                        rows={2}
+                        placeholder="Notiz…"
+                        value={notiz}
+                        disabled={disabled}
+                        autoFocus
+                        onChange={(e) => setRow(i, { ...row, [NOTIZ_KEY]: e.target.value })}
+                      />
+                    </td>
+                  </tr>
+                ) : null,
+              ];
+            })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={cols.length + extraColumns.length + (disabled ? 0 : 1)} className="muted">
+                <td colSpan={cols.length + trailingCols} className="muted">
                   Keine Einträge
                 </td>
               </tr>

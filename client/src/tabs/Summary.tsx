@@ -31,11 +31,11 @@ const BIO_LABELS: [string, string][] = [
 ];
 
 // Generische, schreibgeschützte Tabelle für Zeilen-Objekte
-function RowsTable({ rows, sectionId }: { rows: Row[]; sectionId?: string }) {
+function RowsTable({ rows, sectionId, hidden = [] }: { rows: Row[]; sectionId?: string; hidden?: string[] }) {
   if (!rows || rows.length === 0) return <p className="muted">—</p>;
   const def = sectionId ? listSectionById(sectionId) : undefined;
-  const skip = new Set(['id', 'character_id', 'pos']);
-  const keys = def ? def.columns.map((c) => c.key) : Object.keys(rows[0]).filter((k) => !skip.has(k));
+  const skip = new Set(['id', 'character_id', 'pos', ...hidden]);
+  const keys = (def ? def.columns.map((c) => c.key) : Object.keys(rows[0])).filter((k) => !skip.has(k));
   const label = (k: string) => def?.columns.find((c) => c.key === k)?.label ?? k;
   return (
     <div className="table-wrap" style={{ marginBottom: 10 }}>
@@ -197,12 +197,16 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
       {s.zauber && (
         <div className="panel">
           <h3>{VISIBILITY_LABELS.zauber}</h3>
-          <h4>Talente/Kampfstile/Stellungen</h4>
-          <RowsTable rows={(s.zauber as { techniken: Row[] }).techniken} sectionId="techniken" />
-          <h4>Liturgien</h4>
-          <RowsTable rows={(s.zauber as { liturgien: Row[] }).liturgien} sectionId="liturgien" />
-          <h4>Allgemeinzauber</h4>
-          <RowsTable rows={(s.zauber as { allgemeinzauber: Row[] }).allgemeinzauber} sectionId="allgemeinzauber" />
+          {(s.zauber as { sektionen: Row[] }).sektionen.map((sek, i) => (
+            <div key={i}>
+              <h4>{String(sek.name)}</h4>
+              <RowsTable
+                rows={(s.zauber as { eintraege: Row[] }).eintraege.filter((e) => e.sektion === sek.name)}
+                sectionId="zauberEintraege"
+                hidden={['sektion']}
+              />
+            </div>
+          ))}
         </div>
       )}
       {s.ausruestung && (

@@ -20,7 +20,10 @@ const t = (key: string, label: string, width?: number): ColumnDef => ({ key, lab
 const n = (key: string, label: string, width?: number): ColumnDef => ({ key, label, type: 'number', width });
 const b = (key: string, label: string, width?: number): ColumnDef => ({ key, label, type: 'bool', width });
 
-export const LIST_SECTIONS: ListSectionDef[] = [
+// Jede Zeile jeder Listen-Sektion bekommt eine freie Notiz (eigener Editor im Client)
+export const NOTIZ_KEY = 'notiz';
+
+const RAW_SECTIONS: ListSectionDef[] = [
   // Heldenbrief
   {
     id: 'professionBoni',
@@ -82,24 +85,20 @@ export const LIST_SECTIONS: ListSectionDef[] = [
     label: 'Pfeile/Bolzen',
     columns: [t('art', 'Art', 3), t('anzahl', 'Anzahl', 1), t('fuerWaffe', 'für Waffe', 3)],
   },
-  // Zauber
+  // Zauber: frei benennbare Sektionen je Charakter, Einträge referenzieren die Sektion per Name
   {
-    id: 'techniken',
-    label: 'Talente/Kampfstile/Stellungen',
+    id: 'zauberSektionen',
+    label: 'Zauber-Sektionen',
+    columns: [t('name', 'Sektion', 4)],
+  },
+  {
+    id: 'zauberEintraege',
+    label: 'Zauber & Techniken',
     columns: [
-      t('name', 'Name', 4), t('stufe', 'Stufe', 1), t('kosten', 'Kosten', 1), t('probe', 'Probe', 2),
-      t('effekt', 'Effekt', 5), n('fortschritt', 'Fortschritt', 1), n('probeZahlManuell', 'Probe (Zahl, manuell)', 1),
+      t('sektion', 'Sektion', 2), t('name', 'Name', 4), t('stufe', 'Stufe', 1), t('kosten', 'Kosten', 1),
+      t('probe', 'Probe', 2), t('effekt', 'Effekt', 5), n('fortschritt', 'Fortschritt', 1),
+      n('probeZahlManuell', 'Probe (Zahl, manuell)', 1),
     ],
-  },
-  {
-    id: 'liturgien',
-    label: 'Liturgien',
-    columns: [t('name', 'Name (Stufe)', 3), t('kosten', 'Kosten', 1), t('effekt', 'Effekt', 5), n('probeZahlManuell', 'Probe (Zahl)', 1)],
-  },
-  {
-    id: 'allgemeinzauber',
-    label: 'Allgemeinzauber',
-    columns: [t('name', 'Name', 3), t('stufe', 'Stufe', 1), t('kosten', 'Kosten', 1), t('probe', 'Probe', 2), t('effekt', 'Effekt', 4)],
   },
   // Ausrüstung
   {
@@ -204,6 +203,11 @@ export const LIST_SECTIONS: ListSectionDef[] = [
     columns: [t('kind', 'Art', 1), t('text', 'Text', 6)],
   },
 ];
+
+export const LIST_SECTIONS: ListSectionDef[] = RAW_SECTIONS.map((s) => ({
+  ...s,
+  columns: [...s.columns, t(NOTIZ_KEY, 'Notiz', 3)],
+}));
 
 export const LIST_SECTION_IDS = LIST_SECTIONS.map((s) => s.id);
 export const listSectionById = (id: string): ListSectionDef | undefined => LIST_SECTIONS.find((s) => s.id === id);
