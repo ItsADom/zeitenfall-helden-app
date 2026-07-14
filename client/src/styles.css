@@ -298,13 +298,8 @@ input:focus, select:focus, textarea:focus {
 input[type='number'] {
   text-align: center;
 }
-/* Zahl-Eingaben außerhalb von Tabellen: Pfeile sichtbar im Kasten,
-   linker Ausgleich, damit der Text trotz Pfeilen optisch mittig steht */
-.field input[type='number'],
-.points-grid input[type='number'] {
-  padding-left: 1.6em;
-  padding-right: 0.5em;
-}
+/* Zahl-Eingaben außerhalb von Tabellen: Pfeile sichtbar im Kasten;
+   Text mittig im Bereich zwischen linkem Rand und Spinner */
 .field input[type='number']::-webkit-inner-spin-button,
 .points-grid input[type='number']::-webkit-inner-spin-button {
   opacity: 1;
@@ -451,6 +446,7 @@ textarea.note-area {
 
 /* Klar erkennbarer Aktions-Button (auch ohne Hover) */
 button.btn-action {
+  min-width: 124px;
   background: #fff;
   color: var(--accent);
   border: 1.5px solid var(--accent);
