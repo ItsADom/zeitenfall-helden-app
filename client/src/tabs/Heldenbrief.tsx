@@ -7,7 +7,7 @@ import {
   RESOURCE_LABELS,
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, mrErgebnis, nextLevelAp, psycheProzent } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
@@ -218,56 +218,68 @@ export default function HeldenbriefTab() {
       <div className="grid2">
         <div className="panel">
           <h3>Stufe &amp; Punkte</h3>
-          <div className="field">
-            <label>Stufe</label>
-            <span className="computed" style={{ padding: '3px 14px', fontSize: 16 }}>{level}</span>
-            <label style={{ width: 'auto', marginLeft: 20 }}>Next Level</label>
-            <span className="computed" style={{ padding: '3px 12px' }}>{nextAp.toLocaleString('de-DE')}</span>
-            <span className="muted">noch {(nextAp - ap).toLocaleString('de-DE')} AP</span>
-          </div>
-          <div className="field">
-            <label>Abenteuerpunkte</label>
-            <span style={{ minWidth: 100, fontWeight: 600 }}>{ap.toLocaleString('de-DE')}</span>
-            <input
-              type="number"
-              value={apDelta}
-              placeholder="Menge (+)"
-              style={{ width: 130 }}
-              onChange={(e) => setApDelta(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addAp()}
-            />
-            <button className="small" onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
-              + hinzufügen
-            </button>
-          </div>
-          <div className="field">
-            <label>AP-Guthaben</label>
-            <span style={{ minWidth: 100, fontWeight: 600 }}>{guthaben.toLocaleString('de-DE')}</span>
-            <input
-              type="number"
-              value={guthabenDelta}
-              placeholder="Menge (±)"
-              style={{ width: 130 }}
-              onChange={(e) => setGuthabenDelta(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
-            />
-            <button className="small" onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
-              ± anpassen
-            </button>
-          </div>
-          {META_FIELDS.map(([key, label]) => (
-            <div className="field" key={key}>
-              <label>{label}</label>
-              <NumInput value={meta[key] ?? 0} onChange={(v) => setMeta(key, v)} width={120} />
+          <div className="level-banner">
+            <div className="level-badge">
+              <span className="level-num">{level}</span>
+              <span className="level-cap">Stufe</span>
             </div>
-          ))}
-          <div className="field">
+            <div className="level-next">
+              <div>
+                Nächste Stufe bei <strong>{nextAp.toLocaleString('de-DE')}</strong> AP
+              </div>
+              <div className="muted">noch {(nextAp - ap).toLocaleString('de-DE')} AP</div>
+            </div>
+          </div>
+          <div className="points-grid">
+            <label>Abenteuerpunkte</label>
+            <span className="pval">{ap.toLocaleString('de-DE')}</span>
+            <div className="pctrl">
+              <input
+                type="number"
+                value={apDelta}
+                placeholder="Menge (+)"
+                style={{ width: 110 }}
+                onChange={(e) => setApDelta(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addAp()}
+              />
+              <button className="small" onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
+                + hinzufügen
+              </button>
+            </div>
+
+            <label>AP-Guthaben</label>
+            <span className="pval">{guthaben.toLocaleString('de-DE')}</span>
+            <div className="pctrl">
+              <input
+                type="number"
+                value={guthabenDelta}
+                placeholder="Menge (±)"
+                style={{ width: 110 }}
+                onChange={(e) => setGuthabenDelta(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
+              />
+              <button className="small" onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
+                ± anpassen
+              </button>
+            </div>
+
+            {META_FIELDS.map(([key, label]) => (
+              <Fragment key={key}>
+                <label>{label}</label>
+                <NumInput value={meta[key] ?? 0} onChange={(v) => setMeta(key, v)} />
+                <span />
+              </Fragment>
+            ))}
+
             <label>Psyche (akt/max)</label>
-            <NumInput value={meta.psycheAkt ?? 0} onChange={(v) => setMeta('psycheAkt', v)} width={80} />
-            <NumInput value={meta.psycheMax ?? 0} onChange={(v) => setMeta('psycheMax', v)} width={80} />
-            <span className="computed" style={{ padding: '2px 8px' }}>
-              {psyche == null ? '—' : `${Math.round(psyche)}%`}
-            </span>
+            <div className="pctrl" style={{ gridColumn: '2 / 4' }}>
+              <NumInput value={meta.psycheAkt ?? 0} onChange={(v) => setMeta('psycheAkt', v)} width={70} />
+              <span>/</span>
+              <NumInput value={meta.psycheMax ?? 0} onChange={(v) => setMeta('psycheMax', v)} width={70} />
+              <span className="computed" style={{ padding: '2px 10px' }}>
+                {psyche == null ? '—' : `${Math.round(psyche)}%`}
+              </span>
+            </div>
           </div>
         </div>
 
