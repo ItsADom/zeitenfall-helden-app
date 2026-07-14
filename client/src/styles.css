@@ -408,10 +408,12 @@ textarea.note-area {
   box-shadow: 0 2px 8px rgba(139, 38, 53, 0.3);
 }
 .level-num {
-  font-family: Georgia, serif;
+  font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 32px;
   font-weight: 700;
   line-height: 1;
+  /* Lining-Ziffern sitzen einheitlich 2px zu tief → optisch mittig ausgleichen */
+  transform: translateY(-2px);
 }
 .level-next {
   font-size: 14px;
