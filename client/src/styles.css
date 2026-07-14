@@ -429,26 +429,45 @@ textarea.note-area {
 }
 .points-grid {
   display: grid;
-  grid-template-columns: 150px 110px 1fr;
+  grid-template-columns: 150px 120px 1fr;
   align-items: center;
-  row-gap: 9px;
+  row-gap: 10px;
   column-gap: 14px;
 }
 .points-grid > label {
   color: var(--muted);
   font-size: 13px;
 }
-.points-grid .pval {
-  font-weight: 700;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-  padding-right: 4px;
-}
 .points-grid .pctrl {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+}
+.points-grid .pnum {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+/* Klar erkennbarer Aktions-Button (auch ohne Hover) */
+button.btn-action {
+  background: #fff;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  border-radius: 7px;
+  padding: 5px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.13s, color 0.13s;
+}
+button.btn-action:hover {
+  background: var(--accent);
+  color: #fff;
+}
+button.btn-action:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 input.section-title {

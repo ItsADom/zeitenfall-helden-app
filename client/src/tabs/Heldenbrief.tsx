@@ -232,35 +232,35 @@ export default function HeldenbriefTab() {
           </div>
           <div className="points-grid">
             <label>Abenteuerpunkte</label>
-            <span className="pval">{ap.toLocaleString('de-DE')}</span>
+            <input
+              type="number"
+              value={apDelta}
+              placeholder="+ Menge"
+              onChange={(e) => setApDelta(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && addAp()}
+            />
             <div className="pctrl">
-              <input
-                type="number"
-                value={apDelta}
-                placeholder="Menge (+)"
-                style={{ width: 110 }}
-                onChange={(e) => setApDelta(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addAp()}
-              />
-              <button className="small" onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
-                + hinzufügen
+              <button className="btn-action" disabled={!apDelta} onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
+                Hinzufügen
               </button>
+              <span className="muted">Stand:</span>
+              <span className="pnum">{ap.toLocaleString('de-DE')}</span>
             </div>
 
             <label>AP-Guthaben</label>
-            <span className="pval">{guthaben.toLocaleString('de-DE')}</span>
+            <input
+              type="number"
+              value={guthabenDelta}
+              placeholder="± Menge"
+              onChange={(e) => setGuthabenDelta(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
+            />
             <div className="pctrl">
-              <input
-                type="number"
-                value={guthabenDelta}
-                placeholder="Menge (±)"
-                style={{ width: 110 }}
-                onChange={(e) => setGuthabenDelta(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
-              />
-              <button className="small" onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
-                ± anpassen
+              <button className="btn-action" disabled={!guthabenDelta} onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
+                Anpassen
               </button>
+              <span className="muted">Stand:</span>
+              <span className="pnum">{guthaben.toLocaleString('de-DE')}</span>
             </div>
 
             {META_FIELDS.map(([key, label]) => (
@@ -272,10 +272,10 @@ export default function HeldenbriefTab() {
             ))}
 
             <label>Psyche (akt/max)</label>
-            <div className="pctrl" style={{ gridColumn: '2 / 4' }}>
-              <NumInput value={meta.psycheAkt ?? 0} onChange={(v) => setMeta('psycheAkt', v)} width={70} />
+            <NumInput value={meta.psycheAkt ?? 0} onChange={(v) => setMeta('psycheAkt', v)} />
+            <div className="pctrl">
               <span>/</span>
-              <NumInput value={meta.psycheMax ?? 0} onChange={(v) => setMeta('psycheMax', v)} width={70} />
+              <NumInput value={meta.psycheMax ?? 0} onChange={(v) => setMeta('psycheMax', v)} width={120} />
               <span className="computed" style={{ padding: '2px 10px' }}>
                 {psyche == null ? '—' : `${Math.round(psyche)}%`}
               </span>
