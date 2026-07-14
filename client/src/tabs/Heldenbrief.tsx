@@ -221,7 +221,6 @@ export default function HeldenbriefTab() {
           <div className="level-banner">
             <div className="level-badge">
               <span className="level-num">{level}</span>
-              <span className="level-cap">Stufe</span>
             </div>
             <div className="level-next">
               <div>
