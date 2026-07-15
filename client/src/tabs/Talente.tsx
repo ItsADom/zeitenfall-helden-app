@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
@@ -40,10 +41,26 @@ export default function TalenteTab() {
 
   const kategorien = Object.keys(TALENT_KATEGORIE_LABELS) as TalentKategorie[];
 
+  const [search, setSearch] = useState('');
+  const q = search.trim().toLowerCase();
+  const entriesFor = (kat: TalentKategorie) =>
+    catalogs.talents.filter(
+      (t) => t.kategorie === kat && (!q || t.name.toLowerCase().includes(q) || t.gruppe.toLowerCase().includes(q)),
+    );
+  const nothing = q !== '' && kategorien.every((kat) => entriesFor(kat).length === 0);
+
   return (
     <>
+      <div className="talent-search">
+        <input type="text" placeholder="Talent suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        {search && (
+          <button className="small" onClick={() => setSearch('')} title="Suche zurücksetzen">
+            ✕
+          </button>
+        )}
+      </div>
       {kategorien.map((kat) => {
-        const entries = catalogs.talents.filter((t) => t.kategorie === kat);
+        const entries = entriesFor(kat);
         if (entries.length === 0) return null;
         return kat === 'kampf' ? (
           <KampfTable key={kat} entries={entries} values={values} setValue={setValue} />
@@ -51,6 +68,7 @@ export default function TalenteTab() {
           <NormalTable key={kat} kat={kat} entries={entries} values={values} setValue={setValue} />
         );
       })}
+      {nothing && <p className="muted">Kein Talent gefunden.</p>}
     </>
   );
 }

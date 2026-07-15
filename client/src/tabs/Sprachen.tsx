@@ -16,7 +16,7 @@ export default function SprachenTab() {
     update('languages', next);
   };
 
-  const renderTable = (kind: 'sprache' | 'schrift', title: string) => {
+  const renderTable = (kind: 'sprache' | 'schrift', title: string, info: React.ReactNode) => {
     const entries = catalogs.languages.filter((l) => l.kind === kind);
     const rows: React.ReactNode[] = [];
     let lastFamilie = '';
@@ -49,7 +49,12 @@ export default function SprachenTab() {
     }
     return (
       <div className="panel">
-        <h3>{title}</h3>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+          <h3 style={{ margin: 0 }}>{title}</h3>
+          <span className="muted" style={{ fontSize: 13 }}>
+            {info}
+          </span>
+        </div>
         <div className="table-wrap">
           <table className="sheet" style={{ minWidth: 480 }}>
             <thead>
@@ -68,15 +73,21 @@ export default function SprachenTab() {
   };
 
   return (
-    <>
-      <p className="muted">
-        Sprechen-Probe (KL/IN/CH): <strong>{sprechenProbe(data.attributes)}</strong> · Lesen/Schreiben-Probe (KL/KL/FF):{' '}
-        <strong>{schreibenProbe(data.attributes)}</strong> — erleichtert um TaW in der Sprache.
-      </p>
-      <div className="grid2">
-        {renderTable('sprache', 'Sprachen')}
-        {renderTable('schrift', 'Schriften')}
-      </div>
-    </>
+    <div className="grid2">
+      {renderTable(
+        'sprache',
+        'Sprachen',
+        <>
+          Sprechen-Probe (KL/IN/CH): <strong>{sprechenProbe(data.attributes)}</strong> — erleichtert um TaW in der Sprache.
+        </>,
+      )}
+      {renderTable(
+        'schrift',
+        'Schriften',
+        <>
+          Lesen/Schreiben-Probe (KL/KL/FF): <strong>{schreibenProbe(data.attributes)}</strong>
+        </>,
+      )}
+    </div>
   );
 }

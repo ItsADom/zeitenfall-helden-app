@@ -384,6 +384,15 @@ textarea.note-area {
   min-height: 40px;
   background: var(--input-bg);
 }
+/* Talent-Suche */
+.talent-search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 360px;
+  margin-bottom: 14px;
+}
+
 /* Meisterschaft (100 TaW) — Stern mit Tooltip */
 .mastery {
   margin-left: 6px;
