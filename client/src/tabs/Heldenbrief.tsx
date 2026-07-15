@@ -223,10 +223,16 @@ export default function HeldenbriefTab() {
               <span className="level-num">{level}</span>
             </div>
             <div className="level-next">
-              <div>
-                Nächste Stufe bei <strong>{nextAp.toLocaleString('de-DE')}</strong> AP
-              </div>
-              <div className="muted">noch {(nextAp - ap).toLocaleString('de-DE')} AP</div>
+              {nextAp == null ? (
+                <div>Maximale Stufe erreicht</div>
+              ) : (
+                <>
+                  <div>
+                    Nächste Stufe bei <strong>{nextAp.toLocaleString('de-DE')}</strong> AP
+                  </div>
+                  <div className="muted">noch {(nextAp - ap).toLocaleString('de-DE')} AP</div>
+                </>
+              )}
             </div>
           </div>
           <div className="points-grid">

@@ -175,24 +175,29 @@ export function gGewicht(anzahl: number, eGewicht: number): number {
 
 // --- Stufen-Ableitung aus Abenteuerpunkten (LVLUP-Tabelle) ---
 
+// Stufe 50 ist die Obergrenze; darüber hinaus gesammelte AP erhöhen die Stufe nicht mehr.
+export const MAX_LEVEL = 50;
+
 // Kumulierte AP-Schwelle, um eine Stufe zu erreichen: EPges(L) = 75·(L−1)·L
 export function apThresholdForLevel(level: number): number {
   return 75 * (level - 1) * level;
 }
 
-// Höchste Stufe, deren Schwelle ≤ den Abenteuerpunkten ist.
+// Höchste Stufe, deren Schwelle ≤ den Abenteuerpunkten ist (gedeckelt bei MAX_LEVEL).
 export function levelForAp(ap: number): number {
   if (ap <= 0) return 1;
   // Geschlossene Näherung, danach gegen Rundungsfehler korrigiert.
   let level = Math.max(1, Math.floor(0.5 + Math.sqrt(5625 + 300 * ap) / 150));
-  while (apThresholdForLevel(level + 1) <= ap) level++;
+  while (level < MAX_LEVEL && apThresholdForLevel(level + 1) <= ap) level++;
   while (level > 1 && apThresholdForLevel(level) > ap) level--;
-  return level;
+  return Math.min(level, MAX_LEVEL);
 }
 
-// AP-Schwelle für die nächste Stufe.
-export function nextLevelAp(ap: number): number {
-  return apThresholdForLevel(levelForAp(ap) + 1);
+// AP-Schwelle für die nächste Stufe, oder null, wenn Stufe 50 bereits erreicht ist.
+export function nextLevelAp(ap: number): number | null {
+  const level = levelForAp(ap);
+  if (level >= MAX_LEVEL) return null;
+  return apThresholdForLevel(level + 1);
 }
 
 // --- Sonstiges ---

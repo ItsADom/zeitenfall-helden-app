@@ -5,6 +5,7 @@ import {
   computeResource,
   erleichterung,
   levelForAp,
+  MAX_LEVEL,
   maximaleLast,
   mrErgebnis,
   nextLevelAp,
@@ -212,6 +213,14 @@ describe('Stufen-Ableitung (LVLUP)', () => {
   it('nextLevelAp = Schwelle der Folgestufe', () => {
     expect(nextLevelAp(145810)).toBe(148500);
     expect(nextLevelAp(0)).toBe(150);
+  });
+  it('Stufe 50 ist die Obergrenze', () => {
+    const cap = apThresholdForLevel(MAX_LEVEL);
+    expect(levelForAp(cap)).toBe(50);
+    expect(levelForAp(cap + 1)).toBe(50);
+    expect(levelForAp(cap * 10)).toBe(50);
+    expect(nextLevelAp(cap)).toBeNull();
+    expect(nextLevelAp(cap * 10)).toBeNull();
   });
 });
 
