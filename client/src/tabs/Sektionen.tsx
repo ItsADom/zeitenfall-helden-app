@@ -231,6 +231,7 @@ function SectionPanel({
   return (
     <div className="panel">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span className="title-marker" aria-hidden />
         <input
           className="section-title"
           defaultValue={section.name}
