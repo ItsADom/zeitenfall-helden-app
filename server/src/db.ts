@@ -118,6 +118,7 @@ db.exec(`
     klasse TEXT NOT NULL DEFAULT '',
     probe TEXT NOT NULL DEFAULT '',
     ableiten TEXT NOT NULL DEFAULT '',
+    skill100 TEXT NOT NULL DEFAULT '',
     sort INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS char_talents (
@@ -178,6 +179,12 @@ db.exec(`
   const cols = new Set((db.prepare('PRAGMA table_info(char_sections)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('visible')) db.exec('ALTER TABLE char_sections ADD COLUMN visible INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('tab_id')) db.exec('ALTER TABLE char_sections ADD COLUMN tab_id INTEGER REFERENCES char_tabs(id) ON DELETE CASCADE');
+}
+
+// Migration: 'skill100'-Spalte (Meisterschaft bei 100 TaW) im Talent-Katalog ergänzen
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(talents_catalog)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('skill100')) db.exec("ALTER TABLE talents_catalog ADD COLUMN skill100 TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen

@@ -141,6 +141,7 @@ export interface TalentCatalogEntry {
   klasse: string; // A-F aus "(D)"-Suffix
   probe: [AttrCode, AttrCode, AttrCode] | null; // null bei Kampftalenten
   ableiten: string; // "Verwandte Fertigkeiten (+5)" bzw. "Ableiten (+10)"
+  skill100: string; // freigeschaltete Meisterschaft ab 100 TaW
   sort: number;
 }
 
@@ -151,7 +152,6 @@ export interface CharTalent {
   at: number;
   pa: number;
   bl: number;
-  billiger: string;
   spezialisierung: string;
   waffenmeister: string;
   berufsbonus: string;

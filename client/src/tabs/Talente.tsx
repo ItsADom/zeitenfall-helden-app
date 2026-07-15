@@ -7,8 +7,21 @@ import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
 const EMPTY: Omit<CharTalent, 'talentId'> = {
-  taw: 0, at: 0, pa: 0, bl: 0, billiger: '', spezialisierung: '', waffenmeister: '', berufsbonus: '',
+  taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '',
 };
+
+// Ab 100 TaW freigeschaltete Meisterschaft; Text erscheint beim Überfahren des Sterns
+function Mastery({ taw, skill100 }: { taw: number; skill100: string }) {
+  if (taw < 100) return null;
+  return (
+    <span
+      className="mastery"
+      title={skill100 || 'Meisterschaft ab 100 TaW freigeschaltet — noch kein Text hinterlegt.'}
+    >
+      ★
+    </span>
+  );
+}
 
 export default function TalenteTab() {
   const { data, catalogs, update } = useChar();
@@ -42,8 +55,8 @@ export default function TalenteTab() {
   );
 }
 
-const KAMPF_HEADS = ['Talent', 'TaW', 'AT', 'PA', 'BL', 'Billiger', 'Spezialisierung', 'Waffenmeister', 'Verwandte Fertigkeiten (+5)'];
-const KAMPF_WIDTHS = [210, 70, 70, 70, 70, 100, 130, 130, 260];
+const KAMPF_HEADS = ['Talent', 'TaW', 'AT', 'PA', 'BL', 'Spezialisierung', 'Waffenmeister', 'Verwandte Fertigkeiten (+5)'];
+const KAMPF_WIDTHS = [300, 70, 70, 70, 70, 220, 220, 340];
 
 function KampfTable({
   entries,
@@ -72,6 +85,7 @@ function KampfTable({
         <td title={e.name}>
           {e.name}
           {e.klasse ? ` (${e.klasse})` : ''}
+          <Mastery taw={v?.taw ?? 0} skill100={e.skill100} />
         </td>
         <td className="num">
           <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />
@@ -84,9 +98,6 @@ function KampfTable({
         </td>
         <td className="num">
           <NumInput value={v?.bl ?? 0} onChange={(x) => setValue(e.id, { bl: x })} />
-        </td>
-        <td>
-          <TextInput value={v?.billiger ?? ''} onChange={(x) => setValue(e.id, { billiger: x })} />
         </td>
         <td>
           <TextInput value={v?.spezialisierung ?? ''} onChange={(x) => setValue(e.id, { spezialisierung: x })} />
@@ -102,7 +113,7 @@ function KampfTable({
   }
   return (
     <div className="panel">
-      <h3>Kampftalente (Spezialisierung: A: 20 AP, B: 40 AP, C: 60 AP, D: 80 AP, E: 100 AP, F: 150 AP)</h3>
+      <h3>Kampftalente</h3>
       <div className="table-wrap">
         <table className="sheet" style={{ tableLayout: 'fixed', minWidth: widths.reduce((s, w) => s + w, 0) }}>
           <colgroup>
@@ -169,7 +180,10 @@ function NormalTable({
               const name = `${e.gruppe ? `${e.gruppe}: ` : ''}${e.name}${e.klasse ? ` (${e.klasse})` : ''}`;
               return (
                 <tr key={e.id}>
-                  <td title={name}>{name}</td>
+                  <td title={name}>
+                    {name}
+                    <Mastery taw={taw} skill100={e.skill100} />
+                  </td>
                   <td className="muted">{e.probe || '—'}</td>
                   <td className="computed">{probe ? talentProbeZahl(data.attributes, probe, taw) : '—'}</td>
                   <td className="num">

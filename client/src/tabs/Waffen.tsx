@@ -92,19 +92,6 @@ export default function WaffenTab() {
           <h3>Kampfstile</h3>
           <ListEditor def={listSectionById('kampfstile')!} rows={data.lists.kampfstile} onChange={(rows) => update('kampfstile', rows)} />
         </div>
-        <div className="panel">
-          <h3>Wurfhöhe zu Wurfweite</h3>
-          <table className="sheet" style={{ maxWidth: 240 }}>
-            <tbody>
-              {weiten.map((w, i) => (
-                <tr key={i}>
-                  <td>{i + 1}m</td>
-                  <td className="computed">{w}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     </>
   );

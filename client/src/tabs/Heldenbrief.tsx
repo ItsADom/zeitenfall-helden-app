@@ -306,10 +306,6 @@ export default function HeldenbriefTab() {
           </div>
         </div>
       </div>
-
-      <p className="muted">
-        Vorteile, Nachteile, Titel, Perks, Professionsboni und alles Weitere findest du jetzt im Tab „Sektionen".
-      </p>
     </>
   );
 }

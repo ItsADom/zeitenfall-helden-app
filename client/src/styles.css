@@ -384,6 +384,14 @@ textarea.note-area {
   min-height: 40px;
   background: var(--input-bg);
 }
+/* Meisterschaft (100 TaW) — Stern mit Tooltip */
+.mastery {
+  margin-left: 6px;
+  color: #c8871a;
+  cursor: help;
+  font-size: 13px;
+}
+
 /* ---------- Stufe & Punkte ---------- */
 .level-banner {
   display: flex;

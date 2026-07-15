@@ -33,6 +33,7 @@ export interface TalentCatalogRow {
   klasse: string;
   probe: string;
   ableiten: string;
+  skill100: string;
   sort: number;
 }
 export interface LanguageCatalogRow {
