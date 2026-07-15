@@ -32,6 +32,15 @@ const BIO_FIELDS: [string, string][] = [
   ['goettergeschenke', 'Göttergeschenke'],
 ];
 
+// Münzen mit Metall-Farbwelt: Dukaten (Gold), Silbertaler (Silber),
+// Heller (Bronze), Kreuzer (Eisen)
+const COIN_FIELDS: [string, string, string][] = [
+  ['geldD', 'Dukaten', 'gold'],
+  ['geldS', 'Silbertaler', 'silver'],
+  ['geldH', 'Heller', 'bronze'],
+  ['geldK', 'Kreuzer', 'iron'],
+];
+
 const META_FIELDS: [string, string][] = [
   ['karma', 'Karma'],
   ['karmaGuthaben', 'Karma-Guthaben'],
@@ -163,7 +172,7 @@ export default function HeldenbriefTab() {
       <div className="panel">
         <h3>Energien</h3>
         <div className="table-wrap">
-        <table className="sheet" style={{ minWidth: 1050 }}>
+        <table className="sheet" style={{ minWidth: 900 }}>
           <thead>
             <tr>
               <th>Energie</th>
@@ -176,7 +185,6 @@ export default function HeldenbriefTab() {
               <th style={{ width: 80 }}>Ergebnis</th>
               <th style={{ width: 80 }}>Aktuell</th>
               <th style={{ width: 80 }}>Max</th>
-              <th>Besonderes</th>
             </tr>
           </thead>
           <tbody>
@@ -204,9 +212,6 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].aktuell} onChange={(v) => setResource(key, 'aktuell', v)} />
                   </td>
                   <td className="computed">{r.max ?? '—'}</td>
-                  <td>
-                    <TextInput value={resources[key].besonderes} onChange={(v) => setResource(key, 'besonderes', v)} />
-                  </td>
                 </tr>
               );
             })}
@@ -290,25 +295,19 @@ export default function HeldenbriefTab() {
 
         <div className="panel">
           <h3>Geld</h3>
-          <div className="field">
-            <label>Dukaten</label>
-            <NumInput value={meta.geldD ?? 0} onChange={(v) => setMeta('geldD', v)} width={100} />
+          <div className="coins">
+            {COIN_FIELDS.map(([key, label, tone]) => (
+              <div className={`coin coin-${tone}`} key={key}>
+                <span className="coin-disc" aria-hidden />
+                <label>{label}</label>
+                <NumInput value={meta[key] ?? 0} onChange={(v) => setMeta(key, v)} />
+              </div>
+            ))}
           </div>
-          <div className="field">
-            <label>Silbertaler</label>
-            <NumInput value={meta.geldS ?? 0} onChange={(v) => setMeta('geldS', v)} width={100} />
-          </div>
-          <div className="field">
-            <label>Heller</label>
-            <NumInput value={meta.geldH ?? 0} onChange={(v) => setMeta('geldH', v)} width={100} />
-          </div>
-          <div className="field">
-            <label>Kreuzer</label>
-            <NumInput value={meta.geldK ?? 0} onChange={(v) => setMeta('geldK', v)} width={100} />
-          </div>
-          <div className="field">
+          <div className="coin coin-bank">
+            <span className="coin-disc" aria-hidden />
             <label>Bank</label>
-            <NumInput value={meta.bank ?? 0} onChange={(v) => setMeta('bank', v)} width={100} />
+            <NumInput value={meta.bank ?? 0} onChange={(v) => setMeta('bank', v)} />
           </div>
         </div>
       </div>

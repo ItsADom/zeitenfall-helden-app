@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
 import type { DynColumn, DynColType, DynRow, DynSection, DynTab } from '@shared/dynamicSections';
@@ -182,7 +182,37 @@ function SectionPanel({
 }) {
   const [editCols, setEditCols] = useState(false);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
+  const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
   const cols = section.columns.filter((c) => c.key !== DYN_NOTIZ_KEY);
+
+  // Sortier-Wert einer Zelle (Proben werden berechnet, Zahlen numerisch verglichen)
+  const sortValue = (col: DynColumn, row: DynRow): number | string => {
+    if (col.type === 'probe') return Number(computeProbeCell(attributes, col, row) ?? -Infinity);
+    if (col.type === 'number') return Number(row[col.key]) || 0;
+    if (col.type === 'bool') return row[col.key] ? 1 : 0;
+    return String(row[col.key] ?? '');
+  };
+
+  // Anzeige-Reihenfolge: Indizes auf section.rows, damit Bearbeiten/Löschen
+  // weiterhin die echte Zeile trifft
+  const order = useMemo(() => {
+    const idx = section.rows.map((_, i) => i);
+    if (!sort) return idx;
+    const col = cols.find((c) => c.key === sort.key);
+    if (!col) return idx;
+    return idx.sort((a, b) => {
+      const va = sortValue(col, section.rows[a]);
+      const vb = sortValue(col, section.rows[b]);
+      let cmp: number;
+      if (typeof va === 'number' && typeof vb === 'number') cmp = va - vb;
+      else cmp = String(va).localeCompare(String(vb), 'de', { numeric: true, sensitivity: 'base' });
+      return cmp * sort.dir;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section.rows, sort, section.columns]);
+
+  const toggleSort = (key: string) =>
+    setSort((prev) => (prev?.key !== key ? { key, dir: 1 } : prev.dir === 1 ? { key, dir: -1 } : null));
 
   const setRow = (i: number, row: DynRow) => {
     const rows = section.rows.slice();
@@ -244,8 +274,14 @@ function SectionPanel({
               <thead>
                 <tr>
                   {cols.map((c) => (
-                    <th key={c.key} title={c.label}>
+                    <th
+                      key={c.key}
+                      className="sortable"
+                      title={`${c.label} — zum Sortieren klicken`}
+                      onClick={() => toggleSort(c.key)}
+                    >
                       {c.label}
+                      <span className="sort-caret">{sort?.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</span>
                     </th>
                   ))}
                   <th style={{ width: 40 }} />
@@ -253,7 +289,8 @@ function SectionPanel({
                 </tr>
               </thead>
               <tbody>
-                {section.rows.map((row, i) => {
+                {order.map((i) => {
+                  const row = section.rows[i];
                   const notiz = String(row[DYN_NOTIZ_KEY] ?? '');
                   return [
                     <tr key={i}>
