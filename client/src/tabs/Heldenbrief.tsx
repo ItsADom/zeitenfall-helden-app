@@ -190,6 +190,12 @@ export default function HeldenbriefTab() {
           <tbody>
             {RESOURCE_KEYS.map((key) => {
               const r = computeResource(attributes, key, resources[key]);
+              // Zehrung nur für die vitalen Pools (LE/AU); AsP-Ruhezustand 0
+              // wäre bei Nicht-Zauberern nur Dauer-Rot, MR ist kein Pool
+              const akt = resources[key].aktuell;
+              const tracksDepletion = key === 'le' || key === 'aus';
+              const ratio = tracksDepletion && r.ergebnis > 0 ? akt / r.ergebnis : 1;
+              const depl = ratio <= 0.25 ? 'res-crit' : ratio <= 0.5 ? 'res-low' : '';
               return (
                 <tr key={key}>
                   <td>{RESOURCE_LABELS[key].label}</td>
@@ -208,8 +214,8 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].maxPlus} onChange={(v) => setResource(key, 'maxPlus', v)} />
                   </td>
                   <td className="computed">{r.ergebnis}</td>
-                  <td>
-                    <NumInput value={resources[key].aktuell} onChange={(v) => setResource(key, 'aktuell', v)} />
+                  <td className={depl || undefined} title={depl ? `${Math.round(ratio * 100)} % — ${akt}/${r.ergebnis}` : undefined}>
+                    <NumInput value={akt} onChange={(v) => setResource(key, 'aktuell', v)} />
                   </td>
                   <td className="computed">{r.max ?? '—'}</td>
                 </tr>

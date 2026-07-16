@@ -17,6 +17,11 @@
   --shadow-soft: 0 1px 1px rgba(41, 32, 24, 0.05);
   --radius: 10px;
   --radius-panel: 8px;
+  /* Semantische Zehrungs-Töne, eigenständig neben dem Wein-Akzent */
+  --warn-soft: #f6e7cf;
+  --warn-line: #b06a1f;
+  --crit-soft: #f3d9d2;
+  --crit-line: #9a2f22;
 }
 
 * {
@@ -256,6 +261,22 @@ table.sheet td.computed {
 }
 table.sheet td.num {
   text-align: center;
+}
+/* Energie-Zehrung: getönte Aktuell-Zelle mit Schweregrad-Streifen links,
+   damit der Zustand auch ohne Farbe (Streifen + Tooltip) ablesbar bleibt */
+table.sheet td.res-low {
+  background: var(--warn-soft);
+  box-shadow: inset 3px 0 0 var(--warn-line);
+}
+table.sheet td.res-crit {
+  background: var(--crit-soft);
+  box-shadow: inset 3px 0 0 var(--crit-line);
+}
+table.sheet tbody tr:hover td.res-low {
+  background: var(--warn-soft);
+}
+table.sheet tbody tr:hover td.res-crit {
+  background: var(--crit-soft);
 }
 table.sheet th.sortable {
   cursor: pointer;
