@@ -76,6 +76,30 @@ export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: strin
   ase: { label: 'Astralenergie', formel: '(MU+IN+CH):2' },
 };
 
+// Spaltennamen der Energien-Tabellen — eine Stelle für Heldenbrief, Übersicht
+// und Summary, damit die Namen nicht auseinanderlaufen.
+//
+// Die vier Eingaben bilden ein Kreuz aus Herkunft und Ziel:
+//
+//                  → Maximum      → Ausbaugrenze
+//   gewährt        permanent      maxPlus
+//   gekauft (AP)   kauf           kaufMax
+//
+// Deshalb steht das Ziel in der Gruppenzeile und die Herkunft in der Spalte.
+// Die Paare je Ziel dürfen NICHT zusammengefasst werden, auch wenn die Formel
+// sie nur addiert: die Trennung ist der Nachweis, was mit Abenteuerpunkten
+// gekauft wurde. (Bei der MR gab es diesen Grund nicht — sie wurde deshalb zu
+// einem einzelnen Basiswert-Modifikator zusammengelegt.)
+export const RESOURCE_COLUMN_LABELS = {
+  formelwert: 'Formelwert',
+  gewaehrt: 'Gewährt',
+  gekauft: 'Gekauft',
+  summe: 'Summe',
+  maximum: 'Maximum',
+  ausbaugrenze: 'Ausbaugrenze',
+  aktuell: 'Aktuell',
+} as const;
+
 export interface ResourceInput {
   permanent: number;
   kauf: number;

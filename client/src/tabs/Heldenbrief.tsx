@@ -3,6 +3,7 @@ import {
   ATTR_ROW_CODES,
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
+  RESOURCE_COLUMN_LABELS as RC,
   RESOURCE_KEYS,
   RESOURCE_LABELS,
 } from '@shared/types';
@@ -166,17 +167,31 @@ export default function HeldenbriefTab() {
         <div className="table-wrap">
         <table className="sheet" style={{ minWidth: 900 }}>
           <thead>
+            {/* Zweizeiliger Kopf: oben das Ziel (Maximum bzw. Ausbaugrenze),
+                unten die Herkunft (gewährt bzw. mit AP gekauft). */}
             <tr>
-              <th>Energie</th>
-              <th>Formel</th>
-              <th style={{ width: 80 }}>Vorergebnis</th>
-              <th style={{ width: 80 }}>Permanent</th>
-              <th style={{ width: 80 }}>Kauf</th>
-              <th style={{ width: 80 }}>Kauf-Max</th>
-              <th style={{ width: 80 }}>Max+</th>
-              <th style={{ width: 80 }}>Ergebnis</th>
-              <th style={{ width: 80 }}>Aktuell</th>
-              <th style={{ width: 80 }}>Max</th>
+              <th rowSpan={2}>Energie</th>
+              <th rowSpan={2}>Formel</th>
+              <th rowSpan={2} style={{ width: 80 }}>
+                {RC.formelwert}
+              </th>
+              <th className="group" colSpan={3}>
+                {RC.maximum}
+              </th>
+              <th className="group" colSpan={3}>
+                {RC.ausbaugrenze}
+              </th>
+              <th rowSpan={2} style={{ width: 80 }}>
+                {RC.aktuell}
+              </th>
+            </tr>
+            <tr>
+              <th style={{ width: 80 }}>{RC.gewaehrt}</th>
+              <th style={{ width: 80 }}>{RC.gekauft}</th>
+              <th style={{ width: 80 }}>{RC.summe}</th>
+              <th style={{ width: 80 }}>{RC.gewaehrt}</th>
+              <th style={{ width: 80 }}>{RC.gekauft}</th>
+              <th style={{ width: 80 }}>{RC.summe}</th>
             </tr>
           </thead>
           <tbody>
@@ -196,17 +211,17 @@ export default function HeldenbriefTab() {
                   <td>
                     <NumInput value={resources[key].kauf} onChange={(v) => setResource(key, 'kauf', v)} />
                   </td>
-                  <td>
-                    <NumInput value={resources[key].kaufMax} onChange={(v) => setResource(key, 'kaufMax', v)} />
-                  </td>
+                  <td className="computed">{r.ergebnis}</td>
                   <td>
                     <NumInput value={resources[key].maxPlus} onChange={(v) => setResource(key, 'maxPlus', v)} />
                   </td>
-                  <td className="computed">{r.ergebnis}</td>
+                  <td>
+                    <NumInput value={resources[key].kaufMax} onChange={(v) => setResource(key, 'kaufMax', v)} />
+                  </td>
+                  <td className="computed">{r.max ?? '—'}</td>
                   <td className={depl || undefined} title={depl ? `${Math.round(ratio * 100)} % — ${akt}/${r.ergebnis}` : undefined}>
                     <NumInput value={akt} onChange={(v) => setResource(key, 'aktuell', v)} />
                   </td>
-                  <td className="computed">{r.max ?? '—'}</td>
                 </tr>
               );
             })}

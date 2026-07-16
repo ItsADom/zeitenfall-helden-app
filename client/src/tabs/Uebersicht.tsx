@@ -3,6 +3,7 @@ import {
   ATTR_ROW_CODES,
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
+  RESOURCE_COLUMN_LABELS as RC,
   RESOURCE_KEYS,
   RESOURCE_LABELS,
 } from '@shared/types';
@@ -113,8 +114,8 @@ export default function UebersichtTab() {
               <thead>
                 <tr>
                   <th>Energie</th>
-                  <th style={{ width: 90 }}>Aktuell</th>
-                  <th style={{ width: 90 }}>Ergebnis</th>
+                  <th style={{ width: 90 }}>{RC.aktuell}</th>
+                  <th style={{ width: 90 }}>{RC.maximum}</th>
                 </tr>
               </thead>
               <tbody>

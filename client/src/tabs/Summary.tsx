@@ -1,4 +1,4 @@
-import { VISIBILITY_LABELS } from '@shared/types';
+import { RESOURCE_COLUMN_LABELS as RC, VISIBILITY_LABELS } from '@shared/types';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
 import type { DynColumn, DynRow, DynSection } from '@shared/dynamicSections';
@@ -142,9 +142,9 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
             <thead>
               <tr>
                 <th>Energie</th>
-                <th>Aktuell</th>
-                <th>Ergebnis</th>
-                <th>Max</th>
+                <th>{RC.aktuell}</th>
+                <th>{RC.maximum}</th>
+                <th>{RC.ausbaugrenze}</th>
               </tr>
             </thead>
             <tbody>

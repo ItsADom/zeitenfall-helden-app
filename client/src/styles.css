@@ -324,6 +324,18 @@ table.sheet tbody tr:hover td.res-low {
 table.sheet tbody tr:hover td.res-crit {
   background: var(--crit-soft);
 }
+/* Gruppenkopf über den Energien-Spalten (Maximum / Ausbaugrenze) */
+table.sheet th.group {
+  text-align: center;
+  color: var(--accent-dark);
+  border-left: 1px solid var(--border-strong);
+  border-right: 1px solid var(--border-strong);
+}
+/* In zweizeiligen Köpfen ist das letzte th der zweiten Zeile nicht die letzte
+   Spalte der Tabelle und behält deshalb seinen Trenner. */
+table.sheet thead tr + tr th:last-child {
+  border-right: 1px solid #f0ebdf;
+}
 table.sheet th.sortable {
   cursor: pointer;
 }
@@ -343,8 +355,10 @@ table.sheet th.sortable:hover {
   letter-spacing: 0.03em;
 }
 
-/* Erste Spalte bleibt beim horizontalen Scrollen sichtbar */
-.table-wrap table.sheet th:first-child,
+/* Erste Spalte bleibt beim horizontalen Scrollen sichtbar.
+   Nur die erste Kopfzeile: in zweizeiligen Köpfen ist das erste th der
+   zweiten Zeile eine mittlere Spalte und darf nicht links kleben. */
+.table-wrap table.sheet thead tr:first-child th:first-child,
 .table-wrap table.sheet td:first-child {
   position: sticky;
   left: 0;
@@ -352,7 +366,7 @@ table.sheet th.sortable:hover {
   background: var(--panel);
   border-right: 1px solid var(--border-strong);
 }
-.table-wrap table.sheet th:first-child {
+.table-wrap table.sheet thead tr:first-child th:first-child {
   z-index: 3;
   background: #faf7ef;
 }
