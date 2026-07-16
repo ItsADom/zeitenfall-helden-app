@@ -2,10 +2,14 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { attachUser } from './auth.js';
+import { attachUser, cleanupSessions } from './auth.js';
 import { api } from './routes.js';
 import './db.js';
 import './seed.js';
+
+// Abgelaufene Sitzungen beim Start und danach täglich aufräumen
+cleanupSessions();
+setInterval(cleanupSessions, 24 * 60 * 60 * 1000).unref();
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));

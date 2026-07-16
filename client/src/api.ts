@@ -6,6 +6,13 @@ export class ApiError extends Error {
   }
 }
 
+// Läuft die Sitzung ab, meldet der Server 401 — die App hängt sich hier ein,
+// um sauber zur Anmeldung zurückzukehren statt still Speicherfehler zu zeigen.
+let onUnauthorized: (() => void) | null = null;
+export function setUnauthorizedHandler(fn: () => void): void {
+  onUnauthorized = fn;
+}
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(path, {
     method,
@@ -13,6 +20,7 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     body: body !== undefined ? JSON.stringify(body) : undefined,
     credentials: 'same-origin',
   });
+  if (res.status === 401 && !path.endsWith('/login')) onUnauthorized?.();
   if (!res.ok) {
     let message = res.statusText;
     try {

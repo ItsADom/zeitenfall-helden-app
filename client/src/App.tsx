@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import type { UserInfo } from '@shared/types';
-import { apiGet, apiPost } from './api';
+import { apiGet, apiPost, setUnauthorizedHandler } from './api';
 import LoginPage from './pages/Login';
 import DashboardPage from './pages/Dashboard';
 import AdminPage from './pages/Admin';
@@ -27,6 +27,8 @@ export default function App() {
       .finally(() => setLoading(false));
   };
   useEffect(refresh, []);
+  // Bei abgelaufener Sitzung (401) zurück zur Anmeldung
+  useEffect(() => setUnauthorizedHandler(() => setUser(null)), []);
 
   if (loading) return <main className="muted">Lade…</main>;
   if (!user) return <LoginPage onLogin={(u) => setUser(u)} />;

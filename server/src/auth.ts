@@ -28,6 +28,11 @@ export function verifyPassword(password: string, stored: string): boolean {
   return crypto.timingSafeEqual(check, Buffer.from(hash, 'hex'));
 }
 
+// Sitzungen laufen nach einer festen Frist ab (Standard 30 Tage), damit ein
+// abgegriffenes oder vergessenes Token nicht unbegrenzt gültig bleibt.
+export const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS) || 30;
+const SESSION_TTL_MS = SESSION_TTL_DAYS * 24 * 60 * 60 * 1000;
+
 export function createSession(userId: number): string {
   const token = crypto.randomBytes(32).toString('hex');
   db.prepare('INSERT INTO sessions (token, user_id, created_at) VALUES (?, ?, ?)').run(token, userId, Date.now());
@@ -36,6 +41,11 @@ export function createSession(userId: number): string {
 
 export function destroySession(token: string): void {
   db.prepare('DELETE FROM sessions WHERE token = ?').run(token);
+}
+
+// Abgelaufene Sitzungen entfernen (beim Start und periodisch aufgerufen)
+export function cleanupSessions(): void {
+  db.prepare('DELETE FROM sessions WHERE created_at < ?').run(Date.now() - SESSION_TTL_MS);
 }
 
 export function getSessionToken(req: Request): string | null {
@@ -51,11 +61,15 @@ export function getSessionToken(req: Request): string | null {
 export function userForToken(token: string): SessionUser | null {
   const row = db
     .prepare(
-      `SELECT u.id, u.username, u.display_name AS displayName, u.is_gm AS isGm
+      `SELECT u.id, u.username, u.display_name AS displayName, u.is_gm AS isGm, s.created_at AS createdAt
        FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token = ?`,
     )
-    .get(token) as { id: number; username: string; displayName: string; isGm: number } | undefined;
+    .get(token) as { id: number; username: string; displayName: string; isGm: number; createdAt: number } | undefined;
   if (!row) return null;
+  if (Date.now() - row.createdAt > SESSION_TTL_MS) {
+    destroySession(token);
+    return null;
+  }
   return { id: row.id, username: row.username, displayName: row.displayName, isGm: !!row.isGm };
 }
 

@@ -7,6 +7,7 @@ import {
   hashPassword,
   requireAuth,
   requireGm,
+  SESSION_TTL_DAYS,
   verifyPassword,
 } from './auth.js';
 import { db, initCharacterRows } from './db.js';
@@ -32,6 +33,15 @@ import {
 } from './characterData.js';
 
 export const api = Router();
+
+// Hinter einem HTTPS-Reverse-Proxy SECURE_COOKIES=1 setzen, damit das
+// Sitzungs-Cookie nur über verschlüsselte Verbindungen übertragen wird.
+const SECURE_COOKIES = /^(1|true)$/i.test(process.env.SECURE_COOKIES ?? '');
+function sessionCookie(token: string, maxAgeSec: number): string {
+  const parts = [`helden_session=${token}`, 'HttpOnly', 'SameSite=Lax', 'Path=/', `Max-Age=${maxAgeSec}`];
+  if (SECURE_COOKIES) parts.push('Secure');
+  return parts.join('; ');
+}
 
 interface CharRow {
   id: number;
@@ -70,14 +80,14 @@ api.post('/login', (req, res) => {
     return;
   }
   const token = createSession(user.id);
-  res.setHeader('Set-Cookie', `helden_session=${token}; HttpOnly; SameSite=Lax; Path=/`);
+  res.setHeader('Set-Cookie', sessionCookie(token, SESSION_TTL_DAYS * 24 * 60 * 60));
   res.json({ id: user.id, username: user.username, displayName: user.display_name, isGm: !!user.is_gm });
 });
 
 api.post('/logout', (req, res) => {
   const token = getSessionToken(req);
   if (token) destroySession(token);
-  res.setHeader('Set-Cookie', 'helden_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0');
+  res.setHeader('Set-Cookie', sessionCookie('', 0));
   res.json({ ok: true });
 });
 
