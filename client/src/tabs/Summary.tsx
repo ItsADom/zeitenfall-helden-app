@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { RESOURCE_COLUMN_LABELS as RC, VISIBILITY_LABELS } from '@shared/types';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
@@ -8,6 +9,7 @@ interface Info {
   id: number;
   name: string;
   ownerName: string;
+  groupId: number;
   groupName: string;
 }
 interface Summary {
@@ -92,7 +94,9 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
     <>
       <h1>{info.name}</h1>
       <p className="muted">
-        Spieler: {info.ownerName} · Gruppe: {info.groupName} · Zusammenfassung (freigegebene Bereiche)
+        Spieler: {info.ownerName} · Gruppe:{' '}
+        {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName} · Zusammenfassung
+        (freigegebene Bereiche)
       </p>
       <div className="panel">
         <h3>Person</h3>

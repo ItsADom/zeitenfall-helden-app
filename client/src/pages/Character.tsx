@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
@@ -31,7 +31,6 @@ export interface TalentCatalogRow {
   kategorie: string;
   gruppe: string;
   name: string;
-  klasse: string;
   probe: string;
   ableiten: string;
   skill100: string;
@@ -192,7 +191,8 @@ export default function CharacterPage() {
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
         <h1>{info.name}</h1>
         <span className="muted">
-          Spieler: {info.ownerName} · Gruppe: {info.groupName}
+          Spieler: {info.ownerName} · Gruppe:{' '}
+          {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName}
         </span>
         <span className="spacer" style={{ flex: 1 }} />
         <span className="savestate">{saveState}</span>
