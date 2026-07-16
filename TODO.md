@@ -1,4 +1,8 @@
 
+## Next up
+
+- text fields need breaks after a certain length, so they expand down instead of scrolling sideways
+
 ## Mid-Prio
 
 - audit log on characters
@@ -6,12 +10,6 @@
    - concept needed, so it doesn't get bloated with every edit
 - making container items on "Ausrüstung" expandable
    - e.g. weapon belt with 4 slots, these 4 slots can be filled with items that are carried
-- text fields need breaks after a certain length, so you they expand down instead of scrolling sideways
-- Heldenbrief: rename the Energien table headers
-   - "Ergebnis" needs a clearer name — it is the currently usable max value
-   - the column currently called "Max" is a hard cap that limits how high "Ergebnis" can ever get
-   - both names should make that relationship obvious at a glance
-   - note: the Übersicht shows the same value as "Ergebnis" and has to follow
 
 ## Low-Prio
 
