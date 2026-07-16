@@ -12,6 +12,7 @@ import { Fragment, useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
+import { MaximumWert } from '../components/MaximumWert';
 import { depletionClass } from '../components/energie';
 import { useChar } from '../pages/Character';
 
@@ -186,10 +187,10 @@ export default function HeldenbriefTab() {
               </th>
             </tr>
             <tr>
-              <th style={{ width: 80 }}>{RC.gewaehrt}</th>
+              <th style={{ width: 80 }}>{RC.bonus}</th>
               <th style={{ width: 80 }}>{RC.gekauft}</th>
               <th style={{ width: 80 }}>{RC.summe}</th>
-              <th style={{ width: 80 }}>{RC.gewaehrt}</th>
+              <th style={{ width: 80 }}>{RC.bonus}</th>
               <th style={{ width: 80 }}>{RC.gekauft}</th>
               <th style={{ width: 80 }}>{RC.summe}</th>
             </tr>
@@ -198,8 +199,10 @@ export default function HeldenbriefTab() {
             {RESOURCE_KEYS.map((key) => {
               const r = computeResource(attributes, key, resources[key]);
               const akt = resources[key].aktuell;
-              const depl = depletionClass(key, akt, r.ergebnis);
-              const ratio = r.ergebnis > 0 ? akt / r.ergebnis : 1;
+              // Zehrung misst am nutzbaren Maximum — über der Ausbaugrenze
+              // liegende Rohsummen sind kein Vorrat.
+              const depl = depletionClass(key, akt, r.nutzbar);
+              const ratio = r.nutzbar > 0 ? akt / r.nutzbar : 1;
               return (
                 <tr key={key}>
                   <td>{RESOURCE_LABELS[key].label}</td>
@@ -211,7 +214,9 @@ export default function HeldenbriefTab() {
                   <td>
                     <NumInput value={resources[key].kauf} onChange={(v) => setResource(key, 'kauf', v)} />
                   </td>
-                  <td className="computed">{r.ergebnis}</td>
+                  <td className="computed">
+                    <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} />
+                  </td>
                   <td>
                     <NumInput value={resources[key].maxPlus} onChange={(v) => setResource(key, 'maxPlus', v)} />
                   </td>
@@ -219,8 +224,8 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].kaufMax} onChange={(v) => setResource(key, 'kaufMax', v)} />
                   </td>
                   <td className="computed">{r.max ?? '—'}</td>
-                  <td className={depl || undefined} title={depl ? `${Math.round(ratio * 100)} % — ${akt}/${r.ergebnis}` : undefined}>
-                    <NumInput value={akt} onChange={(v) => setResource(key, 'aktuell', v)} />
+                  <td className={depl || undefined} title={depl ? `${Math.round(ratio * 100)} % — ${akt}/${r.nutzbar}` : undefined}>
+                    <NumInput value={akt} max={r.nutzbar} onChange={(v) => setResource(key, 'aktuell', v)} />
                   </td>
                 </tr>
               );

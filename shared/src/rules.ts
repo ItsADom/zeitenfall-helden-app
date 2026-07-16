@@ -62,8 +62,19 @@ export function computeBaseValues(attrs: Attributes, inputs: BaseValueInputs): R
 
 export interface ResourceResult {
   vorergebnis: number;
+  /** Rechnerische Summe aus Formelwert + Gewährt + Gekauft — ungekappt. */
   ergebnis: number;
+  /** Ausbaugrenze: so hoch kann das Maximum überhaupt steigen. */
   max: number | null;
+  /**
+   * Das tatsächlich nutzbare Maximum: `ergebnis`, an der Ausbaugrenze gekappt.
+   * Die Rohsumme bleibt daneben erhalten — sie ist die Buchführung darüber, was
+   * eingetragen wurde, und darf nicht stillschweigend verschwinden. Angezeigt
+   * wird `nutzbar`, und wo gekappt wurde, zusätzlich die Rohsumme.
+   */
+  nutzbar: number;
+  /** true, wenn die Rohsumme über der Ausbaugrenze liegt. */
+  gekappt: boolean;
 }
 
 export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey): number {
@@ -94,7 +105,8 @@ export function computeResource(attrs: Attributes, key: ResourceKey, input: Reso
       max = vor + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
       break;
   }
-  return { vorergebnis: vor, ergebnis, max };
+  const nutzbar = max === null ? ergebnis : Math.min(ergebnis, max);
+  return { vorergebnis: vor, ergebnis, max, nutzbar, gekappt: nutzbar < ergebnis };
 }
 
 // --- Talente ---

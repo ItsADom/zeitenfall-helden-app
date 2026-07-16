@@ -8,19 +8,29 @@ export function NumInput({
   onChange,
   disabled,
   width,
+  max,
 }: {
   value: number;
   onChange: (v: number) => void;
   disabled?: boolean;
   width?: number;
+  /**
+   * Obergrenze. Höhere Eingaben werden darauf gekappt — nur nach oben:
+   * ein Vorrat darf unter null fallen (Wunden), aber nie über sein Maximum.
+   */
+  max?: number;
 }) {
   return (
     <input
       type="number"
       value={Number.isFinite(value) ? value : 0}
       disabled={disabled}
+      max={max}
       style={width ? { width } : undefined}
-      onChange={(e) => onChange(Number(e.target.value) || 0)}
+      onChange={(e) => {
+        const v = Number(e.target.value) || 0;
+        onChange(max !== undefined ? Math.min(v, max) : v);
+      }}
     />
   );
 }

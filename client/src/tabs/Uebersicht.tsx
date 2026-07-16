@@ -11,6 +11,7 @@ import type { ResourceKey } from '@shared/types';
 import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
 import { depletionClass } from '../components/energie';
 import { GeldPanel } from '../components/GeldPanel';
+import { MaximumWert } from '../components/MaximumWert';
 import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
@@ -122,17 +123,19 @@ export default function UebersichtTab() {
                 {RESOURCE_KEYS.map((key) => {
                   const r = computeResource(attributes, key, resources[key]);
                   const akt = resources[key].aktuell;
-                  const depl = depletionClass(key, akt, r.ergebnis);
+                  const depl = depletionClass(key, akt, r.nutzbar);
                   return (
                     <tr key={key}>
                       <td>{RESOURCE_LABELS[key].label}</td>
                       <td
                         className={depl || undefined}
-                        title={depl ? `${Math.round((akt / r.ergebnis) * 100)} % — ${akt}/${r.ergebnis}` : undefined}
+                        title={depl ? `${Math.round((akt / r.nutzbar) * 100)} % — ${akt}/${r.nutzbar}` : undefined}
                       >
-                        <NumInput value={akt} onChange={(v) => setAktuell(key, v)} />
+                        <NumInput value={akt} max={r.nutzbar} onChange={(v) => setAktuell(key, v)} />
                       </td>
-                      <td className="computed">{de(r.ergebnis)}</td>
+                      <td className="computed">
+                        <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} format={de} />
+                      </td>
                     </tr>
                   );
                 })}

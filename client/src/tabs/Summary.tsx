@@ -1,6 +1,7 @@
 import { RESOURCE_COLUMN_LABELS as RC, VISIBILITY_LABELS } from '@shared/types';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
+import { MaximumWert } from '../components/MaximumWert';
 import type { DynColumn, DynRow, DynSection } from '@shared/dynamicSections';
 
 interface Info {
@@ -148,11 +149,23 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
               </tr>
             </thead>
             <tbody>
-              {(s.ressourcen as { key: string; label: string; aktuell: number; ergebnis: number; max: number | null }[]).map((r) => (
+              {(
+                s.ressourcen as {
+                  key: string;
+                  label: string;
+                  aktuell: number;
+                  ergebnis: number;
+                  max: number | null;
+                  nutzbar: number;
+                  gekappt: boolean;
+                }[]
+              ).map((r) => (
                 <tr key={r.key}>
                   <td>{r.label}</td>
                   <td className="num">{r.aktuell}</td>
-                  <td className="computed">{r.ergebnis}</td>
+                  <td className="computed">
+                    <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} />
+                  </td>
                   <td className="computed">{r.max ?? '—'}</td>
                 </tr>
               ))}

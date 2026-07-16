@@ -82,7 +82,7 @@ export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: strin
 // Die vier Eingaben bilden ein Kreuz aus Herkunft und Ziel:
 //
 //                  → Maximum      → Ausbaugrenze
-//   gewährt        permanent      maxPlus
+//   Bonus          permanent      maxPlus
 //   gekauft (AP)   kauf           kaufMax
 //
 // Deshalb steht das Ziel in der Gruppenzeile und die Herkunft in der Spalte.
@@ -92,7 +92,7 @@ export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: strin
 // einem einzelnen Basiswert-Modifikator zusammengelegt.)
 export const RESOURCE_COLUMN_LABELS = {
   formelwert: 'Formelwert',
-  gewaehrt: 'Gewährt',
+  bonus: 'Bonus',
   gekauft: 'Gekauft',
   summe: 'Summe',
   maximum: 'Maximum',

@@ -22,6 +22,7 @@ import type {
   CharTalent,
   CharLanguage,
   DynColumn,
+  ResourceInput,
   Resources,
   VisibilitySection,
 } from 'shared';
@@ -276,12 +277,36 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     }
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
+      const attributes = loadAttributes(charId);
       const stmt = db.prepare(
         'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ? WHERE character_id = ? AND key = ?',
       );
       for (const key of RESOURCE_KEYS) {
         const v = body[key];
-        if (v) stmt.run(num(v.permanent), num(v.kauf), num(v.kaufMax), num(v.maxPlus), num(v.aktuell), str(v.besonderes), charId, key);
+        if (!v) continue;
+        const input: ResourceInput = {
+          permanent: num(v.permanent),
+          kauf: num(v.kauf),
+          kaufMax: num(v.kaufMax),
+          maxPlus: num(v.maxPlus),
+          aktuell: num(v.aktuell),
+          besonderes: str(v.besonderes),
+        };
+        // Aktuell kann nie über dem nutzbaren Maximum liegen. Die Oberfläche
+        // kappt bereits beim Eintippen; hier nochmal, weil die API auch ohne
+        // sie erreichbar ist und die Regel nicht an einem Eingabefeld hängen
+        // darf. Nach unten wird nicht gekappt — ein Vorrat darf ins Minus.
+        const { nutzbar } = computeResource(attributes, key, input);
+        stmt.run(
+          input.permanent,
+          input.kauf,
+          input.kaufMax,
+          input.maxPlus,
+          Math.min(input.aktuell, nutzbar),
+          input.besonderes,
+          charId,
+          key,
+        );
       }
       return;
     }
@@ -370,7 +395,15 @@ export function buildSummary(charId: number) {
   if (visibility.ressourcen) {
     sections.ressourcen = RESOURCE_KEYS.map((key) => {
       const r = computeResource(attributes, key, resources[key]);
-      return { key, label: RESOURCE_LABELS[key].label, aktuell: resources[key].aktuell, ergebnis: r.ergebnis, max: r.max };
+      return {
+        key,
+        label: RESOURCE_LABELS[key].label,
+        aktuell: resources[key].aktuell,
+        ergebnis: r.ergebnis,
+        max: r.max,
+        nutzbar: r.nutzbar,
+        gekappt: r.gekappt,
+      };
     });
   }
   if (visibility.talente) {
