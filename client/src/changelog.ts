@@ -13,6 +13,15 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-16',
+    title: 'Gemeinsame Gruppeninhalte',
+    changes: [
+      'Jede Gruppe hat jetzt einen Bereich „Gemeinsames" mit Gruppen-Inventar, Questlog und bekannten NPCs.',
+      'Die Tabs lassen sich wie beim Charakter frei umbenennen, ergänzen und mit eigenen Spalten versehen.',
+      'Jedes Mitglied der Gruppe darf die gemeinsamen Inhalte bearbeiten.',
+    ],
+  },
+  {
+    date: '2026-07-16',
     title: 'Änderungsseite & Aufräumen',
     changes: [
       'Neue Seite „Änderungen" — hier stehen künftig die wichtigsten Neuerungen.',

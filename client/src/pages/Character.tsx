@@ -5,6 +5,7 @@ import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import type { Row } from '../components/inputs';
 import ContentTabView from '../tabs/Sektionen';
+import UebersichtTab from '../tabs/Uebersicht';
 import HeldenbriefTab from '../tabs/Heldenbrief';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
@@ -67,7 +68,7 @@ interface CharCtxValue {
 const CharCtx = createContext<CharCtxValue | null>(null);
 export const useChar = () => useContext(CharCtx)!;
 
-const BUILTIN_TABS = ['Heldenbrief', 'Talente', 'Waffen', 'Sprachen'] as const;
+const BUILTIN_TABS = ['Übersicht', 'Heldenbrief', 'Talente', 'Waffen', 'Sprachen'] as const;
 
 export default function CharacterPage() {
   const { id } = useParams();
@@ -77,7 +78,7 @@ export default function CharacterPage() {
   const [data, setData] = useState<FullData | null>(null);
   const [summary, setSummary] = useState<unknown>(null);
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
-  const [activeKey, setActiveKey] = useState<string>('Heldenbrief');
+  const [activeKey, setActiveKey] = useState<string>('Übersicht');
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
 
@@ -214,6 +215,7 @@ export default function CharacterPage() {
           Sichtbarkeit
         </button>
       </div>
+      {activeKey === 'Übersicht' && <UebersichtTab />}
       {activeKey === 'Heldenbrief' && <HeldenbriefTab />}
       {activeKey === 'Talente' && <TalenteTab />}
       {activeKey === 'Waffen' && <WaffenTab />}

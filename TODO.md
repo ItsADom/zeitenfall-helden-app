@@ -6,15 +6,13 @@
    - concept needed, so it doesn't get bloated with every edit
 - making container items on "Ausrüstung" expandable
    - e.g. weapon belt with 4 slots, these 4 slots can be filled with items that are carried
+- text fields need breaks after a certain length, so you they expand down instead of scrolling sideways
 
 ## Low-Prio
 
 - off-machine backup
    - the daily backups sit on the same disk as helden.db, so they don't survive disk loss
    - copy server/data/backups/ somewhere else regularly (external drive, cloud, second host)
-- summary screen for character values
-   - breakdown of actual values for "Attribute", "Basiswerte", "Energien", "Geld"
-   - just show the name and "Ergebnis" of the rows
 - look-up lists
    - has to be worked on with the GM, currently no data for this
    - examples:

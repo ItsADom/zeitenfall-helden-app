@@ -10,6 +10,7 @@ import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { Fragment, useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, mrErgebnis, nextLevelAp, psycheProzent } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
+import { depletionClass } from '../components/energie';
 import { useChar } from '../pages/Character';
 
 const BIO_FIELDS: [string, string][] = [
@@ -34,7 +35,7 @@ const BIO_FIELDS: [string, string][] = [
 
 // Münzen mit Metall-Farbwelt: Dukaten (Gold), Silbertaler (Silber),
 // Heller (Bronze), Kreuzer (Eisen)
-const COIN_FIELDS: [string, string, string][] = [
+export const COIN_FIELDS: [string, string, string][] = [
   ['geldD', 'Dukaten', 'gold'],
   ['geldS', 'Silbertaler', 'silver'],
   ['geldH', 'Heller', 'bronze'],
@@ -190,12 +191,9 @@ export default function HeldenbriefTab() {
           <tbody>
             {RESOURCE_KEYS.map((key) => {
               const r = computeResource(attributes, key, resources[key]);
-              // Zehrung nur für die vitalen Pools (LE/AU); AsP-Ruhezustand 0
-              // wäre bei Nicht-Zauberern nur Dauer-Rot, MR ist kein Pool
               const akt = resources[key].aktuell;
-              const tracksDepletion = key === 'le' || key === 'aus';
-              const ratio = tracksDepletion && r.ergebnis > 0 ? akt / r.ergebnis : 1;
-              const depl = ratio <= 0.25 ? 'res-crit' : ratio <= 0.5 ? 'res-low' : '';
+              const depl = depletionClass(key, akt, r.ergebnis);
+              const ratio = r.ergebnis > 0 ? akt / r.ergebnis : 1;
               return (
                 <tr key={key}>
                   <td>{RESOURCE_LABELS[key].label}</td>

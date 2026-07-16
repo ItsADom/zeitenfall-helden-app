@@ -688,6 +688,15 @@ main {
   flex-shrink: 0;
   text-align: center;
 }
+/* Nur-Lese-Betrag (Übersicht) — gleiche Spur wie das Eingabefeld */
+.coin-value {
+  width: 92px;
+  flex-shrink: 0;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--computed-text);
+}
 .coin-gold   { --coin-bg: #fbf3dc; --coin-edge: #c39a2b; --coin-hi: #f6e39a; }
 .coin-silver { --coin-bg: #f1f2f4; --coin-edge: #9298a0; --coin-hi: #e6e9ed; }
 .coin-bronze { --coin-bg: #f5ebdf; --coin-edge: #a86e3c; --coin-hi: #e0b184; }
