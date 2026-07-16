@@ -56,8 +56,10 @@ und Sitzungs-Cookie im Klartext.
    frischer DB setzen). Der Standard `spielleiter/spielleiter` ist öffentlich bekannt.
 2. **Mit `SECURE_COOKIES=1` starten** — hinter einem HTTPS-Proxy, damit das
    Sitzungs-Cookie das `Secure`-Flag erhält.
-3. **`server/data/helden.db` sichern** — die einzige Kopie aller Charakterdaten;
-   während des Tests regelmäßig wegkopieren (WAL: am besten bei gestopptem Server).
+3. **Sicherungen prüfen** — der Server legt automatisch täglich eine Kopie unter
+   `server/data/backups/helden-JJJJ-MM-TT.db` an (siehe unten). Diese liegen auf
+   derselben Platte wie das Original: für echten Schutz zusätzlich regelmäßig
+   **weg vom Rechner** kopieren.
 
 **Einfachster HTTPS-Weg (Cloudflare Tunnel, ohne Portfreigabe):**
 
@@ -79,6 +81,22 @@ eigener Domain den benannten Tunnel einrichten (`cloudflared tunnel login`).
 | `SESSION_TTL_DAYS` | `30` | Gültigkeitsdauer einer Sitzung in Tagen |
 | `GM_PASSWORD` | `spielleiter` | Erst-Passwort des GM-Kontos (nur beim allerersten Seed) |
 | `HELDEN_DB` | `server/data/helden.db` | Pfad zur SQLite-Datei |
+| `BACKUP_DIR` | `server/data/backups` | Ablage der täglichen Sicherungen |
+| `BACKUP_KEEP` | `14` | Anzahl aufbewahrter Sicherungen (ältere werden gelöscht) |
+| `BACKUP_INTERVAL_HOURS` | `24` | Abstand zwischen den Sicherungsläufen |
+
+## Sicherungen
+
+Der Server sichert die Datenbank beim Start und danach im eingestellten Takt nach
+`server/data/backups/helden-JJJJ-MM-TT.db` — über die Online-Backup-API von SQLite,
+also im laufenden Betrieb und WAL-sicher (ein bloßes Kopieren der `.db`-Datei wäre
+das nicht). Pro Tag entsteht **eine** Sicherung; eine bereits vorhandene wird nicht
+überschrieben, damit ein Neustart mit beschädigtem Stand die gute Kopie des Tages
+nicht ersetzt. Ältere Sicherungen jenseits von `BACKUP_KEEP` werden aufgeräumt.
+
+Wiederherstellen: Server stoppen, die gewünschte Sicherung nach
+`server/data/helden.db` kopieren (vorhandene `helden.db-wal`/`-shm` daneben
+entfernen), Server starten.
 
 ## Rollen & Rechte
 

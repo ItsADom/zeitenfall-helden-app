@@ -4,12 +4,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { attachUser, cleanupSessions } from './auth.js';
 import { api } from './routes.js';
+import { startBackupSchedule } from './backup.js';
 import './db.js';
 import './seed.js';
 
 // Abgelaufene Sitzungen beim Start und danach täglich aufräumen
 cleanupSessions();
 setInterval(cleanupSessions, 24 * 60 * 60 * 1000).unref();
+
+// Tägliche Sicherung der Datenbank
+startBackupSchedule();
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));

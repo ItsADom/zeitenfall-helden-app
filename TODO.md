@@ -1,7 +1,6 @@
 
 ## High-Prio
 
-- daily backup !!!!!!!
 - additional admin user on seeding because spielleiter is not the developer
 - sort characters in admin-view by group, then by name
 
