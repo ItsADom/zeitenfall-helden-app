@@ -208,6 +208,21 @@ db.exec(`
   if (!cols.has('tab_id')) db.exec('ALTER TABLE char_sections ADD COLUMN tab_id INTEGER REFERENCES char_tabs(id) ON DELETE CASCADE');
 }
 
+// Migration: Magieresistenz von den Energien zu den Basiswerten.
+// Früher lag sie in char_resources mit getrenntem permanent/kauf; da beides in
+// der Praxis dasselbe war, wird es zu einem einzelnen Basiswert-Modifikator
+// zusammengefasst. Je Charakter geschützt und damit wiederholbar; die alte
+// char_resources-Zeile bleibt als Quelle stehen und wird nicht mehr gelesen.
+db.exec(`
+  INSERT INTO char_base_values (character_id, key, mod, base)
+  SELECT r.character_id, 'mr', r.permanent + r.kauf, 0
+  FROM char_resources r
+  WHERE r.key = 'mr'
+    AND NOT EXISTS (
+      SELECT 1 FROM char_base_values b WHERE b.character_id = r.character_id AND b.key = 'mr'
+    );
+`);
+
 // Migration: 'skill100'-Spalte (Meisterschaft bei 100 TaW) im Talent-Katalog ergänzen
 {
   const cols = new Set((db.prepare('PRAGMA table_info(talents_catalog)').all() as { name: string }[]).map((c) => c.name));

@@ -8,8 +8,9 @@ import {
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { Fragment, useState } from 'react';
-import { computeBaseValues, computeResource, levelForAp, mrErgebnis, nextLevelAp, psycheProzent } from '@shared/rules';
+import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
+import { GeldPanel } from '../components/GeldPanel';
 import { depletionClass } from '../components/energie';
 import { useChar } from '../pages/Character';
 
@@ -33,15 +34,6 @@ const BIO_FIELDS: [string, string][] = [
   ['goettergeschenke', 'Göttergeschenke'],
 ];
 
-// Münzen mit Metall-Farbwelt: Dukaten (Gold), Silbertaler (Silber),
-// Heller (Bronze), Kreuzer (Eisen)
-export const COIN_FIELDS: [string, string, string][] = [
-  ['geldD', 'Dukaten', 'gold'],
-  ['geldS', 'Silbertaler', 'silver'],
-  ['geldH', 'Heller', 'bronze'],
-  ['geldK', 'Kreuzer', 'iron'],
-];
-
 const META_FIELDS: [string, string][] = [
   ['karma', 'Karma'],
   ['karmaGuthaben', 'Karma-Guthaben'],
@@ -52,8 +44,7 @@ export default function HeldenbriefTab() {
   const { data, update } = useChar();
   const { attributes, baseValues, resources, bio, meta } = data;
 
-  const mr = mrErgebnis(attributes, resources);
-  const bv = computeBaseValues(attributes, baseValues, mr);
+  const bv = computeBaseValues(attributes, baseValues);
   const psyche = psycheProzent(meta.psycheAkt, meta.psycheMax);
 
   const setAttr = (code: AttrRowCode, field: 'akt' | 'mod', v: number) =>
@@ -297,23 +288,7 @@ export default function HeldenbriefTab() {
           </div>
         </div>
 
-        <div className="panel">
-          <h3>Geld</h3>
-          <div className="coins">
-            {COIN_FIELDS.map(([key, label, tone]) => (
-              <div className={`coin coin-${tone}`} key={key}>
-                <span className="coin-disc" aria-hidden />
-                <label>{label}</label>
-                <NumInput value={meta[key] ?? 0} onChange={(v) => setMeta(key, v)} />
-              </div>
-            ))}
-          </div>
-          <div className="coin coin-bank">
-            <span className="coin-disc" aria-hidden />
-            <label>Bank</label>
-            <NumInput value={meta.bank ?? 0} onChange={(v) => setMeta('bank', v)} />
-          </div>
-        </div>
+        <GeldPanel meta={meta} setMeta={setMeta} />
       </div>
     </>
   );

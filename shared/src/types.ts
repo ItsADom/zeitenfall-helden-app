@@ -35,11 +35,14 @@ export type BaseValueKey =
   | 'wundschwelle'
   | 'ausweichen'
   | 'resilienz'
+  | 'mr'
   | 'gs';
 
+// MR steht neben der Resilienz: beides sind Widerstände (Resilienz gegen
+// Psyche-Schaden). MR ist zugleich Eingang für Artefaktkontrolle und Resilienz.
 export const BASE_VALUE_KEYS: BaseValueKey[] = [
   'at', 'pa', 'bl', 'fk', 'ini', 'artefaktkontrolle',
-  'todesschwelle', 'wundschwelle', 'ausweichen', 'resilienz', 'gs',
+  'todesschwelle', 'wundschwelle', 'ausweichen', 'resilienz', 'mr', 'gs',
 ];
 
 export const BASE_VALUE_LABELS: Record<BaseValueKey, { label: string; formel: string }> = {
@@ -53,6 +56,7 @@ export const BASE_VALUE_LABELS: Record<BaseValueKey, { label: string; formel: st
   wundschwelle: { label: 'Wundschwelle', formel: '(KO):2' },
   ausweichen: { label: 'Ausweichen', formel: '(GE+GE+IN):3' },
   resilienz: { label: 'Resilienz', formel: '(MU+MU+MR):5' },
+  mr: { label: 'Magieresistenz', formel: '(MU+KL+KO):5' },
   gs: { label: 'Geschwindigkeit', formel: '' },
 };
 
@@ -62,14 +66,14 @@ export interface BaseValueInputs {
   gsBase: number;
 }
 
-// Energien/Ressourcen (LE, AUS, AsE, MR)
-export type ResourceKey = 'le' | 'aus' | 'ase' | 'mr';
-export const RESOURCE_KEYS: ResourceKey[] = ['le', 'aus', 'ase', 'mr'];
+// Energien/Ressourcen (LE, AUS, AsE) — echte Vorräte mit Aktuell/Max.
+// Die MR ist keiner davon und liegt bei den Basiswerten.
+export type ResourceKey = 'le' | 'aus' | 'ase';
+export const RESOURCE_KEYS: ResourceKey[] = ['le', 'aus', 'ase'];
 export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: string }> = {
   le: { label: 'Lebensenergie', formel: '(KO+KO+KK):2' },
   aus: { label: 'Ausdauer', formel: '(MU+GE+KO):2' },
   ase: { label: 'Astralenergie', formel: '(MU+IN+CH):2' },
-  mr: { label: 'Magieresistenz', formel: '(MU+KL+KO):5' },
 };
 
 export interface ResourceInput {

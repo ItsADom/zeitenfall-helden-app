@@ -23,9 +23,15 @@ export interface BaseValueResult {
   ergebnis: number;
 }
 
-export function computeBaseValueBases(attrs: Attributes, mrErgebnis: number, gsBase: number): Record<BaseValueKey, number> {
+export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs): Record<BaseValueKey, number> {
   const v = (c: AttrCode) => attrMax(attrs, c);
   const wundschwelle = ceil(v('KO') / 2);
+
+  // Die MR ist Eingang für Artefaktkontrolle und Resilienz und muss deshalb
+  // zuerst fertig gerechnet sein (Basis + eigener Modifikator).
+  const mr = ceil((v('MU') + v('KL') + v('KO')) / 5);
+  const mrErgebnis = mr + (inputs.mods.mr ?? 0);
+
   return {
     at: ceil((v('MU') + v('GE') + v('KK')) / 5),
     pa: ceil((v('IN') + v('GE') + v('FF')) / 5),
@@ -37,12 +43,13 @@ export function computeBaseValueBases(attrs: Attributes, mrErgebnis: number, gsB
     wundschwelle,
     ausweichen: ceil((v('GE') + v('GE') + v('IN')) / 3),
     resilienz: ceil((v('MU') + v('MU') + mrErgebnis) / 5),
-    gs: gsBase,
+    mr,
+    gs: inputs.gsBase,
   };
 }
 
-export function computeBaseValues(attrs: Attributes, inputs: BaseValueInputs, mrErgebnis: number): Record<BaseValueKey, BaseValueResult> {
-  const bases = computeBaseValueBases(attrs, mrErgebnis, inputs.gsBase);
+export function computeBaseValues(attrs: Attributes, inputs: BaseValueInputs): Record<BaseValueKey, BaseValueResult> {
+  const bases = computeBaseValueBases(attrs, inputs);
   const out = {} as Record<BaseValueKey, BaseValueResult>;
   for (const key of Object.keys(bases) as BaseValueKey[]) {
     const mod = inputs.mods[key] ?? 0;
@@ -51,12 +58,12 @@ export function computeBaseValues(attrs: Attributes, inputs: BaseValueInputs, mr
   return out;
 }
 
-// --- Energien (LE, AUS, AsE, MR) ---
+// --- Energien (LE, AUS, AsE) ---
 
 export interface ResourceResult {
   vorergebnis: number;
   ergebnis: number;
-  max: number | null; // MR hat kein Maximum
+  max: number | null;
 }
 
 export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey): number {
@@ -68,8 +75,6 @@ export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey):
       return ceil((v('MU') + v('GE') + v('KO')) / 2);
     case 'ase':
       return ceil((v('MU') + v('IN') + v('CH')) / 2);
-    case 'mr':
-      return ceil((v('MU') + v('KL') + v('KO')) / 5);
   }
 }
 
@@ -88,15 +93,8 @@ export function computeResource(attrs: Attributes, key: ResourceKey, input: Reso
     case 'ase':
       max = vor + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
       break;
-    case 'mr':
-      max = null;
-      break;
   }
   return { vorergebnis: vor, ergebnis, max };
-}
-
-export function mrErgebnis(attrs: Attributes, resources: Resources): number {
-  return computeResource(attrs, 'mr', resources.mr).ergebnis;
 }
 
 // --- Talente ---

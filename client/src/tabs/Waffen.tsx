@@ -1,4 +1,4 @@
-import { computeBaseValues, mrErgebnis, weaponProbes, wurfweiten } from '@shared/rules';
+import { computeBaseValues, weaponProbes, wurfweiten } from '@shared/rules';
 import { listSectionById } from '@shared/sections';
 import type { ColumnDef } from '@shared/sections';
 import { ListEditor } from '../components/inputs';
@@ -7,8 +7,7 @@ import { useChar } from '../pages/Character';
 
 export default function WaffenTab() {
   const { data, catalogs, update } = useChar();
-  const mr = mrErgebnis(data.attributes, data.resources);
-  const bv = computeBaseValues(data.attributes, data.baseValues, mr);
+  const bv = computeBaseValues(data.attributes, data.baseValues);
   const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
   const talents = new Map(data.talents.map((t) => [t.talentId, t]));
   const kampfTalente = catalogs.talents.filter((t) => t.kategorie === 'kampf');

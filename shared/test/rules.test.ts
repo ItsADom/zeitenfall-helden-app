@@ -7,7 +7,6 @@ import {
   levelForAp,
   MAX_LEVEL,
   maximaleLast,
-  mrErgebnis,
   nextLevelAp,
   probeExprZahl,
   schreibenProbe,
@@ -41,8 +40,7 @@ describe('Energien', () => {
 });
 
 describe('Basiswerte', () => {
-  const mr = mrErgebnis(raskir, raskirResources);
-  const bv = computeBaseValues(raskir, raskirBaseInputs, mr);
+  const bv = computeBaseValues(raskir, raskirBaseInputs);
 
   for (const b of reference.basiswerte) {
     it(`${b.label}: Basis ${b.base} → Ergebnis ${b.ergebnis}`, () => {

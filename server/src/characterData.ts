@@ -11,7 +11,6 @@ import {
   computeResource,
   erleichterung,
   listSectionById,
-  mrErgebnis,
   normalizeColumns,
   talentProbeZahl,
   weaponProbes,
@@ -63,7 +62,7 @@ export function loadResources(charId: number): Resources {
     .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes FROM char_resources WHERE character_id = ?')
     .all(charId) as ({ key: string } & Resources['le'])[];
   const empty = () => ({ permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '' });
-  const out = { le: empty(), aus: empty(), ase: empty(), mr: empty() } as Resources;
+  const out = { le: empty(), aus: empty(), ase: empty() } as Resources;
   for (const r of rows) {
     if (RESOURCE_KEYS.includes(r.key as never)) {
       const { key, ...rest } = r;
@@ -348,8 +347,7 @@ export function buildSummary(charId: number) {
   const attributes = loadAttributes(charId);
   const resources = loadResources(charId);
   const baseInputs = loadBaseValueInputs(charId);
-  const mr = mrErgebnis(attributes, resources);
-  const baseValues = computeBaseValues(attributes, baseInputs, mr);
+  const baseValues = computeBaseValues(attributes, baseInputs);
   const bio = loadSingleRow('char_bio', charId);
   const lists = loadAllLists(charId);
 

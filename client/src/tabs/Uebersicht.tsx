@@ -3,34 +3,27 @@ import {
   ATTR_ROW_CODES,
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
+  RESOURCE_KEYS,
   RESOURCE_LABELS,
 } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
-import { computeBaseValues, computeResource, levelForAp, mrErgebnis, nextLevelAp, psycheProzent } from '@shared/rules';
+import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
 import { depletionClass } from '../components/energie';
+import { GeldPanel } from '../components/GeldPanel';
 import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
-import { COIN_FIELDS } from './Heldenbrief';
 
-// Alles Wichtige auf einen Blick, ohne Formeln und Zwischenwerte. Nur die
-// aktuellen Energien lassen sich hier direkt ändern — das ist der Wert, der
-// sich im Spiel ständig bewegt. Alles andere wird im Heldenbrief gepflegt.
+// Alles Wichtige auf einen Blick, ohne Formeln und Zwischenwerte. Editierbar
+// ist genau das, was sich im Spiel ständig bewegt: aktuelle Energien, Psyche
+// und Geld. Der Rest wird im Heldenbrief gepflegt.
 
 const de = (v: number) => v.toLocaleString('de-DE');
-
-// Magieresistenz ist kein Vorrat, sondern ein abgeleiteter Einzelwert und
-// steht deshalb bei den Basiswerten.
-const POOL_KEYS: ResourceKey[] = ['le', 'aus', 'ase'];
 
 export default function UebersichtTab() {
   const { data, update } = useChar();
   const { attributes, baseValues, resources, meta } = data;
 
-  const mr = mrErgebnis(attributes, resources);
-  const bv = computeBaseValues(attributes, baseValues, mr);
-
-  const setAktuell = (key: ResourceKey, v: number) =>
-    update('resources', { ...resources, [key]: { ...resources[key], aktuell: v } });
+  const bv = computeBaseValues(attributes, baseValues);
 
   const ap = meta.ap ?? 0;
   const level = levelForAp(ap);
@@ -38,6 +31,10 @@ export default function UebersichtTab() {
   const psycheAkt = meta.psycheAkt ?? 0;
   const psycheMax = meta.psycheMax ?? 0;
   const psyche = psycheProzent(psycheAkt, psycheMax);
+
+  const setAktuell = (key: ResourceKey, v: number) =>
+    update('resources', { ...resources, [key]: { ...resources[key], aktuell: v } });
+  const setMeta = (key: string, v: number) => update('meta', { ...meta, [key]: v });
 
   return (
     <>
@@ -102,12 +99,6 @@ export default function UebersichtTab() {
                     <td className="computed">{bv[key].ergebnis}</td>
                   </tr>
                 ))}
-                {/* Hier schlicht ein weiterer abgeleiteter Wert — die
-                    Zwitter-Natur der MR fällt nur beim Bearbeiten auf */}
-                <tr>
-                  <td>{RESOURCE_LABELS.mr.label}</td>
-                  <td className="computed">{mr}</td>
-                </tr>
               </tbody>
             </table>
           </div>
@@ -127,7 +118,7 @@ export default function UebersichtTab() {
                 </tr>
               </thead>
               <tbody>
-                {POOL_KEYS.map((key) => {
+                {RESOURCE_KEYS.map((key) => {
                   const r = computeResource(attributes, key, resources[key]);
                   const akt = resources[key].aktuell;
                   const depl = depletionClass(key, akt, r.ergebnis);
@@ -146,7 +137,9 @@ export default function UebersichtTab() {
                 })}
                 <tr>
                   <td>Psyche</td>
-                  <td className="num">{de(psycheAkt)}</td>
+                  <td>
+                    <NumInput value={psycheAkt} onChange={(v) => setMeta('psycheAkt', v)} />
+                  </td>
                   <td className="computed">
                     {de(psycheMax)}
                     {psyche != null && <span className="muted"> · {Math.round(psyche)} %</span>}
@@ -157,23 +150,7 @@ export default function UebersichtTab() {
           </div>
         </div>
 
-        <div className="panel">
-          <h3>Geld</h3>
-          <div className="coins">
-            {COIN_FIELDS.map(([key, label, tone]) => (
-              <div className={`coin coin-${tone}`} key={key}>
-                <span className="coin-disc" aria-hidden />
-                <label>{label}</label>
-                <span className="coin-value">{de(meta[key] ?? 0)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="coin coin-bank">
-            <span className="coin-disc" aria-hidden />
-            <label>Bank</label>
-            <span className="coin-value">{de(meta.bank ?? 0)}</span>
-          </div>
-        </div>
+        <GeldPanel meta={meta} setMeta={setMeta} />
       </div>
     </>
   );

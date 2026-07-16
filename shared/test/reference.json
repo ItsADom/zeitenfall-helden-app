@@ -17,13 +17,12 @@
     "energienEingaben": {
       "le": { "permanent": 118, "kauf": 63, "kaufMax": 0, "maxPlus": 135, "aktuell": 238, "besonderes": "0" },
       "aus": { "permanent": 39, "kauf": 65, "kaufMax": 0, "maxPlus": 50, "aktuell": 140, "besonderes": "↑ Schmerz ↑" },
-      "ase": { "permanent": 4, "kauf": 0, "kaufMax": 0, "maxPlus": 0, "aktuell": 0, "besonderes": "" },
-      "mr": { "permanent": 54, "kauf": 0, "kaufMax": 0, "maxPlus": 0, "aktuell": 0, "besonderes": "" }
+      "ase": { "permanent": 4, "kauf": 0, "kaufMax": 0, "maxPlus": 0, "aktuell": 0, "besonderes": "" }
     },
     "basiswerteEingaben": {
       "mods": {
         "at": 1, "pa": 0, "bl": 3, "fk": 0, "ini": -2, "artefaktkontrolle": 5,
-        "todesschwelle": 2, "wundschwelle": 5, "ausweichen": 0, "resilienz": 10, "gs": 0
+        "todesschwelle": 2, "wundschwelle": 5, "ausweichen": 0, "resilienz": 10, "mr": 54, "gs": 0
       },
       "gsBase": 8
     }
@@ -32,8 +31,7 @@
   "energien": [
     { "key": "le", "label": "Lebensenergie", "formel": "(KO+KO+KK):2", "vorergebnis": 57, "ergebnis": 238, "max": 239 },
     { "key": "aus", "label": "Ausdauer", "formel": "(MU+GE+KO):2", "vorergebnis": 36, "ergebnis": 140, "max": 142 },
-    { "key": "ase", "label": "Astralenergie", "formel": "(MU+IN+CH):2", "vorergebnis": 23, "ergebnis": 27, "max": 77 },
-    { "key": "mr", "label": "Magieresistenz", "formel": "(MU+KL+KO):5", "vorergebnis": 15, "ergebnis": 69, "max": null }
+    { "key": "ase", "label": "Astralenergie", "formel": "(MU+IN+CH):2", "vorergebnis": 23, "ergebnis": 27, "max": 77 }
   ],
 
   "basiswerte": [
@@ -47,6 +45,7 @@
     { "key": "wundschwelle", "label": "Wundschwelle", "formel": "(KO):2", "base": 22, "ergebnis": 27 },
     { "key": "ausweichen", "label": "Ausweichen", "formel": "(GE+GE+IN):3", "base": 13, "ergebnis": 13 },
     { "key": "resilienz", "label": "Resilienz", "formel": "(MU+MU+MR):5", "base": 21, "ergebnis": 31 },
+    { "key": "mr", "label": "Magieresistenz", "formel": "(MU+KL+KO):5", "base": 15, "ergebnis": 69 },
     { "key": "gs", "label": "Geschwindigkeit", "formel": "", "base": 8, "ergebnis": 8 }
   ],
 
