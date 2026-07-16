@@ -80,10 +80,27 @@ eigener Domain den benannten Tunnel einrichten (`cloudflared tunnel login`).
 | `SECURE_COOKIES` | aus | `1`/`true` → `Secure`-Flag am Sitzungs-Cookie (hinter HTTPS) |
 | `SESSION_TTL_DAYS` | `30` | Gültigkeitsdauer einer Sitzung in Tagen |
 | `GM_PASSWORD` | `spielleiter` | Erst-Passwort des GM-Kontos (nur beim allerersten Seed) |
+| `ADMIN_USER` | — | Zweites Konto mit Spielleiter-Rechten (z. B. der Entwickler) |
+| `ADMIN_PASSWORD` | — | Passwort dazu — nur beim Anlegen, setzt später nichts zurück |
+| `ADMIN_NAME` | = `ADMIN_USER` | Anzeigename des zweiten Kontos |
 | `HELDEN_DB` | `server/data/helden.db` | Pfad zur SQLite-Datei |
 | `BACKUP_DIR` | `server/data/backups` | Ablage der täglichen Sicherungen |
 | `BACKUP_KEEP` | `14` | Anzahl aufbewahrter Sicherungen (ältere werden gelöscht) |
 | `BACKUP_INTERVAL_HOURS` | `24` | Abstand zwischen den Sicherungsläufen |
+
+## Zweites Spielleiter-Konto
+
+`spielleiter` ist das Konto der Spielleitung — wer die App entwickelt oder betreibt,
+braucht ein eigenes. Mit `ADMIN_USER` + `ADMIN_PASSWORD` legt der Server beim Start
+ein zweites Konto mit Spielleiter-Rechten an:
+
+```bash
+ADMIN_USER=dominik ADMIN_PASSWORD='…' npm start
+```
+
+Das funktioniert auch auf einer bestehenden Datenbank. Existiert das Konto bereits,
+bleibt es unangetastet — insbesondere wird das Passwort **nicht** bei jedem Start
+zurückgesetzt. Die Variablen können danach wieder entfallen.
 
 ## Sicherungen
 

@@ -7,6 +7,39 @@ import { hashPassword } from './auth.js';
 
 const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
+// Zweites Konto mit Spielleiter-Rechten (z. B. für den Entwickler, der nicht
+// der Spielleiter ist). Bewusst NICHT an eine leere Datenbank gekoppelt, damit
+// es sich auch nachträglich anlegen lässt.
+function seedAdminAccount(): void {
+  const username = process.env.ADMIN_USER;
+  const password = process.env.ADMIN_PASSWORD;
+  if (!username && !password) return;
+  if (!username || !password) {
+    console.warn('ADMIN_USER und ADMIN_PASSWORD müssen zusammen gesetzt sein — Konto übersprungen');
+    return;
+  }
+
+  const existing = db.prepare('SELECT id, is_gm AS isGm FROM users WHERE username = ?').get(username) as
+    | { id: number; isGm: number }
+    | undefined;
+  if (existing) {
+    // Idempotent: kein Passwort-Reset bei jedem Start (das Passwort im Prozess-
+    // Environment darf ein später geändertes nicht stillschweigend überschreiben)
+    if (!existing.isGm) {
+      db.prepare('UPDATE users SET is_gm = 1 WHERE id = ?').run(existing.id);
+      console.log(`Konto "${username}" auf Spielleiter-Rechte gehoben`);
+    }
+    return;
+  }
+
+  db.prepare('INSERT INTO users (username, password_hash, display_name, is_gm) VALUES (?, ?, ?, 1)').run(
+    username,
+    hashPassword(password),
+    process.env.ADMIN_NAME ?? username,
+  );
+  console.log(`Konto mit Spielleiter-Rechten angelegt: "${username}"`);
+}
+
 export function seed(): void {
   const userCount = (db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;
   if (userCount === 0) {
@@ -18,6 +51,8 @@ export function seed(): void {
     );
     console.log(`Spielleiter-Konto angelegt: Benutzer "spielleiter", Passwort "${password}" (bitte ändern)`);
   }
+
+  seedAdminAccount();
 
   const talentCount = (db.prepare('SELECT COUNT(*) AS n FROM talents_catalog').get() as { n: number }).n;
   if (talentCount === 0) {
