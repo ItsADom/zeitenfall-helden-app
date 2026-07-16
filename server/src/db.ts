@@ -172,6 +172,33 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     data TEXT NOT NULL DEFAULT '{}'
   );
+
+  -- Gemeinsame Inhalte einer Gruppe (Inventar, Questlog, NPCs …).
+  -- Bewusst eigene Tabellen statt einer Besitzer-Spalte in den char_*-Tabellen:
+  -- gleiche Struktur, aber ohne Eingriff in die bestehenden Charakterdaten.
+  CREATE TABLE IF NOT EXISTS group_tabs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    locked INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS group_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    tab_id INTEGER REFERENCES group_tabs(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'table',
+    columns TEXT NOT NULL DEFAULT '[]',
+    visible INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS group_section_rows (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL REFERENCES group_sections(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    data TEXT NOT NULL DEFAULT '{}'
+  );
 `);
 
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen

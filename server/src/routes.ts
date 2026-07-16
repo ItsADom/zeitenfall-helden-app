@@ -13,24 +13,30 @@ import {
 import { db, initCharacterRows } from './db.js';
 import {
   buildSummary,
+  instantiateStandardSections,
+  loadFullCharacter,
+  migrateCharacterPeriphery,
+  saveSection,
+  saveVisibility,
+} from './characterData.js';
+import {
+  CHAR_DYN,
+  GROUP_DYN,
   createDynSection,
   createTab,
   deleteDynSection,
   deleteTab,
-  instantiateStandardSections,
-  loadFullCharacter,
-  migrateCharacterPeriphery,
+  instantiateGroupTabs,
+  loadDynTabs,
   renameTab,
   reorderDynSections,
   reorderTabs,
   saveDynRows,
-  saveSection,
-  saveVisibility,
   sectionBelongsTo,
   tabBelongsTo,
   tabIsLocked,
   updateDynSection,
-} from './characterData.js';
+} from './dynSections.js';
 
 export const api = Router();
 
@@ -149,7 +155,135 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     const access = characterAccess(user, getChar(c.id)!);
     return { ...c, access };
   });
-  res.json({ group, members, characters });
+  // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
+  // die es vor diesem Feature schon gab, ihre Inhalte
+  instantiateGroupTabs(groupId);
+  res.json({ group, members, characters, tabs: loadDynTabs(groupId, GROUP_DYN) });
+});
+
+// --- Gemeinsame Gruppeninhalte (jedes Gruppenmitglied darf bearbeiten) ---
+
+function editableGroup(req: import('express').Request, res: import('express').Response): number | null {
+  const groupId = Number(req.params.id);
+  const user = req.user!;
+  const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+  if (!exists || (!user.isGm && !isGroupMember(user.id, groupId))) {
+    res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    return null;
+  }
+  return groupId;
+}
+
+api.post('/groups/:id/tabs', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const { name } = (req.body ?? {}) as { name?: string };
+  res.json({ id: createTab(groupId, String(name ?? 'Neuer Tab'), false, GROUP_DYN) });
+});
+
+api.put('/groups/:id/tabs/reorder', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const order = Array.isArray(req.body?.order) ? (req.body.order as unknown[]).map(Number) : [];
+  reorderTabs(groupId, order, GROUP_DYN);
+  res.json({ ok: true });
+});
+
+api.put('/groups/:id/tabs/:tid', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const tid = Number(req.params.tid);
+  if (!tabBelongsTo(tid, groupId, GROUP_DYN)) {
+    res.status(404).json({ error: 'Tab nicht gefunden' });
+    return;
+  }
+  const { name } = (req.body ?? {}) as { name?: string };
+  if (name !== undefined) renameTab(tid, String(name), GROUP_DYN);
+  res.json({ ok: true });
+});
+
+api.delete('/groups/:id/tabs/:tid', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const tid = Number(req.params.tid);
+  if (!tabBelongsTo(tid, groupId, GROUP_DYN)) {
+    res.status(404).json({ error: 'Tab nicht gefunden' });
+    return;
+  }
+  if (tabIsLocked(tid, GROUP_DYN)) {
+    res.status(400).json({ error: 'Pflicht-Tab kann nicht gelöscht werden' });
+    return;
+  }
+  deleteTab(tid, GROUP_DYN);
+  res.json({ ok: true });
+});
+
+api.post('/groups/:id/sections', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const { tabId, name, type, columns } = (req.body ?? {}) as { tabId?: number; name?: string; type?: string; columns?: unknown };
+  if (!tabId || !tabBelongsTo(Number(tabId), groupId, GROUP_DYN)) {
+    res.status(400).json({ error: 'Tab nicht gefunden' });
+    return;
+  }
+  const id = createDynSection(
+    groupId,
+    Number(tabId),
+    String(name ?? 'Neue Sektion'),
+    type === 'notes' ? 'notes' : 'table',
+    normalizeColumns(columns),
+    GROUP_DYN,
+  );
+  res.json({ id });
+});
+
+api.put('/groups/:id/sections/reorder', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const order = Array.isArray(req.body?.order) ? (req.body.order as unknown[]).map(Number) : [];
+  reorderDynSections(groupId, order, GROUP_DYN);
+  res.json({ ok: true });
+});
+
+api.put('/groups/:id/sections/:sid', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const sid = Number(req.params.sid);
+  if (!sectionBelongsTo(sid, groupId, GROUP_DYN)) {
+    res.status(404).json({ error: 'Sektion nicht gefunden' });
+    return;
+  }
+  const body = (req.body ?? {}) as { name?: string; columns?: unknown; visible?: boolean };
+  const patch: { name?: string; columns?: ReturnType<typeof normalizeColumns>; visible?: boolean } = {};
+  if (body.name !== undefined) patch.name = String(body.name);
+  if (body.columns !== undefined) patch.columns = normalizeColumns(body.columns);
+  if (body.visible !== undefined) patch.visible = !!body.visible;
+  updateDynSection(sid, patch, GROUP_DYN);
+  res.json({ ok: true });
+});
+
+api.delete('/groups/:id/sections/:sid', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const sid = Number(req.params.sid);
+  if (!sectionBelongsTo(sid, groupId, GROUP_DYN)) {
+    res.status(404).json({ error: 'Sektion nicht gefunden' });
+    return;
+  }
+  deleteDynSection(sid, GROUP_DYN);
+  res.json({ ok: true });
+});
+
+api.put('/groups/:id/sections/:sid/rows', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const sid = Number(req.params.sid);
+  if (!sectionBelongsTo(sid, groupId, GROUP_DYN)) {
+    res.status(404).json({ error: 'Sektion nicht gefunden' });
+    return;
+  }
+  saveDynRows(sid, Array.isArray(req.body) ? (req.body as Record<string, unknown>[]) : [], GROUP_DYN);
+  res.json({ ok: true });
 });
 
 // --- Charaktere ---
@@ -405,7 +539,9 @@ api.post('/admin/groups', requireAuth, requireGm, (req, res) => {
     return;
   }
   const r = db.prepare('INSERT INTO groups (name) VALUES (?)').run(name);
-  res.json({ id: r.lastInsertRowid });
+  const id = Number(r.lastInsertRowid);
+  instantiateGroupTabs(id);
+  res.json({ id });
 });
 
 api.put('/admin/groups/:id', requireAuth, requireGm, (req, res) => {

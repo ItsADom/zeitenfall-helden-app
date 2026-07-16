@@ -23,12 +23,11 @@ import type {
   CharTalent,
   CharLanguage,
   DynColumn,
-  DynSection,
-  DynTab,
   Resources,
   VisibilitySection,
 } from 'shared';
 import { db } from './db.js';
+import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows } from './dynSections.js';
 
 // --- Laden ---
 
@@ -119,139 +118,6 @@ export function loadVisibility(charId: number): Record<VisibilitySection, boolea
   const out = Object.fromEntries(VISIBILITY_SECTIONS.map((s) => [s, false])) as Record<VisibilitySection, boolean>;
   for (const r of rows) if (r.section in out) out[r.section as VisibilitySection] = !!r.visible;
   return out;
-}
-
-// --- Datengesteuerte Sektionen ---
-
-interface DynSectionRow {
-  id: number;
-  pos: number;
-  name: string;
-  type: string;
-  columns: string;
-  visible: number;
-}
-
-function mapSection(s: DynSectionRow, rowStmt: import('better-sqlite3').Statement): DynSection {
-  let columns: DynColumn[] = [];
-  try {
-    columns = normalizeColumns(JSON.parse(s.columns));
-  } catch {
-    columns = [];
-  }
-  const rows = (rowStmt.all(s.id) as { id: number; pos: number; data: string }[]).map((r) => {
-    let data: Record<string, unknown> = {};
-    try {
-      data = JSON.parse(r.data);
-    } catch {
-      data = {};
-    }
-    return { id: r.id, ...data } as Record<string, unknown>;
-  });
-  return { id: s.id, pos: s.pos, name: s.name, type: s.type as DynSection['type'], columns, rows, visible: !!s.visible };
-}
-
-// Alle Sektionen eines Charakters (flach, für die Zusammenfassung)
-export function loadDynSections(charId: number): DynSection[] {
-  const rowStmt = db.prepare('SELECT id, pos, data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id');
-  const sections = db
-    .prepare('SELECT id, pos, name, type, columns, visible FROM char_sections WHERE character_id = ? ORDER BY pos, id')
-    .all(charId) as DynSectionRow[];
-  return sections.map((s) => mapSection(s, rowStmt));
-}
-
-// Tabs mit ihren Sektionen
-export function loadDynTabs(charId: number): DynTab[] {
-  const rowStmt = db.prepare('SELECT id, pos, data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id');
-  const secStmt = db.prepare('SELECT id, pos, name, type, columns, visible FROM char_sections WHERE tab_id = ? ORDER BY pos, id');
-  const tabs = db.prepare('SELECT id, pos, name, locked FROM char_tabs WHERE character_id = ? ORDER BY pos, id').all(charId) as {
-    id: number;
-    pos: number;
-    name: string;
-    locked: number;
-  }[];
-  return tabs.map((t) => ({
-    id: t.id,
-    pos: t.pos,
-    name: t.name,
-    locked: !!t.locked,
-    sections: (secStmt.all(t.id) as DynSectionRow[]).map((s) => mapSection(s, rowStmt)),
-  }));
-}
-
-export function createTab(charId: number, name: string, locked = false): number {
-  const pos = (db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_tabs WHERE character_id = ?').get(charId) as { p: number }).p;
-  const r = db.prepare('INSERT INTO char_tabs (character_id, pos, name, locked) VALUES (?, ?, ?, ?)').run(charId, pos, name, locked ? 1 : 0);
-  return Number(r.lastInsertRowid);
-}
-
-export function tabBelongsTo(tabId: number, charId: number): boolean {
-  return !!db.prepare('SELECT 1 FROM char_tabs WHERE id = ? AND character_id = ?').get(tabId, charId);
-}
-
-export function tabIsLocked(tabId: number): boolean {
-  const row = db.prepare('SELECT locked FROM char_tabs WHERE id = ?').get(tabId) as { locked: number } | undefined;
-  return !!row?.locked;
-}
-
-export function renameTab(tabId: number, name: string): void {
-  db.prepare('UPDATE char_tabs SET name = ? WHERE id = ?').run(name, tabId);
-}
-
-export function deleteTab(tabId: number): void {
-  db.prepare('DELETE FROM char_tabs WHERE id = ?').run(tabId);
-}
-
-export function reorderTabs(charId: number, order: number[]): void {
-  const stmt = db.prepare('UPDATE char_tabs SET pos = ? WHERE id = ? AND character_id = ?');
-  const tx = db.transaction(() => order.forEach((id, i) => stmt.run(i, id, charId)));
-  tx();
-}
-
-export function createDynSection(charId: number, tabId: number, name: string, type: string, columns: DynColumn[]): number {
-  const pos = (db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_sections WHERE tab_id = ?').get(tabId) as { p: number }).p;
-  const r = db
-    .prepare('INSERT INTO char_sections (character_id, tab_id, pos, name, type, columns) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(charId, tabId, pos, name, type === 'notes' ? 'notes' : 'table', JSON.stringify(columns));
-  return Number(r.lastInsertRowid);
-}
-
-export function sectionBelongsTo(sectionId: number, charId: number): boolean {
-  return !!db.prepare('SELECT 1 FROM char_sections WHERE id = ? AND character_id = ?').get(sectionId, charId);
-}
-
-export function sectionTabId(sectionId: number): number | null {
-  const row = db.prepare('SELECT tab_id FROM char_sections WHERE id = ?').get(sectionId) as { tab_id: number | null } | undefined;
-  return row?.tab_id ?? null;
-}
-
-export function updateDynSection(sectionId: number, patch: { name?: string; columns?: DynColumn[]; visible?: boolean }): void {
-  if (patch.name !== undefined) db.prepare('UPDATE char_sections SET name = ? WHERE id = ?').run(patch.name, sectionId);
-  if (patch.columns !== undefined) db.prepare('UPDATE char_sections SET columns = ? WHERE id = ?').run(JSON.stringify(patch.columns), sectionId);
-  if (patch.visible !== undefined) db.prepare('UPDATE char_sections SET visible = ? WHERE id = ?').run(patch.visible ? 1 : 0, sectionId);
-}
-
-export function deleteDynSection(sectionId: number): void {
-  db.prepare('DELETE FROM char_sections WHERE id = ?').run(sectionId);
-}
-
-export function reorderDynSections(charId: number, order: number[]): void {
-  const stmt = db.prepare('UPDATE char_sections SET pos = ? WHERE id = ? AND character_id = ?');
-  const tx = db.transaction(() => order.forEach((id, i) => stmt.run(i, id, charId)));
-  tx();
-}
-
-export function saveDynRows(sectionId: number, rows: Record<string, unknown>[]): void {
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM char_section_rows WHERE section_id = ?').run(sectionId);
-    const stmt = db.prepare('INSERT INTO char_section_rows (section_id, pos, data) VALUES (?, ?, ?)');
-    rows.forEach((r, i) => {
-      const { id, ...data } = r; // interne Zeilen-id nicht mitspeichern
-      void id;
-      stmt.run(sectionId, i, JSON.stringify(data));
-    });
-  });
-  tx();
 }
 
 // --- Standard-Vorlage & Migration der festen Listen in Tabs mit Sektionen ---

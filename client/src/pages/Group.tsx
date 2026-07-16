@@ -1,31 +1,74 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { apiGet } from '../api';
+import type { Attributes } from '@shared/types';
+import type { DynTab } from '@shared/dynamicSections';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
   group: { id: number; name: string };
   members: { id: number; username: string; displayName: string }[];
   characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null }[];
+  tabs: DynTab[];
 }
+
+// Gruppeninhalte haben keine Attribute — Probe-Spalten gibt es hier nicht,
+// der Wert wird nur gebraucht, weil die Sektions-Ansicht ihn erwartet.
+const NO_ATTRIBUTES = {} as Attributes;
 
 export default function GroupPage() {
   const { id } = useParams();
+  const groupId = Number(id);
   const [data, setData] = useState<GroupData | null>(null);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<number | null>(null);
 
   useEffect(() => {
-    apiGet<GroupData>(`/api/groups/${id}`)
-      .then(setData)
+    setData(null);
+    apiGet<GroupData>(`/api/groups/${groupId}`)
+      .then((d) => {
+        setData(d);
+        setActiveTab(d.tabs[0]?.id ?? null);
+      })
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
-  }, [id]);
+  }, [groupId]);
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Lade…</p>;
+
+  const basePath = `/api/groups/${groupId}`;
+  const tabs = data.tabs;
+  const setTabs = (fn: (t: DynTab[]) => DynTab[]) => setData((prev) => (prev ? { ...prev, tabs: fn(prev.tabs) } : prev));
+  const current = tabs.find((t) => t.id === activeTab) ?? null;
+
+  const addTab = async () => {
+    const { id: newId } = await apiPost<{ id: number }>(`${basePath}/tabs`, { name: 'Neuer Tab' });
+    setTabs((t) => [...t, { id: newId, name: 'Neuer Tab', locked: false, pos: t.length, sections: [] }]);
+    setActiveTab(newId);
+  };
+  const renameTab = async (tid: number, name: string) => {
+    setTabs((t) => t.map((x) => (x.id === tid ? { ...x, name } : x)));
+    await apiPut(`${basePath}/tabs/${tid}`, { name });
+  };
+  const deleteTab = async (tid: number) => {
+    await apiDelete(`${basePath}/tabs/${tid}`);
+    setTabs((t) => t.filter((x) => x.id !== tid));
+    setActiveTab(tabs.find((t) => t.id !== tid)?.id ?? null);
+  };
+  const moveTab = async (index: number, dir: -1 | 1) => {
+    const j = index + dir;
+    if (j < 0 || j >= tabs.length) return;
+    const next = tabs.slice();
+    [next[index], next[j]] = [next[j], next[index]];
+    setTabs(() => next);
+    await apiPut(`${basePath}/tabs/reorder`, { order: next.map((t) => t.id) });
+  };
 
   return (
     <>
       <h1>Gruppe: {data.group.name}</h1>
       <p className="muted">Mitglieder: {data.members.map((m) => m.displayName).join(', ') || '—'}</p>
+
       <div className="cardlist">
         {data.characters.map((c) => (
           <div className="card" key={c.id}>
@@ -40,6 +83,36 @@ export default function GroupPage() {
         ))}
         {data.characters.length === 0 && <p className="muted">Keine Charaktere in dieser Gruppe.</p>}
       </div>
+
+      <h2>Gemeinsames</h2>
+      <div className="tabs">
+        {tabs.map((t) => (
+          <button key={t.id} className={t.id === activeTab ? 'active' : ''} onClick={() => setActiveTab(t.id)}>
+            {t.name}
+          </button>
+        ))}
+        <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
+          + Tab
+        </button>
+      </div>
+
+      {current ? (
+        <ContentTabView
+          key={current.id}
+          basePath={basePath}
+          tab={current}
+          attributes={NO_ATTRIBUTES}
+          isFirst={tabs.indexOf(current) === 0}
+          isLast={tabs.indexOf(current) === tabs.length - 1}
+          showVisibility={false}
+          allowProbe={false}
+          onRenameTab={(name) => renameTab(current.id, name)}
+          onDeleteTab={() => deleteTab(current.id)}
+          onMoveTab={(dir) => moveTab(tabs.indexOf(current), dir)}
+        />
+      ) : (
+        <p className="muted">Noch keine Tabs. Lege einen an, um gemeinsame Inhalte zu sammeln.</p>
+      )}
     </>
   );
 }

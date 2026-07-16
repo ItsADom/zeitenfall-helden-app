@@ -222,7 +222,7 @@ export default function CharacterPage() {
       {activeContentTab && (
         <ContentTabView
           key={activeContentTab.id}
-          charId={charId}
+          basePath={`/api/characters/${charId}`}
           tab={activeContentTab}
           attributes={data!.attributes}
           isFirst={tabs.indexOf(activeContentTab) === 0}

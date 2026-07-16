@@ -18,20 +18,25 @@ let keyCounter = 0;
 const freshKey = () => `c${Date.now().toString(36)}${keyCounter++}`;
 
 export default function ContentTabView({
-  charId,
+  basePath,
   tab,
   attributes,
   isFirst,
   isLast,
+  showVisibility = true,
+  allowProbe = true,
   onRenameTab,
   onDeleteTab,
   onMoveTab,
 }: {
-  charId: number;
+  // API-Wurzel des Besitzers, z. B. "/api/characters/6" oder "/api/groups/3"
+  basePath: string;
   tab: DynTab;
   attributes: Attributes;
   isFirst: boolean;
   isLast: boolean;
+  showVisibility?: boolean;
+  allowProbe?: boolean;
   onRenameTab: (name: string) => void;
   onDeleteTab: () => void;
   onMoveTab: (dir: -1 | 1) => void;
@@ -49,7 +54,7 @@ export default function ContentTabView({
     const t = window.setTimeout(async () => {
       setSaveState('Speichere…');
       try {
-        await apiPut(`/api/characters/${charId}/sections/${section.id}/rows`, rows);
+        await apiPut(`${basePath}/sections/${section.id}/rows`, rows);
         setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
       } catch (e) {
         setSaveState(`Fehler: ${e instanceof Error ? e.message : e}`);
@@ -60,30 +65,30 @@ export default function ContentTabView({
 
   const saveColumns = async (section: DynSection, columns: DynColumn[]) => {
     patchSection(section.id, { columns });
-    await apiPut(`/api/characters/${charId}/sections/${section.id}`, { columns });
+    await apiPut(`${basePath}/sections/${section.id}`, { columns });
   };
 
   const addSection = async (type: 'table' | 'notes') => {
     const name = type === 'notes' ? 'Neue Notiz' : 'Neue Tabelle';
     const columns: DynColumn[] = type === 'notes' ? [] : [{ key: freshKey(), label: 'Name', type: 'text' }];
-    const { id } = await apiPost<{ id: number }>(`/api/characters/${charId}/sections`, { tabId: tab.id, name, type, columns });
+    const { id } = await apiPost<{ id: number }>(`${basePath}/sections`, { tabId: tab.id, name, type, columns });
     setSections((prev) => [...prev, { id, name, type, columns, rows: [], pos: prev.length, visible: false }]);
   };
 
   const renameSection = async (section: DynSection, name: string) => {
     if (name === section.name) return;
     patchSection(section.id, { name });
-    await apiPut(`/api/characters/${charId}/sections/${section.id}`, { name });
+    await apiPut(`${basePath}/sections/${section.id}`, { name });
   };
 
   const setVisible = async (section: DynSection, visible: boolean) => {
     patchSection(section.id, { visible });
-    await apiPut(`/api/characters/${charId}/sections/${section.id}`, { visible });
+    await apiPut(`${basePath}/sections/${section.id}`, { visible });
   };
 
   const deleteSection = async (section: DynSection) => {
     if (!confirm(`Sektion „${section.name}" mit ${section.rows.length} Zeile(n) löschen?`)) return;
-    await apiDelete(`/api/characters/${charId}/sections/${section.id}`);
+    await apiDelete(`${basePath}/sections/${section.id}`);
     setSections((prev) => prev.filter((s) => s.id !== section.id));
   };
 
@@ -93,7 +98,7 @@ export default function ContentTabView({
     const next = sections.slice();
     [next[index], next[j]] = [next[j], next[index]];
     setSections(next);
-    await apiPut(`/api/characters/${charId}/sections/reorder`, { order: next.map((s) => s.id) });
+    await apiPut(`${basePath}/sections/reorder`, { order: next.map((s) => s.id) });
   };
 
   return (
@@ -135,6 +140,8 @@ export default function ContentTabView({
           attributes={attributes}
           isFirst={i === 0}
           isLast={i === sections.length - 1}
+          showVisibility={showVisibility}
+          allowProbe={allowProbe}
           onRows={(rows) => saveRowsDebounced(section, rows)}
           onColumns={(cols) => saveColumns(section, cols)}
           onRename={(name) => renameSection(section, name)}
@@ -162,6 +169,8 @@ function SectionPanel({
   attributes,
   isFirst,
   isLast,
+  showVisibility,
+  allowProbe,
   onRows,
   onColumns,
   onRename,
@@ -173,6 +182,8 @@ function SectionPanel({
   attributes: Attributes;
   isFirst: boolean;
   isLast: boolean;
+  showVisibility: boolean;
+  allowProbe: boolean;
   onRows: (rows: DynRow[]) => void;
   onColumns: (cols: DynColumn[]) => void;
   onRename: (name: string) => void;
@@ -240,9 +251,11 @@ function SectionPanel({
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
         <span style={{ flex: 1 }} />
-        <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} title="Für Gruppenmitglieder sichtbar">
-          <input type="checkbox" checked={section.visible} onChange={(e) => onVisible(e.target.checked)} /> sichtbar
-        </label>
+        {showVisibility && (
+          <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} title="Für Gruppenmitglieder sichtbar">
+            <input type="checkbox" checked={section.visible} onChange={(e) => onVisible(e.target.checked)} /> sichtbar
+          </label>
+        )}
         <button className="small" disabled={isFirst} onClick={() => onMove(-1)} title="nach oben">
           ↑
         </button>
@@ -269,7 +282,7 @@ function SectionPanel({
         />
       ) : (
         <>
-          {editCols && <ColumnEditor columns={section.columns} onChange={onColumns} />}
+          {editCols && <ColumnEditor columns={section.columns} allowProbe={allowProbe} onChange={onColumns} />}
           <div className="table-wrap">
             <table className="sheet" style={{ minWidth: cols.length * 130 }}>
               <thead>
@@ -387,7 +400,17 @@ function Cell({
   );
 }
 
-function ColumnEditor({ columns, onChange }: { columns: DynColumn[]; onChange: (cols: DynColumn[]) => void }) {
+function ColumnEditor({
+  columns,
+  allowProbe,
+  onChange,
+}: {
+  columns: DynColumn[];
+  allowProbe: boolean;
+  onChange: (cols: DynColumn[]) => void;
+}) {
+  // Ohne Attribute (z. B. bei Gruppen) gibt es nichts zu würfeln
+  const colTypes = allowProbe ? COL_TYPES : COL_TYPES.filter((t) => t.value !== 'probe');
   const cols = columns.filter((c) => c.key !== DYN_NOTIZ_KEY);
   const textCols = cols.filter((c) => c.type === 'text');
   const numCols = cols.filter((c) => c.type === 'number');
@@ -423,7 +446,7 @@ function ColumnEditor({ columns, onChange }: { columns: DynColumn[]; onChange: (
               </td>
               <td>
                 <select value={c.type} onChange={(e) => patch(c.key, { type: e.target.value as DynColType })}>
-                  {COL_TYPES.map((t) => (
+                  {colTypes.map((t) => (
                     <option key={t.value} value={t.value}>
                       {t.label}
                     </option>
