@@ -9,7 +9,7 @@
 
 - audit log on characters
    - who changed what when
-   - summarized, only which tab has been touched
+   - concept needed, so it doesn't get bloated with every edit
 - group screens
    - shared inventories, questlog, known NPCs etc.
 - making container items on "Ausrüstung" expandable
