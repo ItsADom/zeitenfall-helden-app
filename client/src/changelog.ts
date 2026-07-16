@@ -13,6 +13,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-16',
+    title: 'Neuer Tab „Übersicht"',
+    changes: [
+      'Alles Wichtige auf einen Blick: Stufe und Abenteuerpunkte, Attribute, Basiswerte, Energien, Psyche und Geld — ohne Formeln und Zwischenwerte.',
+      'Was sich am Spieltisch ständig bewegt, lässt sich direkt hier ändern: aktuelle Energien, Psyche und Geld. Der Heldenbrief bleibt für alles andere.',
+      'Niedrige Lebensenergie und Ausdauer sind auch hier farblich hervorgehoben.',
+      'Die Übersicht ist der erste Tab — beim Öffnen eines Charakters steht sie sofort da.',
+    ],
+  },
+  {
+    date: '2026-07-16',
     title: 'Gemeinsame Gruppeninhalte',
     changes: [
       'Jede Gruppe hat jetzt einen Bereich „Gemeinsames" mit Gruppen-Inventar, Questlog und bekannten NPCs.',
