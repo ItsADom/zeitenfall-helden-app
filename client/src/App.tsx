@@ -7,6 +7,7 @@ import DashboardPage from './pages/Dashboard';
 import AdminPage from './pages/Admin';
 import GroupPage from './pages/Group';
 import CharacterPage from './pages/Character';
+import ChangelogPage from './pages/Changelog';
 
 interface AuthContextValue {
   user: UserInfo;
@@ -44,6 +45,7 @@ export default function App() {
       <header className="topbar">
         <Link to="/">Heldenverwaltung</Link>
         {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
+        <Link to="/changelog">Änderungen</Link>
         <div className="spacer" />
         <span>
           {user.displayName} {user.isGm ? '(Spielleiter)' : ''}
@@ -56,6 +58,7 @@ export default function App() {
           <Route path="/verwaltung" element={user.isGm ? <AdminPage /> : <Navigate to="/" />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
+          <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </main>
