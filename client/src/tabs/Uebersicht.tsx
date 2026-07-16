@@ -3,25 +3,34 @@ import {
   ATTR_ROW_CODES,
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
-  RESOURCE_KEYS,
   RESOURCE_LABELS,
 } from '@shared/types';
+import type { ResourceKey } from '@shared/types';
 import { computeBaseValues, computeResource, levelForAp, mrErgebnis, nextLevelAp, psycheProzent } from '@shared/rules';
 import { depletionClass } from '../components/energie';
+import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 import { COIN_FIELDS } from './Heldenbrief';
 
-// Reine Lese-Ansicht: alles Wichtige auf einen Blick, ohne Formeln und
-// Zwischenwerte. Gepflegt wird weiterhin im Heldenbrief.
+// Alles Wichtige auf einen Blick, ohne Formeln und Zwischenwerte. Nur die
+// aktuellen Energien lassen sich hier direkt ändern — das ist der Wert, der
+// sich im Spiel ständig bewegt. Alles andere wird im Heldenbrief gepflegt.
 
 const de = (v: number) => v.toLocaleString('de-DE');
 
+// Magieresistenz ist kein Vorrat, sondern ein abgeleiteter Einzelwert und
+// steht deshalb bei den Basiswerten.
+const POOL_KEYS: ResourceKey[] = ['le', 'aus', 'ase'];
+
 export default function UebersichtTab() {
-  const { data } = useChar();
+  const { data, update } = useChar();
   const { attributes, baseValues, resources, meta } = data;
 
   const mr = mrErgebnis(attributes, resources);
   const bv = computeBaseValues(attributes, baseValues, mr);
+
+  const setAktuell = (key: ResourceKey, v: number) =>
+    update('resources', { ...resources, [key]: { ...resources[key], aktuell: v } });
 
   const ap = meta.ap ?? 0;
   const level = levelForAp(ap);
@@ -93,6 +102,12 @@ export default function UebersichtTab() {
                     <td className="computed">{bv[key].ergebnis}</td>
                   </tr>
                 ))}
+                {/* Hier schlicht ein weiterer abgeleiteter Wert — die
+                    Zwitter-Natur der MR fällt nur beim Bearbeiten auf */}
+                <tr>
+                  <td>{RESOURCE_LABELS.mr.label}</td>
+                  <td className="computed">{mr}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -112,19 +127,18 @@ export default function UebersichtTab() {
                 </tr>
               </thead>
               <tbody>
-                {RESOURCE_KEYS.map((key) => {
+                {POOL_KEYS.map((key) => {
                   const r = computeResource(attributes, key, resources[key]);
                   const akt = resources[key].aktuell;
                   const depl = depletionClass(key, akt, r.ergebnis);
                   return (
                     <tr key={key}>
                       <td>{RESOURCE_LABELS[key].label}</td>
-                      {/* Magieresistenz ist ein Widerstand, kein Vorrat — kein Aktuell-Wert */}
                       <td
-                        className={`num ${depl}`.trim()}
+                        className={depl || undefined}
                         title={depl ? `${Math.round((akt / r.ergebnis) * 100)} % — ${akt}/${r.ergebnis}` : undefined}
                       >
-                        {key === 'mr' ? '—' : de(akt)}
+                        <NumInput value={akt} onChange={(v) => setAktuell(key, v)} />
                       </td>
                       <td className="computed">{de(r.ergebnis)}</td>
                     </tr>
