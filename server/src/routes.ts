@@ -577,7 +577,7 @@ const CATALOGS = {
     table: 'talents_catalog',
     refTable: 'char_talents',
     refCol: 'talent_id',
-    cols: ['kategorie', 'gruppe', 'name', 'klasse', 'probe', 'ableiten', 'skill100', 'sort'],
+    cols: ['kategorie', 'gruppe', 'name', 'probe', 'ableiten', 'skill100', 'sort'],
   },
   languages: {
     table: 'languages_catalog',

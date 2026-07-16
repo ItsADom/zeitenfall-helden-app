@@ -375,7 +375,6 @@ export default function AdminPage() {
           { key: 'kategorie', label: 'Kategorie', width: 110 },
           { key: 'gruppe', label: 'Gruppe', width: 150 },
           { key: 'name', label: 'Name' },
-          { key: 'klasse', label: 'Klasse', width: 70 },
           { key: 'probe', label: 'Probe', width: 110 },
           { key: 'ableiten', label: 'Ableiten' },
           { key: 'skill100', label: 'Meisterschaft (100 TaW)' },

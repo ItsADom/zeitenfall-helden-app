@@ -2,7 +2,7 @@
   {
     "kind": "sprache",
     "familie": "Garethische Familie",
-    "name": "Garethi*1,2",
+    "name": "Garethi",
     "komplexitaet": "18",
     "sort": 0
   },
@@ -65,7 +65,7 @@
   {
     "kind": "sprache",
     "familie": "Tulamidyische-Familie",
-    "name": "Ur-Tulamidya**",
+    "name": "Ur-Tulamidya",
     "komplexitaet": "21",
     "sort": 9
   },
@@ -93,7 +93,7 @@
   {
     "kind": "sprache",
     "familie": "Tulamidyische-Familie",
-    "name": "Alaani*3",
+    "name": "Alaani",
     "komplexitaet": "21",
     "sort": 13
   },
@@ -121,7 +121,7 @@
   {
     "kind": "sprache",
     "familie": "Tulamidyische-Familie",
-    "name": "Ruuz**",
+    "name": "Ruuz",
     "komplexitaet": "18",
     "sort": 17
   },
@@ -170,14 +170,14 @@
   {
     "kind": "sprache",
     "familie": "Thorwalsche-Familie",
-    "name": "Thorwalsch*1",
+    "name": "Thorwalsch",
     "komplexitaet": "18",
     "sort": 24
   },
   {
     "kind": "sprache",
     "familie": "Thorwalsche-Familie",
-    "name": "Gialskisch*3",
+    "name": "Gialskisch",
     "komplexitaet": "18",
     "sort": 25
   },
@@ -206,7 +206,7 @@
     "kind": "sprache",
     "familie": "Elfische-Familie***",
     "name": "Isdira",
-    "komplexitaet": "15(21)",
+    "komplexitaet": "15",
     "sort": 29
   },
   {
@@ -219,8 +219,8 @@
   {
     "kind": "sprache",
     "familie": "Elfische-Familie***",
-    "name": "Asdharia** (B)",
-    "komplexitaet": "15(24)",
+    "name": "Asdharia",
+    "komplexitaet": "15",
     "sort": 31
   },
   {
@@ -247,7 +247,7 @@
   {
     "kind": "sprache",
     "familie": "Zwergische-Familie",
-    "name": "Angram**",
+    "name": "Angram",
     "komplexitaet": "21",
     "sort": 35
   },
@@ -296,7 +296,7 @@
   {
     "kind": "sprache",
     "familie": "Rissoalische-Familie (Echsisch)",
-    "name": "Rssahh***",
+    "name": "Rssahh",
     "komplexitaet": "25",
     "sort": 42
   },
@@ -324,14 +324,14 @@
   {
     "kind": "sprache",
     "familie": "Drizzleranische-Familie (Dunkelelfisch)",
-    "name": "Z'Lit***",
+    "name": "Z'Lit",
     "komplexitaet": "-17",
     "sort": 46
   },
   {
     "kind": "sprache",
     "familie": "Einzelne Sprachen",
-    "name": "Drachisch***",
+    "name": "Drachisch",
     "komplexitaet": "-40",
     "sort": 47
   },
@@ -359,14 +359,14 @@
   {
     "kind": "sprache",
     "familie": "Einzelne Sprachen",
-    "name": "Grolmisch***",
-    "komplexitaet": "6(17)",
+    "name": "Grolmisch",
+    "komplexitaet": "6",
     "sort": 51
   },
   {
     "kind": "sprache",
     "familie": "Einzelne Sprachen",
-    "name": "Koboldisch***",
+    "name": "Koboldisch",
     "komplexitaet": "-15",
     "sort": 52
   },
@@ -458,7 +458,7 @@
     "kind": "schrift",
     "familie": "Geheimschriften",
     "name": "Drakhard-Zinken",
-    "komplexitaet": "9(+)",
+    "komplexitaet": "9",
     "sort": 65
   }
 ]

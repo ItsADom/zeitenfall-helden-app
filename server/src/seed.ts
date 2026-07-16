@@ -62,16 +62,16 @@ export function seed(): void {
         kategorie: string;
         gruppe: string;
         name: string;
-        klasse: string;
         probe: string;
         ableiten: string;
+        skill100: string;
         sort: number;
       }[];
       const stmt = db.prepare(
-        'INSERT INTO talents_catalog (kategorie, gruppe, name, klasse, probe, ableiten, sort) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO talents_catalog (kategorie, gruppe, name, probe, ableiten, skill100, sort) VALUES (?, ?, ?, ?, ?, ?, ?)',
       );
       const tx = db.transaction(() => {
-        for (const t of talents) stmt.run(t.kategorie, t.gruppe, t.name, t.klasse, t.probe, t.ableiten, t.sort);
+        for (const t of talents) stmt.run(t.kategorie, t.gruppe, t.name, t.probe, t.ableiten, t.skill100 ?? '', t.sort);
       });
       tx();
       console.log(`Talent-Katalog geladen: ${talents.length} Einträge`);

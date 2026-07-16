@@ -362,7 +362,6 @@ interface CatalogTalent {
   kategorie: string;
   gruppe: string;
   name: string;
-  klasse: string;
   probe: string;
   ableiten: string;
 }

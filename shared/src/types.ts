@@ -166,7 +166,6 @@ export interface TalentCatalogEntry {
   kategorie: TalentKategorie;
   gruppe: string; // z.B. "Hiebwaffen" bei Kampftalenten, sonst ''
   name: string;
-  klasse: string; // A-F aus "(D)"-Suffix
   probe: [AttrCode, AttrCode, AttrCode] | null; // null bei Kampftalenten
   ableiten: string; // "Verwandte Fertigkeiten (+5)" bzw. "Ableiten (+10)"
   skill100: string; // freigeschaltete Meisterschaft ab 100 TaW

@@ -121,7 +121,6 @@ function KampfTable({
       <tr key={e.id}>
         <td title={e.name}>
           {e.name}
-          {e.klasse ? ` (${e.klasse})` : ''}
           <Mastery taw={v?.taw ?? 0} skill100={e.skill100} />
         </td>
         <td className="num">
@@ -236,7 +235,7 @@ function NormalTable({
               const v = values.get(e.id);
               const taw = v?.taw ?? 0;
               const probe = e.probe ? (e.probe.split('/') as [AttrCode, AttrCode, AttrCode]) : null;
-              const name = `${e.gruppe ? `${e.gruppe}: ` : ''}${e.name}${e.klasse ? ` (${e.klasse})` : ''}`;
+              const name = `${e.gruppe ? `${e.gruppe}: ` : ''}${e.name}`;
               return (
                 <tr key={e.id}>
                   <td title={name}>

@@ -115,7 +115,6 @@ db.exec(`
     kategorie TEXT NOT NULL,
     gruppe TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL,
-    klasse TEXT NOT NULL DEFAULT '',
     probe TEXT NOT NULL DEFAULT '',
     ableiten TEXT NOT NULL DEFAULT '',
     skill100 TEXT NOT NULL DEFAULT '',
@@ -227,6 +226,13 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(talents_catalog)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('skill100')) db.exec("ALTER TABLE talents_catalog ADD COLUMN skill100 TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: 'klasse' aus dem Talent-Katalog entfernen — die Steigerungsklasse
+// wird im Regelwerk nicht verwendet und stand ohnehin überall leer.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(talents_catalog)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('klasse')) db.exec('ALTER TABLE talents_catalog DROP COLUMN klasse');
 }
 
 // Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen
