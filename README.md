@@ -43,6 +43,12 @@ Der Server liefert API und Web-UI aus einem Prozess auf **einem Port** aus. Für
 Tests mit externen Nutzern gehört zwingend HTTPS davor — sonst reisen Passwort
 und Sitzungs-Cookie im Klartext.
 
+- Domain: Strato
+- DNS und Tunnel: Cloudflare
+- Webserver: Nginx
+- Anwendung: Express (Docker)
+- SSL: Cloudflare bzw. Let's Encrypt (kostenlos)
+
 **Checkliste vor der Freigabe:**
 
 1. **GM-Passwort ändern** — als `spielleiter` anmelden und im Dashboard unter
