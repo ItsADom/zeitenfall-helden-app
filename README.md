@@ -2,14 +2,14 @@
 
 Web-App zur Charakterverwaltung für das hauseigene DSA-inspirierte Pen-&-Paper-System.
 Alle berechneten Werte (Basiswerte, Energien, Proben, Gewichte …) werden live aus den
-eingegebenen Werten berechnet — die Formeln entsprechen exakt dem Excel-Template (Raskir.xlsx).
+eingegebenen Werten berechnet.
 
 ## Struktur
 
 ```
 shared/    Regelwerk-Engine (alle Formeln) + Typen + Sektions-Definitionen — von Client UND Server genutzt
 server/    Express-API, SQLite-Datenbank (better-sqlite3), Auth, Rechte
-client/    React-Oberfläche (Vite), deutsche UI, 12 Tabs wie im Excel-Blatt
+client/    React-Oberfläche (Vite), deutsche UI
 ```
 
 ## Erste Schritte
@@ -92,5 +92,5 @@ Charakteren verwendet werden, sind gegen Löschen geschützt.
 ## Tests
 
 ```bash
-npm test    # Regelwerk-Engine gegen bekannte Werte aus Raskir.xlsx
+npm test    # Regelwerk-Engine gegen bekannte Werte
 ```
