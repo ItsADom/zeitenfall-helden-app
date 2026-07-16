@@ -25,7 +25,9 @@ export default function SprachenTab() {
         lastFamilie = e.familie;
         rows.push(
           <tr className="subtle-head" key={`f-${e.familie}`}>
-            <td colSpan={4}><span className="sticky-label">{e.familie}</span></td>
+            <td colSpan={kind === 'sprache' ? 4 : 3}>
+              <span className="sticky-label">{e.familie}</span>
+            </td>
           </tr>,
         );
       }
@@ -39,11 +41,13 @@ export default function SprachenTab() {
           <td className="num" style={{ width: 80 }}>
             <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />
           </td>
+          {kind === 'sprache' && (
           <td style={{ width: 110, textAlign: 'center' }}>
             {kind === 'sprache' && (
               <input type="checkbox" checked={v?.muttersprache ?? false} onChange={(ev) => setValue(e.id, { muttersprache: ev.target.checked })} />
             )}
           </td>
+          )}
         </tr>,
       );
     }
@@ -62,7 +66,7 @@ export default function SprachenTab() {
                 <th>Name</th>
                 <th>Komplexität</th>
                 <th>TaW</th>
-                <th>{kind === 'sprache' ? 'Muttersprache' : ''}</th>
+                {kind === 'sprache' && <th>Muttersprache</th>}
               </tr>
             </thead>
             <tbody>{rows}</tbody>
@@ -85,7 +89,7 @@ export default function SprachenTab() {
         'schrift',
         'Schriften',
         <>
-          Lesen/Schreiben-Probe (KL/KL/FF): <strong>{schreibenProbe(data.attributes)}</strong>
+          Lesen/Schreiben-Probe (KL/KL/FF): <strong>{schreibenProbe(data.attributes)}</strong>  — erleichtert um TaW in der Sprache.
         </>,
       )}
     </div>
