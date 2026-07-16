@@ -1,8 +1,4 @@
 
-## High-Prio
-
-- sort characters in admin-view by group, then by name
-
 ## Mid-Prio
 
 - audit log on characters

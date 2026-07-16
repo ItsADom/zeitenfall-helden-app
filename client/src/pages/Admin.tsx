@@ -158,6 +158,13 @@ export default function AdminPage() {
     run(() => apiPut(`/api/admin/groups/${g.id}`, { memberIds }));
   };
 
+  // Charaktere nach Gruppe, dann nach Name sortieren. Die Gruppennamen stehen
+  // nur hier zur Verfügung (die API liefert lediglich group_id), darum im Client.
+  const groupName = (id: number) => groups.find((g) => g.id === id)?.name ?? '';
+  const sortedChars = [...chars].sort(
+    (a, b) => groupName(a.group_id).localeCompare(groupName(b.group_id), 'de') || a.name.localeCompare(b.name, 'de'),
+  );
+
   return (
     <>
       <h1>Verwaltung</h1>
@@ -291,7 +298,7 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {chars.map((c) => (
+            {sortedChars.map((c) => (
               <tr key={c.id}>
                 <td>
                   <Link to={`/charakter/${c.id}`}>{c.name}</Link>
