@@ -1,5 +1,5 @@
-// Definitionen der Listen-Sektionen: treiben DB-Schema (Server),
-// generische Tabellen-Editoren (Client) und den Importer.
+// Definitionen der Listen-Sektionen: treiben DB-Schema (Server) und
+// generische Tabellen-Editoren (Client).
 
 export type ColType = 'text' | 'number' | 'bool';
 

@@ -5,8 +5,7 @@
   "workspaces": [
     "shared",
     "server",
-    "client",
-    "importer"
+    "client"
   ],
   "scripts": {
     "dev:server": "npm run dev -w server",
@@ -14,7 +13,6 @@
     "build": "npm run build -w client",
     "start": "npm run build -w client && npm run start -w server",
     "test": "npm run test -w shared",
-    "seed": "npm run seed -w server",
-    "import": "npm run import -w importer --"
+    "seed": "npm run seed -w server"
   }
 }

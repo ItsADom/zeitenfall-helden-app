@@ -13,6 +13,14 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-07-16',
+    title: 'Änderungsseite & Aufräumen',
+    changes: [
+      'Neue Seite „Änderungen" — hier stehen künftig die wichtigsten Neuerungen.',
+      'Interner Aufräumschritt: der einmalige Excel-Importer wurde entfernt (Charaktere werden ohnehin direkt in der App gepflegt).',
+    ],
+  },
+  {
+    date: '2026-07-16',
     title: 'Heldenbrief-Feinschliff & einklappbare Talente',
     changes: [
       'Geld als Münzkarten mit eigener Farbwelt (Gold/Silber/Bronze/Eisen); Energien-Tabelle verschlankt.',
