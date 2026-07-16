@@ -4,6 +4,7 @@ import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
 import { ResizeHandle, useResizableColumns } from '../components/resize';
+import { usePersistedState } from '../components/persist';
 import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
@@ -63,9 +64,9 @@ export default function TalenteTab() {
         const entries = entriesFor(kat);
         if (entries.length === 0) return null;
         return kat === 'kampf' ? (
-          <KampfTable key={kat} entries={entries} values={values} setValue={setValue} />
+          <KampfTable key={kat} entries={entries} values={values} setValue={setValue} searching={q !== ''} />
         ) : (
-          <NormalTable key={kat} kat={kat} entries={entries} values={values} setValue={setValue} />
+          <NormalTable key={kat} kat={kat} entries={entries} values={values} setValue={setValue} searching={q !== ''} />
         );
       })}
       {nothing && <p className="muted">Kein Talent gefunden.</p>}
@@ -80,23 +81,41 @@ function KampfTable({
   entries,
   values,
   setValue,
+  searching,
 }: {
   entries: TalentCatalogRow[];
   values: Map<number, CharTalent>;
   setValue: (id: number, patch: Partial<CharTalent>) => void;
+  searching: boolean;
 }) {
   const { widths, startDrag } = useResizableColumns('talente-kampf', KAMPF_WIDTHS);
+  // Einklappen je Waffengruppe (Hiebwaffen, Schwerter …), gemerkt; Suche zeigt alles
+  const [collapsedList, setCollapsedList] = usePersistedState<string[]>('talc:kampf', []);
+  const collapsed = new Set(collapsedList);
+  const toggleGroup = (g: string) =>
+    setCollapsedList((prev) => (prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]));
   const rows: React.ReactNode[] = [];
   let lastGruppe = '';
   for (const e of entries) {
+    const groupCollapsed = !searching && collapsed.has(e.gruppe);
     if (e.gruppe !== lastGruppe) {
       lastGruppe = e.gruppe;
       rows.push(
-        <tr className="subtle-head" key={`g-${e.gruppe}`}>
-          <td colSpan={9}><span className="sticky-label">{e.gruppe}</span></td>
+        <tr
+          className="subtle-head clickable"
+          key={`g-${e.gruppe}`}
+          onClick={() => toggleGroup(e.gruppe)}
+          title={groupCollapsed ? 'Waffengruppe ausklappen' : 'Waffengruppe einklappen'}
+        >
+          <td colSpan={9}>
+            <span className="sticky-label">
+              <span className="chev" aria-hidden>{groupCollapsed ? '▸' : '▾'}</span> {e.gruppe}
+            </span>
+          </td>
         </tr>,
       );
     }
+    if (groupCollapsed) continue;
     const v = values.get(e.id);
     rows.push(
       <tr key={e.id}>
@@ -161,18 +180,40 @@ function NormalTable({
   entries,
   values,
   setValue,
+  searching,
 }: {
   kat: TalentKategorie;
   entries: TalentCatalogRow[];
   values: Map<number, CharTalent>;
   setValue: (id: number, patch: Partial<CharTalent>) => void;
+  searching: boolean;
 }) {
   const { data } = useChar();
+  // Ganze Kategorie einklappen (gemerkt); während einer Suche immer offen
+  const [collapsed, setCollapsed] = usePersistedState<boolean>(`talc:cat:${kat}`, false);
+  const open = searching || !collapsed;
   const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)'];
   const { widths, startDrag } = useResizableColumns(`talente-${kat}`, [220, 95, 95, 70, 100, 140, 170, 260]);
   return (
     <div className="panel">
-      <h3>{TALENT_KATEGORIE_LABELS[kat]}</h3>
+      <h3
+        className="collapsible"
+        role="button"
+        tabIndex={0}
+        onClick={() => setCollapsed((c) => !c)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setCollapsed((c) => !c);
+          }
+        }}
+        title={open ? 'Kategorie einklappen' : 'Kategorie ausklappen'}
+      >
+        {TALENT_KATEGORIE_LABELS[kat]}
+        <span className="head-rule" aria-hidden />
+        <span className="chev" aria-hidden>{open ? '▾' : '▸'}</span>
+      </h3>
+      {open && (
       <div className="table-wrap">
         <table className="sheet" style={{ tableLayout: 'fixed', minWidth: widths.reduce((s, w) => s + w, 0) }}>
           <colgroup>
@@ -223,6 +264,7 @@ function NormalTable({
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

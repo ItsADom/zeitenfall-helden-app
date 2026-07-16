@@ -148,6 +148,45 @@ main {
   background: linear-gradient(to right, var(--border-strong), transparent 78%);
 }
 
+/* Einklappbare Kopfzeilen: Regel als Element (statt ::after) + Chevron rechts */
+.panel > h3.collapsible {
+  cursor: pointer;
+}
+.panel > h3.collapsible::after {
+  content: none;
+}
+.panel > h3.collapsible:hover,
+.panel > h3.collapsible:hover .chev {
+  color: var(--accent);
+}
+.panel > h3.collapsible:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.head-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--border-strong), transparent 78%);
+}
+.chev {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* Kampftalente: Waffengruppen-Kopfzeile klappt ihre Zeilen ein/aus */
+tr.subtle-head.clickable {
+  cursor: pointer;
+}
+tr.subtle-head.clickable:hover td {
+  filter: brightness(0.97);
+}
+.subtle-head .chev {
+  color: var(--accent-dark);
+  font-size: 10px;
+}
+
 .cardlist {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
