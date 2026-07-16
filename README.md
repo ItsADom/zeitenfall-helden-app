@@ -14,14 +14,31 @@ client/    React-Oberfläche (Vite), deutsche UI
 
 ## Erste Schritte
 
+Node 22 oder neuer (in der `package.json` als `engines` festgehalten, `engine-strict`
+lässt npm bei älteren Versionen abbrechen statt nur zu warnen). `better-sqlite3` ist
+ein nativer Baustein: passt die Node-Version nicht zu einem fertigen Binary, will npm
+es selbst übersetzen und verlangt dafür Visual-Studio-Build-Tools. Eine LTS-Version
+erspart das.
+
 ```bash
-npm install
+npm ci                    # installiert exakt das, was in der package-lock.json steht
 npm run seed              # legt Spielleiter-Konto an (spielleiter / spielleiter) und lädt die Kataloge
 npm run dev:server        # API auf http://localhost:3001
 npm run dev:client        # Web-UI auf http://localhost:5173
 ```
 
 Anmelden als `spielleiter` / `spielleiter` (Passwort danach im Dashboard ändern).
+
+### `npm ci` statt `npm install`
+
+`npm ci` installiert stur nach `package-lock.json` und **schreibt die Datei nie um**.
+`npm install` löst die Abhängigkeiten dagegen neu auf und schreibt die Lock-Datei
+nebenbei neu — je nach npm-Version fallen dann Änderungen an, die mit dem Projekt
+nichts zu tun haben (das erzeugt auf zwei Rechnern unnötige Diffs).
+
+Deshalb: **`npm ci` zum Installieren, `npm install` nur zum bewussten Hinzufügen oder
+Aktualisieren einer Abhängigkeit** — und die dabei geänderte `package-lock.json` dann
+mit committen.
 
 ## Für die Gruppe betreiben (ohne Dev-Server)
 
