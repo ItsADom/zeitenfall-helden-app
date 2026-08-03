@@ -55,7 +55,7 @@ export default function UebersichtTab() {
         <span style={{ flex: 1 }} />
         <div className="level-next" style={{ textAlign: 'right' }}>
           <div>
-            Karma <strong>{de(meta.karma ?? 0)}</strong>
+            Karma-Guthaben <strong>{de(meta.karmaGuthaben ?? 0)}</strong>
           </div>
           <div className="muted">Ruf {de(meta.ruf ?? 0)}</div>
         </div>
