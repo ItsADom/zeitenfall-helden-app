@@ -1,7 +1,7 @@
 
 ## Mid-Prio
 
-- audit log on characters
+- audit log on characters (blocked for now)
    - who changed what when
    - concept needed, so it doesn't get bloated with every edit
 - making container items on "Ausrüstung" expandable
@@ -9,7 +9,7 @@
 
 ## Low-Prio
 
-- off-machine backup
+- off-machine backup (blocked for now, no other disk or storage available)
    - the daily backups sit on the same disk as helden.db, so they don't survive disk loss
    - copy server/data/backups/ somewhere else regularly (external drive, cloud, second host)
 - look-up lists
