@@ -3,6 +3,7 @@ import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
 import type { DynColumn, DynColType, DynRow, DynSection, DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiPost, apiPut } from '../api';
+import { TextInput } from '../components/inputs';
 
 // Ein konfigurierbarer Inhalts-Tab: enthält mehrere generische Sektionen
 // (Tabellen/Notizfelder). Probe-Spalten rechnen live aus einem Attribut-Ausdruck.
@@ -390,14 +391,7 @@ function Cell({
   if (col.type === 'bool') {
     return <input type="checkbox" checked={!!row[col.key]} onChange={(e) => onChange({ ...row, [col.key]: e.target.checked })} />;
   }
-  return (
-    <input
-      type="text"
-      value={String(row[col.key] ?? '')}
-      title={String(row[col.key] ?? '')}
-      onChange={(e) => onChange({ ...row, [col.key]: e.target.value })}
-    />
-  );
+  return <TextInput value={String(row[col.key] ?? '')} onChange={(v) => onChange({ ...row, [col.key]: v })} />;
 }
 
 function ColumnEditor({

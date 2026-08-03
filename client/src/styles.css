@@ -449,11 +449,24 @@ input[type='checkbox'] {
   transform: scale(1.15);
 }
 
+/* Automatisch mitwachsendes Textfeld: bricht um und dehnt sich nach unten,
+   statt seitlich zu scrollen. Höhe wird per JS an den Inhalt gesetzt. */
+textarea.text-input {
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  vertical-align: middle;
+  min-height: 0;
+}
+
 /* In Tabellen: Eingaben tragen einen ruhigen, sichtbaren Rahmen, damit
    editierbare Zellen ohne Hover erkennbar sind; Hover/Fokus verstärkt ihn */
 table.sheet input[type='text'],
 table.sheet input[type='number'],
-table.sheet select {
+table.sheet select,
+table.sheet textarea.text-input {
   border: 1px solid var(--border);
   background: transparent;
   border-radius: 5px;
@@ -461,13 +474,15 @@ table.sheet select {
 }
 table.sheet input[type='text']:hover,
 table.sheet input[type='number']:hover,
-table.sheet select:hover {
+table.sheet select:hover,
+table.sheet textarea.text-input:hover {
   border-color: var(--border-strong);
   background: var(--input-bg);
 }
 table.sheet input[type='text']:focus,
 table.sheet input[type='number']:focus,
-table.sheet select:focus {
+table.sheet select:focus,
+table.sheet textarea.text-input:focus {
   border-color: var(--accent);
   background: var(--input-bg);
 }

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
 import { ResizeHandle, useResizableColumns } from './resize';
@@ -35,6 +35,8 @@ export function NumInput({
   );
 }
 
+// Textfeld, das bei langem Inhalt umbricht und nach unten mitwächst, statt
+// seitlich zu scrollen. Startet einzeilig; die Höhe folgt dem Inhalt.
 export function TextInput({
   value,
   onChange,
@@ -44,9 +46,20 @@ export function TextInput({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    // +2 für die 1px-Ränder oben/unten (box-sizing: border-box), damit die
+    // letzte Zeile nicht angeschnitten wird
+    el.style.height = `${el.scrollHeight + 2}px`;
+  }, [value]);
   return (
-    <input
-      type="text"
+    <textarea
+      ref={ref}
+      className="text-input"
+      rows={1}
       value={value ?? ''}
       title={value || undefined}
       disabled={disabled}

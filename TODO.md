@@ -1,8 +1,4 @@
 
-## Next up
-
-- text fields need breaks after a certain length, so they expand down instead of scrolling sideways
-
 ## Mid-Prio
 
 - audit log on characters
