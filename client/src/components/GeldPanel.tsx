@@ -25,14 +25,14 @@ export function GeldPanel({
           <div className={`coin coin-${tone}`} key={key}>
             <span className="coin-disc" aria-hidden />
             <label>{label}</label>
-            <NumInput value={meta[key] ?? 0} onChange={(v) => setMeta(key, v)} />
+            <NumInput value={meta[key] ?? 0} min={0} onChange={(v) => setMeta(key, v)} />
           </div>
         ))}
       </div>
       <div className="coin coin-bank">
         <span className="coin-disc" aria-hidden />
         <label>Bank</label>
-        <NumInput value={meta.bank ?? 0} onChange={(v) => setMeta('bank', v)} />
+        <NumInput value={meta.bank ?? 0} min={0} onChange={(v) => setMeta('bank', v)} />
       </div>
     </div>
   );

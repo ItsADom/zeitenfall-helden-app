@@ -9,6 +9,7 @@ export function NumInput({
   disabled,
   width,
   max,
+  min,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -19,6 +20,11 @@ export function NumInput({
    * ein Vorrat darf unter null fallen (Wunden), aber nie über sein Maximum.
    */
   max?: number;
+  /**
+   * Untergrenze. Niedrigere Eingaben werden darauf gekappt — z. B. Geld,
+   * das nicht negativ werden darf.
+   */
+  min?: number;
 }) {
   return (
     <input
@@ -26,10 +32,13 @@ export function NumInput({
       value={Number.isFinite(value) ? value : 0}
       disabled={disabled}
       max={max}
+      min={min}
       style={width ? { width } : undefined}
       onChange={(e) => {
-        const v = Number(e.target.value) || 0;
-        onChange(max !== undefined ? Math.min(v, max) : v);
+        let v = Number(e.target.value) || 0;
+        if (max !== undefined) v = Math.min(v, max);
+        if (min !== undefined) v = Math.max(v, min);
+        onChange(v);
       }}
     />
   );
