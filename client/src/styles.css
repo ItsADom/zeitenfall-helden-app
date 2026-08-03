@@ -539,6 +539,59 @@ textarea.note-area {
   min-height: 40px;
   background: var(--input-bg);
 }
+
+/* Behälter mit festen Fächern (z. B. Gürtel) */
+.container-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.container-cell input {
+  width: 3.2em;
+}
+button.slot-toggle {
+  padding: 0 6px;
+  line-height: 1.4;
+}
+tr.slot-row td {
+  background: #fbf8ee;
+  padding: 6px 10px;
+}
+.slots + .slots {
+  margin-top: 8px;
+}
+.slots-head {
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.slots-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 6px;
+}
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.slot-num {
+  flex: none;
+  width: 1.6em;
+  height: 1.6em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8em;
+}
+.slot input {
+  flex: 1;
+  min-width: 0;
+  background: var(--input-bg);
+}
 /* Talent-Suche */
 .talent-search {
   display: flex;
