@@ -1,10 +1,10 @@
 import { NumInput } from './inputs';
 
-// Münzen mit Metall-Farbwelt: Dukaten (Gold), Silbertaler (Silber),
+// Münzen mit Metall-Farbwelt: Dublonen (Gold), Silbertaler (Silber),
 // Heller (Bronze), Kreuzer (Eisen). Wird im Heldenbrief und in der Übersicht
 // gleichermaßen genutzt.
 const COIN_FIELDS: [string, string, string][] = [
-  ['geldD', 'Dukaten', 'gold'],
+  ['geldD', 'Dublonen', 'gold'],
   ['geldS', 'Silbertaler', 'silver'],
   ['geldH', 'Heller', 'bronze'],
   ['geldK', 'Kreuzer', 'iron'],
