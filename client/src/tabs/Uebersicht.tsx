@@ -124,6 +124,7 @@ export default function UebersichtTab() {
                   const r = computeResource(attributes, key, resources[key]);
                   const akt = resources[key].aktuell;
                   const depl = depletionClass(key, akt, r.nutzbar);
+                  const prozent = r.nutzbar > 0 ? Math.round((akt / r.nutzbar) * 100) : null;
                   return (
                     <tr key={key}>
                       <td>{RESOURCE_LABELS[key].label}</td>
@@ -135,6 +136,7 @@ export default function UebersichtTab() {
                       </td>
                       <td className="computed">
                         <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} format={de} />
+                        {prozent != null && <span className="muted"> · {prozent} %</span>}
                       </td>
                     </tr>
                   );
