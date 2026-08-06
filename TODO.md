@@ -36,7 +36,7 @@
 
 ## Optional
 
-- add picture upload for character visualization
-   - cutout editor on-page, if technically not too heavy
-   - fixed format otherwise (with cutout from center)
-   - optional: storage limit
+- (done) picture upload — portrait in the Person section; center-crop to a 512 JPEG,
+  stored as a BLOB in char_portraits (rides along in the daily DB backups)
+   - possible follow-ups: on-page cutout editor (choose the crop instead of auto-center);
+     show the portrait in the group summary view too
