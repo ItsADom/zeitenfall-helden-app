@@ -180,12 +180,14 @@ function AktuellFeld({
   onChange: (v: number) => void;
   max?: number;
 }) {
-  const [amount, setAmount] = useState(1);
+  const [amount, setAmount] = useState(0);
   const apply = (sign: 1 | -1) => {
     if (!amount) return;
     let next = value + sign * amount;
     if (max !== undefined) next = Math.min(next, max);
     onChange(next);
+    // Danach zurück auf 0: ein versehentlicher Doppelklick verrechnet dann nichts.
+    setAmount(0);
   };
   return (
     <div className="akt-stepper">
