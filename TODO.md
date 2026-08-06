@@ -8,9 +8,6 @@
    - sum all coins + bank, converted up to Dublonen (gold); every step is 10 coins
      (10 Kreuzer = 1 Heller, 10 Heller = 1 Silbertaler, 10 Silbertaler = 1 Dublone)
    - pure computed readout, no data changes
-- per-character JSON export/import
-   - player can download their own character as a file and re-import it
-   - self-serve backup next to the server-side dailies; also moves a character between instances
 - session log for groups
    - dated "what happened this session" log alongside the group's Questlog/NPCs
 - audit log on characters (on hold until community testing + feedback)
