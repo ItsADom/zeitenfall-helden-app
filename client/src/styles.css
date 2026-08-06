@@ -935,6 +935,7 @@ li {
 .portrait-actions {
   display: flex;
   gap: 6px;
+  justify-content: center;
 }
 .portrait-error {
   font-size: 12px;
