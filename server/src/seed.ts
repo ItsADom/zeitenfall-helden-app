@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from './db.js';
 import { hashPassword } from './auth.js';
+import { backfillGroupSessionLog } from './dynSections.js';
 
 const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
@@ -104,3 +105,4 @@ export function seed(): void {
 }
 
 seed();
+backfillGroupSessionLog();

@@ -188,7 +188,16 @@ const STANDARD_GROUP_TABS: { name: string; section: string; columns: DynColumn[]
     section: 'Bekannte Personen',
     columns: [t('name', 'Name', 200), t('ort', 'Ort', 160), t('beziehung', 'Beziehung', 160), t('notizen', 'Notizen', 320)],
   },
+  {
+    name: 'Sitzungslog',
+    section: 'Sitzungen',
+    columns: [t('datum', 'Datum', 120), t('titel', 'Titel', 220), t('verlauf', 'Verlauf', 460)],
+  },
 ];
+
+// Spalten des Sitzungslogs — einzeln, damit der Nachbau bestehender Gruppen
+// dieselbe Definition nutzt wie die Standard-Vorlage.
+const SESSION_LOG = STANDARD_GROUP_TABS.find((tab) => tab.name === 'Sitzungslog')!;
 
 // Standard-Tabs einer Gruppe anlegen — idempotent: passiert nur, wenn die
 // Gruppe noch gar keine Tabs hat.
@@ -205,4 +214,26 @@ export function instantiateGroupTabs(groupId: number): number {
   });
   tx();
   return created;
+}
+
+// Einmaliger Nachbau: bestehende Gruppen bekommen den nachträglich eingeführten
+// Sitzungslog-Tab. Läuft genau einmal, über PRAGMA user_version als
+// Migrationszähler (1 = Sitzungslog nachgetragen). Danach nicht mehr — ein
+// bewusst gelöschter Sitzungslog taucht also nicht beim nächsten Start wieder auf.
+// Frisch angelegte Gruppen erhalten ihn ohnehin über STANDARD_GROUP_TABS.
+export function backfillGroupSessionLog(): void {
+  if (Number(db.pragma('user_version', { simple: true })) >= 1) return;
+  const groups = db.prepare('SELECT id FROM groups').all() as { id: number }[];
+  const tx = db.transaction(() => {
+    for (const g of groups) {
+      const tabCount = (db.prepare(`SELECT COUNT(*) AS n FROM ${GROUP_DYN.tabs} WHERE group_id = ?`).get(g.id) as { n: number }).n;
+      if (tabCount === 0) continue; // noch nie geladen — wird beim ersten Laden komplett geseedet
+      const has = db.prepare(`SELECT 1 FROM ${GROUP_DYN.tabs} WHERE group_id = ? AND name = ?`).get(g.id, SESSION_LOG.name);
+      if (has) continue;
+      const tabId = createTab(g.id, SESSION_LOG.name, false, GROUP_DYN);
+      createDynSection(g.id, tabId, SESSION_LOG.section, 'table', SESSION_LOG.columns, GROUP_DYN);
+    }
+    db.pragma('user_version = 1');
+  });
+  tx();
 }
