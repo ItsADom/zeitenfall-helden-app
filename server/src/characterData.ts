@@ -26,8 +26,8 @@ import type {
   Resources,
   VisibilitySection,
 } from 'shared';
-import { db } from './db.js';
-import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows } from './dynSections.js';
+import { db, initCharacterRows } from './db.js';
+import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows, updateDynSection } from './dynSections.js';
 
 // --- Laden ---
 
@@ -353,6 +353,48 @@ export function saveVisibility(charId: number, data: Record<string, unknown>): v
     for (const s of VISIBILITY_SECTIONS) if (s in data) stmt.run(charId, s, data[s] ? 1 : 0);
   });
   tx();
+}
+
+// Legt aus einer exportierten Charakter-Datei einen neuen Charakter an. Alles
+// läuft in einer Transaktion: schlägt ein Teil fehl, entsteht kein halber
+// Charakter. Die festen Sektionen gehen durch saveSection (validiert/kappt
+// bereits), die dynamischen Tabs werden 1:1 nachgebaut. Standard-Tabs werden
+// bewusst NICHT angelegt — die Tabs kommen vollständig aus der Datei.
+export function importFullCharacter(
+  name: string,
+  ownerUserId: number,
+  groupId: number,
+  data: ReturnType<typeof loadFullCharacter>,
+): number {
+  const tx = db.transaction(() => {
+    const r = db.prepare('INSERT INTO characters (name, owner_user_id, group_id) VALUES (?, ?, ?)').run(name, ownerUserId, groupId);
+    const charId = Number(r.lastInsertRowid);
+    initCharacterRows(charId);
+
+    if (data.bio) saveSection(charId, 'bio', data.bio);
+    if (data.meta) saveSection(charId, 'meta', data.meta);
+    if (data.attributes) saveSection(charId, 'attributes', data.attributes);
+    if (data.baseValues) saveSection(charId, 'baseValues', data.baseValues);
+    if (data.resources) saveSection(charId, 'resources', data.resources);
+    if (data.talents) saveSection(charId, 'talents', data.talents);
+    if (data.languages) saveSection(charId, 'languages', data.languages);
+    for (const [sid, rows] of Object.entries(data.lists ?? {})) {
+      if (listSectionById(sid)) saveSection(charId, sid, rows);
+    }
+
+    for (const tab of data.tabs ?? []) {
+      const tabId = createTab(charId, str(tab.name), !!tab.locked);
+      for (const section of tab.sections ?? []) {
+        const secId = createDynSection(charId, tabId, str(section.name), section.type, normalizeColumns(section.columns));
+        if (Array.isArray(section.rows) && section.rows.length) saveDynRows(secId, section.rows);
+        if (section.visible) updateDynSection(secId, { visible: true });
+      }
+    }
+
+    if (data.visibility) saveVisibility(charId, data.visibility as Record<string, unknown>);
+    return charId;
+  });
+  return tx();
 }
 
 // --- Zusammenfassung für Gruppenmitglieder (serverseitig berechnet) ---

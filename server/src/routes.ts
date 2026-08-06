@@ -13,6 +13,7 @@ import {
 import { db, initCharacterRows } from './db.js';
 import {
   buildSummary,
+  importFullCharacter,
   instantiateStandardSections,
   loadFullCharacter,
   migrateCharacterPeriphery,
@@ -654,6 +655,42 @@ api.post('/admin/characters', requireAuth, requireGm, (req, res) => {
   initCharacterRows(newId);
   instantiateStandardSections(newId);
   res.json({ id: newId });
+});
+
+// Charakter aus einer exportierten JSON-Datei anlegen. Immer als neuer
+// Charakter (nie überschreibend), Name mit Zusatz „(Imported)“. Nur Spielleiter.
+api.post('/admin/characters/import', requireAuth, requireGm, (req, res) => {
+  const { ownerUserId, groupId, payload } = (req.body ?? {}) as {
+    ownerUserId?: number;
+    groupId?: number;
+    payload?: { schema?: string; name?: string; data?: unknown };
+  };
+  if (!ownerUserId || !groupId) {
+    res.status(400).json({ error: 'Besitzer und Gruppe erforderlich' });
+    return;
+  }
+  if (!payload || payload.schema !== 'helden-character' || !payload.data || typeof payload.data !== 'object') {
+    res.status(400).json({ error: 'Keine gültige Charakter-Datei' });
+    return;
+  }
+  const owner = db.prepare('SELECT 1 FROM users WHERE id = ?').get(Number(ownerUserId));
+  const group = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(Number(groupId));
+  if (!owner || !group) {
+    res.status(400).json({ error: 'Besitzer oder Gruppe unbekannt' });
+    return;
+  }
+  const baseName = String(payload.name ?? 'Charakter').trim() || 'Charakter';
+  try {
+    const newId = importFullCharacter(
+      `${baseName} (Imported)`,
+      Number(ownerUserId),
+      Number(groupId),
+      payload.data as Parameters<typeof importFullCharacter>[3],
+    );
+    res.json({ id: newId });
+  } catch (e) {
+    res.status(400).json({ error: `Import fehlgeschlagen: ${e instanceof Error ? e.message : e}` });
+  }
 });
 
 // Einmalige Migration bestehender Listendaten in generische Sektionen

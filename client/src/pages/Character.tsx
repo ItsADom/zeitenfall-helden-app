@@ -186,6 +186,23 @@ export default function CharacterPage() {
     await apiPut(`/api/characters/${charId}/tabs/reorder`, { order: next.map((t) => t.id) });
   };
 
+  // Vollständigen Charakter als JSON-Datei herunterladen. Der Client hält die
+  // Daten ohnehin schon (FullData) — kein Server-Aufruf nötig. Das Format ist
+  // dasselbe, das der Import auf der Verwaltungsseite wieder einliest.
+  const exportChar = () => {
+    const payload = { schema: 'helden-character', version: 1, exportedAt: new Date().toISOString(), name: info.name, data };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safe = info.name.replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '');
+    a.download = `${safe || 'charakter'}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
@@ -196,6 +213,9 @@ export default function CharacterPage() {
         </span>
         <span className="spacer" style={{ flex: 1 }} />
         <span className="savestate">{saveState}</span>
+        <button className="small" onClick={exportChar} title="Charakter als JSON-Datei herunterladen">
+          Export
+        </button>
       </div>
       <div className="tabs">
         {BUILTIN_TABS.map((t) => (

@@ -134,6 +134,9 @@ export default function AdminPage() {
   const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '' });
   const [newGroup, setNewGroup] = useState('');
   const [newChar, setNewChar] = useState({ name: '', ownerUserId: 0, groupId: 0 });
+  const [importTarget, setImportTarget] = useState({ ownerUserId: 0, groupId: 0 });
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [fileKey, setFileKey] = useState(0);
 
   const reload = () => {
     setError('');
@@ -152,6 +155,22 @@ export default function AdminPage() {
       setError(e instanceof Error ? e.message : 'Fehler');
     }
   };
+
+  const doImport = () =>
+    run(async () => {
+      if (!importFile) return;
+      const text = await importFile.text();
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw new Error('Datei ist kein gültiges JSON');
+      }
+      await apiPost('/api/admin/characters/import', { ...importTarget, payload });
+      setImportFile(null);
+      setImportTarget({ ownerUserId: 0, groupId: 0 });
+      setFileKey((k) => k + 1);
+    });
 
   const toggleMember = (g: AdminGroup, userId: number) => {
     const memberIds = g.memberIds.includes(userId) ? g.memberIds.filter((id) => id !== userId) : [...g.memberIds, userId];
@@ -360,6 +379,38 @@ export default function AdminPage() {
             }
           >
             Anlegen
+          </button>
+        </div>
+
+        <h4>Charakter importieren</h4>
+        <p className="muted" style={{ marginTop: 0 }}>
+          Legt aus einer exportierten JSON-Datei einen neuen Charakter an (Name mit Zusatz „(Imported)“).
+        </p>
+        <div style={{ display: 'flex', gap: 8, maxWidth: 700, alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            key={fileKey}
+            type="file"
+            accept="application/json,.json"
+            onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+          />
+          <select value={importTarget.ownerUserId} onChange={(e) => setImportTarget({ ...importTarget, ownerUserId: Number(e.target.value) })}>
+            <option value={0}>Besitzer…</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.displayName}
+              </option>
+            ))}
+          </select>
+          <select value={importTarget.groupId} onChange={(e) => setImportTarget({ ...importTarget, groupId: Number(e.target.value) })}>
+            <option value={0}>Gruppe…</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+          <button className="primary" disabled={!importFile || !importTarget.ownerUserId || !importTarget.groupId} onClick={doImport}>
+            Importieren
           </button>
         </div>
       </div>
