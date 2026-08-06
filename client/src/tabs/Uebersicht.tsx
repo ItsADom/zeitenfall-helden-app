@@ -8,6 +8,7 @@ import {
   RESOURCE_LABELS,
 } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
+import { useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
 import { depletionClass } from '../components/energie';
 import { GeldPanel } from '../components/GeldPanel';
@@ -132,7 +133,7 @@ export default function UebersichtTab() {
                         className={depl || undefined}
                         title={depl ? `${Math.round((akt / r.nutzbar) * 100)} % — ${akt}/${r.nutzbar}` : undefined}
                       >
-                        <NumInput value={akt} max={r.nutzbar} onChange={(v) => setAktuell(key, v)} />
+                        <AktuellFeld value={akt} max={r.nutzbar} onChange={(v) => setAktuell(key, v)} />
                       </td>
                       <td className="computed">
                         <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} format={de} />
@@ -144,7 +145,11 @@ export default function UebersichtTab() {
                 <tr>
                   <td>Psyche</td>
                   <td>
-                    <NumInput value={psycheAkt} onChange={(v) => setMeta('psycheAkt', v)} />
+                    <AktuellFeld
+                      value={psycheAkt}
+                      max={psycheMax > 0 ? psycheMax : undefined}
+                      onChange={(v) => setMeta('psycheAkt', v)}
+                    />
                   </td>
                   <td className="computed">
                     {de(psycheMax)}
@@ -159,5 +164,53 @@ export default function UebersichtTab() {
         <GeldPanel meta={meta} setMeta={setMeta} />
       </div>
     </>
+  );
+}
+
+// Aktueller Energiewert mit Schnell-Schaden/-Heilung: der Wert bleibt direkt
+// editierbar, daneben ein Betrag und −/+ zum Verrechnen. − zieht ab (Schaden,
+// darf unter null fallen), + heilt (bis maximal max). Enter im Betragsfeld
+// wirkt wie −, weil Schaden im Spiel der häufigste Fall ist.
+function AktuellFeld({
+  value,
+  onChange,
+  max,
+}: {
+  value: number;
+  onChange: (v: number) => void;
+  max?: number;
+}) {
+  const [amount, setAmount] = useState(1);
+  const apply = (sign: 1 | -1) => {
+    if (!amount) return;
+    let next = value + sign * amount;
+    if (max !== undefined) next = Math.min(next, max);
+    onChange(next);
+  };
+  return (
+    <div className="akt-stepper">
+      <NumInput value={value} max={max} onChange={onChange} />
+      <div className="akt-delta">
+        <button className="small" title="Schaden abziehen" onClick={() => apply(-1)}>
+          −
+        </button>
+        <input
+          className="akt-amount"
+          type="number"
+          min={0}
+          value={amount}
+          onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              apply(-1);
+            }
+          }}
+        />
+        <button className="small" title="Heilung addieren" onClick={() => apply(1)}>
+          +
+        </button>
+      </div>
+    </div>
   );
 }

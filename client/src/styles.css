@@ -739,6 +739,28 @@ main {
   font-size: 13px;
 }
 
+/* ---------- Energie: Aktuell mit Schnell-Schaden/-Heilung ---------- */
+.akt-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+.akt-delta {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.akt-delta button {
+  padding: 0 7px;
+  line-height: 1.5;
+  font-weight: 700;
+}
+.akt-amount {
+  width: 3.2em;
+  text-align: center;
+}
+
 /* ---------- Geld / Münzen ---------- */
 .coins {
   display: grid;
