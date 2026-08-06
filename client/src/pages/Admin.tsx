@@ -384,7 +384,7 @@ export default function AdminPage() {
 
         <h4>Charakter importieren</h4>
         <p className="muted" style={{ marginTop: 0 }}>
-          Legt aus einer exportierten JSON-Datei einen neuen Charakter an (Name mit Zusatz „(Imported)“).
+          Legt aus einer Backup-JSON-Datei einen neuen Charakter an.
         </p>
         <div style={{ display: 'flex', gap: 8, maxWidth: 700, alignItems: 'center', flexWrap: 'wrap' }}>
           <input
