@@ -1,6 +1,13 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Attributes } from '@shared/types';
-import { computeProbeCell, containerSlotCount, DYN_NOTIZ_KEY, readSlots, slotDataKey } from '@shared/dynamicSections';
+import {
+  computeProbeCell,
+  containerSlotCount,
+  DYN_CONTAINER_KEY,
+  DYN_NOTIZ_KEY,
+  DYN_SLOTS_KEY,
+  readSlots,
+} from '@shared/dynamicSections';
 import type { DynColumn, DynColType, DynRow, DynSection, DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiPost, apiPut } from '../api';
 import { TextInput } from '../components/inputs';
@@ -13,7 +20,6 @@ const COL_TYPES: { value: DynColType; label: string }[] = [
   { value: 'number', label: 'Zahl' },
   { value: 'bool', label: 'Ja/Nein' },
   { value: 'probe', label: 'Probe (berechnet)' },
-  { value: 'container', label: 'Behälter (Fächer)' },
 ];
 
 let keyCounter = 0;
@@ -195,15 +201,14 @@ function SectionPanel({
 }) {
   const [editCols, setEditCols] = useState(false);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
-  const [openSlots, setOpenSlots] = useState<Set<number>>(new Set());
+  const [capEdit, setCapEdit] = useState<Set<number>>(new Set());
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
   const cols = section.columns.filter((c) => c.key !== DYN_NOTIZ_KEY);
-  const containerCols = cols.filter((c) => c.type === 'container');
 
   // Sortier-Wert einer Zelle (Proben werden berechnet, Zahlen numerisch verglichen)
   const sortValue = (col: DynColumn, row: DynRow): number | string => {
     if (col.type === 'probe') return Number(computeProbeCell(attributes, col, row) ?? -Infinity);
-    if (col.type === 'number' || col.type === 'container') return Number(row[col.key]) || 0;
+    if (col.type === 'number') return Number(row[col.key]) || 0;
     if (col.type === 'bool') return row[col.key] ? 1 : 0;
     return String(row[col.key] ?? '');
   };
@@ -242,8 +247,10 @@ function SectionPanel({
       n.has(i) ? n.delete(i) : n.add(i);
       return n;
     });
-  const toggleSlots = (i: number) =>
-    setOpenSlots((prev) => {
+  // Öffnet/schließt den Fächer-Anzahl-Editor einer Zeile. Die Fächer-Inhalte
+  // selbst sind bei einem Behälter (Anzahl > 0) ohnehin dauerhaft sichtbar.
+  const toggleCap = (i: number) =>
+    setCapEdit((prev) => {
       const n = new Set(prev);
       n.has(i) ? n.delete(i) : n.add(i);
       return n;
@@ -310,26 +317,20 @@ function SectionPanel({
                   ))}
                   <th style={{ width: 40 }} />
                   <th style={{ width: 40 }} />
+                  <th style={{ width: 40 }} />
                 </tr>
               </thead>
               <tbody>
                 {order.map((i) => {
                   const row = section.rows[i];
                   const notiz = String(row[DYN_NOTIZ_KEY] ?? '');
+                  const slotCount = containerSlotCount(row);
+                  const showDetail = slotCount > 0 || capEdit.has(i);
                   return [
                     <tr key={i}>
                       {cols.map((c) => (
                         <td key={c.key} className={c.type === 'number' || c.type === 'probe' ? 'num' : undefined}>
-                          <Cell
-                            col={c}
-                            row={row}
-                            attributes={attributes}
-                            onChange={(r) => setRow(i, r)}
-                            slotsOpen={openSlots.has(i)}
-                            onToggleSlots={
-                              c.type === 'container' && containerSlotCount(c, row) > 0 ? () => toggleSlots(i) : undefined
-                            }
-                          />
+                          <Cell col={c} row={row} attributes={attributes} onChange={(r) => setRow(i, r)} />
                         </td>
                       ))}
                       <td>
@@ -342,6 +343,19 @@ function SectionPanel({
                         </button>
                       </td>
                       <td>
+                        <button
+                          className={`small container-btn${slotCount > 0 ? ' active' : ''}`}
+                          title={
+                            slotCount > 0
+                              ? `Behälter mit ${slotCount} ${slotCount === 1 ? 'Fach' : 'Fächern'} — Anzahl ändern`
+                              : 'Als Behälter mit festen Fächern einrichten'
+                          }
+                          onClick={() => toggleCap(i)}
+                        >
+                          📦
+                        </button>
+                      </td>
+                      <td>
                         <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
                           ✕
                         </button>
@@ -349,7 +363,7 @@ function SectionPanel({
                     </tr>,
                     openNotes.has(i) ? (
                       <tr key={`n${i}`} className="note-row">
-                        <td colSpan={cols.length + 2}>
+                        <td colSpan={cols.length + 3}>
                           <textarea
                             className="note-area"
                             rows={2}
@@ -361,37 +375,43 @@ function SectionPanel({
                         </td>
                       </tr>
                     ) : null,
-                    openSlots.has(i) && containerCols.some((c) => containerSlotCount(c, row) > 0) ? (
+                    showDetail ? (
                       <tr key={`s${i}`} className="slot-row">
-                        <td colSpan={cols.length + 2}>
-                          {containerCols.map((c) => {
-                            const count = containerSlotCount(c, row);
-                            if (count === 0) return null;
-                            const slots = readSlots(c, row);
-                            return (
-                              <div key={c.key} className="slots">
-                                <div className="slots-head">
-                                  {c.label} · {count} {count === 1 ? 'Fach' : 'Fächer'}
-                                </div>
-                                <div className="slots-grid">
-                                  {slots.map((val, si) => (
-                                    <label key={si} className="slot">
-                                      <span className="slot-num">{si + 1}</span>
-                                      <input
-                                        value={val}
-                                        placeholder="leer"
-                                        onChange={(e) => {
-                                          const next = slots.slice();
-                                          next[si] = e.target.value;
-                                          setRow(i, { ...row, [slotDataKey(c.key)]: next });
-                                        }}
-                                      />
-                                    </label>
-                                  ))}
-                                </div>
+                        <td colSpan={cols.length + 3}>
+                          {capEdit.has(i) && (
+                            <div className="slots-cap">
+                              <label>
+                                Feste Fächer:{' '}
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={slotCount}
+                                  autoFocus
+                                  onChange={(e) =>
+                                    setRow(i, { ...row, [DYN_CONTAINER_KEY]: Math.max(0, Number(e.target.value) || 0) })
+                                  }
+                                />
+                              </label>
+                            </div>
+                          )}
+                          {slotCount > 0 &&
+                            readSlots(row).map((val, si) => (
+                              <div key={si} className="slot-line">
+                                <span className="slot-branch" aria-hidden>
+                                  └
+                                </span>
+                                <span className="slot-num">{si + 1}</span>
+                                <input
+                                  value={val}
+                                  placeholder="leer"
+                                  onChange={(e) => {
+                                    const next = readSlots(row).slice();
+                                    next[si] = e.target.value;
+                                    setRow(i, { ...row, [DYN_SLOTS_KEY]: next });
+                                  }}
+                                />
                               </div>
-                            );
-                          })}
+                            ))}
                         </td>
                       </tr>
                     ) : null,
@@ -399,7 +419,7 @@ function SectionPanel({
                 })}
                 {section.rows.length === 0 && (
                   <tr>
-                    <td colSpan={cols.length + 2} className="muted">
+                    <td colSpan={cols.length + 3} className="muted">
                       Keine Einträge
                     </td>
                   </tr>
@@ -421,41 +441,15 @@ function Cell({
   row,
   attributes,
   onChange,
-  slotsOpen,
-  onToggleSlots,
 }: {
   col: DynColumn;
   row: DynRow;
   attributes: Attributes;
   onChange: (row: DynRow) => void;
-  slotsOpen?: boolean;
-  onToggleSlots?: () => void;
 }) {
   if (col.type === 'probe') {
     const v = computeProbeCell(attributes, col, row);
     return <span className="computed" style={{ display: 'block' }}>{v ?? '—'}</span>;
-  }
-  if (col.type === 'container') {
-    return (
-      <div className="container-cell">
-        <input
-          type="number"
-          min={0}
-          value={Number(row[col.key]) || 0}
-          title="Anzahl fester Fächer"
-          onChange={(e) => onChange({ ...row, [col.key]: Math.max(0, Number(e.target.value) || 0) })}
-        />
-        {onToggleSlots && (
-          <button
-            className="small slot-toggle"
-            title={slotsOpen ? 'Fächer einklappen' : 'Fächer anzeigen'}
-            onClick={onToggleSlots}
-          >
-            {slotsOpen ? '▾' : '▸'}
-          </button>
-        )}
-      </div>
-    );
   }
   if (col.type === 'number') {
     return (

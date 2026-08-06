@@ -540,40 +540,31 @@ textarea.note-area {
   background: var(--input-bg);
 }
 
-/* Behälter mit festen Fächern (z. B. Gürtel) */
-.container-cell {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-.container-cell input {
-  width: 3.2em;
-}
-button.slot-toggle {
-  padding: 0 6px;
-  line-height: 1.4;
+/* Behälter mit festen Fächern (z. B. Gürtel): die Inhalte erscheinen als
+   eingerückte Unterzeilen direkt unter dem Behälter, ohne eigene Spalte. */
+button.container-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 tr.slot-row td {
   background: #fbf8ee;
-  padding: 6px 10px;
+  padding: 4px 10px 8px;
 }
-.slots + .slots {
-  margin-top: 8px;
-}
-.slots-head {
-  font-weight: 600;
-  color: var(--accent);
+.slots-cap {
   margin-bottom: 6px;
 }
-.slots-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 6px;
+.slots-cap input {
+  width: 4em;
+  background: var(--input-bg);
 }
-.slot {
+.slot-line {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 2px 0 2px 8px;
+}
+.slot-branch {
+  color: var(--muted, #9a8f78);
 }
 .slot-num {
   flex: none;
@@ -587,9 +578,10 @@ tr.slot-row td {
   color: #fff;
   font-size: 0.8em;
 }
-.slot input {
+.slot-line input {
   flex: 1;
   min-width: 0;
+  max-width: 32em;
   background: var(--input-bg);
 }
 /* Talent-Suche */
