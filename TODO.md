@@ -1,13 +1,6 @@
 
 ## Mid-Prio
 
-- quick damage/heal on the energies (Übersicht)
-   - LE/AUS/ASE/Psyche: +/- steppers or an "apply ±X" field, so "took 7 damage" is one
-     action instead of mental math and retyping the new Aktuell
-- total wealth readout in the Geld panel
-   - sum all coins + bank, converted up to Dublonen (gold); every step is 10 coins
-     (10 Kreuzer = 1 Heller, 10 Heller = 1 Silbertaler, 10 Silbertaler = 1 Dublone)
-   - pure computed readout, no data changes
 - session log for groups
    - dated "what happened this session" log alongside the group's Questlog/NPCs
 - audit log on characters (on hold until community testing + feedback)
@@ -16,6 +9,22 @@
 
 ## Low-Prio
 
+- print/PDF optimization (basic version works — je Tab eine Seite; these are refinements)
+   - free-text inputs print EMPTY (only the labels show): Person/bio details, Ausrüstung,
+     Inventar, Zauber/Fähigkeiten, Vorteile — everywhere TextInput is used. Plain <input>
+     (e.g. the Gürtel slot fields) prints fine.
+     - likely root cause: TextInput is an auto-growing <textarea> whose height is set in a
+       useLayoutEffect from scrollHeight; the print-root mounts while display:none, so
+       scrollHeight is 0 → height collapses to ~2px and the text is clipped. Fix idea: give
+       textareas auto/content height in print, recompute on print, or render static text.
+   - tables break across pages mid-section — ugly; add break-inside handling / keep sections
+     together / repeat table headers
+   - number-input spinner arrows are visible — hide them in print
+   - Übersicht should NOT be printed — drop it from the print tab list
+   - Talente and Waffen tables get cut off at the sides, even in landscape — too wide; needs
+     print-specific narrower columns / smaller font / scaling / wrapping
+   - Sprachen has rendering issues (investigate)
+   - maybe clamp column widths to the minimum necessary in print for readability (debatable)
 - mobile/tablet layout pass (most players are on PC — saved for later)
    - only one responsive breakpoint now; the tab bar and wide tables get awkward on narrow screens
 - off-machine backup (blocked for now, no other disk or storage available)
