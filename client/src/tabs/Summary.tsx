@@ -17,6 +17,7 @@ interface Summary {
   sections: Record<string, unknown>;
   dynSections: DynSection[];
   attributes: Attributes;
+  portrait?: boolean;
 }
 
 const BIO_LABELS: [string, string][] = [
@@ -100,13 +101,20 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
       </p>
       <div className="panel">
         <h3>Person</h3>
-        <div className="grid3">
-          {BIO_LABELS.filter(([k]) => summary.bio[k]).map(([k, label]) => (
-            <div className="field" key={k}>
-              <label>{label}</label>
-              <span>{summary.bio[k]}</span>
+        <div className="person-layout">
+          {summary.portrait && (
+            <div className="portrait">
+              <img className="portrait-img" src={`/api/characters/${info.id}/portrait`} alt="Porträt" />
             </div>
-          ))}
+          )}
+          <div className="grid3 person-fields">
+            {BIO_LABELS.filter(([k]) => summary.bio[k]).map(([k, label]) => (
+              <div className="field" key={k}>
+                <label>{label}</label>
+                <span>{summary.bio[k]}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

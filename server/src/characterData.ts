@@ -519,5 +519,5 @@ export function buildSummary(charId: number) {
   // Sichtbar geschaltete generische Sektionen (Probe-Spalten rechnet der Client)
   const dynSections = loadDynSections(charId).filter((s) => s.visible);
 
-  return { bio, sections, dynSections, attributes, visibility };
+  return { bio, sections, dynSections, attributes, visibility, portrait: hasPortrait(charId) };
 }
