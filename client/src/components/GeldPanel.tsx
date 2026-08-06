@@ -10,6 +10,17 @@ const COIN_FIELDS: [string, string, string][] = [
   ['geldK', 'Kreuzer', 'iron'],
 ];
 
+// Jede Münzstufe ist ×10: 10 Kreuzer = 1 Heller, 10 Heller = 1 Silbertaler,
+// 10 Silbertaler = 1 Dublone. Die Bank steht bereits in Dublonen. Gerechnet
+// wird in der kleinsten Einheit (Kreuzer, ganzzahlig), um Rundungsfehler zu
+// vermeiden; das Ergebnis geteilt durch 1000 sind Dublonen.
+const KREUZER_WERT: Record<string, number> = { geldD: 1000, geldS: 100, geldH: 10, geldK: 1, bank: 1000 };
+
+function gesamtDublonen(meta: Record<string, number>): number {
+  const kreuzer = Object.entries(KREUZER_WERT).reduce((sum, [key, faktor]) => sum + (meta[key] ?? 0) * faktor, 0);
+  return kreuzer / 1000;
+}
+
 export function GeldPanel({
   meta,
   setMeta,
@@ -31,8 +42,12 @@ export function GeldPanel({
       </div>
       <div className="coin coin-bank">
         <span className="coin-disc" aria-hidden />
-        <label>Bank</label>
+        <label>Bank in Dublonen</label>
         <NumInput value={meta.bank ?? 0} min={0} onChange={(v) => setMeta('bank', v)} />
+      </div>
+      <div className="coin-total" title="Alle Münzen in Dublonen umgerechnet, inklusive Bank">
+        <span>Gesamt</span>
+        <strong>{gesamtDublonen(meta).toLocaleString('de-DE', { maximumFractionDigits: 3 })} D</strong>
       </div>
     </div>
   );
