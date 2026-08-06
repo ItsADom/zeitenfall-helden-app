@@ -4,8 +4,6 @@
 - audit log on characters (blocked for now)
    - who changed what when
    - concept needed, so it doesn't get bloated with every edit
-- making container items on "Ausrüstung" expandable
-   - e.g. weapon belt with 4 slots, these 4 slots can be filled with items that are carried
 
 ## Low-Prio
 
