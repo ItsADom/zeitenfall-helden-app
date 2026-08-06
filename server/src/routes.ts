@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { LIST_SECTION_IDS, normalizeColumns } from 'shared';
 import {
   createSession,
@@ -13,10 +13,13 @@ import {
 import { db, initCharacterRows } from './db.js';
 import {
   buildSummary,
+  deletePortrait,
   importFullCharacter,
   instantiateStandardSections,
   loadFullCharacter,
+  loadPortrait,
   migrateCharacterPeriphery,
+  savePortrait,
   saveSection,
   saveVisibility,
 } from './characterData.js';
@@ -348,6 +351,50 @@ function editableChar(req: import('express').Request, res: import('express').Res
   }
   return char;
 }
+
+// --- Porträt (Bild-Blob) ---
+// Anschauen darf jeder mit Zugriff (auch Gruppenmitglieder in der Zusammenfassung),
+// setzen/löschen nur mit Bearbeitungsrecht.
+api.get('/characters/:id/portrait', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || !characterAccess(req.user!, char)) {
+    res.status(404).end();
+    return;
+  }
+  const p = loadPortrait(char.id);
+  if (!p) {
+    res.status(404).end();
+    return;
+  }
+  res.type(p.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(p.data);
+});
+
+api.put(
+  '/characters/:id/portrait',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const char = editableChar(req, res);
+    if (!char) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    savePortrait(char.id, mime, buf);
+    res.json({ ok: true });
+  },
+);
+
+api.delete('/characters/:id/portrait', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  deletePortrait(char.id);
+  res.json({ ok: true });
+});
 
 // Tabs
 api.post('/characters/:id/tabs', requireAuth, (req, res) => {

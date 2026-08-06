@@ -238,7 +238,32 @@ export function loadFullCharacter(charId: number) {
     lists: loadAllLists(charId),
     tabs: loadDynTabs(charId),
     visibility: loadVisibility(charId),
+    portrait: hasPortrait(charId),
   };
+}
+
+// --- Porträt (als Blob in der DB, damit es in den täglichen Sicherungen liegt) ---
+
+export function hasPortrait(charId: number): boolean {
+  return !!db.prepare('SELECT 1 FROM char_portraits WHERE character_id = ?').get(charId);
+}
+
+export function loadPortrait(charId: number): { mime: string; data: Buffer } | undefined {
+  const row = db.prepare('SELECT mime, data FROM char_portraits WHERE character_id = ?').get(charId) as
+    | { mime: string; data: Buffer }
+    | undefined;
+  return row;
+}
+
+export function savePortrait(charId: number, mime: string, data: Buffer): void {
+  db.prepare(
+    `INSERT INTO char_portraits (character_id, mime, data, updated_at) VALUES (?, ?, ?, datetime('now'))
+     ON CONFLICT (character_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`,
+  ).run(charId, mime, data);
+}
+
+export function deletePortrait(charId: number): void {
+  db.prepare('DELETE FROM char_portraits WHERE character_id = ?').run(charId);
 }
 
 // --- Speichern ---

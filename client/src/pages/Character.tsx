@@ -24,6 +24,7 @@ export interface FullData {
   lists: Record<string, Row[]>;
   tabs: DynTab[];
   visibility: Record<string, boolean>;
+  portrait: boolean;
 }
 
 export interface TalentCatalogRow {

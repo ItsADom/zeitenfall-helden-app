@@ -13,6 +13,7 @@ import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProz
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
+import { Portrait } from '../components/Portrait';
 import { depletionClass } from '../components/energie';
 import { useChar } from '../pages/Character';
 
@@ -43,7 +44,7 @@ const META_FIELDS: [string, string][] = [
 ];
 
 export default function HeldenbriefTab() {
-  const { data, update } = useChar();
+  const { charId, data, update } = useChar();
   const { attributes, baseValues, resources, bio, meta } = data;
 
   const bv = computeBaseValues(attributes, baseValues);
@@ -85,13 +86,16 @@ export default function HeldenbriefTab() {
     <>
       <div className="panel">
         <h3>Person</h3>
-        <div className="grid3">
-          {BIO_FIELDS.map(([key, label]) => (
-            <div className="field" key={key}>
-              <label>{label}</label>
-              <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
-            </div>
-          ))}
+        <div className="person-layout">
+          <Portrait charId={charId} initialHasImage={data.portrait} />
+          <div className="grid3 person-fields">
+            {BIO_FIELDS.map(([key, label]) => (
+              <div className="field" key={key}>
+                <label>{label}</label>
+                <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 

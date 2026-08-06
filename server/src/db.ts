@@ -198,6 +198,12 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     data TEXT NOT NULL DEFAULT '{}'
   );
+  CREATE TABLE IF NOT EXISTS char_portraits (
+    character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+    mime TEXT NOT NULL DEFAULT 'image/jpeg',
+    data BLOB NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen
