@@ -1,8 +1,6 @@
 
 ## Mid-Prio
 
-- session log for groups
-   - dated "what happened this session" log alongside the group's Questlog/NPCs
 - audit log on characters (on hold until community testing + feedback)
    - who changed what when
    - concept needed, so it doesn't get bloated with every edit
