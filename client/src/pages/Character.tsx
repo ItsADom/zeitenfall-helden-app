@@ -80,6 +80,7 @@ export default function CharacterPage() {
   const [activeKey, setActiveKey] = useState<string>('Übersicht');
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     setData(null);
@@ -152,6 +153,23 @@ export default function CharacterPage() {
     [flush],
   );
 
+  // Druck-/PDF-Ansicht: sobald `printing` steht, sind alle Tabs im DOM (je Tab
+  // eine Seite, per CSS `break-before`). Nach dem Rendern den Druckdialog öffnen
+  // und danach (auch bei Abbruch feuert 'afterprint') wieder aufräumen.
+  useEffect(() => {
+    if (!printing) return;
+    const done = () => setPrinting(false);
+    window.addEventListener('afterprint', done);
+    // Kurzer Timeout, damit die Druckansicht sicher im Layout steht, bevor der
+    // Dialog öffnet. Das Aufräumen bricht den ersten Lauf des StrictMode-
+    // Doppelaufrufs ab, sodass der Dialog genau einmal erscheint.
+    const t = window.setTimeout(() => window.print(), 60);
+    return () => {
+      window.removeEventListener('afterprint', done);
+      window.clearTimeout(t);
+    };
+  }, [printing]);
+
   if (error) return <p className="error">{error}</p>;
   if (!info || !catalogs || (access === 'edit' && !data)) return <p className="muted">Lade…</p>;
 
@@ -205,54 +223,98 @@ export default function CharacterPage() {
 
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
-        <h1>{info.name}</h1>
-        <span className="muted">
-          Spieler: {info.ownerName} · Gruppe:{' '}
-          {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName}
-        </span>
-        <span className="spacer" style={{ flex: 1 }} />
-        <span className="savestate">{saveState}</span>
-        <button className="small" onClick={exportChar} title="Charakter als JSON-Datei herunterladen">
-          Export
-        </button>
-      </div>
-      <div className="tabs">
-        {BUILTIN_TABS.map((t) => (
-          <button key={t} className={t === activeKey ? 'active' : ''} onClick={() => setActiveKey(t)}>
-            {t}
+      <div className="screen-only">
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+          <h1>{info.name}</h1>
+          <span className="muted">
+            Spieler: {info.ownerName} · Gruppe:{' '}
+            {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName}
+          </span>
+          <span className="spacer" style={{ flex: 1 }} />
+          <span className="savestate">{saveState}</span>
+          <button className="small" onClick={() => setPrinting(true)} title="Alle Tabs drucken / als PDF speichern (je Tab eine Seite)">
+            Drucken
           </button>
-        ))}
-        {tabs.map((t) => (
-          <button key={t.id} className={`c${t.id}` === activeKey ? 'active' : ''} onClick={() => setActiveKey(`c${t.id}`)}>
-            {t.name}
+          <button className="small" onClick={exportChar} title="Charakter als JSON-Datei herunterladen">
+            Export
           </button>
-        ))}
-        <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
-          + Tab
-        </button>
-        <button className={activeKey === 'Sichtbarkeit' ? 'active' : ''} onClick={() => setActiveKey('Sichtbarkeit')}>
-          Sichtbarkeit
-        </button>
+        </div>
+        <div className="tabs">
+          {BUILTIN_TABS.map((t) => (
+            <button key={t} className={t === activeKey ? 'active' : ''} onClick={() => setActiveKey(t)}>
+              {t}
+            </button>
+          ))}
+          {tabs.map((t) => (
+            <button key={t.id} className={`c${t.id}` === activeKey ? 'active' : ''} onClick={() => setActiveKey(`c${t.id}`)}>
+              {t.name}
+            </button>
+          ))}
+          <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
+            + Tab
+          </button>
+          <button className={activeKey === 'Sichtbarkeit' ? 'active' : ''} onClick={() => setActiveKey('Sichtbarkeit')}>
+            Sichtbarkeit
+          </button>
+        </div>
+        {activeKey === 'Übersicht' && <UebersichtTab />}
+        {activeKey === 'Heldenbrief' && <HeldenbriefTab />}
+        {activeKey === 'Talente' && <TalenteTab />}
+        {activeKey === 'Waffen' && <WaffenTab />}
+        {activeKey === 'Sprachen' && <SprachenTab />}
+        {activeKey === 'Sichtbarkeit' && <SichtbarkeitTab />}
+        {activeContentTab && (
+          <ContentTabView
+            key={activeContentTab.id}
+            basePath={`/api/characters/${charId}`}
+            tab={activeContentTab}
+            attributes={data!.attributes}
+            isFirst={tabs.indexOf(activeContentTab) === 0}
+            isLast={tabs.indexOf(activeContentTab) === tabs.length - 1}
+            onRenameTab={(name) => renameTab(activeContentTab.id, name)}
+            onDeleteTab={() => deleteTab(activeContentTab.id)}
+            onMoveTab={(dir) => moveTab(tabs.indexOf(activeContentTab), dir)}
+          />
+        )}
       </div>
-      {activeKey === 'Übersicht' && <UebersichtTab />}
-      {activeKey === 'Heldenbrief' && <HeldenbriefTab />}
-      {activeKey === 'Talente' && <TalenteTab />}
-      {activeKey === 'Waffen' && <WaffenTab />}
-      {activeKey === 'Sprachen' && <SprachenTab />}
-      {activeKey === 'Sichtbarkeit' && <SichtbarkeitTab />}
-      {activeContentTab && (
-        <ContentTabView
-          key={activeContentTab.id}
-          basePath={`/api/characters/${charId}`}
-          tab={activeContentTab}
-          attributes={data!.attributes}
-          isFirst={tabs.indexOf(activeContentTab) === 0}
-          isLast={tabs.indexOf(activeContentTab) === tabs.length - 1}
-          onRenameTab={(name) => renameTab(activeContentTab.id, name)}
-          onDeleteTab={() => deleteTab(activeContentTab.id)}
-          onMoveTab={(dir) => moveTab(tabs.indexOf(activeContentTab), dir)}
-        />
+
+      {printing && (
+        <div className="print-root">
+          {[
+            { key: 'Übersicht', node: <UebersichtTab /> },
+            { key: 'Heldenbrief', node: <HeldenbriefTab /> },
+            { key: 'Talente', node: <TalenteTab /> },
+            { key: 'Waffen', node: <WaffenTab /> },
+            { key: 'Sprachen', node: <SprachenTab /> },
+          ].map((t) => (
+            <section key={t.key} className="print-page">
+              <div className="print-page-head">
+                <span className="print-char">{info.name}</span>
+                <span className="print-tab">{t.key}</span>
+              </div>
+              {t.node}
+            </section>
+          ))}
+          {tabs.map((t) => (
+            <section key={`c${t.id}`} className="print-page">
+              <div className="print-page-head">
+                <span className="print-char">{info.name}</span>
+                <span className="print-tab">{t.name}</span>
+              </div>
+              <ContentTabView
+                basePath={`/api/characters/${charId}`}
+                tab={t}
+                attributes={data!.attributes}
+                isFirst
+                isLast
+                showVisibility={false}
+                onRenameTab={() => {}}
+                onDeleteTab={() => {}}
+                onMoveTab={() => {}}
+              />
+            </section>
+          ))}
+        </div>
       )}
     </CharCtx.Provider>
   );

@@ -897,3 +897,81 @@ ul {
 li {
   margin: 2px 0;
 }
+
+/* ---------- Druck / PDF ---------- */
+/* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
+   unsichtbar im DOM und wird nur beim Drucken sichtbar. */
+.print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  /* Nur die Druckansicht zeigen, den Rest der Oberfläche ausblenden */
+  .topbar,
+  .screen-only {
+    display: none !important;
+  }
+  .print-root {
+    display: block !important;
+  }
+  body {
+    background: #fff !important;
+  }
+
+  /* Jeder Tab beginnt auf einer neuen Seite; läuft er über, folgen weitere. */
+  .print-page {
+    break-before: page;
+  }
+  .print-page:first-child {
+    break-before: auto;
+  }
+  .print-page-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 4px;
+    margin-bottom: 12px;
+  }
+  .print-char {
+    font-weight: 700;
+    font-size: 16px;
+  }
+  .print-tab {
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  /* Bedienelemente (Knöpfe, Spaltengriffe) gehören nicht aufs Papier. */
+  .print-root button,
+  .print-root .add-row,
+  .print-root .resize-handle,
+  .print-root .savestate {
+    display: none !important;
+  }
+  /* Eingabefelder flach drucken, damit es wie ein Bogen aussieht und nicht
+     wie ein Formular. Checkboxen behalten ihr Aussehen. */
+  .print-root input:not([type='checkbox']),
+  .print-root textarea,
+  .print-root select {
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 2px !important;
+    color: #000 !important;
+    -webkit-appearance: none;
+    appearance: none;
+    resize: none;
+  }
+  /* Tabellenzeilen und Panels möglichst nicht mitten durchtrennen. */
+  .print-root tr,
+  .print-root .coin {
+    break-inside: avoid;
+  }
+  .print-root .table-wrap {
+    overflow: visible !important;
+  }
+}
