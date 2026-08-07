@@ -84,6 +84,7 @@ export default function CharacterPage() {
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID.
   const canViewAs = !!user.isGm && !!user.devViewAs;
@@ -95,6 +96,7 @@ export default function CharacterPage() {
   }, [canViewAs]);
 
   useEffect(() => {
+    setLoading(true);
     setData(null);
     setSummary(null);
     setError('');
@@ -108,7 +110,8 @@ export default function CharacterPage() {
         setData(res.data ?? null);
         setSummary(res.summary ?? null);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
+      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'))
+      .finally(() => setLoading(false));
     apiGet<Catalogs>('/api/catalogs').then(setCatalogs);
   }, [charId, viewAs]);
 
@@ -204,7 +207,17 @@ export default function CharacterPage() {
   }, [printing]);
 
   if (error) return <p className="error">{error}</p>;
-  if (!info || !catalogs || (access === 'edit' && !data)) return <p className="muted">Lade…</p>;
+  // Während eines Wechsels (auch „Ansehen als") sind data/summary kurz null,
+  // access hält aber noch die alte Sicht — erst rendern, wenn die passende
+  // Nutzlast wirklich da ist, sonst kracht z. B. die Zusammenfassung auf null.
+  if (loading || !info || !catalogs) {
+    return (
+      <>
+        {viewAsBar}
+        <p className="muted">Lade…</p>
+      </>
+    );
+  }
 
   if (access === 'summary') {
     return (
