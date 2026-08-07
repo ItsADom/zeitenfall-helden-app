@@ -115,7 +115,10 @@
 .theme-dropdown {
   position: relative;
 }
-.theme-dd-trigger {
+/* Selektoren bewusst spezifisch (Elternklasse davor), damit sie die
+   allgemeine Regel `header.topbar button` überstimmen — sonst erbt das Menü
+   deren weißen Text und ist auf hellem Grund unlesbar. */
+.theme-dropdown .theme-dd-trigger {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -129,7 +132,7 @@
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.theme-dd-trigger:hover {
+.theme-dropdown .theme-dd-trigger:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 .theme-dd-caret {
@@ -159,7 +162,7 @@
   border-radius: 10px;
   box-shadow: var(--shadow);
 }
-.theme-dd-option {
+.theme-dd-menu .theme-dd-option {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -171,13 +174,14 @@
   color: var(--text);
   font: inherit;
   font-size: 13px;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
 }
-.theme-dd-option:hover {
+.theme-dd-menu .theme-dd-option:hover {
   background: var(--surface-hover);
 }
-.theme-dd-option.active {
+.theme-dd-menu .theme-dd-option.active {
   background: var(--accent-soft);
 }
 .theme-dd-name {
