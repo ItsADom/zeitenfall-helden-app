@@ -40,6 +40,12 @@
   --mastery: #c8871a; /* Meisterschafts-Stern (Gold) */
   --error-text: #a3241a; /* Fehlermeldungen */
   --bg-wash: rgba(139, 38, 53, 0.05); /* Ambient-Schimmer oben auf der Seite (Akzent-getönt) */
+
+  /* Feine Papier-Körnung (universell, wird per soft-light dezent vom Theme getönt) */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.4'/%3E%3C/svg%3E");
+  /* Wappen-Sigel im Sektions-Marker — je Theme eine Region Aventuriens.
+     Wird per CSS-mask eingefärbt (nimmt --accent an), Form kommt aus dem SVG. */
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 20 12 12 22 4 12Z'/%3E%3C/svg%3E"); /* Khôm: Raute */
 }
 
 /* ---------- Farbthemen ----------
@@ -58,6 +64,7 @@
   --bg-wash: rgba(47, 93, 58, 0.06);
   --computed-bg: #eef3ea;
   --computed-text: #46583a;
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6 7 5 16 12 22 19 16 18 7 12 2Z'/%3E%3C/svg%3E"); /* Bornland: Blatt */
 }
 :root[data-theme='koenigsblau'] {
   --accent: #2f4a7a;
@@ -70,6 +77,7 @@
   --bg-wash: rgba(47, 74, 122, 0.06);
   --computed-bg: #e9eef6;
   --computed-text: #3d4a63;
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C12 2 5 11 5 15.5 5 19.6 8.1 22 12 22 15.9 22 19 19.6 19 15.5 19 11 12 2 12 2Z'/%3E%3C/svg%3E"); /* Thorwal: Tropfen */
 }
 :root[data-theme='amethyst'] {
   --accent: #5e3a78;
@@ -82,6 +90,7 @@
   --bg-wash: rgba(94, 58, 120, 0.06);
   --computed-bg: #f0ecf6;
   --computed-text: #574a66;
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3 21.5 20.5 2.5 20.5Z'/%3E%3C/svg%3E"); /* Drachensteine: Schuppe/Dreieck */
 }
 :root[data-theme='bronze'] {
   --accent: #8a5a2b;
@@ -94,6 +103,7 @@
   --bg-wash: rgba(138, 90, 43, 0.06);
   --computed-bg: #f5efe0;
   --computed-text: #6d5a2e;
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 14.6 8.6 21.8 9.2 16.2 13.9 18 21 12 17.1 6 21 7.8 13.9 2.2 9.2 9.4 8.6Z'/%3E%3C/svg%3E"); /* Gareth: Stern */
 }
 :root[data-theme='nacht'] {
   --bg: #17140f;
@@ -129,6 +139,7 @@
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
   --bg-wash: rgba(194, 86, 74, 0.06);
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 3A9 9 0 1 0 21 16.5 7.2 7.2 0 1 1 15.5 3Z'/%3E%3C/svg%3E"); /* Schattenlande: Mondsichel */
 }
 
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
@@ -226,7 +237,13 @@ body {
   font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
   background:
     radial-gradient(1200px 400px at 50% -100px, var(--bg-wash), transparent),
+    var(--grain),
     var(--bg);
+  /* Körnung dezent in den Grundton einweben (soft-light); Wash bleibt oben drauf */
+  background-blend-mode: normal, soft-light, normal;
+  background-repeat: no-repeat, repeat, no-repeat;
+  background-size: auto, 120px 120px, auto;
+  background-attachment: fixed, fixed, scroll;
   color: var(--text);
   font-size: 14px;
   line-height: 1.45;
@@ -261,7 +278,7 @@ header.topbar {
   padding: 10px 20px;
   background: linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
   color: var(--on-accent);
-  box-shadow: 0 2px 12px rgba(111, 29, 42, 0.35);
+  box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 header.topbar a {
   color: var(--on-accent);
@@ -324,11 +341,12 @@ main {
 .title-marker {
   content: '';
   flex: none;
-  width: 7px;
-  height: 7px;
-  background: var(--accent);
-  transform: rotate(45deg);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  width: 14px;
+  height: 14px;
+  background-color: var(--accent);
+  /* Form kommt aus dem Theme-Sigel; die Maske färbt es im Akzent ein */
+  -webkit-mask: var(--sigil) center / contain no-repeat;
+  mask: var(--sigil) center / contain no-repeat;
 }
 .panel > h3::after {
   content: '';
@@ -435,7 +453,7 @@ tr.subtle-head.clickable:hover td {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--on-accent);
-  box-shadow: 0 2px 8px rgba(139, 38, 53, 0.35);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 /* ---------- Tabellen ---------- */
@@ -620,7 +638,7 @@ input:hover, select:hover {
 input:focus, select:focus, textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(139, 38, 53, 0.14);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
 input[type='number'] {
   text-align: center;
@@ -686,7 +704,7 @@ button.primary {
   padding: 7px 16px;
   cursor: pointer;
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(139, 38, 53, 0.3);
+  box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 30%, transparent);
   transition: background 0.13s;
 }
 button.primary:hover {
@@ -811,7 +829,7 @@ tr.slot-row td {
   background: var(--accent);
   color: var(--on-accent);
   border-radius: 10px;
-  box-shadow: 0 2px 8px rgba(139, 38, 53, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .level-num {
   font-family: 'Segoe UI', system-ui, sans-serif;
