@@ -46,6 +46,9 @@
   /* Wappen-Sigel im Sektions-Marker — je Theme eine Region Aventuriens.
      Wird per CSS-mask eingefärbt (nimmt --accent an), Form kommt aus dem SVG. */
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 20 12 12 22 4 12Z'/%3E%3C/svg%3E"); /* Khôm: Raute */
+  /* Wellen-Motiv in der Kopfleiste: helle/dunkle Bänder, die über den Theme-
+     Verlauf laufen und dessen Farbe aufnehmen — gibt der Leiste Bewegung/Tiefe. */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 70' preserveAspectRatio='none'%3E%3Cpath d='M0 34 C240 14 480 52 720 32 960 12 1200 52 1440 32 L1440 70 L0 70Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3Cpath d='M0 47 C240 29 480 63 720 45 960 27 1200 63 1440 45 L1440 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 55 C240 40 480 69 720 54 960 39 1200 69 1440 54 L1440 70 L0 70Z' fill='%23ffffff' fill-opacity='0.10'/%3E%3C/svg%3E");
 }
 
 /* ---------- Farbthemen ----------
@@ -276,7 +279,9 @@ header.topbar {
   align-items: center;
   gap: 20px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
+  background:
+    var(--banner-motif) 0 0 / 100% 100% no-repeat,
+    linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
   color: var(--on-accent);
   box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 35%, transparent);
 }
