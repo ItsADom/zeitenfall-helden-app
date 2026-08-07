@@ -86,6 +86,10 @@ export default function CharacterPage() {
   const [printing, setPrinting] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Namensänderung: null = Anzeige, sonst der Entwurf im Eingabefeld.
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [nameError, setNameError] = useState('');
+
   // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID.
   const canViewAs = !!user.isGm && !!user.devViewAs;
   const [viewAs, setViewAs] = useState(0);
@@ -314,6 +318,31 @@ export default function CharacterPage() {
     await apiPut(`/api/characters/${charId}/tabs/reorder`, { order: next.map((t) => t.id) });
   };
 
+  const cancelName = () => {
+    setNameDraft(null);
+    setNameError('');
+  };
+
+  // Der Name hängt nicht an FullData, sondern am Charakter-Datensatz selbst —
+  // deshalb nicht über das entprellte Sammel-Speichern, sondern direkt und
+  // sofort. Danach steht er in der Datenbank und alle anderen (Spielleiter,
+  // Gruppenübersicht) sehen ihn beim nächsten Laden.
+  const saveName = async () => {
+    const next = (nameDraft ?? '').trim();
+    if (!next || next === info.name) {
+      cancelName();
+      return;
+    }
+    try {
+      const res = await apiPut<{ name: string }>(`/api/characters/${charId}/name`, { name: next });
+      setInfo((prev) => (prev ? { ...prev, name: res.name } : prev));
+      setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
+      cancelName();
+    } catch (e) {
+      setNameError(e instanceof Error ? e.message : 'Fehler beim Speichern');
+    }
+  };
+
   // Vollständigen Charakter als JSON-Datei herunterladen. Der Client hält die
   // Daten ohnehin schon (FullData) — kein Server-Aufruf nötig. Das Format ist
   // dasselbe, das der Import auf der Verwaltungsseite wieder einliest.
@@ -336,7 +365,37 @@ export default function CharacterPage() {
       <div className="screen-only">
         {viewAsBar}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
-          <h1>{info.name}</h1>
+          {nameDraft === null ?
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <h1>{info.name}</h1>
+              {/* Im Ansehen-als-Modus bewusst ausgeblendet: die Vorschau ist rein lesend. */}
+              {!viewAs && (
+                <button className="small" onClick={() => setNameDraft(info.name)} title="Namen ändern" aria-label="Namen ändern">
+                  ✏️
+                </button>
+              )}
+            </div>
+          : <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <input
+                className="char-title"
+                autoFocus
+                maxLength={60}
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void saveName();
+                  if (e.key === 'Escape') cancelName();
+                }}
+              />
+              <button className="small" onClick={() => void saveName()} title="Namen speichern (Enter)">
+                ✓
+              </button>
+              <button className="small" onClick={cancelName} title="Abbrechen (Esc)">
+                ✕
+              </button>
+              {nameError && <span className="error">{nameError}</span>}
+            </div>
+          }
           <span className="muted">
             Spieler: {info.ownerName} · Gruppe:{' '}
             {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName}

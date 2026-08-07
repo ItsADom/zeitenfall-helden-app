@@ -372,6 +372,31 @@ api.put('/characters/:id/visibility', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// Umbenennen. Anders als PUT /characters/:id (nur Spielleiter, ändert auch
+// Besitzer und Gruppe) genügt hier das Bearbeitungsrecht — die Spielerin darf
+// ihren eigenen Charakter also selbst umbenennen. Zurück kommt der wirklich
+// gespeicherte Name, damit die Anzeige nicht vom Datenbankstand abweicht.
+const MAX_CHAR_NAME = 60;
+
+api.put('/characters/:id/name', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  const name = String(((req.body ?? {}) as { name?: unknown }).name ?? '').trim();
+  if (!name) {
+    res.status(400).json({ error: 'Name darf nicht leer sein' });
+    return;
+  }
+  if (name.length > MAX_CHAR_NAME) {
+    res.status(400).json({ error: `Name darf höchstens ${MAX_CHAR_NAME} Zeichen lang sein` });
+    return;
+  }
+  db.prepare('UPDATE characters SET name = ? WHERE id = ?').run(name, char.id);
+  res.json({ name });
+});
+
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---
 
 function editableChar(req: import('express').Request, res: import('express').Response): CharRow | null {

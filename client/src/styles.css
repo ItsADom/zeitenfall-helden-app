@@ -959,6 +959,19 @@ input.section-title:focus {
   background: var(--input-bg);
 }
 
+/* Charaktername in der Kopfzeile — sieht aus wie das <h1>, das es ersetzt */
+input.char-title {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 26px;
+  border-color: var(--border-strong);
+  background: var(--input-bg);
+  max-width: 420px;
+  padding-left: 6px;
+}
+input.char-title:focus {
+  border-color: var(--accent);
+}
+
 /* ---------- Layout-Hilfen ---------- */
 
 .grid2 {
