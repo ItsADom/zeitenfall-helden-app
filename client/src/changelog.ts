@@ -1,9 +1,11 @@
 // Kuratiertes Änderungsprotokoll — bewusst knapp halten.
 // Nicht jede Kleinigkeit eintragen; lieber wenige, aussagekräftige Einträge.
-// Sobald echte Versionen anstehen, `version` setzen (z. B. '1.0.0').
+// Der erste Eintrag ist die Alpha-Grundausgabe (0.1.0) — der Stand, den die
+// ersten Spieler zu sehen bekommen. Alles Spätere wird als echte Änderung
+// relativ dazu eingetragen. Bei der ersten stabilen Ausgabe `version: '1.0.0'`.
 
 export interface ChangelogEntry {
-  date: string; // ISO, z. B. '2026-07-16'
+  date: string; // ISO, z. B. '2026-08-08'
   version?: string; // optional, erst bei echten Releases
   title: string;
   changes: string[];
@@ -12,41 +14,25 @@ export interface ChangelogEntry {
 // Neueste Einträge zuerst.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-07-16',
-    title: 'Neuer Tab „Übersicht"',
+    date: '2026-08-08',
+    version: '0.1.0',
+    title: 'Alpha-Test — die Heldenverwaltung im Überblick',
     changes: [
-      'Alles Wichtige auf einen Blick: Stufe und Abenteuerpunkte, Attribute, Basiswerte, Energien, Psyche und Geld — ohne Formeln und Zwischenwerte.',
-      'Was sich am Spieltisch ständig bewegt, lässt sich direkt hier ändern: aktuelle Energien, Psyche und Geld. Der Heldenbrief bleibt für alles andere.',
-      'Niedrige Lebensenergie und Ausdauer sind auch hier farblich hervorgehoben.',
-      'Die Übersicht ist der erste Tab — beim Öffnen eines Charakters steht sie sofort da.',
-    ],
-  },
-  {
-    date: '2026-07-16',
-    title: 'Gemeinsame Gruppeninhalte',
-    changes: [
-      'Jede Gruppe hat jetzt einen Bereich „Gemeinsames" mit Gruppen-Inventar, Questlog und bekannten NPCs.',
-      'Die Tabs lassen sich wie beim Charakter frei umbenennen, ergänzen und mit eigenen Spalten versehen.',
-      'Jedes Mitglied der Gruppe darf die gemeinsamen Inhalte bearbeiten.',
-    ],
-  },
-  {
-    date: '2026-07-16',
-    title: 'Änderungsseite & Aufräumen',
-    changes: [
-      'Neue Seite „Änderungen" — hier stehen künftig die wichtigsten Neuerungen.',
-      'Interner Aufräumschritt: der einmalige Excel-Importer wurde entfernt (Charaktere werden ohnehin direkt in der App gepflegt).',
-    ],
-  },
-  {
-    date: '2026-07-16',
-    title: 'Heldenbrief-Feinschliff & einklappbare Talente',
-    changes: [
-      'Geld als Münzkarten mit eigener Farbwelt (Gold/Silber/Bronze/Eisen); Energien-Tabelle verschlankt.',
-      'Talente lassen sich je Kategorie und je Kampf-Waffengruppe ein- und ausklappen — der Zustand bleibt erhalten.',
-      'Niedrige Lebensenergie und Ausdauer werden in der Aktuell-Spalte farblich hervorgehoben.',
-      'Die Tab-Leiste bleibt beim Scrollen oben griffbereit.',
-      'Insgesamt dichteres, wärmeres Layout mit heraldischen Kopfzeilen.',
+      'Willkommen zum Alpha-Test! Das ist die erste Ausgabe zum Ausprobieren am echten Spieltisch — Rückmeldungen, Wünsche und gefundene Fehler sind ausdrücklich erwünscht.',
+      'Übersicht: Stufe, Abenteuerpunkte, Attribute, Basiswerte, Energien, Psyche und Geld auf einen Blick. Was sich ständig bewegt (aktuelle Energien, Psyche, Geld) lässt sich direkt hier ändern.',
+      'Heldenbrief: der vollständige Bogen mit Attributen, Basiswerten, Energien und Persönlichem. Geld als Münzkarten, niedrige Lebensenergie und Ausdauer farblich hervorgehoben.',
+      'Talente: nach Kategorien ein- und ausklappbar, mit TaW und automatisch berechneten Probenwerten.',
+      'Waffen: Nah-, Fern- und waffenloser Kampf mit berechneten AT-/PA-/BL-Werten aus deinen Talenten.',
+      'Sprachen mit Muttersprache und Steigerung.',
+      'Ausrüstung & Inventar: getragene Ausrüstung, Behälter, Proviant und Kleidung. Behälter können feste Fächer haben (z. B. ein Gürtel mit mehreren Steckplätzen).',
+      'Zauber/Fähigkeiten: frei benennbare Bereiche für Zauber, Liturgien, Techniken und Ähnliches — mit berechneter Probe.',
+      'Weitere Bereiche: Vorteile & Nachteile, Bibliothek, Artefakte, Besitz, Boni und Vorlieben.',
+      'Eigene Tabs & Tabellen: lege dir zusätzliche Tabs, Tabellen und Spalten an (Text, Zahl, Ja/Nein, berechnete Probe, Ausrüstung), sortiere nach jeder Spalte und hinterlege Notizen je Zeile.',
+      'Porträt: ein Bild deiner Heldin oder deines Helden in der Person-Sektion hochladen.',
+      'Gruppen: ein gemeinsamer Bereich mit Gruppen-Inventar, Questlog, bekannten NPCs und Sitzungslog. Alle Mitglieder dürfen ihn bearbeiten; Änderungen der anderen erscheinen automatisch, sobald du wieder ins Fenster wechselst.',
+      'Sichtbarkeit: du bestimmst selbst, welche Teile deines Charakters die übrigen Gruppenmitglieder sehen dürfen.',
+      'Speichern & Sicherheit: alles wird automatisch gespeichert, es gibt tägliche Sicherungen, und jede Spielerin und jeder Spieler meldet sich mit eigenem Zugang an.',
+      'Drucken & Export: alle Tabs als PDF ausgeben (je Tab eine Seite) oder den ganzen Charakter als Datei exportieren.',
     ],
   },
 ];
