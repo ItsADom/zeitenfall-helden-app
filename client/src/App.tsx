@@ -50,7 +50,7 @@ export default function App() {
     <AuthContext.Provider value={{ user, refresh }}>
       <header className="topbar">
         <div className="banner-fx" aria-hidden="true">
-          {theme !== 'nacht' && <BannerFx key={theme} theme={theme} />}
+          <BannerFx key={theme} theme={theme} />
         </div>
         <Link to="/">Heldenverwaltung</Link>
         {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
