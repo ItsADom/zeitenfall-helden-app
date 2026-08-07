@@ -48,6 +48,7 @@ export default function App() {
   return (
     <AuthContext.Provider value={{ user, refresh }}>
       <header className="topbar">
+        <div className="banner-fx" aria-hidden="true" />
         <Link to="/">Heldenverwaltung</Link>
         {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
         <Link to="/changelog">Änderungen</Link>

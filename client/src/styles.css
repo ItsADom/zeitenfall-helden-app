@@ -306,6 +306,62 @@ header.topbar {
 @media (prefers-reduced-motion: reduce) {
   header.topbar { animation: none; }
 }
+
+/* Dekorative Effekt-Ebene in der Kopfleiste (hinter den Inhalten). Standard
+   unsichtbar; einzelne Themes können darin bewegte Formen zeigen. */
+.banner-fx {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+/* Inhalte über die Effekt-Ebene heben */
+header.topbar > *:not(.banner-fx) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Schattenlande: sich windender, verschmelzender Nebel — zwei weiche Schwaden,
+   die mit unterschiedlichem Tempo driften, skalieren und rotieren, sodass sie
+   sich kreuzen und wieder trennen (nie exakt gleich). */
+:root[data-theme='nacht'] .banner-fx::before,
+:root[data-theme='nacht'] .banner-fx::after {
+  content: '';
+  position: absolute;
+  top: -70%;
+  width: 60%;
+  height: 280%;
+  border-radius: 45%;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.11), rgba(255, 255, 255, 0.04) 45%, transparent 70%);
+  filter: blur(7px);
+  will-change: transform, opacity;
+}
+:root[data-theme='nacht'] .banner-fx::before {
+  left: -12%;
+  animation: mistA 19s ease-in-out infinite alternate;
+}
+:root[data-theme='nacht'] .banner-fx::after {
+  left: 42%;
+  animation: mistB 27s ease-in-out infinite alternate;
+}
+@keyframes mistA {
+  0% { transform: translateX(0) scale(1) rotate(0deg); opacity: 0.5; }
+  50% { transform: translateX(28%) scale(1.3) rotate(9deg); opacity: 0.9; }
+  100% { transform: translateX(66%) scale(1.05) rotate(-5deg); opacity: 0.6; }
+}
+@keyframes mistB {
+  0% { transform: translateX(0) scale(1.1) rotate(0deg); opacity: 0.72; }
+  50% { transform: translateX(-33%) scale(0.9) rotate(-11deg); opacity: 0.42; }
+  100% { transform: translateX(-58%) scale(1.25) rotate(7deg); opacity: 0.85; }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='nacht'] .banner-fx::before,
+  :root[data-theme='nacht'] .banner-fx::after {
+    animation: none;
+  }
+}
+
 header.topbar a {
   color: var(--on-accent);
   text-decoration: none;
