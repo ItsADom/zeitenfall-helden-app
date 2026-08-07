@@ -18,7 +18,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     version: '0.1.0',
     title: 'Alpha-Test — die Heldenverwaltung im Überblick',
     changes: [
-      'Willkommen zum Alpha-Test! Das ist die erste Ausgabe zum Ausprobieren am echten Spieltisch — Rückmeldungen, Wünsche und gefundene Fehler sind ausdrücklich erwünscht.',
       'Übersicht: Stufe, Abenteuerpunkte, Attribute, Basiswerte, Energien, Psyche und Geld auf einen Blick. Was sich ständig bewegt (aktuelle Energien, Psyche, Geld) lässt sich direkt hier ändern.',
       'Heldenbrief: der vollständige Bogen mit Attributen, Basiswerten, Energien und Persönlichem. Geld als Münzkarten, niedrige Lebensenergie und Ausdauer farblich hervorgehoben.',
       'Talente: nach Kategorien ein- und ausklappbar, mit TaW und automatisch berechneten Probenwerten.',
@@ -31,6 +30,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Porträt: ein Bild deiner Heldin oder deines Helden in der Person-Sektion hochladen.',
       'Gruppen: ein gemeinsamer Bereich mit Gruppen-Inventar, Questlog, bekannten NPCs und Sitzungslog. Alle Mitglieder dürfen ihn bearbeiten; Änderungen der anderen erscheinen automatisch, sobald du wieder ins Fenster wechselst.',
       'Sichtbarkeit: du bestimmst selbst, welche Teile deines Charakters die übrigen Gruppenmitglieder sehen dürfen.',
+      'Farbthemen: über das Menü oben rechts das Aussehen umstellen — Rot, Wald, Königsblau, Amethyst, Bronze und Dunkel (Nachtmodus). Die Wahl bleibt pro Gerät gespeichert.',
       'Speichern & Sicherheit: alles wird automatisch gespeichert, es gibt tägliche Sicherungen, und jede Spielerin und jeder Spieler meldet sich mit eigenem Zugang an.',
       'Drucken & Export: alle Tabs als PDF ausgeben (je Tab eine Seite) oder den ganzen Charakter als Datei exportieren.',
     ],
