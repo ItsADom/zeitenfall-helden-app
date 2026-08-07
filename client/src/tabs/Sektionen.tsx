@@ -20,6 +20,7 @@ const COL_TYPES: { value: DynColType; label: string }[] = [
   { value: 'number', label: 'Zahl' },
   { value: 'bool', label: 'Ja/Nein' },
   { value: 'probe', label: 'Probe (berechnet)' },
+  { value: 'equipment', label: 'Ausrüstung (Behälter)' },
 ];
 
 let keyCounter = 0;
@@ -205,6 +206,15 @@ function SectionPanel({
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 } | null>(null);
   const cols = section.columns.filter((c) => c.key !== DYN_NOTIZ_KEY);
 
+  // Behälter-Funktion (📦 feste Fächer) nur zeigen, wenn die Sektion eine
+  // Ausrüstungs-Spalte hat — so bleiben normale Text-Tabellen unbehelligt.
+  // Zusätzlich einblenden, wenn eine Zeile schon Behälter ist (Altbestand ohne
+  // Ausrüstungs-Spalte bleibt bearbeitbar).
+  const hasEquipmentCol = cols.some((c) => c.type === 'equipment');
+  const showContainerCol = hasEquipmentCol || section.rows.some((r) => containerSlotCount(r) > 0);
+  // Zusatzspalten je Zeile: Notiz, optional Behälter, Löschen.
+  const extraCols = showContainerCol ? 3 : 2;
+
   // Sortier-Wert einer Zelle (Proben werden berechnet, Zahlen numerisch verglichen)
   const sortValue = (col: DynColumn, row: DynRow): number | string => {
     if (col.type === 'probe') return Number(computeProbeCell(attributes, col, row) ?? -Infinity);
@@ -316,7 +326,7 @@ function SectionPanel({
                     </th>
                   ))}
                   <th style={{ width: 40 }} />
-                  <th style={{ width: 40 }} />
+                  {showContainerCol && <th style={{ width: 40 }} />}
                   <th style={{ width: 40 }} />
                 </tr>
               </thead>
@@ -342,19 +352,21 @@ function SectionPanel({
                           {notiz ? '📝' : '✎'}
                         </button>
                       </td>
-                      <td>
-                        <button
-                          className={`small container-btn${slotCount > 0 ? ' active' : ''}`}
-                          title={
-                            slotCount > 0
-                              ? `Behälter mit ${slotCount} ${slotCount === 1 ? 'Fach' : 'Fächern'} — Anzahl ändern`
-                              : 'Als Behälter mit festen Fächern einrichten'
-                          }
-                          onClick={() => toggleCap(i)}
-                        >
-                          📦
-                        </button>
-                      </td>
+                      {showContainerCol && (
+                        <td>
+                          <button
+                            className={`small container-btn${slotCount > 0 ? ' active' : ''}`}
+                            title={
+                              slotCount > 0
+                                ? `Behälter mit ${slotCount} ${slotCount === 1 ? 'Fach' : 'Fächern'} — Anzahl ändern`
+                                : 'Als Behälter mit festen Fächern einrichten'
+                            }
+                            onClick={() => toggleCap(i)}
+                          >
+                            📦
+                          </button>
+                        </td>
+                      )}
                       <td>
                         <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
                           ✕
@@ -363,7 +375,7 @@ function SectionPanel({
                     </tr>,
                     openNotes.has(i) ? (
                       <tr key={`n${i}`} className="note-row">
-                        <td colSpan={cols.length + 3}>
+                        <td colSpan={cols.length + extraCols}>
                           <textarea
                             className="note-area"
                             rows={2}
@@ -377,7 +389,7 @@ function SectionPanel({
                     ) : null,
                     showDetail ? (
                       <tr key={`s${i}`} className="slot-row">
-                        <td colSpan={cols.length + 3}>
+                        <td colSpan={cols.length + extraCols}>
                           {capEdit.has(i) && (
                             <div className="slots-cap">
                               <label>
@@ -419,7 +431,7 @@ function SectionPanel({
                 })}
                 {section.rows.length === 0 && (
                   <tr>
-                    <td colSpan={cols.length + 3} className="muted">
+                    <td colSpan={cols.length + extraCols} className="muted">
                       Keine Einträge
                     </td>
                   </tr>
@@ -463,6 +475,8 @@ function Cell({
   if (col.type === 'bool') {
     return <input type="checkbox" checked={!!row[col.key]} onChange={(e) => onChange({ ...row, [col.key]: e.target.checked })} />;
   }
+  // 'equipment' verhält sich in der Zelle wie Text (Gegenstandsname); die
+  // Behälter-Fächer hängen an der Zeile und werden separat gerendert.
   return <TextInput value={String(row[col.key] ?? '')} onChange={(v) => onChange({ ...row, [col.key]: v })} />;
 }
 

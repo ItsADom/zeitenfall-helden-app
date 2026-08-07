@@ -7,8 +7,10 @@ import { erleichterung, probeExprZahl } from './rules.js';
 export type DynSectionType = 'table' | 'notes';
 
 // Spaltentypen: text/number/bool sind Eingaben, 'probe' wird aus einem
-// Attribut-Ausdruck (z. B. "FF+KL+GE") berechnet.
-export type DynColType = 'text' | 'number' | 'bool' | 'probe';
+// Attribut-Ausdruck (z. B. "FF+KL+GE") berechnet. 'equipment' verhält sich wie
+// Text, schaltet aber für die Sektion die Behälter-Funktion (feste Fächer je
+// Zeile) frei — normale Text-Tabellen bleiben so von den 📦-Bedienelementen frei.
+export type DynColType = 'text' | 'number' | 'bool' | 'probe' | 'equipment';
 
 export interface DynColumn {
   key: string; // stabile Kennung innerhalb der Sektion
@@ -90,7 +92,7 @@ export function normalizeColumn(raw: unknown): DynColumn | null {
   const key = String(c.key ?? '').trim();
   const label = String(c.label ?? '').trim();
   if (!key) return null;
-  const type: DynColType = (['text', 'number', 'bool', 'probe'] as const).includes(c.type as DynColType)
+  const type: DynColType = (['text', 'number', 'bool', 'probe', 'equipment'] as const).includes(c.type as DynColType)
     ? (c.type as DynColType)
     : 'text';
   const col: DynColumn = { key, label: label || key, type };
