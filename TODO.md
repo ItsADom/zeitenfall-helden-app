@@ -73,17 +73,21 @@
         --error-text). Werte = bisheriger Stand, also optisch unverändert. Bewusst NICHT
         tokenisiert: Münzfarben (.coin-* sind feste Materialfarben) und der @media-print-
         Block (Druck bleibt hell/schwarz auf weiß, unabhängig vom Theme).
-      - Phase 2 (offen): Mechanik bauen — data-theme + usePersistedState + Inline-Skript
-        + kleine Theme-Auswahl (Farb-Swatches) in der Kopfleiste neben „Abmelden".
-      - Phase 3 (offen): 4–5 Light-Themes + 1 Dark-Theme („Nacht") autoren. Identität
-        (warmes Pergament, heraldisch) halten, v. a. Akzent-Familie variieren: Rot
-        (Standard), Wald-Grün, Königsblau, Amethyst, Bronze/Sepia. Dark Mode = einfach
-        das Theme „nacht" (dunkle --bg/--panel/--text). Optional als Default
-        @media (prefers-color-scheme: dark), solange keine explizite Wahl getroffen ist.
-      - WICHTIG je Theme: funktionale Farben müssen lesbar bleiben (WCAG AA) —
-        --warn-*/--crit-* (niedrige LE/AU) und --computed-* sind Signale, nicht Deko.
-      - Kleiner Rest: zwei Inline-Styles in Sektionen.tsx (ColumnEditor-Panel-Hintergrund
-        #fbf8ee) laufen an den Tokens vorbei; bei Phase 2 auf var(--surface-sunken) ziehen.
+      - (PHASE 2 — DONE 2026-08-07) Mechanik + Auswahl gebaut: theme.ts (Registry +
+        useTheme-Hook über usePersistedState), ThemePicker (Farb-Swatches in der
+        Kopfleiste), data-theme am <html>, No-Flash-Inline-Skript in index.html.
+        Inline-Style in Sektionen.tsx (ColumnEditor) auf var(--surface-sunken) gezogen.
+      - (PHASE 3 — weitgehend DONE 2026-08-07) 5 Light-Themes + 1 Dark autoriert und
+        live geprüft: Rot (Standard), Wald, Königsblau, Amethyst, Bronze, Nacht (dunkel).
+        Nacht-Kontrast ok (heller Text auf dunklem Grund, > WCAG AA).
+      - Rest/optional (offen):
+         - Feinschliff der Theme-Farben nach echtem Blick am Tisch (reine Token-Werte
+           in styles.css, leicht änderbar).
+         - Kontrast-Audit je Theme, v. a. funktionale Töne (warn/crit/computed) — sind
+           Signale, nicht Deko; müssen in jedem Theme lesbar bleiben.
+         - optional: Default über @media (prefers-color-scheme: dark), solange keine
+           explizite Wahl getroffen ist.
+         - optional: Theme zusätzlich am Nutzerkonto spiegeln (geräteübergreifend).
 - print/PDF optimization (basic version works — je Tab eine Seite; these are refinements)
    - free-text inputs print EMPTY (only the labels show): Person/bio details, Ausrüstung,
      Inventar, Zauber/Fähigkeiten, Vorteile — everywhere TextInput is used. Plain <input>

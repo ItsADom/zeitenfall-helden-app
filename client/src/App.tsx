@@ -8,6 +8,8 @@ import AdminPage from './pages/Admin';
 import GroupPage from './pages/Group';
 import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
+import ThemePicker from './components/ThemePicker';
+import { useTheme } from './theme';
 
 interface AuthContextValue {
   user: UserInfo;
@@ -20,6 +22,9 @@ export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  // Farbthema app-weit anwenden (auch auf der Anmeldeseite). Muss vor den
+  // frühen returns stehen, damit die Hook-Reihenfolge stabil bleibt.
+  const [theme, setTheme] = useTheme();
 
   const refresh = () => {
     apiGet<UserInfo>('/api/me')
@@ -47,6 +52,7 @@ export default function App() {
         {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
         <Link to="/changelog">Änderungen</Link>
         <div className="spacer" />
+        <ThemePicker theme={theme} onChange={setTheme} />
         <span>
           {user.displayName} {user.isGm ? '(Spielleiter)' : ''}
         </span>

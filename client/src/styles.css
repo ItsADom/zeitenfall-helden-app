@@ -40,6 +40,102 @@
   --error-text: #a3241a; /* Fehlermeldungen */
 }
 
+/* ---------- Farbthemen ----------
+   Jedes Theme überschreibt nur die nötigen Token; 'rot' = Standard (:root, ohne
+   Block). Die hellen Themes tauschen v. a. die Akzent-Familie und behalten die
+   warme Pergament-Fläche; 'nacht' definiert zusätzlich Flächen/Text/Ränder um.
+   Funktionale Toene (warn, crit, computed) bleiben bewusst lesbar. */
+:root[data-theme='wald'] {
+  --accent: #2f5d3a;
+  --accent-dark: #244a2d;
+  --accent-soft: #eaf1ea;
+  --header-grad-a: #234a2c;
+  --header-grad-b: #3f7a4e;
+  --accent-disabled: #b9c4b3;
+}
+:root[data-theme='koenigsblau'] {
+  --accent: #2f4a7a;
+  --accent-dark: #243a61;
+  --accent-soft: #e9eef6;
+  --header-grad-a: #223a63;
+  --header-grad-b: #3f60a0;
+  --accent-disabled: #b6bccb;
+}
+:root[data-theme='amethyst'] {
+  --accent: #5e3a78;
+  --accent-dark: #4a2d61;
+  --accent-soft: #f0eaf5;
+  --header-grad-a: #4a2d61;
+  --header-grad-b: #7d4fa0;
+  --accent-disabled: #c2b6cb;
+}
+:root[data-theme='bronze'] {
+  --accent: #8a5a2b;
+  --accent-dark: #6f4720;
+  --accent-soft: #f6efe3;
+  --header-grad-a: #6f4720;
+  --header-grad-b: #a8763a;
+  --accent-disabled: #cabfa8;
+}
+:root[data-theme='nacht'] {
+  --bg: #17140f;
+  --panel: #221d16;
+  --panel-hi: #2a241b;
+  --border: #3a3226;
+  --border-strong: #4a4030;
+  --border-soft: #322b20;
+  --border-hover: #5a4f3b;
+  --text: #ece3d2;
+  --muted: #a99e86;
+  --input-bg: #1c1811;
+  --surface-head: #262019;
+  --surface-hover: #2b2519;
+  --surface-hover-strong: #332a1c;
+  --surface-sunken: #201b14;
+  --computed-bg: #2e2717;
+  --computed-text: #d8c48c;
+  --accent: #c2564a;
+  --accent-dark: #a5433a;
+  --accent-soft: #33231f;
+  --accent-disabled: #4a4236;
+  --header-grad-a: #5a1d24;
+  --header-grad-b: #8a2f3a;
+  --on-accent: #ffffff;
+  --warn-soft: #3a2f1c;
+  --warn-line: #d69a4a;
+  --crit-soft: #3a221c;
+  --crit-line: #e0705f;
+  --mastery: #e0a63a;
+  --error-text: #e0705f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+
+/* Farbthema-Auswahl in der Kopfleiste: kleine runde Farbpunkte */
+.theme-picker {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+}
+.theme-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 1px solid rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+.theme-swatch:hover {
+  transform: scale(1.18);
+}
+.theme-swatch.active {
+  border-color: var(--on-accent);
+  box-shadow: 0 0 0 2px var(--on-accent);
+}
+
 * {
   box-sizing: border-box;
 }

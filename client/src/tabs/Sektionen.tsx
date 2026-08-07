@@ -519,7 +519,7 @@ function ColumnEditor({
   };
 
   return (
-    <div className="panel" style={{ background: '#fbf8ee', marginBottom: 10 }}>
+    <div className="panel" style={{ background: 'var(--surface-sunken)', marginBottom: 10 }}>
       <strong>Spalten</strong>
       <table className="sheet" style={{ marginTop: 6 }}>
         <thead>
