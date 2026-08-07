@@ -361,7 +361,10 @@ export function saveSection(charId: number, section: string, data: unknown): voi
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const r of rows) {
-        stmt.run(charId, num(r.talentId), num(r.taw), num(r.at), num(r.pa), num(r.bl), str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus));
+        // TaW ist bei 100 gedeckelt (Meisterschaft). Oberfläche kappt bereits beim
+        // Eintippen; hier nochmal, weil die API auch direkt erreichbar ist.
+        const taw = Math.min(100, num(r.taw));
+        stmt.run(charId, num(r.talentId), taw, num(r.at), num(r.pa), num(r.bl), str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus));
       }
       return;
     }

@@ -124,7 +124,7 @@ function KampfTable({
           <Mastery taw={v?.taw ?? 0} skill100={e.skill100} />
         </td>
         <td className="num">
-          <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />
+          <NumInput value={v?.taw ?? 0} max={100} onChange={(x) => setValue(e.id, { taw: x })} />
         </td>
         <td className="num">
           <NumInput value={v?.at ?? 0} onChange={(x) => setValue(e.id, { at: x })} />
@@ -245,7 +245,7 @@ function NormalTable({
                   <td className="muted">{e.probe || '—'}</td>
                   <td className="computed">{probe ? talentProbeZahl(data.attributes, probe, taw) : '—'}</td>
                   <td className="num">
-                    <NumInput value={taw} onChange={(x) => setValue(e.id, { taw: x })} />
+                    <NumInput value={taw} max={100} onChange={(x) => setValue(e.id, { taw: x })} />
                   </td>
                   <td className="computed">{erleichterung(taw)}</td>
                   <td>
