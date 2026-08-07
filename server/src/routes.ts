@@ -76,6 +76,26 @@ function characterAccess(user: { id: number; isGm: boolean }, char: CharRow): Ac
   return null;
 }
 
+// Entwickler-Umschalter „Ansehen als": erlaubt einem Spielleiter, einen
+// Charakter aus Sicht eines anderen Nutzers zu laden (Vorschau von
+// Zusammenfassung bzw. „kein Zugriff"). Standardmäßig nur außerhalb der
+// Produktion aktiv; per DEV_VIEW_AS=1 explizit einschaltbar. Wirkt rein lesend:
+// er wählt nur die Ansicht, verleiht aber keine Schreibrechte.
+const DEV_VIEW_AS = process.env.NODE_ENV !== 'production' || process.env.DEV_VIEW_AS === '1';
+
+// Ermittelt den „Blickwinkel"-Nutzer für einen Request: normal req.user, im
+// Ansehen-als-Modus (nur Spielleiter, nur wenn erlaubt) der gewählte Nutzer.
+function viewerFor(req: import('express').Request): { viewer: { id: number; isGm: boolean }; viewAs: { id: number; name: string } | null } {
+  const asUserId = Number(req.query.asUser);
+  if (DEV_VIEW_AS && req.user!.isGm && asUserId && asUserId !== req.user!.id) {
+    const target = db.prepare('SELECT id, display_name, is_gm FROM users WHERE id = ?').get(asUserId) as
+      | { id: number; display_name: string; is_gm: number }
+      | undefined;
+    if (target) return { viewer: { id: target.id, isGm: !!target.is_gm }, viewAs: { id: target.id, name: target.display_name } };
+  }
+  return { viewer: { id: req.user!.id, isGm: req.user!.isGm }, viewAs: null };
+}
+
 const SECTION_IDS = new Set(['bio', 'meta', 'attributes', 'baseValues', 'resources', 'talents', 'languages', ...LIST_SECTION_IDS]);
 
 // --- Auth ---
@@ -102,7 +122,7 @@ api.post('/logout', (req, res) => {
 });
 
 api.get('/me', requireAuth, (req, res) => {
-  res.json(req.user);
+  res.json({ ...req.user, devViewAs: DEV_VIEW_AS });
 });
 
 api.put('/me/password', requireAuth, (req, res) => {
@@ -294,8 +314,15 @@ api.put('/groups/:id/sections/:sid/rows', requireAuth, (req, res) => {
 
 api.get('/characters/:id', requireAuth, (req, res) => {
   const char = getChar(Number(req.params.id));
-  const access = char ? characterAccess(req.user!, char) : null;
-  if (!char || !access) {
+  if (!char) {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  const { viewer, viewAs } = viewerFor(req);
+  const access = characterAccess(viewer, char);
+  // Ohne Ansehen-als bleibt „kein Zugriff" ein 404 (nichts verraten). Im
+  // Ansehen-als-Modus ist es dagegen ein gültiges Vorschau-Ergebnis.
+  if (!access && !viewAs) {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
@@ -309,11 +336,15 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     groupId: char.group_id,
     groupName: group?.name ?? '',
   };
-  if (access === 'summary') {
-    res.json({ character: info, access, summary: buildSummary(char.id) });
+  if (!access) {
+    res.json({ character: info, access: null, viewAs });
     return;
   }
-  res.json({ character: info, access, data: loadFullCharacter(char.id) });
+  if (access === 'summary') {
+    res.json({ character: info, access, summary: buildSummary(char.id), viewAs });
+    return;
+  }
+  res.json({ character: info, access, data: loadFullCharacter(char.id), viewAs });
 });
 
 api.put('/characters/:id/section/:section', requireAuth, (req, res) => {

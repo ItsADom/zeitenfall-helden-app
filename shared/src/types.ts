@@ -206,6 +206,9 @@ export interface UserInfo {
   username: string;
   displayName: string;
   isGm: boolean;
+  // Nur im Entwicklungs-/Opt-in-Modus gesetzt: erlaubt dem Spielleiter die
+  // „Ansehen als"-Vorschau von Charakteren aus Sicht anderer Nutzer.
+  devViewAs?: boolean;
 }
 
 export interface GroupInfo {

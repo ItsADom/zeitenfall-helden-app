@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { useAuth } from '../App';
 import type { Row } from '../components/inputs';
 import ContentTabView from '../tabs/Sektionen';
 import UebersichtTab from '../tabs/Uebersicht';
@@ -73,6 +74,7 @@ const BUILTIN_TABS = ['Übersicht', 'Heldenbrief', 'Talente', 'Waffen', 'Sprache
 export default function CharacterPage() {
   const { id } = useParams();
   const charId = Number(id);
+  const { user } = useAuth();
   const [info, setInfo] = useState<CharacterInfo | null>(null);
   const [access, setAccess] = useState<'edit' | 'summary' | null>(null);
   const [data, setData] = useState<FullData | null>(null);
@@ -83,20 +85,50 @@ export default function CharacterPage() {
   const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);
 
+  // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID.
+  const canViewAs = !!user.isGm && !!user.devViewAs;
+  const [viewAs, setViewAs] = useState(0);
+  const [viewUsers, setViewUsers] = useState<{ id: number; displayName: string }[]>([]);
+
+  useEffect(() => {
+    if (canViewAs) apiGet<{ id: number; displayName: string }[]>('/api/admin/users').then(setViewUsers).catch(() => {});
+  }, [canViewAs]);
+
   useEffect(() => {
     setData(null);
     setSummary(null);
     setError('');
-    apiGet<{ character: CharacterInfo; access: 'edit' | 'summary'; data?: FullData; summary?: unknown }>(`/api/characters/${charId}`)
+    const q = viewAs ? `?asUser=${viewAs}` : '';
+    apiGet<{ character: CharacterInfo; access: 'edit' | 'summary' | null; data?: FullData; summary?: unknown }>(
+      `/api/characters/${charId}${q}`,
+    )
       .then((res) => {
         setInfo(res.character);
         setAccess(res.access);
-        if (res.data) setData(res.data);
-        if (res.summary) setSummary(res.summary);
+        setData(res.data ?? null);
+        setSummary(res.summary ?? null);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     apiGet<Catalogs>('/api/catalogs').then(setCatalogs);
-  }, [charId]);
+  }, [charId, viewAs]);
+
+  const viewAsBar = canViewAs ? (
+    <div className="viewas-bar">
+      <span className="viewas-tag">DEV</span>
+      <label>Ansehen als</label>
+      <select value={viewAs} onChange={(e) => setViewAs(Number(e.target.value))}>
+        <option value={0}>— normal ({user.displayName})</option>
+        {viewUsers
+          .filter((u) => u.id !== user.id)
+          .map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.displayName}
+            </option>
+          ))}
+      </select>
+      {viewAs !== 0 && <span className="muted">Sicht: {access ?? 'kein Zugriff'}</span>}
+    </div>
+  ) : null;
 
   // Automatisches Speichern geänderter Sektionen (entprellt)
   const dirty = useRef(new Set<string>());
@@ -175,7 +207,23 @@ export default function CharacterPage() {
   if (!info || !catalogs || (access === 'edit' && !data)) return <p className="muted">Lade…</p>;
 
   if (access === 'summary') {
-    return <SummaryView info={info} summary={summary as never} />;
+    return (
+      <>
+        {viewAsBar}
+        <SummaryView info={info} summary={summary as never} />
+      </>
+    );
+  }
+
+  // Kein Zugriff — nur im Ansehen-als-Modus erreichbar (sonst liefert der Server 404).
+  if (access !== 'edit') {
+    return (
+      <>
+        {viewAsBar}
+        <h1>{info.name}</h1>
+        <p className="muted">Dieser Nutzer hätte keinen Zugriff auf diesen Charakter.</p>
+      </>
+    );
   }
 
   const tabs = data!.tabs;
@@ -225,6 +273,7 @@ export default function CharacterPage() {
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
       <div className="screen-only">
+        {viewAsBar}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
           <h1>{info.name}</h1>
           <span className="muted">
