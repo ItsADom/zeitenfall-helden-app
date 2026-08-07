@@ -33,6 +33,9 @@
    - examples:
       - what attributes can be increased per weapon level
       - what attributes can be increased per spell level
+   - this has to be separated from the catalgoues - different kind of list
+- catalogue for "Liturgien" (has to wait until the catalogue-content ist finished)
+   - spells need to be selectable as a Liturgie, then select from a fixed list of corresponding skills
 
 ## Optional
 
