@@ -1042,6 +1042,13 @@ main {
 .coin-iron   { --coin-bg: #edeef0; --coin-edge: #6c7175; --coin-hi: #c3c8cc; }
 .coin-bank   { --coin-bg: var(--accent-soft); --coin-edge: var(--accent); --coin-hi: #e7b6bc; }
 
+/* Nachtmodus: die hellen Material-Flächen würden das Panel überstrahlen und den
+   hellen Text unlesbar machen. Fläche daher dunkel halten — die Münz-Identität
+   bleibt über die Scheibe und die farbige linke Kante erhalten. */
+:root[data-theme='nacht'] .coin {
+  background: var(--surface-head);
+}
+
 .muted {
   color: var(--muted);
 }
