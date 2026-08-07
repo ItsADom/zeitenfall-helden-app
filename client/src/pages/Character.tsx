@@ -385,6 +385,9 @@ export default function CharacterPage() {
             onDirtyChange={(d) => {
               dynDirty.current = d;
             }}
+            onSectionsChange={(secs) =>
+              setTabs((t) => t.map((x) => (x.id === activeContentTab.id ? { ...x, sections: secs } : x)))
+            }
             onRenameTab={(name) => renameTab(activeContentTab.id, name)}
             onDeleteTab={() => deleteTab(activeContentTab.id)}
             onMoveTab={(dir) => moveTab(tabs.indexOf(activeContentTab), dir)}

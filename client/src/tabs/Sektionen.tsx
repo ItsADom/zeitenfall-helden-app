@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Attributes } from '@shared/types';
 import {
   computeProbeCell,
@@ -35,6 +35,7 @@ export default function ContentTabView({
   showVisibility = true,
   allowProbe = true,
   onDirtyChange,
+  onSectionsChange,
   onRenameTab,
   onDeleteTab,
   onMoveTab,
@@ -50,6 +51,9 @@ export default function ContentTabView({
   // Meldet dem Eltern-Element, ob noch ungespeicherte Zeilen anstehen — damit
   // eine Hintergrund-Aktualisierung die laufende Bearbeitung nicht überschreibt.
   onDirtyChange?: (dirty: boolean) => void;
+  // Meldet geänderte Sektionen/Zeilen ans Eltern-Element, damit dessen tab-Daten
+  // aktuell bleiben — sonst zeigt ein Remount (Tab-Wechsel) den veralteten Stand.
+  onSectionsChange?: (sections: DynSection[]) => void;
   onRenameTab: (name: string) => void;
   onDeleteTab: () => void;
   onMoveTab: (dir: -1 | 1) => void;
@@ -60,6 +64,20 @@ export default function ContentTabView({
   // Sektionen mit noch nicht gespeicherten Zeilen; solange nicht leer, gilt der
   // Tab als „dirty" und eine Hintergrund-Aktualisierung wird ausgesetzt.
   const pending = useRef<Set<number>>(new Set());
+
+  // Änderungen ans Eltern-Element hochreichen, damit dessen tab-Daten aktuell
+  // bleiben. Der erste Lauf (Initialstand) wird übersprungen — nur echte
+  // Änderungen zählen. So zeigt ein Remount (Tab-Wechsel) den aktuellen Stand.
+  const firstSync = useRef(true);
+  useEffect(() => {
+    if (firstSync.current) {
+      firstSync.current = false;
+      return;
+    }
+    onSectionsChange?.(sections);
+    // onSectionsChange bewusst nicht in den Deps: nur auf Sektions-Änderungen reagieren
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sections]);
 
   const patchSection = (id: number, patch: Partial<DynSection>) =>
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));

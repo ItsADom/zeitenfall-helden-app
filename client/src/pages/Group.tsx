@@ -144,6 +144,9 @@ export default function GroupPage() {
           onDirtyChange={(d) => {
             dynDirty.current = d;
           }}
+          onSectionsChange={(secs) =>
+            setTabs((t) => t.map((x) => (x.id === current.id ? { ...x, sections: secs } : x)))
+          }
           onRenameTab={(name) => renameTab(current.id, name)}
           onDeleteTab={() => deleteTab(current.id)}
           onMoveTab={(dir) => moveTab(tabs.indexOf(current), dir)}
