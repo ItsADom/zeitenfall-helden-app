@@ -134,45 +134,43 @@ function makeDragon(w: number, h: number): Draw {
   };
 }
 
-// Gareth: kurze, schnelle Metall-Glanzlichter, die immer wieder woanders aufblitzen
-function makeGlints(w: number, h: number): Draw {
-  const N = Math.min(7, Math.max(3, Math.round(w / 210)));
-  const mk = () => ({ x: rand(w * 0.05, w * 0.95), y: rand(h * 0.2, h * 0.85), ang: rand(-0.7, 0.7), len: rand(12, 30), life: rand(420, 820), delay: rand(120, 1500), speed: rand(0.04, 0.1), born: 0 });
-  const gs = Array.from({ length: N }, () => ({ ...mk(), born: -rand(0, 2200) }));
+// Gareth: goldene Lichtsäulen wie Reflexe auf poliertem Metall — kurze, schnelle
+// Sweeps, die an wechselnden Stellen aufblitzen; dazu feine goldene Motes.
+function makeShimmer(w: number, h: number): Draw {
+  const motes = Array.from({ length: Math.min(18, Math.max(6, Math.round(w / 70))) }, () => ({ x: rand(0, w), y: rand(0, h), r: rand(0.8, 1.8), spd: rand(3, 8), ph: rand(0, 6.28) }));
+  const spawn = () => ({ x0: rand(w * 0.08, w * 0.92), dir: Math.random() < 0.5 ? -1 : 1, dist: rand(w * 0.08, w * 0.2), dur: rand(480, 820), gap: rand(500, 1600), half: rand(26, 48), born: 0 });
+  const N = Math.min(3, Math.max(1, Math.round(w / 450)));
+  const cols = Array.from({ length: N }, () => ({ ...spawn(), born: -rand(0, 1500) }));
   return (ctx, t, W, H) => {
-    ctx.lineCap = 'round';
-    for (const g of gs) {
-      let age = t - g.born;
-      if (age > g.life + g.delay) {
-        Object.assign(g, mk());
-        g.born = t;
+    for (const c of cols) {
+      let age = t - c.born;
+      if (age > c.dur + c.gap) {
+        Object.assign(c, spawn());
+        c.born = t;
         age = 0;
       }
-      const aa = age - g.delay;
-      if (aa < 0) continue;
-      const env = Math.sin(Math.PI * (aa / g.life)); // 0 → 1 → 0 (aufblitzen/verlöschen)
-      const dx = Math.cos(g.ang);
-      const dy = Math.sin(g.ang);
-      const tr = aa * g.speed;
-      const x = g.x + dx * tr;
-      const y = g.y + dy * tr;
-      const grad = ctx.createLinearGradient(x - dx * g.len, y - dy * g.len, x + dx * g.len, y + dy * g.len);
-      grad.addColorStop(0, 'rgba(255,240,205,0)');
-      grad.addColorStop(0.5, `rgba(255,246,220,${0.6 * env})`);
-      grad.addColorStop(1, 'rgba(255,240,205,0)');
-      ctx.strokeStyle = grad;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x - dx * g.len, y - dy * g.len);
-      ctx.lineTo(x + dx * g.len, y + dy * g.len);
-      ctx.stroke();
-      ctx.globalAlpha = 0.85 * env;
-      ctx.fillStyle = 'rgba(255,250,232,1)';
-      ctx.beginPath();
-      ctx.arc(x, y, 1.6, 0, 6.28);
-      ctx.fill();
-      ctx.globalAlpha = 1;
+      if (age <= c.dur) {
+        const p = age / c.dur;
+        const env = Math.sin(Math.PI * p); // sanft auf- und abblenden
+        const x = c.x0 + c.dir * c.dist * p; // kurzer, schneller Weg
+        const g = ctx.createLinearGradient(x - c.half, 0, x + c.half, 0);
+        g.addColorStop(0, 'rgba(255,244,215,0)');
+        g.addColorStop(0.5, `rgba(255,247,224,${0.3 * env})`);
+        g.addColorStop(1, 'rgba(255,244,215,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(x - c.half, 0, c.half * 2, H);
+      }
     }
+    ctx.fillStyle = 'rgba(255,235,190,1)';
+    ctx.globalAlpha = 0.13;
+    for (const m of motes) {
+      const x = wrap(m.x + t * 0.001 * m.spd, W + 6);
+      const y = m.y + Math.sin(t * 0.0009 + m.ph) * 3;
+      ctx.beginPath();
+      ctx.arc(x, y, m.r, 0, 6.28);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   };
 }
 
@@ -216,7 +214,7 @@ function makeEffect(theme: string, w: number, h: number): Draw | null {
     case 'amethyst':
       return makeDragon(w, h);
     case 'bronze':
-      return makeGlints(w, h);
+      return makeShimmer(w, h);
     case 'nacht':
       return makeFog(w, h);
     default:
