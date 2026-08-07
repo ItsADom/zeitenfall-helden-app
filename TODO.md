@@ -54,6 +54,36 @@
 
 ## Low-Prio
 
+- color themes + dark mode (ein Mechanismus deckt beides ab)
+   - CONCEPT (2026-08-07):
+      - Grundlage steht schon: styles.css definiert die ganze Palette als CSS-Variablen
+        in :root. Ein Theme = ein benannter Satz Variablen-Overrides; alles was
+        var(--…) nutzt, färbt sich automatisch um (reines CSS, kein React-Rerender).
+      - Mechanik: Overrides über ein data-theme-Attribut am <html> scopen
+        (:root[data-theme="wald"] { --accent: …; }). Umschalten = eine Zeile:
+        document.documentElement.dataset.theme = 'wald'. Sofort, ohne Reload.
+      - Auswahl merken: clientseitig via bestehendem usePersistedState('theme', …)
+        (localStorage, pro Gerät — richtig für eine Anzeige-Präferenz, kein Server nötig).
+        Später optional zusätzlich am Nutzerkonto spiegeln (geräteübergreifend).
+      - Flash vermeiden: data-theme in einem winzigen Inline-Skript im <head> von
+        client/index.html VOR dem React-Mount aus localStorage setzen.
+      - (PHASE 1 — DONE 2026-08-07) Rest-Hardcodes in styles.css tokenisiert: ~14 neue
+        :root-Variablen (--on-accent, --header-grad-a/-b, --panel-hi, --surface-head/
+        -hover/-hover-strong/-sunken, --border-soft/-hover, --accent-disabled, --mastery,
+        --error-text). Werte = bisheriger Stand, also optisch unverändert. Bewusst NICHT
+        tokenisiert: Münzfarben (.coin-* sind feste Materialfarben) und der @media-print-
+        Block (Druck bleibt hell/schwarz auf weiß, unabhängig vom Theme).
+      - Phase 2 (offen): Mechanik bauen — data-theme + usePersistedState + Inline-Skript
+        + kleine Theme-Auswahl (Farb-Swatches) in der Kopfleiste neben „Abmelden".
+      - Phase 3 (offen): 4–5 Light-Themes + 1 Dark-Theme („Nacht") autoren. Identität
+        (warmes Pergament, heraldisch) halten, v. a. Akzent-Familie variieren: Rot
+        (Standard), Wald-Grün, Königsblau, Amethyst, Bronze/Sepia. Dark Mode = einfach
+        das Theme „nacht" (dunkle --bg/--panel/--text). Optional als Default
+        @media (prefers-color-scheme: dark), solange keine explizite Wahl getroffen ist.
+      - WICHTIG je Theme: funktionale Farben müssen lesbar bleiben (WCAG AA) —
+        --warn-*/--crit-* (niedrige LE/AU) und --computed-* sind Signale, nicht Deko.
+      - Kleiner Rest: zwei Inline-Styles in Sektionen.tsx (ColumnEditor-Panel-Hintergrund
+        #fbf8ee) laufen an den Tokens vorbei; bei Phase 2 auf var(--surface-sunken) ziehen.
 - print/PDF optimization (basic version works — je Tab eine Seite; these are refinements)
    - free-text inputs print EMPTY (only the labels show): Person/bio details, Ausrüstung,
      Inventar, Zauber/Fähigkeiten, Vorteile — everywhere TextInput is used. Plain <input>
