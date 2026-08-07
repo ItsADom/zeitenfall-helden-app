@@ -111,29 +111,82 @@
   --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
-/* Farbthema-Auswahl in der Kopfleiste: kleine runde Farbpunkte */
-.theme-picker {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-right: 4px;
+/* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
+.theme-dropdown {
+  position: relative;
 }
-.theme-swatch {
-  width: 18px;
-  height: 18px;
-  padding: 0;
+.theme-dd-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  color: var(--on-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s ease;
+}
+.theme-dd-trigger:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.theme-dd-caret {
+  font-size: 10px;
+  opacity: 0.85;
+}
+.theme-dot {
+  width: 14px;
+  height: 14px;
+  flex: none;
   border-radius: 50%;
   background: var(--sw);
   border: 1px solid rgba(0, 0, 0, 0.3);
+}
+.theme-dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  margin: 0;
+  padding: 4px;
+  min-width: 210px;
+  list-style: none;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+.theme-dd-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
   cursor: pointer;
-  transition: transform 0.1s ease;
 }
-.theme-swatch:hover {
-  transform: scale(1.18);
+.theme-dd-option:hover {
+  background: var(--surface-hover);
 }
-.theme-swatch.active {
-  border-color: var(--on-accent);
-  box-shadow: 0 0 0 2px var(--on-accent);
+.theme-dd-option.active {
+  background: var(--accent-soft);
+}
+.theme-dd-name {
+  flex: 1;
+  white-space: nowrap;
+}
+.theme-dd-check {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 * {
