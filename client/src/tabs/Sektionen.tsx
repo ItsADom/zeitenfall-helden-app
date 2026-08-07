@@ -67,7 +67,7 @@ export default function ContentTabView({
       } catch (e) {
         setSaveState(`Fehler: ${e instanceof Error ? e.message : e}`);
       }
-    }, 700);
+    }, 1500);
     timers.current.set(section.id, t);
   };
 

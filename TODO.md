@@ -32,11 +32,11 @@
       - Optional later: read-only 'Verlauf' panel per char (GM sees all, owner sees own).
 
 - saving concept — optimization pass (findings 2026-08-07; low-risk, do alongside audit log)
-   - debounce is aggressive for how expensive each save is. Fixed sections flush at
-     800ms (Character.tsx:187), dyn sections at 700ms (Sektionen.tsx:70). Every flush is
-     a WHOLE-section rewrite (saveSection / saveDynRows do DELETE + re-INSERT), not a
-     targeted update. Bump both to ~1500ms: roughly halves flush count during editing,
-     UX still reads as auto-saved, data-loss window only ~1.5s.
+   - (done 2026-08-07) debounce bumped 800ms/700ms -> 1500ms both paths
+     (Character.tsx, Sektionen.tsx) to cut data usage — every flush is a WHOLE-section
+     rewrite (saveSection / saveDynRows do DELETE + re-INSERT). NOTE: this widened the
+     data-loss window to ~1.5s, so the beforeunload/unmount flush below is now more
+     important, not less.
    - no-op saves still do the full DELETE+INSERT even when nothing changed. Add an
      empty-diff / unchanged check server-side to skip the write entirely (same check the
      audit log needs — build once, use for both).

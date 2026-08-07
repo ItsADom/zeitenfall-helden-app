@@ -184,7 +184,7 @@ export default function CharacterPage() {
       });
       dirty.current.add(section);
       window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => void flush(), 800);
+      timer.current = window.setTimeout(() => void flush(), 1500);
     },
     [flush],
   );
