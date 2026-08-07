@@ -46,9 +46,11 @@
   /* Wappen-Sigel im Sektions-Marker — je Theme eine Region Aventuriens.
      Wird per CSS-mask eingefärbt (nimmt --accent an), Form kommt aus dem SVG. */
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 20 12 12 22 4 12Z'/%3E%3C/svg%3E"); /* Khôm: Raute */
-  /* Wellen-Motiv in der Kopfleiste: helle/dunkle Bänder, die über den Theme-
-     Verlauf laufen und dessen Farbe aufnehmen — gibt der Leiste Bewegung/Tiefe. */
-  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1440 70' preserveAspectRatio='none'%3E%3Cpath d='M0 34 C240 14 480 52 720 32 960 12 1200 52 1440 32 L1440 70 L0 70Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3Cpath d='M0 47 C240 29 480 63 720 45 960 27 1200 63 1440 45 L1440 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 55 C240 40 480 69 720 54 960 39 1200 69 1440 54 L1440 70 L0 70Z' fill='%23ffffff' fill-opacity='0.10'/%3E%3C/svg%3E");
+  /* Kopfleisten-Motiv je Theme: ein nahtlos kachelndes 240px-Band (helle/dunkle
+     SVG-Formen), das über den Verlauf läuft und langsam driftet (--banner-drift).
+     Standard = Khôm: sanfte Wüsten-Dünen. */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 46 C80 38 160 54 240 46 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3Cpath d='M0 55 C80 49 160 61 240 55 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 60 C60 56 180 64 240 60 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.08'/%3E%3C/svg%3E");
+  --banner-drift: 45s;
 }
 
 /* ---------- Farbthemen ----------
@@ -68,6 +70,8 @@
   --computed-bg: #eef3ea;
   --computed-text: #46583a;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6 7 5 16 12 22 19 16 18 7 12 2Z'/%3E%3C/svg%3E"); /* Bornland: Blatt */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 52 Q30 40 60 52 T120 52 T180 52 T240 52 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.06'/%3E%3Cpath d='M0 58 Q30 48 60 58 T120 58 T180 58 T240 58 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.045'/%3E%3C/svg%3E"); /* Bornland: sanfte Hügel */
+  --banner-drift: 38s;
 }
 :root[data-theme='koenigsblau'] {
   --accent: #2f4a7a;
@@ -81,6 +85,8 @@
   --computed-bg: #e9eef6;
   --computed-text: #3d4a63;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C12 2 5 11 5 15.5 5 19.6 8.1 22 12 22 15.9 22 19 19.6 19 15.5 19 11 12 2 12 2Z'/%3E%3C/svg%3E"); /* Thorwal: Tropfen */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 34 C40 20 80 20 120 34 C160 48 200 48 240 34 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.06'/%3E%3Cpath d='M0 44 C40 30 80 30 120 44 C160 58 200 58 240 44 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 50 C40 38 80 38 120 50 C160 62 200 62 240 50 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.10'/%3E%3C/svg%3E"); /* Thorwal: Meereswellen */
+  --banner-drift: 22s;
 }
 :root[data-theme='amethyst'] {
   --accent: #5e3a78;
@@ -94,6 +100,8 @@
   --computed-bg: #f0ecf6;
   --computed-text: #574a66;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3 21.5 20.5 2.5 20.5Z'/%3E%3C/svg%3E"); /* Drachensteine: Schuppe/Dreieck */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 40 L30 56 L60 40 L90 56 L120 40 L150 56 L180 40 L210 56 L240 40 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 50 L30 32 L60 50 L90 32 L120 50 L150 32 L180 50 L210 32 L240 50 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E"); /* Drachensteine: gezackte Gipfel */
+  --banner-drift: 30s;
 }
 :root[data-theme='bronze'] {
   --accent: #8a5a2b;
@@ -107,6 +115,8 @@
   --computed-bg: #f5efe0;
   --computed-text: #6d5a2e;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 14.6 8.6 21.8 9.2 16.2 13.9 18 21 12 17.1 6 21 7.8 13.9 2.2 9.2 9.4 8.6Z'/%3E%3C/svg%3E"); /* Gareth: Stern */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 52 H240 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.04'/%3E%3Cpath d='M0 48 H30 V40 H60 V48 H90 V40 H120 V48 H150 V40 H180 V48 H210 V40 H240 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E"); /* Gareth: Zinnen */
+  --banner-drift: 40s;
 }
 :root[data-theme='nacht'] {
   --bg: #17140f;
@@ -143,6 +153,8 @@
   --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
   --bg-wash: rgba(194, 86, 74, 0.06);
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 3A9 9 0 1 0 21 16.5 7.2 7.2 0 1 1 15.5 3Z'/%3E%3C/svg%3E"); /* Schattenlande: Mondsichel */
+  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 42 C80 36 160 48 240 42 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.03'/%3E%3Cpath d='M0 54 C80 48 160 60 240 54 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3C/svg%3E"); /* Schattenlande: ziehender Nebel */
+  --banner-drift: 60s;
 }
 
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
@@ -280,10 +292,19 @@ header.topbar {
   gap: 20px;
   padding: 10px 20px;
   background:
-    var(--banner-motif) 0 0 / 100% 100% no-repeat,
-    linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
+    var(--banner-motif) 0 100% / 240px 100% repeat-x,
+    linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%) no-repeat;
   color: var(--on-accent);
   box-shadow: 0 2px 12px color-mix(in srgb, var(--accent) 35%, transparent);
+  /* Motiv langsam seitwärts ziehen lassen (eine Kachel = 240px = nahtlose Schleife) */
+  animation: bannerDrift var(--banner-drift, 40s) linear infinite;
+}
+@keyframes bannerDrift {
+  from { background-position: 0 100%, 0 0; }
+  to { background-position: -240px 100%, 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  header.topbar { animation: none; }
 }
 header.topbar a {
   color: var(--on-accent);
