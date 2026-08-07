@@ -5,6 +5,13 @@
   (setzt SECURE_COOKIES=1 → Sitzungs-Cookie nur über HTTPS). Für lokale
   http://localhost-Tests `npm start`, sonst schlägt der Login fehl.
 
+## High-Prio
+
+- more pages at the top-bar
+   - "Gruppen" showing the user's groups
+   - "Charaktere" showing the user's characters
+   - "Heldenverwaltung" needs renaming. something that reflects the showing of every group and characters
+
 ## Mid-Prio
 
 - audit log on characters (on hold until community testing + feedback)

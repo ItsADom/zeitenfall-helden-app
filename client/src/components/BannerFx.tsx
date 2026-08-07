@@ -159,8 +159,13 @@ function makeDragon(w: number, h: number): Draw {
 // rechts über die Leiste zieht — dazu feine goldene Motes.
 function makeShimmer(w: number, h: number): Draw {
   const motes = Array.from({ length: Math.min(18, Math.max(6, Math.round(w / 70))) }, () => ({ x: rand(0, w), y: rand(0, h), r: rand(0.8, 1.8), spd: rand(3, 8), ph: rand(0, 6.28) }));
-  // immer von links nach rechts, ruhiges Tempo, mehrere Sekunden Pause dazwischen
-  const spawn = () => ({ x0: rand(w * 0.02, w * 0.45), dist: rand(w * 0.16, w * 0.34), dur: rand(750, 1150), gap: rand(2600, 4600), half: rand(30, 52), born: 0 });
+  // kurze, zügige Lichtsäule, immer nach rechts, ein paar Sekunden Pause dazwischen.
+  // Der Sweep wird um einen gleichverteilten Punkt über die ganze Breite zentriert,
+  // damit er nicht einseitig „spawnt".
+  const spawn = () => {
+    const dist = rand(w * 0.14, w * 0.3);
+    return { x0: rand(w * 0.1, w * 0.9) - dist / 2, dist, dur: rand(720, 1080), gap: rand(2600, 4600), half: rand(28, 48), born: 0 };
+  };
   const c = { ...spawn(), born: -rand(0, 1500) };
   return (ctx, t, W, H) => {
     let age = t - c.born;
@@ -173,12 +178,16 @@ function makeShimmer(w: number, h: number): Draw {
       const p = age / c.dur;
       const env = Math.sin(Math.PI * p); // sanft auf- und abblenden
       const x = c.x0 + c.dist * p; // immer nach rechts
-      const g = ctx.createLinearGradient(x - c.half, 0, x + c.half, 0);
+      ctx.save();
+      ctx.translate(x, H / 2);
+      ctx.rotate(0.22); // leicht geneigte Lichtsäule
+      const g = ctx.createLinearGradient(-c.half, 0, c.half, 0);
       g.addColorStop(0, 'rgba(255,244,215,0)');
       g.addColorStop(0.5, `rgba(255,247,224,${0.32 * env})`);
       g.addColorStop(1, 'rgba(255,244,215,0)');
       ctx.fillStyle = g;
-      ctx.fillRect(x - c.half, 0, c.half * 2, H);
+      ctx.fillRect(-c.half, -H, c.half * 2, H * 2); // hoch genug, um nach der Neigung die Leiste zu füllen
+      ctx.restore();
     }
     ctx.fillStyle = 'rgba(255,235,190,1)';
     ctx.globalAlpha = 0.13;
