@@ -39,6 +39,7 @@
   --accent-disabled: #c9beac; /* deaktivierter Primär-Button */
   --mastery: #c8871a; /* Meisterschafts-Stern (Gold) */
   --error-text: #a3241a; /* Fehlermeldungen */
+  --bg-wash: rgba(139, 38, 53, 0.05); /* Ambient-Schimmer oben auf der Seite (Akzent-getönt) */
 }
 
 /* ---------- Farbthemen ----------
@@ -54,6 +55,9 @@
   --header-grad-mid: #4a9160;
   --header-grad-b: #285232;
   --accent-disabled: #b9c4b3;
+  --bg-wash: rgba(47, 93, 58, 0.06);
+  --computed-bg: #eef3ea;
+  --computed-text: #46583a;
 }
 :root[data-theme='koenigsblau'] {
   --accent: #2f4a7a;
@@ -63,6 +67,9 @@
   --header-grad-mid: #4f74c0;
   --header-grad-b: #26406b;
   --accent-disabled: #b6bccb;
+  --bg-wash: rgba(47, 74, 122, 0.06);
+  --computed-bg: #e9eef6;
+  --computed-text: #3d4a63;
 }
 :root[data-theme='amethyst'] {
   --accent: #5e3a78;
@@ -72,6 +79,9 @@
   --header-grad-mid: #8a5aad;
   --header-grad-b: #4a2d68;
   --accent-disabled: #c2b6cb;
+  --bg-wash: rgba(94, 58, 120, 0.06);
+  --computed-bg: #f0ecf6;
+  --computed-text: #574a66;
 }
 :root[data-theme='bronze'] {
   --accent: #8a5a2b;
@@ -81,6 +91,9 @@
   --header-grad-mid: #b8842f;
   --header-grad-b: #6f4720;
   --accent-disabled: #cabfa8;
+  --bg-wash: rgba(138, 90, 43, 0.06);
+  --computed-bg: #f5efe0;
+  --computed-text: #6d5a2e;
 }
 :root[data-theme='nacht'] {
   --bg: #17140f;
@@ -115,6 +128,7 @@
   --error-text: #e0705f;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
+  --bg-wash: rgba(194, 86, 74, 0.06);
 }
 
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
@@ -211,7 +225,7 @@ body {
   margin: 0;
   font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
   background:
-    radial-gradient(1200px 400px at 50% -100px, rgba(139, 38, 53, 0.05), transparent),
+    radial-gradient(1200px 400px at 50% -100px, var(--bg-wash), transparent),
     var(--bg);
   color: var(--text);
   font-size: 14px;
