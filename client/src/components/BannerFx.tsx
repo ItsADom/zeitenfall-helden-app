@@ -11,27 +11,39 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const wrap = (v: number, m: number) => ((v % m) + m) % m;
 
 // Thorwal: rollende, tideartige Wellen (Fluss + vor/zurück brandend, wechselnde Höhen)
-function makeWaves(): Draw {
+function makeWaves(w: number, h: number): Draw {
   const L = [
     { fill: 'rgba(255,255,255,0.06)', base: 0.5, amp: 7, amp2: 3, f: 0.011, f2: 0.024, tideA: 1.0, tideS: 0.00022, ampS: 0.00034, ph: 0 },
     { fill: 'rgba(255,255,255,0.09)', base: 0.64, amp: 9, amp2: 4, f: 0.008, f2: 0.019, tideA: 1.4, tideS: 0.00031, ampS: 0.00026, ph: 2.1 },
     { fill: 'rgba(255,255,255,0.13)', base: 0.8, amp: 6, amp2: 3, f: 0.015, f2: 0.031, tideA: 1.8, tideS: 0.0004, ampS: 0.00045, ph: 4.2 },
   ];
-  return (ctx, t, w, h) => {
+  // Gischt/Schaum-Flöckchen, die über den Wellen treiben und leicht funkeln
+  const foam = Array.from({ length: Math.min(30, Math.max(8, Math.round(w / 40))) }, () => ({ x: rand(0, w), y: rand(h * 0.4, h * 0.92), r: rand(0.6, 1.7), spd: rand(-10, 18), bob: rand(1, 3), bobS: rand(0.001, 0.002), ph: rand(0, 6.28), tw: rand(0, 6.28) }));
+  return (ctx, t, W, H) => {
     for (const l of L) {
       const swell = 0.575 + 0.425 * Math.sin(t * l.ampS + l.ph);
       const tide = l.tideA * Math.sin(t * l.tideS + l.ph);
       ctx.beginPath();
-      ctx.moveTo(0, h + 2);
-      for (let x = 0; x <= w; x += 6) {
-        const y = h * l.base + l.amp * swell * Math.sin(x * l.f + tide + l.ph) + l.amp2 * Math.sin(x * l.f2 + t * 0.0005 + l.ph);
+      ctx.moveTo(0, H + 2);
+      for (let x = 0; x <= W; x += 6) {
+        const y = H * l.base + l.amp * swell * Math.sin(x * l.f + tide + l.ph) + l.amp2 * Math.sin(x * l.f2 + t * 0.0005 + l.ph);
         ctx.lineTo(x, y);
       }
-      ctx.lineTo(w, h + 2);
+      ctx.lineTo(W, H + 2);
       ctx.closePath();
       ctx.fillStyle = l.fill;
       ctx.fill();
     }
+    ctx.fillStyle = 'rgba(255,255,255,1)';
+    for (const f of foam) {
+      const x = wrap(f.x + t * 0.001 * f.spd, W + 6);
+      const y = f.y + Math.sin(t * f.bobS + f.ph) * f.bob;
+      ctx.globalAlpha = 0.1 + 0.14 * (0.5 + 0.5 * Math.sin(t * 0.0006 + f.tw));
+      ctx.beginPath();
+      ctx.arc(x, y, f.r, 0, 6.28);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   };
 }
 
@@ -94,13 +106,22 @@ function makeLeaves(w: number, h: number): Draw {
 
 // Drachensteine: gezackte Bergsilhouetten + Vulkanglut, davor aufsteigende Funken
 function makeDragon(w: number, h: number): Draw {
-  const ridge = (count: number, top: number, bot: number) => {
-    const p: { x: number; y: number }[] = [];
-    for (let i = 0; i <= count; i++) p.push({ x: (i / count) * w, y: rand(top, bot) * h });
+  // Rauer, ungleichmäßiger Grat: gejitterte x-Abstände, breite Höhenspanne und
+  // gelegentliche scharfe Spitzen über das Band hinaus — kein „aufgeräumtes" Profil.
+  const ridge = (count: number, top: number, bot: number, spike: number) => {
+    const p: { x: number; y: number }[] = [{ x: 0, y: rand(top, bot) * h }];
+    for (let i = 1; i < count; i++) {
+      const x = (i / count) * w + rand(-0.34, 0.34) * (w / count);
+      let yf = rand(top, bot);
+      if (Math.random() < spike) yf = top - rand(0.03, 0.14); // scharfe Spitze
+      p.push({ x, y: yf * h });
+    }
+    p.push({ x: w, y: rand(top, bot) * h });
+    p.sort((a, b) => a.x - b.x);
     return p;
   };
-  const back = ridge(6, 0.4, 0.6);
-  const front = ridge(9, 0.56, 0.82);
+  const back = ridge(11, 0.28, 0.62, 0.28);
+  const front = ridge(15, 0.46, 0.9, 0.32);
   const fillRidge = (ctx: CanvasRenderingContext2D, pts: { x: number; y: number }[], H: number, color: string) => {
     ctx.beginPath();
     ctx.moveTo(0, H + 2);
@@ -134,32 +155,30 @@ function makeDragon(w: number, h: number): Draw {
   };
 }
 
-// Gareth: goldene Lichtsäulen wie Reflexe auf poliertem Metall — kurze, schnelle
-// Sweeps, die an wechselnden Stellen aufblitzen; dazu feine goldene Motes.
+// Gareth: eine goldene Lichtsäule, die alle paar Sekunden einmal von links nach
+// rechts über die Leiste zieht — dazu feine goldene Motes.
 function makeShimmer(w: number, h: number): Draw {
   const motes = Array.from({ length: Math.min(18, Math.max(6, Math.round(w / 70))) }, () => ({ x: rand(0, w), y: rand(0, h), r: rand(0.8, 1.8), spd: rand(3, 8), ph: rand(0, 6.28) }));
-  const spawn = () => ({ x0: rand(w * 0.08, w * 0.92), dir: Math.random() < 0.5 ? -1 : 1, dist: rand(w * 0.08, w * 0.2), dur: rand(480, 820), gap: rand(500, 1600), half: rand(26, 48), born: 0 });
-  const N = Math.min(3, Math.max(1, Math.round(w / 450)));
-  const cols = Array.from({ length: N }, () => ({ ...spawn(), born: -rand(0, 1500) }));
+  // immer von links nach rechts, ruhiges Tempo, mehrere Sekunden Pause dazwischen
+  const spawn = () => ({ x0: rand(w * 0.02, w * 0.45), dist: rand(w * 0.16, w * 0.34), dur: rand(750, 1150), gap: rand(2600, 4600), half: rand(30, 52), born: 0 });
+  const c = { ...spawn(), born: -rand(0, 1500) };
   return (ctx, t, W, H) => {
-    for (const c of cols) {
-      let age = t - c.born;
-      if (age > c.dur + c.gap) {
-        Object.assign(c, spawn());
-        c.born = t;
-        age = 0;
-      }
-      if (age <= c.dur) {
-        const p = age / c.dur;
-        const env = Math.sin(Math.PI * p); // sanft auf- und abblenden
-        const x = c.x0 + c.dir * c.dist * p; // kurzer, schneller Weg
-        const g = ctx.createLinearGradient(x - c.half, 0, x + c.half, 0);
-        g.addColorStop(0, 'rgba(255,244,215,0)');
-        g.addColorStop(0.5, `rgba(255,247,224,${0.3 * env})`);
-        g.addColorStop(1, 'rgba(255,244,215,0)');
-        ctx.fillStyle = g;
-        ctx.fillRect(x - c.half, 0, c.half * 2, H);
-      }
+    let age = t - c.born;
+    if (age > c.dur + c.gap) {
+      Object.assign(c, spawn());
+      c.born = t;
+      age = 0;
+    }
+    if (age <= c.dur) {
+      const p = age / c.dur;
+      const env = Math.sin(Math.PI * p); // sanft auf- und abblenden
+      const x = c.x0 + c.dist * p; // immer nach rechts
+      const g = ctx.createLinearGradient(x - c.half, 0, x + c.half, 0);
+      g.addColorStop(0, 'rgba(255,244,215,0)');
+      g.addColorStop(0.5, `rgba(255,247,224,${0.32 * env})`);
+      g.addColorStop(1, 'rgba(255,244,215,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x - c.half, 0, c.half * 2, H);
     }
     ctx.fillStyle = 'rgba(255,235,190,1)';
     ctx.globalAlpha = 0.13;
@@ -184,6 +203,9 @@ function makeFog(w: number, h: number): Draw {
     sx: rand(0.00012, 0.00026) * (i % 2 ? -1 : 1), sy: rand(0.00018, 0.00036) * (i % 2 ? 1 : -1),
     rot: rand(0, 6.28), rotS: rand(0.00012, 0.0003) * (i % 2 ? 1 : -1), ph: rand(0, 6.28), op: rand(0.05, 0.1),
   }));
+  // herabschwebende Asche: teils dunkle Flocken (gegen den Nebel sichtbar),
+  // teils fahles Grau (gegen den dunklen Grund sichtbar)
+  const ash = Array.from({ length: Math.min(36, Math.max(12, Math.round(w / 38))) }, () => ({ x: rand(0, w), y: rand(0, h), r: rand(0.6, 1.7), vy: rand(3, 8), vx: rand(-4, 8), sway: rand(3, 10), swayS: rand(0.0007, 0.0016), ph: rand(0, 6.28), dark: Math.random() < 0.5 }));
   return (ctx, t, W, H) => {
     for (const s of b) {
       const cx = s.cx + Math.sin(t * s.sx + s.ph) * s.ax;
@@ -200,13 +222,23 @@ function makeFog(w: number, h: number): Draw {
       ctx.fill();
       ctx.restore();
     }
+    for (const p of ash) {
+      const y = wrap(p.y + t * 0.001 * p.vy, H + 8);
+      const x = wrap(p.x + t * 0.001 * p.vx + Math.sin(t * p.swayS + p.ph) * p.sway, W + 8);
+      ctx.globalAlpha = p.dark ? 0.28 : 0.16;
+      ctx.fillStyle = p.dark ? 'rgba(24,22,20,1)' : 'rgba(150,145,140,1)';
+      ctx.beginPath();
+      ctx.arc(x, y, p.r, 0, 6.28);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
   };
 }
 
 function makeEffect(theme: string, w: number, h: number): Draw | null {
   switch (theme) {
     case 'koenigsblau':
-      return makeWaves();
+      return makeWaves(w, h);
     case 'rot':
       return makeSand(w, h);
     case 'wald':
