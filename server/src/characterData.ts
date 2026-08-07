@@ -138,6 +138,18 @@ const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] =
 
 const ZAUBER_TAB = 'Zauber/Fähigkeiten';
 
+// Für die Ausrüstungs-Sektionen: welche Spalte den Gegenstandsnamen trägt.
+// Diese Spalte bekommt beim Anlegen den Typ 'equipment' und schaltet damit die
+// Behälter-Funktion (feste Fächer je Zeile, z. B. Gürtel mit 4 Steckplätzen)
+// direkt frei — ohne dass der Spieler die Spalte erst umstellen muss.
+const EQUIPMENT_NAME_COL: Record<string, string> = {
+  ausruestungSlots: 'beschreibung',
+  behaelter: 'name',
+  proviant: 'name',
+  kleidungen: 'kleidung',
+  tierAusruestung: 'name',
+};
+
 function zauberColumns(): DynColumn[] {
   return [
     { key: 'name', label: 'Name', type: 'text', width: 220 },
@@ -151,11 +163,17 @@ function zauberColumns(): DynColumn[] {
   ];
 }
 
-function toDynColumns(defs: { key: string; label: string; type: string; width?: number }[]): DynColumn[] {
+function toDynColumns(
+  defs: { key: string; label: string; type: string; width?: number }[],
+  equipmentKey?: string,
+): DynColumn[] {
   return defs
     .filter((c) => c.key !== 'notiz')
     .map((c) => {
-      const type = (['text', 'number', 'bool'] as const).includes(c.type as never) ? (c.type as DynColumn['type']) : 'text';
+      const base = (['text', 'number', 'bool'] as const).includes(c.type as never) ? (c.type as DynColumn['type']) : 'text';
+      // Die Namens-/Gegenstandsspalte einer Ausrüstungs-Sektion als 'equipment'
+      // markieren — verhält sich wie Text, schaltet aber die Behälter-Funktion frei.
+      const type: DynColumn['type'] = c.key === equipmentKey ? 'equipment' : base;
       const col: DynColumn = { key: c.key, label: c.label, type };
       if (c.width) col.width = Math.max(90, c.width * 60);
       return col;
@@ -178,7 +196,7 @@ function buildStandardTabs(charId: number, getRows: (sectionId: string) => Recor
     for (const sid of tabDef.sectionIds) {
       const def = listSectionById(sid);
       if (!def) continue;
-      const secId = createDynSection(charId, tabId, def.label, 'table', toDynColumns(def.columns));
+      const secId = createDynSection(charId, tabId, def.label, 'table', toDynColumns(def.columns, EQUIPMENT_NAME_COL[sid]));
       created++;
       const rows = getRows(sid);
       if (rows.length) saveDynRows(secId, rows);
