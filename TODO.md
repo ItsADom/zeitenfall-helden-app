@@ -3,7 +3,49 @@
 
 - audit log on characters (on hold until community testing + feedback)
    - who changed what when
-   - concept needed, so it doesn't get bloated with every edit
+   - CONCEPT DECIDED (2026-08-07) — build when it comes off hold:
+      - Storage: SEPARATE SQLite file (helden-audit.db), NOT in helden.db. Reason:
+        backup.ts uses db.backup() on the whole file × KEEP copies; keeping history
+        out of helden.db means it never multiplies across those backups (disk is the
+        constrained resource). Denormalize actor_name into each row (no cross-file FK).
+      - Diff, don't snapshot: in saveSection, compare incoming payload vs current DB
+        state, log only changed fields (old→new). Empty diff → write nothing (this
+        doubles as a no-op write skipper for the live data too).
+      - Coalesce: before insert, if a recent row exists for the same
+        (character_id, actor, section, field) within ~5 min, UPDATE its new_val + ts
+        and keep the original old_val. Collapses debounced autosave spam into 1 row.
+        Makes audit size independent of the debounce interval.
+      - Granularity by section type:
+         - scalar sections (bio, meta, attributes, baseValues, resources): field-level
+           diffs (stable keys, cheap, high value).
+         - list/dyn sections (talents, weapons, inventory, dyn tabs): COARSE events only
+           — 'section X bearbeitet (+a/-b/~c Zeilen)'. Rows are positional arrays with no
+           stable identity (DELETE+INSERT), so per-cell diffing is noisy + expensive.
+      - Fat values: numbers keep both; free text > ~120 chars truncate or store
+        '[geändert]'. It answers who/what-field/when, not full version-restore.
+      - Hook point: saveSection is the single choke point (thread actor = req.user.id
+        through it). Also log saveVisibility, dyn-row saves, portrait set/delete, and the
+        GM char rename/reassign/delete. Skip catalog/admin edits (separate scope).
+      - Schema sketch: audit_log(id, character_id, actor_id, actor_name, ts, section,
+        field NULL=coarse, old_val, new_val), index (character_id, ts DESC).
+      - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
+      - Optional later: read-only 'Verlauf' panel per char (GM sees all, owner sees own).
+
+- saving concept — optimization pass (findings 2026-08-07; low-risk, do alongside audit log)
+   - debounce is aggressive for how expensive each save is. Fixed sections flush at
+     800ms (Character.tsx:187), dyn sections at 700ms (Sektionen.tsx:70). Every flush is
+     a WHOLE-section rewrite (saveSection / saveDynRows do DELETE + re-INSERT), not a
+     targeted update. Bump both to ~1500ms: roughly halves flush count during editing,
+     UX still reads as auto-saved, data-loss window only ~1.5s.
+   - no-op saves still do the full DELETE+INSERT even when nothing changed. Add an
+     empty-diff / unchanged check server-side to skip the write entirely (same check the
+     audit log needs — build once, use for both).
+   - DATA-LOSS RISK: no flush on tab close / navigation. Pending debounced edits (up to
+     the debounce window) are lost if the user closes the tab or leaves the character
+     page mid-timer. Add a beforeunload + unmount flush (Character.tsx has dirty set +
+     timer refs; Sektionen.tsx has a per-section timer Map — flush both on cleanup).
+   - client already sends only dirty sections (good, keep). GOOD: all server writes are
+     wrapped in transactions; list rewrites are atomic. No change needed there.
 
 ## Low-Prio
 
@@ -22,7 +64,7 @@
    - Talente and Waffen tables get cut off at the sides, even in landscape — too wide; needs
      print-specific narrower columns / smaller font / scaling / wrapping
    - Sprachen has rendering issues (investigate)
-   - maybe clamp column widths to the minimum necessary in print for readability (debatable)
+   - maybe clamp column widths to the minimum necessary in print for readability
 - mobile/tablet layout pass (most players are on PC — saved for later)
    - only one responsive breakpoint now; the tab bar and wide tables get awkward on narrow screens
 - off-machine backup (blocked for now, no other disk or storage available)

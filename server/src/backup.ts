@@ -10,7 +10,7 @@ import { db } from './db.js';
 const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
 const BACKUP_DIR = process.env.BACKUP_DIR ?? path.join(dataDir, 'backups');
-const KEEP = Number(process.env.BACKUP_KEEP) || 14;
+const KEEP = Number(process.env.BACKUP_KEEP) || 3;
 const INTERVAL_HOURS = Number(process.env.BACKUP_INTERVAL_HOURS) || 24;
 
 const FILE_RE = /^helden-\d{4}-\d{2}-\d{2}\.db$/;
