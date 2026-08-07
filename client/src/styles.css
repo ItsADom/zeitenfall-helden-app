@@ -49,7 +49,7 @@
   /* Kopfleisten-Motiv je Theme: ein nahtlos kachelndes 240px-Band (helle/dunkle
      SVG-Formen), das über den Verlauf läuft und langsam driftet (--banner-drift).
      Standard = Khôm: sanfte Wüsten-Dünen. */
-  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 46 C80 38 160 54 240 46 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.05'/%3E%3Cpath d='M0 55 C80 49 160 61 240 55 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 60 C60 56 180 64 240 60 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.08'/%3E%3C/svg%3E");
+  --banner-motif: none; /* Khôm: Effekt kommt aus dem Canvas (BannerFx) */
   --banner-drift: 45s;
 }
 
@@ -70,7 +70,7 @@
   --computed-bg: #eef3ea;
   --computed-text: #46583a;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2C6 7 5 16 12 22 19 16 18 7 12 2Z'/%3E%3C/svg%3E"); /* Bornland: Blatt */
-  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 52 Q30 40 60 52 T120 52 T180 52 T240 52 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.06'/%3E%3Cpath d='M0 58 Q30 48 60 58 T120 58 T180 58 T240 58 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.045'/%3E%3C/svg%3E"); /* Bornland: sanfte Hügel */
+  --banner-motif: none; /* Bornland: Effekt kommt aus dem Canvas (BannerFx) */
   --banner-drift: 38s;
 }
 :root[data-theme='koenigsblau'] {
@@ -99,7 +99,7 @@
   --computed-bg: #f0ecf6;
   --computed-text: #574a66;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 3 21.5 20.5 2.5 20.5Z'/%3E%3C/svg%3E"); /* Drachensteine: Schuppe/Dreieck */
-  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 40 L30 56 L60 40 L90 56 L120 40 L150 56 L180 40 L210 56 L240 40 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.05'/%3E%3Cpath d='M0 50 L30 32 L60 50 L90 32 L120 50 L150 32 L180 50 L210 32 L240 50 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E"); /* Drachensteine: gezackte Gipfel */
+  --banner-motif: none; /* Drachensteine: Effekt kommt aus dem Canvas (BannerFx) */
   --banner-drift: 30s;
 }
 :root[data-theme='bronze'] {
@@ -114,7 +114,7 @@
   --computed-bg: #f5efe0;
   --computed-text: #6d5a2e;
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 14.6 8.6 21.8 9.2 16.2 13.9 18 21 12 17.1 6 21 7.8 13.9 2.2 9.2 9.4 8.6Z'/%3E%3C/svg%3E"); /* Gareth: Stern */
-  --banner-motif: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 70' preserveAspectRatio='none'%3E%3Cpath d='M0 52 H240 L240 70 L0 70Z' fill='%23000000' fill-opacity='0.04'/%3E%3Cpath d='M0 48 H30 V40 H60 V48 H90 V40 H120 V48 H150 V40 H180 V48 H210 V40 H240 L240 70 L0 70Z' fill='%23ffffff' fill-opacity='0.07'/%3E%3C/svg%3E"); /* Gareth: Zinnen */
+  --banner-motif: none; /* Gareth: Effekt kommt aus dem Canvas (BannerFx) */
   --banner-drift: 40s;
 }
 :root[data-theme='nacht'] {
@@ -366,7 +366,7 @@ header.topbar > *:not(.banner-fx) {
 :root[data-theme='koenigsblau'] header.topbar {
   animation: none;
 }
-.banner-waves {
+.banner-canvas {
   position: absolute;
   inset: 0;
   display: block;

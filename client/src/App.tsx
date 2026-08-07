@@ -9,7 +9,7 @@ import GroupPage from './pages/Group';
 import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
 import ThemePicker from './components/ThemePicker';
-import BannerWaves from './components/BannerWaves';
+import BannerFx from './components/BannerFx';
 import { useTheme } from './theme';
 
 interface AuthContextValue {
@@ -50,7 +50,7 @@ export default function App() {
     <AuthContext.Provider value={{ user, refresh }}>
       <header className="topbar">
         <div className="banner-fx" aria-hidden="true">
-          {theme === 'koenigsblau' && <BannerWaves />}
+          {theme !== 'nacht' && <BannerFx key={theme} theme={theme} />}
         </div>
         <Link to="/">Heldenverwaltung</Link>
         {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
