@@ -95,25 +95,49 @@ export default function CharacterPage() {
     if (canViewAs) apiGet<{ id: number; displayName: string }[]>('/api/admin/users').then(setViewUsers).catch(() => {});
   }, [canViewAs]);
 
+  // Wird bei einer stillen Aktualisierung hochgezählt und geht in den React-Key
+  // des aktiven Inhalts-Tabs ein — so übernimmt ContentTabView (hält Zeilen in
+  // eigenem State) die frischen Serverdaten. Die berechneten Tabs lesen ohnehin
+  // aus dem Kontext und aktualisieren sich von selbst.
+  const [reloadTick, setReloadTick] = useState(0);
+
+  // Lädt den Charakter. quiet=true: stille Hintergrund-Aktualisierung ohne
+  // Lade-Spinner — die bisherige Anzeige bleibt stehen, bis neue Daten da sind.
+  const loadCharacter = useCallback(
+    (quiet = false) => {
+      if (!quiet) {
+        setLoading(true);
+        setData(null);
+        setSummary(null);
+      }
+      setError('');
+      const q = viewAs ? `?asUser=${viewAs}` : '';
+      return apiGet<{ character: CharacterInfo; access: 'edit' | 'summary' | null; data?: FullData; summary?: unknown }>(
+        `/api/characters/${charId}${q}`,
+      )
+        .then((res) => {
+          setInfo(res.character);
+          setAccess(res.access);
+          setData(res.data ?? null);
+          setSummary(res.summary ?? null);
+          if (quiet) setReloadTick((t) => t + 1);
+        })
+        .catch((e) => {
+          // Fehler einer stillen Aktualisierung nicht anzeigen — der alte Stand
+          // bleibt stehen, es wird beim nächsten Fokus erneut versucht.
+          if (!quiet) setError(e instanceof Error ? e.message : 'Fehler');
+        })
+        .finally(() => {
+          if (!quiet) setLoading(false);
+        });
+    },
+    [charId, viewAs],
+  );
+
   useEffect(() => {
-    setLoading(true);
-    setData(null);
-    setSummary(null);
-    setError('');
-    const q = viewAs ? `?asUser=${viewAs}` : '';
-    apiGet<{ character: CharacterInfo; access: 'edit' | 'summary' | null; data?: FullData; summary?: unknown }>(
-      `/api/characters/${charId}${q}`,
-    )
-      .then((res) => {
-        setInfo(res.character);
-        setAccess(res.access);
-        setData(res.data ?? null);
-        setSummary(res.summary ?? null);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'))
-      .finally(() => setLoading(false));
+    void loadCharacter();
     apiGet<Catalogs>('/api/catalogs').then(setCatalogs);
-  }, [charId, viewAs]);
+  }, [loadCharacter]);
 
   const viewAsBar = canViewAs ? (
     <div className="viewas-bar">
@@ -135,6 +159,8 @@ export default function CharacterPage() {
 
   // Automatisches Speichern geänderter Sektionen (entprellt)
   const dirty = useRef(new Set<string>());
+  const saving = useRef(false); // läuft gerade ein Speichern der festen Sektionen?
+  const dynDirty = useRef(false); // hat der aktive Inhalts-Tab ungespeicherte Zeilen?
   const timer = useRef<number | undefined>(undefined);
   const dataRef = useRef<FullData | null>(null);
   dataRef.current = data;
@@ -144,6 +170,7 @@ export default function CharacterPage() {
     dirty.current.clear();
     const d = dataRef.current;
     if (!d || sections.length === 0) return;
+    saving.current = true;
     setSaveState('Speichere…');
     try {
       for (const s of sections) {
@@ -165,6 +192,8 @@ export default function CharacterPage() {
     } catch (e) {
       dirty.current = new Set([...dirty.current, ...sections]);
       setSaveState(`Fehler beim Speichern: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      saving.current = false;
     }
   }, [charId]);
 
@@ -188,6 +217,25 @@ export default function CharacterPage() {
     },
     [flush],
   );
+
+  // Kehrt der Tab/das Fenster in den Vordergrund zurück, still nachladen — so
+  // sieht man Änderungen anderer (Spielleiter ⇄ Spieler), ohne neu zu laden.
+  // Bewusst NICHT während eigener ungespeicherter Änderungen (feste Sektionen:
+  // dirty/saving; aktiver Inhalts-Tab: dynDirty) — sonst würde der eigene Stand
+  // vom Serverstand überschrieben.
+  useEffect(() => {
+    const maybeReload = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (dirty.current.size > 0 || saving.current || dynDirty.current) return;
+      void loadCharacter(true);
+    };
+    window.addEventListener('focus', maybeReload);
+    document.addEventListener('visibilitychange', maybeReload);
+    return () => {
+      window.removeEventListener('focus', maybeReload);
+      document.removeEventListener('visibilitychange', maybeReload);
+    };
+  }, [loadCharacter]);
 
   // Druck-/PDF-Ansicht: sobald `printing` steht, sind alle Tabs im DOM (je Tab
   // eine Seite, per CSS `break-before`). Nach dem Rendern den Druckdialog öffnen
@@ -328,12 +376,15 @@ export default function CharacterPage() {
         {activeKey === 'Sichtbarkeit' && <SichtbarkeitTab />}
         {activeContentTab && (
           <ContentTabView
-            key={activeContentTab.id}
+            key={`${activeContentTab.id}:${reloadTick}`}
             basePath={`/api/characters/${charId}`}
             tab={activeContentTab}
             attributes={data!.attributes}
             isFirst={tabs.indexOf(activeContentTab) === 0}
             isLast={tabs.indexOf(activeContentTab) === tabs.length - 1}
+            onDirtyChange={(d) => {
+              dynDirty.current = d;
+            }}
             onRenameTab={(name) => renameTab(activeContentTab.id, name)}
             onDeleteTab={() => deleteTab(activeContentTab.id)}
             onMoveTab={(dir) => moveTab(tabs.indexOf(activeContentTab), dir)}

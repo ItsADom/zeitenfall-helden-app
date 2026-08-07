@@ -34,6 +34,7 @@ export default function ContentTabView({
   isLast,
   showVisibility = true,
   allowProbe = true,
+  onDirtyChange,
   onRenameTab,
   onDeleteTab,
   onMoveTab,
@@ -46,6 +47,9 @@ export default function ContentTabView({
   isLast: boolean;
   showVisibility?: boolean;
   allowProbe?: boolean;
+  // Meldet dem Eltern-Element, ob noch ungespeicherte Zeilen anstehen — damit
+  // eine Hintergrund-Aktualisierung die laufende Bearbeitung nicht überschreibt.
+  onDirtyChange?: (dirty: boolean) => void;
   onRenameTab: (name: string) => void;
   onDeleteTab: () => void;
   onMoveTab: (dir: -1 | 1) => void;
@@ -53,6 +57,9 @@ export default function ContentTabView({
   const [sections, setSections] = useState<DynSection[]>(tab.sections);
   const [saveState, setSaveState] = useState('');
   const timers = useRef<Map<number, number>>(new Map());
+  // Sektionen mit noch nicht gespeicherten Zeilen; solange nicht leer, gilt der
+  // Tab als „dirty" und eine Hintergrund-Aktualisierung wird ausgesetzt.
+  const pending = useRef<Set<number>>(new Set());
 
   const patchSection = (id: number, patch: Partial<DynSection>) =>
     setSections((prev) => prev.map((s) => (s.id === id ? { ...s, ...patch } : s)));
@@ -60,6 +67,8 @@ export default function ContentTabView({
   const saveRowsDebounced = (section: DynSection, rows: DynRow[]) => {
     patchSection(section.id, { rows });
     window.clearTimeout(timers.current.get(section.id));
+    pending.current.add(section.id);
+    onDirtyChange?.(true);
     const t = window.setTimeout(async () => {
       setSaveState('Speichere…');
       try {
@@ -67,6 +76,9 @@ export default function ContentTabView({
         setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
       } catch (e) {
         setSaveState(`Fehler: ${e instanceof Error ? e.message : e}`);
+      } finally {
+        pending.current.delete(section.id);
+        if (pending.current.size === 0) onDirtyChange?.(false);
       }
     }, 1500);
     timers.current.set(section.id, t);
