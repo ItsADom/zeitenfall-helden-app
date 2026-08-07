@@ -13,12 +13,12 @@ export interface ThemeDef {
 
 // 'rot' ist der Standard und braucht keinen Override-Block (= :root).
 export const THEMES: ThemeDef[] = [
-  { id: 'rot', label: 'Rot (Standard)', swatch: '#8b2635' },
-  { id: 'wald', label: 'Wald', swatch: '#2f5d3a' },
-  { id: 'koenigsblau', label: 'Königsblau', swatch: '#2f4a7a' },
-  { id: 'amethyst', label: 'Amethyst', swatch: '#5e3a78' },
-  { id: 'bronze', label: 'Bronze', swatch: '#8a5a2b' },
-  { id: 'nacht', label: 'Nacht (dunkel)', swatch: '#c2564a' },
+  { id: 'rot', label: 'Khôm', swatch: '#8b2635' },
+  { id: 'wald', label: 'Bornland', swatch: '#2f5d3a' },
+  { id: 'koenigsblau', label: 'Thorwal', swatch: '#2f4a7a' },
+  { id: 'amethyst', label: 'Drachensteine', swatch: '#5e3a78' },
+  { id: 'bronze', label: 'Gareth', swatch: '#8a5a2b' },
+  { id: 'nacht', label: 'Schattenlande', swatch: '#c2564a' },
 ];
 
 export const DEFAULT_THEME = 'rot';

@@ -30,7 +30,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Porträt: ein Bild deiner Heldin oder deines Helden in der Person-Sektion hochladen.',
       'Gruppen: ein gemeinsamer Bereich mit Gruppen-Inventar, Questlog, bekannten NPCs und Sitzungslog. Alle Mitglieder dürfen ihn bearbeiten; Änderungen der anderen erscheinen automatisch, sobald du wieder ins Fenster wechselst.',
       'Sichtbarkeit: du bestimmst selbst, welche Teile deines Charakters die übrigen Gruppenmitglieder sehen dürfen.',
-      'Farbthemen: über das Menü oben rechts das Aussehen umstellen — Rot, Wald, Königsblau, Amethyst, Bronze und Dunkel (Nachtmodus). Die Wahl bleibt pro Gerät gespeichert.',
+      'Farbthemen: über das Menü oben rechts das Aussehen umstellen — Khôm (Rot), Bornland (Grün), Thorwal (Blau), Drachensteine (Amethyst), Gareth (Bronze) und Schattenlande (Nachtmodus). Die Wahl bleibt pro Gerät gespeichert.',
       'Speichern & Sicherheit: alles wird automatisch gespeichert, es gibt tägliche Sicherungen, und jede Spielerin und jeder Spieler meldet sich mit eigenem Zugang an.',
       'Drucken & Export: alle Tabs als PDF ausgeben (je Tab eine Seite) oder den ganzen Charakter als Datei exportieren.',
     ],
