@@ -15,7 +15,11 @@
     "dev:client": "npm run dev -w client",
     "build": "npm run build -w client",
     "start": "npm run build -w client && npm run start -w server",
+    "start:secure": "cross-env SECURE_COOKIES=1 npm run start",
     "test": "npm run test -w shared",
     "seed": "npm run seed -w server"
+  },
+  "devDependencies": {
+    "cross-env": "^10.1.0"
   }
 }

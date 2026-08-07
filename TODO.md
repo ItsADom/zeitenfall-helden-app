@@ -1,4 +1,13 @@
 
+## Betrieb / Deployment
+
+- HTTPS-Betrieb (z. B. öffentlicher Cloudflare-Tunnel für eine Session):
+  mit `npm run start:secure` starten — setzt SECURE_COOKIES=1, das
+  Sitzungs-Cookie wird dann nur über HTTPS gesendet (routes.ts liest die Env-Var).
+  NICHT für lokale http://localhost-Tests verwenden — dort würde das Cookie mit
+  Secure-Flag nicht mitgeschickt und der Login schlägt fehl; dafür `npm start`.
+  (start:secure nutzt cross-env, damit es auch unter Windows funktioniert.)
+
 ## Mid-Prio
 
 - audit log on characters (on hold until community testing + feedback)
@@ -40,10 +49,6 @@
    - no-op saves still do the full DELETE+INSERT even when nothing changed. Add an
      empty-diff / unchanged check server-side to skip the write entirely (same check the
      audit log needs — build once, use for both).
-   - DATA-LOSS RISK: no flush on tab close / navigation. Pending debounced edits (up to
-     the debounce window) are lost if the user closes the tab or leaves the character
-     page mid-timer. Add a beforeunload + unmount flush (Character.tsx has dirty set +
-     timer refs; Sektionen.tsx has a per-section timer Map — flush both on cleanup).
    - client already sends only dirty sections (good, keep). GOOD: all server writes are
      wrapped in transactions; list rewrites are atomic. No change needed there.
 
