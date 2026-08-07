@@ -26,8 +26,8 @@
   /* Weitere Farb-Token (für spätere Themes/Dark Mode zentral schaltbar).
      Alle Werte entsprechen exakt dem bisherigen „Rot/Pergament"-Standard. */
   --on-accent: #ffffff; /* Text/Icon auf Akzent- oder dunklen Flächen */
-  --header-grad-a: #5e161f; /* Kopfleisten-Verlauf, dunkle Kante */
-  --header-grad-b: #b83d4e; /* Kopfleisten-Verlauf, helle Kante */
+  --header-grad-a: #5e161f; /* Kopfleisten-Verlauf, linke Kante (dunkel) */
+  --header-grad-b: #6f1d2a; /* Kopfleisten-Verlauf, rechte Kante (dunkler als Akzent, damit der Akzent mittig hell bleibt) */
   --panel-hi: #fffdf8; /* Pergament-Lichtkante oben im Panel */
   --surface-head: #faf7ef; /* Tabellenkopf-Fläche */
   --surface-hover: #fcfaf5; /* Zeilen-Hover */
@@ -50,7 +50,7 @@
   --accent-dark: #244a2d;
   --accent-soft: #eaf1ea;
   --header-grad-a: #1c3b25;
-  --header-grad-b: #46895a;
+  --header-grad-b: #244a2d;
   --accent-disabled: #b9c4b3;
 }
 :root[data-theme='koenigsblau'] {
@@ -58,7 +58,7 @@
   --accent-dark: #243a61;
   --accent-soft: #e9eef6;
   --header-grad-a: #1c2f52;
-  --header-grad-b: #4a6bb0;
+  --header-grad-b: #243a61;
   --accent-disabled: #b6bccb;
 }
 :root[data-theme='amethyst'] {
@@ -66,7 +66,7 @@
   --accent-dark: #4a2d61;
   --accent-soft: #f0eaf5;
   --header-grad-a: #3c2551;
-  --header-grad-b: #7f52a4;
+  --header-grad-b: #4a2d61;
   --accent-disabled: #c2b6cb;
 }
 :root[data-theme='bronze'] {
@@ -74,7 +74,7 @@
   --accent-dark: #6f4720;
   --accent-soft: #f6efe3;
   --header-grad-a: #5c3a19;
-  --header-grad-b: #a5732f;
+  --header-grad-b: #6f4720;
   --accent-disabled: #cabfa8;
 }
 :root[data-theme='nacht'] {
