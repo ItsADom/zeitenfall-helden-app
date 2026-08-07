@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
@@ -22,16 +22,51 @@ export default function GroupPage() {
   const [data, setData] = useState<GroupData | null>(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<number | null>(null);
+  // Geht in den React-Key des aktiven Tabs ein; bei stiller Aktualisierung
+  // hochgezählt, damit ContentTabView (hält Zeilen in eigenem State) die
+  // frischen Serverdaten übernimmt.
+  const [reloadTick, setReloadTick] = useState(0);
+  const dynDirty = useRef(false); // aktiver Tab hat ungespeicherte Zeilen?
+
+  // Lädt die Gruppe. quiet=true: stille Hintergrund-Aktualisierung ohne
+  // Lade-Anzeige — der bisherige Stand bleibt stehen, bis neue Daten da sind.
+  const loadGroup = useCallback(
+    (quiet = false) => {
+      if (!quiet) setData(null);
+      return apiGet<GroupData>(`/api/groups/${groupId}`)
+        .then((d) => {
+          setData(d);
+          // Aktiven Tab behalten, falls es ihn noch gibt — sonst ersten wählen.
+          setActiveTab((prev) => (prev && d.tabs.some((t) => t.id === prev) ? prev : d.tabs[0]?.id ?? null));
+          if (quiet) setReloadTick((t) => t + 1);
+        })
+        .catch((e) => {
+          if (!quiet) setError(e instanceof Error ? e.message : 'Fehler');
+        });
+    },
+    [groupId],
+  );
 
   useEffect(() => {
-    setData(null);
-    apiGet<GroupData>(`/api/groups/${groupId}`)
-      .then((d) => {
-        setData(d);
-        setActiveTab(d.tabs[0]?.id ?? null);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
-  }, [groupId]);
+    void loadGroup();
+  }, [loadGroup]);
+
+  // Bei Rückkehr auf den Tab/ins Fenster still nachladen — so sehen
+  // Gruppenmitglieder Änderungen der anderen an den gemeinsamen Inhalten, ohne
+  // neu zu laden. Nicht während eigener ungespeicherter Zeilen (dynDirty).
+  useEffect(() => {
+    const maybeReload = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (dynDirty.current) return;
+      void loadGroup(true);
+    };
+    window.addEventListener('focus', maybeReload);
+    document.addEventListener('visibilitychange', maybeReload);
+    return () => {
+      window.removeEventListener('focus', maybeReload);
+      document.removeEventListener('visibilitychange', maybeReload);
+    };
+  }, [loadGroup]);
 
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Lade…</p>;
@@ -98,7 +133,7 @@ export default function GroupPage() {
 
       {current ? (
         <ContentTabView
-          key={current.id}
+          key={`${current.id}:${reloadTick}`}
           basePath={basePath}
           tab={current}
           attributes={NO_ATTRIBUTES}
@@ -106,6 +141,9 @@ export default function GroupPage() {
           isLast={tabs.indexOf(current) === tabs.length - 1}
           showVisibility={false}
           allowProbe={false}
+          onDirtyChange={(d) => {
+            dynDirty.current = d;
+          }}
           onRenameTab={(name) => renameTab(current.id, name)}
           onDeleteTab={() => deleteTab(current.id)}
           onMoveTab={(dir) => moveTab(tabs.indexOf(current), dir)}
