@@ -35,6 +35,8 @@
 ## Low-Prio
 
 - color themes — optional polish
+   - Theme-Farbwelt weiter ausweiten, nicht nur die hauptfelder farblich zuordnen
+      - z.B. auch die felder der berechneten werte ins theme einbinden
    - Theme-Farbwerte nach echtem Blick am Tisch feinschleifen (Token-Werte in styles.css).
    - Kontrast-Audit je Theme, v. a. funktionale Töne (warn/crit/computed) — müssen lesbar bleiben.
    - optional: Default über @media (prefers-color-scheme: dark), solange keine Wahl getroffen.
