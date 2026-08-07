@@ -26,8 +26,9 @@
   /* Weitere Farb-Token (für spätere Themes/Dark Mode zentral schaltbar).
      Alle Werte entsprechen exakt dem bisherigen „Rot/Pergament"-Standard. */
   --on-accent: #ffffff; /* Text/Icon auf Akzent- oder dunklen Flächen */
-  --header-grad-a: #5e161f; /* Kopfleisten-Verlauf, linke Kante (dunkel) */
-  --header-grad-b: #6f1d2a; /* Kopfleisten-Verlauf, rechte Kante (dunkler als Akzent, damit der Akzent mittig hell bleibt) */
+  --header-grad-a: #4d1119; /* Kopfleisten-Verlauf: linke Kante (dunkel) */
+  --header-grad-mid: #c23a4a; /* Kopfleisten-Verlauf: Mitte (heller Höhepunkt) */
+  --header-grad-b: #7a2230; /* Kopfleisten-Verlauf: rechte Kante (dunkel) */
   --panel-hi: #fffdf8; /* Pergament-Lichtkante oben im Panel */
   --surface-head: #faf7ef; /* Tabellenkopf-Fläche */
   --surface-hover: #fcfaf5; /* Zeilen-Hover */
@@ -49,31 +50,35 @@
   --accent: #2f5d3a;
   --accent-dark: #244a2d;
   --accent-soft: #eaf1ea;
-  --header-grad-a: #1c3b25;
-  --header-grad-b: #244a2d;
+  --header-grad-a: #133019;
+  --header-grad-mid: #4a9160;
+  --header-grad-b: #285232;
   --accent-disabled: #b9c4b3;
 }
 :root[data-theme='koenigsblau'] {
   --accent: #2f4a7a;
   --accent-dark: #243a61;
   --accent-soft: #e9eef6;
-  --header-grad-a: #1c2f52;
-  --header-grad-b: #243a61;
+  --header-grad-a: #142748;
+  --header-grad-mid: #4f74c0;
+  --header-grad-b: #26406b;
   --accent-disabled: #b6bccb;
 }
 :root[data-theme='amethyst'] {
   --accent: #5e3a78;
   --accent-dark: #4a2d61;
   --accent-soft: #f0eaf5;
-  --header-grad-a: #3c2551;
-  --header-grad-b: #4a2d61;
+  --header-grad-a: #2f2144;
+  --header-grad-mid: #8a5aad;
+  --header-grad-b: #4a2d68;
   --accent-disabled: #c2b6cb;
 }
 :root[data-theme='bronze'] {
   --accent: #8a5a2b;
   --accent-dark: #6f4720;
   --accent-soft: #f6efe3;
-  --header-grad-a: #5c3a19;
+  --header-grad-a: #472d13;
+  --header-grad-mid: #b8842f;
   --header-grad-b: #6f4720;
   --accent-disabled: #cabfa8;
 }
@@ -99,6 +104,7 @@
   --accent-soft: #33231f;
   --accent-disabled: #4a4236;
   --header-grad-a: #5a1d24;
+  --header-grad-mid: #c2564a;
   --header-grad-b: #8a2f3a;
   --on-accent: #ffffff;
   --warn-soft: #3a2f1c;
@@ -239,7 +245,7 @@ header.topbar {
   align-items: center;
   gap: 20px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, var(--header-grad-a) 0%, var(--accent) 55%, var(--header-grad-b) 100%);
+  background: linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
   color: var(--on-accent);
   box-shadow: 0 2px 12px rgba(111, 29, 42, 0.35);
 }
