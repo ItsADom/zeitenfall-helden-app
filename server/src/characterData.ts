@@ -12,6 +12,7 @@ import {
   erleichterung,
   listSectionById,
   normalizeColumns,
+  normalizeWidths,
   talentProbeZahl,
   weaponProbes,
 } from 'shared';
@@ -118,6 +119,43 @@ export function loadVisibility(charId: number): Record<VisibilitySection, boolea
   const out = Object.fromEntries(VISIBILITY_SECTIONS.map((s) => [s, false])) as Record<VisibilitySection, boolean>;
   for (const r of rows) if (r.section in out) out[r.section as VisibilitySection] = !!r.visible;
   return out;
+}
+
+// --- Spaltenbreiten der eingebauten Tabellen ---
+//
+// Der Schlüssel benennt die Tabelle im Client (z. B. 'list:vorteile' oder
+// 'talente:Körperliche Talente'); der Server kennt ihn absichtlich nicht im
+// Detail, sondern behandelt ihn als undurchsichtige Kennung. So kommen neue
+// Tabellen ohne Server-Änderung aus. Geprüft wird nur, dass die Werte plausibel
+// sind — normalisiert wird beim Speichern.
+
+export const MAX_TABLE_KEY = 120;
+export const MAX_TABLE_COLUMNS = 64;
+
+export function loadTableWidths(charId: number): Record<string, number[]> {
+  const rows = db.prepare('SELECT table_key, widths FROM character_table_widths WHERE character_id = ?').all(charId) as {
+    table_key: string;
+    widths: string;
+  }[];
+  const out: Record<string, number[]> = {};
+  for (const r of rows) {
+    try {
+      const parsed = JSON.parse(r.widths) as unknown;
+      if (Array.isArray(parsed) && parsed.every((v) => typeof v === 'number' && Number.isFinite(v))) {
+        out[r.table_key] = parsed as number[];
+      }
+    } catch {
+      // Defekter Eintrag — die Tabelle fällt auf Gleichverteilung zurück
+    }
+  }
+  return out;
+}
+
+export function saveTableWidths(charId: number, tableKey: string, widths: number[]): void {
+  db.prepare(
+    `INSERT INTO character_table_widths (character_id, table_key, widths) VALUES (?, ?, ?)
+     ON CONFLICT (character_id, table_key) DO UPDATE SET widths = excluded.widths`,
+  ).run(charId, tableKey, JSON.stringify(widths));
 }
 
 // --- Standard-Vorlage & Migration der festen Listen in Tabs mit Sektionen ---
@@ -256,6 +294,7 @@ export function loadFullCharacter(charId: number) {
     lists: loadAllLists(charId),
     tabs: loadDynTabs(charId),
     visibility: loadVisibility(charId),
+    tableWidths: loadTableWidths(charId),
     portrait: hasPortrait(charId),
   };
 }
@@ -438,6 +477,14 @@ export function importFullCharacter(
     }
 
     if (data.visibility) saveVisibility(charId, data.visibility as Record<string, unknown>);
+
+    // Spaltenbreiten aus der Datei übernehmen, damit ein importierter Charakter
+    // genauso aussieht wie der exportierte. Ältere Dateien haben das Feld nicht.
+    for (const [key, widths] of Object.entries(data.tableWidths ?? {})) {
+      if (key.length > MAX_TABLE_KEY) continue;
+      const clean = normalizeWidths((Array.isArray(widths) ? widths : []).slice(0, MAX_TABLE_COLUMNS));
+      if (clean.length) saveTableWidths(charId, key, clean);
+    }
     return charId;
   });
   return tx();

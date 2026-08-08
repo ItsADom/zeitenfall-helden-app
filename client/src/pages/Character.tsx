@@ -5,6 +5,7 @@ import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import type { Row } from '../components/inputs';
+import { PrintScope, TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
 import UebersichtTab from '../tabs/Uebersicht';
 import HeldenbriefTab from '../tabs/Heldenbrief';
@@ -25,6 +26,10 @@ export interface FullData {
   lists: Record<string, Row[]>;
   tabs: DynTab[];
   visibility: Record<string, boolean>;
+  // Spaltenbreiten der fest eingebauten Tabellen, je Tabellen-Schlüssel in
+  // Prozent. Die selbst angelegten Tabellen führen ihre Breiten dagegen in der
+  // Spaltendefinition mit (DynColumn.width).
+  tableWidths: Record<string, number[]>;
   portrait: boolean;
 }
 
@@ -222,6 +227,25 @@ export default function CharacterPage() {
     [flush],
   );
 
+  // Spaltenbreiten einer eingebauten Tabelle sichern. Wie beim Namen bewusst
+  // sofort statt über das entprellte Sammel-Speichern: es passiert genau einmal,
+  // beim Klick auf „Fertig". Der Server normalisiert und antwortet mit dem
+  // gespeicherten Satz — den übernehmen wir, damit Anzeige und Datenbank
+  // garantiert dasselbe zeigen.
+  const saveTableWidths = useCallback(
+    (key: string, widths: number[]) => {
+      setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: widths } } : prev));
+      setSaveState('Speichere…');
+      apiPut<{ widths: number[] }>(`/api/characters/${charId}/table-widths`, { key, widths })
+        .then((res) => {
+          setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: res.widths } } : prev));
+          setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
+        })
+        .catch((e) => setSaveState(`Fehler beim Speichern: ${e instanceof Error ? e.message : e}`));
+    },
+    [charId],
+  );
+
   // Kehrt der Tab/das Fenster in den Vordergrund zurück, still nachladen — so
   // sieht man Änderungen anderer (Spielleiter ⇄ Spieler), ohne neu zu laden.
   // Bewusst NICHT während eigener ungespeicherter Änderungen (feste Sektionen:
@@ -362,6 +386,7 @@ export default function CharacterPage() {
 
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
+      <TableLayoutProvider widths={data!.tableWidths ?? {}} save={saveTableWidths}>
       <div className="screen-only">
         {viewAsBar}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
@@ -455,6 +480,7 @@ export default function CharacterPage() {
       </div>
 
       {printing && (
+        <PrintScope>
         <div className="print-root">
           {[
             { key: 'Übersicht', node: <UebersichtTab /> },
@@ -491,7 +517,9 @@ export default function CharacterPage() {
             </section>
           ))}
         </div>
+        </PrintScope>
       )}
+      </TableLayoutProvider>
     </CharCtx.Provider>
   );
 }

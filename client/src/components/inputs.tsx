@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
-import { ResizeHandle, useResizableColumns } from './resize';
+import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from './tableLayout';
 
 export function NumInput({
   value,
@@ -101,12 +101,21 @@ export interface ExtraColumn {
   render: (row: Row, index: number) => React.ReactNode;
 }
 
-// Standard-Spaltenbreite in px aus der relativen Breite der Sektions-Definition
-function defaultWidth(col: ColumnDef): number {
-  if (col.type === 'number') return 72;
-  if (col.type === 'bool') return 90;
-  return Math.max(90, (col.width ?? 2) * 60);
+// Ausgangsverhältnis einer Spalte, wenn noch nichts gespeichert ist. Der
+// Maßstab ist gleichgültig — normalizeWidths rechnet daraus Prozente.
+function defaultWeight(col: ColumnDef): number {
+  if (col.type === 'number') return 1;
+  if (col.type === 'bool') return 1.2;
+  return Math.max(1.5, col.width ?? 2);
 }
+
+// Breite der Spalten am rechten Rand (Notiz, Löschen, berechnete Zusatzspalten).
+// Die bleiben in Pixeln: ein Knopf wird nicht schöner, wenn er mitwächst.
+const TRAILING_PX = 40;
+const EXTRA_PX = 90;
+// Damit die Tabelle auf schmalen Geräten nicht zerquetscht wird, sondern
+// waagerecht scrollt.
+const MIN_COL_PX = 64;
 
 // Generischer Tabellen-Editor für Listen-Sektionen mit verstellbaren Spalten.
 export function ListEditor({
@@ -131,12 +140,12 @@ export function ListEditor({
   const cols = def.columns.filter((c) => !hiddenColumns.includes(c.key) && c.key !== NOTIZ_KEY);
   const hasNotiz = def.columns.some((c) => c.key === NOTIZ_KEY);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
-  const { widths, startDrag } = useResizableColumns(
-    def.id,
-    cols.map(defaultWidth),
-  );
   const trailingCols = extraColumns.length + (hasNotiz ? 1 : 0) + (disabled ? 0 : 1);
-  const totalWidth = widths.reduce((s, w) => s + w, 0) + extraColumns.length * 90 + (hasNotiz ? 40 : 0) + (disabled ? 0 : 40);
+  // Was die festen Spalten am rechten Rand belegen; den Rest teilen sich die
+  // Datenspalten nach ihren Prozentanteilen.
+  const fixedPx = extraColumns.length * EXTRA_PX + (hasNotiz ? TRAILING_PX : 0) + (disabled ? 0 : TRAILING_PX);
+  const layout = useTableLayout(`list:${def.id}`, cols.length, { defaults: cols.map(defaultWeight), fixedPx });
+  const minWidth = cols.length * MIN_COL_PX + fixedPx;
 
   const toggleNote = (i: number) => {
     setOpenNotes((prev) => {
@@ -161,26 +170,36 @@ export function ListEditor({
   };
   const removeRow = (i: number) => onChange(rows.filter((_, j) => j !== i));
 
+  if (layout.collapsed) {
+    return (
+      <>
+        <TableTools layout={layout} label={def.label} />
+        <CollapsedNote rows={rows.length} onOpen={layout.toggleCollapsed} />
+      </>
+    );
+  }
+
   return (
     <>
+      <TableTools layout={layout} label={def.label} />
       <div className="table-wrap">
-        <table className="sheet" style={{ tableLayout: 'fixed', minWidth: totalWidth }}>
+        <table ref={layout.tableRef} className="sheet" style={{ tableLayout: 'fixed', width: '100%', minWidth }}>
           <colgroup>
-            {widths.map((w, i) => (
-              <col key={i} style={{ width: w }} />
+            {cols.map((c, i) => (
+              <col key={c.key} style={{ width: layout.colWidth(i) }} />
             ))}
             {extraColumns.map((c) => (
-              <col key={c.label} style={{ width: 90 }} />
+              <col key={c.label} style={{ width: EXTRA_PX }} />
             ))}
-            {hasNotiz && <col style={{ width: 40 }} />}
-            {!disabled && <col style={{ width: 40 }} />}
+            {hasNotiz && <col style={{ width: TRAILING_PX }} />}
+            {!disabled && <col style={{ width: TRAILING_PX }} />}
           </colgroup>
           <thead>
             <tr>
               {cols.map((c, i) => (
                 <th key={c.key} title={c.label}>
                   {c.label}
-                  <ResizeHandle index={i} startDrag={startDrag} />
+                  {i < cols.length - 1 && <ColumnDivider layout={layout} index={i} />}
                 </th>
               ))}
               {extraColumns.map((c) => (

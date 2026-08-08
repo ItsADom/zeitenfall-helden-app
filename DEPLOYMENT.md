@@ -69,6 +69,34 @@ erfolgreichem Build — schlägt etwas fehl, läuft die alte Version unberührt 
 Eine abgerissene SSH-Verbindung schadet deshalb ebenfalls nicht: einfach neu
 verbinden und wiederholen.
 
+### In den Git-Klon schauen
+
+```bash
+sudo -u helden git -C /srv/helden/repo status
+sudo -u helden git -C /srv/helden/repo log --oneline -5
+```
+
+Immer **als `helden`** und mit `-C` statt `cd`. Der Klon gehört dem Dienstnutzer;
+ruft `jonas` dort git auf, kommt:
+
+```
+fatal: detected dubious ownership in repository at '/srv/helden/repo'
+```
+
+Das ist der Schutz aus CVE-2022-24765: in `.git/config` lassen sich Befehle
+hinterlegen (`core.pager`, `core.fsmonitor`, Hooks), die git beim Arbeiten selbst
+ausführt — ein fremdes Repository könnte so Code unter der eigenen Kennung starten.
+Die angebotene Abhilfe `git config --global --add safe.directory …` **nicht**
+setzen: `jonas` hat auf dem Klon ohnehin nur Lese-, kein Schreibrecht, und Dateien,
+die dort als `jonas` entstehen, machen den Klon gemischt-eigentümlich — der nächste
+Deploy-Lauf als `helden` bricht dann an schwerer deutbarer Stelle ab.
+
+Aktualisiert wird der Klon nie von Hand, sondern nur durch `deploy.sh`. Ein
+`git pull` wäre dort auch inhaltlich falsch: das Skript nutzt
+`checkout -B <branch> origin/<branch>` und zwingt den lokalen Branch damit hart auf
+den Remote-Stand. `pull` könnte stattdessen einen Merge-Commit oder Konflikt
+erzeugen — in einem Verzeichnis, das nur ein Spiegel sein soll.
+
 ### Zustand und Protokoll
 
 ```bash

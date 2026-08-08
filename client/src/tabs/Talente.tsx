@@ -3,7 +3,7 @@ import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { NumInput, TextInput } from '../components/inputs';
-import { ResizeHandle, useResizableColumns } from '../components/resize';
+import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { usePersistedState } from '../components/persist';
 import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
@@ -88,7 +88,7 @@ function KampfTable({
   setValue: (id: number, patch: Partial<CharTalent>) => void;
   searching: boolean;
 }) {
-  const { widths, startDrag } = useResizableColumns('talente-kampf', KAMPF_WIDTHS);
+  const layout = useTableLayout('talente:kampf', KAMPF_HEADS.length, { defaults: KAMPF_WIDTHS });
   // Einklappen je Waffengruppe (Hiebwaffen, Schwerter …), gemerkt; Suche zeigt alles
   const [collapsedList, setCollapsedList] = usePersistedState<string[]>('talc:kampf', []);
   const collapsed = new Set(collapsedList);
@@ -150,26 +150,37 @@ function KampfTable({
   return (
     <div className="panel">
       <h3>Kampftalente</h3>
-      <div className="table-wrap">
-        <table className="sheet" style={{ tableLayout: 'fixed', minWidth: widths.reduce((s, w) => s + w, 0) }}>
-          <colgroup>
-            {widths.map((w, i) => (
-              <col key={i} style={{ width: w }} />
-            ))}
-          </colgroup>
-          <thead>
-            <tr>
-              {KAMPF_HEADS.map((h, i) => (
-                <th key={h} title={h}>
-                  {h}
-                  <ResizeHandle index={i} startDrag={startDrag} />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>{rows}</tbody>
-        </table>
-      </div>
+      <TableTools layout={layout} label="Kampftalente" />
+      {layout.collapsed ? (
+        <CollapsedNote rows={entries.length} onOpen={layout.toggleCollapsed} />
+      ) : (
+        <>
+          <div className="table-wrap">
+            <table
+              ref={layout.tableRef}
+              className="sheet"
+              style={{ tableLayout: 'fixed', width: '100%', minWidth: KAMPF_HEADS.length * 64 }}
+            >
+              <colgroup>
+                {KAMPF_HEADS.map((h, i) => (
+                  <col key={h} style={{ width: layout.colWidth(i) }} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  {KAMPF_HEADS.map((h, i) => (
+                    <th key={h} title={h}>
+                      {h}
+                      {i < KAMPF_HEADS.length - 1 && <ColumnDivider layout={layout} index={i} />}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>{rows}</tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -192,7 +203,7 @@ function NormalTable({
   const [collapsed, setCollapsed] = usePersistedState<boolean>(`talc:cat:${kat}`, false);
   const open = searching || !collapsed;
   const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)'];
-  const { widths, startDrag } = useResizableColumns(`talente-${kat}`, [220, 95, 95, 70, 100, 140, 170, 260]);
+  const layout = useTableLayout(`talente:${kat}`, heads.length, { defaults: [220, 95, 95, 70, 100, 140, 170, 260] });
   return (
     <div className="panel">
       <h3
@@ -213,11 +224,14 @@ function NormalTable({
         <span className="chev" aria-hidden>{open ? '▾' : '▸'}</span>
       </h3>
       {open && (
+      <>
+      {/* Einklappen läuft hier über die Überschrift — deshalb nur der Breiten-Knopf. */}
+      <TableTools layout={layout} label={TALENT_KATEGORIE_LABELS[kat]} showCollapse={false} />
       <div className="table-wrap">
-        <table className="sheet" style={{ tableLayout: 'fixed', minWidth: widths.reduce((s, w) => s + w, 0) }}>
+        <table ref={layout.tableRef} className="sheet" style={{ tableLayout: 'fixed', width: '100%', minWidth: heads.length * 64 }}>
           <colgroup>
-            {widths.map((w, i) => (
-              <col key={i} style={{ width: w }} />
+            {heads.map((h, i) => (
+              <col key={h} style={{ width: layout.colWidth(i) }} />
             ))}
           </colgroup>
           <thead>
@@ -225,7 +239,7 @@ function NormalTable({
               {heads.map((h, i) => (
                 <th key={h} title={h}>
                   {h}
-                  <ResizeHandle index={i} startDrag={startDrag} />
+                  {i < heads.length - 1 && <ColumnDivider layout={layout} index={i} />}
                 </th>
               ))}
             </tr>
@@ -263,6 +277,7 @@ function NormalTable({
           </tbody>
         </table>
       </div>
+      </>
       )}
     </div>
   );

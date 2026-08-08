@@ -1,6 +1,7 @@
 import { schreibenProbe, sprechenProbe } from '@shared/rules';
 import type { CharLanguage } from '@shared/types';
 import { NumInput } from '../components/inputs';
+import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { useChar } from '../pages/Character';
 import type { LanguageCatalogRow } from '../pages/Character';
 
@@ -16,81 +17,128 @@ export default function SprachenTab() {
     update('languages', next);
   };
 
-  const renderTable = (kind: 'sprache' | 'schrift', title: string, info: React.ReactNode) => {
-    const entries = catalogs.languages.filter((l) => l.kind === kind);
-    const rows: React.ReactNode[] = [];
-    let lastFamilie = '';
-    for (const e of entries) {
-      if (e.familie !== lastFamilie) {
-        lastFamilie = e.familie;
-        rows.push(
-          <tr className="subtle-head" key={`f-${e.familie}`}>
-            <td colSpan={kind === 'sprache' ? 4 : 3}>
-              <span className="sticky-label">{e.familie}</span>
-            </td>
-          </tr>,
-        );
-      }
-      const v = values.get(e.id);
+  return (
+    <div className="grid2">
+      <LanguageTable
+        kind="sprache"
+        title="Sprachen"
+        info={
+          <>
+            Sprechen-Probe (KL/IN/CH): <strong>{sprechenProbe(data.attributes)}</strong> — erleichtert um TaW in der Sprache.
+          </>
+        }
+        entries={catalogs.languages.filter((l) => l.kind === 'sprache')}
+        values={values}
+        setValue={setValue}
+      />
+      <LanguageTable
+        kind="schrift"
+        title="Schriften"
+        info={
+          <>
+            Lesen/Schreiben-Probe (KL/KL/FF): <strong>{schreibenProbe(data.attributes)}</strong> — erleichtert um TaW in der
+            Sprache.
+          </>
+        }
+        entries={catalogs.languages.filter((l) => l.kind === 'schrift')}
+        values={values}
+        setValue={setValue}
+      />
+    </div>
+  );
+}
+
+// Eigene Komponente statt einer Hilfsfunktion im Tab: die Tabelle hält mit
+// useTableLayout eigenen Zustand, und Hooks dürfen nicht in einer Funktion
+// stehen, die pro Durchlauf mehrfach aufgerufen wird.
+function LanguageTable({
+  kind,
+  title,
+  info,
+  entries,
+  values,
+  setValue,
+}: {
+  kind: 'sprache' | 'schrift';
+  title: string;
+  info: React.ReactNode;
+  entries: LanguageCatalogRow[];
+  values: Map<number, CharLanguage>;
+  setValue: (id: number, patch: Partial<CharLanguage>) => void;
+}) {
+  const heads = kind === 'sprache' ? ['Name', 'Komplexität', 'TaW', 'Muttersprache'] : ['Name', 'Komplexität', 'TaW'];
+  const layout = useTableLayout(`sprachen:${kind}`, heads.length, {
+    defaults: kind === 'sprache' ? [4, 2, 1.5, 2] : [4, 2, 1.5],
+  });
+
+  const rows: React.ReactNode[] = [];
+  let lastFamilie = '';
+  for (const e of entries) {
+    if (e.familie !== lastFamilie) {
+      lastFamilie = e.familie;
       rows.push(
-        <tr key={e.id}>
-          <td>{e.name}</td>
-          <td className="num muted" style={{ width: 100 }}>
-            {e.komplexitaet}
+        <tr className="subtle-head" key={`f-${e.familie}`}>
+          <td colSpan={heads.length}>
+            <span className="sticky-label">{e.familie}</span>
           </td>
-          <td className="num" style={{ width: 80 }}>
-            <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />
-          </td>
-          {kind === 'sprache' && (
-          <td style={{ width: 110, textAlign: 'center' }}>
-            {kind === 'sprache' && (
-              <input type="checkbox" checked={v?.muttersprache ?? false} onChange={(ev) => setValue(e.id, { muttersprache: ev.target.checked })} />
-            )}
-          </td>
-          )}
         </tr>,
       );
     }
-    return (
-      <div className="panel">
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-          <h3 style={{ margin: 0 }}>{title}</h3>
-          <span className="muted" style={{ fontSize: 13 }}>
-            {info}
-          </span>
-        </div>
-        <div className="table-wrap">
-          <table className="sheet" style={{ minWidth: 480 }}>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Komplexität</th>
-                <th>TaW</th>
-                {kind === 'sprache' && <th>Muttersprache</th>}
-              </tr>
-            </thead>
-            <tbody>{rows}</tbody>
-          </table>
-        </div>
-      </div>
+    const v = values.get(e.id);
+    rows.push(
+      <tr key={e.id}>
+        <td title={e.name}>{e.name}</td>
+        <td className="num muted">{e.komplexitaet}</td>
+        <td className="num">
+          <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />
+        </td>
+        {kind === 'sprache' && (
+          <td style={{ textAlign: 'center' }}>
+            <input
+              type="checkbox"
+              checked={v?.muttersprache ?? false}
+              onChange={(ev) => setValue(e.id, { muttersprache: ev.target.checked })}
+            />
+          </td>
+        )}
+      </tr>,
     );
-  };
+  }
 
   return (
-    <div className="grid2">
-      {renderTable(
-        'sprache',
-        'Sprachen',
+    <div className="panel">
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+        <h3 style={{ margin: 0 }}>{title}</h3>
+        <span className="muted" style={{ fontSize: 13 }}>
+          {info}
+        </span>
+      </div>
+      <TableTools layout={layout} label={title} />
+      {layout.collapsed ? (
+        <CollapsedNote rows={entries.length} onOpen={layout.toggleCollapsed} />
+      ) : (
         <>
-          Sprechen-Probe (KL/IN/CH): <strong>{sprechenProbe(data.attributes)}</strong> — erleichtert um TaW in der Sprache.
-        </>,
-      )}
-      {renderTable(
-        'schrift',
-        'Schriften',
-        <>
-          Lesen/Schreiben-Probe (KL/KL/FF): <strong>{schreibenProbe(data.attributes)}</strong>  — erleichtert um TaW in der Sprache.
-        </>,
+          <div className="table-wrap">
+            <table ref={layout.tableRef} className="sheet" style={{ tableLayout: 'fixed', width: '100%', minWidth: heads.length * 80 }}>
+              <colgroup>
+                {heads.map((h, i) => (
+                  <col key={h} style={{ width: layout.colWidth(i) }} />
+                ))}
+              </colgroup>
+              <thead>
+                <tr>
+                  {heads.map((h, i) => (
+                    <th key={h} title={h}>
+                      {h}
+                      {i < heads.length - 1 && <ColumnDivider layout={layout} index={i} />}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>{rows}</tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

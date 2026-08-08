@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { LIST_SECTION_IDS, normalizeColumns } from 'shared';
+import { LIST_SECTION_IDS, normalizeColumns, normalizeWidths } from 'shared';
 import {
   createSession,
   destroySession,
@@ -12,6 +12,8 @@ import {
 } from './auth.js';
 import { db, initCharacterRows } from './db.js';
 import {
+  MAX_TABLE_COLUMNS,
+  MAX_TABLE_KEY,
   buildSummary,
   deletePortrait,
   importFullCharacter,
@@ -21,6 +23,7 @@ import {
   migrateCharacterPeriphery,
   savePortrait,
   saveSection,
+  saveTableWidths,
   saveVisibility,
 } from './characterData.js';
 import {
@@ -370,6 +373,32 @@ api.put('/characters/:id/visibility', requireAuth, (req, res) => {
   }
   saveVisibility(char.id, (req.body ?? {}) as Record<string, unknown>);
   res.json({ ok: true });
+});
+
+// Spaltenbreiten einer eingebauten Tabelle (Talente, Waffen, feste Listen).
+// Der Schlüssel steht im Rumpf statt im Pfad: er enthält Doppelpunkte und
+// Tabellennamen wie „Körperliche Talente", die in einer URL nur Ärger machen.
+// Normalisiert wird hier und nicht erst im Client — so liegen in der Datenbank
+// ausschließlich Sätze, die sich auf 100 summieren, egal wer sie geschickt hat.
+api.put('/characters/:id/table-widths', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  const { key, widths } = (req.body ?? {}) as { key?: unknown; widths?: unknown };
+  const tableKey = String(key ?? '').trim();
+  if (!tableKey || tableKey.length > MAX_TABLE_KEY) {
+    res.status(400).json({ error: 'Ungültiger Tabellen-Schlüssel' });
+    return;
+  }
+  if (!Array.isArray(widths) || widths.length === 0 || widths.length > MAX_TABLE_COLUMNS) {
+    res.status(400).json({ error: 'Ungültige Spaltenbreiten' });
+    return;
+  }
+  const clean = normalizeWidths(widths as (number | undefined)[]);
+  saveTableWidths(char.id, tableKey, clean);
+  res.json({ widths: clean });
 });
 
 // Umbenennen. Anders als PUT /characters/:id (nur Spielleiter, ändert auch

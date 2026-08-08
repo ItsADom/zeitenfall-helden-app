@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import type { Attributes } from '@shared/types';
 import {
   computeProbeCell,
@@ -245,6 +246,16 @@ function SectionPanel({
   // Zusatzspalten je Zeile: Notiz, optional Behälter, Löschen.
   const extraCols = showContainerCol ? 3 : 2;
 
+  // Diese Tabelle bringt ihre Spalten selbst mit, deshalb wohnt die Breite in
+  // der Spaltendefinition und wird über denselben Weg gespeichert wie
+  // Bezeichnung und Typ — nicht in der Ablage für die eingebauten Tabellen.
+  const fixedPx = extraCols * 40;
+  const layout = useTableLayout(`sec:${section.id}`, cols.length, {
+    stored: cols.map((c) => c.width),
+    save: (widths) => onColumns(cols.map((c, i) => ({ ...c, width: widths[i] }))),
+    fixedPx,
+  });
+
   // Sortier-Wert einer Zelle (Proben werden berechnet, Zahlen numerisch verglichen)
   const sortValue = (col: DynColumn, row: DynRow): number | string => {
     if (col.type === 'probe') return Number(computeProbeCell(attributes, col, row) ?? -Infinity);
@@ -337,14 +348,32 @@ function SectionPanel({
           value={String(section.rows[0]?.text ?? '')}
           onChange={(e) => onRows([{ text: e.target.value }])}
         />
+      ) : layout.collapsed ? (
+        <>
+          <TableTools layout={layout} label={section.name} />
+          <CollapsedNote rows={section.rows.length} onOpen={layout.toggleCollapsed} />
+        </>
       ) : (
         <>
           {editCols && <ColumnEditor columns={section.columns} allowProbe={allowProbe} onChange={onColumns} />}
+          <TableTools layout={layout} label={section.name} />
           <div className="table-wrap">
-            <table className="sheet" style={{ minWidth: cols.length * 130 }}>
+            <table
+              ref={layout.tableRef}
+              className="sheet"
+              style={{ tableLayout: 'fixed', width: '100%', minWidth: cols.length * 64 + fixedPx }}
+            >
+              <colgroup>
+                {cols.map((c, i) => (
+                  <col key={c.key} style={{ width: layout.colWidth(i) }} />
+                ))}
+                <col style={{ width: 40 }} />
+                {showContainerCol && <col style={{ width: 40 }} />}
+                <col style={{ width: 40 }} />
+              </colgroup>
               <thead>
                 <tr>
-                  {cols.map((c) => (
+                  {cols.map((c, i) => (
                     <th
                       key={c.key}
                       className="sortable"
@@ -353,11 +382,14 @@ function SectionPanel({
                     >
                       {c.label}
                       <span className="sort-caret">{sort?.key === c.key ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</span>
+                      {/* Der Trennstrich schluckt seine Klicks selbst, sonst
+                          würde jedes Ziehen die Spalte mitsortieren. */}
+                      {i < cols.length - 1 && <ColumnDivider layout={layout} index={i} />}
                     </th>
                   ))}
-                  <th style={{ width: 40 }} />
-                  {showContainerCol && <th style={{ width: 40 }} />}
-                  <th style={{ width: 40 }} />
+                  <th />
+                  {showContainerCol && <th />}
+                  <th />
                 </tr>
               </thead>
               <tbody>

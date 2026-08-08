@@ -67,6 +67,16 @@ db.exec(`
     visible INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (character_id, section)
   );
+  -- Spaltenbreiten der fest eingebauten Tabellen (Talente, Waffen, Listen).
+  -- Prozentwerte als JSON-Array; die Spalten selbst stehen im Code, hier hängt
+  -- nur die Darstellung. Die selbst angelegten Tabellen brauchen das nicht —
+  -- deren Breiten stecken in der Spaltendefinition (DynColumn.width).
+  CREATE TABLE IF NOT EXISTS character_table_widths (
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    table_key TEXT NOT NULL,
+    widths TEXT NOT NULL,
+    PRIMARY KEY (character_id, table_key)
+  );
 
   CREATE TABLE IF NOT EXISTS char_bio (
     character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,

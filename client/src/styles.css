@@ -366,10 +366,15 @@ header.topbar button:hover {
   background: rgba(255, 255, 255, 0.22);
 }
 
+/* Die Seite nutzt die vorhandene Fensterbreite. Die Obergrenze verhindert nur,
+   dass Fließtext auf sehr breiten Bildschirmen unlesbar lang wird; die Tabellen
+   darin rechnen ihre Spalten in Prozent und wachsen einfach mit. Der
+   Innenabstand schrumpft auf schmalen Geräten mit. */
 main {
-  max-width: 1440px;
+  width: 100%;
+  max-width: 2200px;
   margin: 0 auto;
-  padding: 20px 24px 60px;
+  padding: 20px clamp(10px, 1.8vw, 28px) 60px;
 }
 
 /* ---------- Panels & Karten ---------- */
@@ -659,19 +664,64 @@ table.sheet th.sortable:hover {
   display: inline-block;
 }
 
-/* Spalten-Griff zum Verbreitern */
-.col-resize {
+/* ---------- Tabellen-Werkzeuge: Einklappen und Spaltenbreiten ---------- */
+
+.table-tools {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+button.small.primary-ghost {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+
+.collapsed-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-style: italic;
+}
+.collapsed-note:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Trennstrich zwischen zwei Spaltenköpfen — ziehen verschiebt ihn,
+   Doppelklick passt die linke Spalte an ihren Inhalt an. Die Fläche ist
+   absichtlich breiter als der sichtbare Strich, damit man sie trifft. */
+/* Liegt vollständig INNERHALB der Kopfzelle: die hat `overflow: hidden`, ein
+   überstehender Griff würde abgeschnitten. Die Greiffläche ist zwölf Pixel
+   breit; sichtbar ist ein Strich direkt am Zellenrand. Er ist dauerhaft zu
+   sehen — ein Griff, den man erst beim Überfahren findet, findet man nicht. */
+.col-divider {
   position: absolute;
   top: 0;
-  right: -4px;
-  width: 9px;
+  right: 0;
+  width: 12px;
   height: 100%;
   cursor: col-resize;
   z-index: 2;
+  background: linear-gradient(to right, transparent 8px, var(--border-strong) 8px, var(--border-strong) 10px, transparent 10px);
+  transition: background 0.1s;
 }
-.col-resize:hover,
-.col-resize.active {
-  background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px);
+.col-divider:hover,
+.col-divider.active {
+  background: linear-gradient(to right, transparent 7px, var(--accent) 7px, var(--accent) 10px, transparent 10px);
+}
+/* Während des Ziehens nicht versehentlich Text markieren, und der Zeiger
+   bleibt überall der Doppelpfeil — auch außerhalb des Kopfes. */
+body.col-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+body.col-resizing * {
+  cursor: col-resize !important;
 }
 
 /* ---------- Eingaben ---------- */
@@ -1296,11 +1346,13 @@ li {
     color: var(--accent);
   }
 
-  /* Bedienelemente (Knöpfe, Spaltengriffe) gehören nicht aufs Papier. */
+  /* Bedienelemente gehören nicht aufs Papier. Eingeklappte Tabellen werden
+     beim Drucken ohnehin aufgeklappt (siehe PrintScope). */
   .print-root button,
   .print-root .add-row,
-  .print-root .resize-handle,
-  .print-root .savestate {
+  .print-root .savestate,
+  .print-root .table-tools,
+  .print-root .col-divider {
     display: none !important;
   }
   /* Eingabefelder flach drucken, damit es wie ein Bogen aussieht und nicht
