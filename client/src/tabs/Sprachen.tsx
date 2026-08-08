@@ -1,5 +1,6 @@
 import { schreibenProbe, sprechenProbe } from '@shared/rules';
 import type { CharLanguage } from '@shared/types';
+import { useReadOnly } from '../components/displayMode';
 import { NumInput } from '../components/inputs';
 import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { useChar } from '../pages/Character';
@@ -66,6 +67,7 @@ function LanguageTable({
   values: Map<number, CharLanguage>;
   setValue: (id: number, patch: Partial<CharLanguage>) => void;
 }) {
+  const readOnly = useReadOnly();
   const heads = kind === 'sprache' ? ['Name', 'Komplexität', 'TaW', 'Muttersprache'] : ['Name', 'Komplexität', 'TaW'];
   const layout = useTableLayout(`sprachen:${kind}`, heads.length, {
     defaults: kind === 'sprache' ? [4, 2, 1.5, 2] : [4, 2, 1.5],
@@ -97,6 +99,7 @@ function LanguageTable({
             <input
               type="checkbox"
               checked={v?.muttersprache ?? false}
+              disabled={readOnly}
               onChange={(ev) => setValue(e.id, { muttersprache: ev.target.checked })}
             />
           </td>

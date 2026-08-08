@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { useReadOnly } from './displayMode';
 
 // Porträt eines Charakters. Das Bild wird vor dem Hochladen im Browser auf ein
 // quadratisches Format zugeschnitten (mittiger Ausschnitt) und auf eine feste
@@ -41,6 +42,7 @@ function centerCropToJpeg(file: File): Promise<Blob> {
 }
 
 export function Portrait({ charId, initialHasImage }: { charId: number; initialHasImage: boolean }) {
+  const readOnly = useReadOnly();
   const [hasImage, setHasImage] = useState(initialHasImage);
   const [version, setVersion] = useState(0); // Cache-Buster nach Änderungen
   const [busy, setBusy] = useState(false);
@@ -98,16 +100,18 @@ export function Portrait({ charId, initialHasImage }: { charId: number; initialH
           Kein Bild
         </div>
       )}
-      <div className="portrait-actions">
-        <button className="small" disabled={busy} onClick={() => fileRef.current?.click()}>
-          {hasImage ? 'Ändern' : 'Bild hochladen'}
-        </button>
-        {hasImage && (
-          <button className="small" disabled={busy} onClick={remove}>
-            Entfernen
+      {!readOnly && (
+        <div className="portrait-actions">
+          <button className="small" disabled={busy} onClick={() => fileRef.current?.click()}>
+            {hasImage ? 'Ändern' : 'Bild hochladen'}
           </button>
-        )}
-      </div>
+          {hasImage && (
+            <button className="small" disabled={busy} onClick={remove}>
+              Entfernen
+            </button>
+          )}
+        </div>
+      )}
       <input
         ref={fileRef}
         type="file"

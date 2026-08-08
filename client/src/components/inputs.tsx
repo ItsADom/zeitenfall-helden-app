@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
 import { fitSoon, observeAutosize } from './autosize';
+import { useReadOnly } from './displayMode';
 import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from './tableLayout';
 
 export function NumInput({
@@ -27,20 +28,45 @@ export function NumInput({
    */
   min?: number;
 }) {
+  const readOnly = useReadOnly();
+  // Was gerade im Feld STEHT, solange getippt wird — nicht was der Charakter
+  // hat. Beides auseinanderzuhalten ist der ganze Punkt: das Feld muss
+  // Zwischenstände zeigen dürfen, die noch keine Zahl sind ("", "-"), und beim
+  // Betreten die 0 loswerden. Sonst steht die 0 im Weg und man tippt "05".
+  // null = kein Entwurf, es gilt der Wert des Charakters.
+  const [draft, setDraft] = useState<string | null>(null);
+  const safe = Number.isFinite(value) ? value : 0;
+
+  if (readOnly) return <span className="static-value static-num">{safe}</span>;
+
+  const type = (raw: string) => {
+    setDraft(raw);
+    // Zwischenstand, noch keine Zahl — stehen lassen und nichts speichern.
+    if (raw === '' || raw === '-') return;
+    const typed = Number(raw);
+    if (!Number.isFinite(typed)) return;
+    let v = typed;
+    if (max !== undefined) v = Math.min(v, max);
+    if (min !== undefined) v = Math.max(v, min);
+    onChange(v);
+    // Gekappt: der Entwurf zeigte etwas anderes als das Gespeicherte, also weg
+    // damit — das Feld springt sofort auf die Grenze statt erst beim Verlassen.
+    if (v !== typed) setDraft(null);
+  };
+
   return (
     <input
       type="number"
-      value={Number.isFinite(value) ? value : 0}
+      value={draft ?? String(safe)}
       disabled={disabled}
       max={max}
       min={min}
       style={width ? { width } : undefined}
-      onChange={(e) => {
-        let v = Number(e.target.value) || 0;
-        if (max !== undefined) v = Math.min(v, max);
-        if (min !== undefined) v = Math.max(v, min);
-        onChange(v);
-      }}
+      // Eine 0 ist fast nie das, was jemand behalten will, der das Feld
+      // anklickt — sie verschwindet, damit man einfach lostippen kann.
+      onFocus={() => safe === 0 && setDraft('')}
+      onBlur={() => setDraft(null)}
+      onChange={(e) => type(e.target.value)}
     />
   );
 }
@@ -56,16 +82,25 @@ export function TextInput({
   onChange: (v: string) => void;
   disabled?: boolean;
 }) {
+  const readOnly = useReadOnly();
   const ref = useRef<HTMLTextAreaElement>(null);
+  // `readOnly` gehört in beide Abhängigkeitslisten: beim Umschalten auf
+  // Bearbeiten entsteht das Textfeld neu und braucht Höhe und Beobachter
+  // wieder — ohne das bliebe es nach dem ersten Umschalten einzeilig.
   useLayoutEffect(() => {
     if (ref.current) fitSoon(ref.current);
-  }, [value]);
+  }, [value, readOnly]);
   // Die Höhe hängt nicht nur am Inhalt, sondern auch an der Breite: eine
   // verstellte Spalte oder ein schmaleres Fenster ändert die Zahl der Zeilen.
   useEffect(() => {
     const el = ref.current;
     return el ? observeAutosize(el) : undefined;
-  }, []);
+  }, [readOnly]);
+
+  // Ein geschütztes Leerzeichen, wo nichts steht: sonst fällt die Zeile in sich
+  // zusammen und die Tabelle zappelt beim Umschalten.
+  if (readOnly) return <div className="static-value static-text">{value || ' '}</div>;
+
   return (
     <textarea
       ref={ref}
@@ -139,13 +174,17 @@ export function ListEditor({
   customCell?: (col: ColumnDef, row: Row, update: (row: Row) => void) => React.ReactNode | undefined;
   emptyRow?: Row;
 }) {
+  // Nur-Lesen wirkt wie das schon vorhandene `disabled`: die Löschen-Spalte
+  // fällt weg, „+ Zeile" auch. Von hier an zählt nur noch `ro`.
+  const readOnly = useReadOnly();
+  const ro = disabled || readOnly;
   const cols = def.columns.filter((c) => !hiddenColumns.includes(c.key) && c.key !== NOTIZ_KEY);
   const hasNotiz = def.columns.some((c) => c.key === NOTIZ_KEY);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
-  const trailingCols = extraColumns.length + (hasNotiz ? 1 : 0) + (disabled ? 0 : 1);
+  const trailingCols = extraColumns.length + (hasNotiz ? 1 : 0) + (ro ? 0 : 1);
   // Was die festen Spalten am rechten Rand belegen; den Rest teilen sich die
   // Datenspalten nach ihren Prozentanteilen.
-  const fixedPx = extraColumns.length * EXTRA_PX + (hasNotiz ? TRAILING_PX : 0) + (disabled ? 0 : TRAILING_PX);
+  const fixedPx = extraColumns.length * EXTRA_PX + (hasNotiz ? TRAILING_PX : 0) + (ro ? 0 : TRAILING_PX);
   const layout = useTableLayout(`list:${def.id}`, cols.length, { defaults: cols.map(defaultWeight), fixedPx });
   const minWidth = cols.length * MIN_COL_PX + fixedPx;
 
@@ -194,7 +233,7 @@ export function ListEditor({
               <col key={c.label} style={{ width: EXTRA_PX }} />
             ))}
             {hasNotiz && <col style={{ width: TRAILING_PX }} />}
-            {!disabled && <col style={{ width: TRAILING_PX }} />}
+            {!ro && <col style={{ width: TRAILING_PX }} />}
           </colgroup>
           <thead>
             <tr>
@@ -210,7 +249,7 @@ export function ListEditor({
                 </th>
               ))}
               {hasNotiz && <th />}
-              {!disabled && <th />}
+              {!ro && <th />}
             </tr>
           </thead>
           <tbody>
@@ -221,7 +260,7 @@ export function ListEditor({
                   {cols.map((c) => (
                     <td key={c.key} className={c.type === 'number' ? 'num' : undefined}>
                       {customCell?.(c, row, (r) => setRow(i, r)) ?? (
-                        <CellInput col={c} row={row} disabled={disabled} onChange={(r) => setRow(i, r)} />
+                        <CellInput col={c} row={row} disabled={ro} onChange={(r) => setRow(i, r)} />
                       )}
                     </td>
                   ))}
@@ -241,7 +280,7 @@ export function ListEditor({
                       </button>
                     </td>
                   )}
-                  {!disabled && (
+                  {!ro && (
                     <td>
                       <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
                         ✕
@@ -257,7 +296,7 @@ export function ListEditor({
                         rows={2}
                         placeholder="Notiz…"
                         value={notiz}
-                        disabled={disabled}
+                        readOnly={ro}
                         autoFocus
                         onChange={(e) => setRow(i, { ...row, [NOTIZ_KEY]: e.target.value })}
                       />
@@ -276,7 +315,7 @@ export function ListEditor({
           </tbody>
         </table>
       </div>
-      {!disabled && (
+      {!ro && (
         <button className="small add-row" onClick={addRow}>
           + Zeile
         </button>

@@ -10,6 +10,7 @@ import {
 import type { ResourceKey } from '@shared/types';
 import { useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
+import { useReadOnly } from '../components/displayMode';
 import { depletionClass } from '../components/energie';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
@@ -180,6 +181,9 @@ function AktuellFeld({
   onChange: (v: number) => void;
   max?: number;
 }) {
+  // Die Übersicht bleibt auch im Nur-Lesen-Modus bearbeitbar (AlwaysEditable),
+  // im DRUCK aber nicht — dort gehören die Schaden-/Heilung-Knöpfe nicht hin.
+  const readOnly = useReadOnly();
   const [amount, setAmount] = useState(0);
   const apply = (sign: 1 | -1) => {
     if (!amount) return;
@@ -192,27 +196,29 @@ function AktuellFeld({
   return (
     <div className="akt-stepper">
       <NumInput value={value} max={max} onChange={onChange} />
-      <div className="akt-delta">
-        <button className="small" title="Schaden abziehen" onClick={() => apply(-1)}>
-          −
-        </button>
-        <input
-          className="akt-amount"
-          type="number"
-          min={0}
-          value={amount}
-          onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              apply(-1);
-            }
-          }}
-        />
-        <button className="small" title="Heilung addieren" onClick={() => apply(1)}>
-          +
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="akt-delta">
+          <button className="small" title="Schaden abziehen" onClick={() => apply(-1)}>
+            −
+          </button>
+          <input
+            className="akt-amount"
+            type="number"
+            min={0}
+            value={amount}
+            onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                apply(-1);
+              }
+            }}
+          />
+          <button className="small" title="Heilung addieren" onClick={() => apply(1)}>
+            +
+          </button>
+        </div>
+      )}
     </div>
   );
 }

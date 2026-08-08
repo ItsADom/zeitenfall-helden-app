@@ -15,8 +15,9 @@ import {
 } from '@shared/tabOrder';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
+import { AlwaysEditable, DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
-import { PrintScope, TableLayoutProvider } from '../components/tableLayout';
+import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
 import UebersichtTab from '../tabs/Uebersicht';
 import HeldenbriefTab from '../tabs/Heldenbrief';
@@ -102,6 +103,10 @@ export default function CharacterPage() {
   const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Nur-Lesen ist der Normalfall: das Blatt öffnet sich zum Ansehen, Bearbeiten
+  // wird bewusst eingeschaltet. Absichtlich NICHT gemerkt — jedes Öffnen fängt
+  // wieder geschützt an, sonst wäre der Schutz nach dem ersten Mal weg.
+  const [editing, setEditing] = useState(false);
 
   // Namensänderung: null = Anzeige, sonst der Entwurf im Eingabefeld.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -365,8 +370,15 @@ export default function CharacterPage() {
   const activeContentTab = tabByKey(activeKey);
 
   // Inhalt eines eingebauten Reiters. Selbst angelegte laufen über ContentTabView.
+  // Die Übersicht steht bewusst in einer Ausnahme-Insel: dort liegen die Werte,
+  // die sich im Spiel dauernd ändern (Energien, Psyche, Geld) — die will man
+  // nicht erst über „Bearbeiten" freischalten müssen.
   const builtinTab = (key: string) =>
-    key === 'Übersicht' ? <UebersichtTab />
+    key === 'Übersicht' ? (
+      <AlwaysEditable>
+        <UebersichtTab />
+      </AlwaysEditable>
+    )
     : key === 'Heldenbrief' ? <HeldenbriefTab />
     : key === 'Talente' ? <TalenteTab />
     : key === 'Waffen' ? <WaffenTab />
@@ -472,6 +484,7 @@ export default function CharacterPage() {
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
       <TableLayoutProvider widths={data!.tableWidths ?? {}} save={saveTableWidths}>
+      <DisplayModeProvider mode={editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
         {viewAsBar}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
@@ -479,7 +492,7 @@ export default function CharacterPage() {
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
               <h1>{info.name}</h1>
               {/* Im Ansehen-als-Modus bewusst ausgeblendet: die Vorschau ist rein lesend. */}
-              {!viewAs && (
+              {!viewAs && editing && (
                 <button className="small" onClick={() => setNameDraft(info.name)} title="Namen ändern" aria-label="Namen ändern">
                   ✏️
                 </button>
@@ -512,6 +525,26 @@ export default function CharacterPage() {
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>
+          {/* Im Ansehen-als-Modus gibt es nichts zu bearbeiten — die Vorschau
+              ist rein lesend, ein Bearbeiten-Knopf wäre dort eine Falle. */}
+          {!viewAs && (
+            <button
+              className={editing ? 'btn-action' : 'primary'}
+              onClick={() => {
+                // Beim Verlassen sofort sichern statt auf die Entprellung zu
+                // warten: wer „Fertig" drückt, ist unter Umständen gleich weg.
+                if (editing) void flush();
+                setEditing((v) => !v);
+              }}
+              title={
+                editing ?
+                  'Bearbeiten beenden — das Blatt ist danach wieder geschützt'
+                : 'Blatt bearbeiten. Übersicht und laufende Werte gehen auch ohne das.'
+              }
+            >
+              {editing ? '🔓 Fertig' : '🔒 Bearbeiten'}
+            </button>
+          )}
           <button className="small" onClick={() => setPrinting(true)} title="Alle Tabs drucken / als PDF speichern (je Tab eine Seite)">
             Drucken
           </button>
@@ -521,14 +554,24 @@ export default function CharacterPage() {
         </div>
         <div className="tabs">
           {order.map((key) => {
-            const movable = !isFixedTab(key);
+            // Die Reihenfolge der Reiter gehört zum Charakter und wird
+            // gespeichert — ohne Bearbeiten bleibt sie, wie sie ist. „Fest" und
+            // „gerade nicht verschiebbar" bleiben dabei getrennt: sonst hieße
+            // im Nur-Lesen-Modus jeder Reiter „Fester Reiter", was schlicht
+            // nicht stimmt.
+            const fixed = isFixedTab(key);
+            const movable = !fixed && editing;
             const marker = dropAt?.key === key ? ` drop-${dropAt.place}` : '';
             return (
               <button
                 key={key}
                 className={`${key === activeKey ? 'active' : ''}${movable ? ' movable' : ''}${dragKey === key ? ' dragging' : ''}${marker}`}
                 draggable={movable}
-                title={movable ? 'Ziehen zum Umsortieren — oder Alt+← / Alt+→' : 'Fester Reiter'}
+                title={
+                  movable ? 'Ziehen zum Umsortieren — oder Alt+← / Alt+→'
+                  : fixed ? 'Fester Reiter'
+                  : undefined
+                }
                 onClick={() => setActiveKey(key)}
                 onDragStart={(e) => {
                   if (!movable) return;
@@ -561,9 +604,11 @@ export default function CharacterPage() {
               </button>
             );
           })}
-          <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
-            + Tab
-          </button>
+          {editing && (
+            <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
+              + Tab
+            </button>
+          )}
         </div>
         {activeContentTab ? (
           <ContentTabView
@@ -588,7 +633,7 @@ export default function CharacterPage() {
             {/* Die selbst angelegten Reiter tragen ihre Pfeile in der Kopfzeile
                 von ContentTabView. Die eingebauten haben keine solche Zeile —
                 also bekommen sie hier dieselben zwei Knöpfe. */}
-            {!isFixedTab(activeKey) && (
+            {!isFixedTab(activeKey) && editing && (
               <div className="tab-move">
                 <button
                   className="small"
@@ -612,9 +657,10 @@ export default function CharacterPage() {
           </>
         )}
       </div>
+      </DisplayModeProvider>
 
       {printing && (
-        <PrintScope>
+        <DisplayModeProvider mode="print">
         <div className="print-root">
           {/* Die Seiten folgen der gewählten Reiter-Reihenfolge; „Sichtbarkeit"
               ist eine Einstellung und gehört nicht auf den Charakterbogen. */}
@@ -648,7 +694,7 @@ export default function CharacterPage() {
               );
             })}
         </div>
-        </PrintScope>
+        </DisplayModeProvider>
       )}
       </TableLayoutProvider>
     </CharCtx.Provider>

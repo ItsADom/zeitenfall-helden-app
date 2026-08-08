@@ -10,6 +10,7 @@ import {
 import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { Fragment, useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
+import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
@@ -45,6 +46,7 @@ const META_FIELDS: [string, string][] = [
 
 export default function HeldenbriefTab() {
   const { charId, data, update } = useChar();
+  const readOnly = useReadOnly();
   const { attributes, baseValues, resources, bio, meta } = data;
 
   const bv = computeBaseValues(attributes, baseValues);
@@ -260,34 +262,48 @@ export default function HeldenbriefTab() {
             </div>
           </div>
           <div className="points-grid">
+            {/* Die Verrechnen-Felder sind Werkzeuge, keine Werte — ohne
+                Bearbeiten bleibt nur der Stand stehen. */}
             <label>Abenteuerpunkte</label>
-            <input
-              type="number"
-              value={apDelta}
-              placeholder="+ Menge"
-              onChange={(e) => setApDelta(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addAp()}
-            />
+            {readOnly ? (
+              <span />
+            ) : (
+              <input
+                type="number"
+                value={apDelta}
+                placeholder="+ Menge"
+                onChange={(e) => setApDelta(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addAp()}
+              />
+            )}
             <div className="pctrl">
-              <button className="btn-action" disabled={!apDelta} onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
-                Hinzufügen
-              </button>
+              {!readOnly && (
+                <button className="btn-action" disabled={!apDelta} onClick={addAp} title="Erfahrung gewinnen: erhöht Abenteuerpunkte und Guthaben">
+                  Hinzufügen
+                </button>
+              )}
               <span className="muted">Stand:</span>
               <span className="pnum">{ap.toLocaleString('de-DE')}</span>
             </div>
 
             <label>AP-Guthaben</label>
-            <input
-              type="number"
-              value={guthabenDelta}
-              placeholder="± Menge"
-              onChange={(e) => setGuthabenDelta(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
-            />
+            {readOnly ? (
+              <span />
+            ) : (
+              <input
+                type="number"
+                value={guthabenDelta}
+                placeholder="± Menge"
+                onChange={(e) => setGuthabenDelta(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && adjustGuthaben()}
+              />
+            )}
             <div className="pctrl">
-              <button className="btn-action" disabled={!guthabenDelta} onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
-                Anpassen
-              </button>
+              {!readOnly && (
+                <button className="btn-action" disabled={!guthabenDelta} onClick={adjustGuthaben} title="Guthaben ausgeben oder anpassen (auch negativ)">
+                  Anpassen
+                </button>
+              )}
               <span className="muted">Stand:</span>
               <span className="pnum">{guthaben.toLocaleString('de-DE')}</span>
             </div>

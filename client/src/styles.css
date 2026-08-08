@@ -797,6 +797,30 @@ input[type='checkbox'] {
   transform: scale(1.15);
 }
 
+/* Nur-Lesen und Druck: Werte stehen als fester Text da statt in einem
+   Eingabefeld. Innenabstand und der (durchsichtige) Rahmen sind dieselben wie
+   am Feld, das sie ersetzen — sonst würde beim Umschalten auf „Bearbeiten"
+   jede Zeile springen. */
+.static-value {
+  display: block;
+  padding: 4px 8px;
+  border: 1px solid transparent;
+  line-height: 1.35;
+  min-height: 0;
+}
+.static-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.static-num {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+/* In Tabellen sind die Felder enger gesetzt — der feste Text folgt. */
+table.sheet .static-value {
+  padding: 3px 6px;
+}
+
 /* Automatisch mitwachsendes Textfeld: bricht um und dehnt sich nach unten,
    statt seitlich zu scrollen. Höhe wird per JS an den Inhalt gesetzt. */
 textarea.text-input {

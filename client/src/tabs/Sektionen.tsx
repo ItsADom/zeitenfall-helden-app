@@ -11,7 +11,8 @@ import {
 } from '@shared/dynamicSections';
 import type { DynColumn, DynColType, DynRow, DynSection, DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiPost, apiPut } from '../api';
-import { TextInput } from '../components/inputs';
+import { useReadOnly } from '../components/displayMode';
+import { NumInput, TextInput } from '../components/inputs';
 
 // Ein konfigurierbarer Inhalts-Tab: enthält mehrere generische Sektionen
 // (Tabellen/Notizfelder). Probe-Spalten rechnen live aus einem Attribut-Ausdruck.
@@ -59,6 +60,7 @@ export default function ContentTabView({
   onDeleteTab: () => void;
   onMoveTab: (dir: -1 | 1) => void;
 }) {
+  const readOnly = useReadOnly();
   const [sections, setSections] = useState<DynSection[]>(tab.sections);
   const [saveState, setSaveState] = useState('');
   const timers = useRef<Map<number, number>>(new Map());
@@ -148,7 +150,7 @@ export default function ContentTabView({
           className="section-title"
           defaultValue={tab.name}
           key={tab.name}
-          disabled={tab.locked}
+          disabled={tab.locked || readOnly}
           title={tab.locked ? 'Pflicht-Tab (nicht umbenennbar)' : 'Tab umbenennen'}
           onBlur={(e) => onRenameTab(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
@@ -156,13 +158,17 @@ export default function ContentTabView({
         {tab.locked && <span className="muted">🔒 Pflicht-Tab</span>}
         <span style={{ flex: 1 }} />
         <span className="savestate">{saveState}</span>
-        <button className="small" disabled={isFirst} onClick={() => onMoveTab(-1)} title="Tab nach links">
-          ←
-        </button>
-        <button className="small" disabled={isLast} onClick={() => onMoveTab(1)} title="Tab nach rechts">
-          →
-        </button>
-        {!tab.locked && (
+        {!readOnly && (
+          <>
+            <button className="small" disabled={isFirst} onClick={() => onMoveTab(-1)} title="Tab nach links">
+              ←
+            </button>
+            <button className="small" disabled={isLast} onClick={() => onMoveTab(1)} title="Tab nach rechts">
+              →
+            </button>
+          </>
+        )}
+        {!tab.locked && !readOnly && (
           <button
             className="small"
             onClick={() => confirm(`Tab „${tab.name}" mit allen Sektionen löschen?`) && onDeleteTab()}
@@ -192,14 +198,16 @@ export default function ContentTabView({
       ))}
       {sections.length === 0 && <p className="muted">Noch keine Sektionen in diesem Tab.</p>}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="primary" onClick={() => addSection('table')}>
-          + Tabelle
-        </button>
-        <button className="small" onClick={() => addSection('notes')}>
-          + Notizfeld
-        </button>
-      </div>
+      {!readOnly && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="primary" onClick={() => addSection('table')}>
+            + Tabelle
+          </button>
+          <button className="small" onClick={() => addSection('notes')}>
+            + Notizfeld
+          </button>
+        </div>
+      )}
     </>
   );
 }
@@ -231,6 +239,7 @@ function SectionPanel({
   onMove: (dir: -1 | 1) => void;
   onVisible: (visible: boolean) => void;
 }) {
+  const readOnly = useReadOnly();
   const [editCols, setEditCols] = useState(false);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
   const [capEdit, setCapEdit] = useState<Set<number>>(new Set());
@@ -243,8 +252,10 @@ function SectionPanel({
   // Ausrüstungs-Spalte bleibt bearbeitbar).
   const hasEquipmentCol = cols.some((c) => c.type === 'equipment');
   const showContainerCol = hasEquipmentCol || section.rows.some((r) => containerSlotCount(r) > 0);
-  // Zusatzspalten je Zeile: Notiz, optional Behälter, Löschen.
-  const extraCols = showContainerCol ? 3 : 2;
+  // Zusatzspalten je Zeile: Notiz, optional Behälter, Löschen. Ohne Bearbeiten
+  // fallen Behälter-Knopf und Löschen weg — die Zahl muss mitgehen, sonst passt
+  // das colSpan der Notiz- und Fächerzeilen nicht mehr.
+  const extraCols = readOnly ? 1 : showContainerCol ? 3 : 2;
 
   // Diese Tabelle bringt ihre Spalten selbst mit, deshalb wohnt die Breite in
   // der Spaltendefinition und wird über denselben Weg gespeichert wie
@@ -315,29 +326,34 @@ function SectionPanel({
           className="section-title"
           defaultValue={section.name}
           key={section.name}
+          disabled={readOnly}
           onBlur={(e) => onRename(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         />
         <span style={{ flex: 1 }} />
         {showVisibility && (
           <label className="muted" style={{ display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }} title="Für Gruppenmitglieder sichtbar">
-            <input type="checkbox" checked={section.visible} onChange={(e) => onVisible(e.target.checked)} /> sichtbar
+            <input type="checkbox" checked={section.visible} disabled={readOnly} onChange={(e) => onVisible(e.target.checked)} /> sichtbar
           </label>
         )}
-        <button className="small" disabled={isFirst} onClick={() => onMove(-1)} title="nach oben">
-          ↑
-        </button>
-        <button className="small" disabled={isLast} onClick={() => onMove(1)} title="nach unten">
-          ↓
-        </button>
-        {section.type === 'table' && (
-          <button className="small" onClick={() => setEditCols((v) => !v)}>
-            {editCols ? 'Fertig' : 'Spalten'}
-          </button>
+        {!readOnly && (
+          <>
+            <button className="small" disabled={isFirst} onClick={() => onMove(-1)} title="nach oben">
+              ↑
+            </button>
+            <button className="small" disabled={isLast} onClick={() => onMove(1)} title="nach unten">
+              ↓
+            </button>
+            {section.type === 'table' && (
+              <button className="small" onClick={() => setEditCols((v) => !v)}>
+                {editCols ? 'Fertig' : 'Spalten'}
+              </button>
+            )}
+            <button className="small" onClick={onDelete} title="Sektion löschen">
+              Löschen
+            </button>
+          </>
         )}
-        <button className="small" onClick={onDelete} title="Sektion löschen">
-          Löschen
-        </button>
       </div>
 
       {section.type === 'notes' ? (
@@ -346,6 +362,7 @@ function SectionPanel({
           rows={4}
           placeholder="Freitext…"
           value={String(section.rows[0]?.text ?? '')}
+          readOnly={readOnly}
           onChange={(e) => onRows([{ text: e.target.value }])}
         />
       ) : layout.collapsed ? (
@@ -355,7 +372,7 @@ function SectionPanel({
         </>
       ) : (
         <>
-          {editCols && <ColumnEditor columns={section.columns} allowProbe={allowProbe} onChange={onColumns} />}
+          {editCols && !readOnly && <ColumnEditor columns={section.columns} allowProbe={allowProbe} onChange={onColumns} />}
           <TableTools layout={layout} label={section.name} />
           <div className="table-wrap">
             <table
@@ -368,8 +385,8 @@ function SectionPanel({
                   <col key={c.key} style={{ width: layout.colWidth(i) }} />
                 ))}
                 <col style={{ width: 40 }} />
-                {showContainerCol && <col style={{ width: 40 }} />}
-                <col style={{ width: 40 }} />
+                {showContainerCol && !readOnly && <col style={{ width: 40 }} />}
+                {!readOnly && <col style={{ width: 40 }} />}
               </colgroup>
               <thead>
                 <tr>
@@ -388,8 +405,8 @@ function SectionPanel({
                     </th>
                   ))}
                   <th />
-                  {showContainerCol && <th />}
-                  <th />
+                  {showContainerCol && !readOnly && <th />}
+                  {!readOnly && <th />}
                 </tr>
               </thead>
               <tbody>
@@ -414,7 +431,7 @@ function SectionPanel({
                           {notiz ? '📝' : '✎'}
                         </button>
                       </td>
-                      {showContainerCol && (
+                      {showContainerCol && !readOnly && (
                         <td>
                           <button
                             className={`small container-btn${slotCount > 0 ? ' active' : ''}`}
@@ -429,11 +446,13 @@ function SectionPanel({
                           </button>
                         </td>
                       )}
-                      <td>
-                        <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
-                          ✕
-                        </button>
-                      </td>
+                      {!readOnly && (
+                        <td>
+                          <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
+                            ✕
+                          </button>
+                        </td>
+                      )}
                     </tr>,
                     openNotes.has(i) ? (
                       <tr key={`n${i}`} className="note-row">
@@ -443,6 +462,7 @@ function SectionPanel({
                             rows={2}
                             placeholder="Notiz…"
                             value={notiz}
+                            readOnly={readOnly}
                             autoFocus
                             onChange={(e) => setRow(i, { ...row, [DYN_NOTIZ_KEY]: e.target.value })}
                           />
@@ -478,6 +498,7 @@ function SectionPanel({
                                 <input
                                   value={val}
                                   placeholder="leer"
+                                  readOnly={readOnly}
                                   onChange={(e) => {
                                     const next = readSlots(row).slice();
                                     next[si] = e.target.value;
@@ -501,9 +522,11 @@ function SectionPanel({
               </tbody>
             </table>
           </div>
-          <button className="small add-row" onClick={addRow}>
-            + Zeile
-          </button>
+          {!readOnly && (
+            <button className="small add-row" onClick={addRow}>
+              + Zeile
+            </button>
+          )}
         </>
       )}
     </div>
@@ -521,21 +544,26 @@ function Cell({
   attributes: Attributes;
   onChange: (row: DynRow) => void;
 }) {
+  const readOnly = useReadOnly();
   if (col.type === 'probe') {
     const v = computeProbeCell(attributes, col, row);
     return <span className="computed" style={{ display: 'block' }}>{v ?? '—'}</span>;
   }
+  // Über NumInput statt über ein rohes <input>: so gilt hier dasselbe wie
+  // überall sonst — fester Text im Nur-Lesen-Modus, und die führende 0
+  // verschwindet beim Hineinklicken.
   if (col.type === 'number') {
-    return (
-      <input
-        type="number"
-        value={Number(row[col.key]) || 0}
-        onChange={(e) => onChange({ ...row, [col.key]: Number(e.target.value) || 0 })}
-      />
-    );
+    return <NumInput value={Number(row[col.key]) || 0} onChange={(v) => onChange({ ...row, [col.key]: v })} />;
   }
   if (col.type === 'bool') {
-    return <input type="checkbox" checked={!!row[col.key]} onChange={(e) => onChange({ ...row, [col.key]: e.target.checked })} />;
+    return (
+      <input
+        type="checkbox"
+        checked={!!row[col.key]}
+        disabled={readOnly}
+        onChange={(e) => onChange({ ...row, [col.key]: e.target.checked })}
+      />
+    );
   }
   // 'equipment' verhält sich in der Zelle wie Text (Gegenstandsname); die
   // Behälter-Fächer hängen an der Zeile und werden separat gerendert.

@@ -1,8 +1,10 @@
 import { VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
+import { useReadOnly } from '../components/displayMode';
 import { useChar } from '../pages/Character';
 
 export default function SichtbarkeitTab() {
   const { data, update } = useChar();
+  const readOnly = useReadOnly();
 
   const toggle = (section: string) => {
     update('visibility', { ...data.visibility, [section]: !data.visibility[section] });
@@ -18,7 +20,7 @@ export default function SichtbarkeitTab() {
       {VISIBILITY_SECTIONS.map((s) => (
         <div key={s} className="field">
           <label style={{ width: 220 }}>{VISIBILITY_LABELS[s]}</label>
-          <input type="checkbox" checked={!!data.visibility[s]} onChange={() => toggle(s)} />
+          <input type="checkbox" checked={!!data.visibility[s]} disabled={readOnly} onChange={() => toggle(s)} />
         </div>
       ))}
     </div>

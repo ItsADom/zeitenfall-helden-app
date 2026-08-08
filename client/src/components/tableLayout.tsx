@@ -33,6 +33,7 @@
 // Talentgruppen, das es schon vorher gab.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { evenWidths, normalizeWidths, resizeAgainstNeighbour } from '@shared/tableLayout';
+import { useDisplayMode, useReadOnly } from './displayMode';
 import { usePersistedState } from './persist';
 
 interface TableLayoutCtxValue {
@@ -41,15 +42,6 @@ interface TableLayoutCtxValue {
 }
 
 const TableLayoutCtx = createContext<TableLayoutCtxValue | null>(null);
-
-// In der Druckansicht darf nichts eingeklappt sein: dort hängen dieselben
-// Tabellen mit denselben Schlüsseln im DOM, und wer eine Tabelle am Bildschirm
-// zugeklappt hat, will sie trotzdem auf dem Ausdruck haben.
-const PrintScopeCtx = createContext(false);
-
-export function PrintScope({ children }: { children: React.ReactNode }) {
-  return <PrintScopeCtx.Provider value={true}>{children}</PrintScopeCtx.Provider>;
-}
 
 export function TableLayoutProvider({
   widths,
@@ -112,6 +104,8 @@ export interface TableLayout {
   colWidth: (i: number) => string;
   collapsed: boolean;
   toggleCollapsed: () => void;
+  /** Breiten dürfen gerade nicht verstellt werden (Nur-Lesen/Druck). */
+  readOnly: boolean;
   reset: () => void;
   /** Zieht den Trennstrich rechts neben Spalte `index`. */
   beginDrag: (index: number, e: React.MouseEvent) => void;
@@ -154,7 +148,15 @@ export function useTableLayout(
   const [draft, setDraft] = useState<number[] | null>(null);
   const live = useRef<number[]>(base);
   const [collapsed, setCollapsed] = usePersistedState<boolean>(`tbl-zu:${key}`, false);
-  const forPrint = useContext(PrintScopeCtx);
+  // In der Druckansicht darf nichts eingeklappt sein: dort hängen dieselben
+  // Tabellen mit denselben Schlüsseln im DOM, und wer eine Tabelle am Bildschirm
+  // zugeklappt hat, will sie trotzdem auf dem Ausdruck haben.
+  const forPrint = useDisplayMode() === 'print';
+  // Spaltenbreiten gehören dem Charakter und landen in der Datenbank — im
+  // Nur-Lesen-Modus also nicht anfassbar. Das EINKLAPPEN dagegen schon: das
+  // liegt pro Gerät im localStorage und beschreibt nur, was jemand gerade
+  // sehen will (siehe Kopf dieser Datei).
+  const readOnly = useReadOnly();
 
   const widths = draft ?? base;
   live.current = widths;
@@ -278,6 +280,7 @@ export function useTableLayout(
     colWidth,
     collapsed: forPrint ? false : collapsed,
     toggleCollapsed: () => setCollapsed((v) => !v),
+    readOnly,
     reset: () => commit(evenWidths(count)),
     beginDrag,
     fitToContent,
@@ -287,6 +290,9 @@ export function useTableLayout(
 // Der Trennstrich am rechten Rand eines Spaltenkopfes. Wird NICHT hinter der
 // letzten Spalte gesetzt — dort trennt er nichts.
 export function ColumnDivider({ layout, index }: { layout: TableLayout; index: number }) {
+  // Ohne Bearbeiten kein Griff — ein Strich, der auf Ziehen nicht reagiert,
+  // wäre schlimmer als keiner.
+  if (layout.readOnly) return null;
   return (
     <span
       className="col-divider"
@@ -325,7 +331,7 @@ export function TableTools({
           <span aria-hidden>{layout.collapsed ? '▸' : '▾'}</span> {layout.collapsed ? 'Ausklappen' : 'Einklappen'}
         </button>
       )}
-      {!layout.collapsed && (
+      {!layout.collapsed && !layout.readOnly && (
         <button className="small" onClick={layout.reset} title={`Alle Spalten gleich breit machen${label ? ` — ${label}` : ''}`}>
           ⇔ Breiten zurücksetzen
         </button>
