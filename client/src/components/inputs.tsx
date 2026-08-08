@@ -1,6 +1,7 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
+import { fitSoon, observeAutosize } from './autosize';
 import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from './tableLayout';
 
 export function NumInput({
@@ -57,13 +58,14 @@ export function TextInput({
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    // +2 für die 1px-Ränder oben/unten (box-sizing: border-box), damit die
-    // letzte Zeile nicht angeschnitten wird
-    el.style.height = `${el.scrollHeight + 2}px`;
+    if (ref.current) fitSoon(ref.current);
   }, [value]);
+  // Die Höhe hängt nicht nur am Inhalt, sondern auch an der Breite: eine
+  // verstellte Spalte oder ein schmaleres Fenster ändert die Zahl der Zeilen.
+  useEffect(() => {
+    const el = ref.current;
+    return el ? observeAutosize(el) : undefined;
+  }, []);
   return (
     <textarea
       ref={ref}

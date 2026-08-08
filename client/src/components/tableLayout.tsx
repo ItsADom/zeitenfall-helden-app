@@ -31,7 +31,7 @@
 // jemand auf seinem Bildschirm sehen will, nicht wie der Charakter aussieht. Er
 // liegt daher pro Gerät im localStorage — so wie das Einklappen der
 // Talentgruppen, das es schon vorher gab.
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { evenWidths, normalizeWidths, resizeAgainstNeighbour } from '@shared/tableLayout';
 import { usePersistedState } from './persist';
 
@@ -102,8 +102,12 @@ function measureColumnPx(table: HTMLTableElement, colIndex: number, headCellCoun
 
 export interface TableLayout {
   widths: number[];
-  /** Muss am <table> hängen — daraus kommt die verfügbare Breite. */
-  tableRef: React.RefObject<HTMLTableElement | null>;
+  /**
+   * Muss am <table> hängen — daraus kommt die verfügbare Breite. Bewusst eine
+   * Rückruf-Referenz: sie feuert bei jedem Wechsel des Knotens und hängt den
+   * Beobachter genau dann an, wenn die Tabelle wirklich da ist.
+   */
+  tableRef: (el: HTMLTableElement | null) => void;
   /** Breite für das <col> der Datenspalte `i`, in Pixeln sobald gemessen. */
   colWidth: (i: number) => string;
   collapsed: boolean;
@@ -160,17 +164,38 @@ export function useTableLayout(
   // gespeicherten Prozente wieder responsiv werden.
   const tableRef = useRef<HTMLTableElement | null>(null);
   const [avail, setAvail] = useState(0);
-  useEffect(() => {
-    const el = tableRef.current;
+  const observer = useRef<ResizeObserver | null>(null);
+  // Über eine Referenz, damit die Rückruf-Referenz stabil bleibt und der
+  // Beobachter nicht bei jeder Änderung von fixedPx neu aufgebaut wird.
+  const fixedRef = useRef(fixedPx);
+  fixedRef.current = fixedPx;
+
+  // Eine Rückruf-Referenz statt eines Effekts mit Abhängigkeitsliste: Tabellen
+  // verschwinden und kommen wieder — eingeklappt, in einem anderen Reiter, oder
+  // wie bei den Talent-Kategorien über eine eigene Klapp-Logik, die eine
+  // Abhängigkeitsliste gar nicht kennen kann. Blieb der Beobachter dann aus,
+  // war `avail` null, die Spalten fielen auf Prozentangaben zurück und das
+  // Ziehen tat kommentarlos nichts.
+  const attachTable = useCallback((el: HTMLTableElement | null) => {
+    observer.current?.disconnect();
+    observer.current = null;
+    tableRef.current = el;
     if (!el || typeof ResizeObserver === 'undefined') return;
-    const update = () => setAvail(Math.max(0, el.clientWidth - fixedPx));
+    const update = () => setAvail(Math.max(0, el.clientWidth - fixedRef.current));
     update();
     const ro = new ResizeObserver(update);
     ro.observe(el);
-    return () => ro.disconnect();
-    // `collapsed` steht mit drin, weil die Tabelle beim Ausklappen neu entsteht
-    // und der alte Beobachter dann ins Leere zeigt.
-  }, [fixedPx, collapsed, count]);
+    observer.current = ro;
+  }, []);
+
+  useEffect(() => () => observer.current?.disconnect(), []);
+
+  // Ändert sich der feste Anteil oder die Spaltenzahl, ohne dass die Tabelle
+  // neu entsteht, muss trotzdem neu gerechnet werden.
+  useEffect(() => {
+    const el = tableRef.current;
+    if (el) setAvail(Math.max(0, el.clientWidth - fixedPx));
+  }, [fixedPx, count]);
 
   const pxFor = (percent: number) => `${((avail * percent) / 100).toFixed(2)}px`;
   const colWidth = (i: number) => {
@@ -249,7 +274,7 @@ export function useTableLayout(
 
   return {
     widths,
-    tableRef,
+    tableRef: attachTable,
     colWidth,
     collapsed: forPrint ? false : collapsed,
     toggleCollapsed: () => setCollapsed((v) => !v),
