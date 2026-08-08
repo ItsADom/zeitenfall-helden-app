@@ -7,10 +7,25 @@
 
 ## High-Prio
 
+- overloading of Energien
+- talent search bar always visible, even when scrolled
+- table headers stay visible, while the table is rendered
+- make complete tables collapsible
+- weight and capacity calculation in inventory
+  - inventory with editable categories, not another dynamic table
+- always visible side bar with relevant stats and notes
+  - side bar navigiation to "Gruppen", "Charaktere"
 - more pages at the top-bar
    - "Gruppen" showing the user's groups
    - "Charaktere" showing the user's characters
    - "Heldenverwaltung" needs renaming. something that reflects the showing of every group and characters
+- mobile/tablet and general layout pass (most players are on PC — saved for later)
+   - only one responsive breakpoint now; the tab bar and wide tables get awkward on narrow screens
+   - too much whitespace on wide screens (16:9 already has much unused space)
+- read-only view for role Spielleiter
+- Psyche has a calculation + racial bonus and does not belong in "Stufe & Punkte"
+- no place for special Energien like "Drachenkraft" or similar
+  - need a concept for that
 
 ## Mid-Prio
 
@@ -34,13 +49,14 @@
         field NULL=coarse, old_val, new_val), index (character_id, ts DESC).
       - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
       - Optional: read-only 'Verlauf' panel per char (GM sees all, owner sees own).
-
+- worn equipment and general available equipment as a "per body part" selection with drag&drop to decide what is worn
 - skip no-op saves: saveSection / saveDynRows do a full DELETE+INSERT even when nothing
   changed. Add a server-side empty-diff check to skip the write — same diff the audit log
   needs, so build once and use for both.
 
 ## Low-Prio
 
+- damage values and effects for ammunition
 - color themes — optional polish
    - Theme-Farbwelt weiter ausweiten, nicht nur die hauptfelder farblich zuordnen
       - z.B. auch die felder der berechneten werte ins theme einbinden
@@ -64,11 +80,6 @@
      print-specific narrower columns / smaller font / scaling / wrapping
    - Sprachen has rendering issues (investigate)
    - maybe clamp column widths to the minimum necessary in print for readability
-- mobile/tablet layout pass (most players are on PC — saved for later)
-   - only one responsive breakpoint now; the tab bar and wide tables get awkward on narrow screens
-- off-machine backup (blocked for now, no other disk or storage available)
-   - the daily backups sit on the same disk as helden.db, so they don't survive disk loss
-   - copy server/data/backups/ somewhere else regularly (external drive, cloud, second host)
 - look-up lists
    - has to be worked on with the GM, currently no data for this
    - examples:
@@ -77,6 +88,9 @@
    - this has to be separated from the catalgoues - different kind of list
 - catalogue for "Liturgien" (has to wait until the catalogue-content ist finished)
    - spells need to be selectable as a Liturgie, then select from a fixed list of corresponding skills
+- when entering a number, the 0 stays so you cant just start typing your value
+  - maybe delete zeroes in front
+- Person data is a bit unstructured. needs a little rework
 
 ## Optional
 
