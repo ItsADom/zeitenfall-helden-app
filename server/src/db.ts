@@ -77,6 +77,14 @@ db.exec(`
     widths TEXT NOT NULL,
     PRIMARY KEY (character_id, table_key)
   );
+  -- Selbst gewählte Reihenfolge der Reiter als JSON-Array von Schlüsseln
+  -- ('Talente', 'c7', …). Eingebaute und selbst angelegte Reiter stehen in
+  -- derselben Liste — nur so lassen sie sich gemeinsam sortieren. Fehlt der
+  -- Eintrag, gilt die Voreinstellung aus shared/tabOrder.
+  CREATE TABLE IF NOT EXISTS character_tab_order (
+    character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+    keys TEXT NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS char_bio (
     character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,

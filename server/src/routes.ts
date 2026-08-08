@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { LIST_SECTION_IDS, normalizeColumns, normalizeWidths } from 'shared';
+import { LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
 import {
   createSession,
   destroySession,
@@ -23,6 +23,7 @@ import {
   migrateCharacterPeriphery,
   savePortrait,
   saveSection,
+  saveTabOrder,
   saveTableWidths,
   saveVisibility,
 } from './characterData.js';
@@ -399,6 +400,23 @@ api.put('/characters/:id/table-widths', requireAuth, (req, res) => {
   const clean = normalizeWidths(widths as (number | undefined)[]);
   saveTableWidths(char.id, tableKey, clean);
   res.json({ widths: clean });
+});
+
+// Reihenfolge der Reiter. Die Liste enthält eingebaute Reiter unter ihrem Namen
+// und selbst angelegte als „c<id>“ — welche Schlüssel es gibt, entscheidet der
+// Client. Hier wird nur gesäubert (Doppelte, Leeres, zu lange Einträge) und die
+// bereinigte Liste zurückgegeben, damit Anzeige und Datenbank übereinstimmen.
+api.put('/characters/:id/tab-order', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const { order } = (req.body ?? {}) as { order?: unknown };
+  if (!Array.isArray(order) || order.length > MAX_TAB_KEYS) {
+    res.status(400).json({ error: 'Ungültige Reiter-Reihenfolge' });
+    return;
+  }
+  const clean = normalizeTabOrder(order);
+  saveTabOrder(char.id, clean);
+  res.json({ order: clean });
 });
 
 // Umbenennen. Anders als PUT /characters/:id (nur Spielleiter, ändert auch

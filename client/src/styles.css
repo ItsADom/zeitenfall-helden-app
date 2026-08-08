@@ -494,6 +494,7 @@ tr.subtle-head.clickable:hover td {
   border-bottom: 1px solid var(--border);
 }
 .tabs button {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel);
@@ -503,6 +504,33 @@ tr.subtle-head.clickable:hover td {
   font-size: 13px;
   color: var(--muted);
   transition: all 0.13s;
+  /* Beim Ziehen soll die Beschriftung nicht markiert werden */
+  user-select: none;
+}
+/* Verschiebbare Reiter: Übersicht und Heldenbrief bleiben, wo sie sind. */
+.tabs button.movable {
+  cursor: grab;
+}
+.tabs button.dragging {
+  opacity: 0.45;
+  cursor: grabbing;
+}
+/* Einfügemarke in der 6px-Lücke zwischen zwei Reitern */
+.tabs button.drop-before::before,
+.tabs button.drop-after::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.tabs button.drop-before::before {
+  left: -5px;
+}
+.tabs button.drop-after::after {
+  right: -5px;
 }
 .tabs button:hover {
   color: var(--accent);
@@ -513,6 +541,15 @@ tr.subtle-head.clickable:hover td {
   border-color: var(--accent);
   color: var(--on-accent);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+/* Pfeile zum Umsortieren über den eingebauten Reitern — bündig rechts, wie in
+   der Kopfzeile der selbst angelegten Reiter. */
+.tab-move {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-bottom: 10px;
 }
 
 /* ---------- Tabellen ---------- */

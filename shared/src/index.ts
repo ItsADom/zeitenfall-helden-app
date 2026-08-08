@@ -3,3 +3,4 @@ export * from './rules.js';
 export * from './sections.js';
 export * from './dynamicSections.js';
 export * from './tableLayout.js';
+export * from './tabOrder.js';

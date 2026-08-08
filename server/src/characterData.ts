@@ -9,9 +9,12 @@ import {
   VISIBILITY_SECTIONS,
   computeBaseValues,
   computeResource,
+  dynTabId,
+  dynTabKey,
   erleichterung,
   listSectionById,
   normalizeColumns,
+  normalizeTabOrder,
   normalizeWidths,
   talentProbeZahl,
   weaponProbes,
@@ -158,12 +161,41 @@ export function saveTableWidths(charId: number, tableKey: string, widths: number
   ).run(charId, tableKey, JSON.stringify(widths));
 }
 
+// --- Reihenfolge der Reiter ---
+//
+// Auch hier bleibt der Server absichtlich unwissend: er prüft nur, dass eine
+// Liste kurzer Zeichenketten ankommt, und verlässt sich darauf, dass der Client
+// unbekannte Schlüssel beim Anzeigen wegfiltert. Sonst müsste jede neue Reiter-
+// Art am Server nachgezogen werden.
+
+export function loadTabOrder(charId: number): string[] {
+  const row = db.prepare('SELECT keys FROM character_tab_order WHERE character_id = ?').get(charId) as
+    | { keys: string }
+    | undefined;
+  if (!row) return [];
+  try {
+    const parsed = JSON.parse(row.keys) as unknown;
+    return Array.isArray(parsed) ? normalizeTabOrder(parsed) : [];
+  } catch {
+    return []; // Defekter Eintrag — es gilt die Voreinstellung
+  }
+}
+
+export function saveTabOrder(charId: number, keys: string[]): void {
+  db.prepare(
+    `INSERT INTO character_tab_order (character_id, keys) VALUES (?, ?)
+     ON CONFLICT (character_id) DO UPDATE SET keys = excluded.keys`,
+  ).run(charId, JSON.stringify(keys));
+}
+
 // --- Standard-Vorlage & Migration der festen Listen in Tabs mit Sektionen ---
 
 // Konfigurierbare Inhalts-Tabs (die berechneten Tabs Heldenbrief/Talente/Waffen/
 // Sprachen sind im Client fest). locked = Pflicht-Tab (nicht löschbar).
+const VORTEILE_TAB = 'Vorteile & Nachteile';
+
 const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] = [
-  { name: 'Vorteile & Nachteile', locked: false, sectionIds: ['professionBoni', 'vorteile', 'nachteile', 'titel', 'perks'] },
+  { name: VORTEILE_TAB, locked: true, sectionIds: ['professionBoni', 'vorteile', 'nachteile', 'titel', 'perks'] },
   { name: 'Ausrüstung', locked: true, sectionIds: ['ausruestungSlots', 'behaelter', 'proviant', 'kleidungen', 'tierAusruestung'] },
   { name: 'Inventar', locked: true, sectionIds: ['inventar'] },
   { name: 'Zauber/Fähigkeiten', locked: true, sectionIds: [] },
@@ -175,6 +207,20 @@ const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] =
 ];
 
 const ZAUBER_TAB = 'Zauber/Fähigkeiten';
+
+// Einmaliger Nachtrag: „Vorteile & Nachteile" war als einziger der ersten fünf
+// Standard-Reiter löschbar, obwohl er wie die übrigen zum Grundgerüst gehört.
+// Läuft genau einmal über PRAGMA user_version als Migrationszähler (2 = Reiter
+// nachträglich zum Pflicht-Tab gemacht); ein später selbst angelegter Reiter
+// gleichen Namens bleibt also löschbar.
+export function lockVorteileTab(): void {
+  if (Number(db.pragma('user_version', { simple: true })) >= 2) return;
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE char_tabs SET locked = 1 WHERE name = ? AND locked = 0').run(VORTEILE_TAB);
+    db.pragma('user_version = 2');
+  });
+  tx();
+}
 
 // Für die Ausrüstungs-Sektionen: welche Spalte den Gegenstandsnamen trägt.
 // Diese Spalte bekommt beim Anlegen den Typ 'equipment' und schaltet damit die
@@ -295,6 +341,7 @@ export function loadFullCharacter(charId: number) {
     tabs: loadDynTabs(charId),
     visibility: loadVisibility(charId),
     tableWidths: loadTableWidths(charId),
+    tabOrder: loadTabOrder(charId),
     portrait: hasPortrait(charId),
   };
 }
@@ -467,8 +514,13 @@ export function importFullCharacter(
       if (listSectionById(sid)) saveSection(charId, sid, rows);
     }
 
+    // Beim Import bekommen die Reiter neue IDs. Die Zuordnung alt→neu wird
+    // mitgeschrieben, damit die gespeicherte Reihenfolge (die Reiter über ihre
+    // ID benennt) den Import übersteht.
+    const tabIdMap = new Map<number, number>();
     for (const tab of data.tabs ?? []) {
       const tabId = createTab(charId, str(tab.name), !!tab.locked);
+      if (typeof tab.id === 'number') tabIdMap.set(tab.id, tabId);
       for (const section of tab.sections ?? []) {
         const secId = createDynSection(charId, tabId, str(section.name), section.type, normalizeColumns(section.columns));
         if (Array.isArray(section.rows) && section.rows.length) saveDynRows(secId, section.rows);
@@ -485,6 +537,18 @@ export function importFullCharacter(
       const clean = normalizeWidths((Array.isArray(widths) ? widths : []).slice(0, MAX_TABLE_COLUMNS));
       if (clean.length) saveTableWidths(charId, key, clean);
     }
+
+    // Reiter-Reihenfolge übernehmen, mit den neuen IDs. Ein Schlüssel, dessen
+    // Reiter nicht mitkam, fällt weg — der Client würde ihn ohnehin ignorieren.
+    const order = normalizeTabOrder(Array.isArray(data.tabOrder) ? data.tabOrder : [])
+      .map((key) => {
+        const oldId = dynTabId(key);
+        if (oldId === null) return key;
+        const newId = tabIdMap.get(oldId);
+        return newId === undefined ? '' : dynTabKey(newId);
+      })
+      .filter((key) => key !== '');
+    if (order.length) saveTabOrder(charId, order);
     return charId;
   });
   return tx();
