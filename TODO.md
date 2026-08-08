@@ -7,10 +7,11 @@
 
 ## High-Prio
 
-- overloading of Energien
+- overcharging of Energien
 - talent search bar always visible, even when scrolled
-- table headers stay visible, while the table is rendered
+- make table headers stay visible, while the table is rendered
 - make complete tables collapsible
+  - partly done, but instead of "Einklappen" make the sigil clickable
 - weight and capacity calculation in inventory
   - inventory with editable categories, not another dynamic table
 - always visible side bar with relevant stats and notes
@@ -23,9 +24,13 @@
    - only one responsive breakpoint now; the tab bar and wide tables get awkward on narrow screens
    - too much whitespace on wide screens (16:9 already has much unused space)
 - read-only view for role Spielleiter
-- Psyche has a calculation + racial bonus and does not belong in "Stufe & Punkte"
+- Psyche has a calculation + racial bonus (needs to be implemented) and does not belong in "Stufe & Punkte"
 - no place for special Energien like "Drachenkraft" or similar
   - need a concept for that
+- complete rework of the Zauber tab
+  - should be a dedicated tab, not just dynamic tables
+  - still needs to be highly adjustable
+- automatic calculation for Magierstufe and Magiepunkte
 
 ## Mid-Prio
 
@@ -58,12 +63,9 @@
 
 - damage values and effects for ammunition
 - color themes — optional polish
-   - Theme-Farbwelt weiter ausweiten, nicht nur die hauptfelder farblich zuordnen
-      - z.B. auch die felder der berechneten werte ins theme einbinden
-   - Theme-Farbwerte nach echtem Blick am Tisch feinschleifen (Token-Werte in styles.css).
-   - Kontrast-Audit je Theme, v. a. funktionale Töne (warn/crit/computed) — müssen lesbar bleiben.
-   - optional: Default über @media (prefers-color-scheme: dark), solange keine Wahl getroffen.
-   - optional: Theme zusätzlich am Nutzerkonto spiegeln (geräteübergreifend).
+  - default theme that is more neutral than Khôm (red)
+  - Kontrast-Audit je Theme, v. a. funktionale Töne (warn/crit/computed) — müssen lesbar bleiben.
+  - optional: Default über @media (prefers-color-scheme: dark), solange keine Wahl getroffen.
 - print/PDF optimization (basic version works — je Tab eine Seite; these are refinements)
    - free-text inputs print EMPTY (only the labels show): Person/bio details, Ausrüstung,
      Inventar, Zauber/Fähigkeiten, Vorteile — everywhere TextInput is used. Plain <input>
@@ -86,7 +88,7 @@
       - what attributes can be increased per weapon level
       - what attributes can be increased per spell level
    - this has to be separated from the catalgoues - different kind of list
-- catalogue for "Liturgien" (has to wait until the catalogue-content ist finished)
+- catalogue for "Liturgien" (has to wait until the catalogue-content is finished)
    - spells need to be selectable as a Liturgie, then select from a fixed list of corresponding skills
 - when entering a number, the 0 stays so you cant just start typing your value
   - maybe delete zeroes in front
