@@ -1449,22 +1449,47 @@ main {
   min-width: 0;
 }
 
-/* Klebt unter Kopfzeile + Reiterleiste; wird bei Bedarf innen scrollbar, damit
-   eine lange Leiste nicht über den Bildschirm hinauswächst. */
+/* Klebt unter Kopfzeile + Reiterleiste. Zwei Kinder nebeneinander: links der
+   Zieh-Griff für die Breite, rechts die (bei Bedarf innen scrollende) Spalte.
+   Die Breite steckt in --sidebar-w (inline gesetzt) — so kann die Schmalschirm-
+   Regel weiter unten mit width:100% gewinnen, ohne dass Inline-Stil im Weg steht. */
 .char-sidebar {
-  flex: 0 0 300px;
-  width: 300px;
+  flex: 0 0 var(--sidebar-w, 300px);
+  width: var(--sidebar-w, 300px);
   position: sticky;
   top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px) + 8px);
+  display: flex;
+  flex-direction: row;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+/* Zieh-Griff am linken Rand — dünn und unauffällig, färbt sich beim Überfahren
+   und während des Ziehens im Akzent. */
+.side-resize {
+  flex: 0 0 7px;
+  cursor: col-resize;
+  border-radius: 12px 0 0 12px;
+  background: transparent;
+}
+.side-resize:hover,
+body.resizing-col .side-resize {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+/* Während des Ziehens nichts markieren und überall den Resize-Zeiger zeigen. */
+body.resizing-col {
+  cursor: col-resize;
+  user-select: none;
+}
+.side-scroll {
+  flex: 1;
+  min-width: 0;
   max-height: calc(100dvh - (var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px)) - 20px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--panel);
+  padding: 12px 14px 12px 8px;
 }
 /* Eingeklappt: schmale Leiste, nur der Ausklapp-Knopf bleibt. */
 .char-sidebar.collapsed {
@@ -1472,6 +1497,7 @@ main {
   width: 34px;
   padding: 8px 4px;
   align-items: center;
+  justify-content: center;
 }
 
 .side-head {
@@ -1481,8 +1507,9 @@ main {
 }
 .side-title {
   font-family: Georgia, serif;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
+  color: var(--accent);
 }
 .side-toggle {
   border: 1px solid var(--border);
@@ -1499,36 +1526,46 @@ main {
   border-color: var(--accent);
 }
 
+/* Blocküberschrift wie ein Panel-Titel: heraldisches Sigel im Akzent + auslaufende
+   Haarlinie — bringt die Themenfarbe in die Leiste. */
 .side-block h4 {
-  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
   font-size: 12px;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--muted);
 }
+.side-block h4::before {
+  content: '';
+  flex: none;
+  width: 11px;
+  height: 11px;
+  background-color: var(--accent);
+  -webkit-mask: var(--sigil) center / contain no-repeat;
+  mask: var(--sigil) center / contain no-repeat;
+}
+.side-block h4::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--border-strong), transparent 78%);
+}
 
-/* Laufende Pools — Kopf (Kürzel + Max/Prozent) über dem Aktuell-Stepper. Als
-   2×2-Raster (LP/AUS · ASP/Psyche): spart Höhe und nutzt die Breite besser. */
+/* Laufende Pools als 2×2-Raster (LP/AUS · ASP/Psyche): eine zentrierte Kopfzeile
+   „KÜRZEL · X %" über dem zentrierten Aktuell-Stepper. */
 .side-pools {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 .side-pool {
-  padding: 6px 8px;
+  padding: 6px 6px 7px;
   border-radius: 8px;
+  border: 1px solid var(--border);
   background: var(--surface-sunken);
-}
-/* In den schmalen Rasterzellen darf das Betragsfeld kleiner sein, damit
-   NumInput + −/Betrag/+ sicher nebeneinander passen. */
-.side-pool .akt-amount {
-  width: 2.6em;
-}
-.side-pool .akt-delta {
-  gap: 2px;
-}
-.side-pool .akt-delta button {
-  padding: 0 5px;
 }
 .side-pool.res-low {
   background: var(--warn-soft);
@@ -1540,49 +1577,87 @@ main {
 }
 .side-pool-head {
   display: flex;
+  justify-content: center;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 3px;
-}
-.side-pool-label {
-  font-weight: 600;
-}
-.side-pool-max {
+  gap: 2px;
+  margin-bottom: 4px;
   font-size: 12px;
+}
+.side-pool-key {
+  color: var(--accent);
+  font-weight: 700;
+}
+.side-pool-pct {
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+/* Stepper mittig; das Aktuell-Feld nimmt die ganze Zellbreite. */
+.side-pool .akt-stepper {
+  align-items: center;
+  width: 100%;
+}
+.side-pool .akt-stepper > input[type='number'] {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+}
+/* Native Spinner-Pfeile weg — sie schnitten die zentrierte Zahl an; verstellt
+   wird ohnehin über die −/+-Knöpfe darunter. */
+.side-pool input[type='number']::-webkit-inner-spin-button,
+.side-pool input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.side-pool input[type='number'] {
+  -moz-appearance: textfield;
+}
+/* In den schmalen Rasterzellen darf das Betragsfeld kleiner sein. */
+.side-pool .akt-amount {
+  width: 2.6em;
+}
+.side-pool .akt-delta {
+  gap: 2px;
+}
+.side-pool .akt-delta button {
+  padding: 0 5px;
+}
 
-/* Attribute — kompaktes Raster aus Kürzel + Endwert, nur zum Ablesen. */
+/* Attribute — kompaktes Raster aus Kürzel + großem Endwert, nur zum Ablesen. */
 .side-attrs {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 4px 8px;
+  gap: 3px 6px;
 }
 .side-attr {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: 3px 8px;
+  padding: 2px 8px;
   border-radius: 6px;
   background: var(--surface-sunken);
 }
 .side-attr-code {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--muted);
   font-weight: 600;
 }
 .side-attr-val {
+  font-size: 17px;
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .side-geld {
+  text-align: center;
   font-variant-numeric: tabular-nums;
-  font-size: 16px;
+  font-size: 18px;
+}
+.side-geld strong {
+  color: var(--accent);
 }
 
-/* Schmale Schirme: die Leiste rutscht unter den Inhalt und klebt dort nicht. */
+/* Schmale Schirme: die Leiste rutscht unter den Inhalt und klebt dort nicht;
+   der Zieh-Griff entfällt (gestapelt gibt es nichts zu verbreitern). */
 @media (max-width: 1100px) {
   .char-body {
     flex-direction: column;
@@ -1592,11 +1667,16 @@ main {
     flex-basis: auto;
     width: 100%;
     position: static;
+  }
+  .side-scroll {
     max-height: none;
+  }
+  .side-resize {
+    display: none;
   }
   .char-sidebar.collapsed {
     padding: 8px 14px;
-    align-items: stretch;
+    justify-content: flex-start;
   }
 }
 

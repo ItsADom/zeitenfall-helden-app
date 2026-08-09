@@ -7,6 +7,7 @@ import { AlwaysEditable } from './displayMode';
 import { useCollapsed } from './collapse';
 import { depletionClass } from './energie';
 import { gesamtDublonen } from './GeldPanel';
+import { usePersistedState } from './persist';
 
 // Immer sichtbare Seitenleiste des Charakterbogens: die Werte, die im Spiel am
 // häufigsten gebraucht werden, an einer Stelle, ohne den Reiter zu wechseln.
@@ -18,14 +19,39 @@ import { gesamtDublonen } from './GeldPanel';
 // Die Leiste ersetzt die frühere „Übersicht" als Reiter: der Heldenbrief zeigt
 // weiterhin alles im Detail, die Leiste die stets sichtbare Teilmenge.
 
-const de = (v: number) => v.toLocaleString('de-DE');
-
 // Kurzformen für die enge Spalte — im Spiel ohnehin so gerufen.
 const RES_ABBR: Record<ResourceKey, string> = { le: 'LP', aus: 'AUS', ase: 'ASP' };
 const RES_FULL: Record<ResourceKey, string> = { le: 'Lebensenergie', aus: 'Ausdauer', ase: 'Astralenergie' };
 
+// Die Breite ist frei einstellbar, aber gedeckelt: zu schmal zerdrückt die
+// Stepper, zu breit frisst den Inhalt. Der gemerkte Wert wird beim Lesen und
+// beim Ziehen auf diese Grenzen gezogen, damit nie etwas seltsam rendert.
+const MIN_W = 240;
+const MAX_W = 520;
+const DEFAULT_W = 300;
+const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)));
+
 export default function CharacterSidebar() {
   const [collapsed, toggle] = useCollapsed('sidebar');
+  const [width, setWidth] = usePersistedState<number>('sidebar-w', DEFAULT_W);
+  const w = clampW(width);
+
+  // Ziehen am linken Rand. Die Leiste sitzt rechts, also vergrößert ein Zug
+  // nach LINKS (kleineres clientX) die Breite. Grenzen via clampW.
+  const startResize = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = w;
+    const onMove = (ev: PointerEvent) => setWidth(clampW(startW + (startX - ev.clientX)));
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      document.body.classList.remove('resizing-col');
+    };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    document.body.classList.add('resizing-col');
+  };
 
   if (collapsed) {
     return (
@@ -38,21 +64,44 @@ export default function CharacterSidebar() {
   }
 
   return (
-    <aside className="char-sidebar">
-      <div className="side-head">
-        <span className="side-title">Überblick</span>
-        <button className="side-toggle" onClick={toggle} title="Seitenleiste einklappen" aria-label="Seitenleiste einklappen">
-          ›
-        </button>
+    <aside className="char-sidebar" style={{ '--sidebar-w': `${w}px` } as React.CSSProperties}>
+      <div
+        className="side-resize"
+        onPointerDown={startResize}
+        role="separator"
+        aria-orientation="vertical"
+        title="Breite ziehen"
+      />
+      <div className="side-scroll">
+        <div className="side-head">
+          <span className="side-title">Überblick</span>
+          <button className="side-toggle" onClick={toggle} title="Seitenleiste einklappen" aria-label="Seitenleiste einklappen">
+            ›
+          </button>
+        </div>
+
+        <AlwaysEditable>
+          <SidebarPools />
+        </AlwaysEditable>
+
+        <SidebarAttribute />
+        <SidebarGeld />
       </div>
-
-      <AlwaysEditable>
-        <SidebarPools />
-      </AlwaysEditable>
-
-      <SidebarAttribute />
-      <SidebarGeld />
     </aside>
+  );
+}
+
+// Kopfzeile eines Pools: eine zentrierte Zeile „KÜRZEL · X %". Kein Maximum mehr
+// daneben — der aktuelle Wert steht im Stepper darunter, der Prozentsatz sagt
+// das Wesentliche, und die Zeile bleibt kurz und ruhig.
+function PoolHead({ label, title, prozent }: { label: string; title?: string; prozent: number | null }) {
+  return (
+    <div className="side-pool-head">
+      <span className="side-pool-key" title={title}>
+        {label}
+      </span>
+      {prozent != null && <span className="side-pool-pct"> · {prozent} %</span>}
+    </div>
   );
 }
 
@@ -80,28 +129,14 @@ function SidebarPools() {
           const prozent = r.nutzbar > 0 ? Math.round((akt / r.nutzbar) * 100) : null;
           return (
             <div className={`side-pool${depl ? ` ${depl}` : ''}`} key={key}>
-              <div className="side-pool-head">
-                <span className="side-pool-label" title={RES_FULL[key]}>
-                  {RES_ABBR[key]}
-                </span>
-                <span className="muted side-pool-max">
-                  / {de(r.nutzbar)}
-                  {prozent != null && ` · ${prozent} %`}
-                </span>
-              </div>
+              <PoolHead label={RES_ABBR[key]} title={RES_FULL[key]} prozent={prozent} />
               <AktuellFeld value={akt} max={r.nutzbar} onChange={(v) => setAktuell(key, v)} />
             </div>
           );
         })}
 
         <div className="side-pool">
-          <div className="side-pool-head">
-            <span className="side-pool-label">Psyche</span>
-            <span className="muted side-pool-max">
-              / {de(psycheMax)}
-              {psyche != null && ` · ${Math.round(psyche)} %`}
-            </span>
-          </div>
+          <PoolHead label="Psyche" prozent={psyche != null ? Math.round(psyche) : null} />
           <AktuellFeld value={psycheAkt} max={psycheMax > 0 ? psycheMax : undefined} onChange={(v) => setMeta('psycheAkt', v)} />
         </div>
       </div>
