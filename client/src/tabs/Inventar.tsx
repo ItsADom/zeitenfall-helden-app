@@ -103,16 +103,30 @@ export default function InventarTab() {
               <span className="muted inv-sum">· {kg(summe)} kg</span>
             </h3>
             <div className="table-wrap">
-              <table className="sheet">
+              <table className="sheet inv-table">
+                {/* Feste Spaltenbreiten über alle Gruppen hinweg (table-layout:
+                    fixed): sonst rechnet jede Tabelle ihre Spalten selbst aus
+                    dem Inhalt aus und der Name-Spalte wird je Gruppe anders
+                    breit. Zahlen-Spalten fest, den Rest teilen sich Name und
+                    Notiz — statt dass der Name allein den Platz frisst. */}
+                <colgroup>
+                  <col />
+                  <col style={{ width: 72 }} />
+                  <col style={{ width: 92 }} />
+                  <col style={{ width: 78 }} />
+                  {!ro && <col style={{ width: 150 }} />}
+                  <col />
+                  {!ro && <col style={{ width: 44 }} />}
+                </colgroup>
                 <thead>
                   <tr>
                     <th>Gegenstand</th>
-                    <th style={{ width: 70 }}>Anzahl</th>
-                    <th style={{ width: 90 }}>kg/St.</th>
-                    <th style={{ width: 80 }}>Σ kg</th>
-                    {!ro && <th style={{ width: 150 }}>Kategorie</th>}
+                    <th>Anzahl</th>
+                    <th>kg/St.</th>
+                    <th>Σ kg</th>
+                    {!ro && <th>Kategorie</th>}
                     <th>Notiz</th>
-                    {!ro && <th style={{ width: 40 }} />}
+                    {!ro && <th />}
                   </tr>
                 </thead>
                 <tbody>

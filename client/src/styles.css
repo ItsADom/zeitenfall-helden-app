@@ -2100,6 +2100,16 @@ li {
   flex: none;
 }
 
+/* Feste Spaltenbreiten, damit alle Kategorie-Tabellen gleich ausgerichtet sind
+   (nicht jede Gruppe rechnet ihre Spalten aus dem eigenen Inhalt). Name und
+   Notiz teilen sich den Rest zu gleichen Teilen. Nach oben gedeckelt, damit die
+   wenigen Spalten auf breiten Schirmen nicht ins Leere gezogen werden. */
+.inv-table {
+  table-layout: fixed;
+  width: 100%;
+  max-width: 1000px;
+}
+
 /* Kategorienverwaltung: Chips mit umbenennbarem Namen + Entfernen, plus ein
    Feld zum Anlegen. */
 .cat-manage {
