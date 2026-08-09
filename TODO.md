@@ -96,19 +96,49 @@ Left open on purpose:
 
 ### 3. Navigation & sidebar
 
-- More pages in the top bar: "Gruppen" and "Charaktere". At heart this is
-  splitting `Dashboard.tsx` — that page already renders both lists from
-  `/api/overview`, no server work needed.
-- Rename "Heldenverwaltung" (the brand link in `App.tsx`) — the name currently
-  collides with "Verwaltung" (`/verwaltung`, Spielleiter only).
-- Sidebar (variant B): character page only, right-hand side, showing the live
-  values (Energien, Psyche, money) — always editable, even when the sheet is in
-  read-only mode. Must come AFTER the display mode, because "always editable" is
-  only defined against it.
-  - "Notizen" content: deferred, see the open question above.
-  - Side effect: the sidebar fills exactly the space complained about below
-    under "too much whitespace on wide screens". On narrow screens it is the
-    other way round — there it needs a drawer (layout pass).
+Concept settled 2026-08-09. Sequence it as (a) nav split first, then (b) the
+sidebar — the sidebar's "always editable" behaviour is already unblocked by the
+shipped display mode.
+
+#### 3a. Navigation
+
+- Split `Dashboard.tsx` into two pages: **Charaktere** (`/charaktere`) and
+  **Gruppen** (`/gruppen`), each reusing `/api/overview` (already returns both
+  arrays) — no server work. GM sees "Alle …", players "Meine …", as today.
+- Top bar: wordmark (→ home) · Charaktere · Gruppen · **Kataloge & Nutzer**
+  (GM; renamed from "Verwaltung" to clear the clash with the "Heldenverwaltung"
+  wordmark) · Änderungen · … · theme · user-name (→ profile) · logout.
+  - The route stays `/verwaltung` internally; only the label changes.
+- `/` redirects to `/charaktere`.
+- Move **Passwort ändern** off the (now split) list pages into a small profile
+  page reached by clicking the user-name in the top bar.
+
+#### 3b. Sidebar (variant B)
+
+Sticky right-hand column on the character page ONLY. Edit-access only (group
+members on the read-only summary don't get it). Hidden in print. Collapsible —
+which also soaks up the wide-screen whitespace complained about below. On narrow
+screens it reflows below the content for now; the proper drawer/stack is part of
+the deferred layout pass.
+
+Contents — two kinds:
+- **Editable live pools** (always editable, even in read-only mode, via the
+  existing `AlwaysEditable` — same rule as the Übersicht tab):
+  - Energien (LE / AUS / AsE): current value with the −/amount/+ stepper, max,
+    depletion colour.
+  - Psyche: current / max.
+- **Read-only quick-reference readouts** (glance values, not edited here):
+  - Attribute — the eight attribute values. Called constantly for rolls, so they
+    belong in the always-visible sidebar; editing them stays on the Heldenbrief.
+  - Geld — total in Dublonen only. Actual coin editing stays on Übersicht/Geld.
+- **Notizen** — deferred slot (per-character scratchpad vs pinned notes vs
+  session log still undecided); leave room, build later.
+
+Implementation note: the energy stepper (`AktuellFeld`) and the energy/psyche
+computation currently live inside `Uebersicht.tsx`. Extract them into a shared
+component the sidebar and Übersicht both use. Overlap with Übersicht is
+intentional (Übersicht = full overview, sidebar = always-on subset); whether
+Übersicht later slims down is a separate call.
 
 ### 4. Energien
 
