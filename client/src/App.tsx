@@ -61,7 +61,9 @@ export default function App() {
               der Effekt neu auf (Schleife ⇄ Standbild). */}
           <BannerFx key={`${theme}-${anim}`} theme={theme} animate={anim} />
         </div>
-        <Link to="/">Heldenverwaltung</Link>
+        {/* Platzhaltername — bewusst nicht verlinkt, bis ein prägnanterer Name
+            feststeht. „Charaktere" ist der eigentliche Einstieg. */}
+        <span className="wordmark">Heldenverwaltung</span>
         <Link to="/charaktere">Charaktere</Link>
         <Link to="/gruppen">Gruppen</Link>
         {/* Route bleibt intern /verwaltung; nur die Beschriftung ist neu, damit

@@ -139,6 +139,20 @@ api.put('/me/password', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+api.put('/me/displayName', requireAuth, (req, res) => {
+  const displayName = (((req.body ?? {}) as { displayName?: string }).displayName ?? '').trim();
+  if (!displayName) {
+    res.status(400).json({ error: 'Anzeigename darf nicht leer sein' });
+    return;
+  }
+  if (displayName.length > 60) {
+    res.status(400).json({ error: 'Anzeigename darf höchstens 60 Zeichen haben' });
+    return;
+  }
+  db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, req.user!.id);
+  res.json({ displayName });
+});
+
 // --- Kataloge ---
 
 api.get('/catalogs', requireAuth, (_req, res) => {

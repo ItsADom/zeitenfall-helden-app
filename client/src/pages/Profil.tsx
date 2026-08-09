@@ -4,11 +4,29 @@ import { useAuth } from '../App';
 
 // Eigenes Profil. Bislang hing das Passwortändern unten an der Übersichtsseite;
 // mit der aufgeteilten Navigation bekommt es eine eigene kleine Seite, erreichbar
-// über den Namen oben rechts.
+// über den Namen oben rechts. Hier lässt sich auch der Anzeigename ändern.
 export default function ProfilPage() {
-  const { user } = useAuth();
+  const { user, refresh } = useAuth();
+
+  const [name, setName] = useState(user.displayName);
+  const [nameInfo, setNameInfo] = useState('');
+
   const [pw, setPw] = useState('');
   const [pwInfo, setPwInfo] = useState('');
+
+  const nameChanged = name.trim() !== '' && name.trim() !== user.displayName;
+
+  const changeName = async () => {
+    setNameInfo('');
+    try {
+      await apiPut('/api/me/displayName', { displayName: name.trim() });
+      // Der Name steht auch oben in der Kopfleiste — nach dem Ändern neu laden.
+      refresh();
+      setNameInfo('Anzeigename geändert.');
+    } catch (err) {
+      setNameInfo(err instanceof Error ? err.message : 'Fehler');
+    }
+  };
 
   const changePassword = async () => {
     setPwInfo('');
@@ -25,9 +43,28 @@ export default function ProfilPage() {
     <>
       <h1>Profil</h1>
       <p className="muted">
-        {user.displayName}
+        Angemeldet als {user.displayName}
         {user.isGm ? ' · Spielleiter' : ''}
       </p>
+
+      <div className="panel" style={{ maxWidth: 420, marginTop: 16 }}>
+        <h3>Anzeigename</h3>
+        <div className="field">
+          <label>Anzeigename</label>
+          <input
+            value={name}
+            maxLength={60}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && nameChanged) void changeName();
+            }}
+          />
+          <button className="primary" onClick={changeName} disabled={!nameChanged}>
+            Speichern
+          </button>
+        </div>
+        {nameInfo && <p className="muted">{nameInfo}</p>}
+      </div>
 
       <div className="panel" style={{ maxWidth: 420, marginTop: 16 }}>
         <h3>Passwort ändern</h3>

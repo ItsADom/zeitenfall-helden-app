@@ -537,6 +537,17 @@ header.topbar a:first-child {
 header.topbar a:hover {
   opacity: 1;
 }
+/* Wortmarke: sieht aus wie die übrigen Kopfleisten-Einträge, ist aber bewusst
+   kein Link (Platzhaltername). Deshalb ohne Zeiger und ohne Hover. */
+header.topbar .wordmark {
+  color: var(--on-accent);
+  font-family: Georgia, serif;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+  font-weight: 600;
+  cursor: default;
+  user-select: none;
+}
 header.topbar .spacer {
   flex: 1;
 }

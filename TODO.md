@@ -107,7 +107,10 @@ Shipped: `Dashboard.tsx` removed, replaced by `Charaktere.tsx` + `Gruppen.tsx`
 moved „Passwort ändern". Top bar now: wordmark · Charaktere · Gruppen ·
 „Kataloge & Nutzer" (GM, route still `/verwaltung`, Admin `<h1>` relabelled) ·
 Änderungen · … · theme · user-name (→ `/profil`) · logout. `/` and unknown
-routes redirect to `/charaktere`.
+routes redirect to `/charaktere`. Profil also lets users change their own
+**Anzeigename** (new `PUT /api/me/displayName`, refreshes the top bar). The
+wordmark „Heldenverwaltung" is a non-clickable placeholder until a striking
+name is found.
 
 - Split `Dashboard.tsx` into two pages: **Charaktere** (`/charaktere`) and
   **Gruppen** (`/gruppen`), each reusing `/api/overview` (already returns both
