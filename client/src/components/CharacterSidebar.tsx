@@ -54,10 +54,18 @@ export default function CharacterSidebar() {
   };
 
   if (collapsed) {
+    // Die ganze schmale Leiste ist der Aufklapp-Knopf — ein größeres Ziel als
+    // ein einzelnes Zeichen. Der sonst leere senkrechte Platz trägt „Überblick"
+    // als aufrecht gestapelte Schrift, damit klar ist, was sich hier verbirgt.
     return (
       <aside className="char-sidebar collapsed">
-        <button className="side-toggle" onClick={toggle} title="Seitenleiste ausklappen" aria-label="Seitenleiste ausklappen">
-          ‹
+        <button className="side-expand" onClick={toggle} title="Seitenleiste ausklappen" aria-label="Seitenleiste ausklappen">
+          <span className="side-expand-chev" aria-hidden>
+            ‹
+          </span>
+          <span className="side-expand-label" aria-hidden>
+            Überblick
+          </span>
         </button>
       </aside>
     );

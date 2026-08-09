@@ -1491,13 +1491,45 @@ body.resizing-col {
   gap: 14px;
   padding: 12px 14px 12px 8px;
 }
-/* Eingeklappt: schmale Leiste, nur der Ausklapp-Knopf bleibt. */
+/* Eingeklappt: schmale Leiste, die ganz zum Aufklapp-Knopf wird. */
 .char-sidebar.collapsed {
   flex-basis: 34px;
   width: 34px;
-  padding: 8px 4px;
+  padding: 0;
+}
+/* Voller Rail-Knopf: Chevron oben, darunter „Überblick" als aufrecht
+   gestapelte Schrift (writing-mode + upright). So ist der schmale Streifen
+   selbsterklärend statt nur ein einzelnes Zeichen. */
+.side-expand {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.side-expand:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.side-expand-chev {
+  font-size: 15px;
+  font-weight: 700;
+}
+.side-expand-label {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  letter-spacing: 1px;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .side-head {
@@ -1684,9 +1716,21 @@ body.resizing-col {
   .side-resize {
     display: none;
   }
+  /* Gestapelt ist die Leiste voll breit — der eingeklappte Knopf liegt dann
+     waagerecht, die Schrift wieder normal in einer Zeile. */
   .char-sidebar.collapsed {
-    padding: 8px 14px;
-    justify-content: flex-start;
+    flex-basis: auto;
+    width: 100%;
+  }
+  .side-expand {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 11px;
+  }
+  .side-expand-label {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
   }
 }
 
