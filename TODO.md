@@ -123,7 +123,7 @@ Left open on purpose:
 - Special Energien addable by the player: name + attribute formula + bonus, as
   additional rows of the same table. The expression parser for this exists —
   `parseProbeExpr` in `shared/src/rules.ts` already evaluates "MU+IN+CH" for the
-  probe columns.
+  probe columns. Also need something to note special rules connected to them.
 
 ### 5. Inventory & equipment
 
@@ -140,11 +140,73 @@ Left open on purpose:
 
 - Complete rework of the Zauber tab: a dedicated tab instead of dynamic tables,
   while staying highly adjustable.
-- Automatic calculation of Magierstufe and Magiepunkte (moved here — they hang
-  off mage level and spells, not off the Energien).
 - **Needs a requirements session with the Spielleiter first.** "Dedicated tab"
   and "highly adjustable" pull against each other; that is not answerable from
   the code.
+
+#### 6a. Magierstufe & Magiepunkte
+
+Ships WITH the Zauber rework, not on its own — it needs the reworked tab's fixed
+numeric `stufe`/`komplexität` fields. This is the calculable spine; the free-form
+"how the spell tab looks" part stays the GM-session question above. Full rules in
+the `magierstufe-magiepunkte-regeln` memory (source: GM doc Magierlevel.docx).
+
+A derived-and-displayed feature, never interactive: the app computes and shows,
+a human ascends manually.
+
+Data model:
+- `magierstufe` — manually tracked integer on the character (0/none = not a mage,
+  1–5 = rank). The only value a human edits. Lives with the other meta values.
+- Per spell: `stufe` and `komplexität` as numbers (already present in Riloana's
+  sections; the rework just formalises them as fixed fields).
+- Magiepunkte and eligibility are computed live — no new storage.
+
+Magiepunkte:
+- Per spell `punkte = stufe × komplexität`, summed.
+- Anti-padding cap on TRIVIAL spells only (`stufe == 1 AND komplexität == 1`):
+  count at most `10 × (magierstufe − 1)` of them. Everything else — level-1
+  spells with komplexität > 1, all higher spells — counts in full.
+- Cap holds for everyone; at rank 1 it is 10×0 = 0. No special case needed: new
+  characters start with 3 spells, which already satisfies the level-1 baseline
+  (3 Magiepunkte), so "becoming a mage" needs no app logic.
+
+Eligibility (checks the NEXT rank only, `magierstufe + 1` — matches one-step
+manual ascension and sidesteps the cap's circular dependency, since points use
+the current rank's cap). All six conditions of that row must hold:
+
+| Stufe | Körperbeh. | Selbstbeh. | Magiekunde | Kryptografie | Psyche | Magiepunkte |
+|---|---|---|---|---|---|---|
+| 2 | 20 | 20 | 20 | 10 | 80% | 16 |
+| 3 | 40 | 40 | 40 | 20 | 90% | 34 |
+| 4 | 60 | 60 | 60 | 40 | 100% | 60 |
+| 5 | 80 | 80 | 80 | 80 | 100% | 120 |
+
+- Four talent TaWs read from catalog talents Körperbeherrschung,
+  Selbstbeherrschung, Magiekunde, Kryptografie (match by name — rename risk
+  accepted as negligible). Psyche % already exists (`psycheProzent`). Magiepunkte
+  from above.
+- Always show a PROGRESS readout toward the next rank, not just a pass/fail
+  banner: e.g. "Kryptografie 18/20 · Magiepunkte 28/34 · Psyche 88/90%". When all
+  six clear: "Charakter erfüllt die Voraussetzungen für Magierstufe X." No button,
+  no auto-bump.
+- Show a small "X of Y trivial spells counted" note so the cap is legible.
+
+Per-level operational reference (static table in shared/, current rank shown as a
+read-only panel in the Zauber tab):
+- ASP usable per round: 5 / 10 / 15 / 20 / 30
+- Exhaustion above: 20 / 25 / 30 / 40 / 80 ASP
+- Overcharge lethal above: +20 / +30 / +40 / +60 / +150 over max — feeds the
+  already-shipped overcharge display: its "above maximum" AsE state turns from
+  special to DANGER once the overfill passes this rank's line.
+- Spell-level cap: 5 / 7 / 10 / 10 / 10
+
+Boundaries:
+- Filtering (own-element AsE increase) is a SEPARATE future concept, not this —
+  do not conflate with overcharge.
+- Only the overcharge danger-line spills outside the Zauber tab; everything else
+  (rank field, Magiepunkte, eligibility, reference panel) lives in it.
+
+Dependency: the four talents must exist in the catalog under those names.
 
 ---
 
