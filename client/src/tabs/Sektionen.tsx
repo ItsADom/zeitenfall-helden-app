@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
+import { CollapseChevron, CollapsedNote, useCollapsed } from '../components/collapse';
+import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import type { Attributes } from '@shared/types';
 import {
   computeProbeCell,
@@ -240,6 +241,10 @@ function SectionPanel({
   onVisible: (visible: boolean) => void;
 }) {
   const readOnly = useReadOnly();
+  // Die Überschrift ist hier ein Eingabefeld — ein Klick darauf muss den Namen
+  // bearbeiten, nicht die Sektion zuklappen. Also übernimmt das Sigel davor
+  // die Rolle des Schalters.
+  const [collapsed, toggleCollapsed] = useCollapsed(`sec:${section.id}`);
   const [editCols, setEditCols] = useState(false);
   const [openNotes, setOpenNotes] = useState<Set<number>>(new Set());
   const [capEdit, setCapEdit] = useState<Set<number>>(new Set());
@@ -321,7 +326,16 @@ function SectionPanel({
   return (
     <div className="panel">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span className="title-marker" aria-hidden />
+        <button
+          type="button"
+          className="title-marker as-button"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          title={collapsed ? 'Sektion ausklappen' : 'Sektion einklappen'}
+        />
+        {/* Direkt neben dem Sigel, nicht hinter dem Titelfeld: sonst schwebt
+            der Pfeil mitten in der Zeile und gehört sichtbar zu nichts. */}
+        <CollapseChevron open={!collapsed} />
         <input
           className="section-title"
           defaultValue={section.name}
@@ -356,7 +370,11 @@ function SectionPanel({
         )}
       </div>
 
-      {section.type === 'notes' ? (
+      {collapsed ? (
+        // Zeilenzahl nur bei Tabellen: ein Notizfeld hat immer genau eine
+        // Zeile, „1 Zeile" wäre dort keine Auskunft.
+        <CollapsedNote rows={section.type === 'notes' ? undefined : section.rows.length} onOpen={toggleCollapsed} />
+      ) : section.type === 'notes' ? (
         <textarea
           className="note-area"
           rows={4}
@@ -365,11 +383,6 @@ function SectionPanel({
           readOnly={readOnly}
           onChange={(e) => onRows([{ text: e.target.value }])}
         />
-      ) : layout.collapsed ? (
-        <>
-          <TableTools layout={layout} label={section.name} />
-          <CollapsedNote rows={section.rows.length} onOpen={layout.toggleCollapsed} />
-        </>
       ) : (
         <>
           {editCols && !readOnly && <ColumnEditor columns={section.columns} allowProbe={allowProbe} onChange={onColumns} />}

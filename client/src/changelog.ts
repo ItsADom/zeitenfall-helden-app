@@ -15,6 +15,16 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-09',
+    version: '0.1.2',
+    title: 'Tabellen bleiben beim Scrollen lesbar',
+    changes: [
+      'Die Kopfzeile einer Tabelle bleibt beim Scrollen oben stehen. Auch weit unten in einer langen Liste ist damit noch zu sehen, welche Spalte welche ist.',
+      'Die Talentsuche bleibt ebenfalls sichtbar — für eine neue Suche muss man nicht mehr nach oben zurückscrollen.',
+      'Ein- und Ausklappen geschieht jetzt an der Überschrift selbst: ein Klick auf die Raute davor (oder auf den Titel) klappt den Bereich zu. Der Knopf „Einklappen“ über der Tabelle entfällt dafür.',
+    ],
+  },
+  {
+    date: '2026-08-09',
     version: '0.1.1',
     title: 'Blätter öffnen sich jetzt geschützt',
     changes: [

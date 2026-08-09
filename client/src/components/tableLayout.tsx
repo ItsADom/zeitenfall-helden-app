@@ -27,14 +27,14 @@
 //     keine eigene Definition in der Datenbank. Ihre Breiten liegen deshalb in
 //     einer eigenen Ablage am Charakter, die der Kontext bereitstellt.
 //
-// Der eingeklappte Zustand gehört bewusst NICHT dazu: er beschreibt, was gerade
-// jemand auf seinem Bildschirm sehen will, nicht wie der Charakter aussieht. Er
-// liegt daher pro Gerät im localStorage — so wie das Einklappen der
-// Talentgruppen, das es schon vorher gab.
+// Der eingeklappte Zustand gehört bewusst NICHT hierher: er beschreibt, was
+// gerade jemand auf seinem Bildschirm sehen will, nicht wie der Charakter
+// aussieht. Er liegt pro Gerät im localStorage und wohnt in components/collapse
+// — ausgelöst wird er an der Überschrift, und die gehört bei einigen Tabellen
+// dem Eltern-Element, nicht der Tabelle selbst.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { evenWidths, normalizeWidths, resizeAgainstNeighbour } from '@shared/tableLayout';
-import { useDisplayMode, useReadOnly } from './displayMode';
-import { usePersistedState } from './persist';
+import { useReadOnly } from './displayMode';
 
 interface TableLayoutCtxValue {
   widths: Record<string, number[]>;
@@ -102,8 +102,6 @@ export interface TableLayout {
   tableRef: (el: HTMLTableElement | null) => void;
   /** Breite für das <col> der Datenspalte `i`, in Pixeln sobald gemessen. */
   colWidth: (i: number) => string;
-  collapsed: boolean;
-  toggleCollapsed: () => void;
   /** Breiten dürfen gerade nicht verstellt werden (Nur-Lesen/Druck). */
   readOnly: boolean;
   reset: () => void;
@@ -147,11 +145,6 @@ export function useTableLayout(
 
   const [draft, setDraft] = useState<number[] | null>(null);
   const live = useRef<number[]>(base);
-  const [collapsed, setCollapsed] = usePersistedState<boolean>(`tbl-zu:${key}`, false);
-  // In der Druckansicht darf nichts eingeklappt sein: dort hängen dieselben
-  // Tabellen mit denselben Schlüsseln im DOM, und wer eine Tabelle am Bildschirm
-  // zugeklappt hat, will sie trotzdem auf dem Ausdruck haben.
-  const forPrint = useDisplayMode() === 'print';
   // Spaltenbreiten gehören dem Charakter und landen in der Datenbank — im
   // Nur-Lesen-Modus also nicht anfassbar. Das EINKLAPPEN dagegen schon: das
   // liegt pro Gerät im localStorage und beschreibt nur, was jemand gerade
@@ -278,8 +271,6 @@ export function useTableLayout(
     widths,
     tableRef: attachTable,
     colWidth,
-    collapsed: forPrint ? false : collapsed,
-    toggleCollapsed: () => setCollapsed((v) => !v),
     readOnly,
     reset: () => commit(evenWidths(count)),
     beginDrag,
@@ -307,44 +298,16 @@ export function ColumnDivider({ layout, index }: { layout: TableLayout; index: n
   );
 }
 
-// Knöpfe über der Tabelle: einklappen und Breiten zurücksetzen.
-// `showCollapse={false}`, wenn die Tabelle schon auf andere Weise eingeklappt
-// wird — die Talent-Kategorien etwa klappen über ihre Überschrift.
-export function TableTools({
-  layout,
-  label,
-  showCollapse = true,
-}: {
-  layout: TableLayout;
-  label?: string;
-  showCollapse?: boolean;
-}) {
+// Werkzeugzeile über der Tabelle. Das Einklappen sitzt an der Überschrift
+// (components/collapse), hier bleiben die Spaltenbreiten — und die gibt es nur
+// beim Bearbeiten, weil sie zum Charakter gehören.
+export function TableTools({ layout, label }: { layout: TableLayout; label?: string }) {
+  if (layout.readOnly) return null;
   return (
     <div className="table-tools">
-      {showCollapse && (
-        <button
-          className="small"
-          onClick={layout.toggleCollapsed}
-          title={layout.collapsed ? 'Tabelle ausklappen' : 'Tabelle einklappen'}
-          aria-expanded={!layout.collapsed}
-        >
-          <span aria-hidden>{layout.collapsed ? '▸' : '▾'}</span> {layout.collapsed ? 'Ausklappen' : 'Einklappen'}
-        </button>
-      )}
-      {!layout.collapsed && !layout.readOnly && (
-        <button className="small" onClick={layout.reset} title={`Alle Spalten gleich breit machen${label ? ` — ${label}` : ''}`}>
-          ⇔ Breiten zurücksetzen
-        </button>
-      )}
+      <button className="small" onClick={layout.reset} title={`Alle Spalten gleich breit machen${label ? ` — ${label}` : ''}`}>
+        ⇔ Breiten zurücksetzen
+      </button>
     </div>
-  );
-}
-
-// Platzhalter anstelle einer eingeklappten Tabelle.
-export function CollapsedNote({ rows, onOpen }: { rows: number; onOpen: () => void }) {
-  return (
-    <p className="muted collapsed-note" onClick={onOpen} title="Tabelle ausklappen">
-      Eingeklappt — {rows} {rows === 1 ? 'Zeile' : 'Zeilen'}
-    </p>
   );
 }

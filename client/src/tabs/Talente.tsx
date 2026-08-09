@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
+import { CollapsiblePanel } from '../components/collapse';
 import { NumInput, TextInput } from '../components/inputs';
-import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
+import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { usePersistedState } from '../components/persist';
+import { useSearchHeight } from '../components/stickyChrome';
 import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
@@ -43,6 +45,9 @@ export default function TalenteTab() {
   const kategorien = Object.keys(TALENT_KATEGORIE_LABELS) as TalentKategorie[];
 
   const [search, setSearch] = useState('');
+  // Die Suchleiste klebt selbst oben — die Tabellenköpfe müssen sich darunter
+  // einreihen, also ihre Höhe messen.
+  const searchRef = useSearchHeight();
   const q = search.trim().toLowerCase();
   const entriesFor = (kat: TalentKategorie) =>
     catalogs.talents.filter(
@@ -52,7 +57,7 @@ export default function TalenteTab() {
 
   return (
     <>
-      <div className="talent-search">
+      <div className="talent-search" ref={searchRef}>
         <input type="text" placeholder="Talent suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
         {search && (
           <button className="small" onClick={() => setSearch('')} title="Suche zurücksetzen">
@@ -148,14 +153,10 @@ function KampfTable({
     );
   }
   return (
-    <div className="panel">
-      <h3>Kampftalente</h3>
-      <TableTools layout={layout} label="Kampftalente" />
-      {layout.collapsed ? (
-        <CollapsedNote rows={entries.length} onOpen={layout.toggleCollapsed} />
-      ) : (
-        <>
-          <div className="table-wrap">
+    <CollapsiblePanel collapseKey="talente:kampf" title="Kampftalente" rows={entries.length}>
+      <>
+        <TableTools layout={layout} label="Kampftalente" />
+        <div className="table-wrap">
             <table
               ref={layout.tableRef}
               className="sheet"
@@ -178,10 +179,9 @@ function KampfTable({
               </thead>
               <tbody>{rows}</tbody>
             </table>
-          </div>
-        </>
-      )}
-    </div>
+        </div>
+      </>
+    </CollapsiblePanel>
   );
 }
 
@@ -199,34 +199,17 @@ function NormalTable({
   searching: boolean;
 }) {
   const { data } = useChar();
-  // Ganze Kategorie einklappen (gemerkt); während einer Suche immer offen
-  const [collapsed, setCollapsed] = usePersistedState<boolean>(`talc:cat:${kat}`, false);
-  const open = searching || !collapsed;
   const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)'];
   const layout = useTableLayout(`talente:${kat}`, heads.length, { defaults: [220, 95, 95, 70, 100, 140, 170, 260] });
   return (
-    <div className="panel">
-      <h3
-        className="collapsible"
-        role="button"
-        tabIndex={0}
-        onClick={() => setCollapsed((c) => !c)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setCollapsed((c) => !c);
-          }
-        }}
-        title={open ? 'Kategorie einklappen' : 'Kategorie ausklappen'}
-      >
-        {TALENT_KATEGORIE_LABELS[kat]}
-        <span className="head-rule" aria-hidden />
-        <span className="chev" aria-hidden>{open ? '▾' : '▸'}</span>
-      </h3>
-      {open && (
+    <CollapsiblePanel
+      collapseKey={`talente:${kat}`}
+      title={TALENT_KATEGORIE_LABELS[kat]}
+      rows={entries.length}
+      forceOpen={searching}
+    >
       <>
-      {/* Einklappen läuft hier über die Überschrift — deshalb nur der Breiten-Knopf. */}
-      <TableTools layout={layout} label={TALENT_KATEGORIE_LABELS[kat]} showCollapse={false} />
+      <TableTools layout={layout} label={TALENT_KATEGORIE_LABELS[kat]} />
       <div className="table-wrap">
         <table ref={layout.tableRef} className="sheet" style={{ tableLayout: 'fixed', width: '100%', minWidth: heads.length * 64 }}>
           <colgroup>
@@ -278,7 +261,6 @@ function NormalTable({
         </table>
       </div>
       </>
-      )}
-    </div>
+    </CollapsiblePanel>
   );
 }

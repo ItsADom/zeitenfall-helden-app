@@ -17,6 +17,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import { AlwaysEditable, DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
+import { useTabsHeight } from '../components/stickyChrome';
 import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
 import UebersichtTab from '../tabs/Uebersicht';
@@ -126,6 +127,10 @@ export default function CharacterPage() {
   useEffect(() => {
     if (canViewAs) apiGet<{ id: number; displayName: string }[]>('/api/admin/users').then(setViewUsers).catch(() => {});
   }, [canViewAs]);
+
+  // Die Reiterleiste klebt oben und bricht je nach Anzahl der Reiter um. Was
+  // darunter ebenfalls kleben soll, muss ihre tatsächliche Höhe kennen.
+  const tabsRef = useTabsHeight();
 
   // Wird bei einer stillen Aktualisierung hochgezählt und geht in den React-Key
   // des aktiven Inhalts-Tabs ein — so übernimmt ContentTabView (hält Zeilen in
@@ -552,7 +557,7 @@ export default function CharacterPage() {
             Export
           </button>
         </div>
-        <div className="tabs">
+        <div className="tabs" ref={tabsRef}>
           {order.map((key) => {
             // Die Reihenfolge der Reiter gehört zum Charakter und wird
             // gespeichert — ohne Bearbeiten bleibt sie, wie sie ist. „Fest" und

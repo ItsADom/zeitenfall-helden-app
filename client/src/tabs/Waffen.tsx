@@ -1,6 +1,7 @@
 import { computeBaseValues, weaponProbes, wurfweiten } from '@shared/rules';
 import { listSectionById } from '@shared/sections';
 import type { ColumnDef } from '@shared/sections';
+import { CollapsiblePanel } from '../components/collapse';
 import { ListEditor } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useChar } from '../pages/Character';
@@ -42,8 +43,7 @@ export default function WaffenTab() {
       <p className="muted">
         Basiswerte: AT {base.at} · PA {base.pa} · BL {base.bl} · FK {bv.fk.ergebnis} · INI {bv.ini.ergebnis}
       </p>
-      <div className="panel">
-        <h3>Nahkampfwaffen</h3>
+      <CollapsiblePanel collapseKey="list:waffenNah" title="Nahkampfwaffen" rows={data.lists.waffenNah.length}>
         <ListEditor
           def={listSectionById('waffenNah')!}
           rows={data.lists.waffenNah}
@@ -55,9 +55,8 @@ export default function WaffenTab() {
             { label: 'Blocken (Probe)', render: (row) => probesFor(row).bl },
           ]}
         />
-      </div>
-      <div className="panel">
-        <h3>Fernkampfwaffen</h3>
+      </CollapsiblePanel>
+      <CollapsiblePanel collapseKey="list:waffenFern" title="Fernkampfwaffen" rows={data.lists.waffenFern.length}>
         <ListEditor
           def={listSectionById('waffenFern')!}
           rows={data.lists.waffenFern}
@@ -70,27 +69,24 @@ export default function WaffenTab() {
             },
           ]}
         />
-      </div>
+      </CollapsiblePanel>
       <div className="grid2">
-        <div className="panel">
-          <h3>Waffenloser Kampf</h3>
+        <CollapsiblePanel collapseKey="list:waffenlos" title="Waffenloser Kampf" rows={data.lists.waffenlos.length}>
           <ListEditor
             def={listSectionById('waffenlos')!}
             rows={data.lists.waffenlos}
             onChange={(rows) => update('waffenlos', rows)}
             customCell={talentSelect}
           />
-        </div>
-        <div className="panel">
-          <h3>Pfeile/Bolzen</h3>
+        </CollapsiblePanel>
+        <CollapsiblePanel collapseKey="list:munition" title="Pfeile/Bolzen" rows={data.lists.munition.length}>
           <ListEditor def={listSectionById('munition')!} rows={data.lists.munition} onChange={(rows) => update('munition', rows)} />
-        </div>
+        </CollapsiblePanel>
       </div>
       <div className="grid2">
-        <div className="panel">
-          <h3>Kampfstile</h3>
+        <CollapsiblePanel collapseKey="list:kampfstile" title="Kampfstile" rows={data.lists.kampfstile.length}>
           <ListEditor def={listSectionById('kampfstile')!} rows={data.lists.kampfstile} onChange={(rows) => update('kampfstile', rows)} />
-        </div>
+        </CollapsiblePanel>
       </div>
     </>
   );

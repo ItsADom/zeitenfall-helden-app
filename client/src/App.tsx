@@ -10,6 +10,7 @@ import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
 import ThemePicker from './components/ThemePicker';
 import BannerFx from './components/BannerFx';
+import { useTopbarHeight } from './components/stickyChrome';
 import { useTheme } from './theme';
 
 interface AuthContextValue {
@@ -26,6 +27,8 @@ export default function App() {
   // Farbthema app-weit anwenden (auch auf der Anmeldeseite). Muss vor den
   // frühen returns stehen, damit die Hook-Reihenfolge stabil bleibt.
   const [theme, setTheme] = useTheme();
+  // Die Kopfleiste klebt oben; was darunter kleben soll, braucht ihre Höhe.
+  const topbarRef = useTopbarHeight();
 
   const refresh = () => {
     apiGet<UserInfo>('/api/me')
@@ -48,7 +51,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, refresh }}>
-      <header className="topbar">
+      <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           <BannerFx key={theme} theme={theme} />
         </div>

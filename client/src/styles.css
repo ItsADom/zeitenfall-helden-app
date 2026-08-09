@@ -418,6 +418,47 @@ main {
 .panel > h3.collapsible {
   cursor: pointer;
 }
+/* Die auslaufende Haarlinie kommt bei einklappbaren Überschriften als eigenes
+   Element (.head-rule), damit rechts daneben noch Chevron und Knöpfe Platz
+   haben — ein ::after würde sie ans Ende drängen. */
+.panel > h3.collapsible::after {
+  content: none;
+}
+.panel > h3 .panel-title {
+  flex: none;
+}
+.panel > h3 .panel-info {
+  flex: none;
+  font-size: 13px;
+  font-weight: 400;
+}
+.panel > h3 .panel-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: auto;
+}
+.panel > h3.collapsible:hover .chev,
+.panel > h3.collapsible:focus-visible .chev {
+  color: var(--accent);
+}
+
+/* Das Sigel als Schalter — dort, wo die Überschrift selbst ein Eingabefeld ist
+   (eigene Sektionen) und einen Klick zum Umbenennen braucht. Sieht aus wie das
+   Sigel, verhält sich wie ein Knopf. */
+button.title-marker.as-button {
+  padding: 0;
+  border: none;
+  background-color: var(--accent);
+  border-radius: 0;
+  cursor: pointer;
+}
+button.title-marker.as-button:hover,
+button.title-marker.as-button:focus-visible {
+  background-color: var(--accent-strong, var(--accent));
+  transform: scale(1.15);
+}
 .panel > h3.collapsible::after {
   content: none;
 }
@@ -484,9 +525,12 @@ tr.subtle-head.clickable:hover td {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  /* Bleibt beim Scrollen unter der Kopfleiste (47px) griffbereit */
+  /* Bleibt beim Scrollen unter der Kopfleiste griffbereit. Deren Höhe wird
+     gemessen (components/stickyChrome.ts) — fest eingetragen war sie vier
+     Pixel zu klein, wodurch der obere Rand der Reiterleiste unter der
+     Kopfleiste verschwand. */
   position: sticky;
-  top: 47px;
+  top: var(--topbar-h, 47px);
   z-index: 15;
   margin: 10px 0 14px;
   padding: 8px 0;
@@ -554,10 +598,45 @@ tr.subtle-head.clickable:hover td {
 
 /* ---------- Tabellen ---------- */
 
+/* KEIN eigener Scroll-Bereich: die Tabelle läuft in der Seite mit.
+   Ein Kasten mit eigener Höhe und eigenem Rollbalken hielte den Seitenlauf an,
+   sobald der Zeiger über einer langen Tabelle steht — man muss dann erst durch
+   die ganze Tabelle, bevor die Seite weiterläuft. Deshalb bleibt der Überlauf
+   sichtbar, und der Tabellenkopf klebt an der SEITE statt an einem Kasten.
+   Möglich ist das nur, weil `main` `overflow-x: clip` benutzt (siehe dort):
+   clip schneidet ab, ohne einen Scroll-Container zu erzeugen — und nur ein
+   Scroll-Container würde das Kleben an sich reißen. */
 .table-wrap {
-  overflow-x: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+/* Als Ganzes klebend statt Zeile für Zeile: der Energien-Kopf im Heldenbrief
+   ist zweizeilig (rowSpan/colSpan), und einzeln geklebte Zeilen müssten ihre
+   Versätze kennen. `border-collapse: separate` ist dafür Voraussetzung und
+   steht oben schon.
+   Der Versatz ist alles, was oben schon klebt: Kopfleiste, Reiterleiste und —
+   nur im Talent-Reiter — die Suchleiste. Alle drei werden gemessen
+   (components/stickyChrome.ts), `--search-h` fehlt anderswo und fällt auf 0. */
+.table-wrap table.sheet thead {
+  position: sticky;
+  top: calc(var(--topbar-h, 47px) + var(--tabs-h, 45px) + var(--search-h, 0px));
+  /* Unter den Leisten, die weiter oben kleben (Kopfleiste 20, Reiter 15,
+     Suche 12) — der Tabellenkopf schiebt sich darunter, nicht darüber. */
+  z-index: 4;
+}
+
+/* Auf schmalen Schirmen passen breite Tabellen nicht: dort bekommt die Tabelle
+   doch einen eigenen waagerechten Rollbalken, sonst schneidet `main` sie
+   einfach ab. Damit ist der Kasten wieder ein Scroll-Container, und der Kopf
+   klebt an ihm statt an der Seite — also zurück auf Versatz 0. Der
+   Layout-Durchgang für schmale Geräte steht ohnehin noch aus (siehe TODO). */
+@media (max-width: 700px) {
+  .table-wrap {
+    overflow-x: auto;
+  }
+  .table-wrap table.sheet thead {
+    top: 0;
+  }
 }
 
 table.sheet {
@@ -957,12 +1036,26 @@ tr.slot-row td {
   background: var(--input-bg);
 }
 /* Talent-Suche */
+/* Bleibt beim Scrollen unter der Reiterleiste stehen — bei über hundert
+   Talenten sucht man sonst weit oben, liest weit unten und scrollt für jede
+   neue Suche zurück. Der Versatz ist gemessen (`--sticky-top`), weil die
+   Reiterleiste je nach Anzahl der Reiter ein- oder zweizeilig ist.
+   Der Kasten zieht sich über die volle Breite und bekommt einen Hintergrund,
+   damit die Tabelle nicht darunter durchscheint; das Eingabefeld selbst bleibt
+   schmal. */
 .talent-search {
+  position: sticky;
+  top: calc(var(--topbar-h, 47px) + var(--tabs-h, 45px));
+  z-index: 12;
   display: flex;
   align-items: center;
   gap: 6px;
-  max-width: 360px;
+  padding: 8px 0;
   margin-bottom: 14px;
+  background: var(--bg);
+}
+.talent-search input {
+  max-width: 360px;
 }
 
 /* Meisterschaft (100 TaW) — Stern mit Tooltip */
@@ -1435,7 +1528,16 @@ li {
   .print-root .coin {
     break-inside: avoid;
   }
+  /* Auf Papier gibt es kein Scrollen — auch nicht den waagerechten Rollbalken,
+     den schmale Schirme bekommen. */
   .print-root .table-wrap {
     overflow: visible !important;
+  }
+  .print-root .table-wrap table.sheet thead {
+    position: static;
+  }
+  /* Die Suchleiste ist ein Bedienelement und gehört nicht auf den Ausdruck. */
+  .print-root .talent-search {
+    display: none;
   }
 }

@@ -3,7 +3,7 @@ import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
 import { fitSoon, observeAutosize } from './autosize';
 import { useReadOnly } from './displayMode';
-import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from './tableLayout';
+import { ColumnDivider, TableTools, useTableLayout } from './tableLayout';
 
 export function NumInput({
   value,
@@ -210,15 +210,6 @@ export function ListEditor({
     onChange([...rows, fresh]);
   };
   const removeRow = (i: number) => onChange(rows.filter((_, j) => j !== i));
-
-  if (layout.collapsed) {
-    return (
-      <>
-        <TableTools layout={layout} label={def.label} />
-        <CollapsedNote rows={rows.length} onOpen={layout.toggleCollapsed} />
-      </>
-    );
-  }
 
   return (
     <>

@@ -1,8 +1,9 @@
 import { schreibenProbe, sprechenProbe } from '@shared/rules';
 import type { CharLanguage } from '@shared/types';
+import { CollapsiblePanel } from '../components/collapse';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput } from '../components/inputs';
-import { CollapsedNote, ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
+import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { useChar } from '../pages/Character';
 import type { LanguageCatalogRow } from '../pages/Character';
 
@@ -109,19 +110,10 @@ function LanguageTable({
   }
 
   return (
-    <div className="panel">
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
-        <h3 style={{ margin: 0 }}>{title}</h3>
-        <span className="muted" style={{ fontSize: 13 }}>
-          {info}
-        </span>
-      </div>
-      <TableTools layout={layout} label={title} />
-      {layout.collapsed ? (
-        <CollapsedNote rows={entries.length} onOpen={layout.toggleCollapsed} />
-      ) : (
-        <>
-          <div className="table-wrap">
+    <CollapsiblePanel collapseKey={`sprachen:${kind}`} title={title} info={info} rows={entries.length}>
+      <>
+        <TableTools layout={layout} label={title} />
+        <div className="table-wrap">
             <table ref={layout.tableRef} className="sheet" style={{ tableLayout: 'fixed', width: '100%', minWidth: heads.length * 80 }}>
               <colgroup>
                 {heads.map((h, i) => (
@@ -140,9 +132,8 @@ function LanguageTable({
               </thead>
               <tbody>{rows}</tbody>
             </table>
-          </div>
-        </>
-      )}
-    </div>
+        </div>
+      </>
+    </CollapsiblePanel>
   );
 }
