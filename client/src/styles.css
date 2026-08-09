@@ -2107,7 +2107,6 @@ li {
 .inv-table {
   table-layout: fixed;
   width: 100%;
-  max-width: 1000px;
 }
 
 /* Kategorienverwaltung: Chips mit umbenennbarem Namen + Entfernen, plus ein

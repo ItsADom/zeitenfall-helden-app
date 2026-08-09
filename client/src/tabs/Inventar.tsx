@@ -107,10 +107,11 @@ export default function InventarTab() {
                 {/* Feste Spaltenbreiten über alle Gruppen hinweg (table-layout:
                     fixed): sonst rechnet jede Tabelle ihre Spalten selbst aus
                     dem Inhalt aus und der Name-Spalte wird je Gruppe anders
-                    breit. Zahlen-Spalten fest, den Rest teilen sich Name und
-                    Notiz — statt dass der Name allein den Platz frisst. */}
+                    breit. Name und Zahlen fest gedeckelt, den Rest füllt die
+                    Notiz — so bleibt der Name schmal, ohne dass die Tabelle
+                    „mittendrin" endet. */}
                 <colgroup>
-                  <col />
+                  <col style={{ width: '26em' }} />
                   <col style={{ width: 72 }} />
                   <col style={{ width: 92 }} />
                   <col style={{ width: 78 }} />
