@@ -123,6 +123,18 @@ name is found.
 - Move **Passwort ändern** off the (now split) list pages into a small profile
   page reached by clicking the user-name in the top bar.
 
+#### 3b. Sidebar (variant B) — DONE
+
+Shipped: `CharacterSidebar.tsx`, a sticky right column in a new two-column
+`.char-body` (content + sidebar) below the sticky header/tabs. Rendered only in
+the `access === 'edit'` branch (group members on the read-only summary never get
+it) and inside `.screen-only` (hidden in print). Collapsible via
+`useCollapsed('sidebar')` — collapsed it shrinks to a 34px rail. Reflows
+full-width below the content at ≤1100px (position static there). `AktuellFeld`
+and `gesamtDublonen` were extracted for reuse. Contents: Energien + Psyche
+(AlwaysEditable steppers), read-only Attribute grid (8 codes) and money total.
+Notizen slot still deferred (see below).
+
 #### 3b. Sidebar (variant B)
 
 Sticky right-hand column on the character page ONLY. Edit-access only (group

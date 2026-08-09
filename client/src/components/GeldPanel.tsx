@@ -16,7 +16,7 @@ const COIN_FIELDS: [string, string, string][] = [
 // vermeiden; das Ergebnis geteilt durch 1000 sind Dublonen.
 const KREUZER_WERT: Record<string, number> = { geldD: 1000, geldS: 100, geldH: 10, geldK: 1, bank: 1000 };
 
-function gesamtDublonen(meta: Record<string, number>): number {
+export function gesamtDublonen(meta: Record<string, number>): number {
   const kreuzer = Object.entries(KREUZER_WERT).reduce((sum, [key, faktor]) => sum + (meta[key] ?? 0) * faktor, 0);
   return kreuzer / 1000;
 }

@@ -1434,6 +1434,160 @@ main {
   font-size: 13px;
 }
 
+/* ---------- Charakterseite: Inhalt + Seitenleiste ---------- */
+
+/* Zwei Spalten unter der klebenden Kopfzeile/Reiterleiste. Der Inhalt darf
+   schrumpfen (min-width:0), damit breite Tabellen in ihrer Spalte scrollen und
+   nicht die Seite verbreitern. */
+.char-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+.char-main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Klebt unter Kopfzeile + Reiterleiste; wird bei Bedarf innen scrollbar, damit
+   eine lange Leiste nicht über den Bildschirm hinauswächst. */
+.char-sidebar {
+  flex: 0 0 260px;
+  width: 260px;
+  position: sticky;
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px) + 8px);
+  max-height: calc(100dvh - (var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px)) - 20px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+}
+/* Eingeklappt: schmale Leiste, nur der Ausklapp-Knopf bleibt. */
+.char-sidebar.collapsed {
+  flex-basis: 34px;
+  width: 34px;
+  padding: 8px 4px;
+  align-items: center;
+}
+
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.side-title {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+}
+.side-toggle {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 8px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+.side-toggle:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.side-block h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Laufende Pools — Kopf (Kürzel + Max/Prozent) über dem Aktuell-Stepper. */
+.side-pools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.side-pool {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+.side-pool.res-low {
+  background: var(--warn-soft);
+  box-shadow: inset 3px 0 0 var(--warn-line);
+}
+.side-pool.res-crit {
+  background: var(--crit-soft);
+  box-shadow: inset 3px 0 0 var(--crit-line);
+}
+.side-pool-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+.side-pool-label {
+  font-weight: 600;
+}
+.side-pool-max {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Attribute — kompaktes Raster aus Kürzel + Endwert, nur zum Ablesen. */
+.side-attrs {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 8px;
+}
+.side-attr {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.side-attr-code {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+}
+.side-attr-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.side-geld {
+  font-variant-numeric: tabular-nums;
+  font-size: 16px;
+}
+
+/* Schmale Schirme: die Leiste rutscht unter den Inhalt und klebt dort nicht. */
+@media (max-width: 1100px) {
+  .char-body {
+    flex-direction: column;
+  }
+  .char-sidebar,
+  .char-sidebar.collapsed {
+    flex-basis: auto;
+    width: 100%;
+    position: static;
+    max-height: none;
+  }
+  .char-sidebar.collapsed {
+    padding: 8px 14px;
+    align-items: stretch;
+  }
+}
+
 /* ---------- Energie: Aktuell mit Schnell-Schaden/-Heilung ---------- */
 .akt-stepper {
   display: flex;

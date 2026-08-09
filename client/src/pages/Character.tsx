@@ -15,6 +15,7 @@ import {
 } from '@shared/tabOrder';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
+import CharacterSidebar from '../components/CharacterSidebar';
 import { AlwaysEditable, DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
 import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
@@ -620,6 +621,13 @@ export default function CharacterPage() {
             </button>
           )}
         </div>
+        {/* Ab hier zwei Spalten: der Reiterinhalt und die stets sichtbare
+            Seitenleiste. Kopfzeile und Reiterleiste darüber bleiben volle
+            Breite. Die Leiste klebt und lässt sich einklappen (holt so den
+            Platz auf breiten Schirmen zurück); auf schmalen rutscht sie per
+            CSS unter den Inhalt. */}
+        <div className="char-body">
+          <div className="char-main">
         {activeContentTab ? (
           <ContentTabView
             key={`${activeContentTab.id}:${reloadTick}`}
@@ -666,6 +674,9 @@ export default function CharacterPage() {
             {builtinTab(activeKey)}
           </>
         )}
+          </div>
+          <CharacterSidebar />
+        </div>
       </div>
       </DisplayModeProvider>
 
