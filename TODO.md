@@ -94,11 +94,16 @@ Left open on purpose:
 - Talent categories lost their remembered collapsed state once, because the key
   moved from `talc:cat:*` into the shared `tbl-zu:*` space.
 
-### 3. Navigation & sidebar
+### 3. Navigation & sidebar — DONE (0.1.4)
 
 Concept settled 2026-08-09. Sequence it as (a) nav split first, then (b) the
 sidebar — the sidebar's "always editable" behaviour is already unblocked by the
-shipped display mode.
+shipped display mode. Both shipped; only the Notizen slot stays deferred.
+
+Also shipped alongside: the whole sheet header (name/player/group + the
+edit/read toggle) now sticks below the top bar while scrolling — a fourth
+measured-height layer (`--charhead-h`) added to the sticky chain in
+`stickyChrome.ts`.
 
 #### 3a. Navigation — DONE
 
@@ -140,6 +145,15 @@ Follow-up (2026-08-09): energy pools shortened to LP/AUS/ASP and laid out as a
 — the Heldenbrief already carries every value it duplicated (editable) and the
 sidebar carries the daily-use subset. `Uebersicht.tsx` deleted, `Heldenbrief` is
 now the only fixed tab and the default landing tab, tab-order tests updated.
+
+Render polish (2026-08-09): native number-spin arrows hidden (values were being
+clipped); each energy head is a single centred „LP · X %" line over a centred
+stepper; Geld total centred. Theme colours brought in — accent sigil on block
+headings, accent pool labels + Geld total + sidebar title. Attribute values are
+now compact boxed stat-tiles in a 4×2 grid (no wasted gap). The sidebar width is
+**user-adjustable**: drag the left edge, persisted in `localStorage` and clamped
+to 240–520px, ignored on narrow reflow and when collapsed (via a `--sidebar-w`
+CSS var so the media query still wins).
 
 #### 3b. Sidebar (variant B)
 
