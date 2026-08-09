@@ -128,7 +128,7 @@ Contents — two kinds:
     depletion colour.
   - Psyche: current / max.
 - **Read-only quick-reference readouts** (glance values, not edited here):
-  - Attribute — the eight attribute values. Called constantly for rolls, so they
+  - Attribute Max — the eight attribute values. Called constantly for rolls, so they
     belong in the always-visible sidebar; editing them stays on the Heldenbrief.
   - Geld — total in Dublonen only. Actual coin editing stays on Übersicht/Geld.
 - **Notizen** — deferred slot (per-character scratchpad vs pinned notes vs
