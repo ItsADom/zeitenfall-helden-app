@@ -3,7 +3,9 @@ import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import type { UserInfo } from '@shared/types';
 import { apiGet, apiPost, setUnauthorizedHandler } from './api';
 import LoginPage from './pages/Login';
-import DashboardPage from './pages/Dashboard';
+import CharaktereePage from './pages/Charaktere';
+import GruppenPage from './pages/Gruppen';
+import ProfilPage from './pages/Profil';
 import AdminPage from './pages/Admin';
 import GroupPage from './pages/Group';
 import CharacterPage from './pages/Character';
@@ -60,7 +62,11 @@ export default function App() {
           <BannerFx key={`${theme}-${anim}`} theme={theme} animate={anim} />
         </div>
         <Link to="/">Heldenverwaltung</Link>
-        {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
+        <Link to="/charaktere">Charaktere</Link>
+        <Link to="/gruppen">Gruppen</Link>
+        {/* Route bleibt intern /verwaltung; nur die Beschriftung ist neu, damit
+            sie nicht mehr mit der Wortmarke „Heldenverwaltung" kollidiert. */}
+        {user.isGm && <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>}
         <Link to="/changelog">Änderungen</Link>
         <div className="spacer" />
         <ThemePicker
@@ -71,19 +77,23 @@ export default function App() {
           animate={anim}
           onAnimateChange={setAnim}
         />
-        <span>
+        {/* Der Name führt aufs eigene Profil (Passwort ändern). */}
+        <Link to="/profil">
           {user.displayName} {user.isGm ? '(Spielleiter)' : ''}
-        </span>
+        </Link>
         <button onClick={logout}>Abmelden</button>
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/verwaltung" element={user.isGm ? <AdminPage /> : <Navigate to="/" />} />
+          <Route path="/" element={<Navigate to="/charaktere" replace />} />
+          <Route path="/charaktere" element={<CharaktereePage />} />
+          <Route path="/gruppen" element={<GruppenPage />} />
+          <Route path="/profil" element={<ProfilPage />} />
+          <Route path="/verwaltung" element={user.isGm ? <AdminPage /> : <Navigate to="/charaktere" />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
-          <Route path="*" element={<Navigate to="/" />} />
+          <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
     </AuthContext.Provider>

@@ -100,7 +100,14 @@ Concept settled 2026-08-09. Sequence it as (a) nav split first, then (b) the
 sidebar — the sidebar's "always editable" behaviour is already unblocked by the
 shipped display mode.
 
-#### 3a. Navigation
+#### 3a. Navigation — DONE
+
+Shipped: `Dashboard.tsx` removed, replaced by `Charaktere.tsx` + `Gruppen.tsx`
+(both via the shared `useOverview` hook), plus a `Profil.tsx` page carrying the
+moved „Passwort ändern". Top bar now: wordmark · Charaktere · Gruppen ·
+„Kataloge & Nutzer" (GM, route still `/verwaltung`, Admin `<h1>` relabelled) ·
+Änderungen · … · theme · user-name (→ `/profil`) · logout. `/` and unknown
+routes redirect to `/charaktere`.
 
 - Split `Dashboard.tsx` into two pages: **Charaktere** (`/charaktere`) and
   **Gruppen** (`/gruppen`), each reusing `/api/overview` (already returns both

@@ -186,7 +186,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <h1>Verwaltung</h1>
+      <h1>Kataloge &amp; Nutzer</h1>
       {error && <p className="error">{error}</p>}
 
       <div className="panel">
