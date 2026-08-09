@@ -199,14 +199,55 @@ intentional (Übersicht = full overview, sidebar = always-on subset); whether
 
 ### 5. Inventory & equipment
 
-- Weight and capacity calculation. `maximaleLast` and `gGewicht` are already in
-  `shared/src/rules.ts` — nothing aggregates them.
-- Inventory with real, editable categories instead of yet another dynamic table
-  (today `kategorie` is a free text column in `shared/src/sections.ts`).
-- Worn vs. generally available equipment as a "per body part" selection with
-  drag & drop (was Mid-Prio; belongs here and comes as the second stage). The
-  container/slot mechanics of the dynamic sections (`DYN_CONTAINER_KEY`,
-  `readSlots`) are essentially a prototype of it already.
+Concept settled 2026-08-09 (decisions below are the player's). Today everything
+peripheral (Inventar, Ausrüstung, Proviant…) is a generic dynamic table seeded
+from `shared/src/sections.ts`; `maximaleLast`/`gGewicht` exist in `rules.ts` but
+aggregate nothing. Replace the scattered tables for these with ONE structured
+item store and derive everything from it.
+
+Decisions:
+- **Unified item model.** One item store per character (dedicated table, like
+  talents/languages — NOT a dynamic section). Each item: `name`, `anzahl`,
+  `eGewicht` (per unit), `kategorie`, `location` (inventory / in-a-container /
+  worn-on-a-body-zone / on-animal), optional container flag + capacity, `notiz`.
+  Weight totals, category grouping and worn equipment all derive from this list.
+- **Weight unit = kg**, decimals allowed (e.g. 0.5). Line weight = anzahl ×
+  eGewicht. `maximaleLast` = `(KO+KK)×2×1.5` is treated as the kg limit (flag if
+  that formula should change now that it is user-visible — e.g. Riloana = 42 kg).
+- **Load meter counts all items EXCEPT worn-on-a-body-zone** (and, by extension,
+  anything on an animal/mount — not on the character). Over the limit → red
+  "over" state, same visual language as low energy. No penalty math, no GM input.
+- **Categories are a per-character editable list** (add / rename / remove);
+  renaming updates its items. Items pick a category from that list.
+- **No data loss on migration** (a top-ranking rule): every migration maps known
+  fields and folds any unmapped/custom column into the item's `notiz` as
+  `Label: value`. Nothing a player typed is ever silently dropped. See the
+  `helden-app-datenverlust-vermeiden` memory.
+
+#### 5a. Structured Inventar (categories + weight) — first stage
+
+- Built-in **Inventar** tab (replaces the dynamic one): items grouped by
+  category, each group with a weight subtotal, plus a **carried-load meter**
+  (`Σ / maximaleLast kg`) at the top with the over-limit warning state.
+- Per-character category management (add/rename/remove).
+- Normal edit/read gate (inventory edits are deliberate — NOT always-editable
+  like the sidebar pools). The load total may later surface in the sidebar as a
+  read-only glance value.
+- Migrate existing dynamic `inventar` rows (`kategorie/name/anzahl/eGewicht/
+  notiz`) into the store; retire the old dynamic Inventar tab. Custom columns →
+  folded into `notiz` per the no-data-loss rule.
+
+#### 5b. Worn equipment & containers (drag & drop) — second stage
+
+- **Ausrüstung** tab becomes a live view of the SAME item store: a fixed,
+  sensible set of body zones (propose the exact list for sign-off — e.g. Kopf /
+  Hals / Brust / Rücken / Arme / Hände / Gürtel / Beine / Füße) + containers,
+  with **drag & drop** to move an item between backpack ⇄ container ⇄ body zone
+  (`location` is the single source of truth). Folds in today's container/slot
+  prototype (`DYN_CONTAINER_KEY`, `readSlots`).
+- Migrate today's `ausruestungSlots`, `behaelter`, `proviant`, `kleidungen`,
+  `tierAusruestung` into items with the right location/category/flags — custom
+  columns folded into `notiz`.
 
 ### 6. Zauber
 
