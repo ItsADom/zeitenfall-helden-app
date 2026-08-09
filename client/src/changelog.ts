@@ -14,6 +14,15 @@ export interface ChangelogEntry {
 // Neueste Einträge zuerst.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-09',
+    version: '0.1.1',
+    title: 'Blätter öffnen sich jetzt geschützt',
+    changes: [
+      'Ein Charakterblatt öffnet sich zum Ansehen: die Werte stehen als Text da und lassen sich nicht aus Versehen verstellen. Zum Ändern oben rechts auf „Bearbeiten“, mit „Fertig“ ist das Blatt wieder geschützt. Jedes Öffnen beginnt erneut geschützt.',
+      'Die Übersicht ist davon ausgenommen: aktuelle Energien, Psyche und Geld lassen sich dort weiterhin jederzeit ändern, ohne vorher etwas einschalten zu müssen.',
+    ],
+  },
+  {
     date: '2026-08-08',
     version: '0.1.0',
     title: 'Alpha-Test — die Heldenverwaltung im Überblick',
