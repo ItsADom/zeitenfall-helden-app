@@ -40,6 +40,20 @@ Deshalb: **`npm ci` zum Installieren, `npm install` nur zum bewussten Hinzufüge
 Aktualisieren einer Abhängigkeit** — und die dabei geänderte `package-lock.json` dann
 mit committen.
 
+### Versionsnummer erhöhen
+
+Aus demselben Grund **nicht `npm version`** benutzen: das löst nebenbei einen Install
+aus und schreibt die Lock-Datei um. Stattdessen die Nummer direkt setzen — das rührt
+nur die `package.json`-Dateien an, nicht die Lock-Datei:
+
+```bash
+npm pkg set version=0.1.3 --workspaces --include-workspace-root
+```
+
+Die `version` in der `package-lock.json` muss dabei **nicht** mitgezogen werden:
+`npm ci` prüft sie nicht (die Workspaces hängen über `"*"` voneinander ab, nicht über
+eine feste Version), und der nächste echte `npm install` frischt sie ohnehin auf.
+
 ## Für die Gruppe betreiben (ohne Dev-Server)
 
 ```bash
