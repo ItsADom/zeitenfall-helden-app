@@ -1622,27 +1622,37 @@ body.resizing-col {
   padding: 0 5px;
 }
 
-/* Attribute — kompaktes Raster aus Kürzel + großem Endwert, nur zum Ablesen. */
+/* Attribute — kleine Wert-Kacheln: Kürzel oben, großer Endwert darunter, beides
+   zentriert. Als eigene Kästchen heben sie sich ab und lassen (anders als
+   Kürzel-links/Wert-rechts) keinen leeren Raum dazwischen. Fest vier Spalten:
+   die acht Attribute stehen so als ordentlicher 4×2-Block; die Kacheln wachsen
+   mit der Leistenbreite mit, statt einen einzelnen Rest in eine neue Zeile zu
+   drängen. */
 .side-attrs {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 3px 6px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
 .side-attr {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 2px 8px;
-  border-radius: 6px;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 4px 2px 5px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
   background: var(--surface-sunken);
 }
 .side-attr-code {
-  font-size: 11px;
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-weight: 600;
+  font-weight: 700;
 }
 .side-attr-val {
-  font-size: 17px;
+  font-size: 18px;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
 }
