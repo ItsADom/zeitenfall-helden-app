@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 
 export const TOPBAR_VAR = '--topbar-h';
+export const CHARHEAD_VAR = '--charhead-h';
 export const TABS_VAR = '--tabs-h';
 export const SEARCH_VAR = '--search-h';
 
@@ -60,6 +61,15 @@ function useMeasuredHeight(cssVar: string): (el: HTMLElement | null) => void {
 
 /** Referenz für die Kopfleiste — setzt `--topbar-h`. */
 export const useTopbarHeight = () => useMeasuredHeight(TOPBAR_VAR);
+
+/**
+ * Referenz für die Kopfzeile des Charakterbogens (Name, Spieler, Gruppe,
+ * Bearbeiten-Schalter) — setzt `--charhead-h`. Die klebt zwischen Kopf- und
+ * Reiterleiste; ihre Höhe wechselt, wenn der Name in den Bearbeiten-Modus geht
+ * oder das Fenster schmal wird und die Zeile umbricht. Gibt es nur auf der
+ * Charakterseite; überall sonst bleibt die Variable ungesetzt (calc → 0).
+ */
+export const useCharHeadHeight = () => useMeasuredHeight(CHARHEAD_VAR);
 
 /** Referenz für die Reiterleiste — setzt `--tabs-h`. */
 export const useTabsHeight = () => useMeasuredHeight(TABS_VAR);

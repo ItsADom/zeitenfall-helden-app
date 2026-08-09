@@ -17,7 +17,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import { AlwaysEditable, DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
-import { useTabsHeight } from '../components/stickyChrome';
+import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
 import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
 import UebersichtTab from '../tabs/Uebersicht';
@@ -131,6 +131,11 @@ export default function CharacterPage() {
   // Die Reiterleiste klebt oben und bricht je nach Anzahl der Reiter um. Was
   // darunter ebenfalls kleben soll, muss ihre tatsächliche Höhe kennen.
   const tabsRef = useTabsHeight();
+
+  // Die Kopfzeile des Bogens (Name/Spieler/Gruppe/Bearbeiten) klebt zwischen
+  // Kopf- und Reiterleiste. Ihre Höhe wird gemessen, damit die darunter
+  // klebenden Leisten (Reiter, Tabellenköpfe, Talentsuche) korrekt versetzt sind.
+  const charHeadRef = useCharHeadHeight();
 
   // Wird bei einer stillen Aktualisierung hochgezählt und geht in den React-Key
   // des aktiven Inhalts-Tabs ein — so übernimmt ContentTabView (hält Zeilen in
@@ -492,7 +497,7 @@ export default function CharacterPage() {
       <DisplayModeProvider mode={editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
         {viewAsBar}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+        <div className="char-header" ref={charHeadRef}>
           {nameDraft === null ?
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
               <h1>{info.name}</h1>

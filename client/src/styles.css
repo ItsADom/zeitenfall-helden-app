@@ -707,18 +707,36 @@ tr.subtle-head.clickable:hover td {
   text-decoration: none;
 }
 
+/* ---------- Kopfzeile des Charakterbogens ---------- */
+
+/* Name, Spieler, Gruppe und vor allem der Bearbeiten-Schalter sollen beim
+   Scrollen erreichbar bleiben. Die Zeile klebt direkt unter der Kopfleiste;
+   die Reiterleiste darunter kennt ihre gemessene Höhe (--charhead-h) und
+   rückt entsprechend nach. z-index über den Reitern (15), unter der
+   Kopfleiste (20). */
+.char-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  position: sticky;
+  top: var(--topbar-h, 47px);
+  z-index: 16;
+  padding: 8px 0 6px;
+  background: var(--bg);
+}
+
 /* ---------- Tabs ---------- */
 
 .tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  /* Bleibt beim Scrollen unter der Kopfleiste griffbereit. Deren Höhe wird
-     gemessen (components/stickyChrome.ts) — fest eingetragen war sie vier
-     Pixel zu klein, wodurch der obere Rand der Reiterleiste unter der
-     Kopfleiste verschwand. */
+  /* Bleibt beim Scrollen unter Kopfleiste UND Bogen-Kopfzeile griffbereit.
+     Beider Höhe wird gemessen (components/stickyChrome.ts) — fest eingetragen
+     war die Kopfleiste vier Pixel zu klein, wodurch der obere Rand der
+     Reiterleiste darunter verschwand. */
   position: sticky;
-  top: var(--topbar-h, 47px);
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px));
   z-index: 15;
   margin: 10px 0 14px;
   padding: 8px 0;
@@ -807,7 +825,7 @@ tr.subtle-head.clickable:hover td {
    (components/stickyChrome.ts), `--search-h` fehlt anderswo und fällt auf 0. */
 .table-wrap table.sheet thead {
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--tabs-h, 45px) + var(--search-h, 0px));
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px) + var(--search-h, 0px));
   /* Unter den Leisten, die weiter oben kleben (Kopfleiste 20, Reiter 15,
      Suche 12) — der Tabellenkopf schiebt sich darunter, nicht darüber. */
   z-index: 4;
@@ -1233,7 +1251,7 @@ tr.slot-row td {
    schmal. */
 .talent-search {
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--tabs-h, 45px));
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
   z-index: 12;
   display: flex;
   align-items: center;
