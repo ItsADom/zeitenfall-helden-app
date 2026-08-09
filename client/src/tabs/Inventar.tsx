@@ -100,8 +100,7 @@ export default function InventarTab() {
           <div className="panel" key={g || '__none'}>
             <h3>
               <span className="panel-title">{g || 'Ohne Kategorie'}</span>
-              <span className="head-rule" aria-hidden />
-              <span className="muted inv-sum">{kg(summe)} kg</span>
+              <span className="muted inv-sum">· {kg(summe)} kg</span>
             </h3>
             <div className="table-wrap">
               <table className="sheet">
