@@ -222,6 +222,28 @@ db.exec(`
     data BLOB NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Einheitliches Gegenstands-Modell (Cluster 5): jeder Besitz ist EINE Zeile
+  -- mit Gewicht (kg je Stück), Kategorie und Ort. Inventar, Kategorie-Summen,
+  -- getragene Last und (5b) getragene Ausrüstung leiten sich hieraus ab.
+  CREATE TABLE IF NOT EXISTS char_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    anzahl REAL NOT NULL DEFAULT 1,
+    gewicht REAL NOT NULL DEFAULT 0,
+    kategorie TEXT NOT NULL DEFAULT '',
+    location TEXT NOT NULL DEFAULT 'inventar',
+    notiz TEXT NOT NULL DEFAULT ''
+  );
+  -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
+  CREATE TABLE IF NOT EXISTS char_item_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
 `);
 
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen

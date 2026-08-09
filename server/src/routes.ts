@@ -19,9 +19,13 @@ import {
   importFullCharacter,
   instantiateStandardSections,
   loadFullCharacter,
+  loadItemCategories,
+  loadItems,
   loadPortrait,
   migrateCharacterPeriphery,
   savePortrait,
+  saveItemCategories,
+  saveItems,
   saveSection,
   saveTabOrder,
   saveTableWidths,
@@ -456,6 +460,23 @@ api.put('/characters/:id/name', requireAuth, (req, res) => {
   }
   db.prepare('UPDATE characters SET name = ? WHERE id = ?').run(name, char.id);
   res.json({ name });
+});
+
+// --- Gegenstände (Cluster 5) — ganze Liste bzw. Kategorienliste ersetzen.
+// Server normalisiert und antwortet mit dem gespeicherten Stand, damit Anzeige
+// und Datenbank übereinstimmen. ---
+api.put('/characters/:id/items', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  saveItems(char.id, req.body);
+  res.json({ items: loadItems(char.id) });
+});
+
+api.put('/characters/:id/item-categories', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  saveItemCategories(char.id, req.body);
+  res.json({ categories: loadItemCategories(char.id) });
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---

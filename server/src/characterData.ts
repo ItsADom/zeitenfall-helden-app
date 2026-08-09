@@ -12,6 +12,7 @@ import {
   dynTabId,
   dynTabKey,
   erleichterung,
+  ITEM_LOCATIONS,
   listSectionById,
   normalizeColumns,
   normalizeTabOrder,
@@ -26,6 +27,8 @@ import type {
   CharTalent,
   CharLanguage,
   DynColumn,
+  Item,
+  ItemLocation,
   ResourceInput,
   Resources,
   VisibilitySection,
@@ -343,7 +346,89 @@ export function loadFullCharacter(charId: number) {
     tableWidths: loadTableWidths(charId),
     tabOrder: loadTabOrder(charId),
     portrait: hasPortrait(charId),
+    items: loadItems(charId),
+    itemCategories: loadItemCategories(charId),
   };
+}
+
+// --- Gegenstände (Cluster 5) ---
+
+const MAX_ITEMS = 2000;
+const MAX_ITEM_TEXT = 4000;
+const MAX_CATEGORIES = 200;
+const MAX_CATEGORY_LEN = 200;
+
+const clampMin = (v: unknown, min = 0): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(min, n) : min;
+};
+
+export function loadItems(charId: number): Item[] {
+  const rows = db
+    .prepare('SELECT id, name, anzahl, gewicht, kategorie, location, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as { id: number; name: string; anzahl: number; gewicht: number; kategorie: string; location: string; notiz: string }[];
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    anzahl: r.anzahl,
+    gewicht: r.gewicht,
+    kategorie: r.kategorie,
+    location: (ITEM_LOCATIONS as string[]).includes(r.location) ? (r.location as ItemLocation) : 'inventar',
+    notiz: r.notiz,
+  }));
+}
+
+export function loadItemCategories(charId: number): string[] {
+  return (
+    db.prepare('SELECT name FROM char_item_categories WHERE character_id = ? ORDER BY pos, id').all(charId) as { name: string }[]
+  ).map((r) => r.name);
+}
+
+// Ganze Liste ersetzen (wie die übrigen Sektionen). Serverseitig gedeckelt und
+// normalisiert, damit über die Schnittstelle nichts Unsinniges in die DB kommt.
+export function saveItems(charId: number, raw: unknown): void {
+  const arr = Array.isArray(raw) ? raw.slice(0, MAX_ITEMS) : [];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
+    const ins = db.prepare(
+      'INSERT INTO char_items (character_id, pos, name, anzahl, gewicht, kategorie, location, notiz) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    );
+    arr.forEach((it, i) => {
+      const o = (it ?? {}) as Record<string, unknown>;
+      const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
+      ins.run(
+        charId,
+        i,
+        String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
+        clampMin(o.anzahl),
+        clampMin(o.gewicht),
+        String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
+        loc,
+        String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+      );
+    });
+  });
+  tx();
+}
+
+export function saveItemCategories(charId: number, raw: unknown): void {
+  const arr = Array.isArray(raw) ? raw : [];
+  const seen = new Set<string>();
+  const clean: string[] = [];
+  for (const v of arr) {
+    const name = String(v ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_CATEGORIES) break;
+  }
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
+    const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
+    clean.forEach((name, i) => ins.run(charId, i, name));
+  });
+  tx();
 }
 
 // --- Porträt (als Blob in der DB, damit es in den täglichen Sicherungen liegt) ---
