@@ -1605,6 +1605,90 @@ li {
 .person-fields {
   flex: 1;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+/* Benannte Gruppen geben den Feldern Halt, statt sie als lose Titel-mit-Text
+   herumstehen zu lassen. */
+.bio-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+.bio-group-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+/* Felder in natürlicher Breite, links gepackt — NICHT über die ganze Breite
+   gezogen (grow 0). Sonst würden z. B. die drei Aussehen-Felder bis an die
+   Ränder auseinandergerissen. Bei Bedarf dürfen sie schrumpfen (shrink 1). */
+.bio-singles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.bio-singles > .bio-cell {
+  flex: 0 1 210px;
+}
+/* Jedes Paar ist eine EINHEIT und bleibt zusammen; auch die Paare packen links
+   und ziehen sich nicht auf die volle Breite. */
+.bio-pairs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.bio-pairs > .bio-pair {
+  flex: 0 1 380px;
+}
+.bio-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 12px 14px;
+}
+/* Gleichrangige Paare (Beruf & Glaube): gleiche Spalten und etwas mehr Breite,
+   damit lange Werte wie eine Gottheit nicht ins schmale erste Feld gequetscht
+   werden. */
+.bio-pairs.even > .bio-pair {
+  flex-basis: 420px;
+}
+.bio-pairs.even .bio-pair {
+  grid-template-columns: 1fr 1fr;
+}
+/* Innerhalb eines Paars erst stapeln, wenn es wirklich eng wird — Basis über
+   ihrer eigenen Modifikation, weiterhin klar zusammengehörig. */
+@media (max-width: 540px) {
+  .bio-pair {
+    grid-template-columns: 1fr;
+  }
+}
+/* Beschriftung über dem Wert. */
+.bio-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.bio-cell label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+/* Der Wert bleibt AUCH im Nur-Lesen-Modus ein umrandetes Feld: gibt der Sektion
+   Halt und lässt den (durch das Feld-Padding) eingerückten Text erwartbar
+   wirken statt „verrutscht". Deckt sich mit dem Eingabefeld im Bearbeiten-Modus.
+   Bewusst nur hier — der Rest des Blatts zeigt Nur-Lesen weiter als reinen Text. */
+.bio-cell .static-value {
+  border-color: var(--border-strong);
+  background: var(--input-bg);
+  border-radius: 6px;
+  min-height: 1.7em;
 }
 .portrait {
   flex: none;

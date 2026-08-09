@@ -18,24 +18,58 @@ import { Portrait } from '../components/Portrait';
 import { depletionClass } from '../components/energie';
 import { useChar } from '../pages/Character';
 
-const BIO_FIELDS: [string, string][] = [
-  ['alterGeburtstag', 'Alter/Geburtstag'],
-  ['geschlecht', 'Geschlecht'],
-  ['groesse', 'Größe'],
-  ['gewicht', 'Gewicht'],
-  ['augenfarbe', 'Augenfarbe'],
-  ['haarfarbe', 'Haarfarbe'],
-  ['hautfarbe', 'Hautfarbe'],
-  ['familienstand', 'Familienstand'],
-  ['anrede', 'Anrede'],
-  ['rasse', 'Rasse'],
-  ['rasseMod', 'Modifikationen (Rasse)'],
-  ['kultur', 'Kultur'],
-  ['kulturMod', 'Modifikationen (Kultur)'],
-  ['profession', 'Profession'],
-  ['zweitprofession', 'Zweitprofession'],
-  ['gottheit', 'Gottheit'],
-  ['goettergeschenke', 'Göttergeschenke'],
+type BioField = [key: string, label: string];
+
+// Die Personendaten in benannte Gruppen gefasst, damit die Felder nicht als
+// lose Titel-mit-Text herumstehen. `singles` = kurze Einzelfelder in einem
+// kompakten Raster; `pairs` = zusammengehörige Felder, die IMMER als Einheit
+// beieinander bleiben (jedes Paar ein eigenes kleines Raster, das nie über
+// einen Zeilenumbruch getrennt wird — das zweite Feld darf breiter sein).
+interface BioGroup {
+  title: string;
+  singles?: BioField[];
+  pairs?: [BioField, BioField][];
+  // Paare aus zwei gleichrangigen Feldern (statt Basis + Modifikation): gleiche
+  // Spaltenbreite. Sonst quetscht das schmale 1fr die Gottheit ein, während das
+  // breite 1.5fr für die (oft leeren) Göttergeschenke danebensteht.
+  evenPairs?: boolean;
+}
+
+const BIO_GROUPS: BioGroup[] = [
+  {
+    title: 'Eckdaten',
+    singles: [
+      ['alterGeburtstag', 'Alter/Geburtstag'],
+      ['geschlecht', 'Geschlecht'],
+      ['groesse', 'Größe'],
+      ['gewicht', 'Gewicht'],
+      ['familienstand', 'Familienstand'],
+      ['anrede', 'Anrede'],
+    ],
+  },
+  {
+    title: 'Aussehen',
+    singles: [
+      ['augenfarbe', 'Augenfarbe'],
+      ['haarfarbe', 'Haarfarbe'],
+      ['hautfarbe', 'Hautfarbe'],
+    ],
+  },
+  {
+    title: 'Herkunft',
+    pairs: [
+      [['rasse', 'Rasse'], ['rasseMod', 'Modifikationen (Rasse)']],
+      [['kultur', 'Kultur'], ['kulturMod', 'Modifikationen (Kultur)']],
+    ],
+  },
+  {
+    title: 'Beruf & Glaube',
+    evenPairs: true,
+    pairs: [
+      [['profession', 'Profession'], ['zweitprofession', 'Zweitprofession']],
+      [['gottheit', 'Gottheit'], ['goettergeschenke', 'Göttergeschenke']],
+    ],
+  },
 ];
 
 const META_FIELDS: [string, string][] = [
@@ -90,12 +124,35 @@ export default function HeldenbriefTab() {
         <h3>Person</h3>
         <div className="person-layout">
           <Portrait charId={charId} initialHasImage={data.portrait} />
-          <div className="grid3 person-fields">
-            {BIO_FIELDS.map(([key, label]) => (
-              <div className="field" key={key}>
-                <label>{label}</label>
-                <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
-              </div>
+          <div className="person-fields">
+            {BIO_GROUPS.map((g) => (
+              <section className="bio-group" key={g.title}>
+                <h4 className="bio-group-title">{g.title}</h4>
+                {g.singles && (
+                  <div className="bio-singles">
+                    {g.singles.map(([key, label]) => (
+                      <div className="bio-cell" key={key}>
+                        <label>{label}</label>
+                        <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {g.pairs && (
+                  <div className={`bio-pairs${g.evenPairs ? ' even' : ''}`}>
+                    {g.pairs.map((pair) => (
+                      <div className="bio-pair" key={pair[0][0]}>
+                        {pair.map(([key, label]) => (
+                          <div className="bio-cell" key={key}>
+                            <label>{label}</label>
+                            <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
             ))}
           </div>
         </div>
