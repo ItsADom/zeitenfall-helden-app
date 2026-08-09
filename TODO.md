@@ -36,52 +36,63 @@ scratchpad / pinned existing note sections / session log).
 
 ## High-Prio
 
-### 1. Display mode — the keystone
+### 1. Display mode — DONE (0.1.1)
 
-One context with three modes, read by `NumInput` and `TextInput` themselves:
+Shipped: `components/displayMode.tsx` with three modes (`edit` / `readonly` /
+`print`), read by `NumInput` and `TextInput` themselves. Read-only is the
+default for everyone; Übersicht is the exception and stays live. Also closed
+the empty free-text fields in print, the number-field spinner arrows, and the
+leading 0 when typing.
 
-| Mode | renders | solves |
-|---|---|---|
-| `edit` | form controls | today's behaviour |
-| `readonly` | static text | read-only as the default |
-| `print` | static text | empty free-text fields in print, spinner arrows |
+What is worth keeping:
 
-Every editable value in the app runs through those two building blocks, so one
-provider flips the whole sheet. The precedent is already there: `PrintScopeCtx`
-in `client/src/components/tableLayout.tsx` does exactly this for collapsed
-tables and only needs generalising and exporting.
+- **Everything editable runs through those two components.** That is why one
+  provider can flip a whole sheet, and it is the lever to reach for whenever
+  something must apply to every value at once.
+- Structural buttons (`+ Zeile`, `Spalten`, `Löschen`, `+ Tab`, tab reordering,
+  portrait, column widths) do NOT pass through them and need gating one by one.
+  Collapsing deliberately stays available while read-only: it lives per device
+  in localStorage and changes nothing about the character.
+- Print came out empty because `TextInput` is an auto-growing `<textarea>` sized
+  from `scrollHeight`, and the print root mounts while still hidden → height ~0.
+  Static text has no such problem; there is no textarea left in the print tree.
 
-- Wire the exceptions: Übersicht and the side panel are always `edit`.
-- Structural buttons are NOT covered by those two blocks and need their own
-  gating: `+ Zeile`, `Löschen`, `Spalten`, `+ Tab`, delete section.
-- Why print comes out empty today: `TextInput` is an auto-growing `<textarea>`
-  whose height is set in a `useLayoutEffect` from `scrollHeight`. The print root
-  mounts while still `display:none` → `scrollHeight` is 0 → height collapses to
-  ~2px. Static text in print sidesteps this entirely.
-- **Do in the same pass**: the leading 0 in number fields. `NumInput` is fully
-  controlled from the numeric model (`value={Number.isFinite(value) ? value : 0}`),
-  which makes an empty field structurally impossible — that is why the 0 stays.
-  Fix: an internal string draft that only commits a number on change/blur. Both
-  touch the same file; doing them separately means writing it twice.
+Left open: Übersicht is still included in the printout (see Low-Prio).
 
-### 2. Table handling
+### 2. Table handling — DONE (0.1.2)
 
-- Keep the talent search bar visible while scrolling. `.talent-search` has no
-  overflow ancestor → `position: sticky` really is enough.
-- Keep table headers visible. **Blocker**: `.table-wrap` is `overflow-x: auto`
-  and therefore already a scroll container in BOTH axes. A sticky `<thead>`
-  sticks inside it — and that container never scrolls vertically, so nothing
-  visible happens. Needs the decision to give long tables a `max-height` and
-  thus their own vertical scroll area. The first column is already frozen this
-  way (`styles.css` ~679), so the pattern is half built; the corner needs a cell
-  with a higher `z-index`.
-- Make complete tables collapsible, triggered by the sigil in the heading (not
-  the "Einklappen" button). **The actual work** is not the click but that there
-  are two collapse mechanisms: the `TableTools` button (state in
-  `useTableLayout`, `tbl-zu:`) and the heading click in the talents
-  (`talc:cat:`). For `ListEditor` tables the parent renders the heading while
-  the state lives in the child → this needs a shared collapsible `Panel` that
-  holds heading and state together.
+Shipped: sticky table headers, sticky talent search, collapsing moved to the
+heading. What is worth keeping from the way it went:
+
+- **A table must not get its own scroll area.** The first attempt gave
+  `.table-wrap` a `max-height` so a sticky `thead` had something to stick
+  against. It worked, and it was wrong: with the pointer over a long table the
+  page stopped scrolling until you had scrolled through the whole table. Do not
+  reach for that again.
+- The reason it was tempting: `overflow-x: auto` silently makes the box a
+  scroll container in BOTH axes, so a sticky `thead` inside can only ever stick
+  to the box, never to the page. The way out is to drop the wrapper's overflow
+  entirely — which is only possible because `main` uses `overflow-x: clip`
+  (clip cuts off without creating a scroll container; `hidden` would break it).
+- The sticky offset is the sum of everything already stuck above: top bar, tab
+  bar, and in the talent tab the search bar. None has a fixed height (the tab
+  bar wraps to two rows), so each is measured into its own CSS variable by
+  `components/stickyChrome.ts` and the stylesheet adds them with `calc()` —
+  one variable per observer, so no observer depends on who measured first.
+- `thead` sticks as a whole, not row by row. That is what makes the two-row
+  Energien header work without hand-computed per-row offsets.
+
+Left open on purpose:
+
+- Below 700px a table wider than the page would be cut off by `main`'s clip, so
+  there it keeps its own horizontal scroller and the header falls back to
+  sticking within the table. Fold this into the narrow-screen layout pass.
+- The panels on Übersicht and Heldenbrief (Attribute, Basiswerte, Energien,
+  Geld) still do not collapse at all — they never did. Only the trigger moved;
+  nothing gained collapsing that lacked it. Decide separately whether they
+  should.
+- Talent categories lost their remembered collapsed state once, because the key
+  moved from `talc:cat:*` into the shared `tbl-zu:*` space.
 
 ### 3. Navigation & sidebar
 
