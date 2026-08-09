@@ -11,7 +11,7 @@ import ChangelogPage from './pages/Changelog';
 import ThemePicker from './components/ThemePicker';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
-import { useTheme } from './theme';
+import { useAnimations, useMode, useTheme } from './theme';
 
 interface AuthContextValue {
   user: UserInfo;
@@ -27,6 +27,8 @@ export default function App() {
   // Farbthema app-weit anwenden (auch auf der Anmeldeseite). Muss vor den
   // frühen returns stehen, damit die Hook-Reihenfolge stabil bleibt.
   const [theme, setTheme] = useTheme();
+  const [mode, setMode] = useMode();
+  const [anim, setAnim] = useAnimations();
   // Die Kopfleiste klebt oben; was darunter kleben soll, braucht ihre Höhe.
   const topbarRef = useTopbarHeight();
 
@@ -53,13 +55,22 @@ export default function App() {
     <AuthContext.Provider value={{ user, refresh }}>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
-          <BannerFx key={theme} theme={theme} />
+          {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
+              der Effekt neu auf (Schleife ⇄ Standbild). */}
+          <BannerFx key={`${theme}-${anim}`} theme={theme} animate={anim} />
         </div>
         <Link to="/">Heldenverwaltung</Link>
         {user.isGm && <Link to="/verwaltung">Verwaltung</Link>}
         <Link to="/changelog">Änderungen</Link>
         <div className="spacer" />
-        <ThemePicker theme={theme} onChange={setTheme} />
+        <ThemePicker
+          theme={theme}
+          onChange={setTheme}
+          mode={mode}
+          onModeChange={setMode}
+          animate={anim}
+          onAnimateChange={setAnim}
+        />
         <span>
           {user.displayName} {user.isGm ? '(Spielleiter)' : ''}
         </span>

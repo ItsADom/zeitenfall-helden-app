@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 
 // Animierte Kopfleisten-Effekte je Theme, auf einem Canvas gezeichnet. Jeder
 // Effekt passt zur Region Aventuriens. Bewusst dezent, damit die Leiste lebt,
-// ohne vom Inhalt abzulenken. Respektiert prefers-reduced-motion (Standbild) und
-// pausiert im Hintergrund-Tab.
+// ohne vom Inhalt abzulenken. Bei `animate={false}` (Nutzer-Schalter aus, oder
+// als Standard bei prefers-reduced-motion) steht ein ruhiges Standbild statt
+// der Schleife. Pausiert außerdem im Hintergrund-Tab.
 
 type Draw = (ctx: CanvasRenderingContext2D, t: number, w: number, h: number) => void;
 
@@ -263,7 +264,7 @@ function makeEffect(theme: string, w: number, h: number): Draw | null {
   }
 }
 
-export default function BannerFx({ theme }: { theme: string }) {
+export default function BannerFx({ theme, animate = true }: { theme: string; animate?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -294,14 +295,16 @@ export default function BannerFx({ theme }: { theme: string }) {
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
 
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // Ob bewegt wird, entscheidet der Aufrufer (Nutzer-Schalter; sein Standard
+    // berücksichtigt bereits prefers-reduced-motion). Hier nur noch: Schleife
+    // oder Standbild.
     let raf = 0;
     const loop = (t: number) => {
       ctx.clearRect(0, 0, w, h);
       if (draw) draw(ctx, t, w, h);
       raf = requestAnimationFrame(loop);
     };
-    if (reduce) {
+    if (!animate) {
       ctx.clearRect(0, 0, w, h);
       draw?.(ctx, 0, w, h); // ein ruhiges Standbild
     } else {
@@ -312,7 +315,7 @@ export default function BannerFx({ theme }: { theme: string }) {
       if (document.hidden) {
         if (raf) cancelAnimationFrame(raf);
         raf = 0;
-      } else if (!reduce && !raf) {
+      } else if (animate && !raf) {
         raf = requestAnimationFrame(loop);
       }
     };
@@ -323,7 +326,7 @@ export default function BannerFx({ theme }: { theme: string }) {
       ro.disconnect();
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [theme]);
+  }, [theme, animate]);
 
   return <canvas ref={ref} className="banner-canvas" aria-hidden="true" />;
 }

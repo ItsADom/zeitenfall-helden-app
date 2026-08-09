@@ -4,13 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Heldenverwaltung</title>
-    <!-- Farbthema vor dem Rendern setzen, damit nichts kurz im Standard aufblitzt.
-         Wert wird von usePersistedState als JSON abgelegt (String in Anführungszeichen). -->
+    <!-- Farbwelt, Hell/Dunkel und Animation vor dem Rendern setzen, damit nichts
+         kurz im Standard aufblitzt. Die Werte legt usePersistedState als JSON ab
+         (Strings in Anführungszeichen, Booleans als true/false). Ohne getroffene
+         Wahl folgt Hell/Dunkel bzw. Animation der Systemeinstellung. -->
     <script>
-      try {
-        var t = JSON.parse(localStorage.getItem('theme'));
-        if (typeof t === 'string' && t) document.documentElement.dataset.theme = t;
-      } catch (e) {}
+      (function () {
+        var d = document.documentElement.dataset;
+        var mm = function (q) { try { return window.matchMedia(q).matches; } catch (e) { return false; } };
+        try {
+          var t = JSON.parse(localStorage.getItem('theme'));
+          d.theme = typeof t === 'string' && t ? t : 'rot';
+        } catch (e) { d.theme = 'rot'; }
+        try {
+          var m = JSON.parse(localStorage.getItem('theme-mode'));
+          d.mode = m === 'light' || m === 'dark' ? m : (mm('(prefers-color-scheme: dark)') ? 'dark' : 'light');
+        } catch (e) { d.mode = 'light'; }
+        try {
+          var a = JSON.parse(localStorage.getItem('theme-anim'));
+          d.anim = (typeof a === 'boolean' ? a : !mm('(prefers-reduced-motion: reduce)')) ? 'on' : 'off';
+        } catch (e) { d.anim = 'on'; }
+      })();
     </script>
   </head>
   <body>

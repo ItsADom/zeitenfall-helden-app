@@ -15,6 +15,17 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-09',
+    version: '0.1.3',
+    title: 'Helle und dunkle Ansicht für jede Farbwelt',
+    changes: [
+      'Jede Farbwelt (Khôm, Bornland, Thorwal, Drachensteine, Gareth) gibt es jetzt hell und dunkel. Im Farbmenü oben rechts schaltet ein Schieber mit Sonne/Mond zwischen beiden um.',
+      'Die Schattenlande bleiben ihre eigene, immer dunkle Welt — der Hell/Dunkel-Schieber ist dort ohne Wirkung.',
+      'Ohne eigene Wahl richtet sich die App nach der Systemeinstellung: dunkel, wenn das Gerät dunkel eingestellt ist.',
+      'Ein zweiter Schieber schaltet die Bewegung in der Kopfleiste an oder aus.',
+    ],
+  },
+  {
+    date: '2026-08-09',
     version: '0.1.2',
     title: 'Tabellen bleiben beim Scrollen lesbar',
     changes: [

@@ -117,6 +117,101 @@
   --banner-motif: none; /* Gareth: Effekt kommt aus dem Canvas (BannerFx) */
   --banner-drift: 40s;
 }
+
+/* ---------- Dunkelmodus ----------
+   Zwei Ebenen, damit jede Farbwelt dunkel werden kann, ohne ihre Identität zu
+   verlieren:
+     1. Ein gemeinsamer dunkler Rahmen (Flächen, Text, Ränder, Schatten,
+        funktionale Töne) — theme-unabhängig, aus den neutralen Tokens der
+        Schattenlande abgeleitet.
+     2. Je Farbwelt ein dunkel abgestimmter Akzent (heller/klarer als im Hellen,
+        damit er auf dunklem Grund trägt) plus Kopfleisten-Verlauf und Schimmer.
+   Reihenfolge zählt: der gemeinsame Block steht NACH den hellen Akzent-Blöcken
+   (gleiche Spezifität → späterer gewinnt bei Flächen/computed), die
+   Akzent-Blöcke sind spezifischer (data-theme + data-mode) und gewinnen beim
+   Akzent. Die Schattenlande stehen bewusst danach und sind dunkel-only. */
+:root[data-mode='dark'] {
+  --bg: #17140f;
+  --panel: #221d16;
+  --panel-hi: #2a241b;
+  --border: #3a3226;
+  --border-strong: #4a4030;
+  --border-soft: #322b20;
+  --border-hover: #5a4f3b;
+  --text: #ece3d2;
+  --muted: #a99e86;
+  --input-bg: #1c1811;
+  --surface-head: #262019;
+  --surface-hover: #2b2519;
+  --surface-hover-strong: #332a1c;
+  --surface-sunken: #201b14;
+  --computed-bg: #2e2717;
+  --computed-text: #d8c48c;
+  --accent-disabled: #4a4236;
+  --on-accent: #ffffff;
+  --warn-soft: #3a2f1c;
+  --warn-line: #d69a4a;
+  --crit-soft: #3a221c;
+  --crit-line: #e0705f;
+  --mastery: #e0a63a;
+  --error-text: #e0705f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+  --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
+}
+/* Khôm dunkel — sonnenverbranntes Rot, bewusst wärmer/heller als die
+   Schattenlande, damit die beiden dunklen Rottöne unterscheidbar bleiben. */
+:root[data-theme='rot'][data-mode='dark'] {
+  --accent: #d06a48;
+  --accent-dark: #b0543a;
+  --accent-soft: #35221a;
+  --header-grad-a: #4a1d16;
+  --header-grad-mid: #cf6247;
+  --header-grad-b: #6f2a20;
+  --bg-wash: rgba(208, 106, 72, 0.07);
+}
+/* Bornland dunkel — Waldgrün */
+:root[data-theme='wald'][data-mode='dark'] {
+  --accent: #5aa06b;
+  --accent-dark: #4c8a5a;
+  --accent-soft: #1d2a20;
+  --header-grad-a: #16301c;
+  --header-grad-mid: #4f9160;
+  --header-grad-b: #24502f;
+  --bg-wash: rgba(90, 160, 107, 0.07);
+}
+/* Thorwal dunkel — Seeblau */
+:root[data-theme='koenigsblau'][data-mode='dark'] {
+  --accent: #5c84c6;
+  --accent-dark: #4b6fac;
+  --accent-soft: #1c2536;
+  --header-grad-a: #142a4a;
+  --header-grad-mid: #4f74c0;
+  --header-grad-b: #26406b;
+  --bg-wash: rgba(92, 132, 198, 0.07);
+}
+/* Drachensteine dunkel — Amethyst-Violett */
+:root[data-theme='amethyst'][data-mode='dark'] {
+  --accent: #9c70c4;
+  --accent-dark: #825bab;
+  --accent-soft: #281f34;
+  --header-grad-a: #2f2144;
+  --header-grad-mid: #8a5aad;
+  --header-grad-b: #4a2d68;
+  --bg-wash: rgba(156, 112, 196, 0.07);
+}
+/* Gareth dunkel — Bronze-Gold */
+:root[data-theme='bronze'][data-mode='dark'] {
+  --accent: #c68f48;
+  --accent-dark: #ac7735;
+  --accent-soft: #322817;
+  --header-grad-a: #472d13;
+  --header-grad-mid: #b8842f;
+  --header-grad-b: #6f4720;
+  --bg-wash: rgba(198, 143, 72, 0.07);
+}
+
+/* Schattenlande — eigene dunkle Farbwelt, dunkel-only: erzwingt Dunkel
+   unabhängig von data-mode und steht deshalb nach den Modus-Blöcken. */
 :root[data-theme='nacht'] {
   --bg: #17140f;
   --panel: #221d16;
@@ -237,6 +332,85 @@
   font-weight: 700;
 }
 
+/* Trenner zwischen Farbwelten-Liste und den Schaltern darunter */
+.theme-dd-sep {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--border);
+}
+.theme-dd-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 9px;
+}
+.theme-dd-toggle-label {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Hell/Dunkel und Animation als gleicher Kippschalter */
+.theme-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+.theme-switch-track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--border-strong);
+  transition: background 0.15s;
+}
+.theme-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--panel);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  transition: left 0.15s;
+}
+.theme-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.theme-switch.on .theme-switch-track {
+  background: var(--accent);
+}
+.theme-switch.on .theme-switch-knob {
+  left: 18px;
+}
+.theme-switch-text {
+  min-width: 3.2em;
+  text-align: left;
+  color: var(--text);
+}
+/* Der Hell/Dunkel-Schalter trägt Sonne bzw. Mond im Knopf. */
+.theme-switch.mode .theme-switch-knob {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--accent);
+}
+
 * {
   box-sizing: border-box;
 }
@@ -304,6 +478,9 @@ header.topbar {
 @media (prefers-reduced-motion: reduce) {
   header.topbar { animation: none; }
 }
+/* Nutzer hat Animationen abgeschaltet: Kopfleiste steht still. Das Standbild
+   des Canvas-Effekts übernimmt BannerFx selbst. */
+:root[data-anim='off'] header.topbar { animation: none; }
 
 /* Dekorative Effekt-Ebene in der Kopfleiste (hinter den Inhalten). Standard
    unsichtbar; einzelne Themes können darin bewegte Formen zeigen. */
@@ -1316,6 +1493,9 @@ main {
 /* Nachtmodus: die hellen Material-Flächen würden das Panel überstrahlen und den
    hellen Text unlesbar machen. Fläche daher dunkel halten — die Münz-Identität
    bleibt über die Scheibe und die farbige linke Kante erhalten. */
+/* Münz-Panels im Dunkeln lesbar halten — in jeder dunklen Farbwelt, nicht nur
+   in den Schattenlande. */
+:root[data-mode='dark'] .coin,
 :root[data-theme='nacht'] .coin {
   background: var(--surface-head);
 }

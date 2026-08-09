@@ -187,12 +187,17 @@ Left open on purpose:
 ## Low-Prio
 
 - damage values and effects for ammunition
-- color themes — optional polish
-  - default theme that is more neutral than Khôm (red)
-  - contrast audit per theme, especially the functional tones
-    (warn/crit/computed) — they have to stay readable
-  - optional: default via @media (prefers-color-scheme: dark) as long as no
-    choice has been made
+- color themes — mostly done (0.1.3)
+  - DONE: every regional theme now has a light AND dark variant, on two axes
+    (`data-theme` colour × `data-mode`). Schattenlande stays dark-only. Theme
+    picker gained a light/dark slider and an animation on/off slider. Default
+    follows the OS (`prefers-color-scheme` / `prefers-reduced-motion`) until the
+    user chooses. Structure: shared dark-chrome block + per-theme dark accents,
+    see the "Dunkelmodus" section in styles.css.
+  - still open: default theme that is more neutral than Khôm (red)
+  - still open: contrast audit per theme, especially the functional tones
+    (warn/crit/computed) — they have to stay readable. The five dark accent
+    palettes were eyeballed, not measured; worth a proper WCAG pass.
 - print/PDF — what is left after the display mode. Already handled by the
   display mode (High-Prio 1): empty free-text fields, visible spinner arrows.
   What remains:

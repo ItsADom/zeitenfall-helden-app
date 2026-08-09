@@ -1,14 +1,34 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { THEMES } from '../theme';
+import { THEMES, isDarkOnly } from '../theme';
+import type { Mode } from '../theme';
 
 // Farbthema-Auswahl als Dropdown: der Auslöser zeigt das aktuelle Theme
-// (Farbpunkt + Name), die Liste jedes Theme mit Farbvorschau und Namen.
-// Umschalt-Logik liegt im useTheme-Hook (App), hier nur Anzeige + Klick.
-export default function ThemePicker({ theme, onChange }: { theme: string; onChange: (id: string) => void }) {
+// (Farbpunkt + Name), die Liste jedes Theme mit Farbvorschau und Namen. Darunter
+// zwei Schalter — Hell/Dunkel und Animation an/aus.
+// Umschalt-Logik liegt in den Hooks (App), hier nur Anzeige + Klick.
+export default function ThemePicker({
+  theme,
+  onChange,
+  mode,
+  onModeChange,
+  animate,
+  onAnimateChange,
+}: {
+  theme: string;
+  onChange: (id: string) => void;
+  mode: Mode;
+  onModeChange: (m: Mode) => void;
+  animate: boolean;
+  onAnimateChange: (on: boolean) => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const current = THEMES.find((t) => t.id === theme) ?? THEMES[0];
+  // Die Schattenlande sind dunkel-only — der Hell/Dunkel-Schalter ist dort ohne
+  // Wirkung und wird deshalb deaktiviert und zeigt Dunkel.
+  const modeLocked = isDarkOnly(theme);
+  const modeDark = mode === 'dark' || modeLocked;
 
   // Schließen bei Klick außerhalb oder Escape
   useEffect(() => {
@@ -69,6 +89,44 @@ export default function ThemePicker({ theme, onChange }: { theme: string; onChan
               </button>
             </li>
           ))}
+          <li className="theme-dd-sep" role="presentation" />
+          <li className="theme-dd-toggle-row" role="presentation">
+            <span className="theme-dd-toggle-label">Ansicht</span>
+            <button
+              type="button"
+              className={`theme-switch mode${modeDark ? ' on' : ''}`}
+              role="switch"
+              aria-checked={modeDark}
+              disabled={modeLocked}
+              title={
+                modeLocked ? 'Die Schattenlande sind immer dunkel'
+                : modeDark ? 'Zu heller Ansicht wechseln'
+                : 'Zu dunkler Ansicht wechseln'
+              }
+              onClick={() => onModeChange(mode === 'dark' ? 'light' : 'dark')}
+            >
+              <span className="theme-switch-track" aria-hidden>
+                <span className="theme-switch-knob">{modeDark ? '☾' : '☀︎'}</span>
+              </span>
+              <span className="theme-switch-text">{modeDark ? 'Dunkel' : 'Hell'}</span>
+            </button>
+          </li>
+          <li className="theme-dd-toggle-row" role="presentation">
+            <span className="theme-dd-toggle-label">Animation</span>
+            <button
+              type="button"
+              className={`theme-switch${animate ? ' on' : ''}`}
+              role="switch"
+              aria-checked={animate}
+              title={animate ? 'Kopfleisten-Animation ausschalten' : 'Kopfleisten-Animation einschalten'}
+              onClick={() => onAnimateChange(!animate)}
+            >
+              <span className="theme-switch-track" aria-hidden>
+                <span className="theme-switch-knob" />
+              </span>
+              <span className="theme-switch-text">{animate ? 'An' : 'Aus'}</span>
+            </button>
+          </li>
         </ul>
       )}
     </div>
