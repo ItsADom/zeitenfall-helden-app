@@ -25,7 +25,7 @@ export const THEMES: ThemeDef[] = [
   { id: 'koenigsblau', label: 'Thorwal', swatch: '#2f4a7a' },
   { id: 'amethyst', label: 'Drachensteine', swatch: '#5e3a78' },
   { id: 'bronze', label: 'Gareth', swatch: '#8a5a2b' },
-  { id: 'nacht', label: 'Schattenlande', swatch: '#c2564a' },
+  { id: 'nacht', label: 'Schattenlande', swatch: '#d06a5c' },
 ];
 
 export const DEFAULT_THEME = 'rot';

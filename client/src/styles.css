@@ -25,7 +25,13 @@
 
   /* Weitere Farb-Token (für spätere Themes/Dark Mode zentral schaltbar).
      Alle Werte entsprechen exakt dem bisherigen „Rot/Pergament"-Standard. */
-  --on-accent: #ffffff; /* Text/Icon auf Akzent- oder dunklen Flächen */
+  --on-accent: #ffffff; /* Text/Icon auf dunklen Akzent-Flächen (Kopfleisten-Verlauf) */
+  /* Text auf einer FLÄCHE in --accent (Buttons, aktiver Reiter, Abzeichen).
+     Im Hellen ist der Akzent dunkel → Weiß trägt. Im Dunkeln ist der Akzent
+     hell → dort dunkle Tinte statt Weiß (siehe Dunkelmodus). Getrennt von
+     --on-accent, weil dessen andere Verwendung (Kopfleiste) im Dunkeln weiter
+     Weiß braucht. */
+  --on-accent-fill: #ffffff;
   --header-grad-a: #6a1a1c; /* Kopfleisten-Verlauf: linke Kante */
   --header-grad-mid: #e0644f; /* Kopfleisten-Verlauf: Mitte — greller, warmer Sonnen-Höhepunkt */
   --header-grad-b: #9a2f2c; /* Kopfleisten-Verlauf: rechte Kante */
@@ -148,7 +154,8 @@
   --computed-bg: #2e2717;
   --computed-text: #d8c48c;
   --accent-disabled: #4a4236;
-  --on-accent: #ffffff;
+  --on-accent: #ffffff; /* bleibt weiß: die Kopfleiste ist auch im Dunkeln dunkel */
+  --on-accent-fill: #17140f; /* dunkle Tinte auf hellen Akzent-Flächen (Buttons) */
   --warn-soft: #3a2f1c;
   --warn-line: #d69a4a;
   --crit-soft: #3a221c;
@@ -162,7 +169,10 @@
    Schattenlande, damit die beiden dunklen Rottöne unterscheidbar bleiben. */
 :root[data-theme='rot'][data-mode='dark'] {
   --accent: #d06a48;
-  --accent-dark: #b0543a;
+  /* Im Dunkeln ist accent-dark die HELLERE Betonung (Text, Hover), nicht die
+     dunklere — auf dunklem Grund geht Betonung nach oben. Gilt für alle
+     Dunkel-Themes. */
+  --accent-dark: #e0855f;
   --accent-soft: #35221a;
   --header-grad-a: #4a1d16;
   --header-grad-mid: #cf6247;
@@ -172,7 +182,7 @@
 /* Bornland dunkel — Waldgrün */
 :root[data-theme='wald'][data-mode='dark'] {
   --accent: #5aa06b;
-  --accent-dark: #4c8a5a;
+  --accent-dark: #74b985;
   --accent-soft: #1d2a20;
   --header-grad-a: #16301c;
   --header-grad-mid: #4f9160;
@@ -181,28 +191,28 @@
 }
 /* Thorwal dunkel — Seeblau */
 :root[data-theme='koenigsblau'][data-mode='dark'] {
-  --accent: #5c84c6;
-  --accent-dark: #4b6fac;
+  --accent: #6b90cf; /* nachgeschärft für lesbare Link-Farbe (AA) */
+  --accent-dark: #86a6da;
   --accent-soft: #1c2536;
   --header-grad-a: #142a4a;
   --header-grad-mid: #4f74c0;
   --header-grad-b: #26406b;
-  --bg-wash: rgba(92, 132, 198, 0.07);
+  --bg-wash: rgba(107, 144, 207, 0.07);
 }
 /* Drachensteine dunkel — Amethyst-Violett */
 :root[data-theme='amethyst'][data-mode='dark'] {
-  --accent: #9c70c4;
-  --accent-dark: #825bab;
+  --accent: #a87fce; /* nachgeschärft für lesbare Link-Farbe (AA) */
+  --accent-dark: #bd9adb;
   --accent-soft: #281f34;
   --header-grad-a: #2f2144;
   --header-grad-mid: #8a5aad;
   --header-grad-b: #4a2d68;
-  --bg-wash: rgba(156, 112, 196, 0.07);
+  --bg-wash: rgba(168, 127, 206, 0.07);
 }
 /* Gareth dunkel — Bronze-Gold */
 :root[data-theme='bronze'][data-mode='dark'] {
   --accent: #c68f48;
-  --accent-dark: #ac7735;
+  --accent-dark: #d9a863;
   --accent-soft: #322817;
   --header-grad-a: #472d13;
   --header-grad-mid: #b8842f;
@@ -229,14 +239,15 @@
   --surface-sunken: #201b14;
   --computed-bg: #2e2717;
   --computed-text: #d8c48c;
-  --accent: #c2564a;
-  --accent-dark: #a5433a;
+  --accent: #d06a5c; /* nachgeschärft für lesbare Link-Farbe (AA) */
+  --accent-dark: #dd8578;
   --accent-soft: #33231f;
   --accent-disabled: #4a4236;
   --header-grad-a: #3f171c;
   --header-grad-mid: #7a343b;
   --header-grad-b: #55232a;
   --on-accent: #ffffff;
+  --on-accent-fill: #17140f; /* dunkel-only: eigener Wert, da der Modus-Block hier evtl. nicht greift */
   --warn-soft: #3a2f1c;
   --warn-line: #d69a4a;
   --crit-soft: #3a221c;
@@ -245,7 +256,7 @@
   --error-text: #e0705f;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
   --shadow-soft: 0 1px 1px rgba(0, 0, 0, 0.35);
-  --bg-wash: rgba(194, 86, 74, 0.06);
+  --bg-wash: rgba(208, 106, 92, 0.06);
   --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M15.5 3A9 9 0 1 0 21 16.5 7.2 7.2 0 1 1 15.5 3Z'/%3E%3C/svg%3E"); /* Schattenlande: Mondsichel */
   --banner-motif: none; /* Schattenlande: Nebel kommt aus dem Canvas (BannerFx) */
 }
@@ -760,7 +771,7 @@ tr.subtle-head.clickable:hover td {
 .tabs button.active {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
@@ -1119,7 +1130,7 @@ table.sheet textarea.text-input:focus {
 
 button.primary {
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
   border: none;
   border-radius: 7px;
   padding: 7px 16px;
@@ -1203,7 +1214,7 @@ tr.slot-row td {
   justify-content: center;
   border-radius: 50%;
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
   font-size: 0.8em;
 }
 .slot-line input {
@@ -1262,7 +1273,7 @@ tr.slot-row td {
   min-height: 60px;
   padding: 6px 14px;
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
   border-radius: 10px;
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
@@ -1315,7 +1326,7 @@ button.btn-action {
 }
 button.btn-action:hover {
   background: var(--accent);
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
 }
 button.btn-action:disabled {
   opacity: 0.45;
@@ -1579,7 +1590,7 @@ li {
   font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.05em;
-  color: var(--on-accent);
+  color: var(--on-accent-fill);
   background: var(--accent);
   border-radius: 4px;
   padding: 1px 6px;
