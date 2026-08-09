@@ -135,6 +135,12 @@ and `gesamtDublonen` were extracted for reuse. Contents: Energien + Psyche
 (AlwaysEditable steppers), read-only Attribute grid (8 codes) and money total.
 Notizen slot still deferred (see below).
 
+Follow-up (2026-08-09): energy pools shortened to LP/AUS/ASP and laid out as a
+2×2 grid (sidebar widened to 300px). The **Übersicht tab was removed entirely**
+— the Heldenbrief already carries every value it duplicated (editable) and the
+sidebar carries the daily-use subset. `Uebersicht.tsx` deleted, `Heldenbrief` is
+now the only fixed tab and the default landing tab, tab-order tests updated.
+
 #### 3b. Sidebar (variant B)
 
 Sticky right-hand column on the character page ONLY. Edit-access only (group

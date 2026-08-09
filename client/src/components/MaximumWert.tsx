@@ -2,7 +2,7 @@
 // Ausbaugrenze, zählt nur der gekappte Wert — die Rohsumme wird aber
 // daneben durchgestrichen mitgezeigt, statt sie zu verschlucken: sie steht
 // in der Datenbank und der Spieler soll sehen, dass ein Teil verfällt.
-// Eine Stelle für Heldenbrief, Übersicht und Zusammenfassung.
+// Eine Stelle für Heldenbrief und Zusammenfassung.
 export function MaximumWert({
   nutzbar,
   roh,

@@ -76,8 +76,8 @@ export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: strin
   ase: { label: 'Astralenergie', formel: '(MU+IN+CH):2' },
 };
 
-// Spaltennamen der Energien-Tabellen — eine Stelle für Heldenbrief, Übersicht
-// und Summary, damit die Namen nicht auseinanderlaufen.
+// Spaltennamen der Energien-Tabellen — eine Stelle für Heldenbrief und Summary,
+// damit die Namen nicht auseinanderlaufen.
 //
 // Die vier Eingaben bilden ein Kreuz aus Herkunft und Ziel:
 //

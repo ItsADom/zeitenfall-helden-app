@@ -14,14 +14,14 @@ import { gesamtDublonen } from './GeldPanel';
 //   • laufende Pools (Energien, Psyche) — bearbeitbar auch im Nur-Lesen-Modus
 //     (AlwaysEditable), weil man sie mitten im Kampf ändern will.
 //   • Nachschlagewerte (Attribute, Geld) — nur zum Ablesen; gepflegt werden sie
-//     weiter im Heldenbrief bzw. auf der Übersicht.
-// Bewusste Überschneidung mit der Übersicht: die zeigt alles, die Leiste eine
-// stets sichtbare Teilmenge.
+//     weiter im Heldenbrief.
+// Die Leiste ersetzt die frühere „Übersicht" als Reiter: der Heldenbrief zeigt
+// weiterhin alles im Detail, die Leiste die stets sichtbare Teilmenge.
 
 const de = (v: number) => v.toLocaleString('de-DE');
 
 // Kurzformen für die enge Spalte — im Spiel ohnehin so gerufen.
-const RES_ABBR: Record<ResourceKey, string> = { le: 'LE', aus: 'AU', ase: 'AsE' };
+const RES_ABBR: Record<ResourceKey, string> = { le: 'LP', aus: 'AUS', ase: 'ASP' };
 const RES_FULL: Record<ResourceKey, string> = { le: 'Lebensenergie', aus: 'Ausdauer', ase: 'Astralenergie' };
 
 export default function CharacterSidebar() {
@@ -129,8 +129,8 @@ function SidebarAttribute() {
   );
 }
 
-// Geld — nur die Gesamtsumme in Dublonen. Die einzelnen Münzen werden auf der
-// Übersicht bzw. im Heldenbrief gepflegt.
+// Geld — nur die Gesamtsumme in Dublonen. Die einzelnen Münzen werden im
+// Heldenbrief gepflegt.
 function SidebarGeld() {
   const { data } = useChar();
   return (

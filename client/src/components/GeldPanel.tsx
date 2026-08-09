@@ -1,8 +1,8 @@
 import { NumInput } from './inputs';
 
 // Münzen mit Metall-Farbwelt: Dublonen (Gold), Silbertaler (Silber),
-// Heller (Bronze), Kreuzer (Eisen). Wird im Heldenbrief und in der Übersicht
-// gleichermaßen genutzt.
+// Heller (Bronze), Kreuzer (Eisen). Wird im Heldenbrief genutzt; die
+// Gesamtsumme (gesamtDublonen) zeigt auch die Seitenleiste.
 const COIN_FIELDS: [string, string, string][] = [
   ['geldD', 'Dublonen', 'gold'],
   ['geldS', 'Silbertaler', 'silver'],

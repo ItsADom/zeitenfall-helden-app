@@ -7,8 +7,8 @@ import { NumInput } from './inputs';
 // darf unter null fallen), + heilt (bis maximal max). Enter im Betragsfeld
 // wirkt wie −, weil Schaden im Spiel der häufigste Fall ist.
 //
-// Genutzt in der Übersicht UND in der Seitenleiste — beide zeigen dieselben
-// laufenden Pools (Energien, Psyche). Deshalb liegt der Baustein hier zentral.
+// Genutzt in der Seitenleiste (CharacterSidebar) für die laufenden Pools
+// (Energien, Psyche). Liegt zentral, damit weitere Stellen ihn teilen können.
 export function AktuellFeld({
   value,
   onChange,

@@ -16,12 +16,11 @@ import {
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
-import { AlwaysEditable, DisplayModeProvider } from '../components/displayMode';
+import { DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
 import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
 import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
-import UebersichtTab from '../tabs/Uebersicht';
 import HeldenbriefTab from '../tabs/Heldenbrief';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
@@ -100,7 +99,7 @@ export default function CharacterPage() {
   const [data, setData] = useState<FullData | null>(null);
   const [summary, setSummary] = useState<unknown>(null);
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
-  const [activeKey, setActiveKey] = useState<string>('Übersicht');
+  const [activeKey, setActiveKey] = useState<string>('Heldenbrief');
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);
@@ -381,16 +380,11 @@ export default function CharacterPage() {
   const activeContentTab = tabByKey(activeKey);
 
   // Inhalt eines eingebauten Reiters. Selbst angelegte laufen über ContentTabView.
-  // Die Übersicht steht bewusst in einer Ausnahme-Insel: dort liegen die Werte,
-  // die sich im Spiel dauernd ändern (Energien, Psyche, Geld) — die will man
-  // nicht erst über „Bearbeiten" freischalten müssen.
+  // Die laufenden Werte (Energien, Psyche, Geld) liegen jetzt in der stets
+  // sichtbaren Seitenleiste (CharacterSidebar) — die frühere „Übersicht" als
+  // eigener Reiter ist damit überflüssig und entfallen.
   const builtinTab = (key: string) =>
-    key === 'Übersicht' ? (
-      <AlwaysEditable>
-        <UebersichtTab />
-      </AlwaysEditable>
-    )
-    : key === 'Heldenbrief' ? <HeldenbriefTab />
+    key === 'Heldenbrief' ? <HeldenbriefTab />
     : key === 'Talente' ? <TalenteTab />
     : key === 'Waffen' ? <WaffenTab />
     : key === 'Sprachen' ? <SprachenTab />
@@ -550,7 +544,7 @@ export default function CharacterPage() {
               title={
                 editing ?
                   'Bearbeiten beenden — das Blatt ist danach wieder geschützt'
-                : 'Blatt bearbeiten. Übersicht und laufende Werte gehen auch ohne das.'
+                : 'Blatt bearbeiten. Die laufenden Werte in der Seitenleiste gehen auch ohne das.'
               }
             >
               {editing ? '🔓 Fertig' : '🔒 Bearbeiten'}

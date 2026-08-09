@@ -44,7 +44,7 @@ export const useReadOnly = (): boolean => useContext(DisplayModeCtx) !== 'edit';
 
 /**
  * Ausnahme-Insel: bleibt bearbeitbar, auch wenn das Blatt auf Nur-Lesen steht.
- * Für die Übersicht und das Seitenpanel — dort stehen die Werte, die sich im
+ * Für das Seitenpanel (CharacterSidebar) — dort stehen die Werte, die sich im
  * Spiel ständig bewegen (Energien, Psyche, Geld), und die will man im Zweifel
  * mitten im Kampf ändern können, ohne vorher irgendwo Bearbeiten einzuschalten.
  *

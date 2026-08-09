@@ -1,8 +1,8 @@
 // Reihenfolge der Reiter auf der Charakterseite.
 //
-// Die Reiter kommen aus zwei Quellen: fünf fest eingebaute (Übersicht,
-// Heldenbrief, Talente, Waffen, Sprachen) plus „Sichtbarkeit", und beliebig
-// viele selbst angelegte. Damit sich beide gemeinsam sortieren lassen, führt
+// Die Reiter kommen aus zwei Quellen: vier fest eingebaute (Heldenbrief,
+// Talente, Waffen, Sprachen) plus „Sichtbarkeit", und beliebig viele selbst
+// angelegte. Damit sich beide gemeinsam sortieren lassen, führt
 // diese Datei eine gemeinsame Sprache ein: jeder Reiter hat einen Schlüssel.
 // Eingebaute heißen wie ihr Beschriftungstext, selbst angelegte „c<id>".
 //
@@ -11,10 +11,10 @@
 // steht ein unbekannter drin (gelöschter Reiter), fällt er weg. So braucht es
 // weder Migration noch Aufräumarbeiten, wenn Reiter dazukommen oder gehen.
 
-// Diese beiden bleiben immer vorn und lassen sich nicht verschieben — sie sind
+// Der Heldenbrief bleibt immer vorn und lässt sich nicht verschieben — er ist
 // der Einstieg in den Charakter, und ein Charakterbogen, dessen erste Seite
 // wandert, verwirrt mehr als er nützt.
-export const FIXED_TAB_KEYS = ['Übersicht', 'Heldenbrief'] as const;
+export const FIXED_TAB_KEYS = ['Heldenbrief'] as const;
 
 // Eingebaute Reiter, die sich verschieben lassen. „Sichtbarkeit" steht in der
 // Voreinstellung hinter den selbst angelegten, weil es eine Einstellung ist und
@@ -103,7 +103,7 @@ function firstMovableIndex(order: readonly string[]): number {
 
 // Setzt `key` vor oder hinter `target`. Ein Ziel innerhalb des festen Blocks
 // wird nach hinten gezogen, statt den Zug abzulehnen — wer einen Reiter auf
-// „Übersicht" fallen lässt, meint „ganz nach links".
+// „Heldenbrief" fallen lässt, meint „ganz nach links".
 export function moveTabKey(
   order: readonly string[],
   key: string,

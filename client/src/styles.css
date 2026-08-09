@@ -1452,8 +1452,8 @@ main {
 /* Klebt unter Kopfzeile + Reiterleiste; wird bei Bedarf innen scrollbar, damit
    eine lange Leiste nicht über den Bildschirm hinauswächst. */
 .char-sidebar {
-  flex: 0 0 260px;
-  width: 260px;
+  flex: 0 0 300px;
+  width: 300px;
   position: sticky;
   top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px) + 8px);
   max-height: calc(100dvh - (var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px)) - 20px);
@@ -1507,16 +1507,28 @@ main {
   color: var(--muted);
 }
 
-/* Laufende Pools — Kopf (Kürzel + Max/Prozent) über dem Aktuell-Stepper. */
+/* Laufende Pools — Kopf (Kürzel + Max/Prozent) über dem Aktuell-Stepper. Als
+   2×2-Raster (LP/AUS · ASP/Psyche): spart Höhe und nutzt die Breite besser. */
 .side-pools {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 .side-pool {
   padding: 6px 8px;
   border-radius: 8px;
   background: var(--surface-sunken);
+}
+/* In den schmalen Rasterzellen darf das Betragsfeld kleiner sein, damit
+   NumInput + −/Betrag/+ sicher nebeneinander passen. */
+.side-pool .akt-amount {
+  width: 2.6em;
+}
+.side-pool .akt-delta {
+  gap: 2px;
+}
+.side-pool .akt-delta button {
+  padding: 0 5px;
 }
 .side-pool.res-low {
   background: var(--warn-soft);

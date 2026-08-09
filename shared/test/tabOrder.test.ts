@@ -25,8 +25,7 @@ describe('Schlüssel', () => {
     expect(dynTabId('c1x')).toBeNull();
   });
 
-  it('kennt genau zwei feste Reiter', () => {
-    expect(isFixedTab('Übersicht')).toBe(true);
+  it('kennt genau einen festen Reiter', () => {
     expect(isFixedTab('Heldenbrief')).toBe(true);
     expect(isFixedTab('Talente')).toBe(false);
     expect(isFixedTab('c7')).toBe(false);
@@ -35,7 +34,7 @@ describe('Schlüssel', () => {
 
 describe('defaultTabKeys', () => {
   it('setzt die selbst angelegten zwischen Sprachen und Sichtbarkeit', () => {
-    expect(DEFAULT).toEqual(['Übersicht', 'Heldenbrief', 'Talente', 'Waffen', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit']);
+    expect(DEFAULT).toEqual(['Heldenbrief', 'Talente', 'Waffen', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit']);
   });
 });
 
@@ -56,12 +55,12 @@ describe('orderTabKeys', () => {
 
   it('folgt der gespeicherten Reihenfolge', () => {
     const stored = ['Sichtbarkeit', 'c8', 'Waffen', 'Talente', 'Sprachen', 'c7'];
-    expect(orderTabKeys(DEFAULT, stored)).toEqual(['Übersicht', 'Heldenbrief', ...stored]);
+    expect(orderTabKeys(DEFAULT, stored)).toEqual(['Heldenbrief', ...stored]);
   });
 
-  it('hält die festen Reiter vorn, auch wenn die gespeicherte Liste sie hinten führt', () => {
-    const out = orderTabKeys(DEFAULT, ['Talente', 'Übersicht', 'Waffen', 'Heldenbrief']);
-    expect(out.slice(0, 2)).toEqual(['Übersicht', 'Heldenbrief']);
+  it('hält den festen Reiter vorn, auch wenn die gespeicherte Liste ihn hinten führt', () => {
+    const out = orderTabKeys(DEFAULT, ['Talente', 'Waffen', 'Heldenbrief']);
+    expect(out.slice(0, 1)).toEqual(['Heldenbrief']);
     expect(out).toHaveLength(DEFAULT.length);
   });
 
@@ -72,7 +71,7 @@ describe('orderTabKeys', () => {
   it('hängt neu angelegte Reiter hinten an', () => {
     const stored = ['Talente', 'Waffen', 'Sprachen', 'c7', 'Sichtbarkeit'];
     const withNew = defaultTabKeys([7, 9]);
-    expect(orderTabKeys(withNew, stored)).toEqual([...['Übersicht', 'Heldenbrief'], ...stored, 'c9']);
+    expect(orderTabKeys(withNew, stored)).toEqual([...['Heldenbrief'], ...stored, 'c9']);
   });
 
   it('verliert und erfindet keine Reiter', () => {
@@ -84,24 +83,23 @@ describe('orderTabKeys', () => {
 describe('moveTabKey', () => {
   it('setzt einen Reiter vor einen anderen', () => {
     expect(moveTabKey(DEFAULT, 'Sichtbarkeit', 'Talente', 'before')).toEqual([
-      'Übersicht', 'Heldenbrief', 'Sichtbarkeit', 'Talente', 'Waffen', 'Sprachen', 'c7', 'c8',
+      'Heldenbrief', 'Sichtbarkeit', 'Talente', 'Waffen', 'Sprachen', 'c7', 'c8',
     ]);
   });
 
   it('setzt einen Reiter hinter einen anderen', () => {
     expect(moveTabKey(DEFAULT, 'Talente', 'c8', 'after')).toEqual([
-      'Übersicht', 'Heldenbrief', 'Waffen', 'Sprachen', 'c7', 'c8', 'Talente', 'Sichtbarkeit',
+      'Heldenbrief', 'Waffen', 'Sprachen', 'c7', 'c8', 'Talente', 'Sichtbarkeit',
     ]);
   });
 
-  it('verschiebt die festen Reiter nicht', () => {
-    expect(moveTabKey(DEFAULT, 'Übersicht', 'c8', 'after')).toEqual(DEFAULT);
+  it('verschiebt den festen Reiter nicht', () => {
     expect(moveTabKey(DEFAULT, 'Heldenbrief', 'Talente', 'before')).toEqual(DEFAULT);
   });
 
-  it('lässt niemanden vor die festen Reiter — ein Wurf auf „Übersicht" landet davor', () => {
-    const out = moveTabKey(DEFAULT, 'c8', 'Übersicht', 'before');
-    expect(out).toEqual(['Übersicht', 'Heldenbrief', 'c8', 'Talente', 'Waffen', 'Sprachen', 'c7', 'Sichtbarkeit']);
+  it('lässt niemanden vor den festen Reiter — ein Wurf auf „Heldenbrief" landet dahinter', () => {
+    const out = moveTabKey(DEFAULT, 'c8', 'Heldenbrief', 'before');
+    expect(out).toEqual(['Heldenbrief', 'c8', 'Talente', 'Waffen', 'Sprachen', 'c7', 'Sichtbarkeit']);
   });
 
   it('ändert nichts bei unbekanntem Ziel oder Reiter', () => {
@@ -119,10 +117,10 @@ describe('moveTabKey', () => {
 describe('stepTabKey', () => {
   it('tauscht mit dem Nachbarn', () => {
     expect(stepTabKey(DEFAULT, 'Waffen', -1)).toEqual([
-      'Übersicht', 'Heldenbrief', 'Waffen', 'Talente', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit',
+      'Heldenbrief', 'Waffen', 'Talente', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit',
     ]);
     expect(stepTabKey(DEFAULT, 'Waffen', 1)).toEqual([
-      'Übersicht', 'Heldenbrief', 'Talente', 'Sprachen', 'Waffen', 'c7', 'c8', 'Sichtbarkeit',
+      'Heldenbrief', 'Talente', 'Sprachen', 'Waffen', 'c7', 'c8', 'Sichtbarkeit',
     ]);
   });
 
@@ -133,8 +131,7 @@ describe('stepTabKey', () => {
     expect(stepTabKey(DEFAULT, 'Sichtbarkeit', 1)).toEqual(DEFAULT);
   });
 
-  it('bewegt die festen Reiter überhaupt nicht', () => {
+  it('bewegt den festen Reiter überhaupt nicht', () => {
     expect(canStepTab(DEFAULT, 'Heldenbrief', 1)).toBe(false);
-    expect(canStepTab(DEFAULT, 'Übersicht', 1)).toBe(false);
   });
 });
