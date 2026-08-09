@@ -224,7 +224,19 @@ Decisions:
   `Label: value`. Nothing a player typed is ever silently dropped. See the
   `helden-app-datenverlust-vermeiden` memory.
 
-#### 5a. Structured Inventar (categories + weight) — first stage
+#### 5a. Structured Inventar (categories + weight) — first stage — DONE
+
+Shipped: `shared/src/items.ts` (Item model + `itemGewicht`/`getrageneLast`/
+`lastInfo`, tested), server `char_items` + `char_item_categories` tables with
+load/save + PUT routes, and a built-in **Inventar** tab (`client/src/tabs/
+Inventar.tsx`): items grouped by category with per-group weight subtotals, a
+carried-load meter (`Σ / maximaleLast kg`) that turns red when overloaded, and
+per-character category management (add/rename/remove). `Inventar` is now a
+built-in movable tab (`MOVABLE_BUILTIN_TAB_KEYS`), replacing the dynamic one.
+One-time migration (`migrateInventarToItems`, PRAGMA user_version=3) moved every
+character's dynamic Inventar rows into the store — unmapped columns folded into
+the item note (verified on Riloana: 46 items, custom columns preserved). Load
+meter counts all non-worn items; unit kg with decimals.
 
 - Built-in **Inventar** tab (replaces the dynamic one): items grouped by
   category, each group with a weight subtotal, plus a **carried-load meter**

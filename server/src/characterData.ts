@@ -12,6 +12,7 @@ import {
   dynTabId,
   dynTabKey,
   erleichterung,
+  INVENTAR_KATEGORIEN,
   ITEM_LOCATIONS,
   listSectionById,
   normalizeColumns,
@@ -200,7 +201,9 @@ const VORTEILE_TAB = 'Vorteile & Nachteile';
 const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] = [
   { name: VORTEILE_TAB, locked: true, sectionIds: ['professionBoni', 'vorteile', 'nachteile', 'titel', 'perks'] },
   { name: 'Ausrüstung', locked: true, sectionIds: ['ausruestungSlots', 'behaelter', 'proviant', 'kleidungen', 'tierAusruestung'] },
-  { name: 'Inventar', locked: true, sectionIds: ['inventar'] },
+  // „Inventar" ist seit Cluster 5 ein eingebauter Reiter auf dem Gegenstands-
+  // Modell (char_items) — keine dynamische Sektion mehr. Neue Charaktere
+  // bekommen stattdessen ein paar Standard-Kategorien (seedItemCategories).
   { name: 'Zauber/Fähigkeiten', locked: true, sectionIds: [] },
   { name: 'Bibliothek', locked: true, sectionIds: ['bibliothek'] },
   { name: 'Artefakte', locked: false, sectionIds: ['kraftspeicher', 'artefakte'] },
@@ -294,7 +297,113 @@ function buildStandardTabs(charId: number, getRows: (sectionId: string) => Recor
 
 // Leere Standard-Tabs für einen neuen Charakter anlegen.
 export function instantiateStandardSections(charId: number): void {
-  const tx = db.transaction(() => buildStandardTabs(charId, () => []));
+  const tx = db.transaction(() => {
+    buildStandardTabs(charId, () => []);
+    seedItemCategories(charId);
+  });
+  tx();
+}
+
+// Ein paar sinnvolle Ausgangs-Kategorien für einen neuen Charakter, sofern er
+// noch keine hat. Frei änderbar — nur eine Starthilfe, kein Zwang.
+export function seedItemCategories(charId: number): void {
+  const have = (db.prepare('SELECT COUNT(*) AS n FROM char_item_categories WHERE character_id = ?').get(charId) as { n: number }).n;
+  if (have > 0) return;
+  const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
+  INVENTAR_KATEGORIEN.forEach((name, i) => ins.run(charId, i, name));
+}
+
+// Einmalige Migration (Cluster 5a): den früheren dynamischen „Inventar"-Reiter
+// jedes Charakters in das Gegenstands-Modell (char_items) überführen und den
+// alten Reiter entfernen. Läuft genau einmal über PRAGMA user_version (= 3).
+//
+// Datenverlust vermeiden (oberste Regel): bekannte Spalten werden abgebildet,
+// alle anderen (selbst angelegte) wandern als „Label: Wert" in die Notiz.
+const KNOWN_INV_KEYS = new Set(['name', 'anzahl', 'eGewicht', 'kategorie', 'notiz']);
+
+export function migrateInventarToItems(): void {
+  if (Number(db.pragma('user_version', { simple: true })) >= 3) return;
+  const tx = db.transaction(() => {
+    const tabs = db.prepare("SELECT id, character_id FROM char_tabs WHERE name = 'Inventar'").all() as {
+      id: number;
+      character_id: number;
+    }[];
+    for (const tab of tabs) {
+      const charId = tab.character_id;
+      const sections = db.prepare('SELECT id, columns FROM char_sections WHERE tab_id = ? ORDER BY pos, id').all(tab.id) as {
+        id: number;
+        columns: string;
+      }[];
+      let pos = (db.prepare('SELECT COALESCE(MAX(pos), -1) AS m FROM char_items WHERE character_id = ?').get(charId) as { m: number }).m + 1;
+      const existingCats = new Set(loadItemCategories(charId));
+      const catsSeen: string[] = [];
+      const insItem = db.prepare(
+        'INSERT INTO char_items (character_id, pos, name, anzahl, gewicht, kategorie, location, notiz) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      );
+      for (const sec of sections) {
+        let cols: DynColumn[] = [];
+        try {
+          cols = JSON.parse(sec.columns) as DynColumn[];
+        } catch {
+          cols = [];
+        }
+        const labelByKey = new Map(cols.map((c) => [c.key, c.label]));
+        const rows = db.prepare('SELECT data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id').all(sec.id) as {
+          data: string;
+        }[];
+        for (const r of rows) {
+          let d: Record<string, unknown> = {};
+          try {
+            d = JSON.parse(r.data) as Record<string, unknown>;
+          } catch {
+            d = {};
+          }
+          const name = String(d.name ?? '').trim();
+          const anzahl = Number(d.anzahl) || 0;
+          const gewicht = Number(d.eGewicht) || 0;
+          const kategorie = String(d.kategorie ?? '').trim();
+          // Nicht abbildbare Spalten in die Notiz falten — nichts geht verloren.
+          const extras: string[] = [];
+          for (const [k, v] of Object.entries(d)) {
+            if (KNOWN_INV_KEYS.has(k)) continue;
+            const val = String(v ?? '').trim();
+            if (val) extras.push(`${labelByKey.get(k) ?? k}: ${val}`);
+          }
+          let notiz = String(d.notiz ?? '').trim();
+          if (extras.length) notiz = notiz ? `${notiz}\n${extras.join('\n')}` : extras.join('\n');
+          if (!name && !anzahl && !gewicht && !kategorie && !notiz) continue; // ganz leere Zeile
+          insItem.run(charId, pos++, name, anzahl, gewicht, kategorie, 'inventar', notiz);
+          if (kategorie && !existingCats.has(kategorie) && !catsSeen.includes(kategorie)) catsSeen.push(kategorie);
+        }
+      }
+      if (catsSeen.length) {
+        let cpos =
+          (db.prepare('SELECT COALESCE(MAX(pos), -1) AS m FROM char_item_categories WHERE character_id = ?').get(charId) as { m: number }).m + 1;
+        const insCat = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
+        for (const c of catsSeen) insCat.run(charId, cpos++, c);
+      }
+      // Alten dynamischen Reiter samt Sektionen/Zeilen entfernen (ON DELETE CASCADE).
+      db.prepare('DELETE FROM char_tabs WHERE id = ?').run(tab.id);
+      // In der gemerkten Reiter-Reihenfolge den alten Schlüssel durch den
+      // eingebauten 'Inventar' ersetzen — die Position bleibt so erhalten.
+      const ord = db.prepare('SELECT keys FROM character_tab_order WHERE character_id = ?').get(charId) as { keys: string } | undefined;
+      if (ord) {
+        let keys: string[] = [];
+        try {
+          keys = JSON.parse(ord.keys) as string[];
+        } catch {
+          keys = [];
+        }
+        const oldKey = dynTabKey(tab.id);
+        const idx = keys.indexOf(oldKey);
+        if (idx >= 0) keys[idx] = 'Inventar';
+        else if (!keys.includes('Inventar')) keys.push('Inventar');
+        keys = keys.filter((k, i) => keys.indexOf(k) === i); // doppeltes 'Inventar' vermeiden
+        db.prepare('UPDATE character_tab_order SET keys = ? WHERE character_id = ?').run(JSON.stringify(keys), charId);
+      }
+    }
+    db.pragma('user_version = 3');
+  });
   tx();
 }
 

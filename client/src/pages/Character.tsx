@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { Link, useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
+import type { Item } from '@shared/items';
 import {
   SICHTBARKEIT_TAB_KEY,
   canStepTab,
@@ -22,6 +23,7 @@ import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
 import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
 import HeldenbriefTab from '../tabs/Heldenbrief';
+import InventarTab from '../tabs/Inventar';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
 import SprachenTab from '../tabs/Sprachen';
@@ -47,6 +49,10 @@ export interface FullData {
   // Voreinstellung; unbekannte Schlüssel werden beim Anzeigen aussortiert.
   tabOrder: string[];
   portrait: boolean;
+  // Einheitliches Gegenstands-Modell (Cluster 5): eine Liste plus die selbst
+  // verwalteten Kategorien. Speichert über eigene Routen, nicht /section/:s.
+  items: Item[];
+  itemCategories: string[];
 }
 
 export interface TalentCatalogRow {
@@ -217,6 +223,8 @@ export default function CharacterPage() {
     try {
       for (const s of sections) {
         if (s === 'visibility') await apiPut(`/api/characters/${charId}/visibility`, d.visibility);
+        else if (s === 'items') await apiPut(`/api/characters/${charId}/items`, d.items);
+        else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
         else {
           const value =
             s === 'bio' ? d.bio
@@ -251,6 +259,8 @@ export default function CharacterPage() {
         if (section === 'talents') return { ...prev, talents: value as CharTalent[] };
         if (section === 'languages') return { ...prev, languages: value as CharLanguage[] };
         if (section === 'visibility') return { ...prev, visibility: value as FullData['visibility'] };
+        if (section === 'items') return { ...prev, items: value as Item[] };
+        if (section === 'itemCategories') return { ...prev, itemCategories: value as string[] };
         return { ...prev, lists: { ...prev.lists, [section]: value as Row[] } };
       });
       dirty.current.add(section);
@@ -388,6 +398,7 @@ export default function CharacterPage() {
     : key === 'Talente' ? <TalenteTab />
     : key === 'Waffen' ? <WaffenTab />
     : key === 'Sprachen' ? <SprachenTab />
+    : key === 'Inventar' ? <InventarTab />
     : key === SICHTBARKEIT_TAB_KEY ? <SichtbarkeitTab />
     : null;
 

@@ -2057,6 +2057,84 @@ li {
   }
 }
 
+/* ---------- Inventar (Cluster 5) ---------- */
+
+/* Traglast-Anzeige: Balken + „getragen / Maximum kg". Überladung färbt Balken
+   und Zahl im Warn-Ton (dieselbe Sprache wie erschöpfte Energie). */
+.last-meter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.last-bar {
+  flex: 1;
+  min-width: 160px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.last-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+.last-meter.over .last-fill {
+  background: var(--crit-line);
+}
+.last-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.last-meter.over .last-num strong,
+.last-warn {
+  color: var(--crit-line);
+  font-weight: 700;
+}
+
+.inv-sum {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  flex: none;
+}
+
+/* Kategorienverwaltung: Chips mit umbenennbarem Namen + Entfernen, plus ein
+   Feld zum Anlegen. */
+.cat-manage {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.cat-chip,
+.cat-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px 4px 2px 8px;
+  background: var(--surface-sunken);
+}
+.cat-chip input {
+  border: none;
+  background: transparent;
+  width: 9em;
+  padding: 2px 2px;
+}
+.cat-chip input:focus {
+  outline: none;
+  box-shadow: none;
+}
+.cat-add {
+  background: transparent;
+}
+.cat-add input {
+  width: 11em;
+}
+
 /* ---------- Druck / PDF ---------- */
 /* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
    unsichtbar im DOM und wird nur beim Drucken sichtbar. */
