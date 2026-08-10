@@ -374,8 +374,18 @@ players). Contents so far:
   `App.tsx` (usePersistedState does NOT sync across instances, so App owns the
   state and the page consumes it — don't spin up a second `useTheme`).
 - **Charakter wählen → per-Charakter, mit „Speichern"** (gestaged, nicht
-  laufend): **Farbwelt** des Charakters, **Inventar-Kategorien**
-  (add/rename→Kaskade/remove→„ohne").
+  laufend): **Farbwelt** des Charakters, **Reiter-Verwaltung** (umbenennen,
+  sortieren, anlegen, löschen — Heldenbrief bleibt vorn), **Sichtbarkeit für
+  Gruppenmitglieder**, **Inventar-Kategorien** (add/rename→Kaskade/remove→„ohne").
+
+Reiter-Verwaltung ist KOMPLETT von der Charakterseite verschwunden (2026-08-10):
+die Reiterleiste dort schaltet nur noch um. `ContentTabView` bekommt auf der
+Charakterseite `showTabControls={false}` (Reiter-Umbenennen/-Verschieben/-Löschen
+weg, Sektionsverwaltung bleibt); der „Sichtbarkeit"-Reiter ist entfernt
+(`SICHTBARKEIT_TAB_KEY` raus aus `defaultTabKeys`), seine Schalter leben jetzt in
+den Einstellungen. Der Spielleiter (kein Einstellungen-Zugang) kann Reiter
+bewusst nicht mehr umsortieren/umbenennen. Auch die ← →-Reiterpfeile im
+Bearbeiten-Modus sind weg.
 
 Per-character theme (the novel bit, fully working):
 - `characters.theme` column (+ migration); im Character-Info; `PUT
@@ -388,13 +398,11 @@ Per-character theme (the novel bit, fully working):
   ({order, renames:[{from,to}], removes:[name]}).
 
 Noch offen (nächster Schritt):
-- **Tab-Verwaltung** auf der Seite: Reiter umbenennen, umsortieren und
-  Sichtbarkeit für Gruppenmitglieder — heute noch auf der Charakterseite selbst
-  (Reiter-Kontextzeile + „Sichtbarkeit"-Tab). Zusammenführen, sobald gewünscht.
 - Später hier andocken: die **Special-Energien**-Einstellungen (Name + Formel +
   Bonus, siehe „4. Energien") — kommt mit dem Energien-Umbau.
 - Spieler-Session-Test der Seite steht noch aus (bisher nur als Spielleiter
-  geprüft: Endpunkte + Theme-Anwendung; die reine Spieler-Oberfläche nicht).
+  geprüft: Charakterseite ist nav-only, Endpunkte + Theme-Anwendung; die reine
+  Spieler-Oberfläche der Einstellungen selbst nicht — GM hat keinen Zugang).
 
 ---
 
