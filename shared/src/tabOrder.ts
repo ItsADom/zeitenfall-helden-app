@@ -18,9 +18,9 @@ export const FIXED_TAB_KEYS = ['Heldenbrief'] as const;
 
 // Eingebaute Reiter, die sich verschieben lassen. „Sichtbarkeit" steht in der
 // Voreinstellung hinter den selbst angelegten, weil es eine Einstellung ist und
-// kein Inhalt. „Inventar" ist seit Cluster 5 ein eingebauter Reiter (eigenes
-// Gegenstands-Modell) statt einer selbst angelegten Tabelle.
-export const MOVABLE_BUILTIN_TAB_KEYS = ['Talente', 'Waffen', 'Inventar', 'Sprachen'] as const;
+// kein Inhalt. „Inventar" und „Ausrüstung" sind seit Cluster 5 eingebaute Reiter
+// (eigenes Gegenstands-Modell) statt selbst angelegter Tabellen.
+export const MOVABLE_BUILTIN_TAB_KEYS = ['Talente', 'Waffen', 'Inventar', 'Ausrüstung', 'Sprachen'] as const;
 export const SICHTBARKEIT_TAB_KEY = 'Sichtbarkeit';
 
 // Grenzen für die gespeicherte Liste. Kein Reiter-Schlüssel ist lang, und mehr

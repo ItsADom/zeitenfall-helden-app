@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { getrageneLast, itemGewicht, lastInfo, zaehltZurLast } from '../src/items.js';
+import {
+  containerFuellung,
+  containers,
+  getrageneLast,
+  itemGewicht,
+  itemsInContainer,
+  itemsInZone,
+  lastInfo,
+  makeUid,
+  zaehltZurLast,
+} from '../src/items.js';
 import type { Item, ItemLocation } from '../src/items.js';
 import type { AttrCode, Attributes } from '../src/types.js';
 import { ATTR_ROW_CODES } from '../src/types.js';
@@ -18,11 +28,16 @@ let nextId = 1;
 function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
   return {
     id: nextId++,
+    uid: `u${nextId}`,
     name: 'x',
     anzahl: 1,
     gewicht: 0,
     kategorie: '',
     location: 'inventar',
+    zone: '',
+    containerUid: '',
+    istBehaelter: false,
+    kapazitaet: 0,
     notiz: '',
     ...partial,
   };
@@ -68,5 +83,39 @@ describe('lastInfo', () => {
 
     const over = lastInfo([item({ anzahl: 1, gewicht: 42.5 })], attrs());
     expect(over.ueberladen).toBe(true);
+  });
+});
+
+describe('makeUid', () => {
+  it('gibt jedes Mal eine andere, nicht-leere Kennung', () => {
+    const a = makeUid();
+    const b = makeUid();
+    expect(a).toBeTruthy();
+    expect(a).not.toBe(b);
+  });
+});
+
+describe('Ausrüstungs-Sichten', () => {
+  const bag = item({ uid: 'bag', name: 'Rucksack', istBehaelter: true, kapazitaet: 20 });
+  const inBag1 = item({ location: 'behaelter', containerUid: 'bag', anzahl: 1, gewicht: 3 });
+  const inBag2 = item({ location: 'behaelter', containerUid: 'bag', anzahl: 2, gewicht: 1 });
+  const wornL = item({ location: 'getragen', zone: 'Arm links' });
+  const wornL2 = item({ location: 'getragen', zone: 'Arm links' });
+  const wornR = item({ location: 'getragen', zone: 'Arm rechts' });
+  const list = [bag, inBag1, inBag2, wornL, wornL2, wornR];
+
+  it('itemsInZone: mehrere Gegenstände je Zone', () => {
+    expect(itemsInZone(list, 'Arm links')).toEqual([wornL, wornL2]);
+    expect(itemsInZone(list, 'Arm rechts')).toEqual([wornR]);
+    expect(itemsInZone(list, 'Kopf')).toEqual([]);
+  });
+
+  it('itemsInContainer + containerFuellung', () => {
+    expect(itemsInContainer(list, 'bag')).toEqual([inBag1, inBag2]);
+    expect(containerFuellung(list, 'bag')).toBe(5); // 3 + 2×1
+  });
+
+  it('containers: nur als Behälter markierte Gegenstände', () => {
+    expect(containers(list)).toEqual([bag]);
   });
 });

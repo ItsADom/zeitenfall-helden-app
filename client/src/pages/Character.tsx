@@ -24,6 +24,7 @@ import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
 import HeldenbriefTab from '../tabs/Heldenbrief';
 import InventarTab from '../tabs/Inventar';
+import AusruestungTab from '../tabs/Ausruestung';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
 import SprachenTab from '../tabs/Sprachen';
@@ -399,6 +400,7 @@ export default function CharacterPage() {
     : key === 'Waffen' ? <WaffenTab />
     : key === 'Sprachen' ? <SprachenTab />
     : key === 'Inventar' ? <InventarTab />
+    : key === 'Ausrüstung' ? <AusruestungTab />
     : key === SICHTBARKEIT_TAB_KEY ? <SichtbarkeitTab />
     : null;
 

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { db } from './db.js';
 import { hashPassword } from './auth.js';
 import { backfillGroupSessionLog } from './dynSections.js';
-import { lockVorteileTab, migrateInventarToItems } from './characterData.js';
+import { lockVorteileTab, migrateAusruestungToItems, migrateInventarToItems } from './characterData.js';
 
 const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data');
 
@@ -111,3 +111,4 @@ seed();
 backfillGroupSessionLog();
 lockVorteileTab();
 migrateInventarToItems();
+migrateAusruestungToItems();

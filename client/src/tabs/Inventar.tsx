@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Item } from '@shared/items';
-import { itemGewicht, lastInfo } from '@shared/items';
+import { itemGewicht, lastInfo, makeUid } from '@shared/items';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
@@ -28,7 +28,10 @@ export default function InventarTab() {
   const setItem = (idx: number, patch: Partial<Item>) => setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
   const addItem = (kategorie: string) =>
-    setItems([...items, { id: newId(), name: '', anzahl: 1, gewicht: 0, kategorie, location: 'inventar', notiz: '' }]);
+    setItems([
+      ...items,
+      { id: newId(), uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie, location: 'inventar', zone: '', containerUid: '', istBehaelter: false, kapazitaet: 0, notiz: '' },
+    ]);
 
   const setCats = (next: string[]) => update('itemCategories', next);
   const addCat = (name: string) => {

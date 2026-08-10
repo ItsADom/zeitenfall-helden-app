@@ -35,7 +35,7 @@ describe('Schlüssel', () => {
 
 describe('defaultTabKeys', () => {
   it('setzt die selbst angelegten zwischen Sprachen und Sichtbarkeit', () => {
-    expect(DEFAULT).toEqual(['Heldenbrief', 'Talente', 'Waffen', 'Inventar', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit']);
+    expect(DEFAULT).toEqual(['Heldenbrief', 'Talente', 'Waffen', 'Inventar', 'Ausrüstung', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit']);
   });
 });
 
@@ -56,8 +56,8 @@ describe('orderTabKeys', () => {
 
   it('folgt der gespeicherten Reihenfolge und hängt Unbekanntes hinten an', () => {
     const stored = ['Sichtbarkeit', 'c8', 'Waffen', 'Talente', 'Sprachen', 'c7'];
-    // 'Inventar' fehlt in der gespeicherten Liste → wird hinten angehängt.
-    expect(orderTabKeys(DEFAULT, stored)).toEqual(['Heldenbrief', ...stored, 'Inventar']);
+    // 'Inventar'/'Ausrüstung' fehlen in der gespeicherten Liste → werden hinten angehängt.
+    expect(orderTabKeys(DEFAULT, stored)).toEqual(['Heldenbrief', ...stored, 'Inventar', 'Ausrüstung']);
   });
 
   it('hält den festen Reiter vorn, auch wenn die gespeicherte Liste ihn hinten führt', () => {
@@ -73,7 +73,7 @@ describe('orderTabKeys', () => {
   it('hängt neu angelegte Reiter hinten an', () => {
     const stored = ['Talente', 'Waffen', 'Sprachen', 'c7', 'Sichtbarkeit'];
     const withNew = defaultTabKeys([7, 9]);
-    expect(orderTabKeys(withNew, stored)).toEqual([...['Heldenbrief'], ...stored, 'Inventar', 'c9']);
+    expect(orderTabKeys(withNew, stored)).toEqual([...['Heldenbrief'], ...stored, 'Inventar', 'Ausrüstung', 'c9']);
   });
 
   it('verliert und erfindet keine Reiter', () => {
@@ -85,13 +85,13 @@ describe('orderTabKeys', () => {
 describe('moveTabKey', () => {
   it('setzt einen Reiter vor einen anderen', () => {
     expect(moveTabKey(DEFAULT, 'Sichtbarkeit', 'Talente', 'before')).toEqual([
-      'Heldenbrief', 'Sichtbarkeit', 'Talente', 'Waffen', 'Inventar', 'Sprachen', 'c7', 'c8',
+      'Heldenbrief', 'Sichtbarkeit', 'Talente', 'Waffen', 'Inventar', 'Ausrüstung', 'Sprachen', 'c7', 'c8',
     ]);
   });
 
   it('setzt einen Reiter hinter einen anderen', () => {
     expect(moveTabKey(DEFAULT, 'Talente', 'c8', 'after')).toEqual([
-      'Heldenbrief', 'Waffen', 'Inventar', 'Sprachen', 'c7', 'c8', 'Talente', 'Sichtbarkeit',
+      'Heldenbrief', 'Waffen', 'Inventar', 'Ausrüstung', 'Sprachen', 'c7', 'c8', 'Talente', 'Sichtbarkeit',
     ]);
   });
 
@@ -101,7 +101,7 @@ describe('moveTabKey', () => {
 
   it('lässt niemanden vor den festen Reiter — ein Wurf auf „Heldenbrief" landet dahinter', () => {
     const out = moveTabKey(DEFAULT, 'c8', 'Heldenbrief', 'before');
-    expect(out).toEqual(['Heldenbrief', 'c8', 'Talente', 'Waffen', 'Inventar', 'Sprachen', 'c7', 'Sichtbarkeit']);
+    expect(out).toEqual(['Heldenbrief', 'c8', 'Talente', 'Waffen', 'Inventar', 'Ausrüstung', 'Sprachen', 'c7', 'Sichtbarkeit']);
   });
 
   it('ändert nichts bei unbekanntem Ziel oder Reiter', () => {
@@ -119,10 +119,10 @@ describe('moveTabKey', () => {
 describe('stepTabKey', () => {
   it('tauscht mit dem Nachbarn', () => {
     expect(stepTabKey(DEFAULT, 'Waffen', -1)).toEqual([
-      'Heldenbrief', 'Waffen', 'Talente', 'Inventar', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit',
+      'Heldenbrief', 'Waffen', 'Talente', 'Inventar', 'Ausrüstung', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit',
     ]);
     expect(stepTabKey(DEFAULT, 'Waffen', 1)).toEqual([
-      'Heldenbrief', 'Talente', 'Inventar', 'Waffen', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit',
+      'Heldenbrief', 'Talente', 'Inventar', 'Waffen', 'Ausrüstung', 'Sprachen', 'c7', 'c8', 'Sichtbarkeit',
     ]);
   });
 

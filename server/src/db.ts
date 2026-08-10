@@ -230,11 +230,19 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     pos INTEGER NOT NULL DEFAULT 0,
+    uid TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL DEFAULT '',
     anzahl REAL NOT NULL DEFAULT 1,
     gewicht REAL NOT NULL DEFAULT 0,
     kategorie TEXT NOT NULL DEFAULT '',
     location TEXT NOT NULL DEFAULT 'inventar',
+    -- 5b: Körperzone (bei location='getragen'), Behälter-Zugehörigkeit
+    -- (container_uid → uid des Behälters, bei location='behaelter'), sowie
+    -- Behälter-Eigenschaft samt Kapazität in kg.
+    zone TEXT NOT NULL DEFAULT '',
+    container_uid TEXT NOT NULL DEFAULT '',
+    ist_behaelter INTEGER NOT NULL DEFAULT 0,
+    kapazitaet REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT ''
   );
   -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
@@ -251,6 +259,20 @@ db.exec(`
   const cols = new Set((db.prepare('PRAGMA table_info(char_sections)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('visible')) db.exec('ALTER TABLE char_sections ADD COLUMN visible INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('tab_id')) db.exec('ALTER TABLE char_sections ADD COLUMN tab_id INTEGER REFERENCES char_tabs(id) ON DELETE CASCADE');
+}
+
+// Migration (Cluster 5b): getragene Ausrüstung & Behälter an char_items ergänzen.
+// uid gibt jeder bestehenden Zeile eine stabile Kennung (hex(randomblob) je
+// Zeile), auf die die Behälter-Zugehörigkeit später verweisen kann.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('uid')) db.exec("ALTER TABLE char_items ADD COLUMN uid TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('zone')) db.exec("ALTER TABLE char_items ADD COLUMN zone TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('container_uid')) db.exec("ALTER TABLE char_items ADD COLUMN container_uid TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('ist_behaelter')) db.exec('ALTER TABLE char_items ADD COLUMN ist_behaelter INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('kapazitaet')) db.exec('ALTER TABLE char_items ADD COLUMN kapazitaet REAL NOT NULL DEFAULT 0');
+  // Bestehende Zeilen ohne uid nachträglich befüllen (eine zufällige je Zeile).
+  db.exec("UPDATE char_items SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
 }
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.

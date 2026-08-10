@@ -12,9 +12,15 @@ import {
   dynTabId,
   dynTabKey,
   erleichterung,
+  BODY_ZONES,
+  containerSlotCount,
+  DYN_CONTAINER_KEY,
+  DYN_SLOTS_KEY,
   INVENTAR_KATEGORIEN,
   ITEM_LOCATIONS,
+  makeUid,
   listSectionById,
+  readSlots,
   normalizeColumns,
   normalizeTabOrder,
   normalizeWidths,
@@ -200,10 +206,9 @@ const VORTEILE_TAB = 'Vorteile & Nachteile';
 
 const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] = [
   { name: VORTEILE_TAB, locked: true, sectionIds: ['professionBoni', 'vorteile', 'nachteile', 'titel', 'perks'] },
-  { name: 'Ausrüstung', locked: true, sectionIds: ['ausruestungSlots', 'behaelter', 'proviant', 'kleidungen', 'tierAusruestung'] },
-  // „Inventar" ist seit Cluster 5 ein eingebauter Reiter auf dem Gegenstands-
-  // Modell (char_items) — keine dynamische Sektion mehr. Neue Charaktere
-  // bekommen stattdessen ein paar Standard-Kategorien (seedItemCategories).
+  // „Inventar" und „Ausrüstung" sind seit Cluster 5 eingebaute Reiter auf dem
+  // Gegenstands-Modell (char_items) — keine dynamischen Sektionen mehr. Neue
+  // Charaktere bekommen stattdessen ein paar Standard-Kategorien (seedItemCategories).
   { name: 'Zauber/Fähigkeiten', locked: true, sectionIds: [] },
   { name: 'Bibliothek', locked: true, sectionIds: ['bibliothek'] },
   { name: 'Artefakte', locked: false, sectionIds: ['kraftspeicher', 'artefakte'] },
@@ -338,7 +343,7 @@ export function migrateInventarToItems(): void {
       const existingCats = new Set(loadItemCategories(charId));
       const catsSeen: string[] = [];
       const insItem = db.prepare(
-        'INSERT INTO char_items (character_id, pos, name, anzahl, gewicht, kategorie, location, notiz) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, notiz) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       );
       for (const sec of sections) {
         let cols: DynColumn[] = [];
@@ -372,7 +377,7 @@ export function migrateInventarToItems(): void {
           let notiz = String(d.notiz ?? '').trim();
           if (extras.length) notiz = notiz ? `${notiz}\n${extras.join('\n')}` : extras.join('\n');
           if (!name && !anzahl && !gewicht && !kategorie && !notiz) continue; // ganz leere Zeile
-          insItem.run(charId, pos++, name, anzahl, gewicht, kategorie, 'inventar', notiz);
+          insItem.run(charId, pos++, makeUid(), name, anzahl, gewicht, kategorie, 'inventar', notiz);
           if (kategorie && !existingCats.has(kategorie) && !catsSeen.includes(kategorie)) catsSeen.push(kategorie);
         }
       }
@@ -403,6 +408,219 @@ export function migrateInventarToItems(): void {
       }
     }
     db.pragma('user_version = 3');
+  });
+  tx();
+}
+
+// --- Migration (Cluster 5b): dynamische „Ausrüstung" ins Gegenstands-Modell ---
+//
+// Läuft genau einmal über PRAGMA user_version (= 4). Überführt jeden dynamischen
+// „Ausrüstung"-Reiter (getragene Ausrüstung, Behälter, Proviant, Kleidungen,
+// Tier-Ausrüstung) in char_items und entfernt den alten Reiter. Datenverlust
+// vermeiden (oberste Regel): bekannte Felder werden abgebildet, alle anderen
+// wandern als „Label: Wert" in die Notiz. Der Behälter-/Fächer-Prototyp
+// (__faecher/__inhalt) wird zu echten Behälter-Gegenständen mit Inhalt.
+
+// Freitext einer „Körperstelle" auf eine feste Zone abbilden (best effort).
+function mapSlotToZone(raw: string): string {
+  const s = raw.toLowerCase();
+  const links = /links|linke|linker|linkes|\bli\.?\b/.test(s);
+  const rechts = /rechts|rechte|rechter|rechtes|\bre\.?\b/.test(s);
+  if (s.includes('kopf') || s.includes('helm') || s.includes('haupt')) return 'Kopf';
+  if (s.includes('hals') || s.includes('nacken') || s.includes('kragen')) return 'Hals';
+  if (s.includes('hand') || s.includes('finger') || s.includes('handschuh')) return rechts ? 'Hand rechts' : 'Hand links';
+  if (s.includes('arm') || s.includes('schulter')) return rechts ? 'Arm rechts' : 'Arm links';
+  if (s.includes('gürtel') || s.includes('guertel') || s.includes('bauch') || s.includes('hüfte') || s.includes('huefte')) return 'Gürtel';
+  if (s.includes('fuß') || s.includes('fuss') || s.includes('füße') || s.includes('fuesse') || s.includes('stiefel') || s.includes('schuh')) return 'Füße';
+  if (s.includes('bein') || s.includes('knie') || s.includes('schenkel')) return rechts ? 'Bein rechts' : 'Bein links';
+  if (s.includes('rücken') || s.includes('ruecken') || s.includes('umhang') || s.includes('mantel') || s.includes('cape')) return 'Rücken';
+  if (s.includes('brust') || s.includes('torso') || s.includes('körper') || s.includes('koerper') || s.includes('rüstung') || s.includes('ruestung') || s.includes('panzer')) return 'Brust';
+  void links;
+  return '';
+}
+
+const numText = (v: unknown): number => {
+  const m = String(v ?? '').replace(',', '.').match(/-?\d+(\.\d+)?/);
+  return m ? Number(m[0]) : 0;
+};
+
+interface AusrItem {
+  uid: string;
+  name: string;
+  anzahl: number;
+  gewicht: number;
+  kategorie: string;
+  location: ItemLocation;
+  zone: string;
+  containerUid: string;
+  istBehaelter: boolean;
+  kapazitaet: number;
+  notiz: string;
+}
+
+// Eine dynamische Ausrüstungs-Zeile in einen (oder mehrere, bei Fächern)
+// Gegenstände übersetzen. `keys` sind die Spaltenschlüssel der Sektion, über die
+// der Typ erkannt wird; `labelByKey` liefert die Beschriftungen für die Notiz.
+function ausrRowToItems(
+  d: Record<string, unknown>,
+  keys: Set<string>,
+  labelByKey: Map<string, string>,
+): AusrItem[] {
+  const consumed = new Set<string>(['notiz', DYN_CONTAINER_KEY, DYN_SLOTS_KEY]);
+  const extras: string[] = [];
+  const note = (label: string, val: unknown) => {
+    const s = String(val ?? '').trim();
+    if (s) extras.push(`${label}: ${s}`);
+  };
+
+  const base: AusrItem = {
+    uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '',
+    location: 'inventar', zone: '', containerUid: '', istBehaelter: false, kapazitaet: 0, notiz: '',
+  };
+
+  if (keys.has('slot') && keys.has('beschreibung')) {
+    // Getragene Ausrüstung
+    base.name = String(d.beschreibung ?? '').trim();
+    base.location = 'getragen';
+    base.zone = mapSlotToZone(String(d.slot ?? ''));
+    consumed.add('slot').add('beschreibung');
+    if (!base.zone) note('Körperstelle', d.slot);
+  } else if (keys.has('kapazitaet')) {
+    // Behälter
+    base.name = String(d.name ?? '').trim();
+    base.istBehaelter = true;
+    base.kapazitaet = numText(d.kapazitaet);
+    consumed.add('name').add('kapazitaet');
+    if (!base.kapazitaet) note('Kapazität', d.kapazitaet);
+  } else if (keys.has('portionen')) {
+    // Proviant/Tränke/Magisches
+    base.name = String(d.name ?? '').trim();
+    base.anzahl = Number(d.portionen) || 1;
+    base.gewicht = Number(d.gewicht) || 0;
+    base.kategorie = 'Tränke/Proviant';
+    consumed.add('name').add('portionen').add('gewicht');
+  } else if (keys.has('kleidung')) {
+    // Kleidungen
+    base.name = String(d.kleidung ?? '').trim();
+    base.gewicht = Number(d.gewicht) || 0;
+    base.kategorie = 'Kleidung';
+    consumed.add('kleidung').add('gewicht').add('anlass');
+    note('Anlass', d.anlass);
+  } else if (keys.has('tier')) {
+    // Tier-Ausrüstung
+    base.name = String(d.name ?? '').trim();
+    base.gewicht = Number(d.gewicht) || 0;
+    base.location = 'tier';
+    consumed.add('name').add('gewicht').add('tier');
+    note('Tier', d.tier);
+  } else {
+    // Unbekannte (selbst angelegte) Sektion: Name best effort, Rest in die Notiz.
+    const nameKey = keys.has('name') ? 'name' : [...keys].find((k) => String(d[k] ?? '').trim());
+    base.name = String((nameKey && d[nameKey]) ?? '').trim();
+    if (nameKey) consumed.add(nameKey);
+  }
+
+  // Fächer-Prototyp: Zeile wird zum Behälter, jedes belegte Fach zum Inhalt.
+  const children: AusrItem[] = [];
+  if (containerSlotCount(d) > 0) {
+    base.istBehaelter = true;
+    for (const slotName of readSlots(d)) {
+      const nm = slotName.trim();
+      if (!nm) continue;
+      children.push({ ...base, uid: makeUid(), name: nm, anzahl: 1, gewicht: 0,
+        location: 'behaelter', zone: '', containerUid: base.uid, istBehaelter: false, kapazitaet: 0, notiz: '' });
+    }
+  }
+
+  // Nicht abgebildete Spalten in die Notiz falten — nichts geht verloren.
+  for (const [k, v] of Object.entries(d)) {
+    if (consumed.has(k)) continue;
+    const val = String(v ?? '').trim();
+    if (val) extras.push(`${labelByKey.get(k) ?? k}: ${val}`);
+  }
+  const ownNote = String(d.notiz ?? '').trim();
+  base.notiz = [ownNote, ...extras].filter(Boolean).join('\n');
+
+  // Ganz leere Zeile überspringen (kein Name, kein Gewicht, keine Notiz, keine Fächer).
+  if (!base.name && !base.gewicht && !base.notiz && !base.istBehaelter && children.length === 0) return [];
+  return [base, ...children];
+}
+
+export function migrateAusruestungToItems(): void {
+  if (Number(db.pragma('user_version', { simple: true })) >= 4) return;
+  const tx = db.transaction(() => {
+    const tabs = db.prepare("SELECT id, character_id FROM char_tabs WHERE name = 'Ausrüstung'").all() as {
+      id: number;
+      character_id: number;
+    }[];
+    for (const tab of tabs) {
+      const charId = tab.character_id;
+      const sections = db.prepare('SELECT id, columns FROM char_sections WHERE tab_id = ? ORDER BY pos, id').all(tab.id) as {
+        id: number;
+        columns: string;
+      }[];
+      let pos = (db.prepare('SELECT COALESCE(MAX(pos), -1) AS m FROM char_items WHERE character_id = ?').get(charId) as { m: number }).m + 1;
+      const existingCats = new Set(loadItemCategories(charId));
+      const catsSeen: string[] = [];
+      const insItem = db.prepare(
+        `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, kapazitaet, notiz)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const sec of sections) {
+        let cols: DynColumn[] = [];
+        try {
+          cols = JSON.parse(sec.columns) as DynColumn[];
+        } catch {
+          cols = [];
+        }
+        const keys = new Set(cols.map((c) => c.key));
+        const labelByKey = new Map(cols.map((c) => [c.key, c.label]));
+        const rows = db.prepare('SELECT data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id').all(sec.id) as {
+          data: string;
+        }[];
+        for (const r of rows) {
+          let d: Record<string, unknown> = {};
+          try {
+            d = JSON.parse(r.data) as Record<string, unknown>;
+          } catch {
+            d = {};
+          }
+          for (const it of ausrRowToItems(d, keys, labelByKey)) {
+            insItem.run(
+              charId, pos++, it.uid, it.name, it.anzahl, it.gewicht, it.kategorie,
+              it.location, it.zone, it.containerUid, it.istBehaelter ? 1 : 0, it.kapazitaet, it.notiz,
+            );
+            if (it.kategorie && !existingCats.has(it.kategorie) && !catsSeen.includes(it.kategorie)) catsSeen.push(it.kategorie);
+          }
+        }
+      }
+      if (catsSeen.length) {
+        let cpos =
+          (db.prepare('SELECT COALESCE(MAX(pos), -1) AS m FROM char_item_categories WHERE character_id = ?').get(charId) as { m: number }).m + 1;
+        const insCat = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
+        for (const c of catsSeen) insCat.run(charId, cpos++, c);
+      }
+      // Alten dynamischen Reiter samt Sektionen/Zeilen entfernen (ON DELETE CASCADE).
+      db.prepare('DELETE FROM char_tabs WHERE id = ?').run(tab.id);
+      // In der gemerkten Reiter-Reihenfolge den alten Schlüssel durch den
+      // eingebauten 'Ausrüstung' ersetzen — die Position bleibt so erhalten.
+      const ord = db.prepare('SELECT keys FROM character_tab_order WHERE character_id = ?').get(charId) as { keys: string } | undefined;
+      if (ord) {
+        let keys: string[] = [];
+        try {
+          keys = JSON.parse(ord.keys) as string[];
+        } catch {
+          keys = [];
+        }
+        const oldKey = dynTabKey(tab.id);
+        const idx = keys.indexOf(oldKey);
+        if (idx >= 0) keys[idx] = 'Ausrüstung';
+        else if (!keys.includes('Ausrüstung')) keys.push('Ausrüstung');
+        keys = keys.filter((k, i) => keys.indexOf(k) === i); // doppeltes 'Ausrüstung' vermeiden
+        db.prepare('UPDATE character_tab_order SET keys = ? WHERE character_id = ?').run(JSON.stringify(keys), charId);
+      }
+    }
+    db.pragma('user_version = 4');
   });
   tx();
 }
@@ -474,15 +692,35 @@ const clampMin = (v: unknown, min = 0): number => {
 
 export function loadItems(charId: number): Item[] {
   const rows = db
-    .prepare('SELECT id, name, anzahl, gewicht, kategorie, location, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id')
-    .all(charId) as { id: number; name: string; anzahl: number; gewicht: number; kategorie: string; location: string; notiz: string }[];
+    .prepare(
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, kapazitaet, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+    )
+    .all(charId) as {
+    id: number;
+    uid: string;
+    name: string;
+    anzahl: number;
+    gewicht: number;
+    kategorie: string;
+    location: string;
+    zone: string;
+    container_uid: string;
+    ist_behaelter: number;
+    kapazitaet: number;
+    notiz: string;
+  }[];
   return rows.map((r) => ({
     id: r.id,
+    uid: r.uid || makeUid(),
     name: r.name,
     anzahl: r.anzahl,
     gewicht: r.gewicht,
     kategorie: r.kategorie,
     location: (ITEM_LOCATIONS as string[]).includes(r.location) ? (r.location as ItemLocation) : 'inventar',
+    zone: r.zone,
+    containerUid: r.container_uid,
+    istBehaelter: !!r.ist_behaelter,
+    kapazitaet: r.kapazitaet,
     notiz: r.notiz,
   }));
 }
@@ -495,24 +733,44 @@ export function loadItemCategories(charId: number): string[] {
 
 // Ganze Liste ersetzen (wie die übrigen Sektionen). Serverseitig gedeckelt und
 // normalisiert, damit über die Schnittstelle nichts Unsinniges in die DB kommt.
+const ZONE_SET = new Set<string>(BODY_ZONES as readonly string[]);
+
 export function saveItems(charId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? raw.slice(0, MAX_ITEMS) : [];
+  // uids eindeutig halten: fehlende oder doppelte erzeugen wir neu, damit die
+  // Behälter-Verweise (containerUid) verlässlich ein Ziel treffen.
+  const seenUids = new Set<string>();
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      'INSERT INTO char_items (character_id, pos, name, anzahl, gewicht, kategorie, location, notiz) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, kapazitaet, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
       const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
+      let uid = String(o.uid ?? '').slice(0, 64);
+      if (!uid || seenUids.has(uid)) uid = makeUid();
+      seenUids.add(uid);
+      // Zone/Behälter passend zum Ort halten: nur getragene Sachen haben eine
+      // Zone, nur Behälter-Inhalte einen container_uid. So bleibt der Datensatz
+      // widerspruchsfrei, egal was von außen kommt.
+      const zoneRaw = String(o.zone ?? '');
+      const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
+      const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
       ins.run(
         charId,
         i,
+        uid,
         String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
         clampMin(o.anzahl),
         clampMin(o.gewicht),
         String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
         loc,
+        zone,
+        containerUid,
+        o.istBehaelter ? 1 : 0,
+        clampMin(o.kapazitaet),
         String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
       );
     });

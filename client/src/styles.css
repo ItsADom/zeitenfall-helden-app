@@ -2144,6 +2144,135 @@ li {
   width: 11em;
 }
 
+/* ---------- Ausrüstung (Cluster 5b): räumliche Sicht + Ziehen ---------- */
+
+/* Ein Wurf-Bereich (Körperzone, Behälter-Inhalt, Rucksack, Tier): sammelt die
+   Gegenstands-Chips und leuchtet auf, wenn etwas darüber schwebt. */
+.drop-zone {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: flex-start;
+  align-content: flex-start;
+  min-height: 40px;
+  padding: 6px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+.drop-zone.over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-sunken));
+}
+.zone-empty {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 2px;
+}
+
+/* Körperzonen-Raster: kompakte Kacheln, je eine Zone mit Titel + Wurf-Bereich. */
+.zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+.zone-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+/* Behälter: je ein Panel mit Kopf (Name + Füllung/Kapazität) und Inhalt. */
+.container-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+.container-panel {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: var(--surface);
+}
+.container-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  margin-bottom: 6px;
+}
+.container-name {
+  font-weight: 600;
+}
+.container-cap {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--muted);
+}
+.container-cap.over {
+  color: var(--crit-line);
+  font-weight: 700;
+}
+.container-cap-edit {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.container-cap-edit input {
+  width: 5em;
+}
+
+/* Gegenstands-Chip: ziehbare Kachel mit Name, Menge, Gewicht. */
+.item-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+  cursor: grab;
+  user-select: none;
+}
+.item-chip:active {
+  cursor: grabbing;
+}
+.item-chip.is-container {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+}
+.chip-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chip-mult,
+.chip-kg {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.chip-btn {
+  margin-left: 4px;
+  padding: 0 4px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.6;
+}
+.chip-btn:hover {
+  opacity: 1;
+}
+
 /* ---------- Druck / PDF ---------- */
 /* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
    unsichtbar im DOM und wird nur beim Drucken sichtbar. */
