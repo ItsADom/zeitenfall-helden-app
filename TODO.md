@@ -19,10 +19,6 @@ Settled, so the items below can stay short:
 - **Special Energien** (Drachenkraft etc.) are added by the player: name +
   attribute formula + bonus. **Psyche** stays built in — every character has one,
   it is a system rule and not a personal power.
-- **Sidebar notes** — DONE (2026-08-10): a free-form „Notizen“-Feld in der
-  Seitenleiste für schnelle Notizen (Debuffs etc.). Volle Breite, wächst mit dem
-  Inhalt, stets bearbeitbar. Liegt in `char_bio.sidebarNotiz` und ist privat
-  (nicht im Heldenbrief/der Zusammenfassung).
 
 ---
 
@@ -405,14 +401,21 @@ Per-character theme (the novel bit, fully working):
 Noch offen (nächster Schritt):
 - Später hier andocken: die **Special-Energien**-Einstellungen (Name + Formel +
   Bonus, siehe „4. Energien") — kommt mit dem Energien-Umbau.
-- Spieler-Session-Test der Seite steht noch aus (bisher nur als Spielleiter
-  geprüft: Charakterseite ist nav-only, Endpunkte + Theme-Anwendung; die reine
-  Spieler-Oberfläche der Einstellungen selbst nicht — GM hat keinen Zugang).
 
 ---
 
 ## Mid-Prio
 
+- setting which players belong to a group needs rework
+ - something like "Gruppe | Mitglieder | Hinzufügen ..."
+ - "Hinzufügen ..." is a text field with auto-suggestion from the user-list + add-button
+    - multiple users can be added at once
+    - clicking a user name or pressing enter will add them to the "To add"-list
+- Possibility for users to give feedback, change requests etc.
+ - something like an inbox for dev-user
+ - creation of a Developer role required
+ - give users multiple roles
+ - make roles changeable on admin dashboard
 - Hovering over "Charaktere" or "Gruppen" should open a list of the player's characters and groups
  - will reduce the necessary page loads and clicks -> quicker and more comfortable navigation
 - Skip no-op saves: `saveSection` / `saveDynRows` do a full DELETE+INSERT even
@@ -420,7 +423,7 @@ Noch offen (nächster Schritt):
   `saveSection` (`server/src/characterData.ts`) is the single choke point
   everything runs through — and it is the SAME diff the audit log below needs.
   Build once, use twice; afterwards the audit log is only a small addition.
-- Audit log on characters (on hold until community testing + feedback)
+- Audit log on characters (on hold until we reach a stable 1.0 version, so it doesn't need to be touched on every system change)
    - who changed what when. Concept to build when it comes off hold:
       - Storage: SEPARATE SQLite file (helden-audit.db), NOT in helden.db —
         backup.ts copies the whole file × KEEP, so history stays out of those
@@ -453,7 +456,6 @@ Noch offen (nächster Schritt):
 
 ## Low-Prio
 
-- Änderungen/Changelog moves on the right side of the banner. Left side stays "game-navigation" only
 - damage values and effects for ammunition (new catalogue)
 - color themes — mostly done (0.1.3)
   - DONE: every regional theme now has a light AND dark variant, on two axes
@@ -478,10 +480,8 @@ Noch offen (nächster Schritt):
    - maybe clamp column widths to the minimum necessary in print for readability
 - mobile/tablet and general layout pass (most players are on PC — saved for
   later)
-   - only one responsive breakpoint now; the tab bar and wide tables get awkward
-     on narrow screens
-   - too much whitespace on wide screens (16:9 already has much unused space) —
-     the sidebar from High-Prio 3 takes exactly that space
+   - general touchup in responsiveness and layouting
+   - testing needs to be done with many multiple resolutions
 - look-up lists
    - has to be worked on with the GM, currently no data for this
    - examples:
@@ -490,12 +490,10 @@ Noch offen (nächster Schritt):
    - this has to be separated from the catalogues — different kind of list
 - catalogue for "Liturgien" (has to wait until the catalogue content is
   finished)
-   - spells need to be selectable as a Liturgie, then select from a fixed list
-     of corresponding skills
-
----
-
-## Optional
-
+   - readout from character's priest level to unlock Liturgien according to it
+   - Requirements for priest level are still not fleshed out
 - portrait follow-ups: on-page cutout editor (choose the crop instead of
   auto-center); show the portrait in the group summary view too
+---
+
+
