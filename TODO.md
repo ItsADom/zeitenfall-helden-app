@@ -373,6 +373,40 @@ Boundaries:
 
 Dependency: the four talents must exist in the catalog under those names.
 
+### 7. Einstellungen (Spieler-Konfigseite) — teilweise DONE
+
+Shipped: a player-only page `client/src/pages/Einstellungen.tsx` at
+`/einstellungen`. Nav swaps by role — a player sees „Einstellungen", the GM keeps
+„Kataloge & Nutzer" (and the top-bar theme picker, which moved off the bar for
+players). Contents so far:
+
+- **Anzeige (Konto)** — personal default Farbwelt + hell/dunkel + Animation,
+  live (no Save). Shared with the top-bar picker via a `ThemeControls` context in
+  `App.tsx` (usePersistedState does NOT sync across instances, so App owns the
+  state and the page consumes it — don't spin up a second `useTheme`).
+- **Charakter wählen → per-Charakter, mit „Speichern"** (gestaged, nicht
+  laufend): **Farbwelt** des Charakters, **Inventar-Kategorien**
+  (add/rename→Kaskade/remove→„ohne").
+
+Per-character theme (the novel bit, fully working):
+- `characters.theme` column (+ migration); im Character-Info; `PUT
+  /characters/:id/theme`. Die Charakterseite legt beim Öffnen das Charakter-Theme
+  auf `data-theme` und stellt beim Verlassen die persönliche Vorgabe des
+  Betrachters wieder her. Es gilt für JEDEN Betrachter (kein Streit): Raskir→Gareth
+  zeigt sich auch dem Spielleiter in Bronze, danach wieder dessen Khôm. Nur die
+  Farbwelt ist per-Charakter; hell/dunkel + Animation bleiben persönlich.
+- Kaskade: `manageItemCategories` + `PUT /characters/:id/item-categories/manage`
+  ({order, renames:[{from,to}], removes:[name]}).
+
+Noch offen (nächster Schritt):
+- **Tab-Verwaltung** auf der Seite: Reiter umbenennen, umsortieren und
+  Sichtbarkeit für Gruppenmitglieder — heute noch auf der Charakterseite selbst
+  (Reiter-Kontextzeile + „Sichtbarkeit"-Tab). Zusammenführen, sobald gewünscht.
+- Später hier andocken: die **Special-Energien**-Einstellungen (Name + Formel +
+  Bonus, siehe „4. Energien") — kommt mit dem Energien-Umbau.
+- Spieler-Session-Test der Seite steht noch aus (bisher nur als Spielleiter
+  geprüft: Endpunkte + Theme-Anwendung; die reine Spieler-Oberfläche nicht).
+
 ---
 
 ## Mid-Prio
