@@ -249,17 +249,35 @@ meter counts all non-worn items; unit kg with decimals.
   notiz`) into the store; retire the old dynamic Inventar tab. Custom columns →
   folded into `notiz` per the no-data-loss rule.
 
-#### 5b. Worn equipment & containers (drag & drop) — second stage
+#### 5b. Worn equipment & containers (drag & drop) — second stage — DONE
 
-- **Ausrüstung** tab becomes a live view of the SAME item store: a fixed,
-  sensible set of body zones (propose the exact list for sign-off — e.g. Kopf /
-  Hals / Brust / Rücken / Arme / Hände / Gürtel / Beine / Füße) + containers,
-  with **drag & drop** to move an item between backpack ⇄ container ⇄ body zone
-  (`location` is the single source of truth). Folds in today's container/slot
-  prototype (`DYN_CONTAINER_KEY`, `readSlots`).
-- Migrate today's `ausruestungSlots`, `behaelter`, `proviant`, `kleidungen`,
-  `tierAusruestung` into items with the right location/category/flags — custom
-  columns folded into `notiz`.
+Shipped: **Ausrüstung** is now a built-in tab (`client/src/tabs/Ausruestung.tsx`,
+`MOVABLE_BUILTIN_TAB_KEYS`) — a live spatial view of the SAME `char_items` store.
+`location` (+ `zone`/`containerUid`) is the single source of truth; native HTML5
+drag & drop moves an item between the backpack pool, a container, a body zone, or
+the animal. Body zones (signed off 2026-08-10): Kopf/Hals/Brust/Rücken and
+seiten­getrennte Arm/Hand/Bein + Gürtel/Füße — a zone is a LIST (armguard +
+wristlet on the same arm), not a single slot.
+
+What is worth keeping:
+
+- **Items carry a stable `uid`** (client-generated) because saving is a whole-
+  list DELETE+INSERT that reassigns the DB `id`. Container membership references
+  the uid, never the id, so it survives every save. `saveItems` regenerates
+  missing/duplicate uids and normalises zone/containerUid to the location.
+- The Fächer prototype (`__faecher`/`__inhalt`) became real container items with
+  nested contents; a belt-with-slots migrates to a *worn* container at Gürtel.
+- Migration `migrateAusruestungToItems` (`user_version=4`) folded the five
+  dynamic sections; Körperstelle → zone best-effort, capacity parsed from free
+  text, every unmapped column into the note (no data loss). Verified on a copy
+  of char 6: 3 sections → 40 items, zones/containers/notes intact.
+- **Note for next server start:** the live `helden.db` was still at
+  `user_version=1` (no `char_items` yet) — 5a never actually ran. On the next
+  restart BOTH the 5a inventory migration and this 5b migration run in sequence.
+
+Accepted simplification: an item's load contribution follows its own `location`,
+so contents of a container that is itself placed on the animal still count as
+carried. Edge case; revisit only if it bites.
 
 ### 6. Zauber
 
