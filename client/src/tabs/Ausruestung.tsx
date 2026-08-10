@@ -17,8 +17,11 @@ import { useChar } from '../pages/Character';
 // Ausrüstung (Cluster 5b): verfolgt, WAS der Charakter trägt — nicht das Inventar
 // gespiegelt. Körperzonen zeigen getragene Ausrüstung; Schnellzugriff-Behälter
 // (Gürtel) zeigen ihren Inhalt direkt in der Zone. Dazu eine „nicht getragen"-
-// Bank zum Umrüsten, der Tier-Bereich und die Stauraum-Behälter als Ablage.
-// Reine Waren landen im Inventar (Behälter-Inhalt); hierher zieht man Gerät.
+// Bank zum Umrüsten und die Stauraum-Behälter als Ablage. Reine Waren landen im
+// Inventar (Behälter-Inhalt); hierher zieht man Gerät.
+//
+// Ziehen geht auch im Nur-Lesen-Modus (Umrüsten ist eine schnelle Spielaktion);
+// nur das Anlegen/Bearbeiten der Detailfelder braucht den Bearbeiten-Modus.
 
 const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
 
@@ -35,13 +38,11 @@ export default function AusruestungTab() {
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
   const [over, setOver] = useState<string | null>(null);
-  const [openUid, setOpenUid] = useState<string | null>(null); // welcher Chip-Editor offen ist
+  const [openUid, setOpenUid] = useState<string | null>(null);
 
   const setItems = (next: Item[]) => update('items', next);
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
 
-  // Beim Löschen eines Behälters wandert sein Inhalt ins lose Inventar zurück,
-  // damit nichts verwaist (und im Inventar sichtbar bleibt).
   const removeItem = (uid: string) =>
     setItems(
       items
@@ -57,10 +58,9 @@ export default function AusruestungTab() {
   const addTo = (over: Partial<Item>) => {
     const it = blank(over);
     setItems([...items, it]);
-    setOpenUid(it.uid); // gleich zum Ausfüllen aufklappen
+    setOpenUid(it.uid);
   };
 
-  // Kette der Behälter oberhalb (Kreise verhindern).
   const ancestors = (uid: string): Set<string> => {
     const seen = new Set<string>();
     let cur = byUid.get(uid);
@@ -87,19 +87,23 @@ export default function AusruestungTab() {
     });
   };
 
+  // Zieh-Bereich. stopPropagation ist wichtig: der Schnellzugriff-Behälter liegt
+  // IN einer Körperzone — ohne das würde ein Wurf in den Behälter auch bei der
+  // Zone ankommen und dort landen. Ziehen ist auch im Nur-Lesen-Modus erlaubt.
   const dropProps = (t: DropTarget) => {
     const key = dropKey(t);
     return {
       className: `drop-zone${over === key ? ' over' : ''}`,
       onDragOver: (e: React.DragEvent) => {
-        if (ro) return;
         e.preventDefault();
+        e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
         if (over !== key) setOver(key);
       },
       onDragLeave: () => setOver((o) => (o === key ? null : o)),
       onDrop: (e: React.DragEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         setOver(null);
         const uid = e.dataTransfer.getData('text/plain');
         if (uid) moveTo(uid, t);
@@ -107,7 +111,6 @@ export default function AusruestungTab() {
     };
   };
 
-  // Ein Chip; Schnellzugriff-Behälter zeigen ihren Inhalt direkt darunter.
   const chip = (it: Item) => (
     <ItemChip
       key={it.uid}
@@ -134,7 +137,6 @@ export default function AusruestungTab() {
   const rs = effektiverRs(items);
 
   const bench = items.filter((it) => it.location === 'bench');
-  const tierItems = items.filter((it) => it.location === 'tier');
   const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
   const wornNoZone = items.filter((it) => it.location === 'getragen' && !BODY_ZONES.includes(it.zone as never));
 
@@ -154,12 +156,10 @@ export default function AusruestungTab() {
             {load.ueberladen && <span className="last-warn"> · überladen</span>}
           </div>
         </div>
-        {!ro && (
-          <p className="muted" style={{ margin: 0 }}>
-            Ziehe Gerät zwischen Zonen, Bank, Tier und Behältern. In einen Stauraum-Behälter gezogen, wandert ein
-            Gegenstand ins Inventar. Getragenes, Abgelegtes und Tier-Gepäck zählen nicht zur Traglast.
-          </p>
-        )}
+        <p className="muted" style={{ margin: 0 }}>
+          Ziehe Gerät zwischen Zonen, Bank und Behältern — das geht auch ohne „Bearbeiten". In einen Stauraum-Behälter
+          gezogen, wandert ein Gegenstand ins Inventar. Getragenes und Abgelegtes zählen nicht zur Traglast.
+        </p>
       </div>
 
       {/* Am Körper — Körperzonen */}
@@ -240,22 +240,6 @@ export default function AusruestungTab() {
           })}
         </div>
       </div>
-
-      {/* Auf dem Tier */}
-      <div className="panel">
-        <h3>
-          Auf dem Tier / Reittier
-          {!ro && (
-            <button className="small add-inline" onClick={() => addTo({ location: 'tier' })} title="Tier-Gepäck anlegen">
-              + Gepäck
-            </button>
-          )}
-        </h3>
-        <div {...dropProps({ location: 'tier' })}>
-          {tierItems.map(chip)}
-          {tierItems.length === 0 && <span className="zone-empty">—</span>}
-        </div>
-      </div>
     </>
   );
 }
@@ -282,7 +266,7 @@ function ItemChip({
     <span className={`chip-wrap${open ? ' open' : ''}`}>
       <span
         className={`item-chip${item.istBehaelter ? ' is-container' : ''}`}
-        draggable={!ro}
+        draggable
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', item.uid);
@@ -296,7 +280,7 @@ function ItemChip({
         {item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>}
         {!ro && (
           <button className="chip-btn" title="Details bearbeiten" onClick={onToggleOpen}>
-            {open ? '▾' : '✎'}
+            {open ? '▾' : '✎︎'}
           </button>
         )}
       </span>

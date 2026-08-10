@@ -58,11 +58,10 @@ describe('itemGewicht', () => {
 });
 
 describe('zaehltZurLast', () => {
-  it('zählt Inventar und Behälter-Inhalt, nicht Getragenes/Tier/Abgelegtes', () => {
+  it('zählt Inventar und Behälter-Inhalt, nicht Getragenes/Abgelegtes', () => {
     expect(zaehltZurLast({ location: 'inventar' })).toBe(true);
     expect(zaehltZurLast({ location: 'behaelter' })).toBe(true);
     expect(zaehltZurLast({ location: 'getragen' })).toBe(false);
-    expect(zaehltZurLast({ location: 'tier' })).toBe(false);
     expect(zaehltZurLast({ location: 'bench' })).toBe(false);
   });
 });
@@ -74,7 +73,6 @@ describe('getrageneLast', () => {
       item({ uid: 'bag', name: 'Sack', istBehaelter: true }),
       item({ anzahl: 1, gewicht: 4, location: 'behaelter', containerUid: 'bag' }), // 4 (keine Reduktion)
       item({ anzahl: 1, gewicht: 100, location: 'getragen' }), // 0 (am Körper)
-      item({ anzahl: 1, gewicht: 50, location: 'tier' }), // 0 (Tier)
       item({ anzahl: 1, gewicht: 20, location: 'bench' }), // 0 (abgelegt)
     ];
     expect(getrageneLast(items)).toBe(10);

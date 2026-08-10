@@ -4,7 +4,6 @@
 // entscheidet, welcher Reiter es zeigt — es gibt KEIN „Ausrüstung"-Flag:
 //   getragen   am Körper (welche Stelle sagt `zone`)            → Ausrüstung
 //   bench      abgelegt, „gerade nicht getragen"                → Ausrüstung
-//   tier       auf dem Tier/Reittier verstaut                   → Ausrüstung
 //   behaelter  in einem Behälter (welcher sagt `containerUid`)  → Inventar (Stauraum)
 //                                                                  bzw. inline bei Schnellzugriff-Behältern
 //   inventar   mitgeführt an oberster Stelle (Behälter selbst;  → Inventar
@@ -12,8 +11,8 @@
 import type { Attributes } from './types.js';
 import { maximaleLast } from './rules.js';
 
-export type ItemLocation = 'inventar' | 'getragen' | 'behaelter' | 'tier' | 'bench';
-export const ITEM_LOCATIONS: ItemLocation[] = ['inventar', 'getragen', 'behaelter', 'tier', 'bench'];
+export type ItemLocation = 'inventar' | 'getragen' | 'behaelter' | 'bench';
+export const ITEM_LOCATIONS: ItemLocation[] = ['inventar', 'getragen', 'behaelter', 'bench'];
 
 // Art eines Behälters entscheidet, WO sein Inhalt erscheint:
 //   quick    Schnellzugriff (Gürtel, Bandelier) — Inhalt inline in der Ausrüstung
@@ -82,9 +81,9 @@ export function itemGewicht(item: Pick<Item, 'anzahl' | 'gewicht'>): number {
   return (Number(item.anzahl) || 0) * (Number(item.gewicht) || 0);
 }
 
-// Zählt der Gegenstand grundsätzlich zur getragenen Last? Am Körper Getragenes,
-// Abgelegtes (bench) und auf dem Tier Verstautes zählt NICHT mit; mitgeführte
-// (inventar) und in Behältern liegende (behaelter) Gegenstände zählen.
+// Zählt der Gegenstand grundsätzlich zur getragenen Last? Am Körper Getragenes
+// und Abgelegtes (bench) zählt NICHT mit; mitgeführte (inventar) und in
+// Behältern liegende (behaelter) Gegenstände zählen.
 export function zaehltZurLast(item: Pick<Item, 'location'>): boolean {
   return item.location === 'inventar' || item.location === 'behaelter';
 }

@@ -1,13 +1,16 @@
 import { useState } from 'react';
 import type { Item, ItemLocation } from '@shared/items';
 import { containerFuellung, itemGewicht, itemsInContainer, lastInfo, makeUid } from '@shared/items';
-import { useReadOnly } from '../components/displayMode';
+import { AlwaysEditable, useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
+import { usePersistedState } from '../components/persist';
 import { useChar } from '../pages/Character';
 
 // Inventar (Cluster 5b): verfolgt nur, was IN Behältern steckt (plus einen losen
 // Alt-Topf aus der Migration). Getragene Ausrüstung lebt im Ausrüstungs-Reiter.
 // Von hier zieht man Dinge über „Zu Ausrüstung" hinüber, oder zwischen Behältern.
+// Ziehen und das Ändern der Anzahl gehen auch im Nur-Lesen-Modus (schneller
+// Zugriff im Spiel); Name/Gewicht/Kategorie/Notiz brauchen den Bearbeiten-Modus.
 
 const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
 
@@ -23,10 +26,12 @@ export default function InventarTab() {
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
   const [over, setOver] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = usePersistedState<string[]>('inv:collapsed', []);
+  const isColl = (k: string) => collapsed.includes(k);
+  const toggleColl = (k: string) => setCollapsed((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
   const setItems = (next: Item[]) => update('items', next);
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
-  // Beim Löschen eines Behälters wandert sein Inhalt zurück ins lose Inventar.
   const removeItem = (uid: string) =>
     setItems(
       items
@@ -42,7 +47,6 @@ export default function InventarTab() {
   const addContainer = () => setItems([...items, blank({ name: 'Neuer Behälter', istBehaelter: true, containerArt: 'storage' })]);
   const addInto = (containerUid: string) => setItems([...items, blank({ location: 'behaelter', containerUid })]);
 
-  // Kreis-Schutz wie in der Ausrüstung.
   const ancestors = (uid: string): Set<string> => {
     const seen = new Set<string>();
     let cur = byUid.get(uid);
@@ -61,13 +65,11 @@ export default function InventarTab() {
   };
 
   const isOver = (t: DropTarget) => over === dropKey(t);
-  // Nur die Zieh-Handler (ohne className) — damit sie sich auf ein Panel legen
-  // lassen, das schon eine eigene Klasse trägt.
+  // Ziehen funktioniert auch im Nur-Lesen-Modus (Umräumen ist Spielaktion).
   const dropHandlers = (t: DropTarget) => {
     const key = dropKey(t);
     return {
       onDragOver: (e: React.DragEvent) => {
-        if (ro) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         if (over !== key) setOver(key);
@@ -84,35 +86,52 @@ export default function InventarTab() {
   const dropProps = (t: DropTarget) => ({ className: `drop-zone${isOver(t) ? ' over' : ''}`, ...dropHandlers(t) });
 
   const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
-  // Lose Gegenstände: mitgeführt, kein Behälter (Alt-Bestand aus der Migration).
   const loose = items.filter((it) => it.location === 'inventar' && !it.istBehaelter);
-  const looseCats = [...new Set(loose.map((it) => it.kategorie))].sort((a, b) => a.localeCompare(b, 'de'));
+
+  // Kategorie-Vorschläge für das Eingabefeld: verwaltete Liste + tatsächlich benutzte.
+  const catList = [...new Set([...(data.itemCategories ?? []), ...items.map((it) => it.kategorie).filter(Boolean)])].sort((a, b) =>
+    a.localeCompare(b, 'de'),
+  );
 
   const load = lastInfo(items, data.attributes);
   const pct = load.max > 0 ? Math.min(100, (load.getragen / load.max) * 100) : 0;
 
   const row = (it: Item) => (
     <tr key={it.uid}>
-      {!ro && (
-        <td className="grip-cell">
-          <span
-            className="row-grip"
-            draggable
-            title="Ziehen zum Verschieben (anderer Behälter / Zu Ausrüstung)"
-            onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = 'move';
-              e.dataTransfer.setData('text/plain', it.uid);
-            }}
-          >
-            ⠿
-          </span>
-        </td>
-      )}
+      <td className="grip-cell">
+        <span
+          className="row-grip"
+          draggable
+          title="Ziehen zum Verschieben (anderer Behälter / Zu Ausrüstung)"
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', it.uid);
+          }}
+        >
+          ⠿
+        </span>
+      </td>
       <td>
         <TextInput value={it.name} onChange={(v) => patchItem(it.uid, { name: v })} />
       </td>
+      <td>
+        {ro ? (
+          <span className="cat-text">{it.kategorie || '—'}</span>
+        ) : (
+          <input
+            className="cat-input"
+            list="inv-cats"
+            value={it.kategorie}
+            placeholder="—"
+            onChange={(e) => patchItem(it.uid, { kategorie: e.target.value })}
+          />
+        )}
+      </td>
       <td className="num">
-        <NumInput value={it.anzahl} min={0} onChange={(v) => patchItem(it.uid, { anzahl: v })} />
+        {/* Anzahl bleibt auch im Nur-Lesen-Modus schnell änderbar. */}
+        <AlwaysEditable>
+          <NumInput value={it.anzahl} min={0} onChange={(v) => patchItem(it.uid, { anzahl: v })} />
+        </AlwaysEditable>
       </td>
       <td className="num">
         <NumInput value={it.gewicht} min={0} onChange={(v) => patchItem(it.uid, { gewicht: v })} />
@@ -133,8 +152,9 @@ export default function InventarTab() {
 
   const colgroup = (
     <colgroup>
-      {!ro && <col style={{ width: 28 }} />}
-      <col style={{ width: '24em' }} />
+      <col style={{ width: 28 }} />
+      <col style={{ width: '20em' }} />
+      <col style={{ width: '10em' }} />
       <col style={{ width: 72 }} />
       <col style={{ width: 78 }} />
       <col style={{ width: 78 }} />
@@ -145,8 +165,9 @@ export default function InventarTab() {
   const thead = (
     <thead>
       <tr>
-        {!ro && <th />}
+        <th />
         <th>Gegenstand</th>
+        <th>Kategorie</th>
         <th>Anzahl</th>
         <th>kg/St.</th>
         <th>Σ kg</th>
@@ -155,9 +176,16 @@ export default function InventarTab() {
       </tr>
     </thead>
   );
+  const emptySpan = ro ? 7 : 8;
 
   return (
     <>
+      <datalist id="inv-cats">
+        {catList.map((c) => (
+          <option key={c} value={c} />
+        ))}
+      </datalist>
+
       <div className="panel">
         <h3>Traglast</h3>
         <div className={`last-meter${load.ueberladen ? ' over' : ''}`}>
@@ -171,15 +199,14 @@ export default function InventarTab() {
         </div>
       </div>
 
-      {!ro && (
-        <div className="panel">
-          <div {...dropProps({ location: 'bench' })}>
-            <span className="zone-empty">
-              ⇐ Zu Ausrüstung — Gegenstand hierher ziehen; er landet unter „Nicht getragen" im Ausrüstungs-Reiter.
-            </span>
-          </div>
+      {/* Zu Ausrüstung — auch im Nur-Lesen-Modus (Ziehen ist erlaubt). */}
+      <div className="panel">
+        <div {...dropProps({ location: 'bench' })}>
+          <span className="zone-empty">
+            ⇐ Zu Ausrüstung — Gegenstand hierher ziehen; er landet unter „Nicht getragen" im Ausrüstungs-Reiter.
+          </span>
         </div>
-      )}
+      </div>
 
       {!ro && (
         <div className="panel inv-toolbar">
@@ -199,6 +226,7 @@ export default function InventarTab() {
         const inside = itemsInContainer(items, c.uid);
         const fuell = containerFuellung(items, c.uid);
         const voll = c.kapazitaet > 0 && fuell > c.kapazitaet;
+        const open = !isColl(c.uid);
         return (
           <div
             className={`panel${isOver({ location: 'behaelter', containerUid: c.uid }) ? ' drop-over' : ''}`}
@@ -206,7 +234,10 @@ export default function InventarTab() {
             {...dropHandlers({ location: 'behaelter', containerUid: c.uid })}
           >
             <h3 className="inv-cont-head">
-              <span className="panel-title">📦 </span>
+              <button className="collapse-toggle" onClick={() => toggleColl(c.uid)} title={open ? 'Einklappen' : 'Ausklappen'}>
+                {open ? '▾' : '▸'}
+              </button>
+              <span className="panel-title">📦</span>
               {!ro ? (
                 <input className="cont-name" value={c.name} onChange={(e) => patchItem(c.uid, { name: e.target.value })} placeholder="Behälter" />
               ) : (
@@ -215,7 +246,7 @@ export default function InventarTab() {
               <span className={`muted inv-sum${voll ? ' over' : ''}`}>
                 · {inside.length} · {kg(fuell)}
                 {c.kapazitaet > 0 ? ` / ${kg(c.kapazitaet)}` : ''} kg
-                {c.gewichtsreduktion > 0 && ` · −${c.gewichtsreduktion}%`}
+                {c.gewichtsreduktion > 0 && ` · −${c.gewichtsreduktion}% Reduktion`}
               </span>
               {!ro && (
                 <span className="cont-props">
@@ -231,26 +262,30 @@ export default function InventarTab() {
                 </span>
               )}
             </h3>
-            <div className="table-wrap">
-              <table className="sheet inv-table">
-                {colgroup}
-                {thead}
-                <tbody>
-                  {inside.length === 0 && (
-                    <tr>
-                      <td colSpan={ro ? 5 : 7} className="muted">
-                        Leer{!ro && ' — Gegenstände hierher ziehen oder unten hinzufügen'}
-                      </td>
-                    </tr>
-                  )}
-                  {inside.map(row)}
-                </tbody>
-              </table>
-            </div>
-            {!ro && (
-              <button className="small add-row" onClick={() => addInto(c.uid)}>
-                + Gegenstand
-              </button>
+            {open && (
+              <>
+                <div className="table-wrap">
+                  <table className="sheet inv-table">
+                    {colgroup}
+                    {thead}
+                    <tbody>
+                      {inside.length === 0 && (
+                        <tr>
+                          <td colSpan={emptySpan} className="muted">
+                            Leer — Gegenstände hierher ziehen{!ro && ' oder unten hinzufügen'}
+                          </td>
+                        </tr>
+                      )}
+                      {inside.map(row)}
+                    </tbody>
+                  </table>
+                </div>
+                {!ro && (
+                  <button className="small add-row" onClick={() => addInto(c.uid)}>
+                    + Gegenstand
+                  </button>
+                )}
+              </>
             )}
           </div>
         );
@@ -258,25 +293,22 @@ export default function InventarTab() {
 
       {loose.length > 0 && (
         <div className="panel">
-          <h3>
+          <h3 className="inv-cont-head">
+            <button className="collapse-toggle" onClick={() => toggleColl('__loose')} title={isColl('__loose') ? 'Ausklappen' : 'Einklappen'}>
+              {isColl('__loose') ? '▸' : '▾'}
+            </button>
             <span className="panel-title">Nicht in einem Behälter</span>
             <span className="muted inv-sum"> · Alt-Bestand — in einen Behälter ziehen oder zu Ausrüstung</span>
           </h3>
-          {looseCats.map((cat) => {
-            const rows = loose.filter((it) => it.kategorie === cat);
-            return (
-              <div key={cat || '__none'} className="loose-group">
-                <div className="loose-cat">{cat || 'Ohne Kategorie'}</div>
-                <div className="table-wrap">
-                  <table className="sheet inv-table">
-                    {colgroup}
-                    {thead}
-                    <tbody>{rows.map(row)}</tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })}
+          {!isColl('__loose') && (
+            <div className="table-wrap">
+              <table className="sheet inv-table">
+                {colgroup}
+                {thead}
+                <tbody>{loose.map(row)}</tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </>

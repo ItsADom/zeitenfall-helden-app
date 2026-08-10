@@ -514,10 +514,11 @@ function ausrRowToItems(
     consumed.add('kleidung').add('gewicht').add('anlass');
     note('Anlass', d.anlass);
   } else if (keys.has('tier')) {
-    // Tier-Ausrüstung → auf dem Tier.
+    // Tier-Ausrüstung → loser Alt-Bestand (der Tier-Bereich wurde entfernt;
+    // wer will, legt sich dafür einen eigenen Reiter an). Das Tier steht in der Notiz.
     base.name = String(d.name ?? '').trim();
     base.gewicht = Number(d.gewicht) || 0;
-    base.location = 'tier';
+    base.location = 'inventar';
     consumed.add('name').add('gewicht').add('tier');
     note('Tier', d.tier);
   } else {
