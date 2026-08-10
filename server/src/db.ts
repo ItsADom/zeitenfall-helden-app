@@ -98,7 +98,10 @@ db.exec(`
     rasse TEXT NOT NULL DEFAULT '', rasseMod TEXT NOT NULL DEFAULT '',
     kultur TEXT NOT NULL DEFAULT '', kulturMod TEXT NOT NULL DEFAULT '',
     profession TEXT NOT NULL DEFAULT '', zweitprofession TEXT NOT NULL DEFAULT '',
-    gottheit TEXT NOT NULL DEFAULT '', goettergeschenke TEXT NOT NULL DEFAULT ''
+    gottheit TEXT NOT NULL DEFAULT '', goettergeschenke TEXT NOT NULL DEFAULT '',
+    -- Freies Notizfeld der Seitenleiste (privater Notizzettel, NICHT im
+    -- Heldenbrief/Zusammenfassung gerendert — die zeigen nur feste Bio-Felder).
+    sidebarNotiz TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS char_meta (
     character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
@@ -265,6 +268,12 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('theme')) db.exec("ALTER TABLE characters ADD COLUMN theme TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: 'sidebarNotiz'-Spalte an bestehende char_bio ergänzen (Notizfeld der Seitenleiste)
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_bio)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('sidebarNotiz')) db.exec("ALTER TABLE char_bio ADD COLUMN sidebarNotiz TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen

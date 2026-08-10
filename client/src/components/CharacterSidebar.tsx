@@ -3,6 +3,7 @@ import type { ResourceKey } from '@shared/types';
 import { computeResource, psycheProzent } from '@shared/rules';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
+import { TextInput } from './inputs';
 import { AlwaysEditable } from './displayMode';
 import { useCollapsed } from './collapse';
 import { depletionClass } from './energie';
@@ -94,6 +95,10 @@ export default function CharacterSidebar() {
 
         <SidebarAttribute />
         <SidebarGeld />
+
+        <AlwaysEditable>
+          <SidebarNotiz />
+        </AlwaysEditable>
       </div>
     </aside>
   );
@@ -168,6 +173,21 @@ function SidebarAttribute() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// Freies Notizfeld — ein privater Notizzettel für den schnellen Griff im Spiel.
+// Volle Breite, wächst mit dem Inhalt (auto-wachsendes Textfeld). Liegt in
+// char_bio (sidebarNotiz) und wird bewusst NICHT im Heldenbrief oder in der
+// Gruppen-Zusammenfassung gezeigt.
+function SidebarNotiz() {
+  const { data, update } = useChar();
+  const value = String(data.bio.sidebarNotiz ?? '');
+  return (
+    <div className="side-block side-note">
+      <h4>Notizen</h4>
+      <TextInput value={value} onChange={(v) => update('bio', { ...data.bio, sidebarNotiz: v })} />
     </div>
   );
 }

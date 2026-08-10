@@ -1698,6 +1698,28 @@ body.resizing-col {
   color: var(--accent);
 }
 
+/* Notizfeld der Seitenleiste: volle Breite, wächst mit dem Inhalt. Außerhalb
+   einer Tabelle bekommt das auto-wachsende Textfeld hier seinen eigenen Rahmen. */
+.side-note .text-input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 4.2em;
+  border: 1px solid var(--border);
+  background: var(--surface-sunken);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font: inherit;
+  color: inherit;
+}
+.side-note .text-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.side-note .static-text {
+  white-space: pre-wrap;
+  min-height: 1.35em;
+}
+
 /* Schmale Schirme: die Leiste rutscht unter den Inhalt und klebt dort nicht;
    der Zieh-Griff entfällt (gestapelt gibt es nichts zu verbreitern). */
 @media (max-width: 1100px) {
