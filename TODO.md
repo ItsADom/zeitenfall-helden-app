@@ -19,7 +19,10 @@ Settled, so the items below can stay short:
 - **Special Energien** (Drachenkraft etc.) are added by the player: name +
   attribute formula + bonus. **Psyche** stays built in — every character has one,
   it is a system rule and not a personal power.
-- **Sidebar notes** will be a free-form text field, where the user can make quick notes (like debuffs etc.)
+- **Sidebar notes** — DONE (2026-08-10): a free-form „Notizen“-Feld in der
+  Seitenleiste für schnelle Notizen (Debuffs etc.). Volle Breite, wächst mit dem
+  Inhalt, stets bearbeitbar. Liegt in `char_bio.sidebarNotiz` und ist privat
+  (nicht im Heldenbrief/der Zusammenfassung).
 
 ---
 
@@ -87,7 +90,8 @@ Left open on purpose:
 
 Concept settled 2026-08-09. Sequence it as (a) nav split first, then (b) the
 sidebar — the sidebar's "always editable" behaviour is already unblocked by the
-shipped display mode. Both shipped; only the Notizen slot stays deferred.
+shipped display mode. Both shipped; das Notizen-Feld ist inzwischen ebenfalls
+da (2026-08-10, siehe Decisions).
 
 Also shipped alongside: the whole sheet header (name/player/group + the
 edit/read toggle) now sticks below the top bar while scrolling — a fourth
@@ -126,8 +130,8 @@ it) and inside `.screen-only` (hidden in print). Collapsible via
 `useCollapsed('sidebar')` — collapsed it shrinks to a 34px rail. Reflows
 full-width below the content at ≤1100px (position static there). `AktuellFeld`
 and `gesamtDublonen` were extracted for reuse. Contents: Energien + Psyche
-(AlwaysEditable steppers), read-only Attribute grid (8 codes) and money total.
-Notizen slot still deferred (see below).
+(AlwaysEditable steppers), read-only Attribute grid (8 codes), money total und
+seit 2026-08-10 ein freies Notizen-Feld (siehe Decisions).
 
 Follow-up (2026-08-09): energy pools shortened to LP/AUS/ASP and laid out as a
 2×2 grid (sidebar widened to 300px). The **Übersicht tab was removed entirely**
@@ -162,8 +166,9 @@ Contents — two kinds:
   - Attribute Max — the eight attribute values. Called constantly for rolls, so they
     belong in the always-visible sidebar; editing them stays on the Heldenbrief.
   - Geld — total in Dublonen only. Actual coin editing stays on Übersicht/Geld.
-- **Notizen** — deferred slot (per-character scratchpad vs pinned notes vs
-  session log still undecided); leave room, build later.
+- **Notizen** — DONE (2026-08-10): als freies Notizfeld umgesetzt (privater
+  Schnell-Notizzettel). Pinned notes / session log bleiben bei Bedarf eine
+  spätere Erweiterung.
 
 Implementation note: the energy stepper (`AktuellFeld`) and the energy/psyche
 computation currently live inside `Uebersicht.tsx`. Extract them into a shared
