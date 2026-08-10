@@ -2400,34 +2400,9 @@ li {
 .row-grip:active {
   cursor: grabbing;
 }
-.inv-cont-head {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.collapse-toggle {
-  border: none;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  padding: 0 4px;
-}
-.collapse-toggle:hover {
-  color: var(--accent);
-}
-/* Kategorie-Feld in der Inventar-Tabelle: dezent, wächst mit der Spalte. */
-.cat-input {
-  width: 100%;
-  box-sizing: border-box;
-}
-.cat-text {
-  color: var(--muted);
-}
+/* Behälter-Name direkt in der (einklappbaren) Überschrift editierbar. */
 .cont-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   border: 1px solid transparent;
   background: transparent;
@@ -2440,7 +2415,6 @@ li {
   background: var(--surface);
 }
 .cont-props {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -2455,15 +2429,38 @@ li {
 .cont-props input {
   width: 4.5em;
 }
-.inv-sum.over {
+.panel-info.over {
   color: var(--crit-line);
   font-weight: 700;
 }
-.loose-cat {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--accent);
-  margin: 8px 0 4px;
+/* Kategorie-Kopfzeile innerhalb eines Behälters ist zugleich Wurf-Ziel. */
+.cat-head-row.drop-into td {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* Anlegen-Zeile: Name + Kategorie + Anzahl + Gewicht in einer Leiste. */
+.inv-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+.inv-add-name {
+  flex: 1 1 14em;
+  min-width: 10em;
+}
+.inv-add-num {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  color: var(--muted);
+  gap: 2px;
+}
+.inv-add-num input {
+  width: 6em;
 }
 
 /* ---------- Druck / PDF ---------- */

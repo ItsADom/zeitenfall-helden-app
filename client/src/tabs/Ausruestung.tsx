@@ -142,11 +142,8 @@ export default function AusruestungTab() {
 
   return (
     <>
-      <div className="panel ausr-head">
-        <div className="rs-readout" title="Es wird nicht summiert — fürs Spiel zählt der höchste getragene Rüstungsschutz.">
-          <span className="rs-label">Rüstungsschutz (höchster getragen)</span>
-          <span className="rs-value">{rs}</span>
-        </div>
+      <div className="panel">
+        <h3>Traglast</h3>
         <div className={`last-meter${load.ueberladen ? ' over' : ''}`}>
           <div className="last-bar" aria-hidden>
             <div className="last-fill" style={{ width: `${pct}%` }} />
@@ -156,10 +153,6 @@ export default function AusruestungTab() {
             {load.ueberladen && <span className="last-warn"> · überladen</span>}
           </div>
         </div>
-        <p className="muted" style={{ margin: 0 }}>
-          Ziehe Gerät zwischen Zonen, Bank und Behältern — das geht auch ohne „Bearbeiten". In einen Stauraum-Behälter
-          gezogen, wandert ein Gegenstand ins Inventar. Getragenes und Abgelegtes zählen nicht zur Traglast.
-        </p>
       </div>
 
       {/* Am Körper — Körperzonen */}
