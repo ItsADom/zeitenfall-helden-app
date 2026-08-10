@@ -2492,9 +2492,13 @@ li {
   gap: 12px;
   flex-wrap: wrap;
 }
+.set-row select {
+  flex: 0 1 auto;          /* Nimmt den restlichen Platz in der Zeile ein */
+  width: auto;     /* Verhindert, dass die Browser-Standardbreite den Umbruch erzwingt */
+}
 .set-label {
   font-weight: 600;
-  min-width: 12em;
+  min-width: auto;
 }
 .cat-editor {
   display: flex;

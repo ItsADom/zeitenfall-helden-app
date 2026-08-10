@@ -239,13 +239,12 @@ export default function EinstellungenPage() {
           <div className="panel">
             <h3>Farbwelt des Charakters</h3>
             <p className="muted">
-              Gilt für <strong>alle</strong>, die diesen Charakter öffnen (auch der Spielleiter). „Meine Vorgabe" =
-              der Betrachter behält seine eigene.
+              Gilt für <strong>alle</strong>, die diesen Charakter öffnen.<br/>
             </p>
             <div className="set-row">
               <span className="theme-dot" style={{ '--sw': themeSwatch(charTheme) } as CSSProperties} />
               <select value={charTheme} onChange={(e) => setCharTheme(e.target.value)}>
-                <option value="">— meine Vorgabe (keine eigene) —</option>
+                <option value="">Nutzer-Standard</option>
                 {THEMES.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.label}
@@ -260,7 +259,7 @@ export default function EinstellungenPage() {
           <div className="panel">
             <h3>Reiter</h3>
             <p className="muted">
-              Reihenfolge, Namen und Anlegen/Löschen der Reiter. „Heldenbrief" bleibt vorn; eingebaute Reiter lassen
+              Reihenfolge, Namen und Anlegen/Löschen der Reiter. „Heldenbrief" bleibt vorn; Standard-Reiter lassen
               sich verschieben, aber nicht umbenennen oder löschen.
             </p>
             <div className="tab-manage">
@@ -278,7 +277,7 @@ export default function EinstellungenPage() {
                     <input value={r.name} onChange={(e) => renameRow(i, e.target.value)} placeholder="Reitername" />
                   ) : (
                     <span className="tabm-fixed">
-                      {r.name} <span className="muted">· eingebaut</span>
+                      {r.name} <span className="muted">· Standard-Reiter</span>
                     </span>
                   )}
                   {r.isDyn && (
@@ -314,7 +313,7 @@ export default function EinstellungenPage() {
           <div className="panel">
             <h3>Inventar-Kategorien</h3>
             <p className="muted">
-              Umbenennen zieht die betroffenen Gegenstände mit; Entfernen setzt sie auf „ohne Kategorie".
+             Entfernen einer Kategorie setzt alle Gegenstände darin auf „ohne Kategorie".
             </p>
             <div className="cat-editor">
               {catRows.map((r, i) => (
