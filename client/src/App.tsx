@@ -14,7 +14,7 @@ import EinstellungenPage from './pages/Einstellungen';
 import ThemePicker from './components/ThemePicker';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
-import { useAnimations, useMode, useTheme } from './theme';
+import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
 import type { Mode } from './theme';
 
 interface AuthContextValue {
@@ -35,6 +35,10 @@ export interface ThemeControls {
   setMode: (m: Mode) => void;
   anim: boolean;
   setAnim: (on: boolean) => void;
+  // Farbwelt des gerade geöffneten Charakters. Solange gesetzt (und bekannt),
+  // überschreibt sie die persönliche Vorgabe — für Farbe UND Animation. Die
+  // Charakterseite setzt sie beim Öffnen und räumt sie beim Verlassen wieder ab.
+  setOverrideTheme: (id: string | null) => void;
 }
 const ThemeControlsContext = createContext<ThemeControls | null>(null);
 export const useThemeControls = () => useContext(ThemeControlsContext)!;
@@ -48,6 +52,14 @@ export default function App() {
   const [theme, setTheme] = useTheme();
   const [mode, setMode] = useMode();
   const [anim, setAnim] = useAnimations();
+  // Überschreibende Farbwelt eines geöffneten Charakters (null = persönliche
+  // Vorgabe). Die angezeigte Farbwelt treibt data-theme UND die Kopf-Animation,
+  // damit auf der Charakterseite beides zur Charakter-Farbwelt passt.
+  const [overrideTheme, setOverrideTheme] = useState<string | null>(null);
+  const displayTheme = overrideTheme && isKnownTheme(overrideTheme) ? overrideTheme : theme;
+  useEffect(() => {
+    document.documentElement.dataset.theme = displayTheme;
+  }, [displayTheme]);
   // Die Kopfleiste klebt oben; was darunter kleben soll, braucht ihre Höhe.
   const topbarRef = useTopbarHeight();
 
@@ -72,12 +84,12 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, refresh }}>
-      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim }}>
+      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, setOverrideTheme }}>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
               der Effekt neu auf (Schleife ⇄ Standbild). */}
-          <BannerFx key={`${theme}-${anim}`} theme={theme} animate={anim} />
+          <BannerFx key={`${displayTheme}-${anim}`} theme={displayTheme} animate={anim} />
         </div>
         {/* Platzhaltername — bewusst nicht verlinkt, bis ein prägnanterer Name
             feststeht. „Charaktere" ist der eigentliche Einstieg. */}

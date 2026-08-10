@@ -5,9 +5,8 @@ import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
 import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
 import { apiGet, apiPut } from '../api';
-import { useAuth } from '../App';
+import { useAuth, useThemeControls } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
-import { isKnownTheme } from '../theme';
 import { DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
 import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
@@ -175,17 +174,14 @@ export default function CharacterPage() {
   }, [loadCharacter]);
 
   // Der Charakter bringt seine eigene Farbwelt mit — sie gilt für JEDEN, der ihn
-  // öffnet (Spieler, Spielleiter, Gruppenmitglied). Beim Verlassen kehrt die
-  // persönliche Vorgabe des Betrachters (data-theme aus App/useTheme) zurück.
+  // öffnet (Spieler, Spielleiter, Gruppenmitglied), für Farbe UND Kopf-Animation.
+  // App wendet die überschreibende Farbwelt an; beim Verlassen wird sie
+  // abgeräumt und die persönliche Vorgabe des Betrachters greift wieder.
+  const { setOverrideTheme } = useThemeControls();
   useEffect(() => {
-    const t = info?.theme;
-    if (!t || !isKnownTheme(t)) return;
-    const prev = document.documentElement.dataset.theme;
-    document.documentElement.dataset.theme = t;
-    return () => {
-      document.documentElement.dataset.theme = prev ?? '';
-    };
-  }, [info?.theme]);
+    setOverrideTheme(info?.theme ?? null);
+    return () => setOverrideTheme(null);
+  }, [info?.theme, setOverrideTheme]);
 
   const viewAsBar = canViewAs ? (
     <div className="viewas-bar">

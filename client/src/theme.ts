@@ -47,17 +47,13 @@ const isKnown = isKnownTheme;
 const prefersDark = (): boolean => !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
 const prefersReduced = (): boolean => !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-// Einzige Quelle der Wahrheit fürs Theme: gemerkt in localStorage, angewandt als
-// data-theme am <html>. Der Inline-Schnipsel in index.html setzt es schon vor
-// dem Mount (kein Aufblitzen); dieser Hook hält es danach synchron.
+// Persönliche Standard-Farbwelt (localStorage). Das ANWENDEN von data-theme
+// liegt bewusst NICHT hier, sondern in App: dort wird die persönliche Vorgabe
+// ggf. durch die Farbwelt des gerade geöffneten Charakters überschrieben — und
+// beide (Farbe UND Kopfleisten-Animation) sollen derselben Quelle folgen.
 export function useTheme(): [string, (id: string) => void] {
   const [theme, setThemeRaw] = usePersistedState<string>(THEME_STORAGE_KEY, DEFAULT_THEME);
   const active = isKnown(theme) ? theme : DEFAULT_THEME;
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = active;
-  }, [active]);
-
   const setTheme = (id: string) => setThemeRaw(isKnown(id) ? id : DEFAULT_THEME);
   return [active, setTheme];
 }
