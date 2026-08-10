@@ -1,64 +1,160 @@
 import { useState } from 'react';
-import type { Item } from '@shared/items';
-import { itemGewicht, lastInfo, makeUid } from '@shared/items';
+import type { Item, ItemLocation } from '@shared/items';
+import { containerFuellung, itemGewicht, itemsInContainer, lastInfo, makeUid } from '@shared/items';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
-// Inventar auf dem einheitlichen Gegenstands-Modell (Cluster 5a). Alles ist EIN
-// Item mit Gewicht (kg/Stück), Kategorie und Ort. Gruppiert nach den selbst
-// verwalteten Kategorien, mit Gewichts-Summe je Gruppe und einer Traglast-
-// Anzeige oben (getragen / Maximum), die bei Überladung warnt.
+// Inventar (Cluster 5b): verfolgt nur, was IN Behältern steckt (plus einen losen
+// Alt-Topf aus der Migration). Getragene Ausrüstung lebt im Ausrüstungs-Reiter.
+// Von hier zieht man Dinge über „Zu Ausrüstung" hinüber, oder zwischen Behältern.
 
 const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
 
-// Neue (noch nicht gespeicherte) Gegenstände brauchen einen eindeutigen
-// Schlüssel; der Server vergibt beim Speichern echte IDs. Absteigend negativ,
-// damit sie nie mit einer DB-ID kollidieren.
-let tempId = -1;
-const newId = () => tempId--;
+interface DropTarget {
+  location: ItemLocation;
+  containerUid?: string;
+}
+const dropKey = (t: DropTarget) => `${t.location}:${t.containerUid ?? ''}`;
 
 export default function InventarTab() {
   const { data, update } = useChar();
   const ro = useReadOnly();
   const items = data.items;
-  const cats = data.itemCategories;
+  const byUid = new Map(items.map((it) => [it.uid, it]));
+  const [over, setOver] = useState<string | null>(null);
 
   const setItems = (next: Item[]) => update('items', next);
-  const setItem = (idx: number, patch: Partial<Item>) => setItems(items.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
-  const addItem = (kategorie: string) =>
-    setItems([
-      ...items,
-      { id: newId(), uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie, location: 'inventar', zone: '', containerUid: '', istBehaelter: false, kapazitaet: 0, notiz: '' },
-    ]);
+  const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  // Beim Löschen eines Behälters wandert sein Inhalt zurück ins lose Inventar.
+  const removeItem = (uid: string) =>
+    setItems(
+      items
+        .filter((it) => it.uid !== uid)
+        .map((it) => (it.containerUid === uid ? { ...it, location: 'inventar', containerUid: '' } : it)),
+    );
 
-  const setCats = (next: string[]) => update('itemCategories', next);
-  const addCat = (name: string) => {
-    const n = name.trim();
-    if (n && !cats.includes(n)) setCats([...cats, n]);
-  };
-  const renameCat = (oldName: string, next: string) => {
-    const n = next.trim();
-    if (!n || n === oldName || cats.includes(n)) return;
-    setCats(cats.map((c) => (c === oldName ? n : c)));
-    // Die Gegenstände der Kategorie ziehen mit (Umbenennen aktualisiert sie).
-    setItems(items.map((it) => (it.kategorie === oldName ? { ...it, kategorie: n } : it)));
-  };
-  const removeCat = (name: string) => setCats(cats.filter((c) => c !== name));
+  const blank = (over: Partial<Item>): Item => ({
+    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
+    zone: '', containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
+    gewichtsreduktion: 0, rs: 0, notiz: '', ...over,
+  });
+  const addContainer = () => setItems([...items, blank({ name: 'Neuer Behälter', istBehaelter: true, containerArt: 'storage' })]);
+  const addInto = (containerUid: string) => setItems([...items, blank({ location: 'behaelter', containerUid })]);
 
-  // Anzuzeigende Gruppen: erst die verwalteten Kategorien (in ihrer Reihenfolge),
-  // dann verwaiste (an Gegenständen, aber nicht in der Liste), zuletzt „ohne".
-  const usedCats = new Set(items.map((i) => i.kategorie).filter(Boolean));
-  const orphanCats = [...usedCats].filter((c) => !cats.includes(c)).sort((a, b) => a.localeCompare(b, 'de'));
-  const hasUncat = items.some((i) => !i.kategorie);
-  const groupKeys = [...cats, ...orphanCats, ...(hasUncat ? [''] : [])];
+  // Kreis-Schutz wie in der Ausrüstung.
+  const ancestors = (uid: string): Set<string> => {
+    const seen = new Set<string>();
+    let cur = byUid.get(uid);
+    while (cur && cur.location === 'behaelter' && cur.containerUid) {
+      if (seen.has(cur.containerUid)) break;
+      seen.add(cur.containerUid);
+      cur = byUid.get(cur.containerUid);
+    }
+    return seen;
+  };
+  const moveTo = (uid: string, t: DropTarget) => {
+    if (t.location === 'behaelter' && t.containerUid) {
+      if (t.containerUid === uid || ancestors(t.containerUid).has(uid)) return;
+    }
+    patchItem(uid, { location: t.location, zone: '', containerUid: t.location === 'behaelter' ? t.containerUid ?? '' : '' });
+  };
+
+  const isOver = (t: DropTarget) => over === dropKey(t);
+  // Nur die Zieh-Handler (ohne className) — damit sie sich auf ein Panel legen
+  // lassen, das schon eine eigene Klasse trägt.
+  const dropHandlers = (t: DropTarget) => {
+    const key = dropKey(t);
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (ro) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (over !== key) setOver(key);
+      },
+      onDragLeave: () => setOver((o) => (o === key ? null : o)),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        setOver(null);
+        const uid = e.dataTransfer.getData('text/plain');
+        if (uid) moveTo(uid, t);
+      },
+    };
+  };
+  const dropProps = (t: DropTarget) => ({ className: `drop-zone${isOver(t) ? ' over' : ''}`, ...dropHandlers(t) });
+
+  const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
+  // Lose Gegenstände: mitgeführt, kein Behälter (Alt-Bestand aus der Migration).
+  const loose = items.filter((it) => it.location === 'inventar' && !it.istBehaelter);
+  const looseCats = [...new Set(loose.map((it) => it.kategorie))].sort((a, b) => a.localeCompare(b, 'de'));
 
   const load = lastInfo(items, data.attributes);
   const pct = load.max > 0 ? Math.min(100, (load.getragen / load.max) * 100) : 0;
 
-  // Gegenstände mit ihrem ursprünglichen Index (zum Bearbeiten der flachen Liste).
-  const indexed = items.map((it, idx) => ({ it, idx }));
+  const row = (it: Item) => (
+    <tr key={it.uid}>
+      {!ro && (
+        <td className="grip-cell">
+          <span
+            className="row-grip"
+            draggable
+            title="Ziehen zum Verschieben (anderer Behälter / Zu Ausrüstung)"
+            onDragStart={(e) => {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', it.uid);
+            }}
+          >
+            ⠿
+          </span>
+        </td>
+      )}
+      <td>
+        <TextInput value={it.name} onChange={(v) => patchItem(it.uid, { name: v })} />
+      </td>
+      <td className="num">
+        <NumInput value={it.anzahl} min={0} onChange={(v) => patchItem(it.uid, { anzahl: v })} />
+      </td>
+      <td className="num">
+        <NumInput value={it.gewicht} min={0} onChange={(v) => patchItem(it.uid, { gewicht: v })} />
+      </td>
+      <td className="computed">{kg(itemGewicht(it))}</td>
+      <td>
+        <TextInput value={it.notiz} onChange={(v) => patchItem(it.uid, { notiz: v })} />
+      </td>
+      {!ro && (
+        <td>
+          <button className="small" title="Gegenstand entfernen" onClick={() => removeItem(it.uid)}>
+            ✕
+          </button>
+        </td>
+      )}
+    </tr>
+  );
+
+  const colgroup = (
+    <colgroup>
+      {!ro && <col style={{ width: 28 }} />}
+      <col style={{ width: '24em' }} />
+      <col style={{ width: 72 }} />
+      <col style={{ width: 78 }} />
+      <col style={{ width: 78 }} />
+      <col />
+      {!ro && <col style={{ width: 44 }} />}
+    </colgroup>
+  );
+  const thead = (
+    <thead>
+      <tr>
+        {!ro && <th />}
+        <th>Gegenstand</th>
+        <th>Anzahl</th>
+        <th>kg/St.</th>
+        <th>Σ kg</th>
+        <th>Notiz</th>
+        {!ro && <th />}
+      </tr>
+    </thead>
+  );
 
   return (
     <>
@@ -77,162 +173,112 @@ export default function InventarTab() {
 
       {!ro && (
         <div className="panel">
-          <h3>Kategorien</h3>
-          <div className="cat-manage">
-            {cats.map((c) => (
-              <CategoryChip key={c} name={c} onRename={(n) => renameCat(c, n)} onRemove={() => removeCat(c)} />
-            ))}
-            <AddCategory onAdd={addCat} />
+          <div {...dropProps({ location: 'bench' })}>
+            <span className="zone-empty">
+              ⇐ Zu Ausrüstung — Gegenstand hierher ziehen; er landet unter „Nicht getragen" im Ausrüstungs-Reiter.
+            </span>
           </div>
         </div>
       )}
 
-      {groupKeys.length === 0 && (
+      {!ro && (
+        <div className="panel inv-toolbar">
+          <button className="small" onClick={addContainer}>
+            + Behälter (Stauraum)
+          </button>
+        </div>
+      )}
+
+      {storageConts.length === 0 && loose.length === 0 && (
         <p className="muted">
-          Noch keine Gegenstände.{!ro && ' Lege oben Kategorien an und füge unten Gegenstände hinzu.'}
+          Noch nichts verstaut.{!ro && ' Lege oben einen Behälter an und ziehe Gegenstände hinein.'}
         </p>
       )}
 
-      {groupKeys.map((g) => {
-        const rows = indexed.filter(({ it }) => it.kategorie === g);
-        // Im Nur-Lesen-Modus leere Gruppen (etwa angelegte, noch ungenutzte
-        // Kategorien) ausblenden — beim Bearbeiten bleiben sie sichtbar.
-        if (rows.length === 0 && ro) return null;
-        const summe = rows.reduce((s, { it }) => s + itemGewicht(it), 0);
+      {storageConts.map((c) => {
+        const inside = itemsInContainer(items, c.uid);
+        const fuell = containerFuellung(items, c.uid);
+        const voll = c.kapazitaet > 0 && fuell > c.kapazitaet;
         return (
-          <div className="panel" key={g || '__none'}>
-            <h3>
-              <span className="panel-title">{g || 'Ohne Kategorie'}</span>
-              <span className="muted inv-sum">· {kg(summe)} kg</span>
+          <div
+            className={`panel${isOver({ location: 'behaelter', containerUid: c.uid }) ? ' drop-over' : ''}`}
+            key={c.uid}
+            {...dropHandlers({ location: 'behaelter', containerUid: c.uid })}
+          >
+            <h3 className="inv-cont-head">
+              <span className="panel-title">📦 </span>
+              {!ro ? (
+                <input className="cont-name" value={c.name} onChange={(e) => patchItem(c.uid, { name: e.target.value })} placeholder="Behälter" />
+              ) : (
+                <span className="panel-title">{c.name || '(ohne Name)'}</span>
+              )}
+              <span className={`muted inv-sum${voll ? ' over' : ''}`}>
+                · {inside.length} · {kg(fuell)}
+                {c.kapazitaet > 0 ? ` / ${kg(c.kapazitaet)}` : ''} kg
+                {c.gewichtsreduktion > 0 && ` · −${c.gewichtsreduktion}%`}
+              </span>
+              {!ro && (
+                <span className="cont-props">
+                  <label title="Fassungsvermögen (kg, 0 = ohne Angabe)">
+                    Kap.<NumInput value={c.kapazitaet} min={0} onChange={(v) => patchItem(c.uid, { kapazitaet: v })} />
+                  </label>
+                  <label title="Gewichtsreduktion des Inhalts. 100 % = zählt gar nicht (Beutel des Fassungsvermögens).">
+                    −%<NumInput value={c.gewichtsreduktion} min={0} max={100} onChange={(v) => patchItem(c.uid, { gewichtsreduktion: v })} />
+                  </label>
+                  <button className="small" title="Behälter entfernen (Inhalt wird lose)" onClick={() => removeItem(c.uid)}>
+                    ✕
+                  </button>
+                </span>
+              )}
             </h3>
             <div className="table-wrap">
               <table className="sheet inv-table">
-                {/* Feste Spaltenbreiten über alle Gruppen hinweg (table-layout:
-                    fixed): sonst rechnet jede Tabelle ihre Spalten selbst aus
-                    dem Inhalt aus und der Name-Spalte wird je Gruppe anders
-                    breit. Name und Zahlen fest gedeckelt, den Rest füllt die
-                    Notiz — so bleibt der Name schmal, ohne dass die Tabelle
-                    „mittendrin" endet. */}
-                <colgroup>
-                  <col style={{ width: '26em' }} />
-                  <col style={{ width: 72 }} />
-                  <col style={{ width: 92 }} />
-                  <col style={{ width: 78 }} />
-                  {!ro && <col style={{ width: 150 }} />}
-                  <col />
-                  {!ro && <col style={{ width: 44 }} />}
-                </colgroup>
-                <thead>
-                  <tr>
-                    <th>Gegenstand</th>
-                    <th>Anzahl</th>
-                    <th>kg/St.</th>
-                    <th>Σ kg</th>
-                    {!ro && <th>Kategorie</th>}
-                    <th>Notiz</th>
-                    {!ro && <th />}
-                  </tr>
-                </thead>
+                {colgroup}
+                {thead}
                 <tbody>
-                  {rows.length === 0 && (
+                  {inside.length === 0 && (
                     <tr>
                       <td colSpan={ro ? 5 : 7} className="muted">
-                        Keine Gegenstände
+                        Leer{!ro && ' — Gegenstände hierher ziehen oder unten hinzufügen'}
                       </td>
                     </tr>
                   )}
-                  {rows.map(({ it, idx }) => (
-                    <tr key={it.id}>
-                      <td>
-                        <TextInput value={it.name} onChange={(v) => setItem(idx, { name: v })} />
-                      </td>
-                      <td className="num">
-                        <NumInput value={it.anzahl} min={0} onChange={(v) => setItem(idx, { anzahl: v })} />
-                      </td>
-                      <td className="num">
-                        <NumInput value={it.gewicht} min={0} onChange={(v) => setItem(idx, { gewicht: v })} />
-                      </td>
-                      <td className="computed">{kg(itemGewicht(it))}</td>
-                      {!ro && (
-                        <td>
-                          <select value={it.kategorie} onChange={(e) => setItem(idx, { kategorie: e.target.value })}>
-                            <option value="">— ohne —</option>
-                            {cats.map((c) => (
-                              <option key={c} value={c}>
-                                {c}
-                              </option>
-                            ))}
-                            {it.kategorie && !cats.includes(it.kategorie) && (
-                              <option value={it.kategorie}>{it.kategorie}</option>
-                            )}
-                          </select>
-                        </td>
-                      )}
-                      <td>
-                        <TextInput value={it.notiz} onChange={(v) => setItem(idx, { notiz: v })} />
-                      </td>
-                      {!ro && (
-                        <td>
-                          <button className="small" title="Gegenstand entfernen" onClick={() => removeItem(idx)}>
-                            ✕
-                          </button>
-                        </td>
-                      )}
-                    </tr>
-                  ))}
+                  {inside.map(row)}
                 </tbody>
               </table>
             </div>
             {!ro && (
-              <button className="small add-row" onClick={() => addItem(g)}>
+              <button className="small add-row" onClick={() => addInto(c.uid)}>
                 + Gegenstand
               </button>
             )}
           </div>
         );
       })}
+
+      {loose.length > 0 && (
+        <div className="panel">
+          <h3>
+            <span className="panel-title">Nicht in einem Behälter</span>
+            <span className="muted inv-sum"> · Alt-Bestand — in einen Behälter ziehen oder zu Ausrüstung</span>
+          </h3>
+          {looseCats.map((cat) => {
+            const rows = loose.filter((it) => it.kategorie === cat);
+            return (
+              <div key={cat || '__none'} className="loose-group">
+                <div className="loose-cat">{cat || 'Ohne Kategorie'}</div>
+                <div className="table-wrap">
+                  <table className="sheet inv-table">
+                    {colgroup}
+                    {thead}
+                    <tbody>{rows.map(row)}</tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
-  );
-}
-
-// Eine Kategorie in der Verwaltung: umbenennbar (Enter/Blur), entfernbar.
-function CategoryChip({ name, onRename, onRemove }: { name: string; onRename: (n: string) => void; onRemove: () => void }) {
-  const [draft, setDraft] = useState(name);
-  return (
-    <span className="cat-chip">
-      <input
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => onRename(draft)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          if (e.key === 'Escape') setDraft(name);
-        }}
-      />
-      <button className="small" title="Kategorie entfernen" onClick={onRemove}>
-        ✕
-      </button>
-    </span>
-  );
-}
-
-function AddCategory({ onAdd }: { onAdd: (name: string) => void }) {
-  const [draft, setDraft] = useState('');
-  const commit = () => {
-    onAdd(draft);
-    setDraft('');
-  };
-  return (
-    <span className="cat-add">
-      <input
-        placeholder="Neue Kategorie…"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && commit()}
-      />
-      <button className="small" disabled={!draft.trim()} onClick={commit}>
-        Hinzufügen
-      </button>
-    </span>
   );
 }

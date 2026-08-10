@@ -13,6 +13,7 @@ import {
   dynTabKey,
   erleichterung,
   BODY_ZONES,
+  CONTAINER_ARTEN,
   containerSlotCount,
   DYN_CONTAINER_KEY,
   DYN_SLOTS_KEY,
@@ -33,6 +34,7 @@ import type {
   BaseValueInputs,
   CharTalent,
   CharLanguage,
+  ContainerArt,
   DynColumn,
   Item,
   ItemLocation,
@@ -454,7 +456,10 @@ interface AusrItem {
   zone: string;
   containerUid: string;
   istBehaelter: boolean;
+  containerArt: ContainerArt;
   kapazitaet: number;
+  gewichtsreduktion: number;
+  rs: number;
   notiz: string;
 }
 
@@ -475,39 +480,41 @@ function ausrRowToItems(
 
   const base: AusrItem = {
     uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '',
-    location: 'inventar', zone: '', containerUid: '', istBehaelter: false, kapazitaet: 0, notiz: '',
+    location: 'inventar', zone: '', containerUid: '', istBehaelter: false, containerArt: 'storage',
+    kapazitaet: 0, gewichtsreduktion: 0, rs: 0, notiz: '',
   };
 
   if (keys.has('slot') && keys.has('beschreibung')) {
-    // Getragene Ausrüstung
+    // Getragene Ausrüstung → am Körper.
     base.name = String(d.beschreibung ?? '').trim();
     base.location = 'getragen';
     base.zone = mapSlotToZone(String(d.slot ?? ''));
     consumed.add('slot').add('beschreibung');
     if (!base.zone) note('Körperstelle', d.slot);
   } else if (keys.has('kapazitaet')) {
-    // Behälter
+    // Behälter → Stauraum, mitgeführt (oberste Ebene).
     base.name = String(d.name ?? '').trim();
     base.istBehaelter = true;
+    base.containerArt = 'storage';
     base.kapazitaet = numText(d.kapazitaet);
     consumed.add('name').add('kapazitaet');
     if (!base.kapazitaet) note('Kapazität', d.kapazitaet);
   } else if (keys.has('portionen')) {
-    // Proviant/Tränke/Magisches
+    // Proviant/Tränke/Magisches → loser Alt-Bestand (Migration).
     base.name = String(d.name ?? '').trim();
     base.anzahl = Number(d.portionen) || 1;
     base.gewicht = Number(d.gewicht) || 0;
     base.kategorie = 'Tränke/Proviant';
     consumed.add('name').add('portionen').add('gewicht');
   } else if (keys.has('kleidung')) {
-    // Kleidungen
+    // Kleidungen → abgelegt (nicht getragene Ausrüstung, auf der Bank).
     base.name = String(d.kleidung ?? '').trim();
     base.gewicht = Number(d.gewicht) || 0;
-    base.kategorie = 'Kleidung';
+    base.location = 'bench';
     consumed.add('kleidung').add('gewicht').add('anlass');
     note('Anlass', d.anlass);
   } else if (keys.has('tier')) {
-    // Tier-Ausrüstung
+    // Tier-Ausrüstung → auf dem Tier.
     base.name = String(d.name ?? '').trim();
     base.gewicht = Number(d.gewicht) || 0;
     base.location = 'tier';
@@ -521,14 +528,18 @@ function ausrRowToItems(
   }
 
   // Fächer-Prototyp: Zeile wird zum Behälter, jedes belegte Fach zum Inhalt.
+  // Ein getragener Fächer-Behälter (z. B. Gürtel) ist Schnellzugriff (quick);
+  // sonst Stauraum. Der Inhalt zählt weiterhin als getragen (behaelter).
   const children: AusrItem[] = [];
   if (containerSlotCount(d) > 0) {
     base.istBehaelter = true;
+    base.containerArt = base.location === 'getragen' ? 'quick' : 'storage';
     for (const slotName of readSlots(d)) {
       const nm = slotName.trim();
       if (!nm) continue;
       children.push({ ...base, uid: makeUid(), name: nm, anzahl: 1, gewicht: 0,
-        location: 'behaelter', zone: '', containerUid: base.uid, istBehaelter: false, kapazitaet: 0, notiz: '' });
+        location: 'behaelter', zone: '', containerUid: base.uid, istBehaelter: false, containerArt: 'storage',
+        kapazitaet: 0, gewichtsreduktion: 0, rs: 0, notiz: '' });
     }
   }
 
@@ -563,8 +574,8 @@ export function migrateAusruestungToItems(): void {
       const existingCats = new Set(loadItemCategories(charId));
       const catsSeen: string[] = [];
       const insItem = db.prepare(
-        `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, kapazitaet, notiz)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const sec of sections) {
         let cols: DynColumn[] = [];
@@ -588,7 +599,8 @@ export function migrateAusruestungToItems(): void {
           for (const it of ausrRowToItems(d, keys, labelByKey)) {
             insItem.run(
               charId, pos++, it.uid, it.name, it.anzahl, it.gewicht, it.kategorie,
-              it.location, it.zone, it.containerUid, it.istBehaelter ? 1 : 0, it.kapazitaet, it.notiz,
+              it.location, it.zone, it.containerUid, it.istBehaelter ? 1 : 0, it.containerArt, it.kapazitaet,
+              it.gewichtsreduktion, it.rs, it.notiz,
             );
             if (it.kategorie && !existingCats.has(it.kategorie) && !catsSeen.includes(it.kategorie)) catsSeen.push(it.kategorie);
           }
@@ -693,7 +705,7 @@ const clampMin = (v: unknown, min = 0): number => {
 export function loadItems(charId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, kapazitaet, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -706,7 +718,10 @@ export function loadItems(charId: number): Item[] {
     zone: string;
     container_uid: string;
     ist_behaelter: number;
+    container_art: string;
     kapazitaet: number;
+    gewichtsreduktion: number;
+    rs: number;
     notiz: string;
   }[];
   return rows.map((r) => ({
@@ -720,7 +735,10 @@ export function loadItems(charId: number): Item[] {
     zone: r.zone,
     containerUid: r.container_uid,
     istBehaelter: !!r.ist_behaelter,
+    containerArt: (CONTAINER_ARTEN as string[]).includes(r.container_art) ? (r.container_art as ContainerArt) : 'storage',
     kapazitaet: r.kapazitaet,
+    gewichtsreduktion: r.gewichtsreduktion,
+    rs: r.rs,
     notiz: r.notiz,
   }));
 }
@@ -734,6 +752,7 @@ export function loadItemCategories(charId: number): string[] {
 // Ganze Liste ersetzen (wie die übrigen Sektionen). Serverseitig gedeckelt und
 // normalisiert, damit über die Schnittstelle nichts Unsinniges in die DB kommt.
 const ZONE_SET = new Set<string>(BODY_ZONES as readonly string[]);
+const clampPct = (v: unknown): number => Math.min(100, Math.max(0, Number(v) || 0));
 
 export function saveItems(charId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? raw.slice(0, MAX_ITEMS) : [];
@@ -743,8 +762,8 @@ export function saveItems(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, kapazitaet, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -758,6 +777,7 @@ export function saveItems(charId: number, raw: unknown): void {
       const zoneRaw = String(o.zone ?? '');
       const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
       const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
+      const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
       ins.run(
         charId,
         i,
@@ -770,7 +790,10 @@ export function saveItems(charId: number, raw: unknown): void {
         zone,
         containerUid,
         o.istBehaelter ? 1 : 0,
+        art,
         clampMin(o.kapazitaet),
+        clampPct(o.gewichtsreduktion),
+        clampMin(o.rs),
         String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
       );
     });

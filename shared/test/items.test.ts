@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   containerFuellung,
   containers,
+  effektiverRs,
   getrageneLast,
   itemGewicht,
   itemsInContainer,
@@ -37,7 +38,10 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     zone: '',
     containerUid: '',
     istBehaelter: false,
+    containerArt: 'storage',
     kapazitaet: 0,
+    gewichtsreduktion: 0,
+    rs: 0,
     notiz: '',
     ...partial,
   };
@@ -54,11 +58,12 @@ describe('itemGewicht', () => {
 });
 
 describe('zaehltZurLast', () => {
-  it('zählt Inventar und Behälter-Inhalt, nicht Getragenes/Tier', () => {
+  it('zählt Inventar und Behälter-Inhalt, nicht Getragenes/Tier/Abgelegtes', () => {
     expect(zaehltZurLast({ location: 'inventar' })).toBe(true);
     expect(zaehltZurLast({ location: 'behaelter' })).toBe(true);
     expect(zaehltZurLast({ location: 'getragen' })).toBe(false);
     expect(zaehltZurLast({ location: 'tier' })).toBe(false);
+    expect(zaehltZurLast({ location: 'bench' })).toBe(false);
   });
 });
 
@@ -66,11 +71,25 @@ describe('getrageneLast', () => {
   it('summiert nur die zählenden Gegenstände', () => {
     const items = [
       item({ anzahl: 2, gewicht: 3 }), // 6, inventar
-      item({ anzahl: 1, gewicht: 4, location: 'behaelter' }), // 4
+      item({ uid: 'bag', name: 'Sack', istBehaelter: true }),
+      item({ anzahl: 1, gewicht: 4, location: 'behaelter', containerUid: 'bag' }), // 4 (keine Reduktion)
       item({ anzahl: 1, gewicht: 100, location: 'getragen' }), // 0 (am Körper)
       item({ anzahl: 1, gewicht: 50, location: 'tier' }), // 0 (Tier)
+      item({ anzahl: 1, gewicht: 20, location: 'bench' }), // 0 (abgelegt)
     ];
     expect(getrageneLast(items)).toBe(10);
+  });
+
+  it('mindert Behälter-Inhalt um die Reduktion; 100 % zählt gar nicht', () => {
+    const erztasche = item({ uid: 'erz', name: 'Erztasche', gewicht: 5, istBehaelter: true, gewichtsreduktion: 100 });
+    const halb = item({ uid: 'halb', name: 'Reduktionsbeutel', gewicht: 1, istBehaelter: true, gewichtsreduktion: 50 });
+    const items = [
+      erztasche, // 5 zählt (der Beutel selbst)
+      item({ gewicht: 1000, location: 'behaelter', containerUid: 'erz' }), // 0 (100 %)
+      halb, // 1 zählt
+      item({ gewicht: 10, location: 'behaelter', containerUid: 'halb' }), // 5 (50 %)
+    ];
+    expect(getrageneLast(items)).toBe(11); // 5 + 0 + 1 + 5
   });
 });
 
@@ -86,6 +105,21 @@ describe('lastInfo', () => {
   });
 });
 
+describe('effektiverRs', () => {
+  it('nimmt den höchsten RS unter den getragenen Teilen (kein Summieren)', () => {
+    const items = [
+      item({ location: 'getragen', rs: 3 }),
+      item({ location: 'getragen', rs: 5 }),
+      item({ location: 'bench', rs: 8 }), // abgelegt zählt nicht
+      item({ location: 'behaelter', rs: 9 }),
+    ];
+    expect(effektiverRs(items)).toBe(5);
+  });
+  it('ist 0 ohne getragene Rüstung', () => {
+    expect(effektiverRs([item({ rs: 4 })])).toBe(0);
+  });
+});
+
 describe('makeUid', () => {
   it('gibt jedes Mal eine andere, nicht-leere Kennung', () => {
     const a = makeUid();
@@ -95,7 +129,7 @@ describe('makeUid', () => {
   });
 });
 
-describe('Ausrüstungs-Sichten', () => {
+describe('Sichten', () => {
   const bag = item({ uid: 'bag', name: 'Rucksack', istBehaelter: true, kapazitaet: 20 });
   const inBag1 = item({ location: 'behaelter', containerUid: 'bag', anzahl: 1, gewicht: 3 });
   const inBag2 = item({ location: 'behaelter', containerUid: 'bag', anzahl: 2, gewicht: 1 });
@@ -110,7 +144,7 @@ describe('Ausrüstungs-Sichten', () => {
     expect(itemsInZone(list, 'Kopf')).toEqual([]);
   });
 
-  it('itemsInContainer + containerFuellung', () => {
+  it('itemsInContainer + containerFuellung (ohne Reduktion)', () => {
     expect(itemsInContainer(list, 'bag')).toEqual([inBag1, inBag2]);
     expect(containerFuellung(list, 'bag')).toBe(5); // 3 + 2×1
   });

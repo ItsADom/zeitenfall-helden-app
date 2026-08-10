@@ -1,19 +1,25 @@
 // Einheitliches Gegenstands-Modell (Cluster 5).
 //
-// Jeder Besitz ist EIN Item mit Gewicht, Kategorie und Ort. Inventar-Anzeige,
-// Kategorie-Summen, getragene Last und die getragene Ausrüstung (Körperzonen,
-// Behälter) leiten sich alle aus dieser einen Liste ab — statt aus verstreuten
-// Einzeltabellen.
+// Jeder Besitz ist EIN Item. Wo es liegt (`location`, dazu `zone`/`containerUid`)
+// entscheidet, welcher Reiter es zeigt — es gibt KEIN „Ausrüstung"-Flag:
+//   getragen   am Körper (welche Stelle sagt `zone`)            → Ausrüstung
+//   bench      abgelegt, „gerade nicht getragen"                → Ausrüstung
+//   tier       auf dem Tier/Reittier verstaut                   → Ausrüstung
+//   behaelter  in einem Behälter (welcher sagt `containerUid`)  → Inventar (Stauraum)
+//                                                                  bzw. inline bei Schnellzugriff-Behältern
+//   inventar   mitgeführt an oberster Stelle (Behälter selbst;  → Inventar
+//              plus ein loser Alt-Topf aus der Migration)
 import type { Attributes } from './types.js';
 import { maximaleLast } from './rules.js';
 
-// Wo ein Gegenstand gerade ist:
-//   inventar  — im Rucksack/lose (der Standard)
-//   getragen  — am Körper (zusätzlich sagt `zone`, an welcher Stelle)
-//   behaelter — in einem Behälter (zusätzlich sagt `containerUid`, in welchem)
-//   tier      — auf dem Tier/Reittier verstaut (nicht am Körper)
-export type ItemLocation = 'inventar' | 'getragen' | 'behaelter' | 'tier';
-export const ITEM_LOCATIONS: ItemLocation[] = ['inventar', 'getragen', 'behaelter', 'tier'];
+export type ItemLocation = 'inventar' | 'getragen' | 'behaelter' | 'tier' | 'bench';
+export const ITEM_LOCATIONS: ItemLocation[] = ['inventar', 'getragen', 'behaelter', 'tier', 'bench'];
+
+// Art eines Behälters entscheidet, WO sein Inhalt erscheint:
+//   quick    Schnellzugriff (Gürtel, Bandelier) — Inhalt inline in der Ausrüstung
+//   storage  Stauraum (Rucksack, Tasche)        — Inhalt im Inventar
+export type ContainerArt = 'quick' | 'storage';
+export const CONTAINER_ARTEN: ContainerArt[] = ['quick', 'storage'];
 
 // Körperzonen für getragene Ausrüstung. Arme/Hände/Beine sind seitengetrennt
 // (Spieler-Entscheidung 2026-08-10) — eine Zone ist KEIN Einzelfach, sondern
@@ -51,8 +57,16 @@ export interface Item {
   containerUid: string;
   // Kann dieser Gegenstand andere aufnehmen (z. B. Rucksack, Gürteltasche)?
   istBehaelter: boolean;
+  // Behälter-Art (nur relevant, wenn istBehaelter): Schnellzugriff vs. Stauraum.
+  containerArt: ContainerArt;
   // Fassungsvermögen des Behälters in kg (0 = ohne Angabe/unbegrenzt).
   kapazitaet: number;
+  // Gewichtsreduktion des Inhalts in Prozent (0–100). 100 % = der Inhalt zählt
+  // gar nicht zur getragenen Last (Beutel des Fassungsvermögens / „bag of holding").
+  gewichtsreduktion: number;
+  // Rüstungsschutz (nur bei Rüstungsteilen sinnvoll). Es wird NICHT summiert —
+  // fürs Spiel zählt der höchste getragene Wert (siehe effektiverRs).
+  rs: number;
   notiz: string;
 }
 
@@ -63,22 +77,38 @@ export function makeUid(): string {
   return `it-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Zeilengewicht: Stückzahl × Einzelgewicht (kg).
+// Zeilengewicht: Stückzahl × Einzelgewicht (kg), OHNE Reduktion.
 export function itemGewicht(item: Pick<Item, 'anzahl' | 'gewicht'>): number {
   return (Number(item.anzahl) || 0) * (Number(item.gewicht) || 0);
 }
 
-// Zählt der Gegenstand zur getragenen Last? Am Körper Getragenes und auf dem
-// Tier/Reittier Verstautes liegt nicht im Rucksack/in der Hand und zählt NICHT
-// mit (Spieler-Entscheidung 2026-08-09: „alle außer am Körper Getragenem").
-// Behälter-Inhalte zählen mit — der Behälter wird ja getragen.
+// Zählt der Gegenstand grundsätzlich zur getragenen Last? Am Körper Getragenes,
+// Abgelegtes (bench) und auf dem Tier Verstautes zählt NICHT mit; mitgeführte
+// (inventar) und in Behältern liegende (behaelter) Gegenstände zählen.
 export function zaehltZurLast(item: Pick<Item, 'location'>): boolean {
-  return item.location !== 'getragen' && item.location !== 'tier';
+  return item.location === 'inventar' || item.location === 'behaelter';
 }
 
-// Summe der getragenen Last (kg).
+// Prozentsatz auf [0,100] begrenzen.
+const clampPct = (v: unknown): number => Math.min(100, Math.max(0, Number(v) || 0));
+
+// Lastanteil EINES Gegenstands (kg): 0 für nicht zählende; Behälter-Inhalt um
+// die Reduktion seines Behälters gemindert. `byUid` liefert den Behälter.
+export function itemLastAnteil(item: Item, byUid: Map<string, Item>): number {
+  if (!zaehltZurLast(item)) return 0;
+  const base = itemGewicht(item);
+  if (item.location === 'behaelter') {
+    const c = byUid.get(item.containerUid);
+    const red = c ? clampPct(c.gewichtsreduktion) : 0;
+    return base * (1 - red / 100);
+  }
+  return base;
+}
+
+// Summe der getragenen Last (kg), inklusive Behälter-Reduktion.
 export function getrageneLast(items: readonly Item[]): number {
-  return items.reduce((sum, it) => (zaehltZurLast(it) ? sum + itemGewicht(it) : sum), 0);
+  const byUid = new Map(items.map((it) => [it.uid, it]));
+  return items.reduce((sum, it) => sum + itemLastAnteil(it, byUid), 0);
 }
 
 export interface LastInfo {
@@ -94,7 +124,13 @@ export function lastInfo(items: readonly Item[], attrs: Attributes): LastInfo {
   return { getragen, max, ueberladen: getragen > max };
 }
 
-// --- Ausrüstung (5b): Sichten auf denselben Bestand ---
+// Maßgeblicher Rüstungsschutz: der höchste RS unter den getragenen Teilen
+// (es wird nicht summiert — Spieler-Regel 2026-08-10).
+export function effektiverRs(items: readonly Item[]): number {
+  return items.reduce((m, it) => (it.location === 'getragen' ? Math.max(m, Number(it.rs) || 0) : m), 0);
+}
+
+// --- Sichten auf denselben Bestand ---
 
 // Am Körper getragene Gegenstände einer Zone.
 export function itemsInZone(items: readonly Item[], zone: string): Item[] {
@@ -106,7 +142,8 @@ export function itemsInContainer(items: readonly Item[], containerUid: string): 
   return items.filter((it) => it.location === 'behaelter' && it.containerUid === containerUid);
 }
 
-// Belegtes Gewicht eines Behälters (kg) — Summe seiner Inhalte.
+// Belegtes Gewicht eines Behälters (kg) — Summe der Inhalte OHNE Reduktion
+// (für die Füllstands-/Kapazitätsanzeige).
 export function containerFuellung(items: readonly Item[], containerUid: string): number {
   return itemsInContainer(items, containerUid).reduce((s, it) => s + itemGewicht(it), 0);
 }

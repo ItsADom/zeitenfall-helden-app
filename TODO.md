@@ -251,33 +251,55 @@ meter counts all non-worn items; unit kg with decimals.
 
 #### 5b. Worn equipment & containers (drag & drop) — second stage — DONE
 
-Shipped: **Ausrüstung** is now a built-in tab (`client/src/tabs/Ausruestung.tsx`,
-`MOVABLE_BUILTIN_TAB_KEYS`) — a live spatial view of the SAME `char_items` store.
-`location` (+ `zone`/`containerUid`) is the single source of truth; native HTML5
-drag & drop moves an item between the backpack pool, a container, a body zone, or
-the animal. Body zones (signed off 2026-08-10): Kopf/Hals/Brust/Rücken and
-seiten­getrennte Arm/Hand/Bein + Gürtel/Füße — a zone is a LIST (armguard +
-wristlet on the same arm), not a single slot.
+Concept reworked with the player 2026-08-10: **Ausrüstung is a worn-gear tracer,
+NOT a mirror of the inventory.** An item's `location` decides which tab shows it
+(no equipment flag):
+
+- **Ausrüstung** (`client/src/tabs/Ausruestung.tsx`): body zones (worn) · a
+  „nicht getragen"-Bank · Tier · a Behälter-strip (storage bags as drop targets).
+  A **quick-access** worn container (belt) shows its contents nested inline under
+  its zone. Shows the **highest worn RS** (no summing). Body zones (signed off):
+  Kopf/Hals/Brust/Rücken · seitengetrennte Arm/Hand/Bein · Gürtel/Füße — a zone
+  is a LIST, not a single slot.
+- **Inventar** (`client/src/tabs/Inventar.tsx`): only what's INSIDE storage
+  containers, grouped per bag (+ füllung/Kapazität/Reduktion), plus a „Zu
+  Ausrüstung" drop area (→ Bank) and a loose group that exists ONLY to catch
+  migrated items — new characters don't create loose items (goods go in a bag or
+  on the body). Category management dropped; categories now only sub-group the
+  loose migration bucket.
+- **Locations:** getragen (zone) · bench · tier · behaelter (containerUid) ·
+  inventar (top-level carried: your bags + the loose migration bucket).
+- **Containers** carry `containerArt` (quick=Ausrüstung-inline / storage=Inventar),
+  `kapazitaet` (kg), and `gewichtsreduktion` % — 100 % = contents don't count
+  toward carried load (bag of holding, e.g. Raskir's Erztasche: own 5 kg counts,
+  its 1000 kg of contents don't).
 
 What is worth keeping:
 
-- **Items carry a stable `uid`** (client-generated) because saving is a whole-
-  list DELETE+INSERT that reassigns the DB `id`. Container membership references
-  the uid, never the id, so it survives every save. `saveItems` regenerates
-  missing/duplicate uids and normalises zone/containerUid to the location.
-- The Fächer prototype (`__faecher`/`__inhalt`) became real container items with
-  nested contents; a belt-with-slots migrates to a *worn* container at Gürtel.
-- Migration `migrateAusruestungToItems` (`user_version=4`) folded the five
-  dynamic sections; Körperstelle → zone best-effort, capacity parsed from free
-  text, every unmapped column into the note (no data loss). Verified on a copy
-  of char 6: 3 sections → 40 items, zones/containers/notes intact.
-- **Note for next server start:** the live `helden.db` was still at
-  `user_version=1` (no `char_items` yet) — 5a never actually ran. On the next
-  restart BOTH the 5a inventory migration and this 5b migration run in sequence.
+- **Items carry a stable `uid`**: saving is a whole-list DELETE+INSERT that
+  reassigns the DB `id`, so `containerUid` references the uid. `saveItems`
+  regenerates missing/duplicate uids and normalises zone/containerUid to location.
+- Load rule: worn/bench/tier don't count; loose counts full; container contents
+  count × (1 − reduction %). `effektiverRs` = max rs among worn.
+- Migration `migrateAusruestungToItems` (`user_version=4`): belt-with-slots →
+  quick worn container; bags → storage carried; Kleidungen → bench; Tier →
+  tier; Proviant/unknown → loose. `__faecher`/`__inhalt` → real container +
+  contents. Unmapped columns → note (no data loss). Verified on the Aug-7 backup:
+  char 6 → Gürtel=quick(4), Umhängetasche/Erztasche=storage(60/1000 kg).
 
-Accepted simplification: an item's load contribution follows its own `location`,
-so contents of a container that is itself placed on the animal still count as
-carried. Edge case; revisit only if it bites.
+⚠️ **Live-DB recovery needed (2026-08-10):** a running dev server auto-migrated
+`helden.db` to `user_version=4` with an INTERIM (wrong) version of the migration
+(belts as storage, no bench, source tabs deleted). Because uv is already 4 the
+corrected migration won't re-run. Clean recovery: stop the server, restore
+`data/backups/helden-2026-08-07.db` (uv=1, source tabs intact) over
+`data/helden.db`, restart → the corrected migration runs. Trade-off: loses any
+character changes made after the Aug-7 backup.
+
+Deferred (noted here): **armor-material catalogue** — a GM-editable material→RS
+list (like talents/languages) so a piece picks a material and shows its RS. For
+now RS is a manual per-piece number. Also accepted simplification: an item's load
+follows its own `location`, so a container placed on the animal still has its
+contents counted as carried — revisit only if it bites.
 
 ### 6. Zauber
 

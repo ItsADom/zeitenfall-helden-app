@@ -2171,17 +2171,62 @@ li {
   padding: 4px 2px;
 }
 
+/* Kopfzeile der Ausrüstung: maßgeblicher RS + Traglast nebeneinander. */
+.ausr-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 22px;
+}
+.ausr-head .last-meter {
+  flex: 1 1 260px;
+}
+.rs-readout {
+  display: flex;
+  flex-direction: column;
+}
+.rs-label {
+  font-size: 12px;
+  color: var(--muted);
+}
+.rs-value {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Körperzonen-Raster: kompakte Kacheln, je eine Zone mit Titel + Wurf-Bereich. */
 .zone-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 10px;
 }
 .zone-name {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
   margin-bottom: 4px;
+}
+.zone-add {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 4px;
+}
+.add-inline {
+  margin-left: 10px;
+  font-weight: normal;
+  vertical-align: middle;
 }
 
 /* Behälter: je ein Panel mit Kopf (Name + Füllung/Kapazität) und Inhalt. */
@@ -2271,6 +2316,132 @@ li {
 }
 .chip-btn:hover {
   opacity: 1;
+}
+.chip-rs {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chip-Hülle: hält Pille + (aufgeklappten) Editor + Schnellzugriff-Inhalt.
+   Normal so schmal wie die Pille; mit Editor oder Inline-Inhalt volle Breite. */
+.chip-wrap {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 100%;
+}
+.chip-wrap.open,
+.chip-wrap:has(> .quick-contents) {
+  flex-basis: 100%;
+  width: 100%;
+}
+.quick-contents {
+  margin-left: 16px;
+}
+.quick-contents .drop-zone {
+  min-height: 32px;
+}
+
+/* Inline-Editor eines Chips: kompakte, beschriftete Felder. */
+.chip-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  align-items: flex-end;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+}
+.chip-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.chip-editor input,
+.chip-editor select,
+.chip-editor textarea {
+  font-size: 13px;
+}
+.chip-editor .chip-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+}
+.chip-editor .chip-notiz {
+  flex: 1 1 200px;
+}
+.chip-del {
+  align-self: center;
+}
+
+/* ---------- Inventar (Cluster 5b): Behälter-Gruppen + Ziehen ---------- */
+.inv-toolbar {
+  display: flex;
+  gap: 8px;
+}
+.panel.drop-over {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.grip-cell {
+  text-align: center;
+}
+.row-grip {
+  cursor: grab;
+  color: var(--muted);
+  user-select: none;
+}
+.row-grip:active {
+  cursor: grabbing;
+}
+.inv-cont-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.cont-name {
+  font-size: 16px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.cont-name:hover,
+.cont-name:focus {
+  border-color: var(--border);
+  background: var(--surface);
+}
+.cont-props {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.cont-props label {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.cont-props input {
+  width: 4.5em;
+}
+.inv-sum.over {
+  color: var(--crit-line);
+  font-weight: 700;
+}
+.loose-cat {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 8px 0 4px;
 }
 
 /* ---------- Druck / PDF ---------- */
