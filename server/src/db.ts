@@ -59,7 +59,10 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     owner_user_id INTEGER NOT NULL REFERENCES users(id),
-    group_id INTEGER NOT NULL REFERENCES groups(id)
+    group_id INTEGER NOT NULL REFERENCES groups(id),
+    -- Farbwelt des Charakters (Theme-Id, '' = keine → Betrachter sieht seine
+    -- persönliche Vorgabe). Gilt für JEDEN, der den Charakter öffnet.
+    theme TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS character_visibility (
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
@@ -257,6 +260,12 @@ db.exec(`
     name TEXT NOT NULL DEFAULT ''
   );
 `);
+
+// Migration: 'theme'-Spalte an bestehende characters ergänzen (per-Charakter-Farbwelt)
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('theme')) db.exec("ALTER TABLE characters ADD COLUMN theme TEXT NOT NULL DEFAULT ''");
+}
 
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen
 {

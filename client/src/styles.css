@@ -2463,6 +2463,37 @@ li {
   width: 6em;
 }
 
+/* ---------- Einstellungen-Seite ---------- */
+.set-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.set-label {
+  font-weight: 600;
+  min-width: 12em;
+}
+.cat-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.cat-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.cat-row input {
+  width: 18em;
+}
+.set-save {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 /* ---------- Druck / PDF ---------- */
 /* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
    unsichtbar im DOM und wird nur beim Drucken sichtbar. */

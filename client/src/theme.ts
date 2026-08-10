@@ -40,7 +40,8 @@ export type Mode = 'light' | 'dark';
 const DARK_ONLY = new Set(['nacht']);
 export const isDarkOnly = (id: string): boolean => DARK_ONLY.has(id);
 
-const isKnown = (id: string): boolean => THEMES.some((t) => t.id === id);
+export const isKnownTheme = (id: string): boolean => THEMES.some((t) => t.id === id);
+const isKnown = isKnownTheme;
 
 // Systemvorgaben lesen; in Umgebungen ohne matchMedia (Tests) auf hell/an fallen.
 const prefersDark = (): boolean => !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;

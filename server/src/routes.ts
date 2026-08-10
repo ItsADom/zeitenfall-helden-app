@@ -24,6 +24,7 @@ import {
   loadPortrait,
   migrateCharacterPeriphery,
   savePortrait,
+  manageItemCategories,
   saveItemCategories,
   saveItems,
   saveSection,
@@ -66,6 +67,7 @@ interface CharRow {
   name: string;
   owner_user_id: number;
   group_id: number;
+  theme: string;
 }
 
 function getChar(id: number): CharRow | undefined {
@@ -357,6 +359,7 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     ownerName: owner?.display_name ?? '',
     groupId: char.group_id,
     groupName: group?.name ?? '',
+    theme: char.theme ?? '',
   };
   if (!access) {
     res.json({ character: info, access: null, viewAs });
@@ -477,6 +480,25 @@ api.put('/characters/:id/item-categories', requireAuth, (req, res) => {
   if (!char) return;
   saveItemCategories(char.id, req.body);
   res.json({ categories: loadItemCategories(char.id) });
+});
+
+// Kategorien mit Kaskade verwalten (Einstellungen-Seite): Umbenennen/Entfernen
+// zieht die Gegenstände mit. Body: { order, renames:[{from,to}], removes:[name] }.
+api.put('/characters/:id/item-categories/manage', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  res.json({ categories: manageItemCategories(char.id, req.body) });
+});
+
+// Farbwelt des Charakters (per-Charakter-Theme). Server speichert die Id als
+// kurze Zeichenkette; welche Ids gültig sind, weiß der Client (er kappt beim
+// Anwenden auf seine Vorgabe). '' = keine eigene Farbwelt.
+api.put('/characters/:id/theme', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const theme = String((req.body as { theme?: unknown })?.theme ?? '').slice(0, 40);
+  db.prepare('UPDATE characters SET theme = ? WHERE id = ?').run(theme, char.id);
+  res.json({ theme });
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---

@@ -10,10 +10,12 @@ import AdminPage from './pages/Admin';
 import GroupPage from './pages/Group';
 import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
+import EinstellungenPage from './pages/Einstellungen';
 import ThemePicker from './components/ThemePicker';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { useAnimations, useMode, useTheme } from './theme';
+import type { Mode } from './theme';
 
 interface AuthContextValue {
   user: UserInfo;
@@ -21,6 +23,21 @@ interface AuthContextValue {
 }
 const AuthContext = createContext<AuthContextValue | null>(null);
 export const useAuth = () => useContext(AuthContext)!;
+
+// Die persönlichen Anzeige-Einstellungen (Standard-Farbwelt, hell/dunkel,
+// Animation) leben in App. Damit die Einstellungen-Seite dieselbe Quelle nutzt
+// (statt einer zweiten, nicht synchronen Kopie), werden Werte + Setter über
+// einen Kontext gereicht.
+export interface ThemeControls {
+  theme: string;
+  setTheme: (id: string) => void;
+  mode: Mode;
+  setMode: (m: Mode) => void;
+  anim: boolean;
+  setAnim: (on: boolean) => void;
+}
+const ThemeControlsContext = createContext<ThemeControls | null>(null);
+export const useThemeControls = () => useContext(ThemeControlsContext)!;
 
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -55,6 +72,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, refresh }}>
+      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim }}>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -66,19 +84,28 @@ export default function App() {
         <span className="wordmark">Heldenverwaltung</span>
         <Link to="/charaktere">Charaktere</Link>
         <Link to="/gruppen">Gruppen</Link>
-        {/* Route bleibt intern /verwaltung; nur die Beschriftung ist neu, damit
-            sie nicht mehr mit der Wortmarke „Heldenverwaltung" kollidiert. */}
-        {user.isGm && <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>}
+        {/* Spielleiter verwalten Kataloge & Nutzer; Spieler haben stattdessen
+            ihre eigene „Einstellungen"-Seite (Tabs, Kategorien, Farbwelt je
+            Charakter). Route bleibt intern /verwaltung. */}
+        {user.isGm ? (
+          <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>
+        ) : (
+          <Link to="/einstellungen">Einstellungen</Link>
+        )}
         <Link to="/changelog">Änderungen</Link>
         <div className="spacer" />
-        <ThemePicker
-          theme={theme}
-          onChange={setTheme}
-          mode={mode}
-          onModeChange={setMode}
-          animate={anim}
-          onAnimateChange={setAnim}
-        />
+        {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
+            Spieler ist sie auf die Einstellungen-Seite gewandert. */}
+        {user.isGm && (
+          <ThemePicker
+            theme={theme}
+            onChange={setTheme}
+            mode={mode}
+            onModeChange={setMode}
+            animate={anim}
+            onAnimateChange={setAnim}
+          />
+        )}
         {/* Der Name führt aufs eigene Profil (Passwort ändern). */}
         <Link to="/profil">
           {user.displayName} {user.isGm ? '(Spielleiter)' : ''}
@@ -92,12 +119,15 @@ export default function App() {
           <Route path="/gruppen" element={<GruppenPage />} />
           <Route path="/profil" element={<ProfilPage />} />
           <Route path="/verwaltung" element={user.isGm ? <AdminPage /> : <Navigate to="/charaktere" />} />
+          {/* Einstellungen sind Spieler-Sache; der Spielleiter hat „Kataloge & Nutzer". */}
+          <Route path="/einstellungen" element={user.isGm ? <Navigate to="/verwaltung" /> : <EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      </ThemeControlsContext.Provider>
     </AuthContext.Provider>
   );
 }

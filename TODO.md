@@ -377,6 +377,8 @@ Dependency: the four talents must exist in the catalog under those names.
 
 ## Mid-Prio
 
+- Hovering over "Charaktere" or "Gruppen" should open a list of the player's characters and groups
+ - will reduce the necessary page loads and clicks -> quicker and more comfortable navigation
 - Skip no-op saves: `saveSection` / `saveDynRows` do a full DELETE+INSERT even
   when nothing changed. Add a server-side empty-diff check in front.
   `saveSection` (`server/src/characterData.ts`) is the single choke point
@@ -408,12 +410,15 @@ Dependency: the four talents must exist in the catalog under those names.
         timer.
       - Optional: read-only 'Verlauf' panel per char (GM sees all, owner sees
         own).
+        - GM can set filters for user and/or character
+        - User can set filter for character
 
 ---
 
 ## Low-Prio
 
-- damage values and effects for ammunition
+- Änderungen/Changelog moves on the right side of the banner. Left side stays "game-navigation" only
+- damage values and effects for ammunition (new catalogue)
 - color themes — mostly done (0.1.3)
   - DONE: every regional theme now has a light AND dark variant, on two axes
     (`data-theme` colour × `data-mode`). Schattenlande stays dark-only. Theme

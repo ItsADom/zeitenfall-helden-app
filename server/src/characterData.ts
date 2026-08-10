@@ -822,6 +822,43 @@ export function saveItemCategories(charId: number, raw: unknown): void {
   tx();
 }
 
+// Kategorien verwalten MIT Kaskade auf die Gegenstände (für die Einstellungen-
+// Seite): Umbenennen zieht die betroffenen char_items mit, Entfernen setzt deren
+// Kategorie auf '' (ohne). Danach wird die Liste in der neuen Reihenfolge gesetzt.
+export function manageItemCategories(charId: number, raw: unknown): string[] {
+  const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
+  const renames = Array.isArray(body.renames) ? body.renames : [];
+  const removes = Array.isArray(body.removes) ? body.removes : [];
+  const orderArr = Array.isArray(body.order) ? body.order : [];
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const v of orderArr) {
+    const name = String(v ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_CATEGORIES) break;
+  }
+  const tx = db.transaction(() => {
+    const up = db.prepare('UPDATE char_items SET kategorie = ? WHERE character_id = ? AND kategorie = ?');
+    for (const r of renames) {
+      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+      if (from && to && from !== to) up.run(to, charId, from);
+    }
+    for (const name of removes) {
+      const n = String(name ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+      if (n) up.run('', charId, n);
+    }
+    db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
+    const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
+    clean.forEach((name, i) => ins.run(charId, i, name));
+  });
+  tx();
+  return loadItemCategories(charId);
+}
+
 // --- Porträt (als Blob in der DB, damit es in den täglichen Sicherungen liegt) ---
 
 export function hasPortrait(charId: number): boolean {
