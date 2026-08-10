@@ -10,7 +10,7 @@ const fmtDate = (iso: string) => {
 export default function ChangelogPage() {
   return (
     <>
-      <h1>Änderungen</h1>
+      <h1>Versionshistorie</h1>
       <p className="muted" style={{ marginTop: -4, marginBottom: 20 }}>
         Was sich in der Heldenverwaltung getan hat — kurz zusammengefasst.
       </p>

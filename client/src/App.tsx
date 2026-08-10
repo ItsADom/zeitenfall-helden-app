@@ -104,10 +104,10 @@ export default function App() {
         ) : (
           <Link to="/einstellungen">Einstellungen</Link>
         )}
-        <Link to="/changelog">Änderungen</Link>
         <div className="spacer" />
         {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
             Spieler ist sie auf die Einstellungen-Seite gewandert. */}
+        <Link to="/changelog">Changelog</Link>
         {user.isGm && (
           <ThemePicker
             theme={theme}
