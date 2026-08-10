@@ -48,12 +48,7 @@ export function isFixedTab(key: string): boolean {
 // Reihenfolge, in der die Reiter ohne eigene Sortierung erscheinen — also der
 // Zustand, den es vor dieser Funktion gab.
 export function defaultTabKeys(dynamicTabIds: readonly number[]): string[] {
-  return [
-    ...FIXED_TAB_KEYS,
-    ...MOVABLE_BUILTIN_TAB_KEYS,
-    ...dynamicTabIds.map(dynTabKey),
-    SICHTBARKEIT_TAB_KEY,
-  ];
+  return [...FIXED_TAB_KEYS, ...MOVABLE_BUILTIN_TAB_KEYS, ...dynamicTabIds.map(dynTabKey)];
 }
 
 // Säubert eine von außen kommende Liste: nur Zeichenketten, keine Doppelten,

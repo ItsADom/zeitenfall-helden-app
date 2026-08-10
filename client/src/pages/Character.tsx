@@ -3,18 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
-import {
-  SICHTBARKEIT_TAB_KEY,
-  canStepTab,
-  defaultTabKeys,
-  dynTabId,
-  dynTabKey,
-  isFixedTab,
-  moveTabKey,
-  orderTabKeys,
-  stepTabKey,
-} from '@shared/tabOrder';
-import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
+import { apiGet, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
 import { isKnownTheme } from '../theme';
@@ -29,7 +19,6 @@ import AusruestungTab from '../tabs/Ausruestung';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
 import SprachenTab from '../tabs/Sprachen';
-import SichtbarkeitTab from '../tabs/Sichtbarkeit';
 import SummaryView from '../tabs/Summary';
 
 export interface FullData {
@@ -122,12 +111,6 @@ export default function CharacterPage() {
   // Namensänderung: null = Anzeige, sonst der Entwurf im Eingabefeld.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [nameError, setNameError] = useState('');
-
-  // Umsortieren der Reiter: welcher hängt am Mauszeiger, und wo würde er landen.
-  // `over` ist der Reiter unter dem Zeiger, `key`/`place` die Stelle, an der die
-  // Marke gezeichnet wird — das ist nicht immer dasselbe (siehe markerFor).
-  const [dragKey, setDragKey] = useState<string | null>(null);
-  const [dropAt, setDropAt] = useState<{ over: string; key: string; place: 'before' | 'after' } | null>(null);
 
   // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID.
   const canViewAs = !!user.isGm && !!user.devViewAs;
@@ -306,23 +289,6 @@ export default function CharacterPage() {
     [charId],
   );
 
-  // Reihenfolge der Reiter sichern — wie die Spaltenbreiten sofort, nicht über
-  // das entprellte Sammel-Speichern: das passiert einmal je Zug und soll auch
-  // dann ankommen, wenn gleich danach die Seite verlassen wird.
-  const saveTabOrder = useCallback(
-    (order: string[]) => {
-      setData((prev) => (prev ? { ...prev, tabOrder: order } : prev));
-      setSaveState('Speichere…');
-      apiPut<{ order: string[] }>(`/api/characters/${charId}/tab-order`, { order })
-        .then((res) => {
-          setData((prev) => (prev ? { ...prev, tabOrder: res.order } : prev));
-          setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
-        })
-        .catch((e) => setSaveState(`Fehler beim Speichern: ${e instanceof Error ? e.message : e}`));
-    },
-    [charId],
-  );
-
   // Kehrt der Tab/das Fenster in den Vordergrund zurück, still nachladen — so
   // sieht man Änderungen anderer (Spielleiter ⇄ Spieler), ohne neu zu laden.
   // Bewusst NICHT während eigener ungespeicherter Änderungen (feste Sektionen:
@@ -417,61 +383,12 @@ export default function CharacterPage() {
     : key === 'Sprachen' ? <SprachenTab />
     : key === 'Inventar' ? <InventarTab />
     : key === 'Ausrüstung' ? <AusruestungTab />
-    : key === SICHTBARKEIT_TAB_KEY ? <SichtbarkeitTab />
     : null;
 
-  const applyOrder = (next: string[]) => {
-    if (next.length === order.length && next.every((k, i) => k === order[i])) return;
-    saveTabOrder(next);
-  };
-  const stepTab = (key: string, dir: -1 | 1) => applyOrder(stepTabKey(order, key, dir));
-
-  const addTab = async () => {
-    const { id: newId } = await apiPost<{ id: number }>(`/api/characters/${charId}/tabs`, { name: 'Neuer Tab' });
-    const key = dynTabKey(newId);
-    setTabs((t) => [...t, { id: newId, name: 'Neuer Tab', locked: false, pos: t.length, sections: [] }]);
-    setActiveKey(key);
-    // Neue Reiter sollen wie bisher vor „Sichtbarkeit" stehen, nicht dahinter.
-    applyOrder(moveTabKey([...order, key], key, SICHTBARKEIT_TAB_KEY, 'before'));
-  };
-  const renameTab = async (tid: number, name: string) => {
-    setTabs((t) => t.map((x) => (x.id === tid ? { ...x, name } : x)));
-    await apiPut(`/api/characters/${charId}/tabs/${tid}`, { name });
-  };
-  const deleteTab = async (tid: number) => {
-    await apiDelete(`/api/characters/${charId}/tabs/${tid}`);
-    setTabs((t) => t.filter((x) => x.id !== tid));
-    setActiveKey('Heldenbrief');
-    // Den Schlüssel gleich mit aus der Reihenfolge nehmen: SQLite vergibt
-    // gelöschte Zeilennummern wieder, sonst erbte ein künftiger Reiter mit
-    // derselben ID den Platz des gelöschten.
-    applyOrder(order.filter((k) => k !== dynTabKey(tid)));
-  };
-
-  // --- Reiter umsortieren (Ziehen mit der Maus, Alt+Pfeil auf der Tastatur) ---
-
-  const dropSide = (e: React.DragEvent<HTMLElement>): 'before' | 'after' => {
-    const r = e.currentTarget.getBoundingClientRect();
-    return e.clientX < r.left + r.width / 2 ? 'before' : 'after';
-  };
-
-  // Wo die Markierung stehen soll. Auf einen festen Reiter darf nichts fallen —
-  // ein Wurf dorthin bedeutet „ganz nach links", also hinter den festen Block.
-  // Die Markierung sagt das auch, statt eine Lücke zu zeigen, die es nicht gibt.
-  const markerFor = (over: string, place: 'before' | 'after') => {
-    if (!isFixedTab(over)) return { over, key: over, place };
-    const fixed = order.filter(isFixedTab);
-    return { over, key: fixed[fixed.length - 1] ?? over, place: 'after' as const };
-  };
-
-  const dropOn = (targetKey: string, e: React.DragEvent<HTMLElement>) => {
-    e.preventDefault();
-    const key = e.dataTransfer.getData('text/plain') || dragKey;
-    const place = dropSide(e);
-    setDragKey(null);
-    setDropAt(null);
-    if (key) applyOrder(moveTabKey(order, key, targetKey, place));
-  };
+  // Reiter verwalten (umbenennen, umsortieren, hinzufügen, löschen, Sichtbarkeit)
+  // läuft seit 2026-08-10 ausschließlich über die Einstellungen-Seite (Spieler);
+  // die Charakterseite zeigt die Reiterleiste nur noch zum Umschalten. Der
+  // Spielleiter hat bewusst keinen Zugriff darauf.
 
   const cancelName = () => {
     setNameDraft(null);
@@ -586,63 +503,15 @@ export default function CharacterPage() {
             Export
           </button>
         </div>
+        {/* Die Reiterleiste dient nur noch dem Umschalten. Umbenennen, Sortieren,
+            Anlegen/Löschen und Sichtbarkeit sind auf die Einstellungen-Seite
+            gewandert (Spieler); die Reihenfolge kommt weiterhin aus tabOrder. */}
         <div className="tabs" ref={tabsRef}>
-          {order.map((key) => {
-            // Die Reihenfolge der Reiter gehört zum Charakter und wird
-            // gespeichert — ohne Bearbeiten bleibt sie, wie sie ist. „Fest" und
-            // „gerade nicht verschiebbar" bleiben dabei getrennt: sonst hieße
-            // im Nur-Lesen-Modus jeder Reiter „Fester Reiter", was schlicht
-            // nicht stimmt.
-            const fixed = isFixedTab(key);
-            const movable = !fixed && editing;
-            const marker = dropAt?.key === key ? ` drop-${dropAt.place}` : '';
-            return (
-              <button
-                key={key}
-                className={`${key === activeKey ? 'active' : ''}${movable ? ' movable' : ''}${dragKey === key ? ' dragging' : ''}${marker}`}
-                draggable={movable}
-                title={
-                  movable ? 'Ziehen zum Umsortieren — oder Alt+← / Alt+→'
-                  : fixed ? 'Fester Reiter'
-                  : undefined
-                }
-                onClick={() => setActiveKey(key)}
-                onDragStart={(e) => {
-                  if (!movable) return;
-                  e.dataTransfer.effectAllowed = 'move';
-                  // Firefox startet einen Zug nur, wenn Daten hinterlegt sind.
-                  e.dataTransfer.setData('text/plain', key);
-                  setDragKey(key);
-                }}
-                onDragOver={(e) => {
-                  if (!dragKey || dragKey === key) return;
-                  e.preventDefault(); // ohne das gibt es kein Drop
-                  e.dataTransfer.dropEffect = 'move';
-                  const next = markerFor(key, dropSide(e));
-                  setDropAt((d) => (d?.key === next.key && d.place === next.place ? d : next));
-                }}
-                onDragLeave={() => setDropAt((d) => (d?.over === key ? null : d))}
-                onDrop={(e) => dropOn(key, e)}
-                onDragEnd={() => {
-                  setDragKey(null);
-                  setDropAt(null);
-                }}
-                onKeyDown={(e) => {
-                  if (!movable || !e.altKey) return;
-                  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-                  e.preventDefault();
-                  stepTab(key, e.key === 'ArrowLeft' ? -1 : 1);
-                }}
-              >
-                {tabName(key)}
-              </button>
-            );
-          })}
-          {editing && (
-            <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
-              + Tab
+          {order.map((key) => (
+            <button key={key} className={key === activeKey ? 'active' : ''} onClick={() => setActiveKey(key)}>
+              {tabName(key)}
             </button>
-          )}
+          ))}
         </div>
         {/* Ab hier zwei Spalten: der Reiterinhalt und die stets sichtbare
             Seitenleiste. Kopfzeile und Reiterleiste darüber bleiben volle
@@ -657,45 +526,18 @@ export default function CharacterPage() {
             basePath={`/api/characters/${charId}`}
             tab={activeContentTab}
             attributes={data!.attributes}
-            isFirst={!canStepTab(order, activeKey, -1)}
-            isLast={!canStepTab(order, activeKey, 1)}
+            isFirst
+            isLast
+            showTabControls={false}
             onDirtyChange={(d) => {
               dynDirty.current = d;
             }}
             onSectionsChange={(secs) =>
               setTabs((t) => t.map((x) => (x.id === activeContentTab.id ? { ...x, sections: secs } : x)))
             }
-            onRenameTab={(name) => renameTab(activeContentTab.id, name)}
-            onDeleteTab={() => deleteTab(activeContentTab.id)}
-            onMoveTab={(dir) => stepTab(activeKey, dir)}
           />
         ) : (
-          <>
-            {/* Die selbst angelegten Reiter tragen ihre Pfeile in der Kopfzeile
-                von ContentTabView. Die eingebauten haben keine solche Zeile —
-                also bekommen sie hier dieselben zwei Knöpfe. */}
-            {!isFixedTab(activeKey) && editing && (
-              <div className="tab-move">
-                <button
-                  className="small"
-                  disabled={!canStepTab(order, activeKey, -1)}
-                  onClick={() => stepTab(activeKey, -1)}
-                  title="Tab nach links"
-                >
-                  ←
-                </button>
-                <button
-                  className="small"
-                  disabled={!canStepTab(order, activeKey, 1)}
-                  onClick={() => stepTab(activeKey, 1)}
-                  title="Tab nach rechts"
-                >
-                  →
-                </button>
-              </div>
-            )}
-            {builtinTab(activeKey)}
-          </>
+          builtinTab(activeKey)
         )}
           </div>
           <CharacterSidebar />
@@ -706,37 +548,32 @@ export default function CharacterPage() {
       {printing && (
         <DisplayModeProvider mode="print">
         <div className="print-root">
-          {/* Die Seiten folgen der gewählten Reiter-Reihenfolge; „Sichtbarkeit"
-              ist eine Einstellung und gehört nicht auf den Charakterbogen. */}
-          {order
-            .filter((key) => key !== SICHTBARKEIT_TAB_KEY)
-            .map((key) => {
-              const dyn = tabByKey(key);
-              if (dynTabId(key) !== null && !dyn) return null;
-              return (
-                <section key={key} className="print-page">
-                  <div className="print-page-head">
-                    <span className="print-char">{info.name}</span>
-                    <span className="print-tab">{tabName(key)}</span>
-                  </div>
-                  {dyn ? (
-                    <ContentTabView
-                      basePath={`/api/characters/${charId}`}
-                      tab={dyn}
-                      attributes={data!.attributes}
-                      isFirst
-                      isLast
-                      showVisibility={false}
-                      onRenameTab={() => {}}
-                      onDeleteTab={() => {}}
-                      onMoveTab={() => {}}
-                    />
-                  ) : (
-                    builtinTab(key)
-                  )}
-                </section>
-              );
-            })}
+          {/* Die Seiten folgen der gewählten Reiter-Reihenfolge. */}
+          {order.map((key) => {
+            const dyn = tabByKey(key);
+            if (dynTabId(key) !== null && !dyn) return null;
+            return (
+              <section key={key} className="print-page">
+                <div className="print-page-head">
+                  <span className="print-char">{info.name}</span>
+                  <span className="print-tab">{tabName(key)}</span>
+                </div>
+                {dyn ? (
+                  <ContentTabView
+                    basePath={`/api/characters/${charId}`}
+                    tab={dyn}
+                    attributes={data!.attributes}
+                    isFirst
+                    isLast
+                    showVisibility={false}
+                    showTabControls={false}
+                  />
+                ) : (
+                  builtinTab(key)
+                )}
+              </section>
+            );
+          })}
         </div>
         </DisplayModeProvider>
       )}

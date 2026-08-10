@@ -37,6 +37,10 @@ export default function ContentTabView({
   isLast,
   showVisibility = true,
   allowProbe = true,
+  // Reiter-Verwaltung (Umbenennen/Verschieben/Löschen) im Kopf dieses Views.
+  // Auf der Charakterseite ausgeschaltet — dort läuft das über die Einstellungen;
+  // die Gruppenseite verwaltet ihre gemeinsamen Reiter weiterhin hier.
+  showTabControls = true,
   onDirtyChange,
   onSectionsChange,
   onRenameTab,
@@ -51,15 +55,16 @@ export default function ContentTabView({
   isLast: boolean;
   showVisibility?: boolean;
   allowProbe?: boolean;
+  showTabControls?: boolean;
   // Meldet dem Eltern-Element, ob noch ungespeicherte Zeilen anstehen — damit
   // eine Hintergrund-Aktualisierung die laufende Bearbeitung nicht überschreibt.
   onDirtyChange?: (dirty: boolean) => void;
   // Meldet geänderte Sektionen/Zeilen ans Eltern-Element, damit dessen tab-Daten
   // aktuell bleiben — sonst zeigt ein Remount (Tab-Wechsel) den veralteten Stand.
   onSectionsChange?: (sections: DynSection[]) => void;
-  onRenameTab: (name: string) => void;
-  onDeleteTab: () => void;
-  onMoveTab: (dir: -1 | 1) => void;
+  onRenameTab?: (name: string) => void;
+  onDeleteTab?: () => void;
+  onMoveTab?: (dir: -1 | 1) => void;
 }) {
   const readOnly = useReadOnly();
   const [sections, setSections] = useState<DynSection[]>(tab.sections);
@@ -146,39 +151,48 @@ export default function ContentTabView({
 
   return (
     <>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-        <input
-          className="section-title"
-          defaultValue={tab.name}
-          key={tab.name}
-          disabled={tab.locked || readOnly}
-          title={tab.locked ? 'Pflicht-Tab (nicht umbenennbar)' : 'Tab umbenennen'}
-          onBlur={(e) => onRenameTab(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        />
-        {tab.locked && <span className="muted">🔒 Pflicht-Tab</span>}
-        <span style={{ flex: 1 }} />
-        <span className="savestate">{saveState}</span>
-        {!readOnly && (
-          <>
-            <button className="small" disabled={isFirst} onClick={() => onMoveTab(-1)} title="Tab nach links">
-              ←
+      {showTabControls ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <input
+            className="section-title"
+            defaultValue={tab.name}
+            key={tab.name}
+            disabled={tab.locked || readOnly}
+            title={tab.locked ? 'Pflicht-Tab (nicht umbenennbar)' : 'Tab umbenennen'}
+            onBlur={(e) => onRenameTab?.(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          />
+          {tab.locked && <span className="muted">🔒 Pflicht-Tab</span>}
+          <span style={{ flex: 1 }} />
+          <span className="savestate">{saveState}</span>
+          {!readOnly && (
+            <>
+              <button className="small" disabled={isFirst} onClick={() => onMoveTab?.(-1)} title="Tab nach links">
+                ←
+              </button>
+              <button className="small" disabled={isLast} onClick={() => onMoveTab?.(1)} title="Tab nach rechts">
+                →
+              </button>
+            </>
+          )}
+          {!tab.locked && !readOnly && (
+            <button
+              className="small"
+              onClick={() => confirm(`Tab „${tab.name}" mit allen Sektionen löschen?`) && onDeleteTab?.()}
+              title="Tab löschen"
+            >
+              Tab löschen
             </button>
-            <button className="small" disabled={isLast} onClick={() => onMoveTab(1)} title="Tab nach rechts">
-              →
-            </button>
-          </>
-        )}
-        {!tab.locked && !readOnly && (
-          <button
-            className="small"
-            onClick={() => confirm(`Tab „${tab.name}" mit allen Sektionen löschen?`) && onDeleteTab()}
-            title="Tab löschen"
-          >
-            Tab löschen
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      ) : (
+        // Ohne Reiter-Verwaltung (Charakterseite) nur der Speicherhinweis der Inhalte.
+        saveState && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+            <span className="savestate">{saveState}</span>
+          </div>
+        )
+      )}
 
       {sections.map((section, i) => (
         <SectionPanel

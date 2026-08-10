@@ -16,21 +16,10 @@ Settled, so the items below can stay short:
   the same value, just overfilled. The `+` button (healing) still clamps at the
   maximum; typing the number directly does not. Overfilling is the exception and
   may cost the deliberate gesture.
-- **Read-only is the default — for everyone, not just the Spielleiter.**
-  Editing is switched on deliberately. Exceptions: the **Übersicht** tab and the
-  **side panel** stay editable always, because that is where the values live
-  that move constantly during play.
-- **Sidebar = variant B**: character page only, right-hand side, showing the
-  live values. No app-wide layout rework; "Gruppen"/"Charaktere" remain pages in
-  the top bar.
 - **Special Energien** (Drachenkraft etc.) are added by the player: name +
   attribute formula + bonus. **Psyche** stays built in — every character has one,
   it is a system rule and not a personal power.
-- **Magierstufe/Magiepunkte** do not belong with the Energien but with the
-  Zauber rework (they hang off mage level and spells).
-
-Deliberately deferred: what "Notizen" in the sidebar should be (per-character
-scratchpad / pinned existing note sections / session log).
+- **Sidebar notes** will be a free-form text field, where the user can make quick notes (like debuffs etc.)
 
 ---
 
@@ -461,9 +450,6 @@ Noch offen (nächster Schritt):
     user chooses. Structure: shared dark-chrome block + per-theme dark accents,
     see the "Dunkelmodus" section in styles.css.
   - still open: default theme that is more neutral than Khôm (red)
-  - still open: contrast audit per theme, especially the functional tones
-    (warn/crit/computed) — they have to stay readable. The five dark accent
-    palettes were eyeballed, not measured; worth a proper WCAG pass.
 - print/PDF — what is left after the display mode. Already handled by the
   display mode (High-Prio 1): empty free-text fields, visible spinner arrows.
   What remains:
@@ -493,7 +479,6 @@ Noch offen (nächster Schritt):
   finished)
    - spells need to be selectable as a Liturgie, then select from a fixed list
      of corresponding skills
-- Person data is a bit unstructured. needs a little rework
 
 ---
 

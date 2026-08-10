@@ -2493,6 +2493,37 @@ li {
   align-items: center;
   gap: 14px;
 }
+.tab-manage {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.tabm-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tabm-arrows {
+  display: inline-flex;
+  gap: 2px;
+}
+.tabm-row input {
+  width: 16em;
+}
+.tabm-fixed {
+  width: 16em;
+}
+.vis-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 6px 16px;
+}
+.vis-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 
 /* ---------- Druck / PDF ---------- */
 /* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
