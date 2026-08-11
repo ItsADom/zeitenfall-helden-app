@@ -581,6 +581,13 @@ header.topbar .spacer {
   position: relative;
   display: inline-flex;
 }
+/* Jeder Kopfleisten-Eintrag liegt auf z-index 1 (siehe `header.topbar > *`), also
+   übermalen spätere Geschwister (z. B. das umgebrochene „Kataloge & Nutzer") die
+   Klappliste eines früheren. Bei offenem Menü das ganze Element anheben, damit
+   seine Liste über den Nachbarn liegt. Spezifität > die z-index-1-Regel. */
+header.topbar .nav-menu.open {
+  z-index: 40;
+}
 /* Die Beschriftung sieht aus wie die übrigen Kopfleisten-Links; das kleine
    Caret deutet das aufklappbare Menü an. */
 .nav-menu .nav-menu-label {

@@ -72,7 +72,7 @@ export default function NavMenu({ kind }: { kind: 'charaktere' | 'gruppen' }) {
 
   return (
     <div
-      className="nav-menu"
+      className={`nav-menu${open ? ' open' : ''}`}
       ref={wrapRef}
       onMouseEnter={openNow}
       onMouseLeave={closeSoon}
