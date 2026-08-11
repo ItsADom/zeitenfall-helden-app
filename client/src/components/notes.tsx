@@ -8,7 +8,7 @@ import { TextInput } from './inputs';
 // lokal — beim Neuladen ist wieder alles eingeklappt. Im DRUCK immer vollständig.
 
 const NOTE_LIMIT = 140; // Zeichen
-const LINE_LIMIT = 3; // Zeilen (Umbrüche machen eine Notiz hoch, auch bei wenig Text)
+const LINE_LIMIT = 2; // Zeilen (Umbrüche machen eine Notiz hoch, auch bei wenig Text)
 
 // Ist die Notiz zu lang — nach Zeichen ODER nach Zeilen?
 function tooLong(text: string, charLimit: number, lineLimit: number): boolean {
