@@ -28,6 +28,15 @@ These are standing instructions — follow them without being reminded.
   back-and-forth changes. Make the change, verify it, leave it uncommitted, and
   commit once the design round settles or the user asks.
 
+## Working on tasks
+
+- **Concept first for anything not fully fleshed out.** When a TODO entry is
+  thin, ambiguous, or leaves design decisions open, do NOT jump straight into
+  code. Work out a concept *together with the developer* first: surface the
+  uncertainties, propose an approach, and get their feedback before building.
+  Only well-specified tasks (clear scope, no open decisions) go straight to
+  implementation. When in doubt, ask.
+
 ## Docs & user-facing text
 
 - **`TODO.md` is a forward-looking backlog, not a changelog.** It lists open
