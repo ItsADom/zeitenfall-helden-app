@@ -18,19 +18,24 @@ import {
   deletePortrait,
   importFullCharacter,
   instantiateStandardSections,
+  loadAbilities,
+  loadAbilityLists,
   loadFullCharacter,
   loadItemCategories,
   loadItems,
   loadPortrait,
+  manageAbilityList,
   migrateCharacterPeriphery,
   savePortrait,
   manageItemCategories,
+  saveAbilities,
   saveItemCategories,
   saveItems,
   saveSection,
   saveTabOrder,
   saveTableWidths,
   saveVisibility,
+  seedAbilitiesFromZauber,
 } from './characterData.js';
 import {
   CHAR_DYN,
@@ -488,6 +493,35 @@ api.put('/characters/:id/item-categories/manage', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
   res.json({ categories: manageItemCategories(char.id, req.body) });
+});
+
+// --- Zauber & Fähigkeiten (Cluster 6) ---
+
+// Ganze Stammliste ersetzen (wie /items). Die Reiter zeigen daraus nur an.
+api.put('/characters/:id/abilities', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  saveAbilities(char.id, req.body);
+  res.json({ abilities: loadAbilities(char.id) });
+});
+
+// Element- oder Kategorie-Liste verwalten (mit Kaskade auf die Einträge).
+// Body: { kind: 'element'|'kategorie', order, renames:[{from,to}], removes:[name] }.
+api.put('/characters/:id/ability-lists/manage', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const kind = String((req.body as { kind?: unknown })?.kind ?? 'kategorie');
+  res.json({ abilityLists: manageAbilityList(char.id, kind, req.body) });
+});
+
+// Einmaliger Seed-Import aus dem alten dynamischen „Zauber/Fähigkeiten"-Reiter.
+// Löscht nichts (der alte Reiter bleibt bestehen); befüllt nur die leere
+// Stammliste vor. Läuft nur, wenn noch keine Einträge existieren.
+api.post('/characters/:id/abilities/seed', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const result = seedAbilitiesFromZauber(char.id);
+  res.json({ ...result, abilities: loadAbilities(char.id), abilityLists: loadAbilityLists(char.id) });
 });
 
 // Farbwelt des Charakters (per-Charakter-Theme). Server speichert die Id als

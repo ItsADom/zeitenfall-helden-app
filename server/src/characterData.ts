@@ -29,6 +29,7 @@ import {
   weaponProbes,
 } from 'shared';
 import type {
+  Ability,
   AttrCode,
   Attributes,
   BaseValueInputs,
@@ -688,6 +689,8 @@ export function loadFullCharacter(charId: number) {
     portrait: hasPortrait(charId),
     items: loadItems(charId),
     itemCategories: loadItemCategories(charId),
+    abilities: loadAbilities(charId),
+    abilityLists: loadAbilityLists(charId),
   };
 }
 
@@ -857,6 +860,323 @@ export function manageItemCategories(charId: number, raw: unknown): string[] {
   });
   tx();
   return loadItemCategories(charId);
+}
+
+// --- Zauber & Fähigkeiten (Cluster 6) ---
+//
+// Ein Bestand je Charakter (char_abilities), aus dem beide Reiter nur anzeigen.
+// Speichern ist — wie bei den Gegenständen — ein Ersetzen der ganzen Liste; die
+// stabile uid überlebt es. Element- und Kategorie-Listen liegen getrennt in
+// char_ability_lists (kind).
+
+const MAX_ABILITIES = 2000;
+const MAX_ABILITY_TEXT = 8000;
+
+export function loadAbilities(charId: number): Ability[] {
+  const rows = db
+    .prepare(
+      'SELECT id, uid, magisch, passiv, gruppe, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+    )
+    .all(charId) as {
+    id: number;
+    uid: string;
+    magisch: number;
+    passiv: number;
+    gruppe: string;
+    name: string;
+    element: string;
+    kategorie: string;
+    stufe: number;
+    komplexitaet: number;
+    kosten: string;
+    probe: string;
+    effekt: string;
+    fortschritt: number;
+    notiz: string;
+  }[];
+  return rows.map((r) => ({
+    id: r.id,
+    uid: r.uid || makeUid(),
+    magisch: !!r.magisch,
+    passiv: !!r.passiv,
+    gruppe: r.gruppe,
+    name: r.name,
+    element: r.element,
+    kategorie: r.kategorie,
+    stufe: r.stufe,
+    komplexitaet: r.komplexitaet,
+    kosten: r.kosten,
+    probe: r.probe,
+    effekt: r.effekt,
+    fortschritt: r.fortschritt,
+    notiz: r.notiz,
+  }));
+}
+
+// Ganze Liste ersetzen (wie saveItems): serverseitig gedeckelt, uids eindeutig.
+export function saveAbilities(charId: number, raw: unknown): void {
+  const arr = Array.isArray(raw) ? raw.slice(0, MAX_ABILITIES) : [];
+  const seenUids = new Set<string>();
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
+    const ins = db.prepare(
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, gruppe, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    arr.forEach((it, i) => {
+      const o = (it ?? {}) as Record<string, unknown>;
+      let uid = String(o.uid ?? '').slice(0, 64);
+      if (!uid || seenUids.has(uid)) uid = makeUid();
+      seenUids.add(uid);
+      ins.run(
+        charId,
+        i,
+        uid,
+        o.magisch ? 1 : 0,
+        o.passiv ? 1 : 0,
+        String(o.gruppe ?? '').slice(0, MAX_ABILITY_TEXT),
+        String(o.name ?? '').slice(0, MAX_ABILITY_TEXT),
+        String(o.element ?? '').slice(0, MAX_ABILITY_TEXT),
+        String(o.kategorie ?? '').slice(0, MAX_ABILITY_TEXT),
+        clampMin(o.stufe),
+        clampMin(o.komplexitaet),
+        String(o.kosten ?? '').slice(0, MAX_ABILITY_TEXT),
+        String(o.probe ?? '').slice(0, MAX_ABILITY_TEXT),
+        String(o.effekt ?? '').slice(0, MAX_ABILITY_TEXT),
+        clampMin(o.fortschritt),
+        String(o.notiz ?? '').slice(0, MAX_ABILITY_TEXT),
+      );
+    });
+  });
+  tx();
+}
+
+export interface AbilityLists {
+  element: string[];
+  kategorie: string[];
+}
+
+export function loadAbilityLists(charId: number): AbilityLists {
+  const rows = db
+    .prepare('SELECT kind, name FROM char_ability_lists WHERE character_id = ? ORDER BY kind, pos, id')
+    .all(charId) as { kind: string; name: string }[];
+  const out: AbilityLists = { element: [], kategorie: [] };
+  for (const r of rows) {
+    if (r.kind === 'element') out.element.push(r.name);
+    else if (r.kind === 'kategorie') out.kategorie.push(r.name);
+  }
+  return out;
+}
+
+// Eine der beiden Listen (element/kategorie) verwalten, MIT Kaskade auf die
+// char_abilities-Spalte gleichen Namens: Umbenennen zieht die Einträge mit,
+// Entfernen setzt deren Wert auf '' (ohne). Body: { order, renames, removes }.
+export function manageAbilityList(charId: number, kind: string, raw: unknown): AbilityLists {
+  const k: 'element' | 'kategorie' = kind === 'element' ? 'element' : 'kategorie';
+  const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
+  const renames = Array.isArray(body.renames) ? body.renames : [];
+  const removes = Array.isArray(body.removes) ? body.removes : [];
+  const orderArr = Array.isArray(body.order) ? body.order : [];
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const v of orderArr) {
+    const name = String(v ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_CATEGORIES) break;
+  }
+  const tx = db.transaction(() => {
+    // Spaltenname ist auf 'element'|'kategorie' festgelegt — kein Fremdeingriff.
+    const up = db.prepare(`UPDATE char_abilities SET ${k} = ? WHERE character_id = ? AND ${k} = ?`);
+    for (const r of renames) {
+      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+      if (from && to && from !== to) up.run(to, charId, from);
+    }
+    for (const name of removes) {
+      const n = String(name ?? '').trim().slice(0, MAX_CATEGORY_LEN);
+      if (n) up.run('', charId, n);
+    }
+    db.prepare('DELETE FROM char_ability_lists WHERE character_id = ? AND kind = ?').run(charId, k);
+    const ins = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(charId, k, i, name));
+  });
+  tx();
+  return loadAbilityLists(charId);
+}
+
+// --- Seed-Import (Cluster 6): ersetzt die frühere „harte" Migration ---
+//
+// Anders als 5a/5b läuft dies NICHT beim Start und löscht nichts: es ist eine
+// vom Spieler ausgelöste Aktion, die den bestehenden dynamischen Reiter
+// „Zauber/Fähigkeiten" liest und daraus die Stammliste vorbefüllt. Der alte
+// Reiter bleibt unangetastet, bis der Spieler ihn (später) bewusst stilllegt.
+// Gemappt wird über die Spalten-BESCHRIFTUNG (die Schlüssel sind je Charakter
+// frei vergeben); alles Unabbildbare wandert in die Notiz — kein Datenverlust.
+
+const abNorm = (s: unknown): string =>
+  String(s ?? '')
+    .toLowerCase()
+    .replace(/[()\s.]/g, '')
+    .replace(/ä/g, 'a')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ß/g, 'ss');
+
+const ABILITY_LABELMAP = new Map<string, string>();
+{
+  const put = (field: string, labels: string[]) => labels.forEach((l) => ABILITY_LABELMAP.set(abNorm(l), field));
+  put('name', ['Name']);
+  put('element', ['Typ', 'Element']);
+  put('stufe', ['Stufe', 'Level']);
+  put('komplexitaet', ['Komplexität', 'Komplex', 'Komplexitaet']);
+  put('kosten', ['Kosten']);
+  put('probe', ['Probe']); // die TEXT-Spalte mit dem Ausdruck
+  put('effekt', ['Effekt', 'Wirkung']);
+  put('fortschritt', ['Fortschritt', 'Punkte', 'EXP', 'Erfahrung']);
+  put('kategorie', ['Kategorie']);
+}
+// Abgeleitete Spalten (werden neu berechnet, nicht übernommen).
+const ABILITY_DROP_LABELS = new Set(['mgpunkte', 'magiepunkte'].map((s) => abNorm(s)));
+
+const ZAUBER_IMPORT_TAB = 'Zauber/Fähigkeiten';
+
+export interface AbilitySeedResult {
+  skipped: boolean; // true, wenn schon Einträge da sind oder kein alter Reiter existiert
+  zauber: number;
+  faehigkeiten: number;
+}
+
+export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
+  const have = (db.prepare('SELECT COUNT(*) AS n FROM char_abilities WHERE character_id = ?').get(charId) as { n: number }).n;
+  if (have > 0) return { skipped: true, zauber: 0, faehigkeiten: 0 };
+  const tab = db.prepare('SELECT id FROM char_tabs WHERE character_id = ? AND name = ?').get(charId, ZAUBER_IMPORT_TAB) as
+    | { id: number }
+    | undefined;
+  if (!tab) return { skipped: true, zauber: 0, faehigkeiten: 0 };
+
+  let zauber = 0;
+  let faehig = 0;
+  const elementsSeen: string[] = [];
+  const tx = db.transaction(() => {
+    const sections = db.prepare('SELECT id, name, columns FROM char_sections WHERE tab_id = ? ORDER BY pos, id').all(tab.id) as {
+      id: number;
+      name: string;
+      columns: string;
+    }[];
+    const ins = db.prepare(
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, gruppe, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    let pos = 0;
+    for (const sec of sections) {
+      let cols: DynColumn[] = [];
+      try {
+        cols = JSON.parse(sec.columns || '[]') as DynColumn[];
+      } catch {
+        cols = [];
+      }
+      const colKeys = new Set(cols.map((c) => c.key));
+      const fieldOfKey = new Map<string, string>();
+      const keyOfField: Record<string, string> = {};
+      const noteLabelOfKey = new Map<string, string>();
+      let hasStufe = false;
+      let hasKomplex = false;
+      for (const c of cols) {
+        if (c.type === 'probe') continue; // berechnete Spalte → verwerfen
+        const nl = abNorm(c.label);
+        if (ABILITY_DROP_LABELS.has(nl)) continue; // abgeleitet → verwerfen
+        const field = ABILITY_LABELMAP.get(nl);
+        if (field && !keyOfField[field]) {
+          keyOfField[field] = c.key;
+          fieldOfKey.set(c.key, field);
+          if (field === 'stufe') hasStufe = true;
+          if (field === 'komplexitaet') hasKomplex = true;
+        } else {
+          noteLabelOfKey.set(c.key, c.label); // unabbildbar → Notiz
+        }
+      }
+      // Eine Sektion mit Stufe- UND Komplexitäts-Spalte ist magisch; eine ohne
+      // (z. B. „Kampffertigkeiten") ist eine mundane Fähigkeitenliste.
+      const magisch = hasStufe && hasKomplex;
+
+      const rows = db.prepare('SELECT data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id').all(sec.id) as {
+        data: string;
+      }[];
+      for (const r of rows) {
+        let d: Record<string, unknown> = {};
+        try {
+          d = JSON.parse(r.data || '{}') as Record<string, unknown>;
+        } catch {
+          d = {};
+        }
+        const a = {
+          name: '',
+          element: '',
+          kategorie: '',
+          stufe: 0,
+          komplexitaet: 0,
+          kosten: '',
+          probe: '',
+          effekt: '',
+          fortschritt: 0,
+        } as Record<string, string | number>;
+        const extras: string[] = [];
+        for (const [k, v] of Object.entries(d)) {
+          const val = v == null ? '' : String(v).trim();
+          const field = fieldOfKey.get(k);
+          if (field) {
+            if (field === 'stufe' || field === 'komplexitaet' || field === 'fortschritt') a[field] = numText(v);
+            else a[field] = val;
+          } else if (k === 'notiz') {
+            if (val) extras.unshift(val); // vorhandene Notiz zuerst
+          } else if (k === '__faecher' || k === '__inhalt') {
+            if (val && val !== '0' && val !== 'false') extras.push(`${k}: ${val}`);
+          } else if (colKeys.has(k)) {
+            const lbl = noteLabelOfKey.get(k);
+            if (val && lbl) extras.push(`${lbl}: ${val}`);
+          } else if (val && val !== 'false' && val !== '0') {
+            extras.push(`(?): ${val}`); // Waise (gelöschte Spalte, kein Label mehr)
+          }
+        }
+        const notiz = extras.filter(Boolean).join('\n');
+        const stufe = a.stufe as number;
+        const komplex = a.komplexitaet as number;
+        if (!a.name && !a.effekt && !a.probe && !notiz && !stufe && !komplex) continue; // leere Zeile
+        ins.run(
+          charId,
+          pos++,
+          makeUid(),
+          magisch ? 1 : 0,
+          0,
+          sec.name,
+          a.name as string,
+          a.element as string,
+          a.kategorie as string,
+          stufe,
+          komplex,
+          a.kosten as string,
+          a.probe as string,
+          a.effekt as string,
+          a.fortschritt as number,
+          notiz,
+        );
+        if (magisch) zauber++;
+        else faehig++;
+        const el = a.element as string;
+        if (el && !elementsSeen.includes(el)) elementsSeen.push(el);
+      }
+    }
+    if (elementsSeen.length) {
+      let ep = 0;
+      const insL = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
+      for (const e of elementsSeen) insL.run(charId, 'element', ep++, e);
+    }
+  });
+  tx();
+  return { skipped: false, zauber, faehigkeiten: faehig };
 }
 
 // --- Porträt (als Blob in der DB, damit es in den täglichen Sicherungen liegt) ---

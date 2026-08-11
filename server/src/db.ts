@@ -262,7 +262,47 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT ''
   );
+
+  -- Einheitliches Zauber-/Fähigkeiten-Modell (Cluster 6): eine Quelle der
+  -- Wahrheit je Charakter, aus der die Reiter „Zauber" (magisch=1) und
+  -- „Fähigkeiten" (magisch=0) nur noch anzeigen. magierstufe liegt in
+  -- char_meta; Magiepunkte/Voraussetzungen sind rein abgeleitet.
+  CREATE TABLE IF NOT EXISTS char_abilities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    uid TEXT NOT NULL DEFAULT '',
+    magisch INTEGER NOT NULL DEFAULT 1,
+    passiv INTEGER NOT NULL DEFAULT 0,
+    gruppe TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    element TEXT NOT NULL DEFAULT '',
+    kategorie TEXT NOT NULL DEFAULT '',
+    stufe REAL NOT NULL DEFAULT 0,
+    komplexitaet REAL NOT NULL DEFAULT 0,
+    kosten TEXT NOT NULL DEFAULT '',
+    probe TEXT NOT NULL DEFAULT '',
+    effekt TEXT NOT NULL DEFAULT '',
+    fortschritt REAL NOT NULL DEFAULT 0,
+    notiz TEXT NOT NULL DEFAULT ''
+  );
+  -- Selbst verwaltete Element- und Kategorie-Listen je Charakter (kind trennt
+  -- die beiden Achsen, nach denen die Reiter gruppieren können).
+  CREATE TABLE IF NOT EXISTS char_ability_lists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'kategorie',
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
 `);
+
+// Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).
+// 0 = kein Magier, 1–5 = Rang. Einziger vom Menschen gepflegter Magier-Wert.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_meta)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('magierstufe')) db.exec('ALTER TABLE char_meta ADD COLUMN magierstufe REAL NOT NULL DEFAULT 0');
+}
 
 // Migration: 'theme'-Spalte an bestehende characters ergänzen (per-Charakter-Farbwelt)
 {
