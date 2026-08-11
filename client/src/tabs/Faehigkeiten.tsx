@@ -1,0 +1,8 @@
+import { AbilityTable } from './AbilityTable';
+
+// Reiter „Fähigkeiten" (Cluster 6): die mundane Sicht auf die Werkstatt-Liste
+// (Techniken, Talente, passive wie aktive). Kein Element, keine Komplexität —
+// deshalb nur nach Gruppe oder Kategorie gruppierbar.
+export default function FaehigkeitenTab() {
+  return <AbilityTable magisch={false} persistKey="abil:group:faehig" groupOptions={['gruppe', 'kategorie']} />;
+}

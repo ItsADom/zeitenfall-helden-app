@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
+import type { Ability } from '@shared/abilities';
 import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
 import { apiGet, apiPut } from '../api';
 import { useAuth, useThemeControls } from '../App';
@@ -17,6 +18,8 @@ import InventarTab from '../tabs/Inventar';
 import AusruestungTab from '../tabs/Ausruestung';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
+import ZauberTab from '../tabs/Zauber';
+import FaehigkeitenTab from '../tabs/Faehigkeiten';
 import SprachenTab from '../tabs/Sprachen';
 import SummaryView from '../tabs/Summary';
 
@@ -43,6 +46,11 @@ export interface FullData {
   // verwalteten Kategorien. Speichert über eigene Routen, nicht /section/:s.
   items: Item[];
   itemCategories: string[];
+  // Zauber & Fähigkeiten (Cluster 6): ein Bestand, aus dem die Reiter „Zauber"
+  // und „Fähigkeiten" nur anzeigen. Gepflegt wird in der Werkstatt; im Reiter
+  // ändert sich einzig der Fortschritt. Speichert über eine eigene Route.
+  abilities: Ability[];
+  abilityLists: { element: string[]; kategorie: string[] };
 }
 
 export interface TalentCatalogRow {
@@ -221,6 +229,7 @@ export default function CharacterPage() {
         if (s === 'visibility') await apiPut(`/api/characters/${charId}/visibility`, d.visibility);
         else if (s === 'items') await apiPut(`/api/characters/${charId}/items`, d.items);
         else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
+        else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities`, d.abilities);
         else {
           const value =
             s === 'bio' ? d.bio
@@ -257,6 +266,7 @@ export default function CharacterPage() {
         if (section === 'visibility') return { ...prev, visibility: value as FullData['visibility'] };
         if (section === 'items') return { ...prev, items: value as Item[] };
         if (section === 'itemCategories') return { ...prev, itemCategories: value as string[] };
+        if (section === 'abilities') return { ...prev, abilities: value as Ability[] };
         return { ...prev, lists: { ...prev.lists, [section]: value as Row[] } };
       });
       dirty.current.add(section);
@@ -377,6 +387,8 @@ export default function CharacterPage() {
     : key === 'Talente' ? <TalenteTab />
     : key === 'Waffen' ? <WaffenTab />
     : key === 'Sprachen' ? <SprachenTab />
+    : key === 'Zauber' ? <ZauberTab />
+    : key === 'Fähigkeiten' ? <FaehigkeitenTab />
     : key === 'Inventar' ? <InventarTab />
     : key === 'Ausrüstung' ? <AusruestungTab />
     : null;
