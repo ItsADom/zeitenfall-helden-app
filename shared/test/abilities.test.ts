@@ -17,7 +17,6 @@ function ability(partial: Partial<Ability>): Ability {
     uid: `a${nextId}`,
     magisch: true,
     passiv: false,
-    gruppe: '',
     name: 'x',
     element: '',
     kategorie: '',
@@ -95,19 +94,19 @@ describe('magierEligibility', () => {
 
 describe('Sichten & Gruppieren', () => {
   const list = [
-    ability({ magisch: true, gruppe: 'Heilmagie', element: 'Licht' }),
-    ability({ magisch: true, gruppe: 'Heilmagie', element: 'Neutral' }),
-    ability({ magisch: true, gruppe: 'Kampfmagie', element: 'Licht' }),
-    ability({ magisch: false, gruppe: 'Kampffertigkeiten', element: '' }),
+    ability({ magisch: true, kategorie: 'Heilmagie', element: 'Licht' }),
+    ability({ magisch: true, kategorie: 'Heilmagie', element: 'Neutral' }),
+    ability({ magisch: true, kategorie: 'Kampfmagie', element: 'Licht' }),
+    ability({ magisch: false, kategorie: 'Kampffertigkeiten', element: '' }),
   ];
   it('zauberOf / faehigkeitenOf trennen nach magisch', () => {
     expect(zauberOf(list)).toHaveLength(3);
     expect(faehigkeitenOf(list)).toHaveLength(1);
   });
   it('groupAbilities gruppiert nach Feld, Reihenfolge = erstes Auftreten', () => {
-    const byGruppe = groupAbilities(zauberOf(list), 'gruppe');
-    expect([...byGruppe.keys()]).toEqual(['Heilmagie', 'Kampfmagie']);
-    expect(byGruppe.get('Heilmagie')).toHaveLength(2);
+    const byKategorie = groupAbilities(zauberOf(list), 'kategorie');
+    expect([...byKategorie.keys()]).toEqual(['Heilmagie', 'Kampfmagie']);
+    expect(byKategorie.get('Heilmagie')).toHaveLength(2);
     const byElement = groupAbilities(zauberOf(list), 'element');
     expect([...byElement.keys()]).toEqual(['Licht', 'Neutral']);
     expect(byElement.get('Licht')).toHaveLength(2);

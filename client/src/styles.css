@@ -2659,9 +2659,43 @@ li {
   color: var(--on-accent, var(--text));
   border-color: var(--accent, var(--border));
 }
+.abil-search {
+  min-width: 12em;
+  flex: 0 1 16em;
+}
+.abil-groupsel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
 .abil-werk-link {
   margin-left: auto;
   font-size: 0.88em;
+  white-space: nowrap;
+}
+.abil-count {
+  margin-top: 6px;
+  font-size: 0.84em;
+}
+/* Umsortieren auf der Verwaltungsseite */
+.abil-reorder {
+  display: inline-flex;
+  flex-direction: column;
+  line-height: 0.7;
+}
+.abil-reorder .tiny {
+  font-size: 0.7em;
+  line-height: 1;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.abil-reorder .tiny:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 .abil-tab .abil-name {
   font-weight: 600;

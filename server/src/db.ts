@@ -274,7 +274,6 @@ db.exec(`
     uid TEXT NOT NULL DEFAULT '',
     magisch INTEGER NOT NULL DEFAULT 1,
     passiv INTEGER NOT NULL DEFAULT 0,
-    gruppe TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL DEFAULT '',
     element TEXT NOT NULL DEFAULT '',
     kategorie TEXT NOT NULL DEFAULT '',
@@ -302,6 +301,17 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_meta)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('magierstufe')) db.exec('ALTER TABLE char_meta ADD COLUMN magierstufe REAL NOT NULL DEFAULT 0');
+}
+
+// Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.
+// Zusammengeführt zu 'kategorie'; die Spalte 'gruppe' entfällt. Bestehende
+// Werte, sofern kategorie leer ist, nach kategorie retten, dann Spalte löschen.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_abilities)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('gruppe')) {
+    db.exec("UPDATE char_abilities SET kategorie = gruppe WHERE (kategorie IS NULL OR kategorie = '') AND gruppe <> ''");
+    db.exec('ALTER TABLE char_abilities DROP COLUMN gruppe');
+  }
 }
 
 // Migration: 'theme'-Spalte an bestehende characters ergänzen (per-Charakter-Farbwelt)

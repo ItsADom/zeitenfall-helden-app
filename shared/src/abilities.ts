@@ -17,9 +17,10 @@ export interface Ability {
   uid: string;
   magisch: boolean; // true → Zauber, false → Fähigkeit
   passiv: boolean; // Dauerwirkung (kein aktiver Wirk-Wurf)
-  gruppe: string; // frei benannte Untergruppe des Spielers (z. B. „Heilmagie")
   name: string;
   element: string; // Name aus der Element-Liste des Charakters ('' = ohne)
+  // Freie Gruppierung des Spielers (z. B. „Heilmagie", „Utility"). Eine der zwei
+  // Achsen, nach denen die Reiter gruppieren können (die andere ist element).
   kategorie: string; // Name aus der Kategorie-Liste des Charakters ('' = ohne)
   stufe: number; // Zauberstufe bzw. Fähigkeitsstufe (Ganzzahl)
   komplexitaet: number; // nur magisch sinnvoll — speist die Magiepunkte
@@ -43,7 +44,7 @@ export function faehigkeitenOf(list: readonly Ability[]): Ability[] {
 
 // Nach einem Feld gruppieren (für die Kopfzeilen im Reiter). Leerwerte landen
 // unter '' — der Client zeigt sie als „Ohne …". Reihenfolge = erstes Auftreten.
-export function groupAbilities(list: readonly Ability[], by: 'gruppe' | 'element' | 'kategorie'): Map<string, Ability[]> {
+export function groupAbilities(list: readonly Ability[], by: 'element' | 'kategorie'): Map<string, Ability[]> {
   const out = new Map<string, Ability[]>();
   for (const a of list) {
     const key = String(a[by] ?? '');
@@ -118,7 +119,7 @@ export const MAGIER_TALENT_NAMES = {
   koerper: 'Körperbeherrschung',
   selbst: 'Selbstbeherrschung',
   magiekunde: 'Magiekunde',
-  krypto: 'Kryptografie',
+  krypto: 'Kryptographie',
 } as const;
 
 // Betriebswerte je Rang (statische Referenz, im Reiter als Panel gezeigt).

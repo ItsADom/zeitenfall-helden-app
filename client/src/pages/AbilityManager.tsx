@@ -4,11 +4,10 @@ import type { Ability } from '@shared/abilities';
 import { makeAbilityUid } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
 
-// Zauber-&-Fähigkeiten-Werkstatt (Cluster 6): die dedizierte Bearbeitungsseite und
-// „einzige Quelle der Wahrheit" für die Fähigkeiten eines Charakters. Zwei
-// getrennte Listen — Zauber (magisch) und Fähigkeiten (mundan). Die Reiter auf dem
-// Bogen zeigen daraus nur an (und lassen einzig den Fortschritt zu). Änderungen
-// hier sind erst mit „Speichern" verbindlich, wie auf der Einstellungen-Seite.
+// „Zauber & Fähigkeiten verwalten" (Cluster 6): die dedizierte Bearbeitungsseite
+// und „einzige Quelle der Wahrheit". Zwei getrennte Listen — Zauber (magisch) und
+// Fähigkeiten (mundan). Die Reiter auf dem Bogen zeigen daraus nur an (und lassen
+// einzig den Fortschritt zu). Änderungen hier sind erst mit „Speichern" verbindlich.
 
 const ZAUBER_TAB_NAME = 'Zauber/Fähigkeiten';
 
@@ -28,7 +27,6 @@ function emptyAbility(magisch: boolean): Ability {
     uid: makeAbilityUid(),
     magisch,
     passiv: false,
-    gruppe: '',
     name: '',
     element: '',
     kategorie: '',
@@ -47,7 +45,7 @@ const num = (v: string): number => {
   return Number.isFinite(n) ? Math.max(0, n) : 0;
 };
 
-export default function WerkstattPage() {
+export default function AbilityManagerPage() {
   const { id } = useParams();
   const charId = Number(id);
 
@@ -64,7 +62,6 @@ export default function WerkstattPage() {
   const [kategorien, setKategorien] = useState<string[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  // Gespeicherter Stand (Vergleichsbasis für „dirty").
   const [saved, setSaved] = useState({ abilities: '', elements: '', kategorien: '' });
 
   const load = useCallback(() => {
@@ -102,7 +99,6 @@ export default function WerkstattPage() {
   const zauber = useMemo(() => abilities.filter((a) => a.magisch), [abilities]);
   const faehig = useMemo(() => abilities.filter((a) => !a.magisch), [abilities]);
 
-  // Einträge werden über ihre uid angesprochen (Reihenfolge bleibt stabil).
   const patch = (uid: string, p: Partial<Ability>) =>
     setAbilities((list) => list.map((a) => (a.uid === uid ? { ...a, ...p } : a)));
   const remove = (uid: string) => setAbilities((list) => list.filter((a) => a.uid !== uid));
@@ -111,6 +107,20 @@ export default function WerkstattPage() {
     setAbilities((list) => [...list, a]);
     setExpanded((s) => new Set(s).add(a.uid));
   };
+  // Innerhalb der eigenen Liste (magisch/mundan) mit dem nächsten Nachbarn tauschen
+  // — funktioniert unabhängig davon, was gerade gefiltert angezeigt wird.
+  const move = (uid: string, dir: -1 | 1) =>
+    setAbilities((list) => {
+      const arr = list.slice();
+      const i = arr.findIndex((a) => a.uid === uid);
+      if (i < 0) return arr;
+      const mag = arr[i].magisch;
+      let j = i + dir;
+      while (j >= 0 && j < arr.length && arr[j].magisch !== mag) j += dir;
+      if (j < 0 || j >= arr.length) return arr;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+      return arr;
+    });
   const toggleExpand = (uid: string) =>
     setExpanded((s) => {
       const next = new Set(s);
@@ -169,7 +179,7 @@ export default function WerkstattPage() {
   return (
     <>
       <div className="werk-head">
-        <h1>Zauber &amp; Fähigkeiten</h1>
+        <h1>Zauber &amp; Fähigkeiten verwalten</h1>
         <Link to={`/charakter/${charId}`} className="muted">
           ← {name}
         </Link>
@@ -203,6 +213,7 @@ export default function WerkstattPage() {
         onToggle={toggleExpand}
         onPatch={patch}
         onRemove={remove}
+        onMove={move}
         onAdd={() => add(true)}
       />
 
@@ -217,12 +228,13 @@ export default function WerkstattPage() {
         onToggle={toggleExpand}
         onPatch={patch}
         onRemove={remove}
+        onMove={move}
         onAdd={() => add(false)}
       />
 
       <div className="panel">
         <h3>Listen</h3>
-        <p className="muted">Element- und Kategorie-Vorschläge — nach ihnen können die Reiter gruppieren.</p>
+        <p className="muted">Element- und Kategorie-Vorschläge — nach ihnen können die Reiter gruppieren und filtern.</p>
         <div className="werk-lists">
           <StringListEditor label="Elemente" items={elements} onChange={setElements} />
           <StringListEditor label="Kategorien" items={kategorien} onChange={setKategorien} />
@@ -253,16 +265,34 @@ interface ListPanelProps {
   onToggle: (uid: string) => void;
   onPatch: (uid: string, p: Partial<Ability>) => void;
   onRemove: (uid: string) => void;
+  onMove: (uid: string, dir: -1 | 1) => void;
   onAdd: () => void;
 }
 
-function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onAdd }: ListPanelProps) {
+function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onMove, onAdd }: ListPanelProps) {
   const elId = `elemente-${magisch ? 'z' : 'f'}`;
   const katId = `kategorien-${magisch ? 'z' : 'f'}`;
+
+  const [q, setQ] = useState('');
+  const [fEl, setFEl] = useState('');
+  const [fKat, setFKat] = useState('');
+  const [fPassiv, setFPassiv] = useState<'' | 'passiv' | 'aktiv'>('');
+  const filtering = q.trim() !== '' || fEl !== '' || fKat !== '' || fPassiv !== '';
+
+  const needle = q.trim().toLowerCase();
+  const shown = list.filter((a) => {
+    if (needle && !(a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle))) return false;
+    if (fEl && a.element !== fEl) return false;
+    if (fKat && a.kategorie !== fKat) return false;
+    if (fPassiv === 'passiv' && !a.passiv) return false;
+    if (fPassiv === 'aktiv' && a.passiv) return false;
+    return true;
+  });
+
   return (
     <div className="panel">
       <h3>
-        {title} <span className="muted">· {list.length}</span>
+        {title} <span className="muted">· {list.length}{filtering ? ` (${shown.length} sichtbar)` : ''}</span>
       </h3>
       <p className="muted">{hint}</p>
       <datalist id={elId}>
@@ -275,30 +305,59 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
           <option key={k} value={k} />
         ))}
       </datalist>
+
+      <div className="abil-toolbar">
+        <input className="abil-search" type="text" placeholder="Suchen…" value={q} onChange={(e) => setQ(e.target.value)} />
+        {magisch && (
+          <select value={fEl} onChange={(e) => setFEl(e.target.value)} title="Nach Element filtern">
+            <option value="">alle Elemente</option>
+            {elements.map((e) => (
+              <option key={e} value={e}>
+                {e}
+              </option>
+            ))}
+          </select>
+        )}
+        <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
+          <option value="">alle Kategorien</option>
+          {kategorien.map((k) => (
+            <option key={k} value={k}>
+              {k}
+            </option>
+          ))}
+        </select>
+        <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
+          <option value="">alle</option>
+          <option value="aktiv">nur aktive</option>
+          <option value="passiv">nur passive</option>
+        </select>
+        {filtering && (
+          <button className="small" onClick={() => { setQ(''); setFEl(''); setFKat(''); setFPassiv(''); }} title="Filter zurücksetzen">
+            ✕
+          </button>
+        )}
+      </div>
+
       <div className="abil-list">
-        {list.map((a) => (
+        {shown.map((a) => (
           <div className="abil-row" key={a.uid}>
             <div className="abil-compact">
+              <span className="abil-reorder">
+                <button className="tiny" title="nach oben" disabled={filtering} onClick={() => onMove(a.uid, -1)}>
+                  ↑
+                </button>
+                <button className="tiny" title="nach unten" disabled={filtering} onClick={() => onMove(a.uid, 1)}>
+                  ↓
+                </button>
+              </span>
               <button className="abil-chev" onClick={() => onToggle(a.uid)} title={expanded.has(a.uid) ? 'zuklappen' : 'aufklappen'} aria-label="Details">
                 {expanded.has(a.uid) ? '▾' : '▸'}
               </button>
               <input className="abil-name" value={a.name} placeholder="Name" onChange={(e) => onPatch(a.uid, { name: e.target.value })} />
               {magisch && (
-                <input
-                  className="abil-el"
-                  list={elId}
-                  value={a.element}
-                  placeholder="Element"
-                  onChange={(e) => onPatch(a.uid, { element: e.target.value })}
-                />
+                <input className="abil-el" list={elId} value={a.element} placeholder="Element" onChange={(e) => onPatch(a.uid, { element: e.target.value })} />
               )}
-              <input
-                className="abil-kat"
-                list={katId}
-                value={a.kategorie}
-                placeholder="Kategorie"
-                onChange={(e) => onPatch(a.uid, { kategorie: e.target.value })}
-              />
+              <input className="abil-kat" list={katId} value={a.kategorie} placeholder="Kategorie" onChange={(e) => onPatch(a.uid, { kategorie: e.target.value })} />
               <label className="abil-num" title="Stufe">
                 St
                 <input type="number" min={0} value={a.stufe} onChange={(e) => onPatch(a.uid, { stufe: num(e.target.value) })} />
@@ -319,10 +378,6 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
             </div>
             {expanded.has(a.uid) && (
               <div className="abil-detail">
-                <label>
-                  Gruppe
-                  <input value={a.gruppe} placeholder="z. B. Heilmagie" onChange={(e) => onPatch(a.uid, { gruppe: e.target.value })} />
-                </label>
                 <label>
                   Kosten
                   <input value={a.kosten} placeholder="AP, frei" onChange={(e) => onPatch(a.uid, { kosten: e.target.value })} />
@@ -348,6 +403,7 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
           </div>
         ))}
         {list.length === 0 && <p className="muted">Noch nichts.</p>}
+        {list.length > 0 && shown.length === 0 && <p className="muted">Nichts gefunden.</p>}
         <button className="small" onClick={onAdd}>
           + {title === 'Zauber' ? 'Zauber' : 'Fähigkeit'}
         </button>

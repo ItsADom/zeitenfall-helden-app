@@ -1,8 +1,8 @@
 import { AbilityTable } from './AbilityTable';
 
-// Reiter „Fähigkeiten" (Cluster 6): die mundane Sicht auf die Werkstatt-Liste
+// Reiter „Fähigkeiten" (Cluster 6): die mundane Sicht auf die Stammliste
 // (Techniken, Talente, passive wie aktive). Kein Element, keine Komplexität —
-// deshalb nur nach Gruppe oder Kategorie gruppierbar.
+// deshalb nur nach Kategorie gruppierbar.
 export default function FaehigkeitenTab() {
-  return <AbilityTable magisch={false} persistKey="abil:group:faehig" groupOptions={['gruppe', 'kategorie']} />;
+  return <AbilityTable magisch={false} persistKey="abil:faehig" groupOptions={['kategorie']} />;
 }

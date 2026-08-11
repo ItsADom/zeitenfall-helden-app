@@ -19,7 +19,7 @@ export default function ZauberTab() {
   return (
     <>
       <MagierPanel />
-      <AbilityTable magisch persistKey="abil:group:zauber" groupOptions={['gruppe', 'element', 'kategorie']} />
+      <AbilityTable magisch persistKey="abil:zauber" groupOptions={['kategorie', 'element']} />
     </>
   );
 }

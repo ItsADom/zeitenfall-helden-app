@@ -875,14 +875,13 @@ const MAX_ABILITY_TEXT = 8000;
 export function loadAbilities(charId: number): Ability[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, magisch, passiv, gruppe, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, magisch, passiv, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
     uid: string;
     magisch: number;
     passiv: number;
-    gruppe: string;
     name: string;
     element: string;
     kategorie: string;
@@ -899,7 +898,6 @@ export function loadAbilities(charId: number): Ability[] {
     uid: r.uid || makeUid(),
     magisch: !!r.magisch,
     passiv: !!r.passiv,
-    gruppe: r.gruppe,
     name: r.name,
     element: r.element,
     kategorie: r.kategorie,
@@ -920,8 +918,8 @@ export function saveAbilities(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, gruppe, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -934,7 +932,6 @@ export function saveAbilities(charId: number, raw: unknown): void {
         uid,
         o.magisch ? 1 : 0,
         o.passiv ? 1 : 0,
-        String(o.gruppe ?? '').slice(0, MAX_ABILITY_TEXT),
         String(o.name ?? '').slice(0, MAX_ABILITY_TEXT),
         String(o.element ?? '').slice(0, MAX_ABILITY_TEXT),
         String(o.kategorie ?? '').slice(0, MAX_ABILITY_TEXT),
@@ -1067,9 +1064,10 @@ export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
       columns: string;
     }[];
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, gruppe, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    const kategorienSeen: string[] = [];
     let pos = 0;
     for (const sec of sections) {
       let cols: DynColumn[] = [];
@@ -1145,16 +1143,18 @@ export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
         const stufe = a.stufe as number;
         const komplex = a.komplexitaet as number;
         if (!a.name && !a.effekt && !a.probe && !notiz && !stufe && !komplex) continue; // leere Zeile
+        // Kategorie: eine echte „Kategorie"-Spalte hat Vorrang, sonst der
+        // Sektionsname (Heilmagie, Kampfmagie …) — daraus wird die Gruppierung.
+        const kategorie = (a.kategorie as string) || sec.name;
         ins.run(
           charId,
           pos++,
           makeUid(),
           magisch ? 1 : 0,
           0,
-          sec.name,
           a.name as string,
           a.element as string,
-          a.kategorie as string,
+          kategorie,
           stufe,
           komplex,
           a.kosten as string,
@@ -1163,17 +1163,16 @@ export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
           a.fortschritt as number,
           notiz,
         );
+        if (kategorie && !kategorienSeen.includes(kategorie)) kategorienSeen.push(kategorie);
         if (magisch) zauber++;
         else faehig++;
         const el = a.element as string;
         if (el && !elementsSeen.includes(el)) elementsSeen.push(el);
       }
     }
-    if (elementsSeen.length) {
-      let ep = 0;
-      const insL = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
-      for (const e of elementsSeen) insL.run(charId, 'element', ep++, e);
-    }
+    const insL = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
+    elementsSeen.forEach((e, i) => insL.run(charId, 'element', i, e));
+    kategorienSeen.forEach((k, i) => insL.run(charId, 'kategorie', i, k));
   });
   tx();
   return { skipped: false, zauber, faehigkeiten: faehig };
