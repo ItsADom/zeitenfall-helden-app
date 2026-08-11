@@ -67,9 +67,6 @@ record what shipped). Keep this in English.
 - **Group overview page for GM**:
  - give the gm an exclusive screen where they can view all characters of a group and their most important stats
   - e.g. "Hat Gefahreninstinkt" or just add temporary notes
-- **Inventory and Spell notes**: 
- - the Notizen on spells/skills and inventory items can get quite big on some items.
- - cut the displayed text after a certain number of symbols and end with a clickable '...' to expand. the field should collapse on reload
 - **Group membership rework**: something like "Gruppe | Mitglieder | Hinzufügen…",
   where "Hinzufügen…" is a text field with auto-suggestion from the user list and
   an add button — several users addable at once, click a name or press Enter to
@@ -124,7 +121,7 @@ record what shipped). Keep this in English.
     wrapping (easier now that static text wraps where an input would not).
   - Sprachen has rendering issues (investigate).
   - Maybe clamp column widths to the minimum necessary in print for readability.
-- **Mobile/tablet & general layout pass** (most players are on PC — saved for
+- **Mobile/tablet & general layout pass - PROBABLY OUTDATED FINDINGS** (most players are on PC — saved for
   later): responsiveness and layout touch-up, testing across many resolutions,
   and splitting `styles.css` into smaller files for maintenance. The below-700px
   table scroller and the sidebar's narrow-screen reflow belong to this pass.

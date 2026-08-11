@@ -3061,6 +3061,23 @@ li {
   white-space: pre-wrap;
   margin-top: 2px;
 }
+
+/* Ein-/Ausklapp-Schalter für lange Notizen: „…" bzw. „weniger", inline im Text.
+   Sieht aus wie ein kleiner Link im Akzent, damit klar ist, dass er klickbar ist. */
+.note-toggle {
+  border: none;
+  background: none;
+  padding: 0 0 0 2px;
+  margin: 0;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.note-toggle:hover {
+  text-decoration: underline;
+}
 /* Magier-Panel (6a) */
 .magier-top {
   display: flex;

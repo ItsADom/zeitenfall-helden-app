@@ -5,6 +5,7 @@ import { groupAbilities } from '@shared/abilities';
 import { probeExprZahl } from '@shared/rules';
 import { AlwaysEditable } from '../components/displayMode';
 import { Field, NumInput } from '../components/inputs';
+import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
 import { useChar } from '../pages/Character';
 
@@ -248,7 +249,7 @@ function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch
       </td>
       <td className="abil-effekt">
         {a.effekt}
-        {a.notiz && <div className="abil-note muted">{a.notiz}</div>}
+        <CollapsedText text={a.notiz} className="abil-note muted" />
       </td>
     </tr>
   );
