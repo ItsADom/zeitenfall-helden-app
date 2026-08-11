@@ -584,6 +584,20 @@ header.topbar button {
 header.topbar button:hover {
   background: rgba(255, 255, 255, 0.22);
 }
+/* Hell/Dunkel-Schalter: kompakter Icon-Knopf (Sonne/Mond) im übrigen
+   Kopfleisten-Stil. */
+header.topbar button.mode-toggle {
+  padding: 5px 11px;
+  font-size: 15px;
+  line-height: 1;
+}
+header.topbar button.mode-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+header.topbar button.mode-toggle:disabled:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
 
 /* Die Seite nutzt die vorhandene Fensterbreite. Die Obergrenze verhindert nur,
    dass Fließtext auf sehr breiten Bildschirmen unlesbar lang wird; die Tabellen

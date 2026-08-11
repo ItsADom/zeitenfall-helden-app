@@ -215,15 +215,8 @@ export default function EinstellungenPage() {
           geöffnet hast. Sofort wirksam.
         </p>
         <div className="set-row">
-          <span className="set-label">Farbwelt &amp; Ansicht</span>
-          <ThemePicker
-            theme={tc.theme}
-            onChange={tc.setTheme}
-            mode={tc.mode}
-            onModeChange={tc.setMode}
-            animate={tc.anim}
-            onAnimateChange={tc.setAnim}
-          />
+          <span className="set-label">Farbwelt</span>
+          <ThemePicker theme={tc.theme} onChange={tc.setTheme} animate={tc.anim} onAnimateChange={tc.setAnim} />
         </div>
       </div>
 

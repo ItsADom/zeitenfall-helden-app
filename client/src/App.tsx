@@ -13,6 +13,7 @@ import ChangelogPage from './pages/Changelog';
 import EinstellungenPage from './pages/Einstellungen';
 import AbilityManagerPage from './pages/AbilityManager';
 import ThemePicker from './components/ThemePicker';
+import ModeToggle from './components/ModeToggle';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
@@ -109,15 +110,11 @@ export default function App() {
         {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
             Spieler ist sie auf die Einstellungen-Seite gewandert. */}
         <Link to="/changelog">Changelog</Link>
+        {/* Hell/Dunkel liegt für ALLE direkt in der Kopfleiste; die Farbwelt-
+            Auswahl (Farbwelt + Animation) bleibt Spielleiter-Sache. */}
+        <ModeToggle />
         {user.isGm && (
-          <ThemePicker
-            theme={theme}
-            onChange={setTheme}
-            mode={mode}
-            onModeChange={setMode}
-            animate={anim}
-            onAnimateChange={setAnim}
-          />
+          <ThemePicker theme={theme} onChange={setTheme} animate={anim} onAnimateChange={setAnim} />
         )}
         {/* Der Name führt aufs eigene Profil (Passwort ändern). */}
         <Link to="/profil">
