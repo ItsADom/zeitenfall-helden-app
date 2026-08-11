@@ -274,6 +274,7 @@ db.exec(`
     uid TEXT NOT NULL DEFAULT '',
     magisch INTEGER NOT NULL DEFAULT 1,
     passiv INTEGER NOT NULL DEFAULT 0,
+    signatur INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT '',
     element TEXT NOT NULL DEFAULT '',
     kategorie TEXT NOT NULL DEFAULT '',
@@ -312,6 +313,7 @@ db.exec(`
     db.exec("UPDATE char_abilities SET kategorie = gruppe WHERE (kategorie IS NULL OR kategorie = '') AND gruppe <> ''");
     db.exec('ALTER TABLE char_abilities DROP COLUMN gruppe');
   }
+  if (!cols.has('signatur')) db.exec('ALTER TABLE char_abilities ADD COLUMN signatur INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): Element-/Kategorie-Vorschlagsliste aus den tatsächlich

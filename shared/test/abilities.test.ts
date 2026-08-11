@@ -17,6 +17,7 @@ function ability(partial: Partial<Ability>): Ability {
     uid: `a${nextId}`,
     magisch: true,
     passiv: false,
+    signatur: false,
     name: 'x',
     element: '',
     kategorie: '',

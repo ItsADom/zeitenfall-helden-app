@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Ability } from '@shared/abilities';
-import { makeAbilityUid } from '@shared/abilities';
+import { ABILITY_STUFE_MAX, makeAbilityUid } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
 
 // „Zauber & Fähigkeiten verwalten" (Cluster 6): die dedizierte Bearbeitungsseite
@@ -27,6 +27,7 @@ function emptyAbility(magisch: boolean): Ability {
     uid: makeAbilityUid(),
     magisch,
     passiv: false,
+    signatur: false,
     name: '',
     element: '',
     kategorie: '',
@@ -48,6 +49,10 @@ const num = (v: string): number => {
 export default function AbilityManagerPage() {
   const { id } = useParams();
   const charId = Number(id);
+  const [searchParams] = useSearchParams();
+  // Woher man kam (Zauber-/Fähigkeiten-Reiter) — der Zurück-Link kehrt dorthin
+  // zurück statt zum Heldenbrief. Vorgabe: der Zauber-Reiter.
+  const fromTab = searchParams.get('from') || 'Zauber';
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,6 +106,12 @@ export default function AbilityManagerPage() {
 
   const patch = (uid: string, p: Partial<Ability>) =>
     setAbilities((list) => list.map((a) => (a.uid === uid ? { ...a, ...p } : a)));
+  // Signatur ist einzigartig: den einen setzen, alle anderen zurücknehmen (Umschalter).
+  const toggleSignatur = (uid: string) =>
+    setAbilities((list) => {
+      const willSet = !list.find((a) => a.uid === uid)?.signatur;
+      return list.map((a) => ({ ...a, signatur: a.uid === uid ? willSet : false }));
+    });
   const remove = (uid: string) => setAbilities((list) => list.filter((a) => a.uid !== uid));
   const add = (magisch: boolean) => {
     const a = emptyAbility(magisch);
@@ -171,7 +182,7 @@ export default function AbilityManagerPage() {
       <>
         <p className="muted">{error}</p>
         <p>
-          <Link to={`/charakter/${charId}`}>← Zurück zum Charakter</Link>
+          <Link to={`/charakter/${charId}?tab=${fromTab}`}>← Zurück zum Charakter</Link>
         </p>
       </>
     );
@@ -180,7 +191,7 @@ export default function AbilityManagerPage() {
     <>
       <div className="werk-head">
         <h1>Zauber &amp; Fähigkeiten verwalten</h1>
-        <Link to={`/charakter/${charId}`} className="muted">
+        <Link to={`/charakter/${charId}?tab=${fromTab}`} className="muted">
           ← {name}
         </Link>
       </div>
@@ -214,6 +225,7 @@ export default function AbilityManagerPage() {
         onPatch={patch}
         onRemove={remove}
         onReorder={reorder}
+        onSignatur={toggleSignatur}
         onAdd={() => add(true)}
       />
 
@@ -266,10 +278,11 @@ interface ListPanelProps {
   onPatch: (uid: string, p: Partial<Ability>) => void;
   onRemove: (uid: string) => void;
   onReorder: (dragUid: string, targetUid: string) => void;
+  onSignatur?: (uid: string) => void;
   onAdd: () => void;
 }
 
-function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onReorder, onAdd }: ListPanelProps) {
+function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onReorder, onSignatur, onAdd }: ListPanelProps) {
   const elId = `elemente-${magisch ? 'z' : 'f'}`;
   const katId = `kategorien-${magisch ? 'z' : 'f'}`;
 
@@ -392,12 +405,12 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
                 <input className="abil-el" list={elId} value={a.element} placeholder="Element" onChange={(e) => onPatch(a.uid, { element: e.target.value })} />
               )}
               <input className="abil-kat" list={katId} value={a.kategorie} placeholder="Kategorie" onChange={(e) => onPatch(a.uid, { kategorie: e.target.value })} />
-              <label className="abil-num" title="Stufe">
+              <label className="abil-num" title="Stufe (max. 10)">
                 St
-                <input type="number" min={0} value={a.stufe} onChange={(e) => onPatch(a.uid, { stufe: num(e.target.value) })} />
+                <input type="number" min={0} max={ABILITY_STUFE_MAX} value={a.stufe} onChange={(e) => onPatch(a.uid, { stufe: Math.min(ABILITY_STUFE_MAX, num(e.target.value)) })} />
               </label>
               {magisch && (
-                <label className="abil-num" title="Komplexität">
+                <label className="abil-num" title="Komplexität (Richtwert bis 5)">
                   Kx
                   <input type="number" min={0} value={a.komplexitaet} onChange={(e) => onPatch(a.uid, { komplexitaet: num(e.target.value) })} />
                 </label>
@@ -406,6 +419,16 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
                 <input type="checkbox" checked={a.passiv} onChange={(e) => onPatch(a.uid, { passiv: e.target.checked })} />
                 passiv
               </label>
+              {magisch && onSignatur && (
+                <button
+                  className={`abil-sig${a.signatur ? ' on' : ''}`}
+                  title={a.signatur ? 'Signatur-Zauber (klicken zum Aufheben)' : 'Als Signatur-Zauber markieren (nur einer)'}
+                  aria-pressed={a.signatur}
+                  onClick={() => onSignatur(a.uid)}
+                >
+                  {a.signatur ? '★' : '☆'}
+                </button>
+              )}
               <button className="small abil-del" title="Entfernen" onClick={() => onRemove(a.uid)}>
                 ✕
               </button>

@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import {
+  MAGIER_ANFORDERUNGEN,
   MAGIER_MAX_STUFE,
   MAGIER_STUFEN_REFERENZ,
   MAGIER_TALENT_NAMES,
@@ -19,7 +21,7 @@ export default function ZauberTab() {
   return (
     <>
       <MagierPanel />
-      <AbilityTable magisch persistKey="abil:zauber" groupOptions={['kategorie', 'element']} />
+      <AbilityTable magisch persistKey="abil:zauber" groupOptions={['kategorie', 'element']} listSortLabel="Nach Zauberliste" />
     </>
   );
 }
@@ -27,8 +29,10 @@ export default function ZauberTab() {
 function MagierPanel() {
   const { data, update, catalogs } = useChar();
   const magierstufe = Math.max(0, Math.floor(Number(data.meta.magierstufe) || 0));
-  const setStufe = (v: number) =>
-    update('meta', { ...data.meta, magierstufe: Math.max(0, Math.min(MAGIER_MAX_STUFE, Math.round(v))) });
+  // „Überschreiben" erlaubt Ausnahme-Erhöhungen ohne erfüllte Voraussetzungen
+  // (z. B. ein Fluch, der die Stufe anhebt). Nur in der Sitzung, nichts gespeichert.
+  const [override, setOverride] = useState(false);
+  const [warn, setWarn] = useState('');
 
   const mp = magiepunkte(data.abilities, magierstufe);
   const tawByName = (name: string): number => {
@@ -47,6 +51,27 @@ function MagierPanel() {
   });
   const ref = MAGIER_STUFEN_REFERENZ[magierstufe];
 
+  // Erhöhung ist standardmäßig gesperrt, solange die Voraussetzungen des nächsten
+  // Rangs nicht erfüllt sind — mit klarer Warnung. Senken geht immer. „Überschreiben"
+  // hebt die Sperre für Ausnahmen auf.
+  const setStufe = (raw: number) => {
+    const v = Math.max(0, Math.min(MAGIER_MAX_STUFE, Math.round(raw)));
+    const commit = () => {
+      setWarn('');
+      update('meta', { ...data.meta, magierstufe: v });
+    };
+    if (v <= magierstufe || override) return commit();
+    // Ränge ohne Voraussetzungen sind frei (Rang 1 = „Magier werden").
+    if (!MAGIER_ANFORDERUNGEN[v]) return commit();
+    if (v === magierstufe + 1 && elig.erfuellt) return commit();
+    setWarn(
+      v === magierstufe + 1
+        ? `Voraussetzungen für Magierstufe ${v} nicht erfüllt — Erhöhung abgelehnt. Für Ausnahmen (z. B. Fluch) „Überschreiben" aktivieren.`
+        : 'Nur eine Stufe auf einmal erhöhen — oder „Überschreiben" für Ausnahmen.',
+    );
+    // kein commit → das gebundene Feld springt auf den alten Wert zurück
+  };
+
   return (
     <div className="panel magier-panel">
       <h3>Magier</h3>
@@ -57,13 +82,18 @@ function MagierPanel() {
             <NumInput value={magierstufe} min={0} max={MAGIER_MAX_STUFE} onChange={setStufe} />
           </AlwaysEditable>
         </label>
+        <label className="magier-override" title="Erlaubt Erhöhung ohne erfüllte Voraussetzungen (Ausnahmen wie Flüche).">
+          <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} />
+          Überschreiben
+        </label>
         {magierstufe >= 1 ? (
           <div className="magier-mp">
             Magiepunkte <strong>{mp.summe}</strong>
             {mp.trivialGesamt > 0 && (
               <span className="muted">
                 {' '}
-                · {mp.trivialGezaehlt}/{mp.trivialGesamt} triviale gezählt (Deckel {mp.trivialCap})
+                · {mp.trivialGesamt} / {mp.trivialCap} Zauber sind trivial
+                {mp.trivialGesamt > mp.trivialCap ? ' – Wertung begrenzt' : ''}
               </span>
             )}
           </div>
@@ -71,6 +101,7 @@ function MagierPanel() {
           <span className="muted">Kein Magier — Stufe auf 1+ setzen, um Magiepunkte und Voraussetzungen zu sehen.</span>
         )}
       </div>
+      {warn && <div className="magier-warn">{warn}</div>}
 
       {magierstufe >= 1 && ref && (
         <div className="magier-ref muted">

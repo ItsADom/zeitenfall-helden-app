@@ -875,13 +875,14 @@ const MAX_ABILITY_TEXT = 8000;
 export function loadAbilities(charId: number): Ability[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, magisch, passiv, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
     uid: string;
     magisch: number;
     passiv: number;
+    signatur: number;
     name: string;
     element: string;
     kategorie: string;
@@ -898,6 +899,7 @@ export function loadAbilities(charId: number): Ability[] {
     uid: r.uid || makeUid(),
     magisch: !!r.magisch,
     passiv: !!r.passiv,
+    signatur: !!r.signatur,
     name: r.name,
     element: r.element,
     kategorie: r.kategorie,
@@ -915,23 +917,28 @@ export function loadAbilities(charId: number): Ability[] {
 export function saveAbilities(charId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? raw.slice(0, MAX_ABILITIES) : [];
   const seenUids = new Set<string>();
+  // Nur EIN Signatur-Zauber je Charakter: der erste markierte gewinnt.
+  let signaturVergeben = false;
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
       let uid = String(o.uid ?? '').slice(0, 64);
       if (!uid || seenUids.has(uid)) uid = makeUid();
       seenUids.add(uid);
+      const signatur = o.signatur && !signaturVergeben ? 1 : 0;
+      if (signatur) signaturVergeben = true;
       ins.run(
         charId,
         i,
         uid,
         o.magisch ? 1 : 0,
         o.passiv ? 1 : 0,
+        signatur,
         String(o.name ?? '').slice(0, MAX_ABILITY_TEXT),
         String(o.element ?? '').slice(0, MAX_ABILITY_TEXT),
         String(o.kategorie ?? '').slice(0, MAX_ABILITY_TEXT),

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
@@ -105,7 +105,10 @@ export default function CharacterPage() {
   const [data, setData] = useState<FullData | null>(null);
   const [summary, setSummary] = useState<unknown>(null);
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
-  const [activeKey, setActiveKey] = useState<string>('Heldenbrief');
+  // Aktiver Reiter: normalerweise der Heldenbrief, aber ein ?tab=-Parameter
+  // (z. B. beim Zurückkommen aus der Zauber-Verwaltung) landet direkt dort.
+  const [searchParams] = useSearchParams();
+  const [activeKey, setActiveKey] = useState<string>(searchParams.get('tab') || 'Heldenbrief');
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);

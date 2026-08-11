@@ -17,6 +17,9 @@ export interface Ability {
   uid: string;
   magisch: boolean; // true → Zauber, false → Fähigkeit
   passiv: boolean; // Dauerwirkung (kein aktiver Wirk-Wurf)
+  // Signatur-Zauber: höchstens EINER je Charakter (Boni später, vorerst nur die
+  // Markierung). Der Server erzwingt die Einzigartigkeit beim Speichern.
+  signatur: boolean;
   name: string;
   element: string; // Name aus der Element-Liste des Charakters ('' = ohne)
   // Freie Gruppierung des Spielers (z. B. „Heilmagie", „Utility"). Eine der zwei
@@ -62,6 +65,11 @@ export function groupAbilities(list: readonly Ability[], by: 'element' | 'katego
 // (0 = kein Magier, 1–5 = Rang) und liegt in char_meta.
 
 export const MAGIER_MAX_STUFE = 5;
+
+// Obergrenzen für Einträge: die Zauber-/Fähigkeitsstufe geht bis 10; die
+// Komplexität hat einen weichen Richtwert von 5 (höher ist selten, aber möglich).
+export const ABILITY_STUFE_MAX = 10;
+export const ABILITY_KOMPLEX_SOFT_MAX = 5;
 
 // Magiepunkte EINES Zaubers: Stufe × Komplexität.
 export function spellPunkte(a: Pick<Ability, 'stufe' | 'komplexitaet'>): number {

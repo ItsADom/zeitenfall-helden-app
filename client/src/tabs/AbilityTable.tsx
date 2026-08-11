@@ -19,9 +19,20 @@ const GROUP_LABEL: Record<GroupBy, string> = { element: 'Element', kategorie: 'K
 const GROUP_NONE: Record<GroupBy, string> = { element: 'Ohne Element', kategorie: 'Ohne Kategorie' };
 
 type SortBy = '' | 'name' | 'stufe' | 'fortschritt';
-const SORT_LABEL: Record<SortBy, string> = { '': 'Reihenfolge', name: 'Name', stufe: 'Stufe', fortschritt: 'Fortschritt' };
+const SORT_LABEL: Record<Exclude<SortBy, ''>, string> = { name: 'Name', stufe: 'Stufe', fortschritt: 'Fortschritt' };
+const SORT_ORDER: SortBy[] = ['', 'name', 'stufe', 'fortschritt'];
 
-export function AbilityTable({ magisch, persistKey, groupOptions }: { magisch: boolean; persistKey: string; groupOptions: GroupBy[] }) {
+export function AbilityTable({
+  magisch,
+  persistKey,
+  groupOptions,
+  listSortLabel = 'Nach Liste',
+}: {
+  magisch: boolean;
+  persistKey: string;
+  groupOptions: GroupBy[];
+  listSortLabel?: string;
+}) {
   const { data, update, charId } = useChar();
   const list = data.abilities.filter((a) => a.magisch === magisch);
   const [stored, setGroupBy] = usePersistedState<GroupBy>(`${persistKey}:group`, groupOptions[0]);
@@ -97,26 +108,41 @@ export function AbilityTable({ magisch, persistKey, groupOptions }: { magisch: b
           <option value="passiv">nur passive</option>
         </select>
         <select value={sort} onChange={(e) => setSort(e.target.value as SortBy)} title="Sortieren">
-          {(Object.keys(SORT_LABEL) as SortBy[]).map((s) => (
+          {SORT_ORDER.map((s) => (
             <option key={s} value={s}>
-              Sortieren: {SORT_LABEL[s]}
+              Sortieren: {s === '' ? listSortLabel : SORT_LABEL[s]}
             </option>
           ))}
         </select>
-        {groupOptions.length > 1 && (
-          <span className="abil-groupsel">
-            <span className="muted">Gruppe</span>
-            {groupOptions.map((g) => (
-              <button key={g} className={`small${by === g ? ' active' : ''}`} onClick={() => setGroupBy(g)}>
-                {GROUP_LABEL[g]}
-              </button>
-            ))}
-          </span>
+        {filtering && (
+          <button
+            className="small"
+            title="Filter zurücksetzen"
+            onClick={() => {
+              setQ('');
+              setFEl('');
+              setFKat('');
+              setFPassiv('');
+            }}
+          >
+            ✕
+          </button>
         )}
-        <Link className="abil-werk-link" to={`/charakter/${charId}/zauber-faehigkeiten`}>
+        <Link className="abil-werk-link" to={`/charakter/${charId}/zauber-faehigkeiten?from=${magisch ? 'Zauber' : 'Fähigkeiten'}`}>
           Bearbeiten →
         </Link>
       </div>
+
+      {groupOptions.length > 1 && (
+        <div className="abil-grouprow">
+          <span className="muted">Gruppierung nach: </span>
+          {groupOptions.map((g) => (
+            <button key={g} className={`small${by === g ? ' active' : ''}`} onClick={() => setGroupBy(g)}>
+              {GROUP_LABEL[g]}
+            </button>
+          ))}
+        </div>
+      )}
 
       {list.length === 0 ? (
         <p className="muted">
@@ -176,11 +202,12 @@ function AbilityRow({ a, magisch, attrs, onFort }: { a: Ability; magisch: boolea
   return (
     <tr>
       <td>
+        {a.signatur && <span className="abil-sig-star" title="Signatur-Zauber">★</span>}
         <span className="abil-name">{a.name || '—'}</span>
         {a.passiv && <span className="abil-badge">passiv</span>}
       </td>
-      <td className="num">{a.stufe || ''}</td>
-      {magisch && <td className="num">{a.komplexitaet || ''}</td>}
+      <td className="num">{a.stufe}</td>
+      {magisch && <td className="num">{a.komplexitaet}</td>}
       <td>{a.kosten}</td>
       <td className="abil-probe">
         {a.probe}

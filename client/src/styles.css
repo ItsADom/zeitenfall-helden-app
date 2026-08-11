@@ -2587,12 +2587,16 @@ li {
   padding: 0 2px;
 }
 .abil-compact .abil-name {
-  flex: 1 1 12em;
+  flex: 2 1 12em;
   min-width: 10em;
 }
+/* Element/Kategorie dürfen mitwachsen, damit lange Namen nicht abgeschnitten
+   werden — sie brechen bei echter Enge in die nächste Zeile um. */
 .abil-compact .abil-el,
 .abil-compact .abil-kat {
-  width: 8em;
+  flex: 1 1 9em;
+  min-width: 8em;
+  width: auto;
 }
 .abil-num {
   display: inline-flex;
@@ -2678,6 +2682,30 @@ li {
   align-items: center;
   gap: 6px;
 }
+/* Gruppierungs-Auswahl in eigener Zeile unter der Werkzeugleiste */
+.abil-grouprow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+/* Signatur-Zauber: Stern auf der Verwaltungsseite und im Reiter */
+.abil-sig {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1.05em;
+  color: var(--muted);
+  padding: 0 2px;
+}
+.abil-sig.on {
+  color: var(--accent, gold);
+}
+.abil-sig-star {
+  color: var(--accent, gold);
+  margin-right: 4px;
+}
 .abil-werk-link {
   margin-left: auto;
   font-size: 0.88em;
@@ -2747,6 +2775,21 @@ li {
 }
 .magier-stufe :is(input) {
   width: 4em;
+}
+.magier-override {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.86em;
+  color: var(--muted);
+}
+.magier-warn {
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--danger, #c33);
+  border-radius: 6px;
+  color: var(--danger, #c33);
+  font-size: 0.9em;
 }
 .magier-mp strong {
   color: var(--accent, var(--text));
