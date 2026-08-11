@@ -56,8 +56,12 @@ function MagierPanel() {
   const elig = magierEligibility(magierstufe, { ...istBase, magiepunkte: mp.summe });
   const ref = MAGIER_STUFEN_REFERENZ[magierstufe];
 
-  // Erfüllt der Charakter die Voraussetzungen für Rang R? (Ränge ≤1 haben keine.)
-  // Die Magiepunkte hängen vom geprüften Rang ab (Trivial-Deckel), der Rest nicht.
+  // Hält der Charakter Rang R? (Ränge ≤1 haben keine Voraussetzungen.)
+  // Bewusst OHNE Psyche: die Psyche ist ein schwankender Momentwert und zählt
+  // nur beim AUFSTIEG (siehe `elig`). Einmal erreicht, darf ein späteres Absacken
+  // der Psyche die Stufe nicht wieder senken — anders als Talentwerte und
+  // Magiepunkte, die nur wachsen. Die Magiepunkte hängen vom geprüften Rang ab
+  // (Trivial-Deckel), der Rest nicht.
   const meetsRank = (R: number): boolean => {
     const reqs = MAGIER_ANFORDERUNGEN[R];
     if (!reqs) return true;
@@ -66,7 +70,6 @@ function MagierPanel() {
       istBase.selbst >= reqs.selbst &&
       istBase.magiekunde >= reqs.magiekunde &&
       istBase.krypto >= reqs.krypto &&
-      istBase.psyche >= reqs.psyche &&
       magiepunkte(data.abilities, R).summe >= reqs.magiepunkte
     );
   };
