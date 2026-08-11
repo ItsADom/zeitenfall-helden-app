@@ -304,12 +304,12 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
       </h3>
       <p className="muted">{hint}</p>
       <datalist id={elId}>
-        {elements.map((e) => (
+        {elemOptions.map((e) => (
           <option key={e} value={e} />
         ))}
       </datalist>
       <datalist id={katId}>
-        {kategorien.map((k) => (
+        {katOptions.map((k) => (
           <option key={k} value={k} />
         ))}
       </datalist>

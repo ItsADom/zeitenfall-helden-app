@@ -314,6 +314,33 @@ db.exec(`
   }
 }
 
+// Migration (Cluster 6): Element-/Kategorie-Vorschlagsliste aus den tatsächlich
+// vergebenen Werten nachfüllen, wo sie noch leer ist. Früh geseedete Charaktere
+// (und alle vor dem Kategorie-Seed) haben Werte an den Einträgen, aber keine
+// Vorschlagsliste — die Werkstatt-Dropdowns blieben dadurch leer. Nur befüllen,
+// wenn die Liste der jeweiligen Art leer ist (kuratierte Listen bleiben unberührt).
+{
+  const chars = db.prepare('SELECT DISTINCT character_id FROM char_abilities').all() as { character_id: number }[];
+  const listCount = db.prepare('SELECT COUNT(*) AS n FROM char_ability_lists WHERE character_id = ? AND kind = ?');
+  const rowsFor = db.prepare('SELECT element, kategorie FROM char_abilities WHERE character_id = ? ORDER BY pos, id');
+  const ins = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
+  const backfill = db.transaction(() => {
+    for (const { character_id } of chars) {
+      const rows = rowsFor.all(character_id) as { element: string; kategorie: string }[];
+      for (const kind of ['element', 'kategorie'] as const) {
+        if ((listCount.get(character_id, kind) as { n: number }).n > 0) continue;
+        const seen: string[] = [];
+        for (const r of rows) {
+          const v = (kind === 'element' ? r.element : r.kategorie) ?? '';
+          if (v && !seen.includes(v)) seen.push(v);
+        }
+        seen.forEach((v, i) => ins.run(character_id, kind, i, v));
+      }
+    }
+  });
+  backfill();
+}
+
 // Migration: 'theme'-Spalte an bestehende characters ergänzen (per-Charakter-Farbwelt)
 {
   const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
