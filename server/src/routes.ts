@@ -36,6 +36,7 @@ import {
   saveTableWidths,
   saveVisibility,
   seedAbilitiesFromZauber,
+  retireOldZauberTab,
 } from './characterData.js';
 import {
   CHAR_DYN,
@@ -522,6 +523,12 @@ api.post('/characters/:id/abilities/seed', requireAuth, (req, res) => {
   if (!char) return;
   const result = seedAbilitiesFromZauber(char.id);
   res.json({ ...result, abilities: loadAbilities(char.id), abilityLists: loadAbilityLists(char.id) });
+});
+
+api.post('/characters/:id/abilities/retire-old-tab', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  res.json(retireOldZauberTab(char.id));
 });
 
 // Farbwelt des Charakters (per-Charakter-Theme). Server speichert die Id als

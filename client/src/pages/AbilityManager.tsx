@@ -59,6 +59,10 @@ export default function AbilityManagerPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [retiring, setRetiring] = useState(false);
+  // „Alten Reiter entfernen" ist ein Einweg-Schritt — deshalb zweistufig: erst
+  // scharfschalten, dann bestätigen.
+  const [retireArmed, setRetireArmed] = useState(false);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [name, setName] = useState('');
@@ -169,6 +173,21 @@ export default function AbilityManagerPage() {
     }
   };
 
+  const retire = async () => {
+    setRetiring(true);
+    setMsg('');
+    try {
+      const r = await apiPost<{ retired: boolean }>(`/api/characters/${charId}/abilities/retire-old-tab`);
+      await load();
+      setRetireArmed(false);
+      setMsg(r.retired ? 'Alter Reiter entfernt.' : 'Kein alter Reiter gefunden.');
+    } catch (e) {
+      setMsg(`Fehler beim Entfernen: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      setRetiring(false);
+    }
+  };
+
   const save = async () => {
     setSaving(true);
     setMsg('');
@@ -209,8 +228,8 @@ export default function AbilityManagerPage() {
         </Link>
       </div>
       <p className="muted">
-        Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" anzeigen. Hier wird alles gepflegt; im Reiter selbst
-        ändert sich nur der Fortschritt. Änderungen sind erst mit „Speichern" verbindlich.
+        Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Hier wird alles gepflegt; im Reiter selbst
+        wird nur der Fortschritt Lernffortschritt. Änderungen sind erst mit „Speichern" verbindlich.
       </p>
 
       {abilities.length === 0 && hasOldTab && (
@@ -223,6 +242,31 @@ export default function AbilityManagerPage() {
           <button className="primary" disabled={seeding} onClick={seed}>
             {seeding ? 'Übernehme…' : 'Übernehmen'}
           </button>
+        </div>
+      )}
+
+      {abilities.length > 0 && hasOldTab && (
+        <div className="panel werk-retire">
+          <h3>Alten Reiter entfernen</h3>
+          <p className="muted">
+            Der alte dynamische „{ZAUBER_TAB_NAME}"-Reiter liegt noch auf dem Bogen. Alles Nötige steht jetzt in den
+            Listen weiter unten — du kannst ihn entfernen. Das löscht die alte Tabelle endgültig; die hier gepflegten Einträge
+            bleiben erhalten. Danach lässt sich nichts mehr aus der alten Tabelle ablesen.
+          </p>
+          {retireArmed ? (
+            <div className="werk-retire-confirm">
+              <button className="danger" disabled={retiring} onClick={retire}>
+                {retiring ? 'Entferne…' : 'Wirklich entfernen?'}
+              </button>
+              <button className="small" disabled={retiring} onClick={() => setRetireArmed(false)}>
+                Abbrechen
+              </button>
+            </div>
+          ) : (
+            <button className="danger" onClick={() => setRetireArmed(true)}>
+              Alten Reiter entfernen
+            </button>
+          )}
         </div>
       )}
 
@@ -368,7 +412,7 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
             </select>
           </Field>
         )}
-        <Field label="Passiv" active={fPassiv !== ''}>
+        <Field label="Aktiv/Passiv" active={fPassiv !== ''}>
           <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
             <option value="">alle</option>
             <option value="aktiv">nur aktive</option>

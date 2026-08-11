@@ -15,6 +15,8 @@ import { useChar } from '../pages/Character';
 // Filtern, Sortieren und Gruppieren helfen, wenn die Liste groß wird.
 
 export type GroupBy = 'element' | 'kategorie';
+// Gruppierung inklusive „keine" — dann läuft die Liste flach durch.
+type Grouping = GroupBy | 'none';
 const GROUP_LABEL: Record<GroupBy, string> = { element: 'Element', kategorie: 'Kategorie' };
 const GROUP_NONE: Record<GroupBy, string> = { element: 'Ohne Element', kategorie: 'Ohne Kategorie' };
 
@@ -35,8 +37,8 @@ export function AbilityTable({
 }) {
   const { data, update, charId } = useChar();
   const list = data.abilities.filter((a) => a.magisch === magisch);
-  const [stored, setGroupBy] = usePersistedState<GroupBy>(`${persistKey}:group`, groupOptions[0]);
-  const by = groupOptions.includes(stored) ? stored : groupOptions[0];
+  const [stored, setGroupBy] = usePersistedState<Grouping>(`${persistKey}:group`, groupOptions[0]);
+  const by: Grouping = stored === 'none' || groupOptions.includes(stored as GroupBy) ? stored : groupOptions[0];
 
   const [q, setQ] = useState('');
   const [fEl, setFEl] = useState('');
@@ -79,7 +81,7 @@ export function AbilityTable({
   // und als angeheftete Zeile über allem gezeigt (nicht scroll-klebend).
   const sig = filtered.find((a) => a.signatur);
   const rest = sig ? filtered.filter((a) => a.uid !== sig.uid) : filtered;
-  const groups = groupAbilities(rest, by);
+  const groups = by === 'none' ? null : groupAbilities(rest, by);
   const cols = magisch ? 7 : 6;
   const filtering = needle !== '' || fEl !== '' || fKat !== '' || fPassiv !== '';
 
@@ -105,7 +107,7 @@ export function AbilityTable({
         {kategorien.length > 0 && (
           <Field label="Kategorie" active={fKat !== ''}>
             <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
-              <option value="">alle Kategorien</option>
+              <option value="">Alle Kategorien</option>
               {kategorien.map((k) => (
                 <option key={k} value={k}>
                   {k}
@@ -114,11 +116,11 @@ export function AbilityTable({
             </select>
           </Field>
         )}
-        <Field label="Passiv" active={fPassiv !== ''}>
+        <Field label="Aktiv/Passiv" active={fPassiv !== ''}>
           <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
-            <option value="">alle</option>
-            <option value="aktiv">nur aktive</option>
-            <option value="passiv">nur passive</option>
+            <option value="">Alle</option>
+            <option value="aktiv">Nur aktive</option>
+            <option value="passiv">Nur passive</option>
           </select>
         </Field>
         <Field label="Sortieren" className="notch-sort" active={sort !== ''}>
@@ -149,16 +151,20 @@ export function AbilityTable({
         </Link>
       </div>
 
-      {groupOptions.length > 1 && (
-        <div className="abil-grouprow">
-          <span className="muted">Gruppierung nach: </span>
-          {groupOptions.map((g) => (
-            <button key={g} className={`small${by === g ? ' active' : ''}`} onClick={() => setGroupBy(g)}>
-              {GROUP_LABEL[g]}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="abil-grouprow">
+        <span className="muted">Gruppierung nach: </span>
+        {groupOptions.map((g) => (
+          <button
+            key={g}
+            className={`small${by === g ? ' active' : ''}`}
+            title={by === g ? 'Gruppierung aufheben' : `Nach ${GROUP_LABEL[g]} gruppieren`}
+            // Nochmal auf die aktive Gruppierung klicken hebt sie auf (flache Liste).
+            onClick={() => setGroupBy(by === g ? 'none' : g)}
+          >
+            {GROUP_LABEL[g]}
+          </button>
+        ))}
+      </div>
       </div>
 
       {list.length === 0 ? (
@@ -184,7 +190,7 @@ export function AbilityTable({
                 <th>Name</th>
                 <th className="num">Stufe</th>
                 {magisch && <th className="num">Kx</th>}
-                <th>Kosten</th>
+                <th className="num">Kosten</th>
                 <th>Probe</th>
                 <th className="num">Fortschritt</th>
                 <th>Effekt</th>
@@ -192,20 +198,24 @@ export function AbilityTable({
             </thead>
             <tbody>
               {sig && <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} pinned onFort={(v) => setFort(sig.uid, v)} />}
-              {[...groups.entries()].map(([key, rows]) => (
-                <Fragment key={key || '__none'}>
-                  <tr className="subtle-head">
-                    <td colSpan={cols}>
-                      <span className="sticky-label">
-                        {key || GROUP_NONE[by]} <span className="muted">· {rows.length}</span>
-                      </span>
-                    </td>
-                  </tr>
-                  {[...rows].sort(sortFn).map((a) => (
+              {by === 'none'
+                ? [...rest].sort(sortFn).map((a) => (
                     <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} />
+                  ))
+                : [...groups!.entries()].map(([key, rows]) => (
+                    <Fragment key={key || '__none'}>
+                      <tr className="subtle-head">
+                        <td colSpan={cols}>
+                          <span className="sticky-label">
+                            {key || GROUP_NONE[by]} <span className="muted">· {rows.length}</span>
+                          </span>
+                        </td>
+                      </tr>
+                      {[...rows].sort(sortFn).map((a) => (
+                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} />
+                      ))}
+                    </Fragment>
                   ))}
-                </Fragment>
-              ))}
             </tbody>
           </table>
         </div>
@@ -226,7 +236,7 @@ function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch
       </td>
       <td className="num">{a.stufe}</td>
       {magisch && <td className="num">{a.komplexitaet}</td>}
-      <td>{a.kosten}</td>
+      <td className="num">{a.kosten}</td>
       <td className="abil-probe">
         {a.probe}
         {pz != null && <span className="muted"> ({pz})</span>}

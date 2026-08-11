@@ -1185,6 +1185,41 @@ export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
   return { skipped: false, zauber, faehigkeiten: faehig };
 }
 
+// Legt den alten dynamischen „Zauber/Fähigkeiten"-Reiter still: er wird samt
+// Sektionen/Zeilen gelöscht, sobald der Spieler seine Daten in die neue
+// Stammliste übernommen und geprüft hat. Einweg — die kuratierten Daten leben
+// in char_abilities weiter, die rohe alte Tabelle ist danach weg.
+export function retireOldZauberTab(charId: number): { retired: boolean } {
+  const tab = db.prepare('SELECT id FROM char_tabs WHERE character_id = ? AND name = ?').get(charId, ZAUBER_IMPORT_TAB) as
+    | { id: number }
+    | undefined;
+  if (!tab) return { retired: false };
+  // Sicherheit: nicht entfernen, solange die neue Stammliste leer ist — sonst
+  // ginge die einzige Kopie der Daten verloren.
+  const have = (db.prepare('SELECT COUNT(*) AS n FROM char_abilities WHERE character_id = ?').get(charId) as { n: number }).n;
+  if (have === 0) return { retired: false };
+  const tx = db.transaction(() => {
+    // Reiter samt Sektionen/Zeilen entfernen (ON DELETE CASCADE).
+    db.prepare('DELETE FROM char_tabs WHERE id = ?').run(tab.id);
+    // Den alten Schlüssel aus der gemerkten Reiter-Reihenfolge streichen (die
+    // eingebauten Zauber-/Fähigkeiten-Reiter stehen dort ohnehin schon).
+    const ord = db.prepare('SELECT keys FROM character_tab_order WHERE character_id = ?').get(charId) as { keys: string } | undefined;
+    if (ord) {
+      let keys: string[] = [];
+      try {
+        keys = JSON.parse(ord.keys) as string[];
+      } catch {
+        keys = [];
+      }
+      const oldKey = dynTabKey(tab.id);
+      keys = keys.filter((k) => k !== oldKey);
+      db.prepare('UPDATE character_tab_order SET keys = ? WHERE character_id = ?').run(JSON.stringify(keys), charId);
+    }
+  });
+  tx();
+  return { retired: true };
+}
+
 // --- Porträt (als Blob in der DB, damit es in den täglichen Sicherungen liegt) ---
 
 export function hasPortrait(charId: number): boolean {

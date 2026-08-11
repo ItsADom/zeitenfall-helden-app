@@ -1204,6 +1204,32 @@ button.primary:disabled {
   box-shadow: none;
   cursor: default;
 }
+/* Zerstörerische Aktion (z. B. alten Reiter entfernen): umrandet in der
+   Fehlerfarbe, füllt sich beim Überfahren — deutlich, aber nicht schreiend. */
+button.danger {
+  background: transparent;
+  color: var(--error-text);
+  border: 1px solid var(--error-text);
+  border-radius: 7px;
+  padding: 7px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.13s, color 0.13s;
+}
+button.danger:hover {
+  background: var(--error-text);
+  color: var(--panel);
+}
+button.danger:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.werk-retire-confirm {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 button.small {
   background: transparent;
   border: 1px solid transparent;
@@ -2691,7 +2717,8 @@ li {
   margin-bottom: 8px;
   flex-wrap: wrap;
 }
-.abil-toolbar .small.active {
+.abil-toolbar .small.active,
+.abil-grouprow .small.active {
   background: var(--accent, var(--surface));
   color: var(--on-accent, var(--text));
   border-color: var(--accent, var(--border));
