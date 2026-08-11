@@ -404,7 +404,7 @@ Noch offen (nächster Schritt):
 
 ---
 
-## Mid-Prio
+### Mid-Prio
 
 - setting which players belong to a group needs rework
  - something like "Gruppe | Mitglieder | Hinzufügen ..."
@@ -454,7 +454,7 @@ Noch offen (nächster Schritt):
 
 ---
 
-## Low-Prio
+### Low-Prio
 
 - damage values and effects for ammunition (new catalogue)
 - color themes — mostly done (0.1.3)
