@@ -43,6 +43,10 @@ record what shipped). Keep this in English.
 
 ## High-Prio
 
+- more links throughout the app
+ - item categories in Einstellungen should be accessable from the inventory
+ - add section markers, so clicking on "Kategorien bearbeiten" in the inventory will directly scroll down to the categories
+
 ### 4. Energien
 
 - **Overcharge display** (not built yet — `depletionClass` still only has
@@ -58,6 +62,14 @@ record what shipped). Keep this in English.
 
 ## Mid-Prio
 
+- **"Coming soon"**: add a dedicated section into the changelog that teases upcoming features
+ - should always stay as the first (top-most) entry
+- **Group overview page for GM**:
+ - give the gm an exclusive screen where they can view all characters of a group and their most important stats
+  - e.g. "Hat Gefahreninstinkt" or just add temporary notes
+- **Inventory and Spell notes**: 
+ - the Notizen on spells/skills and inventory items can get quite big on some items.
+ - cut the displayed text after a certain number of symbols and end with a clickable '...' to expand. the field should collapse on reload
 - **Group membership rework**: something like "Gruppe | Mitglieder | Hinzufügen…",
   where "Hinzufügen…" is a text field with auto-suggestion from the user list and
   an add button — several users addable at once, click a name or press Enter to
@@ -65,8 +77,6 @@ record what shipped). Keep this in English.
 - **Feedback / change requests from users**: an inbox for a dev user. Needs a
   Developer role; users can hold multiple roles; roles changeable on the admin
   dashboard.
-- **Quick-nav lists**: hovering "Charaktere" / "Gruppen" opens a list of the
-  player's characters and groups — fewer page loads and clicks.
 - **Skip no-op saves**: `saveSection` / `saveDynRows` do a full DELETE+INSERT even
   when nothing changed. Add a server-side empty-diff check in front. `saveSection`
   (`server/src/characterData.ts`) is the single choke point — and it is the SAME

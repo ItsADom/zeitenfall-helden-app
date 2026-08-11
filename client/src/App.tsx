@@ -14,6 +14,8 @@ import EinstellungenPage from './pages/Einstellungen';
 import AbilityManagerPage from './pages/AbilityManager';
 import ThemePicker from './components/ThemePicker';
 import ModeToggle from './components/ModeToggle';
+import NavMenu from './components/NavMenu';
+import { OverviewProvider } from './components/overview';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
@@ -87,6 +89,7 @@ export default function App() {
   return (
     <AuthContext.Provider value={{ user, refresh }}>
       <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, setOverrideTheme }}>
+      <OverviewProvider>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -96,8 +99,8 @@ export default function App() {
         {/* Platzhaltername — bewusst nicht verlinkt, bis ein prägnanterer Name
             feststeht. „Charaktere" ist der eigentliche Einstieg. */}
         <span className="wordmark">Heldenverwaltung</span>
-        <Link to="/charaktere">Charaktere</Link>
-        <Link to="/gruppen">Gruppen</Link>
+        <NavMenu kind="charaktere" />
+        <NavMenu kind="gruppen" />
         {/* Spielleiter verwalten Kataloge & Nutzer; Spieler haben stattdessen
             ihre eigene „Einstellungen"-Seite (Tabs, Kategorien, Farbwelt je
             Charakter). Route bleibt intern /verwaltung. */}
@@ -138,6 +141,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      </OverviewProvider>
       </ThemeControlsContext.Provider>
     </AuthContext.Provider>
   );

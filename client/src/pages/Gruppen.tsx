@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../App';
-import { useOverview } from './useOverview';
+import { useOverview } from '../components/overview';
 
 export default function GruppenPage() {
   const { user } = useAuth();

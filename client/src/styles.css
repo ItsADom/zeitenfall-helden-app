@@ -548,7 +548,10 @@ header.topbar a {
   font-weight: 600;
   opacity: 0.92;
 }
-header.topbar a:first-child {
+/* Direktes Kind: greift NICHT auf die (verschachtelten) Links in den
+   Schnellzugriff-Menüs zu. Die Wortmarke ist ohnehin ein <span> mit eigener
+   Regel — diese Regel bleibt nur als Absicherung stehen. */
+header.topbar > a:first-child {
   font-family: Georgia, serif;
   font-size: 17px;
   letter-spacing: 0.02em;
@@ -570,6 +573,100 @@ header.topbar .wordmark {
 }
 header.topbar .spacer {
   flex: 1;
+}
+
+/* ---------- Schnellzugriff-Menüs (Charaktere / Gruppen) ---------- */
+
+.nav-menu {
+  position: relative;
+  display: inline-flex;
+}
+/* Die Beschriftung sieht aus wie die übrigen Kopfleisten-Links; das kleine
+   Caret deutet das aufklappbare Menü an. */
+.nav-menu .nav-menu-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.nav-menu .nav-menu-label::after {
+  content: '▾';
+  font-size: 10px;
+  opacity: 0.8;
+}
+
+/* Aufklappende Liste — Optik wie das Farbmenü (auf --panel, dunkle Schrift). */
+.nav-flyout {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 100;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 4px;
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+}
+/* Nur die Trefferliste scrollt; „Alle anzeigen" bleibt sichtbar darunter. */
+.nav-flyout-list {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.nav-flyout-group + .nav-flyout-group {
+  margin-top: 2px;
+}
+.nav-flyout-head {
+  padding: 6px 9px 2px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* Höhere Spezifität als `header.topbar a` (sonst erbte der Eintrag den weißen
+   Kopfleisten-Text und wäre auf dem Panel unlesbar). */
+header.topbar .nav-flyout-item,
+header.topbar .nav-flyout-all {
+  color: var(--text);
+  opacity: 1;
+  font-weight: 500;
+}
+.nav-flyout-item {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav-flyout-item:hover {
+  background: var(--surface-hover);
+}
+.nav-flyout-item.active {
+  background: var(--accent-soft);
+}
+.nav-flyout-empty {
+  padding: 8px 9px;
+  font-size: 13px;
+}
+.nav-flyout-all {
+  display: block;
+  margin-top: 2px;
+  padding: 7px 9px;
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 7px 7px;
+  font-size: 12px;
+}
+header.topbar .nav-flyout-all {
+  color: var(--muted);
+}
+header.topbar .nav-flyout-all:hover {
+  color: var(--accent);
+  background: var(--surface-hover);
 }
 header.topbar button {
   background: rgba(255, 255, 255, 0.12);
