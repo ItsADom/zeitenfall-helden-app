@@ -11,6 +11,7 @@ import GroupPage from './pages/Group';
 import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
 import EinstellungenPage from './pages/Einstellungen';
+import WerkstattPage from './pages/Werkstatt';
 import ThemePicker from './components/ThemePicker';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
@@ -135,6 +136,7 @@ export default function App() {
           <Route path="/einstellungen" element={user.isGm ? <Navigate to="/verwaltung" /> : <EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
+          <Route path="/charakter/:id/werkstatt" element={<WerkstattPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>

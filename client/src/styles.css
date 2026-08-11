@@ -2551,6 +2551,101 @@ li {
   gap: 8px;
 }
 
+/* ---------- Zauber-&-Fähigkeiten-Werkstatt (Cluster 6) ---------- */
+.werk-head {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.werk-seed {
+  border: 1px solid var(--accent, var(--border));
+}
+.abil-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.abil-row {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.abil-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  flex-wrap: wrap;
+}
+.abil-chev {
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.9em;
+  padding: 0 2px;
+}
+.abil-compact .abil-name {
+  flex: 1 1 12em;
+  min-width: 10em;
+}
+.abil-compact .abil-el,
+.abil-compact .abil-kat {
+  width: 8em;
+}
+.abil-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82em;
+  color: var(--muted);
+}
+.abil-num input {
+  width: 3.6em;
+}
+.abil-passiv {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82em;
+  color: var(--muted);
+}
+.abil-del {
+  margin-left: auto;
+}
+.abil-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 12px;
+  padding: 8px 10px 12px;
+  border-top: 1px dashed var(--border);
+}
+.abil-detail label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.82em;
+  color: var(--muted);
+}
+.abil-detail input,
+.abil-detail textarea {
+  font: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.abil-detail textarea {
+  resize: vertical;
+}
+.abil-detail .abil-wide {
+  grid-column: 1 / -1;
+}
+.werk-lists {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
 /* ---------- Druck / PDF ---------- */
 /* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
    unsichtbar im DOM und wird nur beim Drucken sichtbar. */
