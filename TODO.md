@@ -21,6 +21,8 @@ live in `README.md` / `DEPLOYMENT.md`.
 
 ## High-Prio
 
+- deletion confirmation is missing on almost eveyrthing that is contained in a table
+ - need a safeguard so players dont accidentally delete items or spells
 - more links throughout the app
  - item categories in Einstellungen should be accessable from the inventory
  - add section markers, so clicking on "Kategorien bearbeiten" in the inventory will directly scroll down to the categories
