@@ -482,6 +482,7 @@ Noch offen (nächster Schritt):
   later)
    - general touchup in responsiveness and layouting
    - testing needs to be done with many multiple resolutions
+   - part of this is splitting the styles.css in smaller files for a better maintenance
 - look-up lists
    - has to be worked on with the GM, currently no data for this
    - examples:
