@@ -50,3 +50,23 @@ These are standing instructions — follow them without being reminded.
   each to a few high-level bullets. Don't add entries proactively for routine
   work. Leave the `version` field unset until the user starts real versioned
   releases.
+
+## Codebase constraints & gotchas (don't relearn these)
+
+- **A table must not get its own scroll area.** `overflow-x: auto` silently makes
+  a box a scroll container in BOTH axes, so a sticky `thead` inside can only stick
+  to the box, never the page. Tables drop their own overflow; this only works
+  because `main` uses `overflow-x: clip` (clip cuts off without creating a scroll
+  container; `hidden` would break it). Below 700px is the deliberate exception:
+  the table keeps its own horizontal scroller and the header sticks within it.
+- **Sticky offsets are measured, not hard-coded.** Each thing stuck at the top
+  (top bar, sheet header, tab bar, talent search) writes its height into a CSS
+  variable via `components/stickyChrome.ts`; the stylesheet sums them with
+  `calc()`. One variable per observer, so none depends on who measured first.
+- **Everything editable flows through `NumInput`/`TextInput`** (they read the
+  display mode themselves), which is why one provider flips a whole sheet at once.
+  Structural buttons (`+ Zeile`, columns, delete, tab reorder, portrait) do NOT
+  pass through them and must be gated one by one.
+- **No data loss on migration** (top-ranking rule): map known fields and fold any
+  unmapped/custom column into the row's `notiz` as `Label: value`. Nothing a
+  player typed is ever silently dropped.
