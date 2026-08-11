@@ -2659,9 +2659,19 @@ li {
   color: var(--on-accent, var(--text));
   border-color: var(--accent, var(--border));
 }
+/* Die globale Regel macht Eingaben 100 % breit — in der Werkzeugleiste sollen
+   Suche und Auswahlfelder aber nebeneinander stehen (und nur bei echter Enge
+   umbrechen). */
+.abil-toolbar input,
+.abil-toolbar select {
+  width: auto;
+}
 .abil-search {
-  min-width: 12em;
+  min-width: 10em;
   flex: 0 1 16em;
+}
+.abil-toolbar select {
+  max-width: 13em;
 }
 .abil-groupsel {
   display: inline-flex;
@@ -2677,25 +2687,26 @@ li {
   margin-top: 6px;
   font-size: 0.84em;
 }
-/* Umsortieren auf der Verwaltungsseite */
-.abil-reorder {
-  display: inline-flex;
-  flex-direction: column;
-  line-height: 0.7;
+/* Umsortieren auf der Verwaltungsseite: Ziehen am Griff */
+.abil-grip {
+  cursor: grab;
+  color: var(--muted);
+  padding: 0 2px;
+  user-select: none;
+  font-size: 1.05em;
 }
-.abil-reorder .tiny {
-  font-size: 0.7em;
-  line-height: 1;
-  padding: 1px 4px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-  border-radius: 3px;
-  cursor: pointer;
+.abil-grip:active {
+  cursor: grabbing;
 }
-.abil-reorder .tiny:disabled {
-  opacity: 0.4;
+.abil-grip.disabled {
+  opacity: 0.3;
   cursor: default;
+}
+.abil-row.drop-before {
+  box-shadow: inset 0 2px 0 0 var(--accent, var(--border-strong));
+}
+.abil-row.dragging {
+  opacity: 0.5;
 }
 .abil-tab .abil-name {
   font-weight: 600;

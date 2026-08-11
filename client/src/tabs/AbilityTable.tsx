@@ -40,8 +40,10 @@ export function AbilityTable({ magisch, persistKey, groupOptions }: { magisch: b
   const kategorien = [...new Set(list.map((a) => a.kategorie).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
 
   const needle = q.trim().toLowerCase();
+  // Suchen hat Vorrang und ignoriert die Auswahlfilter — man sucht im ganzen
+  // Bestand, nicht nur im gerade gefilterten Ausschnitt.
   const filtered = list.filter((a) => {
-    if (needle && !(a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle))) return false;
+    if (needle) return a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle);
     if (fEl && a.element !== fEl) return false;
     if (fKat && a.kategorie !== fKat) return false;
     if (fPassiv === 'passiv' && !a.passiv) return false;

@@ -107,18 +107,18 @@ export default function AbilityManagerPage() {
     setAbilities((list) => [...list, a]);
     setExpanded((s) => new Set(s).add(a.uid));
   };
-  // Innerhalb der eigenen Liste (magisch/mundan) mit dem nächsten Nachbarn tauschen
-  // — funktioniert unabhängig davon, was gerade gefiltert angezeigt wird.
-  const move = (uid: string, dir: -1 | 1) =>
+  // Ziehen zum Umsortieren: den gezogenen Eintrag vor das Ziel setzen — aber nur
+  // innerhalb derselben Liste (Zauber bzw. Fähigkeiten).
+  const reorder = (dragUid: string, targetUid: string) =>
     setAbilities((list) => {
+      if (dragUid === targetUid) return list;
+      const from = list.findIndex((a) => a.uid === dragUid);
+      const to = list.findIndex((a) => a.uid === targetUid);
+      if (from < 0 || to < 0 || list[from].magisch !== list[to].magisch) return list;
       const arr = list.slice();
-      const i = arr.findIndex((a) => a.uid === uid);
-      if (i < 0) return arr;
-      const mag = arr[i].magisch;
-      let j = i + dir;
-      while (j >= 0 && j < arr.length && arr[j].magisch !== mag) j += dir;
-      if (j < 0 || j >= arr.length) return arr;
-      [arr[i], arr[j]] = [arr[j], arr[i]];
+      const [item] = arr.splice(from, 1);
+      const insertAt = arr.findIndex((a) => a.uid === targetUid);
+      arr.splice(insertAt, 0, item);
       return arr;
     });
   const toggleExpand = (uid: string) =>
@@ -213,7 +213,7 @@ export default function AbilityManagerPage() {
         onToggle={toggleExpand}
         onPatch={patch}
         onRemove={remove}
-        onMove={move}
+        onReorder={reorder}
         onAdd={() => add(true)}
       />
 
@@ -228,7 +228,7 @@ export default function AbilityManagerPage() {
         onToggle={toggleExpand}
         onPatch={patch}
         onRemove={remove}
-        onMove={move}
+        onReorder={reorder}
         onAdd={() => add(false)}
       />
 
@@ -265,11 +265,11 @@ interface ListPanelProps {
   onToggle: (uid: string) => void;
   onPatch: (uid: string, p: Partial<Ability>) => void;
   onRemove: (uid: string) => void;
-  onMove: (uid: string, dir: -1 | 1) => void;
+  onReorder: (dragUid: string, targetUid: string) => void;
   onAdd: () => void;
 }
 
-function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onMove, onAdd }: ListPanelProps) {
+function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onReorder, onAdd }: ListPanelProps) {
   const elId = `elemente-${magisch ? 'z' : 'f'}`;
   const katId = `kategorien-${magisch ? 'z' : 'f'}`;
 
@@ -277,11 +277,19 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
   const [fEl, setFEl] = useState('');
   const [fKat, setFKat] = useState('');
   const [fPassiv, setFPassiv] = useState<'' | 'passiv' | 'aktiv'>('');
+  const [dragUid, setDragUid] = useState<string | null>(null);
+  const [overUid, setOverUid] = useState<string | null>(null);
   const filtering = q.trim() !== '' || fEl !== '' || fKat !== '' || fPassiv !== '';
 
+  // Filter-Optionen: Vorschlagsliste UND die tatsächlich vergebenen Werte
+  // (sonst fehlt ein Filter, wenn die Vorschlagsliste noch leer ist).
+  const elemOptions = [...new Set([...elements, ...list.map((a) => a.element)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  const katOptions = [...new Set([...kategorien, ...list.map((a) => a.kategorie)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+
   const needle = q.trim().toLowerCase();
+  // Suchen hat Vorrang und ignoriert die Auswahlfilter (ganzer Bestand).
   const shown = list.filter((a) => {
-    if (needle && !(a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle))) return false;
+    if (needle) return a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle);
     if (fEl && a.element !== fEl) return false;
     if (fKat && a.kategorie !== fKat) return false;
     if (fPassiv === 'passiv' && !a.passiv) return false;
@@ -308,24 +316,26 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
 
       <div className="abil-toolbar">
         <input className="abil-search" type="text" placeholder="Suchen…" value={q} onChange={(e) => setQ(e.target.value)} />
-        {magisch && (
+        {magisch && elemOptions.length > 0 && (
           <select value={fEl} onChange={(e) => setFEl(e.target.value)} title="Nach Element filtern">
             <option value="">alle Elemente</option>
-            {elements.map((e) => (
+            {elemOptions.map((e) => (
               <option key={e} value={e}>
                 {e}
               </option>
             ))}
           </select>
         )}
-        <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
-          <option value="">alle Kategorien</option>
-          {kategorien.map((k) => (
-            <option key={k} value={k}>
-              {k}
-            </option>
-          ))}
-        </select>
+        {katOptions.length > 0 && (
+          <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
+            <option value="">alle Kategorien</option>
+            {katOptions.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+          </select>
+        )}
         <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
           <option value="">alle</option>
           <option value="aktiv">nur aktive</option>
@@ -338,17 +348,41 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
         )}
       </div>
 
+      {filtering && <p className="muted abil-count">Zum Umsortieren die Suche/Filter zurücksetzen.</p>}
       <div className="abil-list">
         {shown.map((a) => (
-          <div className="abil-row" key={a.uid}>
+          <div
+            className={`abil-row${dragUid === a.uid ? ' dragging' : ''}${overUid === a.uid && dragUid && dragUid !== a.uid ? ' drop-before' : ''}`}
+            key={a.uid}
+            onDragOver={(e) => {
+              if (!dragUid || filtering) return;
+              e.preventDefault();
+              if (overUid !== a.uid) setOverUid(a.uid);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const from = e.dataTransfer.getData('text/plain') || dragUid;
+              if (from) onReorder(from, a.uid);
+              setDragUid(null);
+              setOverUid(null);
+            }}
+          >
             <div className="abil-compact">
-              <span className="abil-reorder">
-                <button className="tiny" title="nach oben" disabled={filtering} onClick={() => onMove(a.uid, -1)}>
-                  ↑
-                </button>
-                <button className="tiny" title="nach unten" disabled={filtering} onClick={() => onMove(a.uid, 1)}>
-                  ↓
-                </button>
+              <span
+                className={`abil-grip${filtering ? ' disabled' : ''}`}
+                draggable={!filtering}
+                title={filtering ? 'Zum Umsortieren Suche/Filter zurücksetzen' : 'Ziehen zum Umsortieren'}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  e.dataTransfer.setData('text/plain', a.uid);
+                  setDragUid(a.uid);
+                }}
+                onDragEnd={() => {
+                  setDragUid(null);
+                  setOverUid(null);
+                }}
+              >
+                ⠿
               </span>
               <button className="abil-chev" onClick={() => onToggle(a.uid)} title={expanded.has(a.uid) ? 'zuklappen' : 'aufklappen'} aria-label="Details">
                 {expanded.has(a.uid) ? '▾' : '▸'}
