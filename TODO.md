@@ -45,13 +45,6 @@ live in `README.md` / `DEPLOYMENT.md`.
 - **Group overview page for GM**:
  - give the gm an exclusive screen where they can view all characters of a group and their most important stats
   - e.g. "Hat Gefahreninstinkt" or just add temporary notes
-- **Group membership rework**: something like "Gruppe | Mitglieder | Hinzufügen…",
-  where "Hinzufügen…" is a text field with auto-suggestion from the user list and
-  an add button — several users addable at once, click a name or press Enter to
-  stage them, then add.
-- **Feedback / change requests from users**: an inbox for a dev user. Needs a
-  Developer role; users can hold multiple roles; roles changeable on the admin
-  dashboard.
 - **Skip no-op saves**: `saveSection` / `saveDynRows` do a full DELETE+INSERT even
   when nothing changed. Add a server-side empty-diff check in front. `saveSection`
   (`server/src/characterData.ts`) is the single choke point — and it is the SAME
