@@ -2677,6 +2677,25 @@ li {
 .abil-toolbar select {
   max-width: 13em;
 }
+.abil-toolbar select.abil-sort {
+  max-width: 15em;
+}
+/* Werkzeugleiste + Gruppierung kleben oben (unter Kopf- und Reiterleiste),
+   damit Suche und Filter beim Scrollen greifbar bleiben. Nur im Reiter (dort
+   sitzt sie in einem .panel); der Hintergrund verdeckt die Tabelle darunter. */
+.abil-controls {
+  position: sticky;
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
+  z-index: 11;
+  background: var(--panel);
+  padding: 6px 0 8px;
+}
+/* Angehefteter Signatur-Zauber: immer die erste Zeile, dezent hervorgehoben. */
+.abil-tab tr.abil-pinned td {
+  background: var(--surface-sunken, rgba(255, 255, 255, 0.05));
+  border-top: 2px solid var(--accent, gold);
+  border-bottom: 1px solid var(--accent, gold);
+}
 .abil-groupsel {
   display: inline-flex;
   align-items: center;

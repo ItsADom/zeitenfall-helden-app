@@ -74,12 +74,18 @@ export function AbilityTable({
     }
   };
 
-  const groups = groupAbilities(filtered, by);
+  // Der Signatur-Zauber (meistgenutzt) steht immer ganz oben — solange er im
+  // aktuellen Filter überhaupt sichtbar ist. Er wird aus den Gruppen herausgelöst
+  // und als angeheftete Zeile über allem gezeigt (nicht scroll-klebend).
+  const sig = filtered.find((a) => a.signatur);
+  const rest = sig ? filtered.filter((a) => a.uid !== sig.uid) : filtered;
+  const groups = groupAbilities(rest, by);
   const cols = magisch ? 7 : 6;
   const filtering = needle !== '' || fEl !== '' || fKat !== '' || fPassiv !== '';
 
   return (
     <div className="panel">
+      <div className="abil-controls">
       <div className="abil-toolbar">
         <input className="abil-search" type="text" placeholder="Suchen…" value={q} onChange={(e) => setQ(e.target.value)} />
         {magisch && elemente.length > 0 && (
@@ -107,10 +113,10 @@ export function AbilityTable({
           <option value="aktiv">nur aktive</option>
           <option value="passiv">nur passive</option>
         </select>
-        <select value={sort} onChange={(e) => setSort(e.target.value as SortBy)} title="Sortieren">
+        <select className="abil-sort" value={sort} onChange={(e) => setSort(e.target.value as SortBy)} title="Sortieren nach">
           {SORT_ORDER.map((s) => (
             <option key={s} value={s}>
-              Sortieren: {s === '' ? listSortLabel : SORT_LABEL[s]}
+              {s === '' ? listSortLabel : `Nach ${SORT_LABEL[s]}`}
             </option>
           ))}
         </select>
@@ -143,6 +149,7 @@ export function AbilityTable({
           ))}
         </div>
       )}
+      </div>
 
       {list.length === 0 ? (
         <p className="muted">
@@ -174,6 +181,7 @@ export function AbilityTable({
               </tr>
             </thead>
             <tbody>
+              {sig && <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} pinned onFort={(v) => setFort(sig.uid, v)} />}
               {[...groups.entries()].map(([key, rows]) => (
                 <Fragment key={key || '__none'}>
                   <tr className="subtle-head">
@@ -197,10 +205,10 @@ export function AbilityTable({
   );
 }
 
-function AbilityRow({ a, magisch, attrs, onFort }: { a: Ability; magisch: boolean; attrs: Attributes; onFort: (v: number) => void }) {
+function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch: boolean; attrs: Attributes; onFort: (v: number) => void; pinned?: boolean }) {
   const pz = probeExprZahl(attrs, a.probe);
   return (
-    <tr>
+    <tr className={pinned ? 'abil-pinned' : undefined}>
       <td>
         {a.signatur && <span className="abil-sig-star" title="Signatur-Zauber">★</span>}
         <span className="abil-name">{a.name || '—'}</span>

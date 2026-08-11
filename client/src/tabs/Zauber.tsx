@@ -33,6 +33,11 @@ function MagierPanel() {
   // (z. B. ein Fluch, der die Stufe anhebt). Nur in der Sitzung, nichts gespeichert.
   const [override, setOverride] = useState(false);
   const [warn, setWarn] = useState('');
+  // Das Zahlenfeld hält beim Tippen einen Entwurf; wird eine Eingabe abgelehnt
+  // oder von außen zurückgesetzt, erzwingt ein Schlüsselwechsel die Neuanzeige
+  // des tatsächlich gespeicherten Werts.
+  const [fieldKey, setFieldKey] = useState(0);
+  const resyncField = () => setFieldKey((k) => k + 1);
 
   const mp = magiepunkte(data.abilities, magierstufe);
   const tawByName = (name: string): number => {
@@ -41,15 +46,36 @@ function MagierPanel() {
     return data.talents.find((t) => t.talentId === cat.id)?.taw ?? 0;
   };
   const psyche = psycheProzent(Number(data.meta.psycheAkt) || 0, Number(data.meta.psycheMax) || 0) ?? 0;
-  const elig = magierEligibility(magierstufe, {
+  const istBase = {
     koerper: tawByName(MAGIER_TALENT_NAMES.koerper),
     selbst: tawByName(MAGIER_TALENT_NAMES.selbst),
     magiekunde: tawByName(MAGIER_TALENT_NAMES.magiekunde),
     krypto: tawByName(MAGIER_TALENT_NAMES.krypto),
     psyche,
-    magiepunkte: mp.summe,
-  });
+  };
+  const elig = magierEligibility(magierstufe, { ...istBase, magiepunkte: mp.summe });
   const ref = MAGIER_STUFEN_REFERENZ[magierstufe];
+
+  // Erfüllt der Charakter die Voraussetzungen für Rang R? (Ränge ≤1 haben keine.)
+  // Die Magiepunkte hängen vom geprüften Rang ab (Trivial-Deckel), der Rest nicht.
+  const meetsRank = (R: number): boolean => {
+    const reqs = MAGIER_ANFORDERUNGEN[R];
+    if (!reqs) return true;
+    return (
+      istBase.koerper >= reqs.koerper &&
+      istBase.selbst >= reqs.selbst &&
+      istBase.magiekunde >= reqs.magiekunde &&
+      istBase.krypto >= reqs.krypto &&
+      istBase.psyche >= reqs.psyche &&
+      magiepunkte(data.abilities, R).summe >= reqs.magiepunkte
+    );
+  };
+  // Höchster legitim erreichbarer Rang ≤ aktueller Stufe (für den Reset beim
+  // Ausschalten von „Überschreiben").
+  const legitMaxStufe = (): number => {
+    for (let R = magierstufe; R >= 1; R--) if (meetsRank(R)) return R;
+    return 0;
+  };
 
   // Erhöhung ist standardmäßig gesperrt, solange die Voraussetzungen des nächsten
   // Rangs nicht erfüllt sind — mit klarer Warnung. Senken geht immer. „Überschreiben"
@@ -66,10 +92,10 @@ function MagierPanel() {
     if (v === magierstufe + 1 && elig.erfuellt) return commit();
     setWarn(
       v === magierstufe + 1
-        ? `Voraussetzungen für Magierstufe ${v} nicht erfüllt — Erhöhung abgelehnt. Für Ausnahmen (z. B. Fluch) „Überschreiben" aktivieren.`
+        ? `Voraussetzungen für Magierstufe ${v} nicht erfüllt — Erhöhung abgelehnt. Für Ausnahmen „Überschreiben" aktivieren.`
         : 'Nur eine Stufe auf einmal erhöhen — oder „Überschreiben" für Ausnahmen.',
     );
-    // kein commit → das gebundene Feld springt auf den alten Wert zurück
+    resyncField(); // kein commit → Feld zurück auf den alten Wert
   };
 
   return (
@@ -79,11 +105,28 @@ function MagierPanel() {
         <label className="magier-stufe" title="Manuell gepflegt: 0 = kein Magier, 1–5 = Rang.">
           Magierstufe
           <AlwaysEditable>
-            <NumInput value={magierstufe} min={0} max={MAGIER_MAX_STUFE} onChange={setStufe} />
+            <NumInput key={fieldKey} value={magierstufe} min={0} max={MAGIER_MAX_STUFE} onChange={setStufe} />
           </AlwaysEditable>
         </label>
-        <label className="magier-override" title="Erlaubt Erhöhung ohne erfüllte Voraussetzungen (Ausnahmen wie Flüche).">
-          <input type="checkbox" checked={override} onChange={(e) => setOverride(e.target.checked)} />
+        <label className="magier-override" title="Erlaubt Erhöhung ohne erfüllte Voraussetzungen. Ausschalten setzt die Stufe auf das legitim erreichbare Maximum zurück.">
+          <input
+            type="checkbox"
+            checked={override}
+            onChange={(e) => {
+              const on = e.target.checked;
+              setOverride(on);
+              // Ausschalten hebt eine Ausnahme (z. B. Fluch) auf: die Stufe fällt
+              // auf das zurück, was der Charakter regulär erreicht.
+              if (!on) {
+                const max = legitMaxStufe();
+                if (magierstufe > max) {
+                  setWarn('');
+                  update('meta', { ...data.meta, magierstufe: max });
+                  resyncField();
+                }
+              }
+            }}
+          />
           Überschreiben
         </label>
         {magierstufe >= 1 ? (
