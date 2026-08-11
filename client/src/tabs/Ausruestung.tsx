@@ -208,7 +208,7 @@ export default function AusruestungTab() {
       <div className="panel">
         <h3>Behälter (Stauraum)</h3>
         {storageConts.length === 0 && (
-          <p className="muted">Noch keine Stauraum-Behälter. Lege sie im Inventar-Reiter an; ihr Inhalt lebt dort.</p>
+          <p className="muted">Noch keine Stauraum-Behälter. Lege sie im Inventar-Reiter an; ihr Inhalt befindet sich dort.</p>
         )}
         <div className="container-grid">
           {storageConts.map((c) => {
