@@ -1,4 +1,8 @@
 :root {
+  /* Native Steuerelemente (Auswahl-Aufklapper, Rollbalken) im passenden Schema
+     rendern — sonst hat das Dropdown im Dunkelmodus hellen Grund mit kaum
+     lesbarem Text. Wird je Modus unten überschrieben. */
+  color-scheme: light;
   --bg: #f6f3ec;
   --panel: #ffffff;
   --border: #e4ddce;
@@ -137,6 +141,7 @@
    Akzent-Blöcke sind spezifischer (data-theme + data-mode) und gewinnen beim
    Akzent. Die Schattenlande stehen bewusst danach und sind dunkel-only. */
 :root[data-mode='dark'] {
+  color-scheme: dark;
   --bg: #17140f;
   --panel: #221d16;
   --panel-hi: #2a241b;
@@ -223,6 +228,7 @@
 /* Schattenlande — eigene dunkle Farbwelt, dunkel-only: erzwingt Dunkel
    unabhängig von data-mode und steht deshalb nach den Modus-Blöcken. */
 :root[data-theme='nacht'] {
+  color-scheme: dark;
   --bg: #17140f;
   --panel: #221d16;
   --panel-hi: #2a241b;
@@ -268,22 +274,36 @@
 /* Selektoren bewusst spezifisch (Elternklasse davor), damit sie die
    allgemeine Regel `header.topbar button` überstimmen — sonst erbt das Menü
    deren weißen Text und ist auf hellem Grund unlesbar. */
+/* Grundzustand = auf einem Panel (z. B. Einstellungen): normale Steuerfarben,
+   sonst wäre der weiße Auslöser auf weißem Panel unsichtbar. Die weiße
+   Überlagerung gilt nur in der farbigen Kopfleiste (unten überschrieben). */
 .theme-dropdown .theme-dd-trigger {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  color: var(--on-accent);
+  background: var(--bg);
+  border: 1px solid var(--border-hover);
+  color: var(--text);
   font: inherit;
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.12s ease;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .theme-dropdown .theme-dd-trigger:hover {
+  border-color: var(--accent);
+}
+/* In der Kopfleiste sitzt der Auslöser auf farbigem Grund: helle Überlagerung
+   mit hellem Text (höhere Spezifität → gewinnt dort). */
+header.topbar .theme-dropdown .theme-dd-trigger {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.28);
+  color: var(--on-accent);
+}
+header.topbar .theme-dropdown .theme-dd-trigger:hover {
   background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.28);
 }
 .theme-dd-caret {
   font-size: 10px;
@@ -570,10 +590,13 @@ header.topbar button:hover {
    darin rechnen ihre Spalten in Prozent und wachsen einfach mit. Der
    Innenabstand schrumpft auf schmalen Geräten mit. */
 main {
+  /* seitliches Polster als Variable, damit klebende Leisten es per negativem
+     Rand überbrücken und ihren Hintergrund bis zum Beschnittrand ziehen können. */
+  --pad-x: clamp(10px, 1.8vw, 28px);
   width: 100%;
   max-width: 2200px;
   margin: 0 auto;
-  padding: 20px clamp(10px, 1.8vw, 28px) 60px;
+  padding: 20px var(--pad-x) 60px;
 }
 
 /* ---------- Panels & Karten ---------- */
@@ -732,7 +755,11 @@ tr.subtle-head.clickable:hover td {
   position: sticky;
   top: var(--topbar-h, 47px);
   z-index: 16;
-  padding: 8px 0 6px;
+  /* Bis zum Beschnittrand ziehen: breite Tabellen machen die Panels breiter als
+     den Inhaltskasten, sonst lugte der Überlauf rechts unter der Leiste hervor.
+     Negativer Rand + gleiches Polster = Hintergrund voll, Inhalt bleibt stehen. */
+  margin-inline: calc(-1 * var(--pad-x));
+  padding: 8px var(--pad-x) 6px;
   background: var(--bg);
 }
 
@@ -749,8 +776,9 @@ tr.subtle-head.clickable:hover td {
   position: sticky;
   top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px));
   z-index: 15;
-  margin: 10px 0 14px;
-  padding: 8px 0;
+  /* Wie .char-header bis zum Beschnittrand ziehen (siehe dort). */
+  margin: 10px calc(-1 * var(--pad-x)) 14px;
+  padding: 8px var(--pad-x);
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -1267,12 +1295,13 @@ tr.slot-row td {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 0;
-  margin-bottom: 14px;
+  /* Bis zum Beschnittrand ziehen wie .char-header (siehe dort). */
+  margin: 0 calc(-1 * var(--pad-x)) 14px;
+  padding: 8px var(--pad-x);
   background: var(--bg);
 }
-.talent-search input {
-  max-width: 360px;
+.talent-search .notch {
+  flex: 0 1 360px;
 }
 
 /* Meisterschaft (100 TaW) — Stern mit Tooltip */
@@ -2495,6 +2524,10 @@ li {
 .set-row select {
   flex: 0 1 auto;          /* Nimmt den restlichen Platz in der Zeile ein */
   width: auto;     /* Verhindert, dass die Browser-Standardbreite den Umbruch erzwingt */
+  /* Auf dem weißen Panel verschwand das weiße Eingabefeld fast — Seitengrund
+     statt Panelgrund plus kräftigerer Rahmen hebt es in beiden Modi ab. */
+  background: var(--bg);
+  border-color: var(--border-hover);
 }
 .set-label {
   font-weight: 600;
@@ -2680,6 +2713,75 @@ li {
 .abil-toolbar select.abil-sort {
   max-width: 15em;
 }
+
+/* ---------- Beschriftetes Steuerfeld mit Kerbe (fieldset/legend) ----------
+   App-weit für Such-, Filter- und Sortierfelder: der Rahmen fasst zusammen,
+   die Beschriftung sitzt in einer Lücke der oberen Rahmenlinie. Das fieldset
+   bleibt ein Block (display NICHT ändern — sonst rutscht die Kerbe); angeordnet
+   wird über die umgebende Reihe (Flexbox). */
+.notch {
+  min-width: 0;
+  margin: 0;
+  padding: 1px 9px 3px;
+  border: 1px solid var(--border-strong, var(--border));
+  border-radius: 8px;
+  background: transparent;
+}
+.notch > legend {
+  padding: 0 5px;
+  margin-left: 2px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--muted);
+}
+.notch > input,
+.notch > select {
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 3px 0;
+  font: inherit;
+  color: inherit;
+  outline: none;
+  max-width: none;
+}
+/* Der aufgeklappte Auswahl-Zettel erbt den transparenten Grund nicht — ohne
+   ausdrückliche Farben rendert er (je nach Browser) hell, im Dunkelmodus mit
+   kaum lesbarem Text. color-scheme oben deckt die meisten Fälle ab, das hier
+   ist der Gurt zum Hosenträger. */
+.notch > select option {
+  background: var(--panel);
+  color: var(--text);
+}
+.notch:focus-within {
+  border-color: var(--accent, var(--border-strong));
+}
+/* Aktiver Filter: deutlich sichtbar in HELL wie DUNKEL — kräftigerer Rahmen,
+   zarte Akzentfüllung und die Beschriftung in Akzentfarbe. Ein bloßer
+   Rahmenfarbwechsel war im Hellen kaum vom neutralen Rahmen zu unterscheiden. */
+.notch--active {
+  border-color: var(--accent, var(--border-strong));
+  /* Ring AUSSEN um den Rahmen (kein inset) — ein innerer Schatten liefe quer
+     durch die Beschriftung in der Rahmenkerbe und machte sie unlesbar. */
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.notch--active > legend {
+  color: var(--accent);
+}
+/* In der Werkzeugleiste: Suche darf wachsen, der Rest bleibt bei Inhaltsbreite. */
+.abil-toolbar .notch {
+  flex: 0 0 auto;
+}
+.abil-toolbar .notch.notch-search {
+  flex: 0 1 18em;
+}
+.abil-toolbar .notch > select {
+  max-width: 13em;
+}
+.abil-toolbar .notch.notch-sort > select {
+  max-width: 15em;
+}
 /* Werkzeugleiste + Gruppierung kleben oben (unter Kopf- und Reiterleiste),
    damit Suche und Filter beim Scrollen greifbar bleiben. Nur im Reiter (dort
    sitzt sie in einem .panel); der Hintergrund verdeckt die Tabelle darunter. */
@@ -2688,7 +2790,21 @@ li {
   top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
   z-index: 11;
   background: var(--panel);
-  padding: 6px 0 8px;
+  /* Bis an die Panel-Ränder ziehen (Panel-Polster 16px): der Hintergrund deckt
+     dann die volle Breite der Tabelle darunter, statt 16px früher aufzuhören. */
+  margin-inline: -16px;
+  padding: 6px 16px 8px;
+}
+/* Verwaltungsseite: Such-/Filterzeile klebt oben (nur die Kopfleiste steht
+   darüber — dort gibt es keine Reiter). Bis an die Panel-Ränder ziehen, damit
+   der Hintergrund die Liste darunter voll verdeckt. */
+.werk-controls {
+  position: sticky;
+  top: var(--topbar-h, 47px);
+  z-index: 6;
+  background: var(--panel);
+  margin-inline: -16px;
+  padding: 8px 16px;
 }
 /* Angehefteter Signatur-Zauber: immer die erste Zeile, dezent hervorgehoben. */
 .abil-tab tr.abil-pinned td {

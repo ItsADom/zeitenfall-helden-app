@@ -76,6 +76,12 @@ function MagierPanel() {
     for (let R = magierstufe; R >= 1; R--) if (meetsRank(R)) return R;
     return 0;
   };
+  // Ob gerade eine Ausnahme wirkt, steht in den Daten selbst: eine Stufe ÜBER
+  // dem legitim erreichbaren Maximum ist nur per „Überschreiben" möglich. Der
+  // Schalter liest diesen Zustand ab (bleibt also nach dem Neuladen gesetzt),
+  // nicht nur die flüchtige Sitzungsvariable.
+  const legitMax = legitMaxStufe();
+  const overrideOn = override || magierstufe > legitMax;
 
   // Erhöhung ist standardmäßig gesperrt, solange die Voraussetzungen des nächsten
   // Rangs nicht erfüllt sind — mit klarer Warnung. Senken geht immer. „Überschreiben"
@@ -86,7 +92,7 @@ function MagierPanel() {
       setWarn('');
       update('meta', { ...data.meta, magierstufe: v });
     };
-    if (v <= magierstufe || override) return commit();
+    if (v <= magierstufe || overrideOn) return commit();
     // Ränge ohne Voraussetzungen sind frei (Rang 1 = „Magier werden").
     if (!MAGIER_ANFORDERUNGEN[v]) return commit();
     if (v === magierstufe + 1 && elig.erfuellt) return commit();
@@ -111,19 +117,16 @@ function MagierPanel() {
         <label className="magier-override" title="Erlaubt Erhöhung ohne erfüllte Voraussetzungen. Ausschalten setzt die Stufe auf das legitim erreichbare Maximum zurück.">
           <input
             type="checkbox"
-            checked={override}
+            checked={overrideOn}
             onChange={(e) => {
               const on = e.target.checked;
               setOverride(on);
               // Ausschalten hebt eine Ausnahme (z. B. Fluch) auf: die Stufe fällt
               // auf das zurück, was der Charakter regulär erreicht.
-              if (!on) {
-                const max = legitMaxStufe();
-                if (magierstufe > max) {
-                  setWarn('');
-                  update('meta', { ...data.meta, magierstufe: max });
-                  resyncField();
-                }
+              if (!on && magierstufe > legitMax) {
+                setWarn('');
+                update('meta', { ...data.meta, magierstufe: legitMax });
+                resyncField();
               }
             }}
           />

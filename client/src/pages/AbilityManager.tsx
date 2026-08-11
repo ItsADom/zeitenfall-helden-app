@@ -3,6 +3,8 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Ability } from '@shared/abilities';
 import { ABILITY_STUFE_MAX, makeAbilityUid } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
+import { useThemeControls } from '../App';
+import { Field } from '../components/inputs';
 
 // „Zauber & Fähigkeiten verwalten" (Cluster 6): die dedizierte Bearbeitungsseite
 // und „einzige Quelle der Wahrheit". Zwei getrennte Listen — Zauber (magisch) und
@@ -12,7 +14,7 @@ import { apiGet, apiPost, apiPut } from '../api';
 const ZAUBER_TAB_NAME = 'Zauber/Fähigkeiten';
 
 interface LoadResp {
-  character: { id: number; name: string };
+  character: { id: number; name: string; theme?: string };
   access: 'edit' | 'summary' | null;
   data?: {
     abilities?: Ability[];
@@ -60,6 +62,7 @@ export default function AbilityManagerPage() {
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [name, setName] = useState('');
+  const [theme, setTheme] = useState<string | null>(null);
   const [hasOldTab, setHasOldTab] = useState(false);
 
   const [abilities, setAbilities] = useState<Ability[]>([]);
@@ -82,6 +85,7 @@ export default function AbilityManagerPage() {
         const els = res.data.abilityLists?.element ?? [];
         const kats = res.data.abilityLists?.kategorie ?? [];
         setName(res.character.name);
+        setTheme(res.character.theme ?? null);
         setAbilities(abils);
         setElements(els);
         setKategorien(kats);
@@ -95,6 +99,15 @@ export default function AbilityManagerPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Wie die Charakterseite bringt auch die Verwaltungsseite die Farbwelt des
+  // Charakters mit — sonst zeigte sie die persönliche Vorgabe des Betrachters.
+  // Beim Verlassen wieder abräumen.
+  const { setOverrideTheme } = useThemeControls();
+  useEffect(() => {
+    setOverrideTheme(theme);
+    return () => setOverrideTheme(null);
+  }, [theme, setOverrideTheme]);
 
   const dirty =
     JSON.stringify(abilities) !== saved.abilities ||
@@ -327,33 +340,41 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
         ))}
       </datalist>
 
-      <div className="abil-toolbar">
-        <input className="abil-search" type="text" placeholder="Suchen…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="abil-toolbar werk-controls">
+        <Field label="Suchen" className="notch-search" active={needle !== ''}>
+          <input type="text" placeholder="Name, Effekt…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </Field>
         {magisch && elemOptions.length > 0 && (
-          <select value={fEl} onChange={(e) => setFEl(e.target.value)} title="Nach Element filtern">
-            <option value="">alle Elemente</option>
-            {elemOptions.map((e) => (
-              <option key={e} value={e}>
-                {e}
-              </option>
-            ))}
-          </select>
+          <Field label="Element" active={fEl !== ''}>
+            <select value={fEl} onChange={(e) => setFEl(e.target.value)} title="Nach Element filtern">
+              <option value="">alle Elemente</option>
+              {elemOptions.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
         {katOptions.length > 0 && (
-          <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
-            <option value="">alle Kategorien</option>
-            {katOptions.map((k) => (
-              <option key={k} value={k}>
-                {k}
-              </option>
-            ))}
-          </select>
+          <Field label="Kategorie" active={fKat !== ''}>
+            <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
+              <option value="">alle Kategorien</option>
+              {katOptions.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
-        <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
-          <option value="">alle</option>
-          <option value="aktiv">nur aktive</option>
-          <option value="passiv">nur passive</option>
-        </select>
+        <Field label="Passiv" active={fPassiv !== ''}>
+          <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
+            <option value="">alle</option>
+            <option value="aktiv">nur aktive</option>
+            <option value="passiv">nur passive</option>
+          </select>
+        </Field>
         {filtering && (
           <button className="small" onClick={() => { setQ(''); setFEl(''); setFKat(''); setFPassiv(''); }} title="Filter zurücksetzen">
             ✕

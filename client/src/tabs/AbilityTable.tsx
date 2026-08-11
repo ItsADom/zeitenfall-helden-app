@@ -4,7 +4,7 @@ import type { Ability, Attributes } from '@shared/abilities';
 import { groupAbilities } from '@shared/abilities';
 import { probeExprZahl } from '@shared/rules';
 import { AlwaysEditable } from '../components/displayMode';
-import { NumInput } from '../components/inputs';
+import { Field, NumInput } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
 import { useChar } from '../pages/Character';
 
@@ -87,39 +87,49 @@ export function AbilityTable({
     <div className="panel">
       <div className="abil-controls">
       <div className="abil-toolbar">
-        <input className="abil-search" type="text" placeholder="Suchen…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Field label="Suchen" className="notch-search" active={needle !== ''}>
+          <input type="text" placeholder="Name, Effekt…" value={q} onChange={(e) => setQ(e.target.value)} />
+        </Field>
         {magisch && elemente.length > 0 && (
-          <select value={fEl} onChange={(e) => setFEl(e.target.value)} title="Nach Element filtern">
-            <option value="">alle Elemente</option>
-            {elemente.map((e) => (
-              <option key={e} value={e}>
-                {e}
-              </option>
-            ))}
-          </select>
+          <Field label="Element" active={fEl !== ''}>
+            <select value={fEl} onChange={(e) => setFEl(e.target.value)} title="Nach Element filtern">
+              <option value="">alle Elemente</option>
+              {elemente.map((e) => (
+                <option key={e} value={e}>
+                  {e}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
         {kategorien.length > 0 && (
-          <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
-            <option value="">alle Kategorien</option>
-            {kategorien.map((k) => (
-              <option key={k} value={k}>
-                {k}
+          <Field label="Kategorie" active={fKat !== ''}>
+            <select value={fKat} onChange={(e) => setFKat(e.target.value)} title="Nach Kategorie filtern">
+              <option value="">alle Kategorien</option>
+              {kategorien.map((k) => (
+                <option key={k} value={k}>
+                  {k}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+        <Field label="Passiv" active={fPassiv !== ''}>
+          <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
+            <option value="">alle</option>
+            <option value="aktiv">nur aktive</option>
+            <option value="passiv">nur passive</option>
+          </select>
+        </Field>
+        <Field label="Sortieren" className="notch-sort" active={sort !== ''}>
+          <select value={sort} onChange={(e) => setSort(e.target.value as SortBy)} title="Sortieren nach">
+            {SORT_ORDER.map((s) => (
+              <option key={s} value={s}>
+                {s === '' ? listSortLabel : `Nach ${SORT_LABEL[s]}`}
               </option>
             ))}
           </select>
-        )}
-        <select value={fPassiv} onChange={(e) => setFPassiv(e.target.value as '' | 'passiv' | 'aktiv')} title="Passiv/aktiv">
-          <option value="">alle</option>
-          <option value="aktiv">nur aktive</option>
-          <option value="passiv">nur passive</option>
-        </select>
-        <select className="abil-sort" value={sort} onChange={(e) => setSort(e.target.value as SortBy)} title="Sortieren nach">
-          {SORT_ORDER.map((s) => (
-            <option key={s} value={s}>
-              {s === '' ? listSortLabel : `Nach ${SORT_LABEL[s]}`}
-            </option>
-          ))}
-        </select>
+        </Field>
         {filtering && (
           <button
             className="small"

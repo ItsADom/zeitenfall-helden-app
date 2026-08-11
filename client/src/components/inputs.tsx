@@ -5,6 +5,33 @@ import { fitSoon, observeAutosize } from './autosize';
 import { useReadOnly } from './displayMode';
 import { ColumnDivider, TableTools, useTableLayout } from './tableLayout';
 
+/**
+ * Beschriftetes Steuerfeld mit „eingekerbtem" Rahmen: die Beschriftung sitzt in
+ * einer Lücke der oberen Rahmenlinie (natives fieldset/legend). Für Such-,
+ * Filter- und Sortierfelder — der Rahmen fasst zusammen, was zusammengehört, und
+ * die Beschriftung sagt, was das Feld tut, ohne Platz in einer eigenen Zeile.
+ * Nimmt ein einzelnes Kind (input/select) auf; die Reihe außenrum ordnet an.
+ */
+export function Field({
+  label,
+  children,
+  active,
+  className,
+}: {
+  label: string;
+  children: React.ReactNode;
+  /** Rahmen in Akzentfarbe, wenn das Feld gerade etwas einschränkt (z. B. ein aktiver Filter). */
+  active?: boolean;
+  className?: string;
+}) {
+  return (
+    <fieldset className={`notch${active ? ' notch--active' : ''}${className ? ` ${className}` : ''}`}>
+      <legend>{label}</legend>
+      {children}
+    </fieldset>
+  );
+}
+
 export function NumInput({
   value,
   onChange,

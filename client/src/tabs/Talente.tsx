@@ -3,7 +3,7 @@ import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { CollapsiblePanel } from '../components/collapse';
-import { NumInput, TextInput } from '../components/inputs';
+import { Field, NumInput, TextInput } from '../components/inputs';
 import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { usePersistedState } from '../components/persist';
 import { useSearchHeight } from '../components/stickyChrome';
@@ -58,7 +58,9 @@ export default function TalenteTab() {
   return (
     <>
       <div className="talent-search" ref={searchRef}>
-        <input type="text" placeholder="Talent suchen…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Field label="Talent suchen" className="notch-search" active={search !== ''}>
+          <input type="text" placeholder="Name…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </Field>
         {search && (
           <button className="small" onClick={() => setSearch('')} title="Suche zurücksetzen">
             ✕
