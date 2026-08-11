@@ -14,6 +14,23 @@ export interface ChangelogEntry {
 // Neueste Einträge zuerst.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-11',
+    version: '0.3',
+    title: 'Zauber & Fähigkeiten neu gedacht',
+    changes: [
+      'Aus dem einen frei benennbaren Bereich „Zauber/Fähigkeiten“ sind zwei aufgeräumte Reiter geworden: „Zauber“ für alles Magische und „Fähigkeiten“ für Mundanes (Techniken, besondere Talente und Ähnliches).',
+      'Beide Reiter sind zum Nachschlagen da: die Einträge stehen übersichtlich als Text und lassen sich nicht aus Versehen verstellen. Nur der Fortschritt ist direkt in der Zeile änderbar — den fasst man im Spiel am häufigsten an.',
+      'Gepflegt wird alles an einem Ort: über „Liste bearbeiten →“ (oben an beiden Reitern) öffnet sich die Seite „Zauber & Fähigkeiten verwalten“. Dort legst du Einträge an, änderst Namen, Werte, Proben und Effekte und bringst sie per Ziehen in deine Wunsch-Reihenfolge. Verbindlich wird es mit „Speichern“.',
+      'Jeder Eintrag hat einen aufklappbaren Detailbereich für Kosten, Probe, Effekt und eine freie Notiz — so bleibt die Liste schlank, ohne dass Angaben verloren gehen.',
+      'Aktiv oder passiv: dauerhaft wirkende Zauber und Fähigkeiten kannst du als „passiv“ markieren und getrennt von den aktiven einblenden.',
+      'Signatur-Zauber: markiere deinen wichtigsten Zauber mit einem Stern — er steht im Reiter dann immer ganz oben und ist so sofort zur Hand.',
+      'Ordnung in langen Listen: Suche, Filter (nach Element, Kategorie, aktiv/passiv), Sortierung und eine Gruppierung nach Element oder Kategorie. Ein erneuter Klick auf die aktive Gruppierung hebt sie wieder auf.',
+      'Deine eigenen Element- und Kategorie-Listen legst du auf der Verwaltungsseite an; beim Tippen schlägt die App sie dir danach als Vorschläge vor.',
+      'Neu: ein Magier-Bereich über der Zauberliste. Mit einer eingetragenen Magierstufe zeigt er die daraus abgeleiteten Magiepunkte und Stufe für Stufe die Voraussetzungen für den nächsten Rang (Talentwerte, Psyche, Magiepunkte) — du siehst auf einen Blick, was noch fehlt.',
+      'Die Magierstufe steigt nur, wenn die Voraussetzungen erfüllt sind. Für Ausnahmen, die die Stufe kurzzeitig anheben, gibt es „Überschreiben“; schaltest du es wieder aus, fällt die Stufe auf das regulär Erreichbare zurück.',
+    ],
+  },
+  {
     date: '2026-08-10',
     version: '0.2.1',
     title: 'Eine eigene Einstellungsseite',

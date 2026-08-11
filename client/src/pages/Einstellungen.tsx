@@ -195,7 +195,18 @@ export default function EinstellungenPage() {
 
   return (
     <>
-      <h1>Einstellungen</h1>
+      <div className="einst-head">
+        <h1>Einstellungen</h1>
+        {selId != null && !loading && (
+          <div className="head-save">
+            <button className="primary" disabled={!dirty || saving} onClick={save}>
+              {saving ? 'Speichere…' : 'Speichern'}
+            </button>
+            {dirty && !saving && <span className="muted">Ungespeicherte Änderungen</span>}
+            <span className="savestate">{msg}</span>
+          </div>
+        )}
+      </div>
 
       <div className="panel">
         <h3>Anzeige (dein Konto)</h3>
@@ -334,13 +345,6 @@ export default function EinstellungenPage() {
             </div>
           </div>
 
-          <div className="panel set-save">
-            <button className="primary" disabled={!dirty || saving} onClick={save}>
-              {saving ? 'Speichere…' : 'Speichern'}
-            </button>
-            {dirty && !saving && <span className="muted">Ungespeicherte Änderungen</span>}
-            <span className="savestate">{msg}</span>
-          </div>
         </>
       )}
       {loading && <p className="muted">Lade…</p>}

@@ -223,13 +223,20 @@ export default function AbilityManagerPage() {
     <>
       <div className="werk-head">
         <h1>Zauber &amp; Fähigkeiten verwalten</h1>
+        <div className="head-save">
+          <button className="primary" disabled={!dirty || saving} onClick={save}>
+            {saving ? 'Speichere…' : 'Speichern'}
+          </button>
+          {dirty && !saving && <span className="muted">Ungespeicherte Änderungen</span>}
+          <span className="savestate">{msg}</span>
+        </div>
         <Link to={`/charakter/${charId}?tab=${fromTab}`} className="muted">
           ← {name}
         </Link>
       </div>
       <p className="muted">
         Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Hier wird alles gepflegt; im Reiter selbst
-        wird nur der Fortschritt Lernffortschritt. Änderungen sind erst mit „Speichern" verbindlich.
+        wird nur der Lernfortschritt geändert. Änderungen sind erst mit „Speichern" verbindlich.
       </p>
 
       {abilities.length === 0 && hasOldTab && (
@@ -272,7 +279,6 @@ export default function AbilityManagerPage() {
 
       <AbilityListPanel
         title="Zauber"
-        hint="Magisch — Stufe × Komplexität ergeben die Magiepunkte."
         magisch
         list={zauber}
         elements={elements}
@@ -288,7 +294,6 @@ export default function AbilityManagerPage() {
 
       <AbilityListPanel
         title="Fähigkeiten"
-        hint="Mundan — Techniken und Talente; passive wie aktive."
         magisch={false}
         list={faehig}
         elements={elements}
@@ -309,14 +314,6 @@ export default function AbilityManagerPage() {
           <StringListEditor label="Kategorien" items={kategorien} onChange={setKategorien} />
         </div>
       </div>
-
-      <div className="panel set-save">
-        <button className="primary" disabled={!dirty || saving} onClick={save}>
-          {saving ? 'Speichere…' : 'Speichern'}
-        </button>
-        {dirty && !saving && <span className="muted">Ungespeicherte Änderungen</span>}
-        <span className="savestate">{msg}</span>
-      </div>
     </>
   );
 }
@@ -325,7 +322,6 @@ export default function AbilityManagerPage() {
 
 interface ListPanelProps {
   title: string;
-  hint: string;
   magisch: boolean;
   list: Ability[];
   elements: string[];
@@ -339,7 +335,7 @@ interface ListPanelProps {
   onAdd: () => void;
 }
 
-function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onReorder, onSignatur, onAdd }: ListPanelProps) {
+function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onReorder, onSignatur, onAdd }: ListPanelProps) {
   const elId = `elemente-${magisch ? 'z' : 'f'}`;
   const katId = `kategorien-${magisch ? 'z' : 'f'}`;
 
@@ -372,7 +368,6 @@ function AbilityListPanel({ title, hint, magisch, list, elements, kategorien, ex
       <h3>
         {title} <span className="muted">· {list.length}{filtering ? ` (${shown.length} sichtbar)` : ''}</span>
       </h3>
-      <p className="muted">{hint}</p>
       <datalist id={elId}>
         {elemOptions.map((e) => (
           <option key={e} value={e} />

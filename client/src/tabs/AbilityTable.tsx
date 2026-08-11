@@ -147,7 +147,7 @@ export function AbilityTable({
           </button>
         )}
         <Link className="abil-werk-link" to={`/charakter/${charId}/zauber-faehigkeiten?from=${magisch ? 'Zauber' : 'Fähigkeiten'}`}>
-          Bearbeiten →
+          Liste bearbeiten →
         </Link>
       </div>
 

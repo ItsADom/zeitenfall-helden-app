@@ -2611,11 +2611,32 @@ li {
 }
 
 /* ---------- Zauber-&-Fähigkeiten-Werkstatt (Cluster 6) ---------- */
-.werk-head {
+/* Kopfbereich der Verwaltungs- und Einstellungsseite: Titel, Speichern-Knopf
+   (mit Hinweis) und ggf. Zurück-Link in einer Zeile — und beim Scrollen oben
+   klebend, damit „Speichern" immer erreichbar bleibt. Bis zum Beschnittrand
+   ziehen wie .char-header, sonst lugte breiter Inhalt rechts darunter hervor. */
+.werk-head,
+.einst-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 14px;
   flex-wrap: wrap;
+  position: sticky;
+  top: var(--topbar-h, 47px);
+  z-index: 12;
+  background: var(--bg);
+  margin-inline: calc(-1 * var(--pad-x));
+  padding: 8px var(--pad-x);
+}
+.werk-head h1,
+.einst-head h1 {
+  margin: 0;
+}
+/* Speichern-Gruppe im Kopf: Knopf + „Ungespeicherte Änderungen" + Statustext. */
+.head-save {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .werk-seed {
   border: 1px solid var(--accent, var(--border));
