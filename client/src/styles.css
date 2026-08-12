@@ -1095,6 +1095,21 @@ table.sheet tbody tr:hover td.res-crit {
 table.sheet tbody tr:hover td.res-over {
   background: var(--over-soft);
 }
+/* Zell-eigenes Label: für Zeilen, deren Eingaben nicht zur geteilten Kopfzeile
+   passen (z. B. Psyche mit Rassenwert/Bonus). Kleine, gedämpfte Aufschrift über
+   dem Feld — der Tabellenkopf bleibt für alle anderen Zeilen unverändert. */
+.cell-labeled {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.cell-label {
+  font-size: 0.7em;
+  line-height: 1.1;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 /* Maximum über der Ausbaugrenze: gekappter Wert zählt, Rohsumme daneben
    durchgestrichen — wie ein durchgestrichener alter Preis. */
 .gekappt {

@@ -317,11 +317,23 @@ export default function HeldenbriefTab() {
                   <td>Psyche</td>
                   <td className="formel">Rasse + Bonus + 5·(MU-10)</td>
                   <td className="computed">{pMuAnteil}</td>
-                  <td title="Rassengrundwert">
-                    <NumInput value={pBase} onChange={(v) => setMeta('psycheBase', v)} />
-                  </td>
+                  {/* Eigene Zell-Labels statt der geteilten Kopfzeile: die Psyche
+                      hat andere Eingaben (Bonus/Rassenwert) als LE/AUS/AsE, deren
+                      „Bonus/Gekauft"-Kopf hier nicht passt. Nur diese Zeile ist
+                      betroffen; der Tabellenkopf bleibt für die anderen unberührt.
+                      Reihenfolge bewusst: der Bonus sitzt unter „Bonus", der
+                      Rassenwert übernimmt die „Gekauft"-Spalte. */}
                   <td title="Bonus (z. B. Effekte)">
-                    <NumInput value={pBonus} onChange={(v) => setMeta('psycheBonus', v)} />
+                    <div className="cell-labeled">
+                      <span className="cell-label">Bonus</span>
+                      <NumInput value={pBonus} onChange={(v) => setMeta('psycheBonus', v)} />
+                    </div>
+                  </td>
+                  <td title="Rassengrundwert">
+                    <div className="cell-labeled">
+                      <span className="cell-label">Rasse</span>
+                      <NumInput value={pBase} onChange={(v) => setMeta('psycheBase', v)} />
+                    </div>
                   </td>
                   <td className="computed">{pMax}</td>
                   <td className="computed">—</td>
