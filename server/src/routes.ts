@@ -16,6 +16,7 @@ import {
   MAX_TABLE_KEY,
   buildGroupOverview,
   buildSummary,
+  talentCatalogList,
   deletePortrait,
   importFullCharacter,
   instantiateStandardSections,
@@ -225,7 +226,7 @@ api.get('/groups/:id/overview', requireAuth, requireGm, (req, res) => {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
-  res.json({ group, characters: buildGroupOverview(groupId) });
+  res.json({ group, talentCatalog: talentCatalogList(), characters: buildGroupOverview(groupId) });
 });
 
 // --- Gemeinsame Gruppeninhalte (jedes Gruppenmitglied darf bearbeiten) ---

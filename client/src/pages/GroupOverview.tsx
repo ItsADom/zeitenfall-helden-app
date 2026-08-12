@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import type { ResourceKey } from '@shared/types';
 import { apiGet } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
+import { Field } from '../components/inputs';
+import { usePersistedState } from '../components/persist';
 
 // Spielleiter-Übersicht: alle Charaktere einer Gruppe als Karten, ihre
 // wichtigsten Kennwerte als Chips. Nur-Lesen (die Route dahinter ist requireGm).
@@ -21,13 +23,21 @@ interface OverviewChar {
   vitals: Vital[];
   thresholds: { wund: number; tod: number };
   attributes: { code: string; value: number }[];
+  talents: { id: number; taw: number }[];
+}
+interface CatalogTalent {
+  id: number;
+  name: string;
+  gruppe: string;
 }
 interface OverviewData {
   group: { id: number; name: string };
+  talentCatalog: CatalogTalent[];
   characters: OverviewChar[];
 }
 
-const VITAL_LABELS: Record<string, string> = { le: 'LE', aus: 'AUS', ase: 'AsE', psyche: 'Psyche' };
+// Kürzel wie in der Seitenleiste (RES_ABBR): LP/AUS/ASP, plus Psyche.
+const VITAL_LABELS: Record<string, string> = { le: 'LP', aus: 'AUS', ase: 'ASP', psyche: 'Psyche' };
 
 // Takt der stillen Auto-Aktualisierung, solange die Übersicht sichtbar offen ist.
 const POLL_MS = 15000;
@@ -46,6 +56,17 @@ export default function GroupOverviewPage() {
   const groupId = Number(id);
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState('');
+
+  // Talent-Abfrage: der Spielleiter tippt einen Talentnamen, angepinnte Talente
+  // erscheinen als Spalte auf jeder Karte. Die Auswahl überlebt Reload/Poll und
+  // ist je Gruppe gemerkt (client-seitig — reine Anzeigehilfe, kein Serverstand).
+  const [query, setQuery] = useState('');
+  const [pinned, setPinned] = usePersistedState<number[]>(`gm-poll:${groupId}`, []);
+  const pin = (tid: number) => {
+    setPinned((p) => (p.includes(tid) ? p : [...p, tid]));
+    setQuery('');
+  };
+  const unpin = (tid: number) => setPinned((p) => p.filter((x) => x !== tid));
 
   // quiet=true: stille Hintergrund-Aktualisierung, der bisherige Stand bleibt
   // stehen, bis neue Daten da sind (gleiches Muster wie die Gruppenseite).
@@ -87,12 +108,76 @@ export default function GroupOverviewPage() {
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Lade…</p>;
 
+  // Vorschläge aus dem GESAMTEN Katalog (auch Talente, die niemand kann → überall
+  // „–"), Name oder Gruppe treffen, bereits Angepinntes ausgeblendet.
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? data.talentCatalog
+        .filter(
+          (t) =>
+            !pinned.includes(t.id) &&
+            (t.name.toLowerCase().includes(q) || t.gruppe.toLowerCase().includes(q)),
+        )
+        .slice(0, 8)
+    : [];
+  // Angepinnte Talente in Anpinn-Reihenfolge; verwaiste IDs (Katalog geändert)
+  // fallen still weg.
+  const pinnedTalents = pinned
+    .map((tid) => data.talentCatalog.find((t) => t.id === tid))
+    .filter((t): t is CatalogTalent => t !== undefined);
+
   return (
     <>
       <p className="muted">
         <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>
       </p>
       <h1>Übersicht: {data.group.name}</h1>
+
+      <div className="gm-poll">
+        <div className="gm-poll-search">
+          <Field label="Talent abfragen" className="notch-search" active={pinnedTalents.length > 0}>
+            <input
+              type="text"
+              placeholder="Talentname…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && matches[0]) pin(matches[0].id);
+                if (e.key === 'Escape') setQuery('');
+              }}
+            />
+          </Field>
+          {query && (
+            <button className="small" onClick={() => setQuery('')} title="Suche zurücksetzen">
+              ✕
+            </button>
+          )}
+          {matches.length > 0 && (
+            <ul className="gm-poll-results">
+              {matches.map((t) => (
+                <li key={t.id}>
+                  <button onClick={() => pin(t.id)}>
+                    {t.name}
+                    {t.gruppe && <span className="muted"> · {t.gruppe}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {pinnedTalents.length > 0 && (
+          <div className="gm-poll-pinned">
+            {pinnedTalents.map((t) => (
+              <span className="gm-poll-tag" key={t.id}>
+                {t.name}
+                <button onClick={() => unpin(t.id)} title="Aus der Abfrage nehmen" aria-label={`${t.name} entfernen`}>
+                  ✕
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
 
       {data.characters.length === 0 ? (
         <p className="muted">Keine Charaktere in dieser Gruppe.</p>
@@ -147,6 +232,28 @@ export default function GroupOverviewPage() {
                   </span>
                 ))}
               </div>
+
+              {pinnedTalents.length > 0 &&
+                (() => {
+                  const taws = new Map(c.talents.map((t) => [t.id, t.taw]));
+                  return (
+                    <div className="gm-chips gm-chips--talent">
+                      {pinnedTalents.map((t) => {
+                        const taw = taws.get(t.id);
+                        return (
+                          <span
+                            className={`gm-chip gm-chip--talent${taw === undefined ? ' gm-chip--empty' : ''}`}
+                            key={t.id}
+                            title={t.gruppe ? `${t.gruppe}: ${t.name}` : t.name}
+                          >
+                            <span className="gm-chip-label">{t.name}</span>
+                            <span className="gm-chip-val">{taw ?? '–'}</span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
             </div>
           ))}
         </div>

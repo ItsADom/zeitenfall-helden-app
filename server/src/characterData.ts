@@ -1583,6 +1583,20 @@ export function buildGroupOverview(groupId: number) {
       vitals,
       thresholds: { wund: baseValues.wundschwelle.ergebnis, tod: baseValues.todesschwelle.ergebnis },
       attributes: ATTR_CODES.map((code) => ({ code, value: attributes[code].akt + attributes[code].mod })),
+      // Nur AUSGEBILDETE Talente (TaW ≠ 0), je Talent-ID auf den TaW verdichtet.
+      // Der Katalog (Namen) reist getrennt mit, damit die GM-Abfrage jeden Namen
+      // vorschlagen kann — auch einen, den in der Gruppe niemand kann.
+      talents: loadTalents(c.id)
+        .filter((t) => t.taw !== 0)
+        .map((t) => ({ id: t.talentId, taw: t.taw })),
     };
   });
+}
+
+// Katalog-Namen für die GM-Talentabfrage (Autovervollständigung). Global, also
+// einmal pro Übersicht mitgeliefert, nicht pro Charakter.
+export function talentCatalogList() {
+  return db
+    .prepare('SELECT id, name, gruppe FROM talents_catalog ORDER BY name')
+    .all() as { id: number; name: string; gruppe: string }[];
 }

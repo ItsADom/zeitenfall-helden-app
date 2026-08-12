@@ -3520,3 +3520,104 @@ li {
   border-color: var(--over-line);
   box-shadow: inset 3px 0 0 var(--over-line);
 }
+
+/* GM-Talentabfrage: Suchleiste + angepinnte Talente. Die Talent-Chips auf den
+   Karten heben sich per Akzentrand von den vitalen/Attribut-Chips ab; wer das
+   Talent nicht kann, bekommt einen matten „–"-Chip (Antwort „nichts", nicht
+   „übersehen"). */
+.gm-poll {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 16px;
+  margin-bottom: 16px;
+}
+.gm-poll-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gm-poll-search .notch-search {
+  min-width: 220px;
+}
+.gm-poll-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 240px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.gm-poll-results li {
+  margin: 0;
+}
+.gm-poll-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 5px 9px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.gm-poll-results button:hover,
+.gm-poll-results button:focus-visible {
+  background: var(--input-bg);
+}
+.gm-poll-pinned {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.gm-poll-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent-soft);
+}
+.gm-poll-tag button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.gm-poll-tag button:hover,
+.gm-poll-tag button:focus-visible {
+  color: var(--text);
+  background: var(--input-bg);
+}
+.gm-chip--talent {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.gm-chip--talent.gm-chip--empty {
+  border-style: dashed;
+  background: var(--input-bg);
+  opacity: 0.65;
+}
