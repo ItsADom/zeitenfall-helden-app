@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { ContainerArt, Item, ItemLocation } from '@shared/items';
 import {
   BODY_ZONES,
-  containerFuellung,
+  containerEffektiveFuellung,
   effektiverRs,
   itemsInContainer,
   itemsInZone,
@@ -133,9 +133,10 @@ export default function AusruestungTab() {
     </ItemChip>
   );
 
-  const load = lastInfo(items, data.attributes);
+  const load = lastInfo(items, data.attributes, data.meta.traglastBonus);
   const pct = load.max > 0 ? Math.min(100, (load.getragen / load.max) * 100) : 0;
   const rs = effektiverRs(items);
+  const setTraglastBonus = (v: number) => update('meta', { ...data.meta, traglastBonus: v });
 
   const bench = items.filter((it) => it.location === 'bench');
   const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
@@ -152,6 +153,11 @@ export default function AusruestungTab() {
           <div className="last-num">
             <strong>{kg(load.getragen)}</strong> / {kg(load.max)} kg
             {load.ueberladen && <span className="last-warn"> · überladen</span>}
+            {!ro && (
+              <label className="last-bonus" title="Zusatz auf die maximale Traglast (kg). Additiv, darf negativ sein.">
+                Bonus<NumInput value={data.meta.traglastBonus} onChange={setTraglastBonus} />
+              </label>
+            )}
           </div>
         </div>
       </div>
@@ -214,7 +220,8 @@ export default function AusruestungTab() {
         <div className="container-grid">
           {storageConts.map((c) => {
             const inside = itemsInContainer(items, c.uid);
-            const fuell = containerFuellung(items, c.uid);
+            // Effektives (reduziertes) Gewicht zählt gegen das Fassungsvermögen.
+            const fuell = containerEffektiveFuellung(items, c.uid);
             const voll = c.kapazitaet > 0 && fuell > c.kapazitaet;
             return (
               <div className="container-panel" key={c.uid}>

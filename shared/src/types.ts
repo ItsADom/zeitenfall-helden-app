@@ -147,6 +147,9 @@ export interface Meta {
   geldH: number;
   geldK: number;
   bank: number;
+  // Zusatz auf die berechnete maximale Traglast (kg). Additiv, kann negativ sein
+  // (z. B. Vor-/Nachteile). Die Formel bleibt sichtbar; dies erhöht nur das Maximum.
+  traglastBonus: number;
 }
 
 // Talente

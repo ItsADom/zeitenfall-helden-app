@@ -2314,6 +2314,18 @@ li {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+/* Bonus-Eingabe rechts neben der Zahl (nur im Bearbeiten-Modus sichtbar). */
+.last-bonus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 14px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.last-bonus input {
+  width: 4.5em;
+}
 .last-meter.over .last-num strong,
 .last-warn {
   color: var(--crit-line);

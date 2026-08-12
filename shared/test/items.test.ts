@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  containerEffektiveFuellung,
   containerFuellung,
   containers,
   effektiverRs,
@@ -16,7 +17,7 @@ import type { AttrCode, Attributes } from '../src/types.js';
 import { ATTR_ROW_CODES } from '../src/types.js';
 
 // Attribute-Fixture: alle Codes auf 10, KO/KK gesetzt, damit maximaleLast
-// = (KO+KK)×2×1.5 = (8+6)×3 = 42 kg ergibt.
+// = (KO+KK)×2 = (8+6)×2 = 28 kg ergibt.
 function attrs(ko = 8, kk = 6): Attributes {
   const out = {} as Attributes;
   for (const code of ATTR_ROW_CODES) out[code as AttrCode] = { akt: 10, mod: 0 };
@@ -93,13 +94,19 @@ describe('getrageneLast', () => {
 
 describe('lastInfo', () => {
   it('meldet Überladung, sobald die getragene Last das Maximum übersteigt', () => {
-    const under = lastInfo([item({ anzahl: 1, gewicht: 42 })], attrs());
-    expect(under.max).toBe(42);
-    expect(under.getragen).toBe(42);
+    const under = lastInfo([item({ anzahl: 1, gewicht: 28 })], attrs());
+    expect(under.max).toBe(28);
+    expect(under.getragen).toBe(28);
     expect(under.ueberladen).toBe(false);
 
-    const over = lastInfo([item({ anzahl: 1, gewicht: 42.5 })], attrs());
+    const over = lastInfo([item({ anzahl: 1, gewicht: 28.5 })], attrs());
     expect(over.ueberladen).toBe(true);
+  });
+
+  it('addiert den Traglast-Bonus (kann negativ sein, aber nie unter 0)', () => {
+    expect(lastInfo([], attrs(), 12).max).toBe(40); // 28 + 12
+    expect(lastInfo([], attrs(), -10).max).toBe(18); // 28 − 10
+    expect(lastInfo([], attrs(), -100).max).toBe(0); // gekappt bei 0
   });
 });
 
@@ -145,6 +152,14 @@ describe('Sichten', () => {
   it('itemsInContainer + containerFuellung (ohne Reduktion)', () => {
     expect(itemsInContainer(list, 'bag')).toEqual([inBag1, inBag2]);
     expect(containerFuellung(list, 'bag')).toBe(5); // 3 + 2×1
+  });
+
+  it('containerEffektiveFuellung: Inhalt um die Reduktion des Behälters gemindert', () => {
+    const redBag = item({ uid: 'red', istBehaelter: true, kapazitaet: 60, gewichtsreduktion: 50 });
+    const cargo = item({ location: 'behaelter', containerUid: 'red', anzahl: 1, gewicht: 120 });
+    const items = [redBag, cargo];
+    expect(containerFuellung(items, 'red')).toBe(120); // roh
+    expect(containerEffektiveFuellung(items, 'red')).toBe(60); // 120 × (1 − 50 %)
   });
 
   it('containers: nur als Behälter markierte Gegenstände', () => {

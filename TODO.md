@@ -28,8 +28,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## High-Prio
 
-- [sketch] Traglast overwriting
- - there are possibilites to increase the carry limit beyong what is calculated
 - [sketch] **Move Psyche** out of "Stufe & Punkte" into the Energien table.
    - formula + bonus.
    - only has a formula for Max-value + bonuses
@@ -106,7 +104,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
     wrapping (easier now that static text wraps where an input would not).
    - Sprachen has rendering issues (investigate).
    - Maybe clamp column widths to the minimum necessary in print for readability.
-- [sketch] **Mobile/tablet & general layout pass - PROBABLY OUTDATED FINDINGS** (most players are on PC — saved for
+- [sketch] **Mobile/tablet & general layout + responsiveness pass - PROBABLY OUTDATED FINDINGS** (most players are on PC — saved for
   later): responsiveness and layout touch-up, testing across many resolutions,
   and splitting `styles.css` into smaller files for maintenance. The below-700px
   table scroller and the sidebar's narrow-screen reflow belong to this pass.
@@ -140,7 +138,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
    - roll logs
    - dice rollable from sheet
    - chat commands
-    - /me
-     - "/me baut eine Sandburg" -> "Raskir baut eine Sandburg"
-    - general commands for different roll styles
+     - /me
+       - "/me baut eine Sandburg" -> "Raskir baut eine Sandburg"
+     - general commands for different roll styles
    - dice shortcuts

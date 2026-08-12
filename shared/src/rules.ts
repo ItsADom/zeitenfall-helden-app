@@ -176,7 +176,7 @@ export function schreibenProbe(attrs: Attributes): number {
 // --- Inventar / Gewicht ---
 
 export function maximaleLast(attrs: Attributes): number {
-  return (attrMax(attrs, 'KO') + attrMax(attrs, 'KK')) * 2 * 1.5;
+  return (attrMax(attrs, 'KO') + attrMax(attrs, 'KK')) * 2;
 }
 
 export function gGewicht(anzahl: number, eGewicht: number): number {

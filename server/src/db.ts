@@ -302,6 +302,8 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_meta)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('magierstufe')) db.exec('ALTER TABLE char_meta ADD COLUMN magierstufe REAL NOT NULL DEFAULT 0');
+  // Additiver Zusatz auf die berechnete maximale Traglast (kg); kann negativ sein.
+  if (!cols.has('traglastBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN traglastBonus REAL NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.

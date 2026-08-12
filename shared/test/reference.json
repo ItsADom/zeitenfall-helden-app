@@ -144,7 +144,7 @@
   },
 
   "sonstiges": {
-    "maximaleLast": { "formel": "((KO+KK)*2)*1.5", "erwartet": 210 },
+    "maximaleLast": { "formel": "(KO+KK)*2", "erwartet": 140 },
     "wurfweiten": { "hinweis": "Wurfhöhe zu Wurfweite", "erwartet": [13, 7, 4, 2] }
   }
 }

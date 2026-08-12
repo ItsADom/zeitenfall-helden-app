@@ -112,14 +112,16 @@ export function getrageneLast(items: readonly Item[]): number {
 
 export interface LastInfo {
   getragen: number; // kg
-  max: number; // maximaleLast(attrs), als kg gelesen
+  max: number; // maximaleLast(attrs) + bonus, als kg gelesen
   ueberladen: boolean;
 }
 
 // Traglast-Übersicht für die Ladungsanzeige: getragen / Maximum + Überladung.
-export function lastInfo(items: readonly Item[], attrs: Attributes): LastInfo {
+// `bonus` (kg) ist der additive Zusatz auf die berechnete maximale Last; er darf
+// negativ sein, das Maximum wird aber nie unter 0 gedrückt.
+export function lastInfo(items: readonly Item[], attrs: Attributes, bonus = 0): LastInfo {
   const getragen = getrageneLast(items);
-  const max = maximaleLast(attrs);
+  const max = Math.max(0, maximaleLast(attrs) + (Number(bonus) || 0));
   return { getragen, max, ueberladen: getragen > max };
 }
 
@@ -142,9 +144,17 @@ export function itemsInContainer(items: readonly Item[], containerUid: string): 
 }
 
 // Belegtes Gewicht eines Behälters (kg) — Summe der Inhalte OHNE Reduktion
-// (für die Füllstands-/Kapazitätsanzeige).
+// (roher Inhalt).
 export function containerFuellung(items: readonly Item[], containerUid: string): number {
   return itemsInContainer(items, containerUid).reduce((s, it) => s + itemGewicht(it), 0);
+}
+
+// Effektive Füllung eines Behälters (kg): Inhaltsgewicht NACH Abzug der
+// Gewichtsreduktion des Behälters. Diese Zahl zählt gegen das Fassungsvermögen —
+// ein Beutel mit 50 % Reduktion und 60 kg Kapazität fasst so 120 kg roher Ware.
+export function containerEffektiveFuellung(items: readonly Item[], containerUid: string): number {
+  const byUid = new Map(items.map((it) => [it.uid, it]));
+  return itemsInContainer(items, containerUid).reduce((s, it) => s + itemLastAnteil(it, byUid), 0);
 }
 
 // Alle Behälter (Gegenstände, die andere aufnehmen können).
