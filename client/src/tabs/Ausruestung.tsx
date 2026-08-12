@@ -218,7 +218,7 @@ export default function AusruestungTab() {
             return (
               <div className="container-panel" key={c.uid}>
                 <div className="container-head">
-                  <span className="container-name">📦 {c.name || '(ohne Name)'}</span>
+                  <span className="container-name">{c.name || '(ohne Name)'}</span>
                   <span className={`container-cap${voll ? ' over' : ''}`}>
                     {inside.length} · {kg(fuell)}
                     {c.kapazitaet > 0 ? ` / ${kg(c.kapazitaet)}` : ''} kg
@@ -266,7 +266,6 @@ function ItemChip({
         }}
         title={item.notiz || undefined}
       >
-        {item.istBehaelter && <span aria-hidden>{item.containerArt === 'quick' ? '🎒' : '📦'} </span>}
         <span className="chip-name">{item.name || '(ohne Name)'}</span>
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
         {w > 0 && <span className="chip-kg"> · {kg(w)} kg</span>}
