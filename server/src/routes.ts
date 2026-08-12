@@ -25,6 +25,7 @@ import {
   loadFullCharacter,
   loadItemCategories,
   loadItems,
+  hasPortrait,
   loadPortrait,
   manageAbilityList,
   migrateCharacterPeriphery,
@@ -209,7 +210,7 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     .all(groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
   const characters = chars.map((c) => {
     const access = characterAccess(user, getChar(c.id)!);
-    return { ...c, access };
+    return { ...c, access, portrait: hasPortrait(c.id) };
   });
   // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
   // die es vor diesem Feature schon gab, ihre Inhalte

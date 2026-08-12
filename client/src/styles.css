@@ -875,6 +875,19 @@ tr.subtle-head.clickable:hover td {
 .card a {
   text-decoration: none;
 }
+/* Charakter-Karte in der Gruppenübersicht: Porträt-Thumbnail links, Name und
+   Spieler rechts daneben. */
+.card--char {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.card--char-ident {
+  min-width: 0;
+}
+.card--char-ident h3 {
+  margin: 0 0 2px;
+}
 
 /* ---------- Kopfzeile des Charakterbogens ---------- */
 

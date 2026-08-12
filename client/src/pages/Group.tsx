@@ -9,7 +9,7 @@ import ContentTabView from '../tabs/Sektionen';
 interface GroupData {
   group: { id: number; name: string };
   members: { id: number; username: string; displayName: string }[];
-  characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null }[];
+  characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null; portrait: boolean }[];
   tabs: DynTab[];
 }
 
@@ -113,14 +113,21 @@ export default function GroupPage() {
 
       <div className="cardlist">
         {data.characters.map((c) => (
-          <div className="card" key={c.id}>
-            <h3>
-              <Link to={`/charakter/${c.id}`}>{c.name}</Link>
-            </h3>
-            <span className="muted">
-              Spieler: {c.ownerName}
-              {c.access === 'edit' ? ' · bearbeitbar' : ''}
-            </span>
+          <div className="card card--char" key={c.id}>
+            {c.portrait ? (
+              <img className="gm-card-portrait" src={`/api/characters/${c.id}/portrait`} alt="" />
+            ) : (
+              <div className="gm-card-portrait gm-card-portrait--empty" aria-hidden="true" />
+            )}
+            <div className="card--char-ident">
+              <h3>
+                <Link to={`/charakter/${c.id}`}>{c.name}</Link>
+              </h3>
+              <span className="muted">
+                Spieler: {c.ownerName}
+                {c.access === 'edit' ? ' · bearbeitbar' : ''}
+              </span>
+            </div>
           </div>
         ))}
         {data.characters.length === 0 && <p className="muted">Keine Charaktere in dieser Gruppe.</p>}
