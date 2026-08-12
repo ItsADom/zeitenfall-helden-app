@@ -11,8 +11,28 @@ export interface ChangelogEntry {
   changes: string[];
 }
 
+// Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
+// eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
+export const COMING_SOON: string[] = [
+  'Energien-Überarbeitung: überladbare Energien (Werte dürfen über dem Maximum liegen), die Psyche wandert zurück in die Energien-Tabelle, und eigene Sonder-Energien (z. B. Drachenkraft) lassen sich selbst anlegen.',
+  'Eine Gruppenübersicht für den Spielleiter: die wichtigsten Werte aller Charaktere einer Gruppe auf einen Blick.',
+];
+
 // Neueste Einträge zuerst.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-12',
+    version: '0.3.1',
+    title: 'Kürzere Wege durch die App',
+    changes: [
+      'Die „Einstellungen" sind aus der Kopfleiste in ein Klappmenü hinter deinem Namen gewandert — dort liegen jetzt „Profil" und „Einstellungen".',
+      'Von den charakterbezogenen Seiten („Einstellungen", „Zauber & Fähigkeiten verwalten") führt ein Zurück-Link direkt auf den Bogen — und zwar auf den Reiter, von dem du gekommen bist.',
+      'Auf dem Charakterbogen bringt dich ein „Einstellungen"-Link mit einem Klick zu den Einstellungen dieses Charakters (und wieder zurück).',
+      'Aus dem Inventar springt „Kategorien bearbeiten →" direkt zur Kategorienliste in den Einstellungen.',
+      'Hell/Dunkel schaltest du jetzt direkt in der Kopfleiste (Sonne/Mond) statt im Farbmenü.',
+      'Einträge in Tabellen und Listen werden nun in zwei Schritten gelöscht: erst wird der Löschknopf rot, ein zweiter Klick entfernt — so verschwindet nichts mehr aus Versehen.',
+    ],
+  },
   {
     date: '2026-08-11',
     version: '0.3',

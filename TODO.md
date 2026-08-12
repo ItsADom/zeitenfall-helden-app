@@ -21,11 +21,8 @@ live in `README.md` / `DEPLOYMENT.md`.
 
 ## High-Prio
 
-- deletion confirmation is missing on almost eveyrthing that is contained in a table
- - need a safeguard so players dont accidentally delete items or spells
-- more links throughout the app
- - item categories in Einstellungen should be accessable from the inventory
- - add section markers, so clicking on "Kategorien bearbeiten" in the inventory will directly scroll down to the categories
+- page refresh fired by re-focusing resets the scroll-state
+ - disruptive behaviour that bings the user back to the top every time
 
 ### 4. Energien
 
@@ -42,8 +39,6 @@ live in `README.md` / `DEPLOYMENT.md`.
 
 ## Mid-Prio
 
-- **"Coming soon"**: add a dedicated section into the changelog that teases upcoming features
- - should always stay as the first (top-most) entry
 - **Group overview page for GM**:
  - give the gm an exclusive screen where they can view all characters of a group and their most important stats
   - e.g. "Hat Gefahreninstinkt" or just add temporary notes
@@ -51,7 +46,7 @@ live in `README.md` / `DEPLOYMENT.md`.
   when nothing changed. Add a server-side empty-diff check in front. `saveSection`
   (`server/src/characterData.ts`) is the single choke point — and it is the SAME
   diff the audit log needs. Build once, use twice.
-- **Audit log on characters** (on hold until a stable 1.0, so it isn't touched on
+- **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
   every system change). Concept to build when it comes off hold:
   - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
     `backup.ts` copies the whole file × KEEP, so history stays out of those
@@ -75,6 +70,11 @@ live in `README.md` / `DEPLOYMENT.md`.
 
 ## Low-Prio
 
+- **CSS tidy-up**: check for components than can be combined
+ - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
+ - splitting CSS into more fitting files
+  - good pre-work for the responsiveness-pass
+- **General tidy-up**: check code for unused elements and remove
 - **Filtering** (own-element AsE increase): a SEPARATE future concept from
   overcharge — the character is filled with their own elemental energy → shown as
   an AsE increase. Not started; do not conflate with the overcharge display above.
@@ -86,7 +86,7 @@ live in `README.md` / `DEPLOYMENT.md`.
     counted as carried.
 - **Ammunition**: damage values and effects (new catalogue).
 - **A more neutral default theme** than Khôm (red).
-- **Print / PDF follow-ups**:
+- **Print / PDF follow-ups - PROBABLY OUTDATED**:
   - Tables break across pages mid-section — add break-inside handling / keep
     sections together / repeat table headers.
   - Talente and Waffen tables get cut off at the sides even in landscape — too

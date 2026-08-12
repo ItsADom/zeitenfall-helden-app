@@ -511,7 +511,7 @@ export default function CharacterPage() {
               (Reiter, Kategorien, Sichtbarkeit, Farbwelt) — spart den Umweg über
               die Kopfleiste. Der Spielleiter hat keine Einstellungen-Seite. */}
           {!viewAs && access === 'edit' && !user.isGm && (
-            <Link className="small" to={`/einstellungen?char=${charId}`} title="Einstellungen für diesen Charakter">
+            <Link className="small" to={`/einstellungen?char=${charId}&from=${encodeURIComponent(activeKey)}`} title="Einstellungen für diesen Charakter">
               Einstellungen
             </Link>
           )}

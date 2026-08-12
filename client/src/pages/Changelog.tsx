@@ -1,4 +1,4 @@
-import { CHANGELOG } from '../changelog';
+import { CHANGELOG, COMING_SOON } from '../changelog';
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -14,6 +14,18 @@ export default function ChangelogPage() {
       <p className="muted" style={{ marginTop: -4, marginBottom: 20 }}>
         Was sich in der Heldenverwaltung getan hat — kurz zusammengefasst.
       </p>
+
+      {COMING_SOON.length > 0 && (
+        <div className="panel coming-soon">
+          <h3>Demnächst</h3>
+          <p className="muted">Ein Ausblick auf Geplantes — bald verfügbar.</p>
+          <ul className="changelog-list">
+            {COMING_SOON.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {CHANGELOG.length === 0 && <p className="muted">Noch keine Einträge.</p>}
 

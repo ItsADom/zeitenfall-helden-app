@@ -15,6 +15,7 @@ import AbilityManagerPage from './pages/AbilityManager';
 import ThemePicker from './components/ThemePicker';
 import ModeToggle from './components/ModeToggle';
 import NavMenu from './components/NavMenu';
+import ProfileMenu from './components/ProfileMenu';
 import { OverviewProvider } from './components/overview';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
@@ -101,14 +102,10 @@ export default function App() {
         <span className="wordmark">Heldenverwaltung</span>
         <NavMenu kind="charaktere" />
         <NavMenu kind="gruppen" />
-        {/* Spielleiter verwalten Kataloge & Nutzer; Spieler haben stattdessen
-            ihre eigene „Einstellungen"-Seite (Tabs, Kategorien, Farbwelt je
-            Charakter). Route bleibt intern /verwaltung. */}
-        {user.isGm ? (
-          <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>
-        ) : (
-          <Link to="/einstellungen">Einstellungen</Link>
-        )}
+        {/* Spielleiter verwalten Kataloge & Nutzer. Für Spieler ist „Einstellungen"
+            aus der Leiste ins Profil-Flyout gewandert (unten) — und direkt vom
+            Charakterbogen erreichbar. Route bleibt intern /verwaltung. */}
+        {user.isGm && <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>}
         <div className="spacer" />
         {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
             Spieler ist sie auf die Einstellungen-Seite gewandert. */}
@@ -119,10 +116,8 @@ export default function App() {
         {user.isGm && (
           <ThemePicker theme={theme} onChange={setTheme} animate={anim} onAnimateChange={setAnim} />
         )}
-        {/* Der Name führt aufs eigene Profil (Passwort ändern). */}
-        <Link to="/profil">
-          {user.displayName} {user.isGm ? '(Spielleiter)' : ''}
-        </Link>
+        {/* Der Name: Profil + (für Spieler) Einstellungen als Flyout. */}
+        <ProfileMenu />
         <button onClick={logout}>Abmelden</button>
       </header>
       <main>

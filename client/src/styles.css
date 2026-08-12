@@ -607,6 +607,15 @@ header.topbar .nav-menu.open {
   top: calc(100% + 6px);
   left: 0;
   z-index: 100;
+}
+/* Das Profil-Flyout sitzt rechts außen in der Leiste — nach rechts ausrichten,
+   damit es nicht über den rechten Rand hinausläuft. */
+.profile-menu .nav-flyout {
+  left: auto;
+  right: 0;
+  min-width: 160px;
+}
+.nav-flyout {
   min-width: 220px;
   max-width: 320px;
   padding: 4px;
@@ -2069,6 +2078,15 @@ body.resizing-col {
   border-radius: 999px;
   padding: 1px 9px;
   letter-spacing: 0.02em;
+}
+/* „Demnächst"-Abschnitt: ein Ausblick, bewusst vom Verlauf abgehoben (Akzent-
+   Rahmen + getönter Grund), damit er nicht wie eine erschienene Version wirkt. */
+.coming-soon {
+  border: 1px solid var(--accent, var(--border));
+  background: var(--accent-soft);
+}
+.coming-soon > h3 {
+  color: var(--accent-dark, var(--accent));
 }
 .changelog-list {
   margin: 0;
