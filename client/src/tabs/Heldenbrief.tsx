@@ -9,7 +9,7 @@ import {
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { Fragment, useState } from 'react';
-import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheProzent } from '@shared/rules';
+import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheMax, psycheMuAnteil } from '@shared/rules';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
@@ -84,7 +84,6 @@ export default function HeldenbriefTab() {
   const { attributes, baseValues, resources, bio, meta } = data;
 
   const bv = computeBaseValues(attributes, baseValues);
-  const psyche = psycheProzent(meta.psycheAkt, meta.psycheMax);
 
   const setAttr = (code: AttrRowCode, field: 'akt' | 'mod', v: number) =>
     update('attributes', { ...attributes, [code]: { ...attributes[code], [field]: v } });
@@ -293,6 +292,38 @@ export default function HeldenbriefTab() {
                 </tr>
               );
             })}
+            {/* Psyche: kein echter Vorrat wie LE/AUS/AsE — Max aus Rassengrundwert
+                + Bonus + MU-Anteil, OHNE Ausbaugrenze. Rassengrundwert steht in
+                der Bonus-Spalte, der Zusatz-Bonus in der Gekauft-Spalte (die
+                festen Kopfzeilen passen nicht 1:1, daher die title-Tooltips).
+                Rassengrundwert vorerst manuell; künftig evtl. aus Rassen-Katalog. */}
+            {(() => {
+              const pBase = meta.psycheBase ?? 0;
+              const pBonus = meta.psycheBonus ?? 0;
+              const pMuAnteil = psycheMuAnteil(attributes);
+              const pMax = psycheMax(attributes, pBase, pBonus);
+              const pAkt = meta.psycheAkt ?? 0;
+              return (
+                <tr>
+                  <td>Psyche</td>
+                  <td className="formel">Rasse + Bonus + 5·(MU-10)</td>
+                  <td className="computed">{pMuAnteil}</td>
+                  <td title="Rassengrundwert">
+                    <NumInput value={pBase} onChange={(v) => setMeta('psycheBase', v)} />
+                  </td>
+                  <td title="Bonus (z. B. Effekte)">
+                    <NumInput value={pBonus} onChange={(v) => setMeta('psycheBonus', v)} />
+                  </td>
+                  <td className="computed">{pMax}</td>
+                  <td className="computed">—</td>
+                  <td className="computed">—</td>
+                  <td className="computed">—</td>
+                  <td>
+                    <NumInput value={pAkt} onChange={(v) => setMeta('psycheAkt', v)} />
+                  </td>
+                </tr>
+              );
+            })()}
           </tbody>
         </table>
         </div>
@@ -372,16 +403,6 @@ export default function HeldenbriefTab() {
                 <span />
               </Fragment>
             ))}
-
-            <label>Psyche (akt/max)</label>
-            <NumInput value={meta.psycheAkt ?? 0} onChange={(v) => setMeta('psycheAkt', v)} />
-            <div className="pctrl">
-              <span>/</span>
-              <NumInput value={meta.psycheMax ?? 0} onChange={(v) => setMeta('psycheMax', v)} width={120} />
-              <span className="computed" style={{ padding: '2px 10px' }}>
-                {psyche == null ? '—' : `${Math.round(psyche)}%`}
-              </span>
-            </div>
           </div>
         </div>
 

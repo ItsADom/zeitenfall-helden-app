@@ -108,6 +108,7 @@ db.exec(`
     stufe REAL NOT NULL DEFAULT 0, ap REAL NOT NULL DEFAULT 0, apNextLevel REAL NOT NULL DEFAULT 0,
     apGuthaben REAL NOT NULL DEFAULT 0, karma REAL NOT NULL DEFAULT 0, karmaGuthaben REAL NOT NULL DEFAULT 0,
     ruf REAL NOT NULL DEFAULT 0, psycheAkt REAL NOT NULL DEFAULT 0, psycheMax REAL NOT NULL DEFAULT 0,
+    psycheBase REAL NOT NULL DEFAULT 0, psycheBonus REAL NOT NULL DEFAULT 0,
     geldD REAL NOT NULL DEFAULT 0, geldS REAL NOT NULL DEFAULT 0, geldH REAL NOT NULL DEFAULT 0,
     geldK REAL NOT NULL DEFAULT 0, bank REAL NOT NULL DEFAULT 0
   );
@@ -304,6 +305,12 @@ db.exec(`
   if (!cols.has('magierstufe')) db.exec('ALTER TABLE char_meta ADD COLUMN magierstufe REAL NOT NULL DEFAULT 0');
   // Additiver Zusatz auf die berechnete maximale Traglast (kg); kann negativ sein.
   if (!cols.has('traglastBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN traglastBonus REAL NOT NULL DEFAULT 0');
+  // Psyche wandert aus "Stufe & Punkte" in die Energien-Tabelle: Rassengrundwert
+  // + Bonus, das Maximum wird daraus + MU-Anteil berechnet (psycheMax()). Start
+  // bei 0 — psycheMax ist kein zuverlässiger Rückrechnungswert, die Spieler
+  // tragen ihren Rassengrundwert selbst ein.
+  if (!cols.has('psycheBase')) db.exec('ALTER TABLE char_meta ADD COLUMN psycheBase REAL NOT NULL DEFAULT 0');
+  if (!cols.has('psycheBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN psycheBonus REAL NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.

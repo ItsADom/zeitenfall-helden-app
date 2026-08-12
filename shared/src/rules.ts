@@ -217,6 +217,18 @@ export function psycheProzent(akt: number, max: number): number | null {
   return (akt / max) * 100;
 }
 
+// Psyche-Maximum: Rassengrundwert + optionaler Bonus + fünf Punkte je MU-Punkt
+// über zehn ("Rassengrundwert plus fünf Punkte pro Punkt über zehn in Mut").
+// Anders als LE/AUS/AsE hat die Psyche KEINE Ausbaugrenze. Der Rassengrundwert
+// kommt vorerst manuell vom Spieler; künftig könnte ihn ein Rassen-Katalog liefern.
+export function psycheMuAnteil(attrs: Attributes): number {
+  return 5 * Math.max(0, attrMax(attrs, 'MU') - 10);
+}
+
+export function psycheMax(attrs: Attributes, base: number, bonus: number): number {
+  return base + bonus + psycheMuAnteil(attrs);
+}
+
 // Wurfhöhe → Wurfweite: 1m = KK/2 aufgerundet, jede weitere Stufe halbiert
 export function wurfweiten(attrs: Attributes, stufen = 4): number[] {
   const out: number[] = [];

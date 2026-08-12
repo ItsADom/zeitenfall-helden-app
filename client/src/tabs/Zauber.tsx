@@ -7,7 +7,7 @@ import {
   magiepunkte,
   magierEligibility,
 } from '@shared/abilities';
-import { psycheProzent } from '@shared/rules';
+import { psycheMax, psycheProzent } from '@shared/rules';
 import { AlwaysEditable } from '../components/displayMode';
 import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
@@ -45,7 +45,11 @@ function MagierPanel() {
     if (!cat) return 0;
     return data.talents.find((t) => t.talentId === cat.id)?.taw ?? 0;
   };
-  const psyche = psycheProzent(Number(data.meta.psycheAkt) || 0, Number(data.meta.psycheMax) || 0) ?? 0;
+  const psyche =
+    psycheProzent(
+      Number(data.meta.psycheAkt) || 0,
+      psycheMax(data.attributes, Number(data.meta.psycheBase) || 0, Number(data.meta.psycheBonus) || 0),
+    ) ?? 0;
   const istBase = {
     koerper: tawByName(MAGIER_TALENT_NAMES.koerper),
     selbst: tawByName(MAGIER_TALENT_NAMES.selbst),

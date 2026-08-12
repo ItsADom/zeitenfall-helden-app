@@ -9,6 +9,8 @@ import {
   maximaleLast,
   nextLevelAp,
   probeExprZahl,
+  psycheMax,
+  psycheMuAnteil,
   schreibenProbe,
   sprechenProbe,
   talentProbeZahl,
@@ -88,6 +90,23 @@ describe('Basiswerte', () => {
       expect(BASE_VALUE_LABELS[b.key as BaseValueKey].formel).toBe(b.formel);
     });
   }
+});
+
+describe('Psyche', () => {
+  // Raskir hat MU 16 → MU-Anteil = 5·(16−10) = 30.
+  it('MU-Anteil: fünf Punkte je MU-Punkt über zehn', () => {
+    expect(psycheMuAnteil(raskir)).toBe(30);
+  });
+  it('MU-Anteil kappt bei zehn nach unten (kein negativer Anteil)', () => {
+    const schwach: Attributes = { ...raskir, MU: { akt: 8, mod: 0 } };
+    expect(psycheMuAnteil(schwach)).toBe(0);
+  });
+  it('Maximum = Rassengrundwert + Bonus + MU-Anteil', () => {
+    expect(psycheMax(raskir, 20, 5)).toBe(55);
+  });
+  it('Maximum ohne Bonus/Rassenwert ist nur der MU-Anteil', () => {
+    expect(psycheMax(raskir, 0, 0)).toBe(30);
+  });
 });
 
 describe('Talente', () => {

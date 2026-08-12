@@ -28,10 +28,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## High-Prio
 
-- [sketch] **Move Psyche** out of "Stufe & Punkte" into the Energien table.
-   - formula + bonus.
-   - only has a formula for Max-value + bonuses
-   - no aufbaugrenze
 - [sketch] **Overcharge display** (not built yet — `depletionClass` still only has
   `res-low`/`res-crit`): drop `max` from the current-value fields (`Heldenbrief`)
   and extend `depletionClass` with an "above maximum" state so an overfilled value

@@ -1,6 +1,6 @@
 import { ATTR_CODES, ATTR_LABELS, RESOURCE_KEYS } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
-import { computeResource, psycheProzent } from '@shared/rules';
+import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
 import { TextInput } from './inputs';
@@ -124,8 +124,8 @@ function SidebarPools() {
   const { attributes, resources, meta } = data;
 
   const psycheAkt = meta.psycheAkt ?? 0;
-  const psycheMax = meta.psycheMax ?? 0;
-  const psyche = psycheProzent(psycheAkt, psycheMax);
+  const psycheMaxWert = psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0);
+  const psyche = psycheProzent(psycheAkt, psycheMaxWert);
 
   const setAktuell = (key: ResourceKey, v: number) =>
     update('resources', { ...resources, [key]: { ...resources[key], aktuell: v } });
@@ -150,7 +150,7 @@ function SidebarPools() {
 
         <div className="side-pool">
           <PoolHead label="Psyche" prozent={psyche != null ? Math.round(psyche) : null} />
-          <AktuellFeld value={psycheAkt} max={psycheMax > 0 ? psycheMax : undefined} onChange={(v) => setMeta('psycheAkt', v)} />
+          <AktuellFeld value={psycheAkt} max={psycheMaxWert > 0 ? psycheMaxWert : undefined} onChange={(v) => setMeta('psycheAkt', v)} />
         </div>
       </div>
     </div>

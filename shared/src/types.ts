@@ -141,6 +141,14 @@ export interface Meta {
   karmaGuthaben: number;
   ruf: number;
   psycheAkt: number;
+  // Rassengrundwert der Psyche: manuell vom Spieler gepflegt (bis es einen
+  // Rassen-Katalog gibt, der ihn liefert — siehe TODO). Zusammen mit einem
+  // optionalen Bonus und der MU-Komponente bildet er das Psyche-Maximum.
+  psycheBase: number;
+  psycheBonus: number;
+  // psycheMax ist NICHT mehr die Quelle der Wahrheit — das Maximum wird über
+  // psycheMax() aus Rassengrundwert + Bonus + MU-Anteil berechnet. Die Spalte
+  // bleibt (Altbestand), wird aber nicht mehr gelesen.
   psycheMax: number;
   geldD: number;
   geldS: number;
