@@ -14,6 +14,7 @@ import { db, initCharacterRows } from './db.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
+  buildGroupOverview,
   buildSummary,
   deletePortrait,
   importFullCharacter,
@@ -213,6 +214,18 @@ api.get('/groups/:id', requireAuth, (req, res) => {
   // die es vor diesem Feature schon gab, ihre Inhalte
   instantiateGroupTabs(groupId);
   res.json({ group, members, characters, tabs: loadDynTabs(groupId, GROUP_DYN) });
+});
+
+// Spielleiter-Übersicht: alle Charaktere der Gruppe mit ihren wichtigsten
+// Kennwerten für die chip-basierte Kartenansicht. Nur Spielleiter (requireGm).
+api.get('/groups/:id/overview', requireAuth, requireGm, (req, res) => {
+  const groupId = Number(req.params.id);
+  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId) as { id: number; name: string } | undefined;
+  if (!group) {
+    res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    return;
+  }
+  res.json({ group, characters: buildGroupOverview(groupId) });
 });
 
 // --- Gemeinsame Gruppeninhalte (jedes Gruppenmitglied darf bearbeiten) ---

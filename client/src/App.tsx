@@ -8,6 +8,7 @@ import GruppenPage from './pages/Gruppen';
 import ProfilPage from './pages/Profil';
 import AdminPage from './pages/Admin';
 import GroupPage from './pages/Group';
+import GroupOverviewPage from './pages/GroupOverview';
 import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
 import EinstellungenPage from './pages/Einstellungen';
@@ -130,6 +131,7 @@ export default function App() {
           {/* Einstellungen sind Spieler-Sache; der Spielleiter hat „Kataloge & Nutzer". */}
           <Route path="/einstellungen" element={user.isGm ? <Navigate to="/verwaltung" /> : <EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
+          <Route path="/gruppe/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/charakter/:id/zauber-faehigkeiten" element={<AbilityManagerPage />} />
           <Route path="/changelog" element={<ChangelogPage />} />

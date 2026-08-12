@@ -35,9 +35,20 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## Mid-Prio
 
-- [sketch] **Group overview page for GM**:
- - give the gm an exclusive screen where they can view all characters of a group and their most important stats
-   - e.g. "Hat Gefahreninstinkt" or just add temporary notes
+- [ready] **Group overview page for GM** (concept agreed — chip-based, stats only):
+   - Separate GM-only screen at `/gruppe/:id/uebersicht`, linked from the group
+     page. NOT a table — one card per character, stats shown as chips, grid reflows.
+   - Card header: portrait thumbnail + name + player + Stufe (also covers the
+     "show portrait in the group summary" portrait follow-up).
+   - Chips: Vitals (LE, AUS, AsE, Psyche) as `akt/max`, color-coded by drain %
+     (AsE chip hidden when the character has no ASP); Wundschwelle + Todesschwelle;
+     the eight attributes (MU KL IN CH FF GE KO KK) as small chips. Defenses skipped.
+   - Data: new GM-only aggregate endpoint over `buildSummary` for the whole group,
+     live quiet-refresh on focus (reuse the group page's focus/visibility pattern).
+   - Deferred (later pass): GM overlay of flags + private notes per character.
+     "Hat Gefahreninstinkt" = TaW ≠ 0 in the Gefahreninstinkt talent — a talent-
+     catalogue-derived boolean (ensure the talent exists in the catalogue), NOT a
+     hand-maintained checklist.
 - [ready] **Skip no-op saves**: `saveSection` / `saveDynRows` do a full DELETE+INSERT even
   when nothing changed. Add a server-side empty-diff check in front. `saveSection`
   (`server/src/characterData.ts`) is the single choke point — and it is the SAME
@@ -81,7 +92,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
     own `location`, so a container placed on the animal still has its contents
     counted as carried.
 - [sketch] **Ammunition**: damage values and effects (new catalogue).
-- [sketch] **A more neutral default theme** than Khôm (red).
+- [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
    - Tables break across pages mid-section — add break-inside handling / keep
     sections together / repeat table headers.

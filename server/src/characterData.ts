@@ -1,4 +1,5 @@
 import {
+  ATTR_CODES,
   ATTR_LABELS,
   ATTR_ROW_CODES,
   BASE_VALUE_KEYS,
@@ -9,6 +10,7 @@ import {
   VISIBILITY_SECTIONS,
   computeBaseValues,
   computeResource,
+  psycheMax,
   dynTabId,
   dynTabKey,
   erleichterung,
@@ -1526,4 +1528,61 @@ export function buildSummary(charId: number) {
   const dynSections = loadDynSections(charId).filter((s) => s.visible);
 
   return { bio, sections, dynSections, attributes, visibility, portrait: hasPortrait(charId) };
+}
+
+// Spielleiter-Übersicht einer Gruppe: je Charakter die wichtigsten Kennwerte für
+// die chip-basierte Kartenansicht. Anders als buildSummary ignoriert das die
+// Sichtbarkeits-Einstellungen — der Spielleiter sieht immer alles (die Route
+// dahinter ist requireGm). Der Client besitzt Kurz-Labels und Färbung.
+export function buildGroupOverview(groupId: number) {
+  const chars = db
+    .prepare(
+      `SELECT c.id, c.name, u.display_name AS ownerName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ? ORDER BY c.name`,
+    )
+    .all(groupId) as { id: number; name: string; ownerName: string }[];
+
+  return chars.map((c) => {
+    const attributes = loadAttributes(c.id);
+    const resources = loadResources(c.id);
+    const baseValues = computeBaseValues(attributes, loadBaseValueInputs(c.id));
+    const meta = loadSingleRow('char_meta', c.id) as {
+      stufe?: number;
+      psycheAkt?: number;
+      psycheBase?: number;
+      psycheBonus?: number;
+    };
+
+    // Vitale Pools als Chips „aktuell/max". Als Maximum zählt der NUTZBARE Wert
+    // (Rohsumme über der Ausbaugrenze ist kein Vorrat) — gleiche Wahl wie im
+    // Heldenbrief. AsE nur, wenn der Charakter sie überhaupt nutzt: solange es
+    // kein „hat ASP"-Flag gibt (siehe TODO Spezialenergien), gilt als Näherung
+    // „irgendein AsE-Feld ist gesetzt". So verschwindet die Spalte bei reinen
+    // Nicht-Zauberern, ohne einem erschöpften Magier den Chip wegzunehmen.
+    const vitals: { key: string; aktuell: number; max: number }[] = [];
+    for (const key of RESOURCE_KEYS) {
+      const inp = resources[key];
+      if (key === 'ase' && !(inp.aktuell || inp.permanent || inp.kauf || inp.kaufMax || inp.maxPlus)) continue;
+      const r = computeResource(attributes, key, inp);
+      vitals.push({ key, aktuell: inp.aktuell, max: r.nutzbar });
+    }
+    // Psyche ist kein echter Vorrat (keine Ausbaugrenze); Max aus Rassenwert +
+    // Bonus + MU-Anteil — dieselbe Formel wie im Heldenbrief.
+    vitals.push({
+      key: 'psyche',
+      aktuell: meta.psycheAkt ?? 0,
+      max: psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0),
+    });
+
+    return {
+      id: c.id,
+      name: c.name,
+      ownerName: c.ownerName,
+      stufe: meta.stufe ?? 0,
+      portrait: hasPortrait(c.id),
+      vitals,
+      thresholds: { wund: baseValues.wundschwelle.ergebnis, tod: baseValues.todesschwelle.ergebnis },
+      attributes: ATTR_CODES.map((code) => ({ code, value: attributes[code].akt + attributes[code].mod })),
+    };
+  });
 }

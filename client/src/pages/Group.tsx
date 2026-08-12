@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { useAuth } from '../App';
 import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
@@ -17,6 +18,7 @@ interface GroupData {
 const NO_ATTRIBUTES = {} as Attributes;
 
 export default function GroupPage() {
+  const { user } = useAuth();
   const { id } = useParams();
   const groupId = Number(id);
   const [data, setData] = useState<GroupData | null>(null);
@@ -103,6 +105,11 @@ export default function GroupPage() {
     <>
       <h1>Gruppe: {data.group.name}</h1>
       <p className="muted">Mitglieder: {data.members.map((m) => m.displayName).join(', ') || '—'}</p>
+      {user.isGm && (
+        <p>
+          <Link to={`/gruppe/${groupId}/uebersicht`}>Spielleiter-Übersicht →</Link>
+        </p>
+      )}
 
       <div className="cardlist">
         {data.characters.map((c) => (

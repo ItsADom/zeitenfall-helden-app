@@ -3403,3 +3403,120 @@ li {
     display: none;
   }
 }
+
+/* ---------- Spielleiter-Gruppenübersicht (chip-basierte Karten) ---------- */
+
+.gm-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+.gm-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.gm-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gm-card-portrait {
+  flex: none;
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--input-bg);
+}
+.gm-card-portrait--empty {
+  border-style: dashed;
+}
+.gm-card-ident {
+  flex: 1;
+  min-width: 0;
+}
+.gm-card-ident h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.gm-card-ident h3 a {
+  text-decoration: none;
+}
+.gm-card-ident .muted {
+  font-size: 13px;
+}
+.gm-stufe {
+  flex: none;
+  align-self: flex-start;
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.gm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+/* Attribute stehen enger und in gleichmäßigen Kästchen — sie sind Referenz,
+   kein Zustand, und sollen die vitalen Chips optisch nicht überstimmen. */
+.gm-chips--attr {
+  gap: 4px;
+}
+.gm-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--input-bg);
+  white-space: nowrap;
+}
+.gm-chip-label {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.gm-chip-val {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.gm-chip--vital {
+  font-size: 14px;
+}
+.gm-chip--attr {
+  padding: 1px 7px;
+  gap: 4px;
+}
+/* Zustandsfärbung der Vital-Chips — dieselben Tokens wie Heldenbrief/Seitenleiste,
+   damit „niedrig/kritisch/überladen" überall gleich aussieht. Der linke Streifen
+   trägt den Zustand auch ohne Farbwahrnehmung. */
+.gm-chip.res-low {
+  background: var(--warn-soft);
+  border-color: var(--warn-line);
+  box-shadow: inset 3px 0 0 var(--warn-line);
+}
+.gm-chip.res-crit {
+  background: var(--crit-soft);
+  border-color: var(--crit-line);
+  box-shadow: inset 3px 0 0 var(--crit-line);
+}
+.gm-chip.res-over {
+  background: var(--over-soft);
+  border-color: var(--over-line);
+  box-shadow: inset 3px 0 0 var(--over-line);
+}
