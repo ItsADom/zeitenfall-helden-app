@@ -16,10 +16,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## Decisions (settled — feed the open work below)
 
-- **Overcharging Energien**: the current value may sit ABOVE the maximum and stays
-  there until spent (e.g. filtered Astralenergie). Not a second pool — the same
-  value, just overfilled. The `+` button (healing) still clamps at the maximum;
-  typing the number directly does not.
 - **Special Energien** (Drachenkraft etc.) are added by the player: name +
   attribute formula + bonus. **Psyche stays built in** — every character has one;
   it is a system rule, not a personal power.
@@ -27,12 +23,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ---
 
 ## High-Prio
-
-- [sketch] **Overcharge display** (not built yet — `depletionClass` still only has
-  `res-low`/`res-crit`): drop `max` from the current-value fields (`Heldenbrief`)
-  and extend `depletionClass` with an "above maximum" state so an overfilled value
-  reads as deliberately special, not a typo. `+` clamps, typing does not. Be careful with how it acts with already overcharged values.
-  Will pressing `+` on an overcharged value clamp again?
 
 ### 4. Spezialenergien - ON HOLD
 

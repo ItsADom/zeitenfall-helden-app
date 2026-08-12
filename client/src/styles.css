@@ -26,6 +26,10 @@
   --warn-line: #b06a1f;
   --crit-soft: #f3d9d2;
   --crit-line: #9a2f22;
+  /* Überladung: kühler „aufgeladener" Blauton, bewusst abseits von Warn/Krit
+     (bernstein/rot) — ein überfüllter Wert liest sich als besonders, nicht als Fehler. */
+  --over-soft: #dfe9fb;
+  --over-line: #2f5db0;
 
   /* Weitere Farb-Token (für spätere Themes/Dark Mode zentral schaltbar).
      Alle Werte entsprechen exakt dem bisherigen „Rot/Pergament"-Standard. */
@@ -165,6 +169,8 @@
   --warn-line: #d69a4a;
   --crit-soft: #3a221c;
   --crit-line: #e0705f;
+  --over-soft: #1b2740;
+  --over-line: #6b90cf;
   --mastery: #e0a63a;
   --error-text: #e0705f;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
@@ -258,6 +264,8 @@
   --warn-line: #d69a4a;
   --crit-soft: #3a221c;
   --crit-line: #e0705f;
+  --over-soft: #1b2740;
+  --over-line: #6b90cf;
   --mastery: #e0a63a;
   --error-text: #e0705f;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
@@ -1072,11 +1080,20 @@ table.sheet td.res-crit {
   background: var(--crit-soft);
   box-shadow: inset 3px 0 0 var(--crit-line);
 }
+/* Überladung: derselbe Streifen-plus-Tönung-Mechanismus wie die Zehrung, nur im
+   „aufgeladenen" Blau — der Wert steht bewusst über dem Maximum. */
+table.sheet td.res-over {
+  background: var(--over-soft);
+  box-shadow: inset 3px 0 0 var(--over-line);
+}
 table.sheet tbody tr:hover td.res-low {
   background: var(--warn-soft);
 }
 table.sheet tbody tr:hover td.res-crit {
   background: var(--crit-soft);
+}
+table.sheet tbody tr:hover td.res-over {
+  background: var(--over-soft);
 }
 /* Maximum über der Ausbaugrenze: gekappter Wert zählt, Rohsumme daneben
    durchgestrichen — wie ein durchgestrichener alter Preis. */
@@ -1801,6 +1818,10 @@ body.resizing-col {
 .side-pool.res-crit {
   background: var(--crit-soft);
   box-shadow: inset 3px 0 0 var(--crit-line);
+}
+.side-pool.res-over {
+  background: var(--over-soft);
+  box-shadow: inset 3px 0 0 var(--over-line);
 }
 .side-pool-head {
   display: flex;

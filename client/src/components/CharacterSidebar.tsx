@@ -6,7 +6,7 @@ import { AktuellFeld } from './AktuellFeld';
 import { TextInput } from './inputs';
 import { AlwaysEditable } from './displayMode';
 import { useCollapsed } from './collapse';
-import { depletionClass } from './energie';
+import { overfilled, poolClass } from './energie';
 import { gesamtDublonen } from './GeldPanel';
 import { usePersistedState } from './persist';
 
@@ -138,17 +138,17 @@ function SidebarPools() {
         {RESOURCE_KEYS.map((key) => {
           const r = computeResource(attributes, key, resources[key]);
           const akt = resources[key].aktuell;
-          const depl = depletionClass(key, akt, r.nutzbar);
+          const cls = poolClass(key, akt, r.nutzbar);
           const prozent = r.nutzbar > 0 ? Math.round((akt / r.nutzbar) * 100) : null;
           return (
-            <div className={`side-pool${depl ? ` ${depl}` : ''}`} key={key}>
+            <div className={`side-pool${cls ? ` ${cls}` : ''}`} key={key}>
               <PoolHead label={RES_ABBR[key]} title={RES_FULL[key]} prozent={prozent} />
               <AktuellFeld value={akt} max={r.nutzbar} onChange={(v) => setAktuell(key, v)} />
             </div>
           );
         })}
 
-        <div className="side-pool">
+        <div className={`side-pool${overfilled(psycheAkt, psycheMaxWert) ? ' res-over' : ''}`}>
           <PoolHead label="Psyche" prozent={psyche != null ? Math.round(psyche) : null} />
           <AktuellFeld value={psycheAkt} max={psycheMaxWert > 0 ? psycheMaxWert : undefined} onChange={(v) => setMeta('psycheAkt', v)} />
         </div>

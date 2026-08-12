@@ -15,7 +15,7 @@ import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
 import { Portrait } from '../components/Portrait';
-import { depletionClass } from '../components/energie';
+import { overfilled, poolClass } from '../components/energie';
 import { useChar } from '../pages/Character';
 
 type BioField = [key: string, label: string];
@@ -261,9 +261,9 @@ export default function HeldenbriefTab() {
             {RESOURCE_KEYS.map((key) => {
               const r = computeResource(attributes, key, resources[key]);
               const akt = resources[key].aktuell;
-              // Zehrung misst am nutzbaren Maximum — über der Ausbaugrenze
-              // liegende Rohsummen sind kein Vorrat.
-              const depl = depletionClass(key, akt, r.nutzbar);
+              // Zehrung UND Überladung messen am nutzbaren Maximum — über der
+              // Ausbaugrenze liegende Rohsummen sind kein Vorrat.
+              const cls = poolClass(key, akt, r.nutzbar);
               const ratio = r.nutzbar > 0 ? akt / r.nutzbar : 1;
               return (
                 <tr key={key}>
@@ -286,8 +286,17 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].kaufMax} onChange={(v) => setResource(key, 'kaufMax', v)} />
                   </td>
                   <td className="computed">{r.max ?? '—'}</td>
-                  <td className={depl || undefined} title={depl ? `${Math.round(ratio * 100)} % — ${akt}/${r.nutzbar}` : undefined}>
-                    <NumInput value={akt} max={r.nutzbar} onChange={(v) => setResource(key, 'aktuell', v)} />
+                  <td
+                    className={cls || undefined}
+                    title={
+                      cls === 'res-over'
+                        ? `überladen: ${akt}/${r.nutzbar}`
+                        : cls
+                          ? `${Math.round(ratio * 100)} % — ${akt}/${r.nutzbar}`
+                          : undefined
+                    }
+                  >
+                    <NumInput value={akt} onChange={(v) => setResource(key, 'aktuell', v)} />
                   </td>
                 </tr>
               );
@@ -318,7 +327,10 @@ export default function HeldenbriefTab() {
                   <td className="computed">—</td>
                   <td className="computed">—</td>
                   <td className="computed">—</td>
-                  <td>
+                  <td
+                    className={overfilled(pAkt, pMax) ? 'res-over' : undefined}
+                    title={overfilled(pAkt, pMax) ? `überladen: ${pAkt}/${pMax}` : undefined}
+                  >
                     <NumInput value={pAkt} onChange={(v) => setMeta('psycheAkt', v)} />
                   </td>
                 </tr>
