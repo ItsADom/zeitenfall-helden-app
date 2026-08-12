@@ -14,7 +14,7 @@ export interface ChangelogEntry {
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Energien-Überarbeitung: überladbare Energien (Werte dürfen über dem Maximum liegen), die Psyche wandert zurück in die Energien-Tabelle, und eigene Sonder-Energien (z. B. Drachenkraft) lassen sich selbst anlegen.',
+  'Eigene Sonder-Energien (z. B. Drachenkraft) können pro Charakter ausgewählt werden.',
   'Eine Gruppenübersicht für den Spielleiter: die wichtigsten Werte aller Charaktere einer Gruppe auf einen Blick.',
 ];
 
