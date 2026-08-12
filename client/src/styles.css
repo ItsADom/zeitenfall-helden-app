@@ -1363,6 +1363,15 @@ button.small:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
 }
+/* „Scharfer" Löschknopf (zweiter Klick löscht): kräftig rot, überstimmt den
+   normalen und den Hover-Stil der jeweiligen Knopf-Variante. */
+button.confirm-armed,
+button.confirm-armed:hover,
+button.confirm-armed:focus {
+  background: var(--error-text);
+  border-color: var(--error-text);
+  color: #fff;
+}
 button.add-row {
   margin-top: 6px;
   font-weight: 600;

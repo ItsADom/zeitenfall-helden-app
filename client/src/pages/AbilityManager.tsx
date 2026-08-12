@@ -4,6 +4,7 @@ import type { Ability } from '@shared/abilities';
 import { ABILITY_STUFE_MAX, makeAbilityUid } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
 import { useThemeControls } from '../App';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { Field } from '../components/inputs';
 
 // „Zauber & Fähigkeiten verwalten" (Cluster 6): die dedizierte Bearbeitungsseite
@@ -489,9 +490,7 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
                   {a.signatur ? '★' : '☆'}
                 </button>
               )}
-              <button className="small abil-del" title="Entfernen" onClick={() => onRemove(a.uid)}>
-                ✕
-              </button>
+              <ConfirmDeleteButton className="small abil-del" title="Entfernen" onConfirm={() => onRemove(a.uid)} />
             </div>
             {expanded.has(a.uid) && (
               <div className="abil-detail">
@@ -539,9 +538,7 @@ function StringListEditor({ label, items, onChange }: { label: string; items: st
         {items.map((it, i) => (
           <div className="cat-row" key={i}>
             <input value={it} onChange={(e) => onChange(items.map((x, j) => (j === i ? e.target.value : x)))} placeholder={label} />
-            <button className="small" title="Entfernen" onClick={() => onChange(items.filter((_, j) => j !== i))}>
-              ✕
-            </button>
+            <ConfirmDeleteButton title="Entfernen" onConfirm={() => onChange(items.filter((_, j) => j !== i))} />
           </div>
         ))}
         <button className="small" onClick={() => onChange([...items, ''])}>

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
 import { fitSoon, observeAutosize } from './autosize';
+import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { useReadOnly } from './displayMode';
 import { ColumnDivider, TableTools, useTableLayout } from './tableLayout';
 
@@ -300,9 +301,7 @@ export function ListEditor({
                   )}
                   {!ro && (
                     <td>
-                      <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
-                        ✕
-                      </button>
+                      <ConfirmDeleteButton title="Zeile entfernen" onConfirm={() => removeRow(i)} />
                     </td>
                   )}
                 </tr>,

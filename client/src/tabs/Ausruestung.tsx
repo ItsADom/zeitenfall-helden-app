@@ -10,6 +10,7 @@ import {
   lastInfo,
   makeUid,
 } from '@shared/items';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
@@ -302,9 +303,9 @@ function ItemChip({
             </>
           )}
           <label className="chip-notiz">Notiz<TextInput value={item.notiz} onChange={(v) => onPatch({ notiz: v })} /></label>
-          <button className="small chip-del" onClick={onRemove} title="Gegenstand entfernen">
+          <ConfirmDeleteButton className="small chip-del" title="Gegenstand entfernen" onConfirm={onRemove}>
             🗑 Löschen
-          </button>
+          </ConfirmDeleteButton>
         </div>
       )}
       {children}

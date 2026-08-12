@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CollapseChevron, CollapsedNote, useCollapsed } from '../components/collapse';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import type { Attributes } from '@shared/types';
 import {
@@ -475,9 +476,7 @@ function SectionPanel({
                       )}
                       {!readOnly && (
                         <td>
-                          <button className="small" title="Zeile entfernen" onClick={() => removeRow(i)}>
-                            ✕
-                          </button>
+                          <ConfirmDeleteButton title="Zeile entfernen" onConfirm={() => removeRow(i)} />
                         </td>
                       )}
                     </tr>,

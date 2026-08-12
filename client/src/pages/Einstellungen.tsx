@@ -4,6 +4,7 @@ import type { DynTab } from '@shared/dynamicSections';
 import { VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
 import { defaultTabKeys, dynTabId, dynTabKey, orderTabKeys } from '@shared/tabOrder';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
 import { THEMES } from '../theme';
@@ -285,9 +286,7 @@ export default function EinstellungenPage() {
                     </span>
                   )}
                   {r.isDyn && (
-                    <button className="small" title="Reiter löschen (mit allen Sektionen)" onClick={() => deleteRow(i)}>
-                      ✕
-                    </button>
+                    <ConfirmDeleteButton title="Reiter löschen (mit allen Sektionen)" onConfirm={() => deleteRow(i)} />
                   )}
                 </div>
               ))}
@@ -327,9 +326,7 @@ export default function EinstellungenPage() {
                     placeholder="Kategoriename"
                     onChange={(e) => setCatRows((rows) => rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
                   />
-                  <button className="small" title="Kategorie entfernen" onClick={() => setCatRows((rows) => rows.filter((_, j) => j !== i))}>
-                    ✕
-                  </button>
+                  <ConfirmDeleteButton title="Kategorie entfernen" onConfirm={() => setCatRows((rows) => rows.filter((_, j) => j !== i))} />
                 </div>
               ))}
               <button className="small" onClick={() => setCatRows((rows) => [...rows, { orig: null, name: '' }])}>

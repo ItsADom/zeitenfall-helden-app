@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 
 interface CatalogColumn {
   key: string;
@@ -174,9 +175,7 @@ function GroupMembersEditor({
         {members.map((u) => (
           <span className="grp-chip" key={u.id}>
             {u.displayName}
-            <button className="grp-chip-x" title="Aus der Gruppe entfernen" onClick={() => onRemove(u.id)}>
-              ✕
-            </button>
+            <ConfirmDeleteButton className="grp-chip-x" title="Aus der Gruppe entfernen" onConfirm={() => onRemove(u.id)} />
           </span>
         ))}
       </div>
