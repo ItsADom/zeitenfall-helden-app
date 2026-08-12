@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
@@ -107,8 +107,22 @@ export default function CharacterPage() {
   const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
   // Aktiver Reiter: normalerweise der Heldenbrief, aber ein ?tab=-Parameter
   // (z. B. beim Zurückkommen aus der Zauber-Verwaltung) landet direkt dort.
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [activeKey, setActiveKey] = useState<string>(searchParams.get('tab') || 'Heldenbrief');
+  // Gemerkte Scroll-Position je Reiter (nur in dieser Sitzung): beim Wechsel wird
+  // die des verlassenen Reiters gesichert und die des neuen wiederhergestellt.
+  const scrollByTab = useRef<Record<string, number>>({});
+  // Reiter wechseln: aktuelle Scroll-Position sichern, Reiter setzen und in die
+  // URL schreiben (replace — keine History-Flut), damit ein Neuladen/Deep-Link
+  // beim richtigen Reiter bleibt.
+  const selectTab = (key: string) => {
+    if (key === activeKey) return;
+    scrollByTab.current[activeKey] = window.scrollY;
+    setActiveKey(key);
+    const next = new URLSearchParams(searchParams);
+    next.set('tab', key);
+    setSearchParams(next, { replace: true });
+  };
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);
@@ -316,6 +330,20 @@ export default function CharacterPage() {
       document.removeEventListener('visibilitychange', maybeReload);
     };
   }, [loadCharacter]);
+
+  // Reiter aus der URL übernehmen — für Zurück/Vorwärts und Deep-Links (z. B. der
+  // „Einstellungen"-Zurücklink, der auf ?tab=… zeigt).
+  useEffect(() => {
+    const t = searchParams.get('tab');
+    if (t && t !== activeKey) setActiveKey(t);
+  }, [searchParams]);
+
+  // Beim Reiterwechsel die gemerkte Scroll-Position dieses Reiters wiederherstellen
+  // (0 = oben, wenn nichts gemerkt ist). Als Layout-Effekt, damit es vor dem Zeichnen
+  // greift — Kind-Layout-Effekte (mitwachsende Textfelder) sind da bereits gelaufen.
+  useLayoutEffect(() => {
+    window.scrollTo(0, scrollByTab.current[activeKey] ?? 0);
+  }, [activeKey]);
 
   // Druck-/PDF-Ansicht: sobald `printing` steht, sind alle Tabs im DOM (je Tab
   // eine Seite, per CSS `break-before`). Nach dem Rendern den Druckdialog öffnen
@@ -527,7 +555,7 @@ export default function CharacterPage() {
             gewandert (Spieler); die Reihenfolge kommt weiterhin aus tabOrder. */}
         <div className="tabs" ref={tabsRef}>
           {order.map((key) => (
-            <button key={key} className={key === activeKey ? 'active' : ''} onClick={() => setActiveKey(key)}>
+            <button key={key} className={key === activeKey ? 'active' : ''} onClick={() => selectTab(key)}>
               {tabName(key)}
             </button>
           ))}

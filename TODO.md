@@ -28,11 +28,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## High-Prio
 
-- [sketch] page refresh fired by re-focusing resets the scroll-state
- - disruptive behaviour that brings the user back to the top every time
- - doing a manual page refresh via F5 or similar also resets to the last tab you were linked to
-  - i think a more elegant way to navigate around is needed
-
 ### 4. Energien - ON HOLD
 
 - [sketch] **Overcharge display** (not built yet — `depletionClass` still only has
