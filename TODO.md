@@ -31,9 +31,9 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - [sketch] Traglast overwriting
  - there are possibilites to increase the carry limit beyong what is calculated
 - [sketch] **Move Psyche** out of "Stufe & Punkte" into the Energien table.
-  - formula + bonus.
-  - only has a formula for Max-value + bonuses
-  - no aufbaugrenze
+   - formula + bonus.
+   - only has a formula for Max-value + bonuses
+   - no aufbaugrenze
 - [sketch] **Overcharge display** (not built yet — `depletionClass` still only has
   `res-low`/`res-crit`): drop `max` from the current-value fields (`Heldenbrief`)
   and extend `depletionClass` with an "above maximum" state so an overfilled value
@@ -46,38 +46,38 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   extra rows of the same table. `parseProbeExpr` in `shared/src/rules.ts` already
   evaluates "MU+IN+CH". The Einstellungen page is where these settings dock. Also
   needs a place to note the special rules attached to each.
-  - probably not player created, but selectable by players. ruleset per energy comes from a data-list the app/GM provides
-  - in the same pass, make ASP also optional. some characters don't have any.
+   - probably not player created, but selectable by players. ruleset per energy comes from a data-list the app/GM provides
+   - in the same pass, make ASP also optional. some characters don't have any.
 
 ## Mid-Prio
 
 - [sketch] **Group overview page for GM**:
  - give the gm an exclusive screen where they can view all characters of a group and their most important stats
-  - e.g. "Hat Gefahreninstinkt" or just add temporary notes
+   - e.g. "Hat Gefahreninstinkt" or just add temporary notes
 - [ready] **Skip no-op saves**: `saveSection` / `saveDynRows` do a full DELETE+INSERT even
   when nothing changed. Add a server-side empty-diff check in front. `saveSection`
   (`server/src/characterData.ts`) is the single choke point — and it is the SAME
   diff the audit log needs. Build once, use twice.
 - [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
   every system change). Concept to build when it comes off hold:
-  - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
+   - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
     `backup.ts` copies the whole file × KEEP, so history stays out of those
     backups. Denormalize `actor_name` into each row (no cross-file FK).
-  - Diff, don't snapshot: in `saveSection` compare payload vs current DB, log only
+   - Diff, don't snapshot: in `saveSection` compare payload vs current DB, log only
     changed fields (old→new); empty diff → skip (doubles as the no-op skipper).
-  - Coalesce: within ~5 min, same (character_id, actor, section, field) → UPDATE
+   - Coalesce: within ~5 min, same (character_id, actor, section, field) → UPDATE
     new_val + ts, keep original old_val. Keeps size independent of the debounce.
-  - Granularity: scalar sections (bio/meta/attributes/baseValues/resources)
+   - Granularity: scalar sections (bio/meta/attributes/baseValues/resources)
     field-level; list/dyn sections COARSE only ('section X: +a/-b/~c Zeilen') —
     rows are positional (DELETE+INSERT), so per-cell diffing is noisy.
-  - Fat values: numbers keep both; free text > ~120 chars truncate / '[geändert]'.
-  - Hook: `saveSection` (thread actor = `req.user.id`). Also `saveVisibility`,
+   - Fat values: numbers keep both; free text > ~120 chars truncate / '[geändert]'.
+   - Hook: `saveSection` (thread actor = `req.user.id`). Also `saveVisibility`,
     dyn-row saves, portrait set/delete, GM char rename/reassign/delete. Skip
     catalog/admin edits.
-  - Schema: `audit_log(id, character_id, actor_id, actor_name, ts, section, field
+   - Schema: `audit_log(id, character_id, actor_id, actor_name, ts, section, field
     NULL=coarse, old_val, new_val)`, index (character_id, ts DESC).
-  - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
-  - Optional: read-only 'Verlauf' panel per char (GM sees all with user/character
+   - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
+   - Optional: read-only 'Verlauf' panel per char (GM sees all with user/character
     filters; owner sees own, character filter).
 
 ## Low-Prio
@@ -85,7 +85,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - [sketch] **CSS tidy-up**: check for components than can be combined
  - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
  - splitting CSS into more fitting files
-  - good pre-work for the responsiveness-pass
+   - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
 - [sketch] **Filtering** (own-element AsE increase): a SEPARATE future concept from
   overcharge — the character is filled with their own elemental energy → shown as
@@ -93,19 +93,19 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.
-  - Accepted simplification (revisit only if it bites): an item's load follows its
+   - Accepted simplification (revisit only if it bites): an item's load follows its
     own `location`, so a container placed on the animal still has its contents
     counted as carried.
 - [sketch] **Ammunition**: damage values and effects (new catalogue).
 - [sketch] **A more neutral default theme** than Khôm (red).
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
-  - Tables break across pages mid-section — add break-inside handling / keep
+   - Tables break across pages mid-section — add break-inside handling / keep
     sections together / repeat table headers.
-  - Talente and Waffen tables get cut off at the sides even in landscape — too
+   - Talente and Waffen tables get cut off at the sides even in landscape — too
     wide; needs print-specific narrower columns / smaller font / scaling /
     wrapping (easier now that static text wraps where an input would not).
-  - Sprachen has rendering issues (investigate).
-  - Maybe clamp column widths to the minimum necessary in print for readability.
+   - Sprachen has rendering issues (investigate).
+   - Maybe clamp column widths to the minimum necessary in print for readability.
 - [sketch] **Mobile/tablet & general layout pass - PROBABLY OUTDATED FINDINGS** (most players are on PC — saved for
   later): responsiveness and layout touch-up, testing across many resolutions,
   and splitting `styles.css` into smaller files for maintenance. The below-700px
@@ -124,23 +124,23 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - **wiki for world lore and game rules**
 
 - **expanded bio for characters as a dedicated page** examples for content:
- - background story
- - detailed description of visuals and behaviour
- - more images (outfits, different poses etc.)
+   - background story
+   - detailed description of visuals and behaviour
+   - more images (outfits, different poses etc.)
 
 - **Discord-webhook**
- - to post new changelog entries automated
+   - to post new changelog entries automated
 
 - **catalogue for character races**
- - wires into the Psyche calculation
+   - wires into the Psyche calculation
 
 - **dice rolls and chat**
- - hidden rolls (only visible for the rolling user)
- - GM and selected player only rolls (so the gm can roll with a player without anyone noticing)
- - roll logs
- - dice rollable from sheet
- - chat commands
-  - /me
-   - "/me baut eine Sandburg" -> "Raskir baut eine Sandburg"
-  - general commands for different roll styles
- - dice shortcuts
+   - hidden rolls (only visible for the rolling user)
+   - GM and selected player only rolls (so the gm can roll with a player without anyone noticing)
+   - roll logs
+   - dice rollable from sheet
+   - chat commands
+    - /me
+     - "/me baut eine Sandburg" -> "Raskir baut eine Sandburg"
+    - general commands for different roll styles
+   - dice shortcuts
