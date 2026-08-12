@@ -1,7 +1,7 @@
 # TODO — forward-looking backlog
 
 Open work only. Finished work is pruned (git history + the in-app changelog
-record what shipped). Keep this in English.
+record what shipped). Keep this in English. Tasks inside a prio-category are not ordered by urgency.
 
 Durable engineering rules (the scroll-container/sticky-offset/display-mode/no-
 data-loss gotchas) now live in `CLAUDE.md`; run-book bits (HTTPS/secure cookies)
@@ -28,18 +28,26 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## High-Prio
 
-### 4. Energien - ON HOLD
-
+- [sketch] Traglast overwriting
+ - there are possibilites to increase the carry limit beyong what is calculated
+- [sketch] **Move Psyche** out of "Stufe & Punkte" into the Energien table.
+  - formula + bonus.
+  - only has a formula for Max-value + bonuses
+  - no aufbaugrenze
 - [sketch] **Overcharge display** (not built yet — `depletionClass` still only has
   `res-low`/`res-crit`): drop `max` from the current-value fields (`Heldenbrief`)
   and extend `depletionClass` with an "above maximum" state so an overfilled value
-  reads as deliberately special, not a typo. `+` clamps, typing does not.
-- [sketch] **Move Psyche** out of "Stufe & Punkte" into the Energien table.
-  - *Blocked on the Spielleiter*: formula + racial bonus.
+  reads as deliberately special, not a typo. `+` clamps, typing does not. Be careful with how it acts with already overcharged values.
+  Will pressing `+` on an overcharged value clamp again?
+
+### 4. Spezialenergien - ON HOLD
+
 - [sketch] **Special Energien addable by the player**: name + attribute formula + bonus, as
   extra rows of the same table. `parseProbeExpr` in `shared/src/rules.ts` already
   evaluates "MU+IN+CH". The Einstellungen page is where these settings dock. Also
   needs a place to note the special rules attached to each.
+  - probably not player created, but selectable by players. ruleset per energy comes from a data-list the app/GM provides
+  - in the same pass, make ASP also optional. some characters don't have any.
 
 ## Mid-Prio
 
@@ -110,3 +118,29 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   requirements are still not fleshed out.
 - [sketch] **Portrait follow-ups**: on-page cutout editor (choose the crop instead of
   auto-center); show the portrait in the group summary view too.
+
+## Unsorted ideas (treat all as [sketch])
+
+- **wiki for world lore and game rules**
+
+- **expanded bio for characters as a dedicated page** examples for content:
+ - background story
+ - detailed description of visuals and behaviour
+ - more images (outfits, different poses etc.)
+
+- **Discord-webhook**
+ - to post new changelog entries automated
+
+- **catalogue for character races**
+ - wires into the Psyche calculation
+
+- **dice rolls and chat**
+ - hidden rolls (only visible for the rolling user)
+ - GM and selected player only rolls (so the gm can roll with a player without anyone noticing)
+ - roll logs
+ - dice rollable from sheet
+ - chat commands
+  - /me
+   - "/me baut eine Sandburg" -> "Raskir baut eine Sandburg"
+  - general commands for different roll styles
+ - dice shortcuts
