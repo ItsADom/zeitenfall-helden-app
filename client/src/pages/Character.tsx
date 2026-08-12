@@ -507,6 +507,14 @@ export default function CharacterPage() {
               {editing ? '🔓 Fertig' : '🔒 Bearbeiten'}
             </button>
           )}
+          {/* Eigene Figur: direkter Sprung in die Einstellungen dieses Charakters
+              (Reiter, Kategorien, Sichtbarkeit, Farbwelt) — spart den Umweg über
+              die Kopfleiste. Der Spielleiter hat keine Einstellungen-Seite. */}
+          {!viewAs && access === 'edit' && !user.isGm && (
+            <Link className="small" to={`/einstellungen?char=${charId}`} title="Einstellungen für diesen Charakter">
+              Einstellungen
+            </Link>
+          )}
           <button className="small" onClick={() => setPrinting(true)} title="Alle Tabs drucken / als PDF speichern (je Tab eine Seite)">
             Drucken
           </button>

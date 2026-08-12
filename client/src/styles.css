@@ -1348,7 +1348,9 @@ button.danger:disabled {
   gap: 10px;
   flex-wrap: wrap;
 }
-button.small {
+button.small,
+a.small {
+  display: inline-block;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 6px;
@@ -1356,9 +1358,11 @@ button.small {
   cursor: pointer;
   color: var(--muted);
   font-size: 13px;
+  text-decoration: none;
   transition: all 0.12s;
 }
-button.small:hover {
+button.small:hover,
+a.small:hover {
   color: var(--accent);
   border-color: var(--accent);
   background: var(--accent-soft);
@@ -2588,6 +2592,17 @@ li {
 .inv-toolbar {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+/* Sprung-Link zu den Kategorien in den Einstellungen — rechts in der Leiste. */
+.inv-cats-link {
+  margin-left: auto;
+  font-size: 13px;
+}
+/* Sprungziel #kategorien: unter der klebenden Kopfleiste + Seitenkopf ausrichten,
+   nicht darunter verschwinden lassen. */
+#kategorien {
+  scroll-margin-top: calc(var(--topbar-h, 47px) + 60px);
 }
 .panel.drop-over {
   outline: 2px solid var(--accent);

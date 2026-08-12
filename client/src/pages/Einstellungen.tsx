@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
 import { VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
 import { defaultTabKeys, dynTabId, dynTabKey, orderTabKeys } from '@shared/tabOrder';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
@@ -37,6 +39,14 @@ let tmpCounter = 0;
 
 export default function EinstellungenPage() {
   const tc = useThemeControls();
+  // Ein Link „Kategorien bearbeiten" aus dem Inventar bringt ?char=<id> und
+  // #kategorien mit: den Charakter vorwählen und nach unten zu den Kategorien
+  // scrollen.
+  const [params] = useSearchParams();
+  const location = useLocation();
+  const paramChar = Number(params.get('char')) || null;
+  // Reiter, von dem man kam — der Zurück-Link kehrt dorthin zurück.
+  const fromTab = params.get('from') || undefined;
   const [chars, setChars] = useState<CharLite[]>([]);
   const [selId, setSelId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -59,10 +69,11 @@ export default function EinstellungenPage() {
     apiGet<{ characters: CharLite[] }>('/api/overview')
       .then((d) => {
         setChars(d.characters);
-        setSelId((prev) => prev ?? d.characters[0]?.id ?? null);
+        const wanted = paramChar && d.characters.some((c) => c.id === paramChar) ? paramChar : null;
+        setSelId((prev) => prev ?? wanted ?? d.characters[0]?.id ?? null);
       })
       .catch(() => {});
-  }, []);
+  }, [paramChar]);
 
   const load = useCallback((id: number) => {
     setLoading(true);
@@ -102,6 +113,12 @@ export default function EinstellungenPage() {
   useEffect(() => {
     if (selId != null) void load(selId);
   }, [selId, load]);
+
+  // Nach dem Laden zu den Kategorien scrollen, wenn man mit #kategorien kam.
+  useEffect(() => {
+    if (loading || location.hash !== '#kategorien') return;
+    document.getElementById('kategorien')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [loading, location.hash, selId]);
 
   const cleanNames = useMemo(() => {
     const seen = new Set<string>();
@@ -207,6 +224,7 @@ export default function EinstellungenPage() {
             <span className="savestate">{msg}</span>
           </div>
         )}
+        {selId != null && <BackToSheet charId={selId} tab={fromTab} name={chars.find((c) => c.id === selId)?.name} />}
       </div>
 
       <div className="panel">
@@ -313,7 +331,7 @@ export default function EinstellungenPage() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel" id="kategorien">
             <h3>Inventar-Kategorien</h3>
             <p className="muted">
              Entfernen einer Kategorie setzt alle Gegenstände darin auf „ohne Kategorie".

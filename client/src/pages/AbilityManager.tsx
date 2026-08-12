@@ -4,6 +4,7 @@ import type { Ability } from '@shared/abilities';
 import { ABILITY_STUFE_MAX, makeAbilityUid } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
 import { useThemeControls } from '../App';
+import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { Field } from '../components/inputs';
 
@@ -231,9 +232,7 @@ export default function AbilityManagerPage() {
           {dirty && !saving && <span className="muted">Ungespeicherte Änderungen</span>}
           <span className="savestate">{msg}</span>
         </div>
-        <Link to={`/charakter/${charId}?tab=${fromTab}`} className="muted">
-          ← {name}
-        </Link>
+        <BackToSheet charId={charId} tab={fromTab} name={name} />
       </div>
       <p className="muted">
         Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Hier wird alles gepflegt; im Reiter selbst
