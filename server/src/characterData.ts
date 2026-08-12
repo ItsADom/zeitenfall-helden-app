@@ -1251,6 +1251,14 @@ export function deletePortrait(charId: number): void {
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v) || 0);
 const str = (v: unknown): string => (v == null ? '' : String(v));
 
+// Vorab-Diff für die Listen-Sektionen (talents/languages/Listen), die sonst
+// blind DELETE+INSERT machen. Beide Seiten werden als Werte-Tupel in Spalten-
+// reihenfolge normalisiert; sind sie deckungsgleich, wäre der Schreibvorgang ein
+// reiner No-Op. Verglichen werden genau die Werte, die geschrieben würden — ein
+// Save wird also nie fälschlich übersprungen.
+const sameRows = (a: unknown[][], b: unknown[][]): boolean =>
+  a.length === b.length && JSON.stringify(a) === JSON.stringify(b);
+
 export function saveSection(charId: number, section: string, data: unknown): void {
   const tx = db.transaction(() => {
     if (section === 'bio' || section === 'meta') {
@@ -1317,38 +1325,53 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     }
     if (section === 'talents') {
       const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      // TaW ist bei 100 gedeckelt (Meisterschaft). Oberfläche kappt bereits beim
+      // Eintippen; hier nochmal, weil die API auch direkt erreichbar ist.
+      const next = rows.map((r) => [
+        num(r.talentId), Math.min(100, num(r.taw)), num(r.at), num(r.pa), num(r.bl),
+        str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus),
+      ]);
+      const cur = (db
+        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus FROM char_talents WHERE character_id = ? ORDER BY rowid')
+        .all(charId) as Record<string, unknown>[])
+        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus]);
+      if (sameRows(cur, next)) return;
       db.prepare('DELETE FROM char_talents WHERE character_id = ?').run(charId);
       const stmt = db.prepare(
         `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
-      for (const r of rows) {
-        // TaW ist bei 100 gedeckelt (Meisterschaft). Oberfläche kappt bereits beim
-        // Eintippen; hier nochmal, weil die API auch direkt erreichbar ist.
-        const taw = Math.min(100, num(r.taw));
-        stmt.run(charId, num(r.talentId), taw, num(r.at), num(r.pa), num(r.bl), str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus));
-      }
+      for (const v of next) stmt.run(charId, ...v);
       return;
     }
     if (section === 'languages') {
       const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      const next = rows.map((r) => [num(r.languageId), num(r.taw), r.muttersprache ? 1 : 0]);
+      const cur = (db
+        .prepare('SELECT language_id, taw, muttersprache FROM char_languages WHERE character_id = ? ORDER BY rowid')
+        .all(charId) as Record<string, unknown>[])
+        .map((r) => [r.language_id, r.taw, r.muttersprache]);
+      if (sameRows(cur, next)) return;
       db.prepare('DELETE FROM char_languages WHERE character_id = ?').run(charId);
       const stmt = db.prepare('INSERT INTO char_languages (character_id, language_id, taw, muttersprache) VALUES (?, ?, ?, ?)');
-      for (const r of rows) stmt.run(charId, num(r.languageId), num(r.taw), r.muttersprache ? 1 : 0);
+      for (const v of next) stmt.run(charId, ...v);
       return;
     }
     const def = listSectionById(section);
     if (!def) throw new Error(`Unbekannte Sektion: ${section}`);
     const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
-    db.prepare(`DELETE FROM sec_${section} WHERE character_id = ?`).run(charId);
     const cols = def.columns.map((c) => c.key);
+    const next = rows.map((r) =>
+      def.columns.map((c) => (c.type === 'number' ? num(r[c.key]) : c.type === 'bool' ? (r[c.key] ? 1 : 0) : str(r[c.key]))),
+    );
+    const cur = (db.prepare(`SELECT ${cols.join(', ')} FROM sec_${section} WHERE character_id = ? ORDER BY pos, id`).all(charId) as Record<string, unknown>[])
+      .map((r) => cols.map((k) => r[k]));
+    if (sameRows(cur, next)) return;
+    db.prepare(`DELETE FROM sec_${section} WHERE character_id = ?`).run(charId);
     const stmt = db.prepare(
       `INSERT INTO sec_${section} (character_id, pos, ${cols.join(', ')}) VALUES (?, ?, ${cols.map(() => '?').join(', ')})`,
     );
-    rows.forEach((r, i) => {
-      const values = def.columns.map((c) => (c.type === 'number' ? num(r[c.key]) : c.type === 'bool' ? (r[c.key] ? 1 : 0) : str(r[c.key])));
-      stmt.run(charId, i, ...values);
-    });
+    next.forEach((values, i) => stmt.run(charId, i, ...values));
   });
   tx();
 }

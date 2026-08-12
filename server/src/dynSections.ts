@@ -155,14 +155,24 @@ export function reorderDynSections(ownerId: number, order: number[], t: DynTable
 }
 
 export function saveDynRows(sectionId: number, rows: Record<string, unknown>[], t: DynTables = CHAR_DYN): void {
+  // Vorab-Diff: die Zeilen exakt so serialisieren, wie sie gespeichert würden,
+  // und mit dem aktuellen Bestand vergleichen. Sind die Bytes gleich, wäre das
+  // DELETE+INSERT ein reiner No-Op — dann sparen wir es uns. Nur ein echter
+  // Byte-Vergleich, also nie ein fälschlich übersprungener Save.
+  const next = rows.map((r) => {
+    const { id, ...data } = r; // interne Zeilen-id nicht mitspeichern
+    void id;
+    return JSON.stringify(data);
+  });
+  const current = (db.prepare(`SELECT data FROM ${t.rows} WHERE section_id = ? ORDER BY pos, id`).all(sectionId) as {
+    data: string;
+  }[]).map((x) => x.data);
+  if (current.length === next.length && current.every((d, i) => d === next[i])) return;
+
   const tx = db.transaction(() => {
     db.prepare(`DELETE FROM ${t.rows} WHERE section_id = ?`).run(sectionId);
     const stmt = db.prepare(`INSERT INTO ${t.rows} (section_id, pos, data) VALUES (?, ?, ?)`);
-    rows.forEach((r, i) => {
-      const { id, ...data } = r; // interne Zeilen-id nicht mitspeichern
-      void id;
-      stmt.run(sectionId, i, JSON.stringify(data));
-    });
+    next.forEach((data, i) => stmt.run(sectionId, i, data));
   });
   tx();
 }
