@@ -23,7 +23,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-12',
     version: '0.3.1',
-    title: 'Kürzere Wege durch die App',
+    title: 'Wege durch die App',
     changes: [
       'Die „Einstellungen" sind aus der Kopfleiste in ein Klappmenü hinter deinem Namen gewandert — dort liegen jetzt „Profil" und „Einstellungen".',
       'Von den charakterbezogenen Seiten („Einstellungen", „Zauber & Fähigkeiten verwalten") führt ein Zurück-Link direkt auf den Bogen — und zwar auf den Reiter, von dem du gekommen bist.',
@@ -31,6 +31,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Aus dem Inventar springt „Kategorien bearbeiten →" direkt zur Kategorienliste in den Einstellungen.',
       'Hell/Dunkel schaltest du jetzt direkt in der Kopfleiste (Sonne/Mond) statt im Farbmenü.',
       'Einträge in Tabellen und Listen werden nun in zwei Schritten gelöscht: erst wird der Löschknopf rot, ein zweiter Klick entfernt — so verschwindet nichts mehr aus Versehen.',
+      'Der aktuelle Tab ist nun beim Neuladen der Seite gespeichert; kein zurückspringen auf den Heldenbrief mehr.'
     ],
   },
   {

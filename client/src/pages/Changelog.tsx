@@ -18,7 +18,6 @@ export default function ChangelogPage() {
       {COMING_SOON.length > 0 && (
         <div className="panel coming-soon">
           <h3>Demnächst</h3>
-          <p className="muted">Ein Ausblick auf Geplantes — bald verfügbar.</p>
           <ul className="changelog-list">
             {COMING_SOON.map((c, i) => (
               <li key={i}>{c}</li>
