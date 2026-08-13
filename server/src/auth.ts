@@ -25,7 +25,11 @@ export function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':');
   if (!salt || !hash) return false;
   const check = crypto.scryptSync(password, salt, 64);
-  return crypto.timingSafeEqual(check, Buffer.from(hash, 'hex'));
+  const stored64 = Buffer.from(hash, 'hex');
+  // Ungleiche Länge (z. B. beschädigter Datensatz) ließe timingSafeEqual werfen —
+  // vorher abfangen und als „passt nicht" behandeln.
+  if (stored64.length !== check.length) return false;
+  return crypto.timingSafeEqual(check, stored64);
 }
 
 // Sitzungen laufen nach einer festen Frist ab (Standard 30 Tage), damit ein

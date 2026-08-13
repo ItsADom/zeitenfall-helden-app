@@ -10,6 +10,7 @@ import {
   SESSION_TTL_DAYS,
   verifyPassword,
 } from './auth.js';
+import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { db, initCharacterRows } from './db.js';
 import {
   MAX_TABLE_COLUMNS,
@@ -119,15 +120,39 @@ const SECTION_IDS = new Set(['bio', 'meta', 'attributes', 'baseValues', 'resourc
 
 // --- Auth ---
 
+// Brute-Force-Bremse am Login. Zwei Fenster (10 min): pro Konto (IP+Name) eng,
+// pro IP insgesamt weiter — so wird gezieltes Raten eines Kontos wie auch das
+// Durchprobieren vieler Namen gebremst, ohne echte Nutzer zu sperren (nur
+// FEHLversuche zählen, ein Erfolg setzt das Konto-Fenster zurück). Die Zahlen
+// sind großzügig: ein Haushalt mit mehreren Spielern hinter einer IP tippt sich
+// nicht versehentlich aus.
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+const perAccount = createAttemptLimiter({ windowMs: LOGIN_WINDOW_MS, max: 8 });
+const perIp = createAttemptLimiter({ windowMs: LOGIN_WINDOW_MS, max: 40 });
+
 api.post('/login', (req, res) => {
   const { username, password } = (req.body ?? {}) as { username?: string; password?: string };
+  const ip = clientIp(req);
+  const acctKey = `${ip}|${(username ?? '').toLowerCase()}`;
+
+  // Gesperrt? Die längere der beiden Wartezeiten melden.
+  const retry = Math.max(perAccount.blocked(acctKey) || 0, perIp.blocked(ip) || 0);
+  if (retry > 0) {
+    res.setHeader('Retry-After', String(retry));
+    res.status(429).json({ error: 'Zu viele Fehlversuche. Bitte in ein paar Minuten erneut versuchen.' });
+    return;
+  }
+
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username ?? '') as
     | { id: number; username: string; password_hash: string; display_name: string; is_gm: number }
     | undefined;
   if (!user || !verifyPassword(password ?? '', user.password_hash)) {
+    perAccount.fail(acctKey);
+    perIp.fail(ip);
     res.status(401).json({ error: 'Benutzername oder Passwort falsch' });
     return;
   }
+  perAccount.reset(acctKey);
   const token = createSession(user.id);
   res.setHeader('Set-Cookie', sessionCookie(token, SESSION_TTL_DAYS * 24 * 60 * 60));
   res.json({ id: user.id, username: user.username, displayName: user.display_name, isGm: !!user.is_gm });

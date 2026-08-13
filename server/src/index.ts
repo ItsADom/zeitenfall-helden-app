@@ -16,6 +16,24 @@ setInterval(cleanupSessions, 24 * 60 * 60 * 1000).unref();
 startBackupSchedule();
 
 const app = express();
+
+// Hinter genau einem Reverse-Proxy (nginx): die echte Client-IP aus
+// X-Forwarded-For übernehmen, damit die Login-Bremse pro IP greift und nicht
+// alle hinter der Proxy-Adresse zusammenfasst.
+app.set('trust proxy', 1);
+// Kein „X-Powered-By: Express" — verrät nur die Technik, nützt niemandem.
+app.disable('x-powered-by');
+
+// HSTS nur, wenn wir hinter HTTPS laufen (gleiches Signal wie das Secure-Cookie):
+// weist den Browser an, die Domain künftig ausschließlich über https anzusteuern.
+const SECURE = /^(1|true)$/i.test(process.env.SECURE_COOKIES ?? '');
+if (SECURE) {
+  app.use((_req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    next();
+  });
+}
+
 app.use(express.json({ limit: '2mb' }));
 app.use(attachUser);
 app.use('/api', api);
