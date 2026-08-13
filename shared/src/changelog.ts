@@ -15,6 +15,27 @@ export interface ChangelogEntry {
   changes: string[];
 }
 
+// Bekannter Fehler — wird auf der Changelog-Seite als eigener Abschnitt
+// gezeigt (unter „Demnächst", über der Historie). Rein informativ für Spieler;
+// wird NICHT nach Discord gespiegelt (der Server liest nur CHANGELOG).
+export interface KnownBug {
+  title: string; // knappe Überschrift, z. B. „Porträt lädt nicht"
+  description?: string; // optional: ein, zwei Sätze zum Problem
+  workaround?: string; // optional: „So kommst du vorerst weiter"
+  status?: string; // optional: kurzer Stand, z. B. „in Arbeit", „bekannt"
+}
+
+// Bekannte, noch offene Fehler. Leeren, wenn nichts ansteht — dann wird der
+// Abschnitt gar nicht erst gezeigt. Behobenes hier entfernen (die Behebung
+// gehört, falls spürbar, in einen CHANGELOG-Eintrag).
+export const KNOWN_BUGS: KnownBug[] = [
+  {
+    title: 'Seltsames Scrollverhalten',
+    description: 'Seiten scrollen zurück nach oben, wenn man sie wieder in den Fokus nimmt.',
+    status: 'in Arbeit',
+  },
+];
+
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
