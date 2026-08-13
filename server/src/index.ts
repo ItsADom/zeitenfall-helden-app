@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { attachUser, cleanupSessions } from './auth.js';
 import { api } from './routes.js';
 import { startBackupSchedule } from './backup.js';
+import { mirrorChangelog } from './discord.js';
 import './db.js';
 import './seed.js';
 
@@ -14,6 +15,10 @@ setInterval(cleanupSessions, 24 * 60 * 60 * 1000).unref();
 
 // Tägliche Sicherung der Datenbank
 startBackupSchedule();
+
+// Neue Changelog-Einträge nach Discord spiegeln (nur wenn ein Webhook gesetzt
+// ist). Bewusst nicht blockierend: der Server startet auch, wenn Discord klemmt.
+mirrorChangelog().catch((err) => console.error('[discord] Changelog-Spiegel fehlgeschlagen:', err));
 
 const app = express();
 

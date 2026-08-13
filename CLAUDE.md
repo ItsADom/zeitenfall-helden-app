@@ -44,9 +44,11 @@ These are standing instructions — follow them without being reminded.
   markers, no phase-by-phase history. Keep only residual forward-looking bits
   (a decided-but-unbuilt concept, a constraint, a follow-up). Git history already
   records what was finished.
-- **The in-app changelog is curated, not a commit log.** `client/src/changelog.ts`
-  (rendered by `client/src/pages/Changelog.tsx`) is a short, user-facing summary
-  for players. Only propose entries for notable, user-visible changes, and keep
+- **The in-app changelog is curated, not a commit log.** The entries live in
+  `shared/src/changelog.ts` (so the server's Discord mirror and the client share
+  one source; `client/src/changelog.ts` just re-exports it), and are rendered by
+  `client/src/pages/Changelog.tsx`. It is a short, user-facing summary for
+  players. Only propose entries for notable, user-visible changes, and keep
   each to a few high-level bullets. Don't add entries proactively for routine
   work. Leave the `version` field unset until the user starts real versioned
   releases.

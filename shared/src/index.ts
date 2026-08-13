@@ -6,3 +6,4 @@ export * from './items.js';
 export * from './abilities.js';
 export * from './tableLayout.js';
 export * from './tabOrder.js';
+export * from './changelog.js';

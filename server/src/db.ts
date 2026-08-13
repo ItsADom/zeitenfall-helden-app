@@ -309,6 +309,13 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT ''
   );
+
+  -- Kleiner Schlüssel/Wert-Speicher für App-weite Merker (kein Charakterbezug).
+  -- Aktuell: Wasserstand des Changelog→Discord-Spiegels (server/discord.ts).
+  CREATE TABLE IF NOT EXISTS app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL DEFAULT ''
+  );
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).
