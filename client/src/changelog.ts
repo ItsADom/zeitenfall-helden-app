@@ -14,14 +14,20 @@ export interface ChangelogEntry {
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — mit hinterlegten Regeln.',
-  'Eine Gruppenübersicht für den Spielleiter: die wichtigsten Werte aller Charaktere einer Gruppe auf einen Blick.',
+  'Würfeln direkt vom Bogen: offene und verdeckte Proben, heimliche Spielleiter-Würfe und ein Wurf-Protokoll.',
+  'Ein Würfel-Chat mit Befehlen wie „/me“ und eigenen Wurf-Kürzeln.',
+  'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — samt hinterlegter Regeln.',
+  'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
+  'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
+  'Ein Rassen-Katalog, der z. B. direkt in die Psyche-Berechnung einfließt.',
+  'Mehr Farbthemen und ein ruhigeres Standard-Design.',
 ];
 
 // Neueste Einträge zuerst.
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-13',
+    version: '0.3.2',
     title: 'Eigene Energien',
     changes: [
       'Unter den Energien im Heldenbrief kannst du jetzt eigene Spezialenergien anlegen (z. B. Karma, Odem, Blutkraft) — je Eintrag Name, Maximum und aktueller Wert.',
