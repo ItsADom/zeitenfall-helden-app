@@ -30,7 +30,7 @@ export default function WaffenTab() {
   const probesFor = (row: Row) => {
     const t = talents.get(Number(row.talentId));
     return weaponProbes(
-      { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0, atMax: Number(row.atMax) || 0 },
+      { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0 },
       base,
       { at: t?.at ?? 0, pa: t?.pa ?? 0, bl: t?.bl ?? 0 },
     );

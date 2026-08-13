@@ -1560,11 +1560,7 @@ export function buildSummary(charId: number) {
       nah: lists.waffenNah.map((w) => {
         const talent = talents.get(Number(w.talentId));
         const split = { at: talent?.at ?? 0, pa: talent?.pa ?? 0, bl: talent?.bl ?? 0 };
-        const probes = weaponProbes(
-          { at: Number(w.at), pa: Number(w.pa), bl: Number(w.bl), atMax: Number(w.atMax) || 0 },
-          base,
-          split,
-        );
+        const probes = weaponProbes({ at: Number(w.at), pa: Number(w.pa), bl: Number(w.bl) }, base, split);
         return { ...w, probes };
       }),
       fern: lists.waffenFern,

@@ -391,6 +391,33 @@ db.exec(`
   if (!cols.has('sidebarNotiz')) db.exec("ALTER TABLE char_bio ADD COLUMN sidebarNotiz TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration: 'AT-Deckel' (atMax) aus den Nahkampfwaffen entfernt. Bestehende
+// Werte dürfen nicht still verschwinden (höchstrangige Regel) — sie wandern
+// sichtbar in die Notiz der Zeile, danach wird atMax genullt, damit die einmalige
+// Umschreibung idempotent bleibt. Auf frischen Datenbanken hat sec_waffenNah die
+// Spalte gar nicht mehr → nichts zu tun.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(sec_waffenNah)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('atMax') && cols.has('notiz')) {
+    const rows = db.prepare('SELECT id, atMax, notiz FROM sec_waffenNah WHERE atMax > 0').all() as {
+      id: number;
+      atMax: number;
+      notiz: string;
+    }[];
+    if (rows.length) {
+      const upd = db.prepare('UPDATE sec_waffenNah SET notiz = ?, atMax = 0 WHERE id = ?');
+      const tx = db.transaction(() => {
+        for (const r of rows) {
+          const note = `AT-Deckel: ${r.atMax}`;
+          upd.run(r.notiz && r.notiz.trim() ? `${r.notiz} · ${note}` : note, r.id);
+        }
+      });
+      tx();
+      console.log(`Migration: ${rows.length} AT-Deckel-Wert(e) in die Waffen-Notiz übernommen`);
+    }
+  }
+}
+
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_sections)').all() as { name: string }[]).map((c) => c.name));
