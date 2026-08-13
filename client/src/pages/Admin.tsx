@@ -257,11 +257,11 @@ export default function AdminPage() {
   const reload = () => {
     setError('');
     apiGet<AdminUser[]>('/api/admin/users').then(setUsers).catch((e) => setError(String(e.message)));
-    // Gruppen/Charaktere/Kataloge sind Spielleitungs-Daten — ein reiner Admin
-    // fragt sie gar nicht erst ab (Endpunkte sind requireGm).
-    if (me.isGm) {
+    // Verwaltung und Spielleitung pflegen dieselben Bereiche. Die Charakterliste
+    // kommt aus dem Verwaltungs-Endpunkt (nur Metadaten), NICHT aus /overview.
+    if (me.isGm || me.isAdmin) {
       apiGet<AdminGroup[]>('/api/admin/groups').then(setGroups);
-      apiGet<{ characters: AdminChar[] }>('/api/overview').then((o) => setChars(o.characters));
+      apiGet<AdminChar[]>('/api/admin/characters').then(setChars);
     }
   };
   useEffect(reload, []);
@@ -306,7 +306,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <h1>{me.isGm ? 'Kataloge & Nutzer' : 'Nutzerverwaltung'}</h1>
+      <h1>Kataloge &amp; Nutzer</h1>
       {error && <p className="error">{error}</p>}
 
       <div className="panel">
@@ -423,10 +423,10 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Gruppen, Charaktere und Kataloge sind Spielleitungs-Sache. Ein reiner
-          Admin verwaltet nur Konten und sieht diese Bereiche nicht (Anti-Cheat). */}
-      {me.isGm && (
-      <>
+      {/* Gruppen, Charaktere und Kataloge pflegen Verwaltung UND Spielleitung.
+          Der Bogen selbst bleibt der Verwaltung dennoch verschlossen: Charakter-
+          namen sind für reine Admins kein Link (siehe unten), und die GM-Übersicht
+          bleibt der Spielleitung vorbehalten (Anti-Cheat). */}
       <div className="panel">
         <h2>Gruppen</h2>
         <table className="sheet">
@@ -491,7 +491,9 @@ export default function AdminPage() {
             {sortedChars.map((c) => (
               <tr key={c.id}>
                 <td>
-                  <Link to={`/charakter/${c.id}`}>{c.name}</Link>
+                  {/* Nur die Spielleitung darf den Bogen öffnen; für reine Admins
+                      ist der Name Text (kein Zugriff auf Charakterdaten). */}
+                  {me.isGm ? <Link to={`/charakter/${c.id}`}>{c.name}</Link> : c.name}
                 </td>
                 <td>
                   <select value={c.owner_user_id} onChange={(e) => run(() => apiPut(`/api/characters/${c.id}`, { ownerUserId: Number(e.target.value) }))}>
@@ -614,8 +616,6 @@ export default function AdminPage() {
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />
-      </>
-      )}
     </>
   );
 }

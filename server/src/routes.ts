@@ -747,7 +747,9 @@ api.put('/characters/:id/sections/:sid/rows', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-api.put('/characters/:id', requireAuth, requireGm, (req, res) => {
+// Zuordnung eines Charakters (Name/Besitzer/Gruppe) — Verwaltungssache, kein
+// Blick in den Bogen. Darum Spielleitung ODER Verwaltung.
+api.put('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const char = getChar(Number(req.params.id));
   if (!char) {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
@@ -763,7 +765,7 @@ api.put('/characters/:id', requireAuth, requireGm, (req, res) => {
   res.json({ ok: true });
 });
 
-api.delete('/characters/:id', requireAuth, requireGm, (req, res) => {
+api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   db.prepare('DELETE FROM characters WHERE id = ?').run(Number(req.params.id));
   res.json({ ok: true });
 });
@@ -885,7 +887,7 @@ api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-api.get('/admin/groups', requireAuth, requireGm, (_req, res) => {
+api.get('/admin/groups', requireAuth, requireGmOrAdmin, (_req, res) => {
   const groups = db.prepare('SELECT * FROM groups ORDER BY name').all() as { id: number; name: string }[];
   const members = db.prepare('SELECT group_id, user_id FROM group_members').all() as { group_id: number; user_id: number }[];
   res.json(
@@ -893,7 +895,7 @@ api.get('/admin/groups', requireAuth, requireGm, (_req, res) => {
   );
 });
 
-api.post('/admin/groups', requireAuth, requireGm, (req, res) => {
+api.post('/admin/groups', requireAuth, requireGmOrAdmin, (req, res) => {
   const { name } = (req.body ?? {}) as { name?: string };
   if (!name) {
     res.status(400).json({ error: 'Name erforderlich' });
@@ -905,7 +907,7 @@ api.post('/admin/groups', requireAuth, requireGm, (req, res) => {
   res.json({ id });
 });
 
-api.put('/admin/groups/:id', requireAuth, requireGm, (req, res) => {
+api.put('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
   const { name, memberIds } = (req.body ?? {}) as { name?: string; memberIds?: number[] };
   if (name) db.prepare('UPDATE groups SET name = ? WHERE id = ?').run(name, id);
@@ -920,7 +922,7 @@ api.put('/admin/groups/:id', requireAuth, requireGm, (req, res) => {
   res.json({ ok: true });
 });
 
-api.delete('/admin/groups/:id', requireAuth, requireGm, (req, res) => {
+api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
   const chars = db.prepare('SELECT COUNT(*) AS n FROM characters WHERE group_id = ?').get(id) as { n: number };
   if (chars.n > 0) {
@@ -952,7 +954,7 @@ function catalogDef(type: string) {
   return type in CATALOGS ? CATALOGS[type as keyof typeof CATALOGS] : null;
 }
 
-api.post('/admin/catalogs/:type', requireAuth, requireGm, (req, res) => {
+api.post('/admin/catalogs/:type', requireAuth, requireGmOrAdmin, (req, res) => {
   const def = catalogDef(String(req.params.type));
   if (!def) {
     res.status(400).json({ error: 'Unbekannter Katalog' });
@@ -970,7 +972,7 @@ api.post('/admin/catalogs/:type', requireAuth, requireGm, (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
-api.put('/admin/catalogs/:type/:id', requireAuth, requireGm, (req, res) => {
+api.put('/admin/catalogs/:type/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const def = catalogDef(String(req.params.type));
   if (!def) {
     res.status(400).json({ error: 'Unbekannter Katalog' });
@@ -988,7 +990,7 @@ api.put('/admin/catalogs/:type/:id', requireAuth, requireGm, (req, res) => {
   res.json({ ok: true });
 });
 
-api.delete('/admin/catalogs/:type/:id', requireAuth, requireGm, (req, res) => {
+api.delete('/admin/catalogs/:type/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const def = catalogDef(String(req.params.type));
   if (!def) {
     res.status(400).json({ error: 'Unbekannter Katalog' });
@@ -1004,7 +1006,15 @@ api.delete('/admin/catalogs/:type/:id', requireAuth, requireGm, (req, res) => {
   res.json({ ok: true });
 });
 
-api.post('/admin/characters', requireAuth, requireGm, (req, res) => {
+// Charakterliste NUR als Verwaltungs-Metadaten (Name/Besitzer/Gruppe) für die
+// „Kataloge & Nutzer"-Seite — kein Bogen-Inhalt. Spielleitung ODER Verwaltung.
+// Bewusst getrennt von /overview (das die persönliche Charakter-Startseite
+// bedient), damit ein reiner Admin dort weiter nur seine eigenen sieht.
+api.get('/admin/characters', requireAuth, requireGmOrAdmin, (_req, res) => {
+  res.json(db.prepare('SELECT id, name, owner_user_id, group_id FROM characters ORDER BY name').all());
+});
+
+api.post('/admin/characters', requireAuth, requireGmOrAdmin, (req, res) => {
   const { name, ownerUserId, groupId } = (req.body ?? {}) as { name?: string; ownerUserId?: number; groupId?: number };
   if (!name || !ownerUserId || !groupId) {
     res.status(400).json({ error: 'Name, Besitzer und Gruppe erforderlich' });
@@ -1019,7 +1029,7 @@ api.post('/admin/characters', requireAuth, requireGm, (req, res) => {
 
 // Charakter aus einer exportierten JSON-Datei anlegen. Immer als neuer
 // Charakter (nie überschreibend), Name mit Zusatz „(Imported)“. Nur Spielleiter.
-api.post('/admin/characters/import', requireAuth, requireGm, (req, res) => {
+api.post('/admin/characters/import', requireAuth, requireGmOrAdmin, (req, res) => {
   const { ownerUserId, groupId, payload } = (req.body ?? {}) as {
     ownerUserId?: number;
     groupId?: number;

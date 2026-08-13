@@ -106,7 +106,7 @@ export default function App() {
         {/* Spielleiter verwalten Kataloge & Nutzer. Für Spieler ist „Einstellungen"
             aus der Leiste ins Profil-Flyout gewandert (unten) — und direkt vom
             Charakterbogen erreichbar. Route bleibt intern /verwaltung. */}
-        {(user.isGm || user.isAdmin) && <Link to="/verwaltung">{user.isGm ? 'Kataloge & Nutzer' : 'Nutzer'}</Link>}
+        {(user.isGm || user.isAdmin) && <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>}
         <div className="spacer" />
         {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
             Spieler ist sie auf die Einstellungen-Seite gewandert. */}
