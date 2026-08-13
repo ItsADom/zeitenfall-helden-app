@@ -38,8 +38,10 @@ export function AbilityTable({
 }) {
   const { data, update, charId } = useChar();
   const list = data.abilities.filter((a) => a.magisch === magisch);
-  const [stored, setGroupBy] = usePersistedState<Grouping>(`${persistKey}:group`, groupOptions[0]);
-  const by: Grouping = stored === 'none' || groupOptions.includes(stored as GroupBy) ? stored : groupOptions[0];
+  // Voreinstellung: keine Gruppierung — die Liste läuft flach durch. Wer aktiv
+  // eine Gruppierung wählt, behält sie (persistiert je Nutzer).
+  const [stored, setGroupBy] = usePersistedState<Grouping>(`${persistKey}:group`, 'none');
+  const by: Grouping = stored === 'none' || groupOptions.includes(stored as GroupBy) ? stored : 'none';
 
   const [q, setQ] = useState('');
   const [fEl, setFEl] = useState('');
