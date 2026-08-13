@@ -121,7 +121,7 @@ function PoolHead({ label, title, prozent }: { label: string; title?: string; pr
 // Energien + Psyche — die laufenden Pools mit Schnell-Schaden/-Heilung.
 function SidebarPools() {
   const { data, update } = useChar();
-  const { attributes, resources, meta } = data;
+  const { attributes, resources, special, meta } = data;
 
   const psycheAkt = meta.psycheAkt ?? 0;
   const psycheMaxWert = psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0);
@@ -130,6 +130,8 @@ function SidebarPools() {
   const setAktuell = (key: ResourceKey, v: number) =>
     update('resources', { ...resources, [key]: { ...resources[key], aktuell: v } });
   const setMeta = (key: string, v: number) => update('meta', { ...meta, [key]: v });
+  const setSpecialAkt = (i: number, v: number) =>
+    update('special', special.map((s, j) => (j === i ? { ...s, aktuell: v } : s)));
 
   return (
     <div className="side-block">
@@ -152,6 +154,22 @@ function SidebarPools() {
           <PoolHead label="Psyche" prozent={psyche != null ? Math.round(psyche) : null} />
           <AktuellFeld value={psycheAkt} max={psycheMaxWert > 0 ? psycheMaxWert : undefined} onChange={(v) => setMeta('psycheAkt', v)} />
         </div>
+
+        {/* Spezialenergien reihen sich als weitere Schnell-Pools ein. Namenlose
+            (noch unfertige) Einträge werden ausgelassen — der volle Editor steht
+            im Heldenbrief. Der Name dient als Beschriftung UND Tooltip. */}
+        {special.map((s, i) =>
+          s.name.trim() === '' ? null : (
+            <div className={`side-pool${overfilled(s.aktuell, s.max) ? ' res-over' : ''}`} key={i}>
+              <PoolHead
+                label={s.name}
+                title={s.name}
+                prozent={s.max > 0 ? Math.round((s.aktuell / s.max) * 100) : null}
+              />
+              <AktuellFeld value={s.aktuell} max={s.max > 0 ? s.max : undefined} onChange={(v) => setSpecialAkt(i, v)} />
+            </div>
+          ),
+        )}
       </div>
     </div>
   );

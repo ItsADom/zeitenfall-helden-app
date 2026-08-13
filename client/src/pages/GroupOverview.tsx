@@ -203,8 +203,10 @@ export default function GroupOverviewPage() {
               </div>
 
               <div className="gm-chips">
-                {c.vitals.map((v) => (
-                  <span className={`gm-chip gm-chip--vital ${vitalClass(v.key, v.aktuell, v.max)}`} key={v.key}>
+                {/* key ist der Chip-Schlüssel bzw. Name; Spezialenergien dürfen
+                    Namen teilen, deshalb den Index anhängen. */}
+                {c.vitals.map((v, i) => (
+                  <span className={`gm-chip gm-chip--vital ${vitalClass(v.key, v.aktuell, v.max)}`} key={`${v.key}-${i}`}>
                     <span className="gm-chip-label">{VITAL_LABELS[v.key] ?? v.key}</span>
                     <span className="gm-chip-val">
                       {v.aktuell}/{v.max}

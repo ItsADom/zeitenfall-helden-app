@@ -5,6 +5,8 @@ import {
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
   LIST_SECTIONS,
+  MAX_SPECIAL_RESOURCES,
+  MAX_SPECIAL_RESOURCE_NAME,
   RESOURCE_KEYS,
   RESOURCE_LABELS,
   VISIBILITY_SECTIONS,
@@ -43,6 +45,7 @@ import type {
   ItemLocation,
   ResourceInput,
   Resources,
+  SpecialResource,
   VisibilitySection,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
@@ -114,6 +117,12 @@ export function loadLanguages(charId: number): CharLanguage[] {
     .prepare('SELECT language_id AS languageId, taw, muttersprache FROM char_languages WHERE character_id = ?')
     .all(charId) as { languageId: number; taw: number; muttersprache: number }[];
   return rows.map((r) => ({ languageId: r.languageId, taw: r.taw, muttersprache: !!r.muttersprache }));
+}
+
+export function loadSpecialResources(charId: number): SpecialResource[] {
+  return db
+    .prepare('SELECT name, max, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as SpecialResource[];
 }
 
 export function loadList(sectionId: string, charId: number): Record<string, unknown>[] {
@@ -681,6 +690,7 @@ export function loadFullCharacter(charId: number) {
     attributes: loadAttributes(charId),
     baseValues: loadBaseValueInputs(charId),
     resources: loadResources(charId),
+    special: loadSpecialResources(charId),
     talents: loadTalents(charId),
     languages: loadLanguages(charId),
     lists: loadAllLists(charId),
@@ -1323,6 +1333,27 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       }
       return;
     }
+    if (section === 'special') {
+      // Spezialenergien: frei benannte Liste. Wie Talente/Sprachen per
+      // Delete+Insert mit No-op-Wächter gespeichert. Namenlose Zeilen fallen
+      // raus (leere „+ Zeile"-Reste), Name/Anzahl werden gekappt. Aktuell darf
+      // — wie bei den festen Energien — bewusst über dem Maximum liegen
+      // (Überladung), deshalb hier KEINE Deckelung nach oben.
+      const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      const next = rows
+        .map((r) => [str(r.name).slice(0, MAX_SPECIAL_RESOURCE_NAME), num(r.max), num(r.aktuell)] as [string, number, number])
+        .filter(([name]) => name.trim() !== '')
+        .slice(0, MAX_SPECIAL_RESOURCES);
+      const cur = (db
+        .prepare('SELECT name, max, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
+        .all(charId) as Record<string, unknown>[])
+        .map((r) => [r.name, r.max, r.aktuell]);
+      if (sameRows(cur, next)) return;
+      db.prepare('DELETE FROM char_special_resources WHERE character_id = ?').run(charId);
+      const stmt = db.prepare('INSERT INTO char_special_resources (character_id, pos, name, max, aktuell) VALUES (?, ?, ?, ?, ?)');
+      next.forEach((values, i) => stmt.run(charId, i, ...values));
+      return;
+    }
     if (section === 'talents') {
       const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
       // TaW ist bei 100 gedeckelt (Meisterschaft). Oberfläche kappt bereits beim
@@ -1407,6 +1438,7 @@ export function importFullCharacter(
     if (data.attributes) saveSection(charId, 'attributes', data.attributes);
     if (data.baseValues) saveSection(charId, 'baseValues', data.baseValues);
     if (data.resources) saveSection(charId, 'resources', data.resources);
+    if (data.special) saveSection(charId, 'special', data.special);
     if (data.talents) saveSection(charId, 'talents', data.talents);
     if (data.languages) saveSection(charId, 'languages', data.languages);
     for (const [sid, rows] of Object.entries(data.lists ?? {})) {
@@ -1596,6 +1628,12 @@ export function buildGroupOverview(groupId: number) {
       aktuell: meta.psycheAkt ?? 0,
       max: psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0),
     });
+    // Spezialenergien reihen sich als weitere Vital-Chips ein — der Schlüssel ist
+    // der frei gewählte Name (dient zugleich als Chip-Beschriftung). Kein eigener
+    // Chip-Typ nötig: sie färben wie die anderen (Überladung), zeigen aktuell/max.
+    for (const sr of loadSpecialResources(c.id)) {
+      vitals.push({ key: sr.name, aktuell: sr.aktuell, max: sr.max });
+    }
 
     return {
       id: c.id,

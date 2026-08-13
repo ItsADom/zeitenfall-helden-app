@@ -14,12 +14,20 @@ export interface ChangelogEntry {
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Eigene Sonder-Energien (z. B. Drachenkraft) können pro Charakter ausgewählt werden.',
+  'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — mit hinterlegten Regeln.',
   'Eine Gruppenübersicht für den Spielleiter: die wichtigsten Werte aller Charaktere einer Gruppe auf einen Blick.',
 ];
 
 // Neueste Einträge zuerst.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-13',
+    title: 'Eigene Energien',
+    changes: [
+      'Unter den Energien im Heldenbrief kannst du jetzt eigene Spezialenergien anlegen (z. B. Karma, Odem, Blutkraft) — je Eintrag Name, Maximum und aktueller Wert.',
+      'Sie erscheinen auch in der Seitenleiste als Schnell-Pool (mit −/+ für Schaden und Heilung) und in der Spielleiter-Übersicht als Chip.',
+    ],
+  },
   {
     date: '2026-08-12',
     version: '0.3.1',

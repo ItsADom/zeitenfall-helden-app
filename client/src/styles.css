@@ -1434,6 +1434,21 @@ button.add-row {
   margin-top: 6px;
   font-weight: 600;
 }
+/* Zwischenüberschrift mit rechtsbündiger Aktion (z. B. Spezialenergien + „+ Zeile")
+   innerhalb eines Panels — der Knopf sitzt neben dem Titel, nicht darunter. */
+.subhead-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 14px;
+}
+.subhead-row h4 {
+  margin: 0;
+}
+.subhead-row .add-row {
+  margin-top: 0;
+}
 button.note-btn.has-note {
   color: var(--accent);
 }

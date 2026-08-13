@@ -4,16 +4,18 @@ import {
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
   RESOURCE_COLUMN_LABELS as RC,
+  MAX_SPECIAL_RESOURCES,
   RESOURCE_KEYS,
   RESOURCE_LABELS,
 } from '@shared/types';
-import type { AttrRowCode, BaseValueKey, ResourceKey } from '@shared/types';
+import type { AttrRowCode, BaseValueKey, ResourceKey, SpecialResource } from '@shared/types';
 import { Fragment, useState } from 'react';
 import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheMax, psycheMuAnteil } from '@shared/rules';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { Portrait } from '../components/Portrait';
 import { overfilled, poolClass } from '../components/energie';
 import { useChar } from '../pages/Character';
@@ -81,7 +83,7 @@ const META_FIELDS: [string, string][] = [
 export default function HeldenbriefTab() {
   const { charId, data, update } = useChar();
   const readOnly = useReadOnly();
-  const { attributes, baseValues, resources, bio, meta } = data;
+  const { attributes, baseValues, resources, special, bio, meta } = data;
 
   const bv = computeBaseValues(attributes, baseValues);
 
@@ -90,6 +92,13 @@ export default function HeldenbriefTab() {
   const setBvMod = (key: BaseValueKey, v: number) => update('baseValues', { ...baseValues, mods: { ...baseValues.mods, [key]: v } });
   const setResource = (key: ResourceKey, field: string, v: unknown) =>
     update('resources', { ...resources, [key]: { ...resources[key], [field]: v } });
+  // Spezialenergien: frei benannte Vorräte in einer eigenen Liste. Unveränderlich
+  // aktualisiert, damit React die Zeilen sauber neu zeichnet.
+  const setSpecial = (next: SpecialResource[]) => update('special', next);
+  const setSpecialField = (i: number, field: keyof SpecialResource, v: unknown) =>
+    setSpecial(special.map((s, j) => (j === i ? { ...s, [field]: v } : s)));
+  const addSpecial = () => setSpecial([...special, { name: '', max: 0, aktuell: 0 }]);
+  const removeSpecial = (i: number) => setSpecial(special.filter((_, j) => j !== i));
   const setBio = (key: string, v: string) => update('bio', { ...bio, [key]: v });
   const setMeta = (key: string, v: number) => update('meta', { ...meta, [key]: v });
 
@@ -351,6 +360,63 @@ export default function HeldenbriefTab() {
           </tbody>
         </table>
         </div>
+
+        {/* Spezialenergien (light): eigene, schlanke Tabelle unter denselben
+            Energien — name/max/aktuell, vom Spieler selbst erweiterbar. Bewusst
+            KEINE AP-/Ausbau-Spalten: sie soll nicht wie die feste Tabelle wirken.
+            Getrennte Ablage, damit deren starre Spalten sie nicht verformen. */}
+        <div className="subhead-row">
+          <h4>Spezialenergien</h4>
+          {!readOnly && special.length < MAX_SPECIAL_RESOURCES && (
+            <button className="small add-row" onClick={addSpecial}>
+              + Zeile
+            </button>
+          )}
+        </div>
+        {special.length === 0 ? (
+          <p className="muted">
+            Eigene Energien (z. B. Karma, Odem, Blutkraft) mit „+ Zeile“ hinzufügen — je Eintrag Name, Maximum und
+            aktueller Wert.
+          </p>
+        ) : (
+          <div className="table-wrap">
+            <table className="sheet" style={{ minWidth: 360 }}>
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th style={{ width: 100 }}>Maximum</th>
+                  <th style={{ width: 100 }}>Aktuell</th>
+                  {!readOnly && <th style={{ width: 40 }} aria-label="Entfernen" />}
+                </tr>
+              </thead>
+              <tbody>
+                {special.map((s, i) => (
+                  <tr key={i}>
+                    <td>
+                      <TextInput value={s.name} onChange={(v) => setSpecialField(i, 'name', v)} />
+                    </td>
+                    <td>
+                      <NumInput value={s.max} onChange={(v) => setSpecialField(i, 'max', v)} />
+                    </td>
+                    {/* Aktuell darf über dem Maximum stehen (Überladung) — nicht
+                        kappen, nur färben wie bei den festen Energien. */}
+                    <td
+                      className={overfilled(s.aktuell, s.max) ? 'res-over' : undefined}
+                      title={overfilled(s.aktuell, s.max) ? `überladen: ${s.aktuell}/${s.max}` : undefined}
+                    >
+                      <NumInput value={s.aktuell} onChange={(v) => setSpecialField(i, 'aktuell', v)} />
+                    </td>
+                    {!readOnly && (
+                      <td>
+                        <ConfirmDeleteButton title="Energie entfernen" onConfirm={() => removeSpecial(i)} />
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="grid2">

@@ -135,6 +135,18 @@ db.exec(`
     PRIMARY KEY (character_id, key)
   );
 
+  -- Spezialenergien (light): frei benannte Vorräte, die der Spieler selbst
+  -- anlegt. EIGENE Tabelle statt Zusatzspalten in char_resources, damit die
+  -- festen Energien unberührt bleiben. Wie Talente/Sprachen eine Liste (pos).
+  CREATE TABLE IF NOT EXISTS char_special_resources (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    max REAL NOT NULL DEFAULT 0,
+    aktuell REAL NOT NULL DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS talents_catalog (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kategorie TEXT NOT NULL,

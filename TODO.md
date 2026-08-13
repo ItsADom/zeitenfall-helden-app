@@ -24,14 +24,20 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## High-Prio
 
-### 4. Spezialenergien - ON HOLD
+### 4. Spezialenergien - full version
 
-- [sketch] **Special Energien addable by the player**: name + attribute formula + bonus, as
-  extra rows of the same table. `parseProbeExpr` in `shared/src/rules.ts` already
-  evaluates "MU+IN+CH". The Einstellungen page is where these settings dock. Also
-  needs a place to note the special rules attached to each.
-   - probably not player created, but selectable by players. ruleset per energy comes from a data-list the app/GM provides
-   - in the same pass, make ASP also optional. some characters don't have any.
+Light version shipped: a separate `special` list (name/max/aktuell) the player
+edits in the Energien panel, mirrored as sidebar quick-edit chips and GM-overview
+chips. Backend table `char_special_resources`. Open for the full version:
+
+- [sketch] GM-provided ruleset instead of free-form: energies **selectable** by
+  players from a data-list the app/GM supplies (name + attribute formula + bonus),
+  with a place to note the special rules attached to each. `parseProbeExpr` in
+  `shared/src/rules.ts` already evaluates "MU+IN+CH". The Einstellungen page is
+  where these settings dock. Migrate existing free-form `special` rows into it
+  without data loss.
+- [sketch] Make ASP itself optional — some characters have none (best done in the
+  same pass).
 
 ## Mid-Prio
 

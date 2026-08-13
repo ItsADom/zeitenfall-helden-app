@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources } from '@shared/types';
+import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, Resources, SpecialResource } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
 import type { Ability } from '@shared/abilities';
@@ -29,6 +29,9 @@ export interface FullData {
   attributes: Attributes;
   baseValues: BaseValueInputs;
   resources: Resources;
+  // Spezialenergien (light): frei benannte Vorräte, vom Spieler selbst gepflegt.
+  // Eigene Liste, damit die festen Energie-Spalten sie nicht verformen.
+  special: SpecialResource[];
   talents: CharTalent[];
   languages: CharLanguage[];
   lists: Record<string, Row[]>;
@@ -254,6 +257,7 @@ export default function CharacterPage() {
             : s === 'attributes' ? d.attributes
             : s === 'baseValues' ? d.baseValues
             : s === 'resources' ? d.resources
+            : s === 'special' ? d.special
             : s === 'talents' ? d.talents
             : s === 'languages' ? d.languages
             : d.lists[s];
@@ -278,6 +282,7 @@ export default function CharacterPage() {
         if (section === 'attributes') return { ...prev, attributes: value as Attributes };
         if (section === 'baseValues') return { ...prev, baseValues: value as BaseValueInputs };
         if (section === 'resources') return { ...prev, resources: value as Resources };
+        if (section === 'special') return { ...prev, special: value as SpecialResource[] };
         if (section === 'talents') return { ...prev, talents: value as CharTalent[] };
         if (section === 'languages') return { ...prev, languages: value as CharLanguage[] };
         if (section === 'visibility') return { ...prev, visibility: value as FullData['visibility'] };

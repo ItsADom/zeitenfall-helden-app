@@ -110,6 +110,20 @@ export interface ResourceInput {
 }
 export type Resources = Record<ResourceKey, ResourceInput>;
 
+// Spezialenergien (light): frei benennbare Vorräte, die der Spieler selbst
+// anlegt — Karma, Odem, Blutmagie … Bewusst NUR name/max/aktuell, KEINE
+// AP-/Ausbau-Aufteilung wie bei LE/AUS/AsE. Sie leben in einer EIGENEN Tabelle
+// neben den festen Energien, damit die starren Spalten der Resources sie nicht
+// verformen. Reihenfolge folgt der Liste (pos), wie bei Talenten/Sprachen.
+export interface SpecialResource {
+  name: string;
+  max: number;
+  aktuell: number;
+}
+// Obergrenzen, damit weder die Oberfläche noch die Ablage überläuft.
+export const MAX_SPECIAL_RESOURCES = 50;
+export const MAX_SPECIAL_RESOURCE_NAME = 100;
+
 // Bio (Heldenbrief Kopf)
 export interface Bio {
   alterGeburtstag: string;
