@@ -218,6 +218,11 @@ export function saveTabOrder(charId: number, keys: string[]): void {
 // Sprachen sind im Client fest). locked = Pflicht-Tab (nicht löschbar).
 const VORTEILE_TAB = 'Vorteile & Nachteile';
 
+// Alle jemals ausgelieferten Standard-Tabs. Dient HEUTE nur noch der Migration
+// alter Charaktere (migrateCharacterPeriphery überführt darüber ihre Listendaten
+// in Tabs). FRISCHE Charaktere bekommen davon nur NEW_CHARACTER_TABS — die Liste
+// bleibt hier vollständig, damit ein noch nicht migrierter Alt-Charakter beim
+// Migrieren nichts verliert (oberste Regel: kein stiller Datenverlust).
 const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] = [
   { name: VORTEILE_TAB, locked: true, sectionIds: ['professionBoni', 'vorteile', 'nachteile', 'titel', 'perks'] },
   // „Inventar" und „Ausrüstung" sind seit Cluster 5 eingebaute Reiter auf dem
@@ -230,6 +235,13 @@ const STANDARD_TABS: { name: string; locked: boolean; sectionIds: string[] }[] =
   { name: 'Boni', locked: false, sectionIds: ['boni'] },
   { name: 'Vorlieben', locked: false, sectionIds: ['vorlieben'] },
 ];
+
+// Dynamische Tabs, die ein NEUER Charakter erhält. Bewusst nur „Vorteile &
+// Nachteile" — die übrigen früheren Standard-Tabs (Zauber/Fähigkeiten,
+// Bibliothek, Artefakte, Besitz, Boni, Vorlieben) legt der Spieler bei Bedarf
+// selbst an. Der Rest der Startreiter ist im Client eingebaut (Heldenbrief,
+// Talente, Waffen, Zauber, Fähigkeiten, Inventar, Ausrüstung, Sprachen).
+const NEW_CHARACTER_TABS = STANDARD_TABS.filter((t) => t.name === VORTEILE_TAB);
 
 const ZAUBER_TAB = 'Zauber/Fähigkeiten';
 
@@ -298,9 +310,13 @@ const stripRowMeta = (row: Record<string, unknown>): Record<string, unknown> => 
 };
 
 // Legt die Standard-Tabs samt Sektionen an; getRows liefert die Zeilen je Listen-ID.
-function buildStandardTabs(charId: number, getRows: (sectionId: string) => Record<string, unknown>[]): number {
+function buildStandardTabs(
+  charId: number,
+  getRows: (sectionId: string) => Record<string, unknown>[],
+  tabDefs: readonly { name: string; locked: boolean; sectionIds: string[] }[] = STANDARD_TABS,
+): number {
   let created = 0;
-  for (const tabDef of STANDARD_TABS) {
+  for (const tabDef of tabDefs) {
     const tabId = createTab(charId, tabDef.name, tabDef.locked);
     for (const sid of tabDef.sectionIds) {
       const def = listSectionById(sid);
@@ -317,7 +333,7 @@ function buildStandardTabs(charId: number, getRows: (sectionId: string) => Recor
 // Leere Standard-Tabs für einen neuen Charakter anlegen.
 export function instantiateStandardSections(charId: number): void {
   const tx = db.transaction(() => {
-    buildStandardTabs(charId, () => []);
+    buildStandardTabs(charId, () => [], NEW_CHARACTER_TABS);
     seedItemCategories(charId);
   });
   tx();
