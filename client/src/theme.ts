@@ -18,7 +18,10 @@ export interface ThemeDef {
   swatch: string; // repräsentative Farbe (Akzent) für die Auswahl-Punkte
 }
 
-// 'rot' ist der Standard und braucht keinen Override-Block (= :root).
+// 'rot' ist die Basis-Farbwelt (= :root, kein Override-Block). Als VORGABE für
+// neue Nutzer dient aber 'bronze' (Gareth) — ein ruhigeres, neutraleres Warm-
+// grau als das kräftige Khôm-Rot, freundlicher als erster Eindruck. Wer will,
+// stellt jede Farbwelt frei ein; die Wahl bleibt gespeichert.
 export const THEMES: ThemeDef[] = [
   { id: 'rot', label: 'Khôm', swatch: '#8b2635' },
   { id: 'wald', label: 'Bornland', swatch: '#2f5d3a' },
@@ -28,7 +31,7 @@ export const THEMES: ThemeDef[] = [
   { id: 'nacht', label: 'Schattenlande', swatch: '#d06a5c' },
 ];
 
-export const DEFAULT_THEME = 'rot';
+export const DEFAULT_THEME = 'bronze';
 export const THEME_STORAGE_KEY = 'theme';
 export const MODE_STORAGE_KEY = 'theme-mode';
 export const ANIM_STORAGE_KEY = 'theme-anim';

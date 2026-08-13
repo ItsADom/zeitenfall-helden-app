@@ -21,8 +21,8 @@
         var mm = function (q) { try { return window.matchMedia(q).matches; } catch (e) { return false; } };
         try {
           var t = JSON.parse(localStorage.getItem('theme'));
-          d.theme = typeof t === 'string' && t ? t : 'rot';
-        } catch (e) { d.theme = 'rot'; }
+          d.theme = typeof t === 'string' && t ? t : 'bronze';
+        } catch (e) { d.theme = 'bronze'; }
         try {
           var m = JSON.parse(localStorage.getItem('theme-mode'));
           d.mode = m === 'light' || m === 'dark' ? m : (mm('(prefers-color-scheme: dark)') ? 'dark' : 'light');

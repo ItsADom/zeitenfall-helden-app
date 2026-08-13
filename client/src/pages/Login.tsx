@@ -36,6 +36,12 @@ export default function LoginPage({ onLogin }: { onLogin: (user: UserInfo) => vo
             Anmelden
           </button>
         </form>
+        {/* Keine Selbstregistrierung: neue Spieler bekommen ihren Zugang von der
+            Spielleitung. Ohne diesen Hinweis stünde ein Neuling ratlos vor dem
+            Anmeldefeld. */}
+        <p className="muted" style={{ marginTop: 14, marginBottom: 0 }}>
+          Noch keinen Zugang? Deine Spielleitung legt dir ein Konto an.
+        </p>
       </div>
     </main>
   );
