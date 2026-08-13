@@ -21,32 +21,36 @@ function seedAdminAccount(): void {
     return;
   }
 
-  const existing = db.prepare('SELECT id, is_gm AS isGm FROM users WHERE username = ?').get(username) as
-    | { id: number; isGm: number }
+  // Das Bootstrap-Konto trägt BEIDE Rollen (Spielleitung + Verwaltung), damit von
+  // Anfang an jemand Konten anlegen UND das Spiel leiten kann.
+  const existing = db.prepare('SELECT id, is_gm AS isGm, is_admin AS isAdmin FROM users WHERE username = ?').get(username) as
+    | { id: number; isGm: number; isAdmin: number }
     | undefined;
   if (existing) {
     // Idempotent: kein Passwort-Reset bei jedem Start (das Passwort im Prozess-
     // Environment darf ein später geändertes nicht stillschweigend überschreiben)
-    if (!existing.isGm) {
-      db.prepare('UPDATE users SET is_gm = 1 WHERE id = ?').run(existing.id);
-      console.log(`Konto "${username}" auf Spielleiter-Rechte gehoben`);
+    if (!existing.isGm || !existing.isAdmin) {
+      db.prepare('UPDATE users SET is_gm = 1, is_admin = 1 WHERE id = ?').run(existing.id);
+      console.log(`Konto "${username}" auf Spielleiter- und Verwaltungsrechte gehoben`);
     }
     return;
   }
 
-  db.prepare('INSERT INTO users (username, password_hash, display_name, is_gm) VALUES (?, ?, ?, 1)').run(
+  db.prepare('INSERT INTO users (username, password_hash, display_name, is_gm, is_admin) VALUES (?, ?, ?, 1, 1)').run(
     username,
     hashPassword(password),
     process.env.ADMIN_NAME ?? username,
   );
-  console.log(`Konto mit Spielleiter-Rechten angelegt: "${username}"`);
+  console.log(`Konto mit Spielleiter- und Verwaltungsrechten angelegt: "${username}"`);
 }
 
 export function seed(): void {
   const userCount = (db.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;
   if (userCount === 0) {
     const password = process.env.GM_PASSWORD ?? 'spielleiter';
-    db.prepare('INSERT INTO users (username, password_hash, display_name, is_gm) VALUES (?, ?, ?, 1)').run(
+    // Erstkonto trägt beide Rollen, damit der erste Nutzer nicht bei der Konten-
+    // verwaltung ausgesperrt ist.
+    db.prepare('INSERT INTO users (username, password_hash, display_name, is_gm, is_admin) VALUES (?, ?, ?, 1, 1)').run(
       'spielleiter',
       hashPassword(password),
       'Spielleiter',

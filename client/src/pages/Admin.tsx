@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 
 interface CatalogColumn {
@@ -113,6 +114,13 @@ interface AdminUser {
   username: string;
   displayName: string;
   isGm: boolean;
+  isAdmin: boolean;
+}
+
+// „Spielleiter", „Admin", beides oder schlicht „Spieler".
+function roleLabel(u: { isGm: boolean; isAdmin: boolean }): string {
+  const parts = [u.isGm && 'Spielleiter', u.isAdmin && 'Admin'].filter(Boolean) as string[];
+  return parts.length ? parts.join(' + ') : 'Spieler';
 }
 interface AdminGroup {
   id: number;
@@ -233,12 +241,13 @@ function GroupMembersEditor({
 }
 
 export default function AdminPage() {
+  const { user: me } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [groups, setGroups] = useState<AdminGroup[]>([]);
   const [chars, setChars] = useState<AdminChar[]>([]);
   const [error, setError] = useState('');
 
-  const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '' });
+  const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '', isGm: false, isAdmin: false });
   const [newGroup, setNewGroup] = useState('');
   const [newChar, setNewChar] = useState({ name: '', ownerUserId: 0, groupId: 0 });
   const [importTarget, setImportTarget] = useState({ ownerUserId: 0, groupId: 0 });
@@ -248,8 +257,12 @@ export default function AdminPage() {
   const reload = () => {
     setError('');
     apiGet<AdminUser[]>('/api/admin/users').then(setUsers).catch((e) => setError(String(e.message)));
-    apiGet<AdminGroup[]>('/api/admin/groups').then(setGroups);
-    apiGet<{ characters: AdminChar[] }>('/api/overview').then((o) => setChars(o.characters));
+    // Gruppen/Charaktere/Kataloge sind Spielleitungs-Daten — ein reiner Admin
+    // fragt sie gar nicht erst ab (Endpunkte sind requireGm).
+    if (me.isGm) {
+      apiGet<AdminGroup[]>('/api/admin/groups').then(setGroups);
+      apiGet<{ characters: AdminChar[] }>('/api/overview').then((o) => setChars(o.characters));
+    }
   };
   useEffect(reload, []);
 
@@ -281,6 +294,8 @@ export default function AdminPage() {
 
   // Gruppenmitglieder sind Spieler (der einzelne Spielleiter sieht ohnehin alles).
   const players = users.filter((u) => !u.isGm);
+  // Für die „letzter Admin"-Sperre in der Oberfläche (der Server sichert es zudem ab).
+  const adminTotal = users.filter((u) => u.isAdmin).length;
 
   // Charaktere nach Gruppe, dann nach Name sortieren. Die Gruppennamen stehen
   // nur hier zur Verfügung (die API liefert lediglich group_id), darum im Client.
@@ -291,7 +306,7 @@ export default function AdminPage() {
 
   return (
     <>
-      <h1>Kataloge &amp; Nutzer</h1>
+      <h1>{me.isGm ? 'Kataloge & Nutzer' : 'Nutzerverwaltung'}</h1>
       {error && <p className="error">{error}</p>}
 
       <div className="panel">
@@ -307,51 +322,99 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.username}</td>
-                <td>
-                  <input
-                    defaultValue={u.displayName}
-                    onBlur={(e) => e.target.value !== u.displayName && run(() => apiPut(`/api/admin/users/${u.id}`, { displayName: e.target.value }))}
-                  />
-                </td>
-                <td>{u.isGm ? 'Spielleiter' : 'Spieler'}</td>
-                <td>
-                  <input
-                    placeholder="setzen…"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const v = (e.target as HTMLInputElement).value;
-                        if (v) run(() => apiPut(`/api/admin/users/${u.id}`, { password: v }));
-                        (e.target as HTMLInputElement).value = '';
-                      }
-                    }}
-                  />
-                </td>
-                <td>
-                  {!u.isGm && (
-                    <button className="small" onClick={() => confirm(`Benutzer ${u.username} löschen?`) && run(() => apiDelete(`/api/admin/users/${u.id}`))}>
-                      ✕
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {users.map((u) => {
+              // Bearbeiten darf die Verwaltung immer; eine Spielleitung nur
+              // einfache Spieler (nicht die Konten anderer Leitungen/Admins).
+              const canEdit = me.isAdmin || (!u.isGm && !u.isAdmin);
+              const lastAdmin = u.isAdmin && adminTotal <= 1;
+              return (
+                <tr key={u.id}>
+                  <td>{u.username}</td>
+                  <td>
+                    {canEdit ? (
+                      <input
+                        defaultValue={u.displayName}
+                        onBlur={(e) => e.target.value !== u.displayName && run(() => apiPut(`/api/admin/users/${u.id}`, { displayName: e.target.value }))}
+                      />
+                    ) : (
+                      u.displayName
+                    )}
+                  </td>
+                  <td>
+                    {me.isAdmin ? (
+                      <div className="role-toggles">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={u.isGm}
+                            onChange={(e) => run(() => apiPut(`/api/admin/users/${u.id}`, { isGm: e.target.checked }))}
+                          />{' '}
+                          Spielleiter
+                        </label>
+                        <label title={lastAdmin ? 'Der letzte Admin kann seine Rolle nicht abgeben.' : undefined}>
+                          <input
+                            type="checkbox"
+                            checked={u.isAdmin}
+                            disabled={lastAdmin}
+                            onChange={(e) => run(() => apiPut(`/api/admin/users/${u.id}`, { isAdmin: e.target.checked }))}
+                          />{' '}
+                          Admin
+                        </label>
+                      </div>
+                    ) : (
+                      roleLabel(u)
+                    )}
+                  </td>
+                  <td>
+                    {canEdit ? (
+                      <input
+                        placeholder="setzen…"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const v = (e.target as HTMLInputElement).value;
+                            if (v) run(() => apiPut(`/api/admin/users/${u.id}`, { password: v }));
+                            (e.target as HTMLInputElement).value = '';
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td>
+                    {/* Löschen nur die Verwaltung, nie das eigene Konto oder den letzten Admin. */}
+                    {me.isAdmin && u.id !== me.id && !lastAdmin && (
+                      <ConfirmDeleteButton title={`Benutzer ${u.username} löschen`} onConfirm={() => run(() => apiDelete(`/api/admin/users/${u.id}`))} />
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
         <h4>Neuer Benutzer</h4>
-        <div style={{ display: 'flex', gap: 8, maxWidth: 700 }}>
+        <div style={{ display: 'flex', gap: 8, maxWidth: 820, alignItems: 'center', flexWrap: 'wrap' }}>
           <input placeholder="Benutzername" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
           <input placeholder="Anzeigename" value={newUser.displayName} onChange={(e) => setNewUser({ ...newUser, displayName: e.target.value })} />
           <input placeholder="Passwort" value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} />
+          {/* Rollen vergibt nur die Verwaltung; eine Spielleitung legt Spieler an. */}
+          {me.isAdmin && (
+            <div className="role-toggles">
+              <label>
+                <input type="checkbox" checked={newUser.isGm} onChange={(e) => setNewUser({ ...newUser, isGm: e.target.checked })} /> Spielleiter
+              </label>
+              <label>
+                <input type="checkbox" checked={newUser.isAdmin} onChange={(e) => setNewUser({ ...newUser, isAdmin: e.target.checked })} /> Admin
+              </label>
+            </div>
+          )}
           <button
             className="primary"
             disabled={!newUser.username || !newUser.password}
             onClick={() =>
               run(async () => {
                 await apiPost('/api/admin/users', newUser);
-                setNewUser({ username: '', password: '', displayName: '' });
+                setNewUser({ username: '', password: '', displayName: '', isGm: false, isAdmin: false });
               })
             }
           >
@@ -360,6 +423,10 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* Gruppen, Charaktere und Kataloge sind Spielleitungs-Sache. Ein reiner
+          Admin verwaltet nur Konten und sieht diese Bereiche nicht (Anti-Cheat). */}
+      {me.isGm && (
+      <>
       <div className="panel">
         <h2>Gruppen</h2>
         <table className="sheet">
@@ -547,6 +614,8 @@ export default function AdminPage() {
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />
+      </>
+      )}
     </>
   );
 }

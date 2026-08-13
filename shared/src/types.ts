@@ -230,7 +230,13 @@ export interface UserInfo {
   id: number;
   username: string;
   displayName: string;
+  // Rollen sind unabhängig kombinierbar (jeder ist zusätzlich immer Spieler):
+  //   isGm    — Spielleitung: sieht/bearbeitet ALLE Charakterbögen, GM-Übersicht.
+  //   isAdmin — Verwaltung: legt Konten an und vergibt Rollen, hat aber KEINEN
+  //             Einblick in fremde Charakterbögen (Anti-Cheat). Ein reiner Admin
+  //             ist bei Charakteren nur Spieler; wer BEIDES ist, hat GM-Einblick.
   isGm: boolean;
+  isAdmin: boolean;
   // Nur im Entwicklungs-/Opt-in-Modus gesetzt: erlaubt dem Spielleiter die
   // „Ansehen als"-Vorschau von Charakteren aus Sicht anderer Nutzer.
   devViewAs?: boolean;

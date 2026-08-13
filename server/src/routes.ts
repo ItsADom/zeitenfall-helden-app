@@ -5,8 +5,10 @@ import {
   destroySession,
   getSessionToken,
   hashPassword,
+  requireAdmin,
   requireAuth,
   requireGm,
+  requireGmOrAdmin,
   SESSION_TTL_DAYS,
   verifyPassword,
 } from './auth.js';
@@ -144,7 +146,7 @@ api.post('/login', (req, res) => {
   }
 
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username ?? '') as
-    | { id: number; username: string; password_hash: string; display_name: string; is_gm: number }
+    | { id: number; username: string; password_hash: string; display_name: string; is_gm: number; is_admin: number }
     | undefined;
   if (!user || !verifyPassword(password ?? '', user.password_hash)) {
     perAccount.fail(acctKey);
@@ -155,7 +157,7 @@ api.post('/login', (req, res) => {
   perAccount.reset(acctKey);
   const token = createSession(user.id);
   res.setHeader('Set-Cookie', sessionCookie(token, SESSION_TTL_DAYS * 24 * 60 * 60));
-  res.json({ id: user.id, username: user.username, displayName: user.display_name, isGm: !!user.is_gm });
+  res.json({ id: user.id, username: user.username, displayName: user.display_name, isGm: !!user.is_gm, isAdmin: !!user.is_admin });
 });
 
 api.post('/logout', (req, res) => {
@@ -768,42 +770,112 @@ api.delete('/characters/:id', requireAuth, requireGm, (req, res) => {
 
 // --- Verwaltung (nur Spielleiter) ---
 
-api.get('/admin/users', requireAuth, requireGm, (_req, res) => {
-  res.json(db.prepare('SELECT id, username, display_name AS displayName, is_gm AS isGm FROM users ORDER BY username').all());
+// Anzahl verbleibender Admins — Grundlage für die „letzter Admin"-Sperre, die
+// verhindert, dass sich die Verwaltung selbst aussperrt.
+function adminCount(): number {
+  return (db.prepare('SELECT COUNT(*) AS n FROM users WHERE is_admin = 1').get() as { n: number }).n;
+}
+
+// Liste dürfen Spielleitung UND Verwaltung sehen (Onboarding bzw. Kontenpflege).
+// Die Rollen-Flags reisen mit, damit die Oberfläche die passenden Bedienelemente
+// zeigt; das sind reine Konto-Metadaten, keine Charakterdaten.
+api.get('/admin/users', requireAuth, requireGmOrAdmin, (_req, res) => {
+  res.json(
+    db.prepare('SELECT id, username, display_name AS displayName, is_gm AS isGm, is_admin AS isAdmin FROM users ORDER BY username').all(),
+  );
 });
 
-api.post('/admin/users', requireAuth, requireGm, (req, res) => {
-  const { username, password, displayName, isGm } = (req.body ?? {}) as {
+api.post('/admin/users', requireAuth, requireGmOrAdmin, (req, res) => {
+  const { username, password, displayName, isGm, isAdmin } = (req.body ?? {}) as {
     username?: string;
     password?: string;
     displayName?: string;
     isGm?: boolean;
+    isAdmin?: boolean;
   };
   if (!username || !password) {
     res.status(400).json({ error: 'Benutzername und Passwort erforderlich' });
     return;
   }
+  // Rollen darf nur die Verwaltung vergeben. Eine Spielleitung ohne Admin-Rolle
+  // legt ausschließlich einfache Spieler an — Flags aus dem Body werden ignoriert.
+  const gm = req.user!.isAdmin ? !!isGm : false;
+  const admin = req.user!.isAdmin ? !!isAdmin : false;
   try {
     const r = db
-      .prepare('INSERT INTO users (username, password_hash, display_name, is_gm) VALUES (?, ?, ?, ?)')
-      .run(username, hashPassword(password), displayName ?? username, isGm ? 1 : 0);
+      .prepare('INSERT INTO users (username, password_hash, display_name, is_gm, is_admin) VALUES (?, ?, ?, ?, ?)')
+      .run(username, hashPassword(password), displayName ?? username, gm ? 1 : 0, admin ? 1 : 0);
     res.json({ id: r.lastInsertRowid });
   } catch {
     res.status(400).json({ error: 'Benutzername bereits vergeben' });
   }
 });
 
-api.put('/admin/users/:id', requireAuth, requireGm, (req, res) => {
+api.put('/admin/users/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
-  const { password, displayName, isGm } = (req.body ?? {}) as { password?: string; displayName?: string; isGm?: boolean };
+  const { password, displayName, isGm, isAdmin } = (req.body ?? {}) as {
+    password?: string;
+    displayName?: string;
+    isGm?: boolean;
+    isAdmin?: boolean;
+  };
+  const target = db.prepare('SELECT id, is_gm AS isGm, is_admin AS isAdmin FROM users WHERE id = ?').get(id) as
+    | { id: number; isGm: number; isAdmin: number }
+    | undefined;
+  if (!target) {
+    res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    return;
+  }
+
+  // Eine Spielleitung ohne Admin-Rolle darf nur EINFACHE Spieler betreuen
+  // (Anzeigename/Passwort) und keinerlei Rollen ändern.
+  if (!req.user!.isAdmin) {
+    if (target.isGm || target.isAdmin) {
+      res.status(403).json({ error: 'Nur die Verwaltung darf Spielleitungs-/Verwaltungskonten ändern' });
+      return;
+    }
+    if (isGm !== undefined || isAdmin !== undefined) {
+      res.status(403).json({ error: 'Rollen darf nur die Verwaltung vergeben' });
+      return;
+    }
+    if (displayName !== undefined) db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, id);
+    if (password) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), id);
+    res.json({ ok: true });
+    return;
+  }
+
+  // Verwaltung: darf alles — aber dem letzten Admin nicht die Admin-Rolle nehmen.
+  if (isAdmin === false && target.isAdmin && adminCount() <= 1) {
+    res.status(400).json({ error: 'Der letzte Admin kann seine Verwaltungsrolle nicht abgeben' });
+    return;
+  }
   if (displayName !== undefined) db.prepare('UPDATE users SET display_name = ? WHERE id = ?').run(displayName, id);
   if (isGm !== undefined) db.prepare('UPDATE users SET is_gm = ? WHERE id = ?').run(isGm ? 1 : 0, id);
+  if (isAdmin !== undefined) db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(isAdmin ? 1 : 0, id);
   if (password) db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(password), id);
   res.json({ ok: true });
 });
 
-api.delete('/admin/users/:id', requireAuth, requireGm, (req, res) => {
+// Konten löschen darf nur die Verwaltung. Drei Sicherungen: nicht sich selbst,
+// nicht den letzten Admin, und nicht solange der Nutzer noch Charaktere besitzt
+// (die müssten sonst verwaisen — höchstrangige Regel: kein stiller Datenverlust).
+api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
   const id = Number(req.params.id);
+  if (id === req.user!.id) {
+    res.status(400).json({ error: 'Das eigene Konto kann nicht gelöscht werden' });
+    return;
+  }
+  const target = db.prepare('SELECT id, is_admin AS isAdmin FROM users WHERE id = ?').get(id) as
+    | { id: number; isAdmin: number }
+    | undefined;
+  if (!target) {
+    res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    return;
+  }
+  if (target.isAdmin && adminCount() <= 1) {
+    res.status(400).json({ error: 'Der letzte Admin kann nicht gelöscht werden' });
+    return;
+  }
   const owned = db.prepare('SELECT COUNT(*) AS n FROM characters WHERE owner_user_id = ?').get(id) as { n: number };
   if (owned.n > 0) {
     res.status(400).json({ error: 'Benutzer besitzt noch Charaktere' });

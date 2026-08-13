@@ -1449,6 +1449,20 @@ button.add-row {
 .subhead-row .add-row {
   margin-top: 0;
 }
+/* Rollen-Umschalter (Spielleiter/Admin) in der Benutzerverwaltung: die beiden
+   Kästchen bleiben als Einheit nebeneinander, brechen aber bei Enge um. */
+.role-toggles {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.role-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
 button.note-btn.has-note {
   color: var(--accent);
 }

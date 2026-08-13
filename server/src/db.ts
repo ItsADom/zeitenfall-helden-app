@@ -39,7 +39,8 @@ db.exec(`
     username TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     display_name TEXT NOT NULL DEFAULT '',
-    is_gm INTEGER NOT NULL DEFAULT 0
+    is_gm INTEGER NOT NULL DEFAULT 0,
+    is_admin INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS sessions (
     token TEXT PRIMARY KEY,
@@ -368,6 +369,20 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('theme')) db.exec("ALTER TABLE characters ADD COLUMN theme TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: 'is_admin'-Rolle an bestehende users ergänzen. Rollen wurden
+// aufgeteilt (Spielleitung = Spiel, Verwaltung = Konten). Bisher trug is_gm
+// BEIDES; damit nach dem Update niemand ausgesperrt ist, werden alle bisherigen
+// Spielleiter EINMALIG zusätzlich zu Admins gemacht — sie hatten die Konten-
+// rechte ja bereits. Wer davon künftig keine Charaktere mehr sehen soll, gibt
+// über die neue Oberfläche einfach seine Spielleiter-Rolle ab und behält Admin.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('is_admin')) {
+    db.exec('ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0');
+    db.exec('UPDATE users SET is_admin = 1 WHERE is_gm = 1');
+  }
 }
 
 // Migration: 'sidebarNotiz'-Spalte an bestehende char_bio ergänzen (Notizfeld der Seitenleiste)
