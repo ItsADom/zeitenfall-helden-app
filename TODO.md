@@ -27,11 +27,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
-- [sketch] characters with the ability to shapeshift get different changed values for almost everything. this actually acts more as having a different character.
-implementing a complete set of character sheets into a single character would make sense here. dropdown selector for different shapeshift forms.
-- [sketch] some inventory containers can also act on a "item amount" logic and not track weight. how can we do this?
-- [sketch] the Einstellungen are getting a bit long now. think of a way to increase visibility without scrolling endlessly. some menu maybe?
-
 ## High-Prio
 
 ### 4. Spezialenergien - full version
@@ -51,6 +46,17 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Mid-Prio
 
+- [sketch] **Shapeshifting characters**: a character that can shapeshift needs
+  genuinely different values for almost everything (attributes, base values,
+  possibly talents/abilities) per form — effectively a separate sheet per shape
+  bundled under one character. Player-suggested approach: a full set of
+  alternate sheets folded into a single character, with a dropdown to switch
+  the active form. Needs a concept pass (data model + how much duplicates vs.
+  derives from a base sheet) before building.
+- [sketch] **Item-amount inventory containers**: some containers should track
+  item *count* instead of per-item weight (e.g. a quiver of arrows, a coin
+  pouch) — no Traglast contribution beyond the container's own weight. Needs a
+  concept for how this coexists with the current per-item-weight model.
 - [sketch] **Money rework** (concept in progress): replace the fixed 4-coin + Bank
   structure (`GeldPanel.tsx`, meta keys `geldD/S/H/K/bank`, ×10 tiers, total in
   Dublonen) with flexible currencies. Decided:

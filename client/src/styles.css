@@ -2898,10 +2898,37 @@ li {
   margin-left: auto;
   font-size: 13px;
 }
-/* Sprungziel #kategorien: unter der klebenden Kopfleiste + Seitenkopf ausrichten,
-   nicht darunter verschwinden lassen. */
-#kategorien {
-  scroll-margin-top: calc(var(--topbar-h, 47px) + 60px);
+/* Sprung-Navigation der Einstellungen-Seite: klebt unter der Kopfzeile
+   (gemessener Versatz, wie .talent-search/.inv-equip-drop). */
+.einst-nav {
+  position: sticky;
+  top: calc(var(--topbar-h, 47px) + var(--einsthead-h, 0px));
+  z-index: 11;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  background: var(--bg);
+  margin-inline: calc(-1 * var(--pad-x));
+  padding: 6px var(--pad-x);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88em;
+}
+.einst-nav a {
+  color: var(--muted);
+}
+.einst-nav a:hover {
+  color: var(--text);
+}
+/* Sprungziele der Einstellungen-Panels: unter der klebenden Kopfzeile +
+   Sprung-Navigation ausrichten, nicht darunter verschwinden lassen. */
+#anzeige,
+#charakter,
+#farbwelt,
+#reiter,
+#sichtbarkeit,
+#kategorien,
+#attrextern {
+  scroll-margin-top: calc(var(--topbar-h, 47px) + var(--einsthead-h, 0px) + var(--einstnav-h, 0px));
 }
 .panel.drop-over {
   outline: 2px solid var(--accent);

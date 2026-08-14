@@ -8,6 +8,7 @@ import { defaultTabKeys, dynTabId, dynTabKey, orderTabKeys } from '@shared/tabOr
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import { useEinstHeadHeight, useEinstNavHeight } from '../components/stickyChrome';
 import { useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
 import { THEMES } from '../theme';
@@ -40,6 +41,8 @@ let tmpCounter = 0;
 
 export default function EinstellungenPage() {
   const tc = useThemeControls();
+  const einstHeadRef = useEinstHeadHeight();
+  const einstNavRef = useEinstNavHeight();
   // Ein Link „Kategorien bearbeiten" aus dem Inventar bringt ?char=<id> und
   // #kategorien mit: den Charakter vorwählen und nach unten zu den Kategorien
   // scrollen.
@@ -226,9 +229,23 @@ export default function EinstellungenPage() {
 
   const themeSwatch = (id: string) => THEMES.find((t) => t.id === id)?.swatch ?? 'transparent';
 
+  const navLinks: [string, string][] = [
+    ['anzeige', 'Anzeige'],
+    ['charakter', 'Charakter'],
+    ...(selId != null && !loading
+      ? ([
+          ['farbwelt', 'Farbwelt'],
+          ['reiter', 'Reiter'],
+          ['sichtbarkeit', 'Sichtbarkeit'],
+          ['kategorien', 'Kategorien'],
+          ['attrextern', 'Attributspunkte'],
+        ] as [string, string][])
+      : []),
+  ];
+
   return (
     <>
-      <div className="einst-head">
+      <div className="einst-head" ref={einstHeadRef}>
         <h1>Einstellungen</h1>
         {selId != null && !loading && (
           <div className="head-save">
@@ -242,7 +259,15 @@ export default function EinstellungenPage() {
         {selId != null && <BackToSheet charId={selId} tab={fromTab} name={chars.find((c) => c.id === selId)?.name} />}
       </div>
 
-      <div className="panel">
+      <nav className="einst-nav" ref={einstNavRef}>
+        {navLinks.map(([id, label]) => (
+          <a key={id} href={`#${id}`}>
+            {label}
+          </a>
+        ))}
+      </nav>
+
+      <div className="panel" id="anzeige">
         <h3>Anzeige (dein Konto)</h3>
         <p className="muted">
           Deine Standard-Farbwelt und Ansicht. Ein Charakter mit eigener Farbwelt überschreibt sie, solange du ihn
@@ -254,7 +279,7 @@ export default function EinstellungenPage() {
         </div>
       </div>
 
-      <div className="panel">
+      <div className="panel" id="charakter">
         <h3>Charakter</h3>
         {chars.length === 0 ? (
           <p className="muted">Du hast keine Charaktere.</p>
@@ -274,7 +299,7 @@ export default function EinstellungenPage() {
 
       {selId != null && !loading && (
         <>
-          <div className="panel">
+          <div className="panel" id="farbwelt">
             <h3>Farbwelt des Charakters</h3>
             <p className="muted">
               Gilt für <strong>alle</strong>, die diesen Charakter öffnen.<br/>
@@ -294,7 +319,7 @@ export default function EinstellungenPage() {
 
           {/* Reiter-Verwaltung — läuft nur hier; auf der Charakterseite gibt es
               keine Reiter-Bearbeitung mehr. */}
-          <div className="panel">
+          <div className="panel" id="reiter">
             <h3>Reiter</h3>
             <p className="muted">
               Reihenfolge, Namen und Anlegen/Löschen der Reiter. „Heldenbrief" bleibt vorn; Standard-Reiter lassen
@@ -330,7 +355,7 @@ export default function EinstellungenPage() {
           </div>
 
           {/* Sichtbarkeit für Gruppenmitglieder (früher ein eigener Reiter) */}
-          <div className="panel">
+          <div className="panel" id="sichtbarkeit">
             <h3>Sichtbarkeit für Gruppenmitglieder</h3>
             <p className="muted">
               Die Personenbeschreibung (Name, Alter, Größe …) ist immer sichtbar. Hier die festen Bereiche freigeben;
@@ -368,7 +393,7 @@ export default function EinstellungenPage() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel" id="attrextern">
             <h3>Externe Attributspunkte</h3>
             <p className="muted">
               Zusätzliche Attributspunkte außerhalb der Stufen-Vergabe.

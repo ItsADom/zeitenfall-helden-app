@@ -16,6 +16,8 @@ export const TOPBAR_VAR = '--topbar-h';
 export const CHARHEAD_VAR = '--charhead-h';
 export const TABS_VAR = '--tabs-h';
 export const SEARCH_VAR = '--search-h';
+export const EINSTHEAD_VAR = '--einsthead-h';
+export const EINSTNAV_VAR = '--einstnav-h';
 
 /**
  * Schreibt die Höhe eines klebenden Elements in eine CSS-Variable am
@@ -80,3 +82,9 @@ export const useTabsHeight = () => useMeasuredHeight(TABS_VAR);
  * Stilvorlage rechnet mit 0.
  */
 export const useSearchHeight = () => useMeasuredHeight(SEARCH_VAR);
+
+/** Referenz für die klebende Kopfzeile der Einstellungen-Seite — setzt `--einsthead-h`. */
+export const useEinstHeadHeight = () => useMeasuredHeight(EINSTHEAD_VAR);
+
+/** Referenz für die Sprung-Navigation der Einstellungen-Seite — setzt `--einstnav-h`. */
+export const useEinstNavHeight = () => useMeasuredHeight(EINSTNAV_VAR);

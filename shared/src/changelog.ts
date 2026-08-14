@@ -149,6 +149,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changed: [
       'Die App hat einen Namen: „Zeitenkompass". Er steht jetzt oben links in der Kopfleiste (bisher „Heldenverwaltung") und führt auf die neue Startseite.',
       'Im Inventar lassen sich die Kategorie-Gruppen innerhalb eines Behälters jetzt einzeln ein- und ausklappen (Klick auf die Kategorie-Kopfzeile) — praktisch bei vollen Behältern.',
+      'Die Einstellungen-Seite hat oben eine Sprung-Navigation bekommen, damit du bei den mittlerweile vielen Bereichen nicht mehr endlos scrollen musst.',
     ],
     fixed: [
       'Breite Tabellen ragten nach dem Ein- und Ausklappen der Überblick-Seitenleiste in diese hinein; sie passen sich jetzt wieder sauber an die verbleibende Breite an.',
