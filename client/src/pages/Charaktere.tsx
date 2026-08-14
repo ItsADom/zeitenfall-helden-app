@@ -92,7 +92,7 @@ export default function CharaktereePage() {
           <p className="muted" style={{ marginTop: 0 }}>
             Du kannst eine Gruppe erbitten — sie wird erst nach Freigabe durch die
             Spielleitung oder Verwaltung wirksam. „Ohne Gruppe" legt den Charakter
-            zunächst gruppenlos an; eine Gruppe kannst du später erbitten.
+            zunächst gruppenlos an; eine Gruppe kannst du später erbitten. Bearbeitbar ist der Charakter zu jeder Zeit.
           </p>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input
