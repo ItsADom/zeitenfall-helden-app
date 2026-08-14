@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import { usePersistedState } from '../components/persist';
 
 interface CatalogColumn {
   key: string;
@@ -133,6 +134,11 @@ interface AdminChar {
   owner_user_id: number;
   group_id: number;
 }
+
+// Umschaltung der Charakterliste in der Verwaltung: nach Gruppe, nach Besitzer
+// (Spieler) oder flach.
+type CharGroupBy = 'gruppe' | 'spieler' | 'none';
+const CHAR_GROUP_LABEL: Record<Exclude<CharGroupBy, 'none'>, string> = { gruppe: 'Gruppe', spieler: 'Spieler' };
 
 // Mitglieder einer Gruppe: bestehende als entfernbare Chips, plus ein
 // „Hinzufügen…"-Feld mit Vorschlägen aus der Spielerliste. Ausgewählte sammeln
@@ -297,12 +303,30 @@ export default function AdminPage() {
   // Für die „letzter Admin"-Sperre in der Oberfläche (der Server sichert es zudem ab).
   const adminTotal = users.filter((u) => u.isAdmin).length;
 
-  // Charaktere nach Gruppe, dann nach Name sortieren. Die Gruppennamen stehen
-  // nur hier zur Verfügung (die API liefert lediglich group_id), darum im Client.
+  // Charakterliste gruppieren — wie auf den Zauber-/Fähigkeiten-Tabs: eine
+  // Umschaltleiste plus Zwischenüberschriften (subtle-head) je Abschnitt. Gruppen-
+  // und Spielernamen stehen nur hier bereit (die API liefert nur die IDs).
   const groupName = (id: number) => groups.find((g) => g.id === id)?.name ?? '';
-  const sortedChars = [...chars].sort(
-    (a, b) => groupName(a.group_id).localeCompare(groupName(b.group_id), 'de') || a.name.localeCompare(b.name, 'de'),
-  );
+  const userName = (id: number) => users.find((u) => u.id === id)?.displayName ?? '';
+  const [charGroupBy, setCharGroupBy] = usePersistedState<CharGroupBy>('admin:charGroup', 'gruppe');
+  const byName = (a: AdminChar, b: AdminChar) => a.name.localeCompare(b.name, 'de');
+  const charSections =
+    charGroupBy === 'none'
+      ? [{ key: 'all', label: '', rows: [...chars].sort(byName) }]
+      : (() => {
+          const keyOf = (c: AdminChar) => (charGroupBy === 'gruppe' ? c.group_id : c.owner_user_id);
+          const labelOf = (id: number) =>
+            charGroupBy === 'gruppe' ? groupName(id) || '— ohne Gruppe —' : userName(id) || '— ohne Besitzer —';
+          const byKey = new Map<number, AdminChar[]>();
+          for (const c of chars) {
+            const list = byKey.get(keyOf(c)) ?? [];
+            if (list.length === 0) byKey.set(keyOf(c), list);
+            list.push(c);
+          }
+          return [...byKey.entries()]
+            .map(([k, rows]) => ({ key: String(k), label: labelOf(k), rows: rows.sort(byName) }))
+            .sort((a, b) => a.label.localeCompare(b.label, 'de'));
+        })();
 
   return (
     <>
@@ -440,7 +464,17 @@ export default function AdminPage() {
           <tbody>
             {groups.map((g) => (
               <tr key={g.id}>
-                <td style={{ width: 200 }}>{g.name}</td>
+                <td style={{ width: 200 }}>
+                  <input
+                    defaultValue={g.name}
+                    title="Gruppe umbenennen"
+                    onBlur={(e) => {
+                      const v = e.target.value.trim();
+                      if (v && v !== g.name) run(() => apiPut(`/api/admin/groups/${g.id}`, { name: v }));
+                      else e.target.value = g.name;
+                    }}
+                  />
+                </td>
                 <td>
                   <GroupMembersEditor
                     memberIds={g.memberIds}
@@ -478,6 +512,20 @@ export default function AdminPage() {
 
       <div className="panel">
         <h2>Charaktere</h2>
+        <div className="abil-grouprow">
+          <span className="muted">Gruppierung nach: </span>
+          {(['gruppe', 'spieler'] as const).map((g) => (
+            <button
+              key={g}
+              className={`small${charGroupBy === g ? ' active' : ''}`}
+              title={charGroupBy === g ? 'Gruppierung aufheben' : `Nach ${CHAR_GROUP_LABEL[g]} gruppieren`}
+              // Nochmal auf die aktive Gruppierung klicken hebt sie auf (flache Liste).
+              onClick={() => setCharGroupBy(charGroupBy === g ? 'none' : g)}
+            >
+              {CHAR_GROUP_LABEL[g]}
+            </button>
+          ))}
+        </div>
         <table className="sheet">
           <thead>
             <tr>
@@ -488,7 +536,18 @@ export default function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {sortedChars.map((c) => (
+            {charSections.map((sec) => (
+              <Fragment key={sec.key}>
+                {charGroupBy !== 'none' && (
+                  <tr className="subtle-head">
+                    <td colSpan={4}>
+                      <span className="sticky-label">
+                        {sec.label} <span className="muted">· {sec.rows.length}</span>
+                      </span>
+                    </td>
+                  </tr>
+                )}
+                {sec.rows.map((c) => (
               <tr key={c.id}>
                 <td>
                   {/* Nur die Spielleitung darf den Bogen öffnen; für reine Admins
@@ -519,6 +578,8 @@ export default function AdminPage() {
                   </button>
                 </td>
               </tr>
+                ))}
+              </Fragment>
             ))}
           </tbody>
         </table>
