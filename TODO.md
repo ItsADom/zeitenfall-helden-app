@@ -29,13 +29,6 @@ sorted into the priority sections below in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
-### Tables don't follow page reflow (bug — needs research)
-
-- [sketch] Repro: open the Talent-Tab, close the Überblick sidebar, then reopen
-  it — the table clips into the sidebar. Happens in multiple locations, so it
-  needs a little research. Likely tied to the scroll-container / sticky-offset
-  gotchas in `CLAUDE.md`; the Low-Prio responsiveness pass covers the same area.
-
 ### 4. Spezialenergien - full version
 
 Light version shipped: a separate `special` list (name/max/aktuell) the player

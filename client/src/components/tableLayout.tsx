@@ -175,11 +175,20 @@ export function useTableLayout(
     observer.current?.disconnect();
     observer.current = null;
     tableRef.current = el;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-    const update = () => setAvail(Math.max(0, el.clientWidth - fixedRef.current));
+    // BEWUSST den Rahmen (`.table-wrap`) beobachten, NICHT die Tabelle selbst.
+    // Bei `table-layout: fixed` bestimmen die <col>-Pixel die Tabellenbreite:
+    // wird die Spalte schmaler (Seitenleiste wieder auf), schrumpft die Tabelle
+    // NICHT unter ihre Spaltensumme — ihre clientWidth bliebe gleich, der
+    // Beobachter feuerte nie, und die Tabelle liefe in die Seitenleiste. Der
+    // umschließende Block folgt dagegen immer der Spaltenbreite (ein
+    // überlaufendes Kind verbreitert ihn nicht), misst also den echten Platz in
+    // BEIDE Richtungen und kann keine Beobachter-Schleife auslösen.
+    const box = el?.parentElement;
+    if (!el || !box || typeof ResizeObserver === 'undefined') return;
+    const update = () => setAvail(Math.max(0, box.clientWidth - fixedRef.current));
     update();
     const ro = new ResizeObserver(update);
-    ro.observe(el);
+    ro.observe(box);
     observer.current = ro;
   }, []);
 
@@ -188,8 +197,8 @@ export function useTableLayout(
   // Ändert sich der feste Anteil oder die Spaltenzahl, ohne dass die Tabelle
   // neu entsteht, muss trotzdem neu gerechnet werden.
   useEffect(() => {
-    const el = tableRef.current;
-    if (el) setAvail(Math.max(0, el.clientWidth - fixedPx));
+    const box = tableRef.current?.parentElement;
+    if (box) setAvail(Math.max(0, box.clientWidth - fixedPx));
   }, [fixedPx, count]);
 
   const pxFor = (percent: number) => `${((avail * percent) / 100).toFixed(2)}px`;
