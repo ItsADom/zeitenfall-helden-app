@@ -62,6 +62,23 @@ export interface KnownBug {
 // Bekannte, noch offene Fehler. Leeren, wenn nichts ansteht — dann wird der
 // Abschnitt gar nicht erst gezeigt. Behobenes hier entfernen (die Behebung
 // gehört, falls spürbar, in einen CHANGELOG-Eintrag).
+//
+// ┌── VORLAGE für einen bekannten Fehler (kopieren, einfügen, ausfüllen) ──────┐
+// │
+//   {
+//     title: 'Kurze Überschrift, z. B. „Porträt lädt nicht"',
+//     description: 'Ein, zwei Sätze zum Problem.',   // optional
+//     workaround: 'So kommst du vorerst weiter.',     // optional
+//     status: 'in Arbeit',                            // optional, z. B. „in Arbeit", „bekannt"
+//   },
+// │
+// └───────────────────────────────────────────────────────────────────────────┘
+//
+// Hinweise:
+//   • Nur `title` ist Pflicht; die übrigen Felder weglassen, wenn nichts dazu zu
+//     sagen ist (fehlende werden einfach nicht gezeigt).
+//   • Spieler-Sicht, sachlich und knapp — kein Fehler-Tracker.
+//   • Wird NICHT nach Discord gespiegelt (der Server liest nur CHANGELOG).
 export const KNOWN_BUGS: KnownBug[] = [
   {
     title: 'Seltsames Scrollverhalten',
