@@ -4,6 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { usePersistedState } from '../components/persist';
+import { usePendingRequests } from '../components/requests';
 
 interface CatalogColumn {
   key: string;
@@ -132,7 +133,9 @@ interface AdminChar {
   id: number;
   name: string;
   owner_user_id: number;
-  group_id: number;
+  // NULL, solange der Charakter keiner Gruppe angehört (Selbst-Anlage vor der
+  // Freigabe oder eine abgelehnte Anfrage).
+  group_id: number | null;
 }
 
 // Umschaltung der Charakterliste in der Verwaltung: nach Gruppe, nach Besitzer
@@ -248,6 +251,7 @@ function GroupMembersEditor({
 
 export default function AdminPage() {
   const { user: me } = useAuth();
+  const { requests, refresh: refreshRequests } = usePendingRequests();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [groups, setGroups] = useState<AdminGroup[]>([]);
   const [chars, setChars] = useState<AdminChar[]>([]);
@@ -282,6 +286,15 @@ export default function AdminPage() {
     }
   };
 
+  // Gruppen-Anfrage annehmen/ablehnen. run() lädt danach Charaktere/Gruppen neu
+  // (der Charakter steckt nun in seiner Gruppe); refreshRequests aktualisiert die
+  // Liste hier UND das Abzeichen in der Kopfleiste (gemeinsame Quelle).
+  const actOnRequest = (characterId: number, action: 'approve' | 'reject') =>
+    run(async () => {
+      await apiPost(`/api/admin/requests/${characterId}/${action}`, {});
+      refreshRequests();
+    });
+
   const doImport = () =>
     run(async () => {
       if (!importFile) return;
@@ -314,7 +327,9 @@ export default function AdminPage() {
     charGroupBy === 'none'
       ? [{ key: 'all', label: '', rows: [...chars].sort(byName) }]
       : (() => {
-          const keyOf = (c: AdminChar) => (charGroupBy === 'gruppe' ? c.group_id : c.owner_user_id);
+          // Gruppenlose Charaktere (group_id NULL) landen unter dem Schlüssel 0
+          // → labelOf(0) ergibt „— ohne Gruppe —".
+          const keyOf = (c: AdminChar) => (charGroupBy === 'gruppe' ? c.group_id ?? 0 : c.owner_user_id);
           const labelOf = (id: number) =>
             charGroupBy === 'gruppe' ? groupName(id) || '— ohne Gruppe —' : userName(id) || '— ohne Besitzer —';
           const byKey = new Map<number, AdminChar[]>();
@@ -447,6 +462,50 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* Offene Gruppen-Anfragen selbst angelegter Charaktere. Nur sichtbar,
+          solange welche offen sind. Annehmen ordnet den Charakter der erbetenen
+          Gruppe zu und macht den Besitzer zum Gruppenmitglied; Ablehnen setzt nur
+          die Anfrage zurück (der Charakter bleibt gruppenlos erhalten). */}
+      {requests.length > 0 && (
+        <div className="panel">
+          <h2>
+            Offene Anfragen <span className="muted">· {requests.length}</span>
+          </h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Selbst angelegte Charaktere, die um Aufnahme in eine Gruppe bitten. Beim Annehmen wird der Besitzer zugleich Mitglied der Gruppe.
+          </p>
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>Charakter</th>
+                <th>Spieler</th>
+                <th>Erbetene Gruppe</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r.characterId}>
+                  <td>{me.isGm ? <Link to={`/charakter/${r.characterId}`}>{r.name}</Link> : r.name}</td>
+                  <td>{r.ownerName}</td>
+                  <td>{r.requestedGroupName}</td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="primary small" onClick={() => actOnRequest(r.characterId, 'approve')}>
+                        Annehmen
+                      </button>
+                      <button className="small" onClick={() => actOnRequest(r.characterId, 'reject')}>
+                        Ablehnen
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Gruppen, Charaktere und Kataloge pflegen Verwaltung UND Spielleitung.
           Der Bogen selbst bleibt der Verwaltung dennoch verschlossen: Charakter-
           namen sind für reine Admins kein Link (siehe unten), und die GM-Übersicht
@@ -564,7 +623,20 @@ export default function AdminPage() {
                   </select>
                 </td>
                 <td>
-                  <select value={c.group_id} onChange={(e) => run(() => apiPut(`/api/characters/${c.id}`, { groupId: Number(e.target.value) }))}>
+                  {/* group_id kann NULL sein (gruppenlos/ausstehend). Ein
+                      Platzhalter hält das <select> kontrolliert; eine echte
+                      Auswahl weist die Gruppe zu (und beendet serverseitig eine
+                      etwaige offene Anfrage). */}
+                  <select
+                    value={c.group_id ?? 0}
+                    onChange={(e) => {
+                      const gid = Number(e.target.value);
+                      if (gid) run(() => apiPut(`/api/characters/${c.id}`, { groupId: gid }));
+                    }}
+                  >
+                    <option value={0} disabled>
+                      — ohne Gruppe —
+                    </option>
                     {groups.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.name}

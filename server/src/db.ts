@@ -60,7 +60,14 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     owner_user_id INTEGER NOT NULL REFERENCES users(id),
-    group_id INTEGER NOT NULL REFERENCES groups(id),
+    -- group_id ist NULLBAR: ein Charakter kann (noch) in keiner Gruppe sein.
+    -- Selbst angelegte Charaktere starten gruppenlos; requested_group_id trägt
+    -- die vom Spieler erbetene Gruppe, bis Spielleitung/Verwaltung sie freigibt.
+    -- Zustände: (group_id gesetzt) = aktiv in Gruppe; (beide NULL) = gruppenlos;
+    -- (group_id NULL, requested_group_id gesetzt) = Freigabe ausstehend.
+    group_id INTEGER REFERENCES groups(id),
+    requested_group_id INTEGER REFERENCES groups(id),
+    requested_at INTEGER,
     -- Farbwelt des Charakters (Theme-Id, '' = keine → Betrachter sieht seine
     -- persönliche Vorgabe). Gilt für JEDEN, der den Charakter öffnet.
     theme TEXT NOT NULL DEFAULT ''
@@ -376,6 +383,51 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('theme')) db.exec("ALTER TABLE characters ADD COLUMN theme TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: Selbst-Anlage von Charakteren mit ausstehender Gruppen-Freigabe.
+// Zwei Teile: (a) group_id von NOT NULL auf NULLBAR lockern (ein gruppenloser
+// Charakter braucht keine Gruppe), (b) requested_group_id/requested_at ergänzen.
+// SQLite kann NOT NULL nicht in-place lösen → einmaliger Tabellen-Neuaufbau der
+// WURZELTABELLE. Alle Zeilen samt id werden kopiert, damit jede char_*-FK gültig
+// bleibt (kein Datenverlust). foreign_keys wird dafür kurz abgeschaltet.
+{
+  const info = db.prepare('PRAGMA table_info(characters)').all() as { name: string; notnull: number }[];
+  const groupCol = info.find((c) => c.name === 'group_id');
+  const cols = new Set(info.map((c) => c.name));
+  const needsNullable = !!groupCol && groupCol.notnull === 1;
+  if (needsNullable) {
+    // Ganzer Neuaufbau: neue Spalten sind dabei automatisch enthalten.
+    db.pragma('foreign_keys = OFF');
+    const rebuild = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE characters_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          owner_user_id INTEGER NOT NULL REFERENCES users(id),
+          group_id INTEGER REFERENCES groups(id),
+          requested_group_id INTEGER REFERENCES groups(id),
+          requested_at INTEGER,
+          theme TEXT NOT NULL DEFAULT ''
+        );
+        INSERT INTO characters_new (id, name, owner_user_id, group_id, requested_group_id, requested_at, theme)
+          SELECT id, name, owner_user_id, group_id, NULL, NULL, theme FROM characters;
+        DROP TABLE characters;
+        ALTER TABLE characters_new RENAME TO characters;
+      `);
+    });
+    rebuild();
+    const violations = db.prepare('PRAGMA foreign_key_check').all();
+    db.pragma('foreign_keys = ON');
+    if (violations.length) {
+      throw new Error(`characters-Neuaufbau ließ FK-Verletzungen zurück: ${JSON.stringify(violations)}`);
+    }
+    console.log('Migration: characters.group_id ist nun nullbar (Selbst-Anlage mit Gruppen-Freigabe)');
+  } else {
+    // group_id schon nullbar (oder frische DB) — nur fehlende Spalten ergänzen.
+    if (!cols.has('requested_group_id')) db.exec('ALTER TABLE characters ADD COLUMN requested_group_id INTEGER REFERENCES groups(id)');
+    if (!cols.has('requested_at')) db.exec('ALTER TABLE characters ADD COLUMN requested_at INTEGER');
+  }
 }
 
 // Migration: 'is_admin'-Rolle an bestehende users ergänzen. Rollen wurden

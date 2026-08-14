@@ -78,7 +78,12 @@ interface CharRow {
   id: number;
   name: string;
   owner_user_id: number;
-  group_id: number;
+  // NULL, solange der Charakter keiner Gruppe angehört (Selbst-Anlage vor der
+  // Freigabe oder eine abgelehnte Anfrage). requested_group_id trägt die vom
+  // Spieler erbetene Gruppe, bis Spielleitung/Verwaltung entscheidet.
+  group_id: number | null;
+  requested_group_id: number | null;
+  requested_at: number | null;
   theme: string;
 }
 
@@ -94,7 +99,8 @@ type Access = 'edit' | 'summary' | null;
 
 function characterAccess(user: { id: number; isGm: boolean }, char: CharRow): Access {
   if (user.isGm || char.owner_user_id === user.id) return 'edit';
-  if (isGroupMember(user.id, char.group_id)) return 'summary';
+  // Gruppenlose Charaktere (group_id NULL) sind für Nicht-Besitzer unsichtbar.
+  if (char.group_id != null && isGroupMember(user.id, char.group_id)) return 'summary';
   return null;
 }
 
@@ -214,6 +220,13 @@ api.get('/overview', requireAuth, (req, res) => {
     ? db.prepare('SELECT * FROM groups ORDER BY name').all()
     : db.prepare('SELECT g.* FROM groups g JOIN group_members m ON m.group_id = g.id WHERE m.user_id = ? ORDER BY g.name').all(user.id);
   res.json({ characters, groups });
+});
+
+// Alle Gruppennamen — damit ein Spieler bei der Selbst-Anlage eines Charakters
+// eine beliebige bestehende Gruppe erbitten kann (die Freigabe ist die
+// eigentliche Hürde, nicht die Sichtbarkeit der Namen). Bewusst nur id + name.
+api.get('/groups/names', requireAuth, (_req, res) => {
+  res.json(db.prepare('SELECT id, name FROM groups ORDER BY name').all());
 });
 
 api.get('/groups/:id', requireAuth, (req, res) => {
@@ -513,6 +526,70 @@ api.put('/characters/:id/name', requireAuth, (req, res) => {
   res.json({ name });
 });
 
+// Selbst-Anlage durch einen Spieler: jeder angemeldete Nutzer darf sich einen
+// eigenen Charakter anlegen. Er startet gruppenlos und dem anlegenden Nutzer
+// gehörend; eine optional erbetene Gruppe wird als requested_group_id gemerkt und
+// muss von Spielleitung/Verwaltung freigegeben werden, bevor der Charakter dort
+// auftaucht. Standard-Zeilen/-Sektionen wie bei der Verwaltungs-Anlage.
+api.post('/characters', requireAuth, (req, res) => {
+  const body = (req.body ?? {}) as { name?: unknown; requestedGroupId?: unknown };
+  const name = String(body.name ?? '').trim();
+  if (!name) {
+    res.status(400).json({ error: 'Name darf nicht leer sein' });
+    return;
+  }
+  if (name.length > MAX_CHAR_NAME) {
+    res.status(400).json({ error: `Name darf höchstens ${MAX_CHAR_NAME} Zeichen lang sein` });
+    return;
+  }
+  let requestedGroupId: number | null = null;
+  if (body.requestedGroupId != null && body.requestedGroupId !== '') {
+    requestedGroupId = Number(body.requestedGroupId);
+    if (!Number.isInteger(requestedGroupId) || !db.prepare('SELECT 1 FROM groups WHERE id = ?').get(requestedGroupId)) {
+      res.status(400).json({ error: 'Gruppe unbekannt' });
+      return;
+    }
+  }
+  const r = db
+    .prepare('INSERT INTO characters (name, owner_user_id, group_id, requested_group_id, requested_at) VALUES (?, ?, NULL, ?, ?)')
+    .run(name, req.user!.id, requestedGroupId, requestedGroupId ? Date.now() : null);
+  const newId = Number(r.lastInsertRowid);
+  initCharacterRows(newId);
+  instantiateStandardSections(newId);
+  res.json({ id: newId });
+});
+
+// Gruppen-Anfrage eines gruppenlosen Charakters setzen, ändern oder zurückziehen
+// (requestedGroupId = null). Nur der Besitzer, und nur solange der Charakter noch
+// keiner Gruppe angehört — eine bereits freigegebene Zuordnung ändert weiter nur
+// die Spielleitung/Verwaltung über PUT /characters/:id.
+api.put('/characters/:id/request', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || char.owner_user_id !== req.user!.id) {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  if (char.group_id != null) {
+    res.status(400).json({ error: 'Charakter ist bereits einer Gruppe zugeordnet' });
+    return;
+  }
+  const raw = ((req.body ?? {}) as { requestedGroupId?: unknown }).requestedGroupId;
+  let requestedGroupId: number | null = null;
+  if (raw != null && raw !== '') {
+    requestedGroupId = Number(raw);
+    if (!Number.isInteger(requestedGroupId) || !db.prepare('SELECT 1 FROM groups WHERE id = ?').get(requestedGroupId)) {
+      res.status(400).json({ error: 'Gruppe unbekannt' });
+      return;
+    }
+  }
+  db.prepare('UPDATE characters SET requested_group_id = ?, requested_at = ? WHERE id = ?').run(
+    requestedGroupId,
+    requestedGroupId ? Date.now() : null,
+    char.id,
+  );
+  res.json({ requestedGroupId });
+});
+
 // --- Gegenstände (Cluster 5) — ganze Liste bzw. Kategorienliste ersetzen.
 // Server normalisiert und antwortet mit dem gespeicherten Stand, damit Anzeige
 // und Datenbank übereinstimmen. ---
@@ -756,12 +833,14 @@ api.put('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     return;
   }
   const { name, ownerUserId, groupId } = (req.body ?? {}) as { name?: string; ownerUserId?: number; groupId?: number };
-  db.prepare('UPDATE characters SET name = ?, owner_user_id = ?, group_id = ? WHERE id = ?').run(
-    name ?? char.name,
-    ownerUserId ?? char.owner_user_id,
-    groupId ?? char.group_id,
-    char.id,
-  );
+  const nextGroup = groupId ?? char.group_id;
+  // Weist die Verwaltung/Spielleitung direkt eine Gruppe zu, ist eine etwaige
+  // offene Anfrage damit erledigt — sonst bliebe der Charakter in „Offene
+  // Anfragen" hängen, obwohl er schon in einer Gruppe steckt.
+  const clearRequest = nextGroup != null;
+  db.prepare(
+    `UPDATE characters SET name = ?, owner_user_id = ?, group_id = ?${clearRequest ? ', requested_group_id = NULL, requested_at = NULL' : ''} WHERE id = ?`,
+  ).run(name ?? char.name, ownerUserId ?? char.owner_user_id, nextGroup, char.id);
   res.json({ ok: true });
 });
 
@@ -1003,6 +1082,58 @@ api.delete('/admin/catalogs/:type/:id', requireAuth, requireGmOrAdmin, (req, res
     return;
   }
   db.prepare(`DELETE FROM ${def.table} WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
+// Offene Gruppen-Anfragen selbst angelegter Charaktere (requested_group_id
+// gesetzt, aber noch keiner Gruppe zugeordnet). Spielleitung ODER Verwaltung
+// sieht und bearbeitet sie; die Zahl speist das Navigations-Abzeichen.
+api.get('/admin/requests', requireAuth, requireGmOrAdmin, (_req, res) => {
+  const requests = db
+    .prepare(
+      `SELECT c.id AS characterId, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName,
+              c.requested_group_id AS requestedGroupId, g.name AS requestedGroupName, c.requested_at AS requestedAt
+       FROM characters c
+       JOIN users u ON u.id = c.owner_user_id
+       JOIN groups g ON g.id = c.requested_group_id
+       WHERE c.group_id IS NULL AND c.requested_group_id IS NOT NULL
+       ORDER BY c.requested_at`,
+    )
+    .all();
+  res.json({ requests });
+});
+
+// Anfrage annehmen: Charakter der erbetenen Gruppe zuordnen, Anfrage löschen und
+// den Besitzer zugleich als Gruppenmitglied eintragen (INSERT OR IGNORE — doppelt
+// schadet nicht), damit er die Zusammenfassungen der Mitspieler sieht.
+api.post('/admin/requests/:id/approve', requireAuth, requireGmOrAdmin, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || char.group_id != null || char.requested_group_id == null) {
+    res.status(404).json({ error: 'Keine offene Anfrage' });
+    return;
+  }
+  const groupId = char.requested_group_id;
+  if (!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) {
+    res.status(400).json({ error: 'Erbetene Gruppe existiert nicht mehr' });
+    return;
+  }
+  const apply = db.transaction(() => {
+    db.prepare('UPDATE characters SET group_id = ?, requested_group_id = NULL, requested_at = NULL WHERE id = ?').run(groupId, char.id);
+    db.prepare('INSERT OR IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)').run(groupId, char.owner_user_id);
+  });
+  apply();
+  res.json({ ok: true, groupId });
+});
+
+// Anfrage ablehnen: nur die Anfrage zurücksetzen. Der Charakter bleibt
+// gruppenlos erhalten (kein Datenverlust); der Spieler kann neu anfragen.
+api.post('/admin/requests/:id/reject', requireAuth, requireGmOrAdmin, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || char.group_id != null || char.requested_group_id == null) {
+    res.status(404).json({ error: 'Keine offene Anfrage' });
+    return;
+  }
+  db.prepare('UPDATE characters SET requested_group_id = NULL, requested_at = NULL WHERE id = ?').run(char.id);
   res.json({ ok: true });
 });
 

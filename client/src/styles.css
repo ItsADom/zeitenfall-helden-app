@@ -568,6 +568,25 @@ header.topbar > a:first-child {
 header.topbar a:hover {
   opacity: 1;
 }
+/* Zahl-Abzeichen an einem Kopfleisten-Eintrag (offene Charakter-Anfragen).
+   Helle Pille auf dem Akzent-Verlauf, Text in der Akzentfarbe → hebt sich vom
+   weißen Leisten-Text ab und nimmt die aktuelle Farbwelt auf. */
+header.topbar .nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--on-accent);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
 /* Wortmarke: sieht aus wie die übrigen Kopfleisten-Einträge, ist aber bewusst
    kein Link (Platzhaltername). Deshalb ohne Zeiger und ohne Hover. */
 header.topbar .wordmark {

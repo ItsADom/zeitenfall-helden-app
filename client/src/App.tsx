@@ -18,6 +18,7 @@ import ModeToggle from './components/ModeToggle';
 import NavMenu from './components/NavMenu';
 import ProfileMenu from './components/ProfileMenu';
 import { OverviewProvider } from './components/overview';
+import { RequestsProvider, PendingBadge } from './components/requests';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
@@ -92,6 +93,7 @@ export default function App() {
     <AuthContext.Provider value={{ user, refresh }}>
       <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, setOverrideTheme }}>
       <OverviewProvider>
+      <RequestsProvider enabled={user.isGm || user.isAdmin}>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -106,7 +108,12 @@ export default function App() {
         {/* Spielleiter verwalten Kataloge & Nutzer. Für Spieler ist „Einstellungen"
             aus der Leiste ins Profil-Flyout gewandert (unten) — und direkt vom
             Charakterbogen erreichbar. Route bleibt intern /verwaltung. */}
-        {(user.isGm || user.isAdmin) && <Link to="/verwaltung">Kataloge &amp; Nutzer</Link>}
+        {(user.isGm || user.isAdmin) && (
+          <Link to="/verwaltung">
+            Kataloge &amp; Nutzer
+            <PendingBadge />
+          </Link>
+        )}
         <div className="spacer" />
         {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
             Spieler ist sie auf die Einstellungen-Seite gewandert. */}
@@ -138,6 +145,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      </RequestsProvider>
       </OverviewProvider>
       </ThemeControlsContext.Provider>
     </AuthContext.Provider>

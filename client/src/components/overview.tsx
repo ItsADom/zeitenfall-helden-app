@@ -10,7 +10,9 @@ import { apiGet } from '../api';
 // Öffnen eines Menüs), damit Umbenennungen/neue Charaktere sichtbar werden,
 // ohne dass die zwischengespeicherte Liste kurz verschwindet.
 export interface Overview {
-  characters: { id: number; name: string; group_id: number }[];
+  // group_id ist NULL, solange der Charakter keiner Gruppe angehört (Selbst-
+  // Anlage vor der Freigabe). requested_group_id trägt dann die erbetene Gruppe.
+  characters: { id: number; name: string; group_id: number | null; requested_group_id: number | null }[];
   groups: { id: number; name: string }[];
 }
 

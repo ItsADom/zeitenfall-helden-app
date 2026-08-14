@@ -14,7 +14,7 @@ import { useOverview, useOverviewRefresh } from './overview';
 interface CharItem {
   id: number;
   name: string;
-  group_id: number;
+  group_id: number | null;
 }
 
 const byName = <T extends { name: string }>(a: T, b: T) => a.name.localeCompare(b.name, 'de');

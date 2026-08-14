@@ -142,6 +142,8 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Unsorted ideas (treat all as [sketch])
 
+- **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
+
 - **wiki for world lore and game rules**
 
 - **expanded bio for characters as a dedicated page** examples for content:
