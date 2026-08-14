@@ -69,6 +69,36 @@ These are standing instructions — follow them without being reminded.
   „(Spielleiter)" or „(Verwaltung)"), so players reading it know it doesn't
   affect them.
 
+### Versioning & releases
+
+- **An unversioned entry is a draft — and invisible.** A `CHANGELOG` entry with
+  no `version` is NOT shown to players on the Changelog page and NOT mirrored to
+  Discord; it surfaces only once it gets a number. So finished work accumulates
+  in the top version-less entry, and cutting the release is the moment someone
+  assigns the version. (Both `client/src/pages/Changelog.tsx` and
+  `server/src/discord.ts` filter to versioned entries; the Discord watermark
+  therefore only ever tracks a stable `vX` key.)
+- **Never assign a version yourself.** Numbering a release is the developer's
+  decision, always. When a draft is ready, *recommend* a bump with a short
+  reason and leave the `version` field for the developer to fill in — don't
+  invent, bump, or guess numbers on your own.
+- **How to frame the recommendation (pre-1.0 = `0.MINOR.PATCH`):**
+  - `0.X.0` (minor) — a new player-facing capability or a substantial rework of
+    an area (like the Ausrüstung/Inventar or Zauber & Fähigkeiten reworks): the
+    player has to learn something new.
+  - `0.X.Y` (patch) — smaller player-visible work: bug fixes, polish, navigation
+    tweaks, small additions that don't change how an area works.
+  - Litmus test: *does a player have to learn something new (minor), or is it the
+    same app working better (patch)?* Untracked routine/internal work is neither
+    — no entry, no bump.
+- **`1.0.0` is a deliberate call by the developer:** core play loop complete,
+  data model stable (no more disruptive migrations expected), `KNOWN_BUGS`
+  essentially clear. After 1.0, normal semver — `MAJOR` for breaking or
+  data-migrating changes, `MINOR` for new features, `PATCH` for fixes.
+- **The version goes on before deploy.** Assigning it is part of cutting the
+  release, so the draft never reaches production unnumbered — that keeps the
+  Discord key stable and the release posts cleanly.
+
 ## Codebase constraints & gotchas (don't relearn these)
 
 - **A table must not get its own scroll area.** `overflow-x: auto` silently makes

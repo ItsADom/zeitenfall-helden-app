@@ -110,9 +110,16 @@ async function postEntry(e: ChangelogEntry): Promise<void> {
 export async function mirrorChangelog(): Promise<void> {
   if (!WEBHOOK) return; // Feature aus, solange kein Webhook gesetzt ist
 
-  // Rauchtest: nur den neuesten Eintrag senden, Wasserstand nicht anfassen.
+  // Nur VERÖFFENTLICHTE Einträge werden gespiegelt: ein Eintrag ohne `version`
+  // ist ein Entwurf und bleibt außen vor, bis er beim Release seine Nummer
+  // bekommt. Damit kann ein Entwurf nie versehentlich nach Discord gelangen,
+  // egal wann der Server startet — und der Wasserstand zeigt immer auf eine
+  // stabile Versionskennung (`vX`), nie auf ein noch änderbares Datum+Titel.
+  const released = CHANGELOG.filter((e) => e.version); // neueste zuerst (Reihenfolge bleibt)
+
+  // Rauchtest: nur den neuesten (veröffentlichten) Eintrag senden, Wasserstand nicht anfassen.
   if (TEST) {
-    const newest = CHANGELOG[0];
+    const newest = released[0];
     if (!newest) return;
     console.log(`[discord] TEST — sende neuesten Eintrag ${entryKey(newest)} (Wasserstand bleibt).`);
     await postEntry(newest);
@@ -123,7 +130,7 @@ export async function mirrorChangelog(): Promise<void> {
 
   // Erststart: nur scharf stellen, Historie nicht nachposten.
   if (wm === null) {
-    const newest = CHANGELOG[0];
+    const newest = released[0];
     if (newest) setWatermark(entryKey(newest));
     console.log(
       `[discord] Changelog-Spiegel scharf gestellt bei ${newest ? entryKey(newest) : '(leer)'} — Historie wird nicht nachgepostet.`,
@@ -131,12 +138,12 @@ export async function mirrorChangelog(): Promise<void> {
     return;
   }
 
-  // Neue Einträge = alles oberhalb des Wasserstands (Array: neueste zuerst).
-  const idx = CHANGELOG.findIndex((e) => entryKey(e) === wm);
+  // Neue Einträge = alles Veröffentlichte oberhalb des Wasserstands (neueste zuerst).
+  const idx = released.findIndex((e) => entryKey(e) === wm);
   if (idx === -1) {
     // Wasserstand zeigt auf keinen bekannten Eintrag (z. B. Schlüssel geändert).
     // Zur Sicherheit NICHT fluten, sondern am neuesten Eintrag neu scharf stellen.
-    const newest = CHANGELOG[0];
+    const newest = released[0];
     if (newest) setWatermark(entryKey(newest));
     console.warn(
       `[discord] Wasserstand „${wm}" nicht gefunden — ohne Nachposten neu gesetzt auf ${newest ? entryKey(newest) : '(leer)'}.`,
@@ -144,7 +151,7 @@ export async function mirrorChangelog(): Promise<void> {
     return;
   }
 
-  const fresh = CHANGELOG.slice(0, idx); // neuer als der Wasserstand
+  const fresh = released.slice(0, idx); // neuer als der Wasserstand, nur Veröffentlichtes
   if (fresh.length === 0) return;
 
   // Ältester zuerst, damit die Reihenfolge im Kanal chronologisch ist.

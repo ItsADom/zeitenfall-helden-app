@@ -8,6 +8,10 @@ const fmtDate = (iso: string) => {
 };
 
 export default function ChangelogPage() {
+  // Nur veröffentlichte Einträge zeigen: ein Eintrag ohne `version` ist ein
+  // Entwurf und bleibt für Spieler unsichtbar, bis er beim Release seine Nummer
+  // bekommt (gleiche Regel wie beim Discord-Spiegel, siehe server/discord.ts).
+  const released = CHANGELOG.filter((entry) => entry.version);
   return (
     <>
       <h1>Versionshistorie</h1>
@@ -54,9 +58,9 @@ export default function ChangelogPage() {
         </section>
       </div>
 
-      {CHANGELOG.length === 0 && <p className="muted">Noch keine Einträge.</p>}
+      {released.length === 0 && <p className="muted">Noch keine Einträge.</p>}
 
-      {CHANGELOG.map((entry) => (
+      {released.map((entry) => (
         <div className="panel" key={`${entry.date}-${entry.title}`}>
           <h3>{entry.title}</h3>
           <div className="changelog-meta">
