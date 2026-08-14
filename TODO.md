@@ -27,6 +27,9 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
+- [sketch] characters with the ability to shapeshift get different changed values for almost everything. this actually acts more as having a different character.
+implementing a complete set of character sheets into a single character would make sense here. dropdown selector for different shapeshift forms.
+
 ## High-Prio
 
 ### 4. Spezialenergien - full version
@@ -41,7 +44,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
   `shared/src/rules.ts` already evaluates "MU+IN+CH". The Einstellungen page is
   where these settings dock. Migrate existing free-form `special` rows into it
   without data loss.
-- [sketch] Make ASP itself optional — some characters have none (best done in the
+- [ready] Make ASP itself optional — some characters have none (best done in the
   same pass).
 
 ## Mid-Prio
@@ -99,10 +102,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
 - [sketch] **Spell-creation table in-app**: creating spells in-game follows a
   regulated table (`files/spell_creation.webp`). Surface it somewhere visible in
   the app; also needs styling tweaks to look better.
-- [sketch] **Landing page & rebrand**: clicking the banner header (title) should
-  open a landing page. Alongside it, a new header/title for the app
-  (`files/title.jpg`) — extract the font if possible and weave it in; otherwise
-  just use the new name.
 - [sketch] **CSS tidy-up**: check for components than can be combined
  - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
  - splitting CSS into more fitting files
@@ -151,11 +150,25 @@ chips. Backend table `char_special_resources`. Open for the full version:
    - detailed description of visuals and behaviour
    - more images (outfits, different poses etc.)
 
-- **Discord-webhook**
-   - to post new changelog entries automated
+- **Discord feedback → TODO scan** (concept agreed; needs bot setup before build)
+   - A local CLI script (like the changelog test flags) reads the feedback
+     **forum channel** via a real Discord **Bot** (not the existing webhook —
+     webhooks can't read). Needs a bot token + channel ID as env vars, the
+     **Message Content Intent** enabled, and View Channel + Read Message History
+     on the channel.
+   - Per forum post: pull the **starter message only** + a reply count (threads
+     get chatty; the starter is the actual feedback).
+   - A per-thread **watermark** state file (gitignored, `thread_id → last-seen
+     msg id`) so re-runs only surface new posts; abbruchsicher like the changelog
+     mirror.
+   - Writes into a **fenced, marked section** of TODO.md
+     (`<!-- DISCORD-FEEDBACK:START/END -->`), each item carrying its thread/msg
+     id in an HTML comment so re-scans never duplicate and items can be safely
+     deleted once promoted. Raw passthrough — **no LLM in the script** (no added
+     cost); refinement into real tasks happens in a normal coding session.
 
 - **catalogue for character races**
-   - wires into the Psyche calculation
+   - wires into the different calculations
 
 - **dice rolls and chat**
    - hidden rolls (only visible for the rolling user)
