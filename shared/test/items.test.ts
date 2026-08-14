@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   containerEffektiveFuellung,
   containerFuellung,
+  containerFuellungAnzeige,
+  containerFuellungStueck,
   containers,
   effektiverRs,
   getrageneLast,
@@ -43,6 +45,7 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     istBehaelter: false,
     containerArt: 'storage',
     kapazitaet: 0,
+    kapazitaetArt: 'gewicht',
     gewichtsreduktion: 0,
     rs: 0,
     notiz: '',
@@ -91,6 +94,15 @@ describe('getrageneLast', () => {
       item({ gewicht: 10, location: 'behaelter', containerUid: 'halb' }), // 5 (50 %)
     ];
     expect(getrageneLast(items)).toBe(11); // 5 + 0 + 1 + 5
+  });
+
+  it('Stück-Behälter: Inhalt zählt nie zur Last, egal was gewichtsreduktion sagt', () => {
+    const koecher = item({ uid: 'koe', name: 'Köcher', gewicht: 0.5, istBehaelter: true, kapazitaetArt: 'stueck', gewichtsreduktion: 0 });
+    const items = [
+      koecher, // 0.5 zählt (der Köcher selbst)
+      item({ anzahl: 20, gewicht: 0.05, location: 'behaelter', containerUid: 'koe' }), // 0 trotz Gewicht > 0
+    ];
+    expect(getrageneLast(items)).toBe(0.5);
   });
 });
 
@@ -162,6 +174,29 @@ describe('Sichten', () => {
     const items = [redBag, cargo];
     expect(containerFuellung(items, 'red')).toBe(120); // roh
     expect(containerEffektiveFuellung(items, 'red')).toBe(60); // 120 × (1 − 50 %)
+  });
+
+  it('containerFuellungStueck: summiert die Stückzahl statt des Gewichts', () => {
+    const koecher = item({ uid: 'koe', istBehaelter: true, kapazitaetArt: 'stueck', kapazitaet: 20 });
+    const items = [
+      koecher,
+      item({ location: 'behaelter', containerUid: 'koe', anzahl: 12, gewicht: 0.05 }),
+      item({ location: 'behaelter', containerUid: 'koe', anzahl: 3, gewicht: 0.05 }),
+    ];
+    expect(containerFuellungStueck(items, 'koe')).toBe(15);
+  });
+
+  it('containerFuellungAnzeige: wählt die Einheit passend zu kapazitaetArt', () => {
+    const koecher = item({ uid: 'koe', istBehaelter: true, kapazitaetArt: 'stueck', kapazitaet: 20 });
+    const rucksack = item({ uid: 'ruck', istBehaelter: true, kapazitaetArt: 'gewicht', kapazitaet: 20, gewichtsreduktion: 50 });
+    const items = [
+      koecher,
+      item({ location: 'behaelter', containerUid: 'koe', anzahl: 5, gewicht: 0.05 }),
+      rucksack,
+      item({ location: 'behaelter', containerUid: 'ruck', anzahl: 1, gewicht: 10 }),
+    ];
+    expect(containerFuellungAnzeige(items, koecher)).toBe(5); // Stück
+    expect(containerFuellungAnzeige(items, rucksack)).toBe(5); // kg, 10 × (1 − 50 %)
   });
 
   it('containers: nur als Behälter markierte Gegenstände', () => {

@@ -286,6 +286,7 @@ db.exec(`
     ist_behaelter INTEGER NOT NULL DEFAULT 0,
     container_art TEXT NOT NULL DEFAULT 'storage',
     kapazitaet REAL NOT NULL DEFAULT 0,
+    kapazitaet_art TEXT NOT NULL DEFAULT 'gewicht',
     gewichtsreduktion REAL NOT NULL DEFAULT 0,
     rs REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT ''
@@ -509,6 +510,7 @@ db.exec(`
   if (!cols.has('ist_behaelter')) db.exec('ALTER TABLE char_items ADD COLUMN ist_behaelter INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('container_art')) db.exec("ALTER TABLE char_items ADD COLUMN container_art TEXT NOT NULL DEFAULT 'storage'");
   if (!cols.has('kapazitaet')) db.exec('ALTER TABLE char_items ADD COLUMN kapazitaet REAL NOT NULL DEFAULT 0');
+  if (!cols.has('kapazitaet_art')) db.exec("ALTER TABLE char_items ADD COLUMN kapazitaet_art TEXT NOT NULL DEFAULT 'gewicht'");
   if (!cols.has('gewichtsreduktion')) db.exec('ALTER TABLE char_items ADD COLUMN gewichtsreduktion REAL NOT NULL DEFAULT 0');
   if (!cols.has('rs')) db.exec('ALTER TABLE char_items ADD COLUMN rs REAL NOT NULL DEFAULT 0');
   if (!cols.has('beidseitig')) db.exec('ALTER TABLE char_items ADD COLUMN beidseitig INTEGER NOT NULL DEFAULT 0');

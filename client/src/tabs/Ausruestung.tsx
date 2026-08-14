@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import type { ContainerArt, Item, ItemLocation } from '@shared/items';
+import type { ContainerArt, Item, ItemLocation, KapazitaetArt } from '@shared/items';
 import {
   BODY_ZONES,
-  containerEffektiveFuellung,
+  containerFuellungAnzeige,
   effektiverRs,
   isPairedZone,
   itemsInContainer,
@@ -55,7 +55,7 @@ export default function AusruestungTab() {
   const blank = (over: Partial<Item>): Item => ({
     id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'bench',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
-    gewichtsreduktion: 0, rs: 0, notiz: '', ...over,
+    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, notiz: '', ...over,
   });
   const addTo = (over: Partial<Item>) => {
     const it = blank(over);
@@ -229,17 +229,19 @@ export default function AusruestungTab() {
         <div className="container-grid">
           {storageConts.map((c) => {
             const inside = itemsInContainer(items, c.uid);
-            // Effektives (reduziertes) Gewicht zählt gegen das Fassungsvermögen.
-            const fuell = containerEffektiveFuellung(items, c.uid);
+            const stueck = c.kapazitaetArt === 'stueck';
+            // Bei Gewicht-Behältern zählt das effektive (reduzierte) Gewicht gegen
+            // das Fassungsvermögen, bei Stück-Behältern die Stückzahl des Inhalts.
+            const fuell = containerFuellungAnzeige(items, c);
             const voll = c.kapazitaet > 0 && fuell > c.kapazitaet;
             return (
               <div className="container-panel" key={c.uid}>
                 <div className="container-head">
                   <span className="container-name">{c.name || '(ohne Name)'}</span>
                   <span className={`container-cap${voll ? ' over' : ''}`}>
-                    {inside.length} · {kg(fuell)}
-                    {c.kapazitaet > 0 ? ` / ${kg(c.kapazitaet)}` : ''} kg
-                    {c.gewichtsreduktion > 0 && <span className="muted"> · −{c.gewichtsreduktion}%</span>}
+                    {inside.length} · {stueck ? fuell : kg(fuell)}
+                    {c.kapazitaet > 0 ? ` / ${stueck ? c.kapazitaet : kg(c.kapazitaet)}` : ''} {stueck ? 'Stück' : 'kg'}
+                    {!stueck && c.gewichtsreduktion > 0 && <span className="muted"> · −{c.gewichtsreduktion}%</span>}
                   </span>
                 </div>
                 <div {...dropProps({ location: 'behaelter', containerUid: c.uid })}>
@@ -321,10 +323,19 @@ function ItemChip({
                   <option value="quick">Schnellzugriff (inline)</option>
                 </select>
               </label>
-              <label>Kap. kg<NumInput value={item.kapazitaet} min={0} onChange={(v) => onPatch({ kapazitaet: v })} /></label>
-              <label title="Gewichtsreduktion des Inhalts. 100 % = zählt gar nicht (Beutel des Fassungsvermögens).">
-                −%<NumInput value={item.gewichtsreduktion} min={0} max={100} onChange={(v) => onPatch({ gewichtsreduktion: v })} />
+              <label title="Womit das Fassungsvermögen gemessen wird.">
+                Kap. in
+                <select value={item.kapazitaetArt} onChange={(e) => onPatch({ kapazitaetArt: e.target.value as KapazitaetArt })}>
+                  <option value="gewicht">kg</option>
+                  <option value="stueck">Stück</option>
+                </select>
               </label>
+              <label>Kap.<NumInput value={item.kapazitaet} min={0} onChange={(v) => onPatch({ kapazitaet: v })} /></label>
+              {item.kapazitaetArt !== 'stueck' && (
+                <label title="Gewichtsreduktion des Inhalts. 100 % = zählt gar nicht (Beutel des Fassungsvermögens).">
+                  −%<NumInput value={item.gewichtsreduktion} min={0} max={100} onChange={(v) => onPatch({ gewichtsreduktion: v })} />
+                </label>
+              )}
             </>
           )}
           <label className="chip-notiz">Notiz<TextInput value={item.notiz} onChange={(v) => onPatch({ notiz: v })} /></label>

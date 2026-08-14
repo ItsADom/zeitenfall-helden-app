@@ -20,6 +20,15 @@ export const ITEM_LOCATIONS: ItemLocation[] = ['inventar', 'getragen', 'behaelte
 export type ContainerArt = 'quick' | 'storage';
 export const CONTAINER_ARTEN: ContainerArt[] = ['quick', 'storage'];
 
+// Womit ein Behälter sein Fassungsvermögen misst:
+//   gewicht  Kapazität in kg — der übliche Fall (Rucksack, Gürteltasche).
+//   stueck   Kapazität in Stück (Summe der `anzahl` der Inhalte) — für Behälter,
+//            bei denen die Anzahl zählt statt das Gewicht (Köcher, Münzbeutel).
+//            Inhalt zählt dabei automatisch NICHT zur Traglast (siehe
+//            itemLastAnteil) — eine eigene Gewichtsreduktion ist dafür unnötig.
+export type KapazitaetArt = 'gewicht' | 'stueck';
+export const KAPAZITAET_ARTEN: KapazitaetArt[] = ['gewicht', 'stueck'];
+
 // Körperzonen für getragene Ausrüstung. Arme/Hände/Beine sind seitengetrennt
 // (Spieler-Entscheidung 2026-08-10) — eine Zone ist KEIN Einzelfach, sondern
 // eine Liste: an „Arm links" dürfen Armschiene UND Armreif zugleich liegen.
@@ -63,10 +72,15 @@ export interface Item {
   istBehaelter: boolean;
   // Behälter-Art (nur relevant, wenn istBehaelter): Schnellzugriff vs. Stauraum.
   containerArt: ContainerArt;
-  // Fassungsvermögen des Behälters in kg (0 = ohne Angabe/unbegrenzt).
+  // Fassungsvermögen des Behälters (0 = ohne Angabe/unbegrenzt) — Einheit
+  // richtet sich nach kapazitaetArt: kg oder Stück.
   kapazitaet: number;
+  // Womit das Fassungsvermögen gemessen wird (nur relevant, wenn istBehaelter).
+  kapazitaetArt: KapazitaetArt;
   // Gewichtsreduktion des Inhalts in Prozent (0–100). 100 % = der Inhalt zählt
   // gar nicht zur getragenen Last (Beutel des Fassungsvermögens / „bag of holding").
+  // Bei kapazitaetArt === 'stueck' wirkt IMMER wie 100 % — der Inhalt zählt nie
+  // zur Traglast, unabhängig vom gespeicherten Wert (siehe itemLastAnteil).
   gewichtsreduktion: number;
   // Rüstungsschutz (nur bei Rüstungsteilen sinnvoll). Es wird NICHT summiert —
   // fürs Spiel zählt der höchste getragene Wert (siehe effektiverRs).
@@ -103,7 +117,7 @@ export function itemLastAnteil(item: Item, byUid: Map<string, Item>): number {
   const base = itemGewicht(item);
   if (item.location === 'behaelter') {
     const c = byUid.get(item.containerUid);
-    const red = c ? clampPct(c.gewichtsreduktion) : 0;
+    const red = c ? (c.kapazitaetArt === 'stueck' ? 100 : clampPct(c.gewichtsreduktion)) : 0;
     return base * (1 - red / 100);
   }
   return base;
@@ -189,6 +203,21 @@ export function containerFuellung(items: readonly Item[], containerUid: string):
 export function containerEffektiveFuellung(items: readonly Item[], containerUid: string): number {
   const byUid = new Map(items.map((it) => [it.uid, it]));
   return itemsInContainer(items, containerUid).reduce((s, it) => s + itemLastAnteil(it, byUid), 0);
+}
+
+// Belegte Stückzahl eines Behälters — Summe der `anzahl` seiner Inhalte, für
+// Behälter mit kapazitaetArt === 'stueck' (Köcher, Münzbeutel …).
+export function containerFuellungStueck(items: readonly Item[], containerUid: string): number {
+  return itemsInContainer(items, containerUid).reduce((s, it) => s + (Number(it.anzahl) || 0), 0);
+}
+
+// Füllstand eines Behälters in seiner eigenen Einheit (kg oder Stück) — zum
+// Vergleich mit seinem `kapazitaet`, ohne dass die aufrufende Stelle zwischen
+// beiden Varianten unterscheiden muss.
+export function containerFuellungAnzeige(items: readonly Item[], container: Pick<Item, 'uid' | 'kapazitaetArt'>): number {
+  return container.kapazitaetArt === 'stueck'
+    ? containerFuellungStueck(items, container.uid)
+    : containerEffektiveFuellung(items, container.uid);
 }
 
 // Alle Behälter (Gegenstände, die andere aufnehmen können).

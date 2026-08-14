@@ -23,6 +23,7 @@ import {
   erleichterung,
   BODY_ZONES,
   CONTAINER_ARTEN,
+  KAPAZITAET_ARTEN,
   containerSlotCount,
   DYN_CONTAINER_KEY,
   DYN_SLOTS_KEY,
@@ -46,6 +47,7 @@ import type {
   CharTalent,
   CharLanguage,
   ContainerArt,
+  KapazitaetArt,
   DynColumn,
   ExternalAttrPoint,
   Item,
@@ -773,7 +775,7 @@ const clampMin = (v: unknown, min = 0): number => {
 export function loadItems(charId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -789,6 +791,7 @@ export function loadItems(charId: number): Item[] {
     ist_behaelter: number;
     container_art: string;
     kapazitaet: number;
+    kapazitaet_art: string;
     gewichtsreduktion: number;
     rs: number;
     notiz: string;
@@ -807,6 +810,7 @@ export function loadItems(charId: number): Item[] {
     istBehaelter: !!r.ist_behaelter,
     containerArt: (CONTAINER_ARTEN as string[]).includes(r.container_art) ? (r.container_art as ContainerArt) : 'storage',
     kapazitaet: r.kapazitaet,
+    kapazitaetArt: (KAPAZITAET_ARTEN as string[]).includes(r.kapazitaet_art) ? (r.kapazitaet_art as KapazitaetArt) : 'gewicht',
     gewichtsreduktion: r.gewichtsreduktion,
     rs: r.rs,
     notiz: r.notiz,
@@ -832,8 +836,8 @@ export function saveItems(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -852,6 +856,7 @@ export function saveItems(charId: number, raw: unknown): void {
       const beidseitig = isPairedZone(zone) && o.beidseitig ? 1 : 0;
       const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
       const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
+      const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
       ins.run(
         charId,
         i,
@@ -867,6 +872,7 @@ export function saveItems(charId: number, raw: unknown): void {
         o.istBehaelter ? 1 : 0,
         art,
         clampMin(o.kapazitaet),
+        kapArt,
         clampPct(o.gewichtsreduktion),
         clampMin(o.rs),
         String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),

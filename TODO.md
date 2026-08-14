@@ -29,6 +29,11 @@ sorted into the priority sections below in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
+- [ready] removing the check if upper-lower-case is matching on a username.
+this is neither practical nor up-to-date
+- [ready] items actively worn on body are calculated with half of their weight
+this needs to be directly addressed to the players in changelog, as it changes Traglast drastically
+
 ### 4. Spezialenergien - full version
 
 Light version shipped: a separate `special` list (name/max/aktuell) the player
@@ -53,10 +58,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
   alternate sheets folded into a single character, with a dropdown to switch
   the active form. Needs a concept pass (data model + how much duplicates vs.
   derives from a base sheet) before building.
-- [sketch] **Item-amount inventory containers**: some containers should track
-  item *count* instead of per-item weight (e.g. a quiver of arrows, a coin
-  pouch) — no Traglast contribution beyond the container's own weight. Needs a
-  concept for how this coexists with the current per-item-weight model.
 - [sketch] **Money rework** (concept in progress): replace the fixed 4-coin + Bank
   structure (`GeldPanel.tsx`, meta keys `geldD/S/H/K/bank`, ×10 tiers, total in
   Dublonen) with flexible currencies. Decided:
@@ -152,6 +153,10 @@ chips. Backend table `char_special_resources`. Open for the full version:
   auto-center).
 
 ## Unsorted ideas (treat all as [sketch])
+
+- develop funny ideas for easter eggs
+  - specific key-combinations for a secret crazy color mode
+
 
 - **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
 
