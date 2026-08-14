@@ -40,7 +40,7 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages';
         {title} ({rows.length} Einträge)
       </summary>
       {error && <p className="error">{error}</p>}
-      <div className="table-wrap" style={{ marginTop: 10, maxHeight: 420, overflowY: 'auto' }}>
+      <div className="table-wrap scroll-box" style={{ marginTop: 10, maxHeight: 420, overflowY: 'auto' }}>
         <table className="sheet">
           <thead>
             <tr>

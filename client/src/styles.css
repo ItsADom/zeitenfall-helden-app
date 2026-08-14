@@ -1035,6 +1035,14 @@ tr.subtle-head.clickable:hover td {
   }
 }
 
+/* Selbst scrollender Kasten (eigene Höhe + overflow, z. B. der Katalog in der
+   Verwaltung): der klebende Kopf klebt am Kasten selbst, nicht an der Seite.
+   Der Seiten-Versatz (Kopf-/Reiterleiste) gehört nur aufs Charakterblatt — hier
+   schöbe er den Kopf um genau diese Höhe mitten in die Tabelle hinein. */
+.table-wrap.scroll-box table.sheet thead {
+  top: 0;
+}
+
 table.sheet {
   border-collapse: separate;
   border-spacing: 0;
@@ -1538,9 +1546,13 @@ tr.slot-row td {
   display: flex;
   align-items: center;
   gap: 6px;
-  /* Bis zum Beschnittrand ziehen wie .char-header (siehe dort). */
-  margin: 0 calc(-1 * var(--pad-x)) 14px;
-  padding: 8px var(--pad-x);
+  /* In der Inhaltsspalte ausrichten — NICHT über den Beschnittrand ziehen.
+     Die negativen Ränder stammen aus dem einspaltigen Layout von früher; seit
+     die Seitenleiste rechts daneben sitzt, schob der Beschnitt den (deckenden)
+     Hintergrund über die Lücke bis in die Leiste hinein. Ohne Beschnitt deckt
+     der Kasten genau die Spalte ab, in der auch die Tabellen scrollen. */
+  margin: 0 0 14px;
+  padding: 8px 0;
   background: var(--bg);
 }
 .talent-search .notch {
