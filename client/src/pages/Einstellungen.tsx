@@ -371,8 +371,7 @@ export default function EinstellungenPage() {
           <div className="panel">
             <h3>Externe Attributspunkte</h3>
             <p className="muted">
-              Zusätzliche Attributspunkte außerhalb der Stufen-Vergabe — Boni, Artefakte, Ausnahmen. Nur Quelle und
-              Punktzahl, keine Zuordnung zu einzelnen Attributen; sie zählen zur Gesamtsumme im Heldenbrief.
+              Zusätzliche Attributspunkte außerhalb der Stufen-Vergabe.
             </p>
             <div className="cat-editor">
               {attrExternRows.map((r, i) => (

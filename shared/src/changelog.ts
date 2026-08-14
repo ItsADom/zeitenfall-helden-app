@@ -144,7 +144,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       '(Verwaltung) Offene Gruppen-Anfragen selbst angelegter Charaktere erscheinen unter „Kataloge & Nutzer" (mit Zähler-Abzeichen in der Kopfleiste) und lassen sich dort annehmen oder ablehnen. Beim Annehmen wird der Spieler zugleich Mitglied der Gruppe.',
       'Neu: eine Startseite. Ein Klick auf den Namen „Zeitenkompass" oben links bringt dich dorthin — mit deinen Charakteren zum direkten Weiterspringen und den neusten Änderungen auf einen Blick.',
       'Ausrüstung an Armen, Händen oder Beinen kannst du jetzt als „beidseitig" markieren (Häkchen beim Bearbeiten des Stücks): ein Paar Schienen, Handschuhe oder Beinlinge wird als ein Gegenstand geführt, aber auf beiden Seiten angezeigt (Zeichen ⇄). Das Gewicht zählt dabei nur einmal.',
-      'Unter den Attributen im Heldenbrief steht jetzt „Ungenutzte Attributspunkte" — eine Erinnerung, wenn nach einem Stufenaufstieg noch Punkte übrig sind. Eine Erhöhung über das Verfügbare hinaus wird abgelehnt; zusätzliche Punkte aus anderen Quellen (Artefakte, Boni …) lassen sich in den Einstellungen unter „Externe Attributspunkte" eintragen.',
+      'Unter den Attributen im Heldenbrief steht jetzt „Ungenutzte Attributspunkte" — eine Erinnerung, wenn nach einem Stufenaufstieg noch Punkte übrig sind. Eine Erhöhung über das Verfügbare hinaus wird abgelehnt; zusätzliche Punkte aus anderen Quellen lassen sich in den Einstellungen unter „Externe Attributspunkte" pro Charakter eintragen.',
     ],
     changed: [
       'Die App hat einen Namen: „Zeitenkompass". Er steht jetzt oben links in der Kopfleiste (bisher „Heldenverwaltung") und führt auf die neue Startseite.',
