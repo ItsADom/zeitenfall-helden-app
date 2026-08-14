@@ -29,6 +29,17 @@ npm run dev:client        # Web-UI auf http://localhost:5173
 
 Anmelden als `spielleiter` / `spielleiter` (Passwort danach im Dashboard ändern).
 
+Zum Testen der Verwaltungs-/Gruppierungsansichten unter Last gibt es einen
+**reinen Entwicklungs-Seed** mit Dummy-Spielern, -Gruppen und -Charakteren:
+
+```bash
+npm run seed:dummy        # 12 Spieler, 4 Gruppen, 25 Charaktere (Test-Passwort: test1234)
+```
+
+Er ist idempotent (ein zweiter Lauf legt nichts doppelt an) und **bricht bei
+`NODE_ENV=production` ab**, damit die echte Datenbank niemals versehentlich
+gefüllt wird.
+
 ### `npm ci` statt `npm install`
 
 `npm ci` installiert stur nach `package-lock.json` und **schreibt die Datei nie um**.
