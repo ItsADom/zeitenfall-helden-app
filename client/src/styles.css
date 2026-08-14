@@ -2901,6 +2901,16 @@ li {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+/* „⇐ Zu Ausrüstung"-Ablage klebt unter der Kopf-/Reiterleiste (gemessener
+   Versatz, wie .talent-search): der nativen Ziehen-Aktion fehlt das Mitscrollen,
+   also muss das Wurf-Ziel sichtbar bleiben, auch wenn man einen Gegenstand tief
+   unten aus einem Behälter zieht. Das Panel deckt selbst (opaker Verlauf), damit
+   die Behälter darunter nicht durchscheinen. */
+.inv-equip-drop {
+  position: sticky;
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
+  z-index: 12;
+}
 .grip-cell {
   text-align: center;
 }
