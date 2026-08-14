@@ -22,7 +22,19 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ---
 
+## User feedback
+
+Inbox for raw feedback as it comes in. Drop new points here; they get refined and
+sorted into the priority sections below in a later pass. (Empty = all caught up.)
+
 ## High-Prio
+
+### Tables don't follow page reflow (bug — needs research)
+
+- [sketch] Repro: open the Talent-Tab, close the Überblick sidebar, then reopen
+  it — the table clips into the sidebar. Happens in multiple locations, so it
+  needs a little research. Likely tied to the scroll-container / sticky-offset
+  gotchas in `CLAUDE.md`; the Low-Prio responsiveness pass covers the same area.
 
 ### 4. Spezialenergien - full version
 
@@ -41,6 +53,19 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Mid-Prio
 
+- [sketch] **Attribute provenance & unused-point reminder**: attributes don't
+  distinguish where a point came from — track whether it was added by leveling up
+  vs. another source. Players specifically asked for a **visual reminder when
+  points are unused** (e.g. leveled up but haven't raised an attribute yet).
+- [sketch] **Money rework**: a coin counter for how much a character is carrying,
+  with editable money pouches. Also allow renaming currencies and adding/removing
+  currency types.
+- [sketch] **Inventory UX**: "Zur Ausrüstung" should stick — moving items from the
+  bottom of a bag currently isn't possible without zooming out to ~10%. Eventually
+  make item categories collapsible without changing the current look.
+- [sketch] **Weapon tab rework** (complete rework, upcoming): weapons can carry
+  statuses like *Geschärft*, *Stumpf*, etc. Only the status note is captured so
+  far — the rest of the rework still needs a concept.
 - [ready] **Group overview page for GM** (concept agreed — chip-based, stats only):
    - Separate GM-only screen at `/gruppe/:id/uebersicht`, linked from the group
      page. NOT a table — one card per character, stats shown as chips, grid reflows.
@@ -78,6 +103,13 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Low-Prio
 
+- [sketch] **Spell-creation table in-app**: creating spells in-game follows a
+  regulated table (`files/spell_creation.webp`). Surface it somewhere visible in
+  the app; also needs styling tweaks to look better.
+- [sketch] **Landing page & rebrand**: clicking the banner header (title) should
+  open a landing page. Alongside it, a new header/title for the app
+  (`files/title.jpg`) — extract the font if possible and weave it in; otherwise
+  just use the new name.
 - [sketch] **CSS tidy-up**: check for components than can be combined
  - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
  - splitting CSS into more fitting files
