@@ -21,7 +21,7 @@
 // starten → der Spiegel merkt sich den aktuellen Stand, ohne die Historie zu posten.
 // Ab dem nächsten neuen Eintrag landet dieser automatisch im Kanal.
 
-import { CHANGELOG, type ChangelogEntry } from 'shared';
+import { CHANGELOG, changelogGroups, type ChangelogEntry } from 'shared';
 import { db } from './db.js';
 
 const WEBHOOK = (process.env.DISCORD_CHANGELOG_WEBHOOK ?? '').trim();
@@ -60,7 +60,11 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 function buildEmbed(e: ChangelogEntry): Record<string, unknown> {
   const title = e.version ? `${e.title} — v${e.version}` : e.title;
-  const description = e.changes.map((c) => `• ${c}`).join('\n');
+  // Kategorisierte Einträge bekommen fette Abschnitts-Überschriften; die
+  // ungegliederten Bestandseinträge (label leer) bleiben eine flache Liste.
+  const description = changelogGroups(e)
+    .map((g) => (g.label ? `**${g.label}**\n` : '') + g.items.map((c) => `• ${c}`).join('\n'))
+    .join('\n\n');
   const ts = new Date(e.date);
   return {
     title: title.slice(0, 256),

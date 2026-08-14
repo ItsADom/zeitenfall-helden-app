@@ -12,7 +12,41 @@ export interface ChangelogEntry {
   date: string; // ISO, z. B. '2026-08-08'
   version?: string; // optional, erst bei echten Releases
   title: string;
-  changes: string[];
+  // Kategorisierte Änderungen — bevorzugte Form für neue Einträge. Leere oder
+  // fehlende Gruppen werden nicht angezeigt.
+  added?: string[]; // „Neue Funktionen"
+  changed?: string[]; // „Änderungen"
+  fixed?: string[]; // „Bugfixes"
+  // Ungegliederte Liste — für die Bestandseinträge (Alpha & frühe Versionen),
+  // die bewusst NICHT nachträglich in die Kategorien einsortiert werden. Neue
+  // Einträge nutzen stattdessen added/changed/fixed.
+  changes?: string[];
+}
+
+// Ein anzuzeigender Abschnitt eines Eintrags. `label` ist leer für die
+// ungegliederten Bestandseinträge (dann ohne Überschrift gerendert).
+export interface ChangelogGroup {
+  label: string;
+  items: string[];
+}
+
+// Reihenfolge und Überschriften der kategorisierten Abschnitte. Eine Stelle für
+// Client-Anzeige UND Discord-Spiegel.
+const CHANGELOG_GROUP_ORDER: { key: 'added' | 'changed' | 'fixed'; label: string }[] = [
+  { key: 'added', label: 'Neue Funktionen' },
+  { key: 'changed', label: 'Änderungen' },
+  { key: 'fixed', label: 'Bugfixes' },
+];
+
+// Liefert die anzuzeigenden Abschnitte eines Eintrags: entweder die
+// kategorisierten (nicht-leeren) Gruppen in fester Reihenfolge oder — für
+// Bestandseinträge — eine einzige unbeschriftete Gruppe aus `changes`.
+export function changelogGroups(e: ChangelogEntry): ChangelogGroup[] {
+  const grouped = CHANGELOG_GROUP_ORDER.map(({ key, label }) => ({ label, items: e[key] ?? [] })).filter(
+    (g) => g.items.length > 0,
+  );
+  if (grouped.length > 0) return grouped;
+  return e.changes && e.changes.length > 0 ? [{ label: '', items: e.changes }] : [];
 }
 
 // Bekannter Fehler — wird auf der Changelog-Seite als eigener Abschnitt

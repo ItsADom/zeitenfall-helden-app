@@ -1,4 +1,4 @@
-import { CHANGELOG, COMING_SOON, KNOWN_BUGS } from '../changelog';
+import { CHANGELOG, COMING_SOON, KNOWN_BUGS, changelogGroups } from '../changelog';
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -55,11 +55,16 @@ export default function ChangelogPage() {
             {entry.version && <span className="changelog-version">Version {entry.version}</span>}
             <time dateTime={entry.date}>{fmtDate(entry.date)}</time>
           </div>
-          <ul className="changelog-list">
-            {entry.changes.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
+          {changelogGroups(entry).map((group, gi) => (
+            <div className="changelog-group" key={gi}>
+              {group.label && <h4 className="changelog-group-title">{group.label}</h4>}
+              <ul className="changelog-list">
+                {group.items.map((c, i) => (
+                  <li key={i}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
         </div>
       ))}
     </>

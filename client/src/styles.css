@@ -2199,6 +2199,18 @@ body.resizing-col {
 .changelog-list li {
   margin: 4px 0;
 }
+/* Kategorie-Abschnitte eines Eintrags (Neue Funktionen / Änderungen / Bugfixes) */
+.changelog-group + .changelog-group {
+  margin-top: 12px;
+}
+.changelog-group-title {
+  margin: 0 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent-dark, var(--accent));
+}
 .error {
   color: var(--error-text);
   font-weight: 600;
