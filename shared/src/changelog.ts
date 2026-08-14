@@ -136,9 +136,8 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-14',
-    // version bewusst offen — Entwurf. Bekommt seine Nummer erst beim Release
-    // (vor dem Deploy), damit der Discord-Spiegel sie sauber erkennt.
-    title: 'SET TITLE WHEN CONTENT IS DONE',
+    version: '0.4',
+    title: 'Eigene Charaktere & Zeitenkompass',
     added: [
       'Du kannst dir jetzt selbst einen Charakter anlegen — unter „Charaktere" über „Neuen Charakter anlegen". Dabei kannst du eine Gruppe erbitten; die Aufnahme wird erst nach Freigabe durch Spielleitung oder Verwaltung wirksam. Bis dahin gehört der Charakter dir und ist voll bearbeitbar, nur eben noch keiner Gruppe zugeordnet.',
       '(Verwaltung) Offene Gruppen-Anfragen selbst angelegter Charaktere erscheinen unter „Kataloge & Nutzer" (mit Zähler-Abzeichen in der Kopfleiste) und lassen sich dort annehmen oder ablehnen. Beim Annehmen wird der Spieler zugleich Mitglied der Gruppe.',
