@@ -748,12 +748,14 @@ main {
 
 /* Manuskript-Überschrift: heraldische Raute + auslaufende Haarlinie.
    Nur direkte Panel-Titel, damit Sonder-Kopfzeilen unberührt bleiben. */
-.panel > h3 {
+.panel > h3,
+.outlook-section > h3 {
   display: flex;
   align-items: center;
   gap: 10px;
 }
 .panel > h3::before,
+.outlook-section > h3::before,
 .title-marker {
   content: '';
   flex: none;
@@ -764,7 +766,8 @@ main {
   -webkit-mask: var(--sigil) center / contain no-repeat;
   mask: var(--sigil) center / contain no-repeat;
 }
-.panel > h3::after {
+.panel > h3::after,
+.outlook-section > h3::after {
   content: '';
   flex: 1;
   height: 1px;
@@ -2159,19 +2162,27 @@ body.resizing-col {
 }
 /* „Demnächst"-Abschnitt: ein Ausblick, bewusst vom Verlauf abgehoben (Akzent-
    Rahmen + getönter Grund), damit er nicht wie eine erschienene Version wirkt. */
-.coming-soon {
+/* „Demnächst" und „Bekannte Fehler" teilen sich eine Box, behalten aber je
+   ihre eigene Überschrift; ein dünner Trenner liegt dazwischen. */
+.outlook {
   border: 1px solid var(--accent, var(--border));
   background: var(--accent-soft);
 }
-.coming-soon > h3 {
+.outlook-section > h3 {
   color: var(--accent-dark, var(--accent));
 }
-.known-bugs {
-  border: 1px solid var(--warn-line, var(--border));
-  background: var(--warn-soft);
+.outlook-section:first-child > h3 {
+  margin-top: 0;
 }
-.known-bugs > h3 {
-  color: var(--warn-line, var(--accent));
+.outlook-divider {
+  border: none;
+  border-top: 1px solid var(--accent, var(--border));
+  opacity: 0.5;
+  margin: 16px 0;
+}
+.outlook-empty {
+  margin: 4px 0 0;
+  font-style: italic;
 }
 .known-bugs-status {
   margin-left: 8px;
@@ -2179,8 +2190,8 @@ body.resizing-col {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--warn-line);
-  border: 1px solid var(--warn-line);
+  color: var(--accent-dark, var(--accent));
+  border: 1px solid var(--accent, var(--border));
   border-radius: 999px;
   padding: 1px 8px;
   vertical-align: middle;

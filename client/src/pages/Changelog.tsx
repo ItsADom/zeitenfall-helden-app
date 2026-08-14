@@ -15,36 +15,44 @@ export default function ChangelogPage() {
         Was sich in der Heldenverwaltung getan hat — kurz zusammengefasst.
       </p>
 
-      {COMING_SOON.length > 0 && (
-        <div className="panel coming-soon">
+      <div className="panel outlook">
+        <section className="outlook-section coming-soon">
           <h3>Demnächst</h3>
-          <ul className="changelog-list">
-            {COMING_SOON.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+          {COMING_SOON.length > 0 ? (
+            <ul className="changelog-list">
+              {COMING_SOON.map((c, i) => (
+                <li key={i}>{c}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted outlook-empty">Derzeit ist nichts angekündigt.</p>
+          )}
+        </section>
 
-      {KNOWN_BUGS.length > 0 && (
-        <div className="panel known-bugs">
+        <hr className="outlook-divider" />
+
+        <section className="outlook-section known-bugs">
           <h3>Bekannte Fehler</h3>
-          <ul className="changelog-list">
-            {KNOWN_BUGS.map((b, i) => (
-              <li key={i}>
-                <strong>{b.title}</strong>
-                {b.status && <span className="known-bugs-status">{b.status}</span>}
-                {b.description && <div className="known-bugs-desc">{b.description}</div>}
-                {b.workaround && (
-                  <div className="known-bugs-workaround">
-                    <em>Vorerst:</em> {b.workaround}
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+          {KNOWN_BUGS.length > 0 ? (
+            <ul className="changelog-list">
+              {KNOWN_BUGS.map((b, i) => (
+                <li key={i}>
+                  <strong>{b.title}</strong>
+                  {b.status && <span className="known-bugs-status">{b.status}</span>}
+                  {b.description && <div className="known-bugs-desc">{b.description}</div>}
+                  {b.workaround && (
+                    <div className="known-bugs-workaround">
+                      <em>Vorerst:</em> {b.workaround}
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted outlook-empty">Derzeit sind keine Fehler bekannt.</p>
+          )}
+        </section>
+      </div>
 
       {CHANGELOG.length === 0 && <p className="muted">Noch keine Einträge.</p>}
 
