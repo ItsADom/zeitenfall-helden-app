@@ -83,7 +83,38 @@ export const COMING_SOON: string[] = [
   'Komplettüberarbeitung des Waffenbriefs.'
 ];
 
-// Neueste Einträge zuerst.
+// Neueste Einträge zuerst — neuen Eintrag also OBEN in die Liste einfügen.
+//
+// ┌── VORLAGE für einen neuen Eintrag (kopieren, einfügen, ausfüllen) ─────────┐
+// │
+//   {
+//     date: '2026-08-20',          // ISO-Datum JJJJ-MM-TT
+//     version: '0.4',              // weglassen, solange es kein echtes Release ist
+//     title: 'Kurzer, sprechender Titel',
+//     // Nur die passenden Abschnitte ausfüllen — leere/fehlende werden NICHT
+//     // gezeigt. Reihenfolge in der Anzeige ist immer: Neue Funktionen,
+//     // Änderungen, Bugfixes (egal, wie sie hier stehen).
+//     added: [                     // → „Neue Funktionen"
+//       'Ein neuer, spürbarer Funktionsumfang in einem Satz.',
+//     ],
+//     changed: [                   // → „Änderungen" (Umbenennungen, Umzüge, Verhalten)
+//       'Was sich gegenüber vorher anders anfühlt.',
+//     ],
+//     fixed: [                     // → „Bugfixes"
+//       'Welches Problem jetzt behoben ist.',
+//     ],
+//   },
+// │
+// └───────────────────────────────────────────────────────────────────────────┘
+//
+// Hinweise:
+//   • Spieler-Sicht, knapp halten: wenige, aussagekräftige Punkte statt Commit-Log.
+//   • `changes: [...]` (flache Liste ohne Überschriften) gibt es weiterhin, ist
+//     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die drei
+//     Abschnitte oben.
+//   • Der Discord-Spiegel postet automatisch jeden Eintrag, der NEUER ist als der
+//     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
+//     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-13',
