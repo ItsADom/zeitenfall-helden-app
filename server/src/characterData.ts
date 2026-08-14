@@ -5,11 +5,16 @@ import {
   BASE_VALUE_KEYS,
   BASE_VALUE_LABELS,
   LIST_SECTIONS,
+  MAX_EXTERNAL_ATTR_POINTS,
+  MAX_EXTERNAL_ATTR_POINT_NAME,
   MAX_SPECIAL_RESOURCES,
   MAX_SPECIAL_RESOURCE_NAME,
   RESOURCE_KEYS,
   RESOURCE_LABELS,
   VISIBILITY_SECTIONS,
+  attrPointsActualTotal,
+  attrPointsTheoreticalTotal,
+  levelForAp,
   computeBaseValues,
   computeResource,
   psycheMax,
@@ -42,6 +47,7 @@ import type {
   CharLanguage,
   ContainerArt,
   DynColumn,
+  ExternalAttrPoint,
   Item,
   ItemLocation,
   ResourceInput,
@@ -124,6 +130,12 @@ export function loadSpecialResources(charId: number): SpecialResource[] {
   return db
     .prepare('SELECT name, max, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
     .all(charId) as SpecialResource[];
+}
+
+export function loadExternalAttrPoints(charId: number): ExternalAttrPoint[] {
+  return db
+    .prepare('SELECT quelle, punkte FROM char_attr_extern WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as ExternalAttrPoint[];
 }
 
 export function loadList(sectionId: string, charId: number): Record<string, unknown>[] {
@@ -701,14 +713,36 @@ export function migrateCharacterPeriphery(charId: number): { created: number } {
   return { created };
 }
 
+// Zeichnet einmalig einen „Migrationskorrektur"-Eintrag in die externen
+// Attributspunkte, wenn ein Charakter (ohne jede externe Quelle) schon mehr
+// Punkte gesetzt hat, als die Stufen-Formel theoretisch hergibt — sonst würde
+// die Sperre gegen negative Werte im Heldenbrief Bestandscharaktere blockieren.
+// Läuft bei jedem Laden mit; sobald eine Zeile existiert, greift es nie wieder.
+function ensureAttrPointsMigration(charId: number, meta: Record<string, unknown>, attributes: Attributes): ExternalAttrPoint[] {
+  const existing = loadExternalAttrPoints(charId);
+  if (existing.length > 0) return existing;
+  const level = levelForAp(Number(meta.ap) || 0);
+  const deficit = attrPointsActualTotal(attributes) - attrPointsTheoreticalTotal(level, []);
+  if (deficit <= 0) return existing;
+  db.prepare('INSERT INTO char_attr_extern (character_id, pos, quelle, punkte) VALUES (?, 0, ?, ?)').run(
+    charId,
+    'Migrationskorrektur',
+    deficit,
+  );
+  return loadExternalAttrPoints(charId);
+}
+
 export function loadFullCharacter(charId: number) {
+  const meta = loadSingleRow('char_meta', charId);
+  const attributes = loadAttributes(charId);
   return {
     bio: loadSingleRow('char_bio', charId),
-    meta: loadSingleRow('char_meta', charId),
-    attributes: loadAttributes(charId),
+    meta,
+    attributes,
     baseValues: loadBaseValueInputs(charId),
     resources: loadResources(charId),
     special: loadSpecialResources(charId),
+    attrExtern: ensureAttrPointsMigration(charId, meta, attributes),
     talents: loadTalents(charId),
     languages: loadLanguages(charId),
     lists: loadAllLists(charId),
@@ -1379,6 +1413,24 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       next.forEach((values, i) => stmt.run(charId, i, ...values));
       return;
     }
+    if (section === 'attrExtern') {
+      // Externe Attributspunkte: gleiches Muster wie Spezialenergien
+      // (Delete+Insert, No-op-Wächter). Quellenlose Zeilen fallen raus.
+      const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
+      const next = rows
+        .map((r) => [str(r.quelle).slice(0, MAX_EXTERNAL_ATTR_POINT_NAME), num(r.punkte)] as [string, number])
+        .filter(([quelle]) => quelle.trim() !== '')
+        .slice(0, MAX_EXTERNAL_ATTR_POINTS);
+      const cur = (db
+        .prepare('SELECT quelle, punkte FROM char_attr_extern WHERE character_id = ? ORDER BY pos, id')
+        .all(charId) as Record<string, unknown>[])
+        .map((r) => [r.quelle, r.punkte]);
+      if (sameRows(cur, next)) return;
+      db.prepare('DELETE FROM char_attr_extern WHERE character_id = ?').run(charId);
+      const stmt = db.prepare('INSERT INTO char_attr_extern (character_id, pos, quelle, punkte) VALUES (?, ?, ?, ?)');
+      next.forEach((values, i) => stmt.run(charId, i, ...values));
+      return;
+    }
     if (section === 'talents') {
       const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
       // TaW ist bei 100 gedeckelt (Meisterschaft). Oberfläche kappt bereits beim
@@ -1464,6 +1516,7 @@ export function importFullCharacter(
     if (data.baseValues) saveSection(charId, 'baseValues', data.baseValues);
     if (data.resources) saveSection(charId, 'resources', data.resources);
     if (data.special) saveSection(charId, 'special', data.special);
+    if (data.attrExtern) saveSection(charId, 'attrExtern', data.attrExtern);
     if (data.talents) saveSection(charId, 'talents', data.talents);
     if (data.languages) saveSection(charId, 'languages', data.languages);
     for (const [sid, rows] of Object.entries(data.lists ?? {})) {

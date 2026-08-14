@@ -3,10 +3,12 @@ import type {
   Attributes,
   BaseValueInputs,
   BaseValueKey,
+  ExternalAttrPoint,
   ResourceInput,
   ResourceKey,
   Resources,
 } from './types.js';
+import { ATTR_ROW_CODES } from './types.js';
 
 const ceil = Math.ceil;
 
@@ -206,6 +208,27 @@ export function nextLevelAp(ap: number): number | null {
   const level = levelForAp(ap);
   if (level >= MAX_LEVEL) return null;
   return apThresholdForLevel(level + 1);
+}
+
+// --- Attributspunkte: theoretisch verfügbar vs. tatsächlich gesetzt ---
+
+// Baseline auf Stufe 1: 9 Punkte je Attributzeile (8 Attribute + Sozialstatus) = 81.
+// Je weitere Stufe kommt automatisch 1 Punkt hinzu (retrotraceable aus der Stufe).
+export const ATTR_POINTS_BASELINE = 81;
+
+export function attrPointsFromLevel(level: number): number {
+  return ATTR_POINTS_BASELINE + Math.max(0, level - 1);
+}
+
+export function attrPointsTheoreticalTotal(level: number, external: ExternalAttrPoint[]): number {
+  const externalSum = external.reduce((sum, e) => sum + (Number(e.punkte) || 0), 0);
+  return attrPointsFromLevel(level) + externalSum;
+}
+
+// Summe aller `akt`-Werte über die Attributzeilen (MU..KK + SO) — `mod` zählt
+// nicht mit, das ist kein dauerhaft investierter Punkt.
+export function attrPointsActualTotal(attrs: Attributes): number {
+  return ATTR_ROW_CODES.reduce((sum, code) => sum + (attrs[code]?.akt ?? 0), 0);
 }
 
 // --- Sonstiges ---

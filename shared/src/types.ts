@@ -124,6 +124,17 @@ export interface SpecialResource {
 export const MAX_SPECIAL_RESOURCES = 50;
 export const MAX_SPECIAL_RESOURCE_NAME = 100;
 
+// Externe Attributspunkte: Quellen außerhalb der Stufen-Vergabe (Boni, Artefakte,
+// Ausnahmen …), die der Spieler selbst einträgt — nur Quelle + Punktzahl, KEINE
+// Zuordnung zu einzelnen Attributen. Fließen in die Berechnung der theoretisch
+// verfügbaren Attributspunkte ein (siehe attrPointsTheoreticalTotal in rules.ts).
+export interface ExternalAttrPoint {
+  quelle: string;
+  punkte: number;
+}
+export const MAX_EXTERNAL_ATTR_POINTS = 50;
+export const MAX_EXTERNAL_ATTR_POINT_NAME = 100;
+
 // Bio (Heldenbrief Kopf)
 export interface Bio {
   alterGeburtstag: string;

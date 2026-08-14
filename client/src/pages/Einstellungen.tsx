@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
-import { VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
+import type { ExternalAttrPoint } from '@shared/types';
+import { MAX_EXTERNAL_ATTR_POINTS, MAX_EXTERNAL_ATTR_POINT_NAME, VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
 import { defaultTabKeys, dynTabId, dynTabKey, orderTabKeys } from '@shared/tabOrder';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { BackToSheet } from '../components/BackToSheet';
@@ -61,6 +62,8 @@ export default function EinstellungenPage() {
   // Bearbeiteter Stand.
   const [charTheme, setCharTheme] = useState('');
   const [catRows, setCatRows] = useState<CatRow[]>([]);
+  const [savedAttrExtern, setSavedAttrExtern] = useState<ExternalAttrPoint[]>([]);
+  const [attrExternRows, setAttrExternRows] = useState<ExternalAttrPoint[]>([]);
   const [vis, setVis] = useState<Record<string, boolean>>({});
   const [tabRows, setTabRows] = useState<TabRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
@@ -78,12 +81,14 @@ export default function EinstellungenPage() {
   const load = useCallback((id: number) => {
     setLoading(true);
     setMsg('');
-    return apiGet<{ character: { theme?: string }; data?: { tabs?: DynTab[]; tabOrder?: string[]; visibility?: Record<string, boolean>; itemCategories?: string[] } }>(
-      `/api/characters/${id}`,
-    )
+    return apiGet<{
+      character: { theme?: string };
+      data?: { tabs?: DynTab[]; tabOrder?: string[]; visibility?: Record<string, boolean>; itemCategories?: string[]; attrExtern?: ExternalAttrPoint[] };
+    }>(`/api/characters/${id}`)
       .then((res) => {
         const theme = res.character.theme ?? '';
         const cats = res.data?.itemCategories ?? [];
+        const attrExtern = res.data?.attrExtern ?? [];
         const tabs = res.data?.tabs ?? [];
         const tabOrder = res.data?.tabOrder ?? [];
         const visibility = res.data?.visibility ?? {};
@@ -100,6 +105,8 @@ export default function EinstellungenPage() {
         setCharTheme(theme);
         setSavedCats(cats);
         setCatRows(cats.map((c) => ({ orig: c, name: c })));
+        setSavedAttrExtern(attrExtern);
+        setAttrExternRows(attrExtern);
         setSavedVis(visibility);
         setVis(visibility);
         setTabRows(rows);
@@ -137,7 +144,12 @@ export default function EinstellungenPage() {
   const catsChanged = savedCats.join(' ') !== cleanNames.join(' ');
   const tabsChanged = tabSig !== savedTabKey || deletedIds.length > 0 || tabRows.some((r) => r.isNew || (r.isDyn && r.name.trim() !== r.origName));
   const visChanged = VISIBILITY_SECTIONS.some((s) => !!vis[s] !== !!savedVis[s]);
-  const dirty = charTheme !== savedTheme || catsChanged || tabsChanged || visChanged;
+  const cleanAttrExtern = useMemo(
+    () => attrExternRows.filter((r) => r.quelle.trim() !== '').map((r) => ({ quelle: r.quelle.trim(), punkte: r.punkte })),
+    [attrExternRows],
+  );
+  const attrExternChanged = JSON.stringify(cleanAttrExtern) !== JSON.stringify(savedAttrExtern);
+  const dirty = charTheme !== savedTheme || catsChanged || tabsChanged || visChanged || attrExternChanged;
 
   // --- Reiter-Verwaltung ---
   const canUp = (i: number) => i >= 2; // Index 0 = Heldenbrief (fest, immer vorn)
@@ -199,6 +211,9 @@ export default function EinstellungenPage() {
           .map((r) => ({ from: r.orig as string, to: r.name.trim() }));
         const removes = savedCats.filter((o) => !catRows.some((r) => r.orig === o));
         await apiPut(`/api/characters/${selId}/item-categories/manage`, { order: cleanNames, renames, removes });
+      }
+      if (attrExternChanged) {
+        await apiPut(`/api/characters/${selId}/section/attrExtern`, cleanAttrExtern);
       }
       await load(selId); // frischen Stand holen (echte Ids etc.)
       setMsg(`Gespeichert (${new Date().toLocaleTimeString()})`);
@@ -350,6 +365,42 @@ export default function EinstellungenPage() {
               <button className="small" onClick={() => setCatRows((rows) => [...rows, { orig: null, name: '' }])}>
                 + Kategorie
               </button>
+            </div>
+          </div>
+
+          <div className="panel">
+            <h3>Externe Attributspunkte</h3>
+            <p className="muted">
+              Zusätzliche Attributspunkte außerhalb der Stufen-Vergabe — Boni, Artefakte, Ausnahmen. Nur Quelle und
+              Punktzahl, keine Zuordnung zu einzelnen Attributen; sie zählen zur Gesamtsumme im Heldenbrief.
+            </p>
+            <div className="cat-editor">
+              {attrExternRows.map((r, i) => (
+                <div className="cat-row" key={i}>
+                  <input
+                    value={r.quelle}
+                    placeholder="Quelle"
+                    maxLength={MAX_EXTERNAL_ATTR_POINT_NAME}
+                    onChange={(e) => setAttrExternRows((rows) => rows.map((x, j) => (j === i ? { ...x, quelle: e.target.value } : x)))}
+                  />
+                  <input
+                    type="number"
+                    value={r.punkte}
+                    onChange={(e) =>
+                      setAttrExternRows((rows) => rows.map((x, j) => (j === i ? { ...x, punkte: Number(e.target.value) || 0 } : x)))
+                    }
+                  />
+                  <ConfirmDeleteButton
+                    title="Eintrag entfernen"
+                    onConfirm={() => setAttrExternRows((rows) => rows.filter((_, j) => j !== i))}
+                  />
+                </div>
+              ))}
+              {attrExternRows.length < MAX_EXTERNAL_ATTR_POINTS && (
+                <button className="small" onClick={() => setAttrExternRows((rows) => [...rows, { quelle: '', punkte: 0 }])}>
+                  + Quelle
+                </button>
+              )}
             </div>
           </div>
 

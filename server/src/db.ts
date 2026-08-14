@@ -155,6 +155,17 @@ db.exec(`
     aktuell REAL NOT NULL DEFAULT 0
   );
 
+  -- Externe Attributspunkte: frei benannte Quellen (Boni, Ausnahmen …), die
+  -- zusätzlich zur stufenbasierten Attributspunkte-Vergabe zählen. Wie
+  -- Spezialenergien eine eigene Liste (pos), nur Quelle + Punktzahl.
+  CREATE TABLE IF NOT EXISTS char_attr_extern (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    quelle TEXT NOT NULL DEFAULT '',
+    punkte REAL NOT NULL DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS talents_catalog (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kategorie TEXT NOT NULL,

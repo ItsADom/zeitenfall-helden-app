@@ -10,7 +10,16 @@ import {
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey, SpecialResource } from '@shared/types';
 import { Fragment, useState } from 'react';
-import { computeBaseValues, computeResource, levelForAp, nextLevelAp, psycheMax, psycheMuAnteil } from '@shared/rules';
+import {
+  attrPointsActualTotal,
+  attrPointsTheoreticalTotal,
+  computeBaseValues,
+  computeResource,
+  levelForAp,
+  nextLevelAp,
+  psycheMax,
+  psycheMuAnteil,
+} from '@shared/rules';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
@@ -83,12 +92,34 @@ const META_FIELDS: [string, string][] = [
 export default function HeldenbriefTab() {
   const { charId, data, update } = useChar();
   const readOnly = useReadOnly();
-  const { attributes, baseValues, resources, special, bio, meta } = data;
+  const { attributes, baseValues, resources, special, bio, meta, attrExtern } = data;
 
   const bv = computeBaseValues(attributes, baseValues);
 
-  const setAttr = (code: AttrRowCode, field: 'akt' | 'mod', v: number) =>
+  // Ungenutzte Attributspunkte: theoretisch verfügbar (Stufe + externe Quellen,
+  // siehe Einstellungen) minus tatsächlich gesetzte Summe. Eine Erhöhung, die
+  // ins Minus liefe, wird abgelehnt — Spieler müssen die Quelle erst in den
+  // Einstellungen eintragen (auch Bestandscharaktere: siehe Migrationskorrektur
+  // serverseitig).
+  const attrLevel = levelForAp(meta.ap ?? 0);
+  const attrUnused = attrPointsTheoreticalTotal(attrLevel, attrExtern) - attrPointsActualTotal(attributes);
+  const [attrWarn, setAttrWarn] = useState('');
+  const [attrFieldKey, setAttrFieldKey] = useState(0);
+
+  const setAttr = (code: AttrRowCode, field: 'akt' | 'mod', v: number) => {
+    if (field === 'akt') {
+      const delta = v - attributes[code].akt;
+      if (delta > attrUnused) {
+        setAttrWarn(
+          `Keine Attributspunkte mehr übrig (${attrUnused} verfügbar) — weitere Quellen lassen sich in den Einstellungen eintragen.`,
+        );
+        setAttrFieldKey((k) => k + 1); // Feld auf den alten Wert zurücksetzen
+        return;
+      }
+      setAttrWarn('');
+    }
     update('attributes', { ...attributes, [code]: { ...attributes[code], [field]: v } });
+  };
   const setBvMod = (key: BaseValueKey, v: number) => update('baseValues', { ...baseValues, mods: { ...baseValues.mods, [key]: v } });
   const setResource = (key: ResourceKey, field: string, v: unknown) =>
     update('resources', { ...resources, [key]: { ...resources[key], [field]: v } });
@@ -184,7 +215,7 @@ export default function HeldenbriefTab() {
                 <tr key={code}>
                   <td>{ATTR_LABELS[code]}</td>
                   <td>
-                    <NumInput value={attributes[code].akt} onChange={(v) => setAttr(code, 'akt', v)} />
+                    <NumInput key={attrFieldKey} value={attributes[code].akt} onChange={(v) => setAttr(code, 'akt', v)} />
                   </td>
                   <td>
                     <NumInput value={attributes[code].mod} onChange={(v) => setAttr(code, 'mod', v)} />
@@ -195,6 +226,8 @@ export default function HeldenbriefTab() {
             </tbody>
           </table>
         </div>
+        <div className="attr-points-note">Ungenutzte Attributspunkte: {attrUnused}</div>
+        {attrWarn && <div className="magier-warn">{attrWarn}</div>}
         </div>
 
         <div className="panel">

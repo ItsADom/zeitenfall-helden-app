@@ -138,19 +138,23 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-14',
     // version bewusst offen — Entwurf. Bekommt seine Nummer erst beim Release
     // (vor dem Deploy), damit der Discord-Spiegel sie sauber erkennt.
-    title: 'Eigene Charaktere & Layout-Korrekturen',
+    title: 'SET TITLE WHEN CONTENT IS DONE',
     added: [
       'Du kannst dir jetzt selbst einen Charakter anlegen — unter „Charaktere" über „Neuen Charakter anlegen". Dabei kannst du eine Gruppe erbitten; die Aufnahme wird erst nach Freigabe durch Spielleitung oder Verwaltung wirksam. Bis dahin gehört der Charakter dir und ist voll bearbeitbar, nur eben noch keiner Gruppe zugeordnet.',
       '(Verwaltung) Offene Gruppen-Anfragen selbst angelegter Charaktere erscheinen unter „Kataloge & Nutzer" (mit Zähler-Abzeichen in der Kopfleiste) und lassen sich dort annehmen oder ablehnen. Beim Annehmen wird der Spieler zugleich Mitglied der Gruppe.',
-      'Neu: eine Startseite. Ein Klick auf den Namen „Zeitenkompass" oben links bringt dich dorthin — mit deinen Charakteren zum direkten Weiterspringen und der neusten Änderung auf einen Blick.',
+      'Neu: eine Startseite. Ein Klick auf den Namen „Zeitenkompass" oben links bringt dich dorthin — mit deinen Charakteren zum direkten Weiterspringen und den neusten Änderungen auf einen Blick.',
+      'Ausrüstung an Armen, Händen oder Beinen kannst du jetzt als „beidseitig" markieren (Häkchen beim Bearbeiten des Stücks): ein Paar Schienen, Handschuhe oder Beinlinge wird als ein Gegenstand geführt, aber auf beiden Seiten angezeigt (Zeichen ⇄). Das Gewicht zählt dabei nur einmal.',
+      'Unter den Attributen im Heldenbrief steht jetzt „Ungenutzte Attributspunkte" — eine Erinnerung, wenn nach einem Stufenaufstieg noch Punkte übrig sind. Eine Erhöhung über das Verfügbare hinaus wird abgelehnt; zusätzliche Punkte aus anderen Quellen (Artefakte, Boni …) lassen sich in den Einstellungen unter „Externe Attributspunkte" eintragen.',
     ],
     changed: [
       'Die App hat einen Namen: „Zeitenkompass". Er steht jetzt oben links in der Kopfleiste (bisher „Heldenverwaltung") und führt auf die neue Startseite.',
+      'Im Inventar lassen sich die Kategorie-Gruppen innerhalb eines Behälters jetzt einzeln ein- und ausklappen (Klick auf die Kategorie-Kopfzeile) — praktisch bei vollen Behältern.',
     ],
     fixed: [
       'Breite Tabellen ragten nach dem Ein- und Ausklappen der Überblick-Seitenleiste in diese hinein; sie passen sich jetzt wieder sauber an die verbleibende Breite an.',
       'Die Talentsuche legte ihren Hintergrund über die Seitenleiste — sie bleibt jetzt in ihrer Spalte.',
       '(Verwaltung) Im Talent-Katalog stand die Kopfzeile beim Scrollen mitten in der Tabelle statt oben angeheftet.',
+      'Im Inventar bleibt die „Zu Ausrüstung"-Ablage jetzt oben angeheftet, während du durch die Behälter scrollst — so kannst du einen Gegenstand auch vom Ende einer langen Tasche direkt dorthin ziehen, ohne herauszuzoomen.',
     ],
   },
   {

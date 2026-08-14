@@ -29,6 +29,8 @@ sorted into the priority sections below in a later pass. (Empty = all caught up.
 
 - [sketch] characters with the ability to shapeshift get different changed values for almost everything. this actually acts more as having a different character.
 implementing a complete set of character sheets into a single character would make sense here. dropdown selector for different shapeshift forms.
+- [sketch] some inventory containers can also act on a "item amount" logic and not track weight. how can we do this?
+- [sketch] the Einstellungen are getting a bit long now. think of a way to increase visibility without scrolling endlessly. some menu maybe?
 
 ## High-Prio
 
@@ -49,16 +51,20 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Mid-Prio
 
-- [sketch] **Attribute provenance & unused-point reminder**: attributes don't
-  distinguish where a point came from — track whether it was added by leveling up
-  vs. another source. Players specifically asked for a **visual reminder when
-  points are unused** (e.g. leveled up but haven't raised an attribute yet).
-- [sketch] **Money rework**: a coin counter for how much a character is carrying,
-  with editable money pouches. Also allow renaming currencies and adding/removing
-  currency types.
-- [sketch] **Inventory UX**: "Zur Ausrüstung" should stick — moving items from the
-  bottom of a bag currently isn't possible without zooming out to ~10%. Eventually
-  make item categories collapsible without changing the current look.
+- [sketch] **Money rework** (concept in progress): replace the fixed 4-coin + Bank
+  structure (`GeldPanel.tsx`, meta keys `geldD/S/H/K/bank`, ×10 tiers, total in
+  Dublonen) with flexible currencies. Decided:
+   - Currencies come from a **GM world catalogue** (Verwaltung → Kataloge, like
+     talents/languages): rename the coins, add/remove currency types. One
+     canonical set for all of Zeitenfall; players pick from it, don't invent their own.
+   - **No combined wealth total** — per-currency counters only; drop the
+     „Gesamt"-in-Dublonen figure (incl. the one the sidebar shows).
+  OPEN — **blocked, dev clarifying with the community**:
+   - Pouches & "carrying": separate money pouches (Bank = a non-carried pouch,
+     coins stay weightless) vs. integrating money into the Ausrüstung/Inventar
+     location system with per-coin weight feeding Traglast. The per-character
+     storage model + migration hinge on this → hold the build until it's decided.
+  Migration (no data loss): fold existing `geldD/S/H/K/bank` values into whatever lands.
 - [sketch] **Weapon tab rework** (complete rework, upcoming): weapons can carry
   statuses like *Geschärft*, *Stumpf*, etc. Only the status note is captured so
   far — the rest of the rework still needs a concept.
@@ -168,7 +174,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
      cost); refinement into real tasks happens in a normal coding session.
 
 - **catalogue for character races**
-   - wires into the different calculations
+   - wires into different calculations
 
 - **dice rolls and chat**
    - hidden rolls (only visible for the rolling user)

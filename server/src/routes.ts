@@ -124,7 +124,7 @@ function viewerFor(req: import('express').Request): { viewer: { id: number; isGm
   return { viewer: { id: req.user!.id, isGm: req.user!.isGm }, viewAs: null };
 }
 
-const SECTION_IDS = new Set(['bio', 'meta', 'attributes', 'baseValues', 'resources', 'special', 'talents', 'languages', ...LIST_SECTION_IDS]);
+const SECTION_IDS = new Set(['bio', 'meta', 'attributes', 'baseValues', 'resources', 'special', 'attrExtern', 'talents', 'languages', ...LIST_SECTION_IDS]);
 
 // --- Auth ---
 
