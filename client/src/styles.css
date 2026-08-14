@@ -587,16 +587,16 @@ header.topbar .nav-badge {
   line-height: 1;
   vertical-align: middle;
 }
-/* Wortmarke: sieht aus wie die übrigen Kopfleisten-Einträge, ist aber bewusst
-   kein Link (Platzhaltername). Deshalb ohne Zeiger und ohne Hover. */
+/* Wortmarke → Startseite. Klassische Versal-Serife (echt in Kapitälchen), etwas
+   weiter gesperrt als die übrigen Einträge, damit der Markenname trägt. */
 header.topbar .wordmark {
   color: var(--on-accent);
-  font-family: Georgia, serif;
-  font-size: 17px;
-  letter-spacing: 0.02em;
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
   font-weight: 600;
-  cursor: default;
-  user-select: none;
+  opacity: 1;
 }
 header.topbar .spacer {
   flex: 1;
@@ -909,6 +909,111 @@ tr.subtle-head.clickable:hover td {
 }
 .card--char-ident h3 {
   margin: 0 0 2px;
+}
+
+/* ---------- Startseite (Hub) ---------- */
+
+.home {
+  max-width: 1100px;
+  margin-inline: auto;
+}
+
+/* Held-Band: nimmt den Kopfleisten-Verlauf auf, damit die Startseite zur App
+   gehört. Kein animierter Effekt hier — die Kompassrose ist das ruhige Signet. */
+.hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-panel);
+  padding: clamp(28px, 5vw, 56px) clamp(20px, 4vw, 48px);
+  margin-bottom: 28px;
+  color: var(--on-accent);
+  background: linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Kompassrose hinter der Wortmarke — groß, stark zurückgenommen, rechts
+   angeschnitten. Färbt sich über currentColor in --on-accent. */
+.hero-compass {
+  position: absolute;
+  right: clamp(-40px, -2vw, -8px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(180px, 34vw, 360px);
+  height: clamp(180px, 34vw, 360px);
+  color: var(--on-accent);
+  opacity: 0.1;
+  pointer-events: none;
+}
+
+.hero-body {
+  position: relative;
+  z-index: 1;
+  /* Breite folgt der Wortmarke; die Zeilenumbrüche der Unterzeile setzt der
+     Text selbst (<br>). Kein ch-Deckel — der misst an der Grundschrift (14px)
+     und würde die 20px-Unterzeile zu früh umbrechen (schnitt „sind" ab). */
+}
+
+.hero-wordmark {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  font-size: clamp(34px, 7vw, 60px);
+  line-height: 1.02;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+  color: var(--on-accent);
+}
+
+.hero-tagline {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  font-size: clamp(15px, 2.2vw, 20px);
+  margin: 12px 0 0;
+  opacity: 0.92;
+}
+
+.hero-welcome {
+  margin: 18px 0 0;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  opacity: 0.75;
+}
+
+.home-section {
+  margin-bottom: 32px;
+}
+.home-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.home-section-head h2 {
+  margin: 0;
+  font-size: 19px;
+}
+.home-section-head a {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  /* Der Pfeil steht sonst bündig an der Beschnittkante (main: overflow-x: clip)
+     und seine Spitze wird angeschnitten — ein Hauch Luft rechts hält ihn frei. */
+  padding-right: 2px;
+}
+
+/* Karten, die ganz als Link klickbar sind (Name + Meta gestapelt). */
+a.card.home-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+a.card.home-tile h3 {
+  margin: 0;
+  color: var(--accent);
 }
 
 /* ---------- Kopfzeile des Charakterbogens ---------- */

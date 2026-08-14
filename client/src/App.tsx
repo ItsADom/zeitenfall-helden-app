@@ -11,6 +11,7 @@ import GroupPage from './pages/Group';
 import GroupOverviewPage from './pages/GroupOverview';
 import CharacterPage from './pages/Character';
 import ChangelogPage from './pages/Changelog';
+import HomePage from './pages/Home';
 import EinstellungenPage from './pages/Einstellungen';
 import AbilityManagerPage from './pages/AbilityManager';
 import ThemePicker from './components/ThemePicker';
@@ -100,9 +101,9 @@ export default function App() {
               der Effekt neu auf (Schleife ⇄ Standbild). */}
           <BannerFx key={`${displayTheme}-${anim}`} theme={displayTheme} animate={anim} />
         </div>
-        {/* Platzhaltername — bewusst nicht verlinkt, bis ein prägnanterer Name
-            feststeht. „Charaktere" ist der eigentliche Einstieg. */}
-        <span className="wordmark">Heldenverwaltung</span>
+        {/* Wortmarke → Startseite. „Zeitenkompass": der Kompass, der die aus
+            ihrer Zeit gefallenen Helden von Zeitenfall orientiert. */}
+        <Link to="/" className="wordmark">Zeitenkompass</Link>
         <NavMenu kind="charaktere" />
         <NavMenu kind="gruppen" />
         {/* Spielleiter verwalten Kataloge & Nutzer. Für Spieler ist „Einstellungen"
@@ -130,7 +131,7 @@ export default function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<Navigate to="/charaktere" replace />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/charaktere" element={<CharaktereePage />} />
           <Route path="/gruppen" element={<GruppenPage />} />
           <Route path="/profil" element={<ProfilPage />} />

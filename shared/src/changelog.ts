@@ -142,6 +142,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     added: [
       'Du kannst dir jetzt selbst einen Charakter anlegen — unter „Charaktere" über „Neuen Charakter anlegen". Dabei kannst du eine Gruppe erbitten; die Aufnahme wird erst nach Freigabe durch Spielleitung oder Verwaltung wirksam. Bis dahin gehört der Charakter dir und ist voll bearbeitbar, nur eben noch keiner Gruppe zugeordnet.',
       '(Verwaltung) Offene Gruppen-Anfragen selbst angelegter Charaktere erscheinen unter „Kataloge & Nutzer" (mit Zähler-Abzeichen in der Kopfleiste) und lassen sich dort annehmen oder ablehnen. Beim Annehmen wird der Spieler zugleich Mitglied der Gruppe.',
+      'Neu: eine Startseite. Ein Klick auf den Namen „Zeitenkompass" oben links bringt dich dorthin — mit deinen Charakteren zum direkten Weiterspringen und der neusten Änderung auf einen Blick.',
+    ],
+    changed: [
+      'Die App hat einen Namen: „Zeitenkompass". Er steht jetzt oben links in der Kopfleiste (bisher „Heldenverwaltung") und führt auf die neue Startseite.',
     ],
     fixed: [
       'Breite Tabellen ragten nach dem Ein- und Ausklappen der Überblick-Seitenleiste in diese hinein; sie passen sich jetzt wieder sauber an die verbleibende Breite an.',
