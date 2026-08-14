@@ -29,8 +29,6 @@ sorted into the priority sections below in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
-- [ready] removing the check if upper-lower-case is matching on a username.
-this is neither practical nor up-to-date
 - [ready] items actively worn on body are calculated with half of their weight
 this needs to be directly addressed to the players in changelog, as it changes Traglast drastically
 

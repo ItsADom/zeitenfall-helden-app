@@ -157,6 +157,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Talentsuche legte ihren Hintergrund über die Seitenleiste — sie bleibt jetzt in ihrer Spalte.',
       '(Verwaltung) Im Talent-Katalog stand die Kopfzeile beim Scrollen mitten in der Tabelle statt oben angeheftet.',
       'Im Inventar bleibt die „Zu Ausrüstung"-Ablage jetzt oben angeheftet, während du durch die Behälter scrollst — so kannst du einen Gegenstand auch vom Ende einer langen Tasche direkt dorthin ziehen, ohne herauszuzoomen.',
+      'Beim Anmelden musste der Benutzername bisher exakt in Groß-/Kleinschreibung stimmen — das ist jetzt egal.',
     ],
   },
   {

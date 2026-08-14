@@ -546,6 +546,27 @@ db.exec(`
   if (cols.has('klasse')) db.exec('ALTER TABLE talents_catalog DROP COLUMN klasse');
 }
 
+// Migration: Anmeldung soll Groß-/Kleinschreibung beim Benutzernamen ignorieren
+// (Spieler tippen ihn nicht immer gleich — siehe TODO). Die login-Abfrage nutzt
+// dafür COLLATE NOCASE; damit das eindeutig bleibt, braucht es zusätzlich einen
+// case-insensitive UNIQUE-Index — sonst könnten künftig "Anna" UND "anna"
+// nebeneinander entstehen und die Abfrage träfe mehrdeutig. Gäbe es SCHON
+// Bestandskonten, die sich nur in Groß-/Kleinschreibung unterscheiden, würde
+// der Indexaufbau daran scheitern; in dem seltenen Fall überspringen wir ihn
+// und melden es, statt den Serverstart abzubrechen.
+{
+  const dupes = db
+    .prepare('SELECT LOWER(username) AS u, COUNT(*) AS n FROM users GROUP BY LOWER(username) HAVING n > 1')
+    .all() as { u: string; n: number }[];
+  if (dupes.length === 0) {
+    db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username_nocase ON users(username COLLATE NOCASE)');
+  } else {
+    console.warn(
+      `Benutzernamen mit unterschiedlicher Groß-/Kleinschreibung gefunden (${dupes.map((d) => d.u).join(', ')}) — bitte manuell bereinigen (z. B. einen der Duplikat-Accounts umbenennen), erst dann greift die eindeutige Anmeldung ohne Groß-/Kleinschreibung.`,
+    );
+  }
+}
+
 // Migration: neu hinzugekommene Spalten in bestehenden Listen-Tabellen ergänzen
 for (const s of LIST_SECTIONS) {
   const existing = new Set(

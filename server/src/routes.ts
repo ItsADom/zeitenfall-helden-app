@@ -151,7 +151,10 @@ api.post('/login', (req, res) => {
     return;
   }
 
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username ?? '') as
+  // Groß-/Kleinschreibung ist beim Anmelden egal — Spieler tippen den Namen
+  // nicht immer gleich. Ein case-insensitive UNIQUE-Index (siehe db.ts) hält
+  // das eindeutig, sonst wäre diese Abfrage bei einem Duplikat mehrdeutig.
+  const user = db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username ?? '') as
     | { id: number; username: string; password_hash: string; display_name: string; is_gm: number; is_admin: number }
     | undefined;
   if (!user || !verifyPassword(password ?? '', user.password_hash)) {
