@@ -43,7 +43,8 @@ These are standing instructions — follow them without being reminded.
   tasks only. When a task is done, prune its entry (or delete it) — no "(DONE)"
   markers, no phase-by-phase history. Keep only residual forward-looking bits
   (a decided-but-unbuilt concept, a constraint, a follow-up). Git history already
-  records what was finished.
+  records what was finished. If the finished task was player-visible, don't just
+  drop it — promote it to the changelog (see below).
 - **The in-app changelog is curated, not a commit log.** The entries live in
   `shared/src/changelog.ts` (so the server's Discord mirror and the client share
   one source; `client/src/changelog.ts` just re-exports it), and are rendered by
@@ -52,6 +53,21 @@ These are standing instructions — follow them without being reminded.
   each to a few high-level bullets. Don't add entries proactively for routine
   work. Leave the `version` field unset until the user starts real versioned
   releases.
+- **Finishing tracked work moves its entry into the changelog.** When you fix a
+  bug or complete a feature that was tracked in a player-facing section — a
+  `TODO.md` backlog item, a `KNOWN_BUGS` entry, or a `COMING_SOON` line — remove
+  it from that section and fold a short player-facing note into the **newest
+  unreleased changelog entry**: the top `CHANGELOG` entry that still has no
+  `version`. If the top entry is already versioned (released), start a fresh
+  draft entry above it (today's date, `version` left unset) and add to that.
+  Sort the note into `added` (new features), `changed` (behaviour/renames/moves)
+  or `fixed` (bugs). The curation bar above still holds — routine internal work
+  that was never tracked gets no entry.
+- **Mark admin-/GM-only changes as such.** A change that only touches the
+  Spielleiter view or the Verwaltung/Kataloge routes — nothing a normal player
+  sees on their own sheet — must say so in its changelog note (e.g. lead with
+  „(Spielleiter)" or „(Verwaltung)"), so players reading it know it doesn't
+  affect them.
 
 ## Codebase constraints & gotchas (don't relearn these)
 
