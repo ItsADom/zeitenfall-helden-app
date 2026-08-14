@@ -4,11 +4,12 @@ import {
   BODY_ZONES,
   containerEffektiveFuellung,
   effektiverRs,
+  isPairedZone,
   itemsInContainer,
-  itemsInZone,
   itemGewicht,
   lastInfo,
   makeUid,
+  zoneView,
 } from '@shared/items';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useReadOnly } from '../components/displayMode';
@@ -53,7 +54,7 @@ export default function AusruestungTab() {
 
   const blank = (over: Partial<Item>): Item => ({
     id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'bench',
-    zone: '', containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
+    zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
     gewichtsreduktion: 0, rs: 0, notiz: '', ...over,
   });
   const addTo = (over: Partial<Item>) => {
@@ -81,9 +82,15 @@ export default function AusruestungTab() {
   };
   const moveTo = (uid: string, t: DropTarget) => {
     if (!allowed(uid, t)) return;
+    const zone = t.location === 'getragen' ? t.zone ?? '' : '';
+    // „Beidseitig" ergibt nur an einer seitengetrennten Zone Sinn. Zwischen zwei
+    // solchen Zonen (links↔rechts) bleibt es erhalten; woandershin gezogen fällt
+    // es weg, damit kein wirkungsloses Kennzeichen zurückbleibt.
+    const beidseitig = isPairedZone(zone) ? !!byUid.get(uid)?.beidseitig : false;
     patchItem(uid, {
       location: t.location,
-      zone: t.location === 'getragen' ? t.zone ?? '' : '',
+      zone,
+      beidseitig,
       containerUid: t.location === 'behaelter' ? t.containerUid ?? '' : '',
     });
   };
@@ -167,7 +174,9 @@ export default function AusruestungTab() {
         <h3>Am Körper</h3>
         <div className="zone-grid">
           {BODY_ZONES.map((z) => {
-            const zi = itemsInZone(items, z);
+            // zoneView: die hier abgelegten Gegenstände PLUS die beidseitig
+            // getragenen der Gegenseite (gespiegelt). Ein Datensatz, zwei Zellen.
+            const zi = zoneView(items, z);
             return (
               <div className="zone-cell" key={z}>
                 <div className="zone-name">
@@ -278,6 +287,9 @@ function ItemChip({
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
         {w > 0 && <span className="chip-kg"> · {kg(w)} kg</span>}
         {item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>}
+        {item.beidseitig && (
+          <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>
+        )}
         {!ro && (
           <button className="chip-btn" title="Details bearbeiten" onClick={onToggleOpen}>
             {open ? '▾' : '✎︎'}
@@ -290,6 +302,12 @@ function ItemChip({
           <label>Anzahl<NumInput value={item.anzahl} min={0} onChange={(v) => onPatch({ anzahl: v })} /></label>
           <label>kg/St.<NumInput value={item.gewicht} min={0} onChange={(v) => onPatch({ gewicht: v })} /></label>
           <label>RS<NumInput value={item.rs} min={0} onChange={(v) => onPatch({ rs: v })} /></label>
+          {isPairedZone(item.zone) && (
+            <label className="chip-check" title="Als Paar auf beiden Seiten getragen — ein Gegenstand, in beiden Zellen gezeigt. Gewicht und RS zählen einmal.">
+              <input type="checkbox" checked={item.beidseitig} onChange={(e) => onPatch({ beidseitig: e.target.checked })} />
+              Beidseitig
+            </label>
+          )}
           <label className="chip-check">
             <input type="checkbox" checked={item.istBehaelter} onChange={(e) => onPatch({ istBehaelter: e.target.checked })} />
             Behälter

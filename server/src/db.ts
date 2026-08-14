@@ -268,6 +268,9 @@ db.exec(`
     -- Eigenschaft samt Art (quick/storage), Kapazität und Gewichtsreduktion in %,
     -- sowie Rüstungsschutz (manuell, höchster getragener zählt).
     zone TEXT NOT NULL DEFAULT '',
+    -- beidseitig: getragen zugleich auf der Gegenseite (Arm/Hand/Bein) — ein
+    -- Datensatz, in beiden Zellen angezeigt (Gewicht/RS zählen einmal).
+    beidseitig INTEGER NOT NULL DEFAULT 0,
     container_uid TEXT NOT NULL DEFAULT '',
     ist_behaelter INTEGER NOT NULL DEFAULT 0,
     container_art TEXT NOT NULL DEFAULT 'storage',
@@ -497,6 +500,7 @@ db.exec(`
   if (!cols.has('kapazitaet')) db.exec('ALTER TABLE char_items ADD COLUMN kapazitaet REAL NOT NULL DEFAULT 0');
   if (!cols.has('gewichtsreduktion')) db.exec('ALTER TABLE char_items ADD COLUMN gewichtsreduktion REAL NOT NULL DEFAULT 0');
   if (!cols.has('rs')) db.exec('ALTER TABLE char_items ADD COLUMN rs REAL NOT NULL DEFAULT 0');
+  if (!cols.has('beidseitig')) db.exec('ALTER TABLE char_items ADD COLUMN beidseitig INTEGER NOT NULL DEFAULT 0');
   // Bestehende Zeilen ohne uid nachträglich befüllen (eine zufällige je Zeile).
   db.exec("UPDATE char_items SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
 }

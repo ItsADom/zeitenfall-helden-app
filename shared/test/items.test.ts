@@ -11,6 +11,7 @@ import {
   lastInfo,
   makeUid,
   zaehltZurLast,
+  zoneView,
 } from '../src/items.js';
 import type { Item, ItemLocation } from '../src/items.js';
 import type { AttrCode, Attributes } from '../src/types.js';
@@ -37,6 +38,7 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     kategorie: '',
     location: 'inventar',
     zone: '',
+    beidseitig: false,
     containerUid: '',
     istBehaelter: false,
     containerArt: 'storage',
@@ -164,5 +166,34 @@ describe('Sichten', () => {
 
   it('containers: nur als Behälter markierte Gegenstände', () => {
     expect(containers(list)).toEqual([bag]);
+  });
+});
+
+describe('zoneView (beidseitig)', () => {
+  it('spiegelt beidseitig Getragenes auf die Gegenseite, einseitiges nicht', () => {
+    const both = item({ location: 'getragen', zone: 'Arm links', beidseitig: true });
+    const oneSide = item({ location: 'getragen', zone: 'Arm links' });
+    const other = item({ location: 'getragen', zone: 'Arm rechts' });
+    const list = [both, oneSide, other];
+    // Eigene Seite: beide dort abgelegten Gegenstände.
+    expect(zoneView(list, 'Arm links')).toEqual([both, oneSide]);
+    // Gegenseite: der dort abgelegte PLUS der gespiegelte beidseitige.
+    expect(zoneView(list, 'Arm rechts')).toEqual([other, both]);
+  });
+
+  it('spiegelt nicht in fremde Paare und nicht bei unpaarigen Zonen', () => {
+    const arm = item({ location: 'getragen', zone: 'Arm links', beidseitig: true });
+    const head = item({ location: 'getragen', zone: 'Kopf', beidseitig: true });
+    const list = [arm, head];
+    expect(zoneView(list, 'Bein rechts')).toEqual([]); // anderes Paar
+    expect(zoneView(list, 'Kopf')).toEqual([head]); // unpaarig: keine Spiegelung
+  });
+
+  it('zählt beidseitig Getragenes trotz Doppelanzeige nur einmal für RS', () => {
+    const both = item({ location: 'getragen', zone: 'Bein links', beidseitig: true, rs: 4 });
+    // In der Anzeige zweimal, im Bestand einmal → effektiverRs bleibt 4.
+    expect(zoneView([both], 'Bein links')).toHaveLength(1);
+    expect(zoneView([both], 'Bein rechts')).toHaveLength(1);
+    expect(effektiverRs([both])).toBe(4);
   });
 });

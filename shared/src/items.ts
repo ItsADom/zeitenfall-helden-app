@@ -52,6 +52,11 @@ export interface Item {
   location: ItemLocation;
   // Körperstelle, wenn location === 'getragen' (Name aus BODY_ZONES). Sonst ''.
   zone: string;
+  // Beidseitig getragen (nur bei seitengetrennten Zonen Arm/Hand/Bein sinnvoll):
+  // EIN Gegenstand — ein Paar Schienen, Handschuhe, Beinlinge —, der zugleich auf
+  // der Gegenseite erscheint. Gewicht und RS zählen einmal (der Datensatz bleibt
+  // einer); nur die Anzeige wird gespiegelt (siehe zoneView / ZONE_SIBLING).
+  beidseitig: boolean;
   // uid des Behälters, wenn location === 'behaelter'. Sonst ''.
   containerUid: string;
   // Kann dieser Gegenstand andere aufnehmen (z. B. Rucksack, Gürteltasche)?
@@ -136,6 +141,35 @@ export function effektiverRs(items: readonly Item[]): number {
 // Am Körper getragene Gegenstände einer Zone.
 export function itemsInZone(items: readonly Item[], zone: string): Item[] {
   return items.filter((it) => it.location === 'getragen' && it.zone === zone);
+}
+
+// Seitenpaare am Körper. Ein beidseitig getragener Gegenstand speichert EINE der
+// beiden Seiten als seine Zone; auf der Gegenseite erscheint er nur gespiegelt.
+export const ZONE_SIBLING: Record<string, BodyZone> = {
+  'Arm links': 'Arm rechts',
+  'Arm rechts': 'Arm links',
+  'Hand links': 'Hand rechts',
+  'Hand rechts': 'Hand links',
+  'Bein links': 'Bein rechts',
+  'Bein rechts': 'Bein links',
+};
+// Hat diese Zone eine Gegenseite (Arm/Hand/Bein)? Nur dort ist „beidseitig" sinnvoll.
+export function isPairedZone(zone: string): boolean {
+  return zone in ZONE_SIBLING;
+}
+
+// Anzeige-Sicht einer Körperzone: die dort abgelegten Gegenstände PLUS die
+// beidseitig getragenen der Gegenseite (sie erscheinen hier gespiegelt). Fürs
+// Gewicht/RS bleibt itemsInZone maßgeblich — jeder Gegenstand liegt genau einmal
+// im Bestand, die Spiegelung dupliziert nur die Anzeige.
+export function zoneView(items: readonly Item[], zone: string): Item[] {
+  const own = itemsInZone(items, zone);
+  const sibling = ZONE_SIBLING[zone];
+  if (!sibling) return own;
+  const mirrored = items.filter(
+    (it) => it.location === 'getragen' && it.zone === sibling && it.beidseitig,
+  );
+  return [...own, ...mirrored];
 }
 
 // Inhalt eines Behälters (über dessen uid).

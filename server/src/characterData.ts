@@ -22,6 +22,7 @@ import {
   DYN_CONTAINER_KEY,
   DYN_SLOTS_KEY,
   INVENTAR_KATEGORIEN,
+  isPairedZone,
   ITEM_LOCATIONS,
   makeUid,
   listSectionById,
@@ -482,6 +483,7 @@ interface AusrItem {
   kategorie: string;
   location: ItemLocation;
   zone: string;
+  beidseitig: boolean;
   containerUid: string;
   istBehaelter: boolean;
   containerArt: ContainerArt;
@@ -508,7 +510,7 @@ function ausrRowToItems(
 
   const base: AusrItem = {
     uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '',
-    location: 'inventar', zone: '', containerUid: '', istBehaelter: false, containerArt: 'storage',
+    location: 'inventar', zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage',
     kapazitaet: 0, gewichtsreduktion: 0, rs: 0, notiz: '',
   };
 
@@ -567,7 +569,7 @@ function ausrRowToItems(
       const nm = slotName.trim();
       if (!nm) continue;
       children.push({ ...base, uid: makeUid(), name: nm, anzahl: 1, gewicht: 0,
-        location: 'behaelter', zone: '', containerUid: base.uid, istBehaelter: false, containerArt: 'storage',
+        location: 'behaelter', zone: '', beidseitig: false, containerUid: base.uid, istBehaelter: false, containerArt: 'storage',
         kapazitaet: 0, gewichtsreduktion: 0, rs: 0, notiz: '' });
     }
   }
@@ -603,8 +605,8 @@ export function migrateAusruestungToItems(): void {
       const existingCats = new Set(loadItemCategories(charId));
       const catsSeen: string[] = [];
       const insItem = db.prepare(
-        `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const sec of sections) {
         let cols: DynColumn[] = [];
@@ -628,7 +630,7 @@ export function migrateAusruestungToItems(): void {
           for (const it of ausrRowToItems(d, keys, labelByKey)) {
             insItem.run(
               charId, pos++, it.uid, it.name, it.anzahl, it.gewicht, it.kategorie,
-              it.location, it.zone, it.containerUid, it.istBehaelter ? 1 : 0, it.containerArt, it.kapazitaet,
+              it.location, it.zone, it.beidseitig ? 1 : 0, it.containerUid, it.istBehaelter ? 1 : 0, it.containerArt, it.kapazitaet,
               it.gewichtsreduktion, it.rs, it.notiz,
             );
             if (it.kategorie && !existingCats.has(it.kategorie) && !catsSeen.includes(it.kategorie)) catsSeen.push(it.kategorie);
@@ -737,7 +739,7 @@ const clampMin = (v: unknown, min = 0): number => {
 export function loadItems(charId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -748,6 +750,7 @@ export function loadItems(charId: number): Item[] {
     kategorie: string;
     location: string;
     zone: string;
+    beidseitig: number;
     container_uid: string;
     ist_behaelter: number;
     container_art: string;
@@ -765,6 +768,7 @@ export function loadItems(charId: number): Item[] {
     kategorie: r.kategorie,
     location: (ITEM_LOCATIONS as string[]).includes(r.location) ? (r.location as ItemLocation) : 'inventar',
     zone: r.zone,
+    beidseitig: !!r.beidseitig,
     containerUid: r.container_uid,
     istBehaelter: !!r.ist_behaelter,
     containerArt: (CONTAINER_ARTEN as string[]).includes(r.container_art) ? (r.container_art as ContainerArt) : 'storage',
@@ -794,8 +798,8 @@ export function saveItems(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, gewichtsreduktion, rs, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -808,6 +812,10 @@ export function saveItems(charId: number, raw: unknown): void {
       // widerspruchsfrei, egal was von außen kommt.
       const zoneRaw = String(o.zone ?? '');
       const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
+      // „Beidseitig" nur behalten, wenn der Gegenstand auch wirklich in einer
+      // seitengetrennten Körperzone (Arm/Hand/Bein) getragen wird — sonst wäre
+      // das Kennzeichen wirkungslos und bliebe als Altlast hängen.
+      const beidseitig = isPairedZone(zone) && o.beidseitig ? 1 : 0;
       const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
       const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
       ins.run(
@@ -820,6 +828,7 @@ export function saveItems(charId: number, raw: unknown): void {
         String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
         loc,
         zone,
+        beidseitig,
         containerUid,
         o.istBehaelter ? 1 : 0,
         art,

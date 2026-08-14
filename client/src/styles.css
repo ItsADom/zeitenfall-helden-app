@@ -2825,6 +2825,12 @@ li {
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
+/* Kennzeichen „beidseitig getragen": dasselbe Stück wird in beiden Zellen
+   gezeigt; das Zeichen macht die Spiegelung erkennbar. */
+.chip-both {
+  color: var(--muted);
+  font-weight: 700;
+}
 
 /* Chip-Hülle: hält Pille + (aufgeklappten) Editor + Schnellzugriff-Inhalt.
    Normal so schmal wie die Pille; mit Editor oder Inline-Inhalt volle Breite. */
