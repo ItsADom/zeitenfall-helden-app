@@ -97,7 +97,8 @@ export const COMING_SOON: string[] = [
   'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
   'Ein Rassen-Katalog, der z. B. direkt in die Psyche-Berechnung und Geschwindigkeit einfließt.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
-  'Komplettüberarbeitung des Waffenbriefs.'
+  'Komplettüberarbeitung des Waffenbriefs.',
+  'Visuelles Feintuning'
 ];
 
 // Neueste Einträge zuerst — neuen Eintrag also OBEN in die Liste einfügen.
@@ -133,6 +134,17 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-14',
+    // version bewusst offen — Entwurf. Bekommt seine Nummer erst beim Release
+    // (vor dem Deploy), damit der Discord-Spiegel sie sauber erkennt.
+    title: 'Layout-Korrekturen',
+    fixed: [
+      'Breite Tabellen ragten nach dem Ein- und Ausklappen der Überblick-Seitenleiste in diese hinein; sie passen sich jetzt wieder sauber an die verbleibende Breite an.',
+      'Die Talentsuche legte ihren Hintergrund über die Seitenleiste — sie bleibt jetzt in ihrer Spalte.',
+      '(Verwaltung) Im Talent-Katalog stand die Kopfzeile beim Scrollen mitten in der Tabelle statt oben angeheftet.',
+    ],
+  },
   {
     date: '2026-08-13',
     version: '0.3.2',
