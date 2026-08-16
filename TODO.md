@@ -29,6 +29,8 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   - in the same pass: show damage calculation while collapsed
 - add theme coloring to the spell creation table
   - make it less "table like" even though it is a table
+- rework workflow of creating items
+  - make them fully creatable while inserting
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
@@ -287,7 +289,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
   the character's priest level to unlock Liturgien accordingly. Priest-level
   requirements are still not fleshed out.
 - [sketch] **Portrait follow-ups**: on-page cutout editor (choose the crop instead of
-  auto-center).
+  auto-center). click image to view bigger (check for storage usage)
 - [ready] **New-tab category picker** (concept agreed — convenience seeding only):
   right now creating a tab (character sheet via Einstellungen `addTab`, and group
   tabs via the group page's `+ Tab` button) just gives an empty "Neuer Tab" with
