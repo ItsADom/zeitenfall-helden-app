@@ -98,6 +98,13 @@ These are standing instructions — follow them without being reminded.
 - **The version goes on before deploy.** Assigning it is part of cutting the
   release, so the draft never reaches production unnumbered — that keeps the
   Discord key stable and the release posts cleanly.
+- **Re-check the entry's `title` when you assign the version.** The title is
+  usually written early, while the draft entry is still growing, and can end
+  up named after whatever landed first rather than what actually turned out
+  to be the release's main point (happened with 0.5, titled „Event-Gruppen"
+  — a minor addition — while the real weight was the money rework). Reread
+  the finished entry at version-assignment time and rename it if a bigger
+  point buried the original title.
 
 ## Codebase constraints & gotchas (don't relearn these)
 

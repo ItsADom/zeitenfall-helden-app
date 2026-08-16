@@ -127,6 +127,12 @@ export const COMING_SOON: string[] = [
 //     date: '2026-08-20',          // ISO-Datum JJJJ-MM-TT
 //     version: '0.4',              // weglassen, solange es kein echtes Release ist
 //     title: 'Kurzer, sprechender Titel',
+//     // ERINNERUNG: der Titel wird oft früh vergeben, während der Eintrag noch
+//     // wächst — und bleibt dann leicht an der ERSTEN Sache hängen, die reinkam,
+//     // statt an dem, was beim Release tatsächlich das Schwergewicht ist (siehe
+//     // 0.5 „Event-Gruppen", benannt nach einem Nebenpunkt neben dem eigentlichen
+//     // Kern Geld-Umbau). Beim Versionieren (Version setzen) den Titel deshalb
+//     // NOCHMAL gegenlesen und ggf. auf den größten Punkt umbenennen.
 //     // Nur die passenden Abschnitte ausfüllen — leere/fehlende werden NICHT
 //     // gezeigt. Reihenfolge in der Anzeige ist immer: Neue Funktionen,
 //     // Änderungen, Bugfixes, Spielleiter & Verwaltung (egal, wie sie hier stehen).
