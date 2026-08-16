@@ -593,6 +593,33 @@ for (const s of LIST_SECTIONS) {
   }
 }
 
+// Migration: bestehende Nah-/Fernkampfwaffen einmalig in die neue, kompaktere
+// Waffen-Tabelle (waffenNahNeu/waffenFernNeu, gepaarte Spalten im Client)
+// kopieren — reine 1:1-Umbenennung der Felder ("tp" heißt jetzt klarer
+// "haltbarkeit"), nichts geht verloren. sec_waffenNah/sec_waffenFern bleiben
+// unverändert bestehen, der alte Reiter „Waffen (alt)" liest weiter von dort.
+// Läuft nur einmal: sobald die neue Tabelle Zeilen hat, fasst der Serverstart
+// sie nicht mehr an (auch nicht für neue Charaktere — die haben ohnehin nichts
+// in der alten Tabelle zu migrieren).
+{
+  const nahEmpty = (db.prepare('SELECT COUNT(*) AS n FROM sec_waffenNahNeu').get() as { n: number }).n === 0;
+  if (nahEmpty) {
+    db.exec(`
+      INSERT INTO sec_waffenNahNeu (character_id, pos, typ, material, rd, haltbarkeit, anforderung, at, pa, bl, schaden, iniBonus, reichweite, besonderes, expLevel, talentId, notiz)
+        SELECT character_id, pos, name, typMaterial, rd, tp, anforderung, at, pa, bl, schaden, iniBonus, reichweite, besonderes, expLevel, talentId, notiz
+        FROM sec_waffenNah;
+    `);
+  }
+  const fernEmpty = (db.prepare('SELECT COUNT(*) AS n FROM sec_waffenFernNeu').get() as { n: number }).n === 0;
+  if (fernEmpty) {
+    db.exec(`
+      INSERT INTO sec_waffenFernNeu (character_id, pos, typ, eBE, entfernung, schaden, atMod, haltbarkeit, besonderes, talentId, notiz)
+        SELECT character_id, pos, name, typEbe, entfernung, tpEntfernung, atMod, tp, besonderes, talentId, notiz
+        FROM sec_waffenFern;
+    `);
+  }
+}
+
 // Migration: feste Zauber-Sektionen (techniken/liturgien/allgemeinzauber) in die
 // frei benennbaren Sektionen (zauberSektionen/zauberEintraege) überführen
 const hasTable = (name: string): boolean =>

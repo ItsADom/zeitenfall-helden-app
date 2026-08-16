@@ -70,6 +70,30 @@ const RAW_SECTIONS: ListSectionDef[] = [
       t('besonderes', 'Besonderes', 3), n('talentId', 'Kampftalent', 2),
     ],
   },
+  // Waffen (neu): kompaktes Layout mit gepaarten Spalten (zweizeiliger Kopf im
+  // Client), löst waffenNah/waffenFern in der Darstellung ab. Die Felder sind
+  // 1:1-Umbenennungen der alten Spalten (siehe Migration in db.ts) — keins
+  // verändert seine Bedeutung, „tp" heißt nur klarer „haltbarkeit".
+  {
+    id: 'waffenNahNeu',
+    label: 'Nahkampfwaffen',
+    columns: [
+      t('typ', 'Waffe/Typ', 3), t('expLevel', 'EXP/LVL', 1), t('schaden', 'Schaden', 1),
+      t('material', 'Material', 2), n('iniBonus', 'Ini-Bonus', 1), t('rd', 'Rüstungsdurchdringung', 1),
+      t('reichweite', 'Reichweite', 1), t('haltbarkeit', 'Haltbarkeit', 1), t('besonderes', 'Besonderes', 3),
+      t('anforderung', 'Anforderung', 1), n('talentId', 'Kampftalent', 2),
+      n('at', 'AT', 1), n('pa', 'PA', 1), n('bl', 'BL', 1),
+    ],
+  },
+  {
+    id: 'waffenFernNeu',
+    label: 'Fernkampfwaffen',
+    columns: [
+      t('typ', 'Waffe/Typ', 3), t('eBE', 'eBE', 1), t('haltbarkeit', 'Haltbarkeit', 1),
+      t('entfernung', 'Entfernung', 2), t('besonderes', 'Besonderes', 3),
+      t('schaden', 'Schaden', 2), n('talentId', 'Kampftalent', 2), n('atMod', 'AT-Mod', 1),
+    ],
+  },
   {
     id: 'waffenlos',
     label: 'Waffenloser Kampf',

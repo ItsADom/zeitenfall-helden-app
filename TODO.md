@@ -198,9 +198,20 @@ chips. Backend table `char_special_resources`. Open for the full version:
         the result and group reaction are immediately visible.
    - Structurally scoped per group already (`GroupInfo`, per-group routes exist
      in `routes.ts`) — but no per-group real-time channel exists yet.
-- [sketch] **Weapon tab rework** (complete rework, upcoming): weapons can carry
-  statuses like *Geschärft*, *Stumpf*, etc. Only the status note is captured so
-  far — the rest of the rework still needs a concept.
+- [ready] **Weapon tab rework — in progress**: Nahkampf-/Fernkampfwaffen live now
+  in a new bespoke tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown
+  as „Waffen" — compact paired-column layout, two-row header) alongside the old
+  generic-list tab (key `Waffen`, now labelled „Waffen (alt)" in
+  `Character.tsx`). Existing rows were migrated 1:1 into `waffenNahNeu`/
+  `waffenFernNeu` (see the guarded migration in `server/src/db.ts`); the old
+  `sec_waffenNah`/`sec_waffenFern` tables and tab are untouched and still work.
+  Remaining:
+   - Decide when/whether to retire „Waffen (alt)" once the new tab is confirmed
+     good, and remove the old list sections + migration guard at that point.
+   - `Waffenloser Kampf`/`Munition`/`Kampfstile` still use the old generic
+     `ListEditor` — no scroll problem there today, left out of this pass.
+   - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
+     the free-text `Besonderes`/Notiz fields capture them today.
 - [ready] **Group overview page for GM** (concept agreed — chip-based, stats only):
    - Separate GM-only screen at `/gruppe/:id/uebersicht`, linked from the group
      page. NOT a table — one card per character, stats shown as chips, grid reflows.

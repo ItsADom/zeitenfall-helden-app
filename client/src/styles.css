@@ -1218,6 +1218,27 @@ table.sheet td.computed {
 table.sheet td.num {
   text-align: center;
 }
+/* Waffen (neu): zweizeiliger Kopf, zwei Werte pro Zelle übereinander statt
+   vieler schmaler Einzelspalten — spart Breite, damit die Tabelle ohne
+   waagerechtes Scrollen passt (siehe TODO „Waffen-Reiter-Umbau"). */
+table.weapon-table td.paired-cell {
+  padding: 3px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+table.weapon-table td.paired-cell > :first-child {
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--border-soft);
+}
+table.weapon-table td.paired-cell .computed {
+  background: var(--computed-bg);
+  color: var(--computed-text);
+  font-weight: 650;
+  text-align: center;
+  border-radius: 4px;
+  padding: 1px 0;
+}
 /* Energie-Zehrung: getönte Aktuell-Zelle mit Schweregrad-Streifen links,
    damit der Zustand auch ohne Farbe (Streifen + Tooltip) ablesbar bleibt */
 table.sheet td.res-low {

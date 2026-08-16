@@ -18,10 +18,19 @@ import InventarTab from '../tabs/Inventar';
 import AusruestungTab from '../tabs/Ausruestung';
 import TalenteTab from '../tabs/Talente';
 import WaffenTab from '../tabs/Waffen';
+import WaffenNeuTab from '../tabs/WaffenNeu';
 import ZauberTab from '../tabs/Zauber';
 import FaehigkeitenTab from '../tabs/Faehigkeiten';
 import SprachenTab from '../tabs/Sprachen';
 import SummaryView from '../tabs/Summary';
+
+// Eingebaute Reiter, deren Anzeigetext vom Schlüssel abweicht (siehe
+// MOVABLE_BUILTIN_TAB_KEYS in tabOrder.ts: „Waffen" ist der alte, generisch-
+// listenbasierte Reiter, „WaffenNeu" der neue, zweckgebaute).
+const BUILTIN_TAB_LABELS: Record<string, string> = {
+  Waffen: 'Waffen (alt)',
+  WaffenNeu: 'Waffen',
+};
 
 export interface FullData {
   bio: Record<string, string>;
@@ -417,7 +426,7 @@ export default function CharacterPage() {
     const tid = dynTabId(key);
     return tid === null ? null : (tabs.find((t) => t.id === tid) ?? null);
   };
-  const tabName = (key: string) => tabByKey(key)?.name ?? key;
+  const tabName = (key: string) => tabByKey(key)?.name ?? BUILTIN_TAB_LABELS[key] ?? key;
   const activeContentTab = tabByKey(activeKey);
 
   // Inhalt eines eingebauten Reiters. Selbst angelegte laufen über ContentTabView.
@@ -428,6 +437,7 @@ export default function CharacterPage() {
     key === 'Heldenbrief' ? <HeldenbriefTab />
     : key === 'Talente' ? <TalenteTab />
     : key === 'Waffen' ? <WaffenTab />
+    : key === 'WaffenNeu' ? <WaffenNeuTab />
     : key === 'Sprachen' ? <SprachenTab />
     : key === 'Zauber' ? <ZauberTab />
     : key === 'Fähigkeiten' ? <FaehigkeitenTab />
