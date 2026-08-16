@@ -913,8 +913,8 @@ const MAX_POUCH_NAME = 200;
 
 export function loadPouches(charId: number): CoinPouch[] {
   const pouches = db
-    .prepare('SELECT id, name, system_id, kapazitaet FROM char_pouches WHERE character_id = ? ORDER BY pos, id')
-    .all(charId) as { id: number; name: string; system_id: number | null; kapazitaet: number }[];
+    .prepare('SELECT id, name, system_id, kapazitaet, is_bank FROM char_pouches WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as { id: number; name: string; system_id: number | null; kapazitaet: number; is_bank: number }[];
   const coinRows = db
     .prepare(
       `SELECT pc.pouch_id, pc.denomination_id, pc.anzahl FROM char_pouch_coins pc
@@ -933,10 +933,15 @@ export function loadPouches(charId: number): CoinPouch[] {
     systemId: p.system_id,
     kapazitaet: p.kapazitaet,
     coins: coinsByPouch.get(p.id) ?? {},
+    bank: !!p.is_bank,
   }));
 }
 
 // Ganze Liste ersetzen (wie saveItems): Delete+Insert, serverseitig gedeckelt.
+// Der Bank-Beutel (CoinPouch.bank) ist eine erzwungene Ausnahme: genau einer,
+// Name fest „Bank", Kapazität immer unbegrenzt — unabhängig davon, was der
+// Client schickt. Fehlt er im Payload (z. B. weil eine ältere Client-Version
+// ihn nicht mitschickt), wird er hier neu angelegt statt verloren zu gehen.
 export function savePouches(charId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? (raw as Record<string, unknown>[]).slice(0, MAX_POUCHES) : [];
   // Stets gegen den tatsächlichen Katalogstand prüfen: eine zwischenzeitlich vom
@@ -948,23 +953,36 @@ export function savePouches(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_pouches WHERE character_id = ?').run(charId);
     const insPouch = db.prepare(
-      'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet) VALUES (?, ?, ?, ?, ?)',
+      'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, ?, ?, ?, ?, ?)',
     );
     const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
-    arr.forEach((raw, i) => {
-      const o = (raw ?? {}) as Record<string, unknown>;
+    let pos = 0;
+    let bankSeen = false;
+    const insertOne = (o: Record<string, unknown>, isBank: boolean) => {
       const systemIdRaw = o.systemId == null || o.systemId === '' ? null : Math.trunc(Number(o.systemId));
       const systemId = systemIdRaw != null && validSystemIds.has(systemIdRaw) ? systemIdRaw : null;
-      const pouchId = Number(
-        insPouch.run(charId, i, String(o.name ?? '').slice(0, MAX_POUCH_NAME), systemId, clampMin(o.kapazitaet)).lastInsertRowid,
-      );
+      const name = isBank ? 'Bank' : String(o.name ?? '').slice(0, MAX_POUCH_NAME);
+      const kapazitaet = isBank ? 0 : clampMin(o.kapazitaet);
+      const pouchId = Number(insPouch.run(charId, pos++, name, systemId, kapazitaet, isBank ? 1 : 0).lastInsertRowid);
       const coins = (o.coins ?? {}) as Record<string, unknown>;
       for (const [key, value] of Object.entries(coins)) {
         const denomId = Math.trunc(Number(key));
         const anzahl = clampMin(value);
         if (validDenomIds.has(denomId) && anzahl > 0) insCoin.run(pouchId, denomId, anzahl);
       }
+    };
+    arr.forEach((raw) => {
+      const o = (raw ?? {}) as Record<string, unknown>;
+      const isBank = !!o.bank && !bankSeen;
+      if (isBank) bankSeen = true;
+      insertOne(o, isBank);
     });
+    if (!bankSeen) {
+      const firstSystem = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as
+        | { id: number }
+        | undefined;
+      insertOne({ systemId: firstSystem?.id ?? null, coins: {} }, true);
+    }
   });
   tx();
 }
@@ -1016,10 +1034,23 @@ export function manageItemCategories(charId: number, raw: unknown): string[] {
 const MAX_ABILITIES = 2000;
 const MAX_ABILITY_TEXT = 8000;
 
+// Robust gegen kaputten/alten Inhalt (ein einzelner String statt eines JSON-
+// Arrays, falls je manuell in der DB gepfuscht wurde): fällt auf ein
+// Ein-Element-Array bzw. leeres Array zurück statt zu werfen.
+function parseKategorien(raw: string): string[] {
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) return v.map((s) => String(s));
+  } catch {
+    /* fällt durch auf die Textbehandlung unten */
+  }
+  return raw ? [raw] : [];
+}
+
 export function loadAbilities(charId: number): Ability[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -1029,7 +1060,7 @@ export function loadAbilities(charId: number): Ability[] {
     signatur: number;
     name: string;
     element: string;
-    kategorie: string;
+    kategorien: string;
     stufe: number;
     komplexitaet: number;
     kosten: string;
@@ -1046,7 +1077,7 @@ export function loadAbilities(charId: number): Ability[] {
     signatur: !!r.signatur,
     name: r.name,
     element: r.element,
-    kategorie: r.kategorie,
+    kategorien: parseKategorien(r.kategorien),
     stufe: r.stufe,
     komplexitaet: r.komplexitaet,
     kosten: r.kosten,
@@ -1066,7 +1097,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
@@ -1076,6 +1107,9 @@ export function saveAbilities(charId: number, raw: unknown): void {
       seenUids.add(uid);
       const signatur = o.signatur && !signaturVergeben ? 1 : 0;
       if (signatur) signaturVergeben = true;
+      const kategorien = Array.isArray(o.kategorien)
+        ? [...new Set(o.kategorien.map((k) => String(k).trim().slice(0, MAX_CATEGORY_LEN)).filter(Boolean))].slice(0, 50)
+        : [];
       ins.run(
         charId,
         i,
@@ -1085,7 +1119,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
         signatur,
         String(o.name ?? '').slice(0, MAX_ABILITY_TEXT),
         String(o.element ?? '').slice(0, MAX_ABILITY_TEXT),
-        String(o.kategorie ?? '').slice(0, MAX_ABILITY_TEXT),
+        JSON.stringify(kategorien),
         clampMin(o.stufe),
         clampMin(o.komplexitaet),
         String(o.kosten ?? '').slice(0, MAX_ABILITY_TEXT),
@@ -1135,17 +1169,43 @@ export function manageAbilityList(charId: number, kind: string, raw: unknown): A
     }
     if (clean.length >= MAX_CATEGORIES) break;
   }
+  const renamePairs = renames
+    .map((r) => ({
+      from: String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_CATEGORY_LEN),
+      to: String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_CATEGORY_LEN),
+    }))
+    .filter((r) => r.from && r.to && r.from !== r.to);
+  const removeSet = new Set(
+    removes.map((n) => String(n ?? '').trim().slice(0, MAX_CATEGORY_LEN)).filter(Boolean),
+  );
   const tx = db.transaction(() => {
-    // Spaltenname ist auf 'element'|'kategorie' festgelegt — kein Fremdeingriff.
-    const up = db.prepare(`UPDATE char_abilities SET ${k} = ? WHERE character_id = ? AND ${k} = ?`);
-    for (const r of renames) {
-      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      if (from && to && from !== to) up.run(to, charId, from);
-    }
-    for (const name of removes) {
-      const n = String(name ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      if (n) up.run('', charId, n);
+    if (k === 'element') {
+      // Einzelwert-Spalte: exakter Treffer reicht.
+      const up = db.prepare('UPDATE char_abilities SET element = ? WHERE character_id = ? AND element = ?');
+      for (const r of renamePairs) up.run(r.to, charId, r.from);
+      for (const n of removeSet) up.run('', charId, n);
+    } else {
+      // 'kategorien' ist ein JSON-Array je Zeile — Umbenennen/Entfernen muss
+      // innerhalb jedes Arrays passieren, nicht als exakter Spaltenvergleich.
+      const rows = db.prepare('SELECT id, kategorien FROM char_abilities WHERE character_id = ?').all(charId) as {
+        id: number;
+        kategorien: string;
+      }[];
+      const up = db.prepare('UPDATE char_abilities SET kategorien = ? WHERE id = ?');
+      for (const row of rows) {
+        const cats = parseKategorien(row.kategorien);
+        if (cats.length === 0) continue;
+        const next = [
+          ...new Set(
+            cats
+              .filter((c) => !removeSet.has(c))
+              .map((c) => renamePairs.find((r) => r.from === c)?.to ?? c),
+          ),
+        ];
+        if (next.length !== cats.length || next.some((c, i) => c !== cats[i])) {
+          up.run(JSON.stringify(next), row.id);
+        }
+      }
     }
     db.prepare('DELETE FROM char_ability_lists WHERE character_id = ? AND kind = ?').run(charId, k);
     const ins = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
@@ -1215,7 +1275,7 @@ export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
       columns: string;
     }[];
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, name, element, kategorie, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const kategorienSeen: string[] = [];
@@ -1305,7 +1365,7 @@ export function seedAbilitiesFromZauber(charId: number): AbilitySeedResult {
           0,
           a.name as string,
           a.element as string,
-          kategorie,
+          JSON.stringify(kategorie ? [kategorie] : []),
           stufe,
           komplex,
           a.kosten as string,

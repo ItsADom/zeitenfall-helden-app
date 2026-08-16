@@ -27,12 +27,19 @@ export interface CurrencySystem {
 // Konvention wie bei Behältern (items.ts kapazitaet). Bewusst kein Teil des
 // allgemeinen Behälter-Systems: die Kapazität wird direkt im Geld-Bereich
 // gepflegt, nicht über die Ausrüstung.
+// Genau EIN Beutel je Charakter ist der Bank-Beutel (`bank: true`): immer da
+// (kann nicht gelöscht werden, wird notfalls neu angelegt), Name fest „Bank",
+// Kapazität immer unbegrenzt — Server erzwingt das beim Speichern (siehe
+// savePouches in server/characterData.ts). Vor dem Geld-Umbau war das ein
+// fester, unbegrenzter Meta-Wert (Meta.bank); dieses Flag stellt genau diese
+// Sonderrolle innerhalb des generischen Beutel-Modells wieder her.
 export interface CoinPouch {
   id: number;
   name: string;
   systemId: number | null;
   kapazitaet: number;
   coins: Record<number, number>; // denominationId -> Anzahl
+  bank: boolean;
 }
 
 // Summe aller Münzen eines Beutels (Stück, unabhängig von der Sorte).

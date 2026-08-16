@@ -22,9 +22,11 @@ export interface Ability {
   signatur: boolean;
   name: string;
   element: string; // Name aus der Element-Liste des Charakters ('' = ohne)
-  // Freie Gruppierung des Spielers (z. B. „Heilmagie", „Utility"). Eine der zwei
-  // Achsen, nach denen die Reiter gruppieren können (die andere ist element).
-  kategorie: string; // Name aus der Kategorie-Liste des Charakters ('' = ohne)
+  // Freie Gruppierung des Spielers (z. B. „Heilmagie", „Utility") — MEHRERE
+  // zugleich möglich (ein Zauber kann in mehr als einer Kategorie stehen).
+  // Eine der zwei Achsen, nach denen die Reiter gruppieren können (die andere
+  // ist element, die einwertig bleibt). Leeres Array = ohne Kategorie.
+  kategorien: string[]; // Namen aus der Kategorie-Liste des Charakters
   stufe: number; // Zauberstufe bzw. Fähigkeitsstufe (Ganzzahl)
   komplexitaet: number; // nur magisch sinnvoll — speist die Magiepunkte
   kosten: string; // AP-Kosten, Freitext („2 bis X", „min 20")
@@ -47,13 +49,22 @@ export function faehigkeitenOf(list: readonly Ability[]): Ability[] {
 
 // Nach einem Feld gruppieren (für die Kopfzeilen im Reiter). Leerwerte landen
 // unter '' — der Client zeigt sie als „Ohne …". Reihenfolge = erstes Auftreten.
+// 'kategorie' ist mehrwertig: ein Eintrag mit mehreren Kategorien taucht in
+// jeder seiner Gruppen auf (bewusste Mehrfachzählung, kein Duplikat-Bug).
 export function groupAbilities(list: readonly Ability[], by: 'element' | 'kategorie'): Map<string, Ability[]> {
   const out = new Map<string, Ability[]>();
-  for (const a of list) {
-    const key = String(a[by] ?? '');
+  const push = (key: string, a: Ability) => {
     const bucket = out.get(key);
     if (bucket) bucket.push(a);
     else out.set(key, [a]);
+  };
+  for (const a of list) {
+    if (by === 'element') {
+      push(a.element ?? '', a);
+    } else {
+      const cats = a.kategorien.length > 0 ? a.kategorien : [''];
+      for (const key of cats) push(key, a);
+    }
   }
   return out;
 }

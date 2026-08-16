@@ -28,8 +28,11 @@ export function GeldPanel({
   const setCoin = (i: number, denomId: number, anzahl: number) =>
     setPouch(i, { coins: { ...pouches[i].coins, [denomId]: anzahl } });
   const addPouch = () =>
-    setPouches([...pouches, { id: 0, name: 'Neuer Beutel', systemId: systems[0]?.id ?? null, kapazitaet: 0, coins: {} }]);
-  const removePouch = (i: number) => setPouches(pouches.filter((_, j) => j !== i));
+    setPouches([...pouches, { id: 0, name: 'Neuer Beutel', systemId: systems[0]?.id ?? null, kapazitaet: 0, coins: {}, bank: false }]);
+  // Der Bank-Beutel ist genau einer und nie löschbar (siehe CoinPouch.bank) —
+  // der Löschen-Knopf wird für ihn erst gar nicht angezeigt (PouchCard unten),
+  // dies ist nur ein zweiter Riegel.
+  const removePouch = (i: number) => setPouches(pouches.filter((_, j) => j !== i || pouches[j].bank));
 
   return (
     <div className="panel">
@@ -83,15 +86,21 @@ function PouchCard({
   return (
     <div className="pouch">
       <div className="pouch-head">
-        <TextInput value={pouch.name} onChange={onChangeName} />
+        {pouch.bank ? (
+          <span className="static-value static-text pouch-bank-name" title="Der Bank-Beutel ist immer da, unbegrenzt und nicht löschbar.">
+            Bank
+          </span>
+        ) : (
+          <TextInput value={pouch.name} onChange={onChangeName} />
+        )}
         <CurrencySystemSelect systemId={pouch.systemId} systems={systems} onChange={onChangeSystem} />
-        {!readOnly && <ConfirmDeleteButton title="Geldbeutel entfernen" onConfirm={onRemove} />}
+        {!readOnly && !pouch.bank && <ConfirmDeleteButton title="Geldbeutel entfernen" onConfirm={onRemove} />}
       </div>
       <div className="container-cap-edit">
         <span className={`container-cap${over ? ' over' : ''}`} title="Münzen im Beutel / Kapazität (0 = unbegrenzt)">
-          {fuellung} / {pouch.kapazitaet > 0 ? pouch.kapazitaet : '∞'} Münzen
+          {fuellung} / {pouch.bank || pouch.kapazitaet <= 0 ? '∞' : pouch.kapazitaet} Münzen
         </span>
-        {!readOnly && (
+        {!readOnly && !pouch.bank && (
           <>
             <label>Kapazität</label>
             <NumInput value={pouch.kapazitaet} min={0} onChange={onChangeKapazitaet} />

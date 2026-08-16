@@ -289,7 +289,8 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT '',
     system_id INTEGER REFERENCES currency_systems(id) ON DELETE SET NULL,
-    kapazitaet REAL NOT NULL DEFAULT 0
+    kapazitaet REAL NOT NULL DEFAULT 0,
+    is_bank INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS char_pouch_coins (
     pouch_id INTEGER NOT NULL REFERENCES char_pouches(id) ON DELETE CASCADE,
@@ -417,7 +418,7 @@ db.exec(`
     signatur INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT '',
     element TEXT NOT NULL DEFAULT '',
-    kategorie TEXT NOT NULL DEFAULT '',
+    kategorien TEXT NOT NULL DEFAULT '[]',
     stufe REAL NOT NULL DEFAULT 0,
     komplexitaet REAL NOT NULL DEFAULT 0,
     kosten TEXT NOT NULL DEFAULT '',
@@ -471,6 +472,24 @@ db.exec(`
   if (!cols.has('signatur')) db.exec('ALTER TABLE char_abilities ADD COLUMN signatur INTEGER NOT NULL DEFAULT 0');
 }
 
+// Migration: 'kategorie' (ein Wert) → 'kategorien' (JSON-Array), damit ein
+// Zauber/eine Fähigkeit in mehreren Kategorien zugleich stehen kann. Bestehende
+// Werte wandern 1:1 in ein Ein-Element-Array, Leerwerte in ein leeres Array —
+// nichts geht verloren. Muss VOR der Vorschlagslisten-Nachfüllung unten laufen,
+// die schon das neue Spaltenformat erwartet.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_abilities)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('kategorie') && !cols.has('kategorien')) {
+    db.exec('ALTER TABLE char_abilities RENAME COLUMN kategorie TO kategorien');
+    const rows = db.prepare('SELECT id, kategorien FROM char_abilities').all() as { id: number; kategorien: string }[];
+    const up = db.prepare('UPDATE char_abilities SET kategorien = ? WHERE id = ?');
+    const migrate = db.transaction(() => {
+      for (const r of rows) up.run(JSON.stringify(r.kategorien ? [r.kategorien] : []), r.id);
+    });
+    migrate();
+  }
+}
+
 // Migration (Cluster 6): Element-/Kategorie-Vorschlagsliste aus den tatsächlich
 // vergebenen Werten nachfüllen, wo sie noch leer ist. Früh geseedete Charaktere
 // (und alle vor dem Kategorie-Seed) haben Werte an den Einträgen, aber keine
@@ -479,19 +498,29 @@ db.exec(`
 {
   const chars = db.prepare('SELECT DISTINCT character_id FROM char_abilities').all() as { character_id: number }[];
   const listCount = db.prepare('SELECT COUNT(*) AS n FROM char_ability_lists WHERE character_id = ? AND kind = ?');
-  const rowsFor = db.prepare('SELECT element, kategorie FROM char_abilities WHERE character_id = ? ORDER BY pos, id');
+  const rowsFor = db.prepare('SELECT element, kategorien FROM char_abilities WHERE character_id = ? ORDER BY pos, id');
   const ins = db.prepare('INSERT INTO char_ability_lists (character_id, kind, pos, name) VALUES (?, ?, ?, ?)');
   const backfill = db.transaction(() => {
     for (const { character_id } of chars) {
-      const rows = rowsFor.all(character_id) as { element: string; kategorie: string }[];
-      for (const kind of ['element', 'kategorie'] as const) {
-        if ((listCount.get(character_id, kind) as { n: number }).n > 0) continue;
+      const rows = rowsFor.all(character_id) as { element: string; kategorien: string }[];
+      if ((listCount.get(character_id, 'element') as { n: number }).n === 0) {
+        const seen: string[] = [];
+        for (const r of rows) if (r.element && !seen.includes(r.element)) seen.push(r.element);
+        seen.forEach((v, i) => ins.run(character_id, 'element', i, v));
+      }
+      if ((listCount.get(character_id, 'kategorie') as { n: number }).n === 0) {
         const seen: string[] = [];
         for (const r of rows) {
-          const v = (kind === 'element' ? r.element : r.kategorie) ?? '';
-          if (v && !seen.includes(v)) seen.push(v);
+          let cats: string[] = [];
+          try {
+            const v = JSON.parse(r.kategorien || '[]');
+            if (Array.isArray(v)) cats = v.map((s) => String(s));
+          } catch {
+            /* alter Einzelwert vor der Migration oben — kommt hier nicht mehr vor */
+          }
+          for (const c of cats) if (c && !seen.includes(c)) seen.push(c);
         }
-        seen.forEach((v, i) => ins.run(character_id, kind, i, v));
+        seen.forEach((v, i) => ins.run(character_id, 'kategorie', i, v));
       }
     }
   });
@@ -759,6 +788,13 @@ if (hasTable('sec_techniken')) {
   migrate();
 }
 
+// Migration: 'is_bank'-Spalte an bestehende char_pouches ergänzen (siehe
+// CoinPouch.bank in currency.ts).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_pouches)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('is_bank')) db.exec('ALTER TABLE char_pouches ADD COLUMN is_bank INTEGER NOT NULL DEFAULT 0');
+}
+
 // Migration (Geld-Umbau): Aventurisch-Basissystem seeden — D/S/H/K exakt wie
 // das alte Vier-Münzen-Modell (gleiche Codes, gleiche ×10-Leiter), damit die
 // Übernahme eine reine Umbenennung ist — und bestehende char_meta-Werte
@@ -797,25 +833,55 @@ if (hasTable('sec_techniken')) {
         )
         .all() as { character_id: number; geldD: number; geldS: number; geldH: number; geldK: number; bank: number }[];
       const insPouch = db.prepare(
-        'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet) VALUES (?, ?, ?, ?, 0)',
+        'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, ?, ?, ?, 0, ?)',
       );
       const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
       for (const c of chars) {
         if (c.geldD || c.geldS || c.geldH || c.geldK) {
-          const pouchId = Number(insPouch.run(c.character_id, 0, 'Gürtelbeutel', sysId).lastInsertRowid);
+          const pouchId = Number(insPouch.run(c.character_id, 0, 'Gürtelbeutel', sysId, 0).lastInsertRowid);
           if (c.geldD) insCoin.run(pouchId, denomIds.D, c.geldD);
           if (c.geldS) insCoin.run(pouchId, denomIds.S, c.geldS);
           if (c.geldH) insCoin.run(pouchId, denomIds.H, c.geldH);
           if (c.geldK) insCoin.run(pouchId, denomIds.K, c.geldK);
         }
         if (c.bank) {
-          const pouchId = Number(insPouch.run(c.character_id, 1, 'Bank', sysId).lastInsertRowid);
+          const pouchId = Number(insPouch.run(c.character_id, 1, 'Bank', sysId, 1).lastInsertRowid);
           insCoin.run(pouchId, denomIds.D, c.bank);
         }
       }
     });
     seed();
     console.log('Migration: Aventurisch-Währungssystem geseedet, bestehende Münzen/Bank in Geldbeutel übernommen');
+  }
+}
+
+// Reparatur (läuft bei JEDEM Start, nicht nur einmalig): jeder Charakter hat
+// GENAU einen Bank-Beutel (immer da, unlöschbar, unbegrenzt — siehe
+// CoinPouch.bank). Der generische Geldbeutel-Umbau hatte diese Sonderrolle
+// zunächst verloren (neue Charaktere bekamen gar keinen, ein bestehender ließ
+// sich wie jeder andere Beutel löschen) — das hier legt fehlende Bank-Beutel
+// nachträglich an, ohne bestehende anzufassen.
+{
+  const firstSystem = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as
+    | { id: number }
+    | undefined;
+  if (firstSystem) {
+    const missing = db
+      .prepare(
+        `SELECT c.id FROM characters c
+         WHERE NOT EXISTS (SELECT 1 FROM char_pouches p WHERE p.character_id = c.id AND p.is_bank = 1)`,
+      )
+      .all() as { id: number }[];
+    if (missing.length > 0) {
+      const insBank = db.prepare(
+        'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, 1, ?, ?, 0, 1)',
+      );
+      const repair = db.transaction(() => {
+        for (const c of missing) insBank.run(c.id, 'Bank', firstSystem.id);
+      });
+      repair();
+      console.log(`Reparatur: ${missing.length} fehlende Bank-Beutel angelegt`);
+    }
   }
 }
 
@@ -832,15 +898,16 @@ export function initCharacterRows(characterId: number): void {
   // Neue Charaktere starten mit einem leeren, unbegrenzten Standard-Geldbeutel
   // im ersten Katalog-System (sortiert) — ohne das wäre ein frischer Charakter
   // ohne jeden Beutel und müsste erst „+ Beutel" klicken, um überhaupt Geld
-  // eintragen zu können.
+  // eintragen zu können. Dazu immer der Bank-Beutel (siehe CoinPouch.bank) —
+  // genau einer, von Anfang an, nicht erst über die Start-Reparatur oben.
   const firstSystem = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as
     | { id: number }
     | undefined;
   if (firstSystem) {
-    db.prepare('INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet) VALUES (?, 0, ?, ?, 0)').run(
-      characterId,
-      'Gürtelbeutel',
-      firstSystem.id,
+    const insPouch = db.prepare(
+      'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, ?, ?, ?, 0, ?)',
     );
+    insPouch.run(characterId, 0, 'Gürtelbeutel', firstSystem.id, 0);
+    insPouch.run(characterId, 1, 'Bank', firstSystem.id, 1);
   }
 }

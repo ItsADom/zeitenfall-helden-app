@@ -53,7 +53,7 @@ export function AbilityTable({
     update('abilities', data.abilities.map((a) => (a.uid === uid ? { ...a, fortschritt: v } : a)));
 
   const elemente = [...new Set(list.map((a) => a.element).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  const kategorien = [...new Set(list.map((a) => a.kategorie).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  const kategorien = [...new Set(list.flatMap((a) => a.kategorien).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
 
   const needle = q.trim().toLowerCase();
   // Suchen hat Vorrang und ignoriert die Auswahlfilter — man sucht im ganzen
@@ -61,7 +61,7 @@ export function AbilityTable({
   const filtered = list.filter((a) => {
     if (needle) return a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle);
     if (fEl && a.element !== fEl) return false;
-    if (fKat && a.kategorie !== fKat) return false;
+    if (fKat && !a.kategorien.includes(fKat)) return false;
     if (fPassiv === 'passiv' && !a.passiv) return false;
     if (fPassiv === 'aktiv' && a.passiv) return false;
     return true;

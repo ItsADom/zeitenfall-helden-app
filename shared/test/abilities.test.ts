@@ -20,7 +20,7 @@ function ability(partial: Partial<Ability>): Ability {
     signatur: false,
     name: 'x',
     element: '',
-    kategorie: '',
+    kategorien: [],
     stufe: 1,
     komplexitaet: 1,
     kosten: '',
@@ -95,10 +95,10 @@ describe('magierEligibility', () => {
 
 describe('Sichten & Gruppieren', () => {
   const list = [
-    ability({ magisch: true, kategorie: 'Heilmagie', element: 'Licht' }),
-    ability({ magisch: true, kategorie: 'Heilmagie', element: 'Neutral' }),
-    ability({ magisch: true, kategorie: 'Kampfmagie', element: 'Licht' }),
-    ability({ magisch: false, kategorie: 'Kampffertigkeiten', element: '' }),
+    ability({ magisch: true, kategorien: ['Heilmagie'], element: 'Licht' }),
+    ability({ magisch: true, kategorien: ['Heilmagie', 'Kampfmagie'], element: 'Neutral' }),
+    ability({ magisch: true, kategorien: ['Kampfmagie'], element: 'Licht' }),
+    ability({ magisch: false, kategorien: ['Kampffertigkeiten'], element: '' }),
   ];
   it('zauberOf / faehigkeitenOf trennen nach magisch', () => {
     expect(zauberOf(list)).toHaveLength(3);
@@ -111,5 +111,10 @@ describe('Sichten & Gruppieren', () => {
     const byElement = groupAbilities(zauberOf(list), 'element');
     expect([...byElement.keys()]).toEqual(['Licht', 'Neutral']);
     expect(byElement.get('Licht')).toHaveLength(2);
+  });
+  it('groupAbilities zählt einen Eintrag mit mehreren Kategorien in jeder davon', () => {
+    const byKategorie = groupAbilities(zauberOf(list), 'kategorie');
+    // der zweite Zauber steht in Heilmagie UND Kampfmagie zugleich
+    expect(byKategorie.get('Kampfmagie')).toHaveLength(2);
   });
 });

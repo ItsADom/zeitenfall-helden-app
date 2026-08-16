@@ -48,7 +48,7 @@ function emptyAbility(magisch: boolean): Ability {
     signatur: false,
     name: '',
     element: '',
-    kategorie: '',
+    kategorien: [],
     stufe: magisch ? 1 : 0,
     komplexitaet: magisch ? 1 : 0,
     kosten: '',
@@ -391,14 +391,14 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
   // Filter-Optionen: Vorschlagsliste UND die tatsächlich vergebenen Werte
   // (sonst fehlt ein Filter, wenn die Vorschlagsliste noch leer ist).
   const elemOptions = [...new Set([...elements, ...list.map((a) => a.element)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  const katOptions = [...new Set([...kategorien, ...list.map((a) => a.kategorie)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  const katOptions = [...new Set([...kategorien, ...list.flatMap((a) => a.kategorien)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
 
   const needle = q.trim().toLowerCase();
   // Suchen hat Vorrang und ignoriert die Auswahlfilter (ganzer Bestand).
   const shown = list.filter((a) => {
     if (needle) return a.name.toLowerCase().includes(needle) || a.effekt.toLowerCase().includes(needle) || a.notiz.toLowerCase().includes(needle);
     if (fEl && a.element !== fEl) return false;
-    if (fKat && a.kategorie !== fKat) return false;
+    if (fKat && !a.kategorien.includes(fKat)) return false;
     if (fPassiv === 'passiv' && !a.passiv) return false;
     if (fPassiv === 'aktiv' && a.passiv) return false;
     return true;
@@ -505,7 +505,19 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
               {magisch && (
                 <input className="abil-el" list={elId} value={a.element} placeholder="Element" onChange={(e) => onPatch(a.uid, { element: e.target.value })} />
               )}
-              <input className="abil-kat" list={katId} value={a.kategorie} placeholder="Kategorie" onChange={(e) => onPatch(a.uid, { kategorie: e.target.value })} />
+              <input
+                className="abil-kat"
+                list={katId}
+                defaultValue={a.kategorien.join(', ')}
+                placeholder="Kategorie(n), mit Komma trennen"
+                title="Mehrere Kategorien mit Komma trennen — ein Eintrag kann in mehreren zugleich stehen."
+                key={a.uid + a.kategorien.join(' ')}
+                onBlur={(e) =>
+                  onPatch(a.uid, {
+                    kategorien: [...new Set(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))],
+                  })
+                }
+              />
               <label className="abil-num" title="Stufe (max. 10)">
                 St
                 <input type="number" min={0} max={ABILITY_STUFE_MAX} value={a.stufe} onChange={(e) => onPatch(a.uid, { stufe: Math.min(ABILITY_STUFE_MAX, num(e.target.value)) })} />
