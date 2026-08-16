@@ -65,13 +65,16 @@ function buildEmbed(e: ChangelogEntry): Record<string, unknown> {
   const description = changelogGroups(e)
     .map((g) => (g.label ? `**${g.label}**\n` : '') + g.items.map((c) => `• ${c}`).join('\n'))
     .join('\n\n');
-  const ts = new Date(e.date);
   return {
     title: title.slice(0, 256),
     description: description.slice(0, 4096),
     color: EMBED_COLOR,
-    ...(Number.isNaN(ts.getTime()) ? {} : { timestamp: ts.toISOString() }),
-    footer: { text: 'Zeitenfall · Heldenverwaltung' },
+    // Discord zeigt diesen Zeitstempel in der lokalen Zeitzone des Betrachters
+    // an — bewusst der tatsächliche Post-Zeitpunkt (JETZT), nicht `e.date`:
+    // das Changelog-Datum hat keine Uhrzeit, wurde also immer als UTC-Mitternacht
+    // interpretiert und erschien dadurch in deutscher Zeit fix um 2:00 Uhr.
+    timestamp: new Date().toISOString(),
+    footer: { text: 'Zeitenfall · Zeitenkompass' },
   };
 }
 
