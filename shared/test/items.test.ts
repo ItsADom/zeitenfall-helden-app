@@ -64,24 +64,24 @@ describe('itemGewicht', () => {
 });
 
 describe('zaehltZurLast', () => {
-  it('zählt Inventar und Behälter-Inhalt, nicht Getragenes/Abgelegtes', () => {
+  it('zählt Inventar, Behälter-Inhalt und Getragenes, nicht Abgelegtes', () => {
     expect(zaehltZurLast({ location: 'inventar' })).toBe(true);
     expect(zaehltZurLast({ location: 'behaelter' })).toBe(true);
-    expect(zaehltZurLast({ location: 'getragen' })).toBe(false);
+    expect(zaehltZurLast({ location: 'getragen' })).toBe(true);
     expect(zaehltZurLast({ location: 'bench' })).toBe(false);
   });
 });
 
 describe('getrageneLast', () => {
-  it('summiert nur die zählenden Gegenstände', () => {
+  it('summiert nur die zählenden Gegenstände, Getragenes mit halbem Gewicht', () => {
     const items = [
       item({ anzahl: 2, gewicht: 3 }), // 6, inventar
       item({ uid: 'bag', name: 'Sack', istBehaelter: true }),
       item({ anzahl: 1, gewicht: 4, location: 'behaelter', containerUid: 'bag' }), // 4 (keine Reduktion)
-      item({ anzahl: 1, gewicht: 100, location: 'getragen' }), // 0 (am Körper)
+      item({ anzahl: 1, gewicht: 100, location: 'getragen' }), // 50 (halb, am Körper)
       item({ anzahl: 1, gewicht: 20, location: 'bench' }), // 0 (abgelegt)
     ];
-    expect(getrageneLast(items)).toBe(10);
+    expect(getrageneLast(items)).toBe(60);
   });
 
   it('mindert Behälter-Inhalt um die Reduktion; 100 % zählt gar nicht', () => {

@@ -166,6 +166,13 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-16',
+    title: 'Getragene Ausrüstung zählt zur Traglast',
+    changed: [
+      'Am Körper getragene Ausrüstung (Rüstung, Waffen in der Hand usw.) zählt jetzt zur Hälfte ihres Gewichts zur Traglast — bisher zählte sie gar nicht mit. Dadurch kann sich die angezeigte Traglast bestehender Charaktere spürbar erhöhen. Abgelegte, nicht getragene Gegenstände zählen weiterhin nicht mit.',
+    ],
+  },
+  {
+    date: '2026-08-16',
     version: '0.5',
     title: 'Event-Gruppen',
     added: [

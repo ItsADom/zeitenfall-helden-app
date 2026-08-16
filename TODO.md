@@ -25,14 +25,13 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ## User feedback
 
 - connect what writing is used in what spoken language
+- ranged weapons need a damage and rüstungsdurchdringung value too
+  - in the same pass: show damage calculation while collapsed
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
 ## High-Prio
-
-- [ready] items actively worn on body are calculated with half of their weight
-this needs to be directly addressed to the players in changelog, as it changes Traglast drastically
 
 ### 4. Spezialenergien - full version
 

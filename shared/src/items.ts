@@ -100,21 +100,29 @@ export function itemGewicht(item: Pick<Item, 'anzahl' | 'gewicht'>): number {
   return (Number(item.anzahl) || 0) * (Number(item.gewicht) || 0);
 }
 
-// Zählt der Gegenstand grundsätzlich zur getragenen Last? Am Körper Getragenes
-// und Abgelegtes (bench) zählt NICHT mit; mitgeführte (inventar) und in
-// Behältern liegende (behaelter) Gegenstände zählen.
+// Zählt der Gegenstand grundsätzlich zur getragenen Last? Abgelegtes (bench)
+// zählt NICHT mit — es liegt irgendwo in Reichweite, nicht am Körper oder im
+// Gepäck. Am Körper Getragenes (getragen) zählt mit halbem Gewicht (siehe
+// itemLastAnteil); mitgeführte (inventar) und in Behältern liegende
+// (behaelter) Gegenstände zählen voll.
 export function zaehltZurLast(item: Pick<Item, 'location'>): boolean {
-  return item.location === 'inventar' || item.location === 'behaelter';
+  return item.location === 'inventar' || item.location === 'behaelter' || item.location === 'getragen';
 }
 
 // Prozentsatz auf [0,100] begrenzen.
 const clampPct = (v: unknown): number => Math.min(100, Math.max(0, Number(v) || 0));
 
-// Lastanteil EINES Gegenstands (kg): 0 für nicht zählende; Behälter-Inhalt um
-// die Reduktion seines Behälters gemindert. `byUid` liefert den Behälter.
+// Halber Lastanteil für am Körper getragene Gegenstände (Spieler-Regel
+// 2026-08-16) — sie sind zwar dabei, aber am Körper verteilt statt im Gepäck.
+const GETRAGEN_ANTEIL = 0.5;
+
+// Lastanteil EINES Gegenstands (kg): 0 für nicht zählende; getragene zählen
+// halb; Behälter-Inhalt um die Reduktion seines Behälters gemindert. `byUid`
+// liefert den Behälter.
 export function itemLastAnteil(item: Item, byUid: Map<string, Item>): number {
   if (!zaehltZurLast(item)) return 0;
   const base = itemGewicht(item);
+  if (item.location === 'getragen') return base * GETRAGEN_ANTEIL;
   if (item.location === 'behaelter') {
     const c = byUid.get(item.containerUid);
     const red = c ? (c.kapazitaetArt === 'stueck' ? 100 : clampPct(c.gewichtsreduktion)) : 0;
