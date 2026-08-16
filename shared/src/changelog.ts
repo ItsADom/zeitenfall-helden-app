@@ -99,6 +99,11 @@ export const KNOWN_BUGS: KnownBug[] = [
     description: 'Höhere Werte lassen sich noch nicht automatisch in andere Münzsorten desselben Systems umrechnen (z. B. Silbertaler in Dublonen) — das braucht noch weitere Entwicklung.',
     status: 'in Arbeit',
   },
+  {
+    title: 'Bank-Beutel zeigt alle Münzsorten statt der höchsten',
+    description: 'Eine echte Bank würde Geld normalerweise in der höchsten Münzsorte lagern (z. B. Dublonen in Aventurien), statt jede Sorte einzeln vorzuhalten wie ein normaler Geldbeutel. Das braucht noch Feinschliff.',
+    status: 'in Arbeit',
+  },
 ];
 
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
@@ -175,7 +180,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     fixed: [
       'Fernkampfwaffen im Waffen-Reiter berechneten ihre FK-Probe ohne den Bonus des zugeordneten Kampftalents — sie fließt jetzt korrekt mit ein.',
-      'Der Bank-Beutel war durch den Geld-Umbau verlorengegangen bzw. ließ sich wie jeder andere Beutel löschen oder umbenennen — er ist jetzt wieder fest da: unbegrenzt, mit festem Namen und ohne Löschen-Knopf.',
     ],
   },
   {
