@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { computeBaseValues, weaponProbes } from '@shared/rules';
+import { computeBaseValues, weaponProbe, weaponProbes } from '@shared/rules';
 import { NOTIZ_KEY, listSectionById } from '@shared/sections';
 import type { ColumnDef } from '@shared/sections';
 import { CollapseChevron, CollapsiblePanel } from '../components/collapse';
@@ -70,6 +70,10 @@ export default function WaffenNeuTab() {
       { at: t?.at ?? 0, pa: t?.pa ?? 0, bl: t?.bl ?? 0 },
     );
   };
+  const fkProbeFor = (row: Row) => {
+    const t = talents.get(Number(row.talentId));
+    return weaponProbe(Number(row.atMod) || 0, bv.fk.ergebnis, t?.at ?? 0);
+  };
 
   return (
     <>
@@ -89,7 +93,7 @@ export default function WaffenNeuTab() {
           rows={data.lists.waffenFernNeu}
           onChange={(rows) => update('waffenFernNeu', rows)}
           kampfTalente={kampfTalente}
-          fk={bv.fk.ergebnis}
+          fkProbeFor={fkProbeFor}
         />
       </CollapsiblePanel>
       <div className="grid2">
@@ -413,12 +417,12 @@ function FernCards({
   rows,
   onChange,
   kampfTalente,
-  fk,
+  fkProbeFor,
 }: {
   rows: Row[];
   onChange: (rows: Row[]) => void;
   kampfTalente: TalentCatalogRow[];
-  fk: number;
+  fkProbeFor: (row: Row) => number;
 }) {
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
@@ -438,7 +442,7 @@ function FernCards({
               {/* Kein Beiwerk im Kopf: das Kampftalent steckt schon in der
                   FK-Probe daneben, und eine Stufe gibt es hier nicht. */}
               <CardHead name={String(row.typ ?? '')} sub="" notiz={notiz} open={open} onToggle={() => toggle(i)}>
-                <ProbeChip label="FK" value={fk + (Number(row.atMod) || 0)} title="Fernkampf — fertige Probe" />
+                <ProbeChip label="FK" value={fkProbeFor(row)} title="Fernkampf — fertige Probe" />
               </CardHead>
               {open && (
                 <div className="chip-editor">

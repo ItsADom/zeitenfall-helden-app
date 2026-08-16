@@ -2215,7 +2215,12 @@ body.resizing-col {
 }
 .pouch-head > *:first-child {
   flex: 1;
-  min-width: 0;
+  min-width: 8em;
+}
+.pouch-head > *:nth-child(2) {
+  flex: 0 1 auto;
+  width: 12em;
+  min-width: 6em;
 }
 .coins {
   display: grid;
@@ -2761,8 +2766,7 @@ li {
   font-weight: 700;
 }
 .container-cap-edit {
-  margin-left: auto;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 4px;
   font-size: 12px;
