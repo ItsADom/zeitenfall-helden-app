@@ -27,6 +27,8 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - connect what writing is used in what spoken language
 - ranged weapons need a damage and rüstungsdurchdringung value too
   - in the same pass: show damage calculation while collapsed
+- add theme coloring to the spell creation table
+  - make it less "table like" even though it is a table
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
