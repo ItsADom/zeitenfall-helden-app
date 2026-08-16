@@ -28,6 +28,7 @@ import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { Portrait } from '../components/Portrait';
 import { overfilled, poolClass } from '../components/energie';
 import { useChar } from '../pages/Character';
+import type { RaceCatalogRow } from '../pages/Character';
 
 type BioField = [key: string, label: string];
 
@@ -90,9 +91,33 @@ const META_FIELDS: [string, string][] = [
 ];
 
 export default function HeldenbriefTab() {
-  const { charId, data, update } = useChar();
+  const { charId, data, catalogs, update } = useChar();
   const readOnly = useReadOnly();
   const { attributes, baseValues, resources, special, bio, meta, attrExtern } = data;
+
+  // Aktuell gewählte Rasse (für Anzeige UND um Basis-Zellen zu sperren, siehe unten).
+  const selectedRace = catalogs.races.find((r) => r.id === bio.rasseId) ?? null;
+
+  // Rasse auswählen: setzt rasseId UND (fürs Altbestands-Freitextfeld, das
+  // Zusammenfassung/Druck weiter unverändert lesen) den Namen mit. gs, Psyche
+  // und Resilienz sind Rassengrundwerte (kein einfacher Bonus) — bei Auswahl
+  // übernommen und danach GESPERRT (siehe die drei Zellen weiter unten), damit
+  // sie nur über eine neue Rassen-Wahl ändern; persönliche Anpassung läuft über
+  // die jeweils vorhandene Mod./Bonus-Spalte.
+  const setRace = (race: RaceCatalogRow | null) => {
+    update('bio', { ...bio, rasseId: race?.id ?? null, rasse: race?.name ?? '' });
+    // EIN Aufruf für beide Basiswert-Felder: update() spiegelt state-intern
+    // nicht sofort zurück in dieses `baseValues`, also würde ein zweiter
+    // Aufruf mit demselben (veralteten) Objekt die erste Änderung überschreiben.
+    if (race?.gs != null || race?.resilienz != null) {
+      update('baseValues', {
+        ...baseValues,
+        ...(race?.gs != null ? { gsBase: race.gs } : null),
+        ...(race?.resilienz != null ? { resilienzBase: race.resilienz } : null),
+      });
+    }
+    if (race?.psyche != null) update('meta', { ...meta, psycheBase: race.psyche });
+  };
 
   const bv = computeBaseValues(attributes, baseValues);
 
@@ -184,7 +209,11 @@ export default function HeldenbriefTab() {
                         {pair.map(([key, label]) => (
                           <div className="bio-cell" key={key}>
                             <label>{label}</label>
-                            <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
+                            {key === 'rasse' ? (
+                              <RaceSelect raceId={bio.rasseId} races={catalogs.races} onChange={setRace} />
+                            ) : (
+                              <TextInput value={bio[key] ?? ''} onChange={(v) => setBio(key, v)} />
+                            )}
                           </div>
                         ))}
                       </div>
@@ -205,8 +234,8 @@ export default function HeldenbriefTab() {
             <thead>
               <tr>
                 <th>Attribut</th>
-                <th style={{ width: 70 }}>Akt.</th>
-                <th style={{ width: 70 }}>Mod.</th>
+                <th style={{ width: 70 }}>Basis</th>
+                <th style={{ width: 70 }}>Bonus</th>
                 <th style={{ width: 70 }}>Max</th>
               </tr>
             </thead>
@@ -248,9 +277,17 @@ export default function HeldenbriefTab() {
                 <tr key={key}>
                   <td>{BASE_VALUE_LABELS[key].label}</td>
                   <td className="formel">{BASE_VALUE_LABELS[key].formel}</td>
-                  <td className={key === 'gs' ? 'num' : 'computed'}>
+                  <td className={key === 'gs' && selectedRace?.gs == null ? 'num' : 'computed'}>
                     {key === 'gs' ? (
-                      <NumInput value={baseValues.gsBase} onChange={(v) => update('baseValues', { ...baseValues, gsBase: v })} />
+                      selectedRace?.gs != null ? (
+                        <span className="cell-value" title={`Von „${selectedRace.name}“ vorgegeben — über die Rassen-Auswahl änderbar, persönliche Anpassung über die Mod.-Spalte`}>
+                          {baseValues.gsBase}
+                        </span>
+                      ) : (
+                        <NumInput value={baseValues.gsBase} onChange={(v) => update('baseValues', { ...baseValues, gsBase: v })} />
+                      )
+                    ) : key === 'resilienz' && selectedRace?.resilienz != null ? (
+                      <span title={`Enthält den Rassengrundwert von „${selectedRace.name}“ (${selectedRace.resilienz})`}>{bv[key].base}</span>
                     ) : (
                       bv[key].base
                     )}
@@ -347,9 +384,12 @@ export default function HeldenbriefTab() {
                 + Bonus + MU-Anteil, OHNE Ausbaugrenze. Rassengrundwert steht in
                 der Bonus-Spalte, der Zusatz-Bonus in der Gekauft-Spalte (die
                 festen Kopfzeilen passen nicht 1:1, daher die title-Tooltips).
-                Rassengrundwert vorerst manuell; künftig evtl. aus Rassen-Katalog. */}
+                Rassengrundwert kommt aus dem Rassen-Katalog (races_catalog.psyche)
+                und ist danach gesperrt, solange die Rasse einen Wert liefert —
+                persönliche Anpassung läuft über den Bonus daneben. */}
             {(() => {
               const pBase = meta.psycheBase ?? 0;
+              const pRaceLocked = selectedRace?.psyche != null;
               const pBonus = meta.psycheBonus ?? 0;
               const pMuAnteil = psycheMuAnteil(attributes);
               const pMax = psycheMax(attributes, pBase, pBonus);
@@ -371,10 +411,10 @@ export default function HeldenbriefTab() {
                       <NumInput value={pBonus} onChange={(v) => setMeta('psycheBonus', v)} />
                     </div>
                   </td>
-                  <td title="Rassengrundwert">
+                  <td title={pRaceLocked ? `Von „${selectedRace!.name}“ vorgegeben — über die Rassen-Auswahl änderbar, persönliche Anpassung über den Bonus` : 'Rassengrundwert'}>
                     <div className="cell-labeled">
                       <span className="cell-label">Rasse</span>
-                      <NumInput value={pBase} onChange={(v) => setMeta('psycheBase', v)} />
+                      {pRaceLocked ? <span className="cell-value">{pBase}</span> : <NumInput value={pBase} onChange={(v) => setMeta('psycheBase', v)} />}
                     </div>
                   </td>
                   <td className="computed">{pMax}</td>
@@ -533,4 +573,72 @@ export default function HeldenbriefTab() {
       </div>
     </>
   );
+}
+
+// Rasse: ein `<select>` läuft nicht durch NumInput/TextInput und bliebe
+// ungegated auch auf einem schreibgeschützten Blatt bedienbar (siehe WaffenNeu
+// TalentCell für dieselbe Begründung) — im Nur-Lesen-Modus daher nur Text.
+// Gruppiert per <optgroup>, damit die ~66 Katalog-Rassen nicht als eine lange
+// flache Liste stehen; Reihenfolge folgt dem Katalog-Sort (Herkunft des PDFs).
+function RaceSelect({
+  raceId,
+  races,
+  onChange,
+}: {
+  raceId: number | null;
+  races: RaceCatalogRow[];
+  onChange: (race: RaceCatalogRow | null) => void;
+}) {
+  const readOnly = useReadOnly();
+  const current = races.find((r) => r.id === raceId) ?? null;
+
+  if (readOnly) {
+    return <span className="static-value static-text">{current?.name ?? ''}</span>;
+  }
+
+  const groups = new Map<string, RaceCatalogRow[]>();
+  for (const r of races) {
+    const key = r.gruppe || '—';
+    const arr = groups.get(key);
+    if (arr) arr.push(r);
+    else groups.set(key, [r]);
+  }
+
+  return (
+    <div className="race-select">
+      <select value={raceId ?? ''} onChange={(e) => onChange(races.find((r) => r.id === Number(e.target.value)) ?? null)}>
+        <option value="">— keine gewählt —</option>
+        {[...groups.entries()].map(([gruppe, rows]) => (
+          <optgroup key={gruppe} label={gruppe}>
+            {rows.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {current && (
+        <p className="muted race-info">
+          {current.beschreibung}
+          {current.beschreibung ? ' — ' : ''}
+          {raceBonusSummary(current)}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function raceBonusSummary(r: RaceCatalogRow): string {
+  const signed = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+  const parts: string[] = [];
+  if (r.le != null && r.le !== 0) parts.push(`LE ${signed(r.le)}`);
+  if (r.au != null && r.au !== 0) parts.push(`AU ${signed(r.au)}`);
+  if (r.ae != null && r.ae !== 0) parts.push(`AsE ${signed(r.ae)}`);
+  if (r.mr != null && r.mr !== 0) parts.push(`MR ${signed(r.mr)}`);
+  if (r.ak != null && r.ak !== 0) parts.push(`AK ${signed(r.ak)}`);
+  if (r.gs != null) parts.push(`GS ${r.gs}`);
+  if (r.psyche != null) parts.push(`Psyche ${r.psyche}`);
+  if (r.resilienz != null && r.resilienz !== 0) parts.push(`Resilienz ${signed(r.resilienz)}`);
+  return parts.length ? parts.join(', ') : 'keine Werte hinterlegt';
 }

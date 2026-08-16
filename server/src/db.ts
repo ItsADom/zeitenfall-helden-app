@@ -118,6 +118,11 @@ db.exec(`
     augenfarbe TEXT NOT NULL DEFAULT '', haarfarbe TEXT NOT NULL DEFAULT '', hautfarbe TEXT NOT NULL DEFAULT '',
     familienstand TEXT NOT NULL DEFAULT '', anrede TEXT NOT NULL DEFAULT '',
     rasse TEXT NOT NULL DEFAULT '', rasseMod TEXT NOT NULL DEFAULT '',
+    -- Verweis in den Rassen-Katalog (races_catalog); rasse bleibt als Freitext-
+    -- Spalte erhalten (Altbestand, kein Datenverlust) und wird beim Auswählen
+    -- einer Katalog-Rasse mit deren Namen mitgesetzt, aber nicht mehr frei
+    -- editiert — siehe rasseId in shared/src/types.ts.
+    rasseId INTEGER REFERENCES races_catalog(id) ON DELETE SET NULL,
     kultur TEXT NOT NULL DEFAULT '', kulturMod TEXT NOT NULL DEFAULT '',
     profession TEXT NOT NULL DEFAULT '', zweitprofession TEXT NOT NULL DEFAULT '',
     gottheit TEXT NOT NULL DEFAULT '', goettergeschenke TEXT NOT NULL DEFAULT '',
@@ -229,6 +234,27 @@ db.exec(`
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     tag_id INTEGER NOT NULL REFERENCES tags_catalog(id) ON DELETE CASCADE,
     PRIMARY KEY (character_id, tag_id)
+  );
+
+  -- Rassen-Katalog (Rassenbrief + Psyche/Resilienz-Dokument): anders als
+  -- Talente/Sprachen/Merkmale hat ein Charakter höchstens EINE Rasse — kein
+  -- char_races-Zuordnungstabelle nötig, char_bio.rasseId zeigt direkt auf
+  -- einen Eintrag hier (siehe unten). Boni (le/au/ae/mr/ak) sind additive
+  -- Modifikatoren, NULL wenn die Quelle keine Werte-Tabelle hatte. gs ist
+  -- dagegen ein absoluter Basiswert (kein Bonus) — entspricht baseValues.gsBase
+  -- auf dem Bogen. psyche/resilienz sind Rassengrundwerte, die additiv in die
+  -- Formel einfließen (Meta.psycheBase bzw. BaseValueInputs.resilienzBase) —
+  -- beide werden bei Rassen-Auswahl übernommen und danach gesperrt.
+  CREATE TABLE IF NOT EXISTS races_catalog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    gruppe TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL,
+    beschreibung TEXT NOT NULL DEFAULT '',
+    spezialisierung TEXT NOT NULL DEFAULT '',
+    talente TEXT NOT NULL DEFAULT '',
+    le REAL, au REAL, ae REAL, mr REAL, ak REAL, gs REAL, psyche REAL, resilienz REAL,
+    notiz TEXT NOT NULL DEFAULT '',
+    sort INTEGER NOT NULL DEFAULT 0
   );
 
   -- Freitext-GM-Notiz je Charakter: bewusst eigene Tabelle statt char_bio
@@ -500,6 +526,23 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_bio)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('sidebarNotiz')) db.exec("ALTER TABLE char_bio ADD COLUMN sidebarNotiz TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: 'rasseId'-Spalte an bestehende char_bio ergänzen (Rassen-Katalog).
+// Die alte Freitext-Spalte 'rasse' bleibt unverändert stehen (kein Datenverlust);
+// Spieler wählen künftig aus dem Katalog neu, siehe rasseId in shared/src/types.ts.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_bio)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('rasseId')) db.exec('ALTER TABLE char_bio ADD COLUMN rasseId INTEGER REFERENCES races_catalog(id) ON DELETE SET NULL');
+}
+
+// Migration: 'psyche'/'resilienz'-Spalten an bestehende races_catalog ergänzen
+// (Rassengrundwerte aus dem separaten Psyche/Resilienz-Dokument, nachträglich
+// zur ersten Katalog-Fassung dazugekommen).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(races_catalog)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('psyche')) db.exec('ALTER TABLE races_catalog ADD COLUMN psyche REAL');
+  if (!cols.has('resilienz')) db.exec('ALTER TABLE races_catalog ADD COLUMN resilienz REAL');
 }
 
 // Migration: 'AT-Deckel' (atMax) aus den Nahkampfwaffen entfernt. Bestehende

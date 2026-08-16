@@ -12,16 +12,19 @@ interface CatalogColumn {
   width?: number;
 }
 
-// Editierbarer Katalog (Talente / Sprachen) — speichert je Feld beim Verlassen
-function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' | 'tags'; title: string; columns: CatalogColumn[] }) {
+// Editierbarer Katalog (Talente / Sprachen / Rassen) — speichert je Feld beim Verlassen
+function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' | 'tags' | 'races'; title: string; columns: CatalogColumn[] }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
   const [neu, setNeu] = useState<Record<string, string>>({});
 
   const reload = () => {
-    apiGet<{ talents: Record<string, unknown>[]; languages: Record<string, unknown>[]; tags: Record<string, unknown>[] }>(
-      '/api/catalogs',
-    ).then((c) => setRows(c[type]));
+    apiGet<{
+      talents: Record<string, unknown>[];
+      languages: Record<string, unknown>[];
+      tags: Record<string, unknown>[];
+      races: Record<string, unknown>[];
+    }>('/api/catalogs').then((c) => setRows(c[type]));
   };
   useEffect(reload, [type]);
 
@@ -938,6 +941,27 @@ export default function AdminPage() {
         title="Merkmale-Katalog"
         columns={[
           { key: 'name', label: 'Name' },
+          { key: 'sort', label: 'Sortierung', width: 80 },
+        ]}
+      />
+      <CatalogPanel
+        type="races"
+        title="Rassen-Katalog"
+        columns={[
+          { key: 'gruppe', label: 'Gruppe', width: 130 },
+          { key: 'name', label: 'Name', width: 130 },
+          { key: 'beschreibung', label: 'Beschreibung' },
+          { key: 'spezialisierung', label: 'Spezialisierung', width: 150 },
+          { key: 'talente', label: 'Talente', width: 200 },
+          { key: 'le', label: 'LE', width: 50 },
+          { key: 'au', label: 'AU', width: 50 },
+          { key: 'ae', label: 'AsE', width: 50 },
+          { key: 'mr', label: 'MR', width: 50 },
+          { key: 'ak', label: 'AK', width: 50 },
+          { key: 'gs', label: 'GS', width: 50 },
+          { key: 'psyche', label: 'Psyche', width: 60 },
+          { key: 'resilienz', label: 'Resilienz', width: 70 },
+          { key: 'notiz', label: 'Notiz', width: 200 },
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />

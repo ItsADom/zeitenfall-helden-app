@@ -1263,6 +1263,11 @@ table.sheet tbody tr:hover td.res-over {
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
+/* Rassen-gesperrter Wert (Psyche/Geschwindigkeit): kein <input> mehr, also
+   fehlt die globale input[type=number]-Zentrierung — hier nachgeholt. */
+.cell-value {
+  text-align: center;
+}
 /* Maximum über der Ausbaugrenze: gekappter Wert zählt, Rohsumme daneben
    durchgestrichen — wie ein durchgestrichener alter Preis. */
 .gekappt {
@@ -2512,6 +2517,17 @@ li {
   background: var(--input-bg);
   border-radius: 6px;
   min-height: 1.7em;
+}
+/* Rassen-Auswahl: das <select> wie jedes andere Bio-Feld, die Kurzinfo
+   (Beschreibung + Boni aus dem Katalog) klein und gedämpft darunter. */
+.race-select {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.race-info {
+  font-size: 12px;
+  margin: 0;
 }
 .portrait {
   flex: none;

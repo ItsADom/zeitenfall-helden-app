@@ -51,6 +51,17 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Mid-Prio
 
+- [sketch] **Race catalogue → live calculations (LE/AU/AsE/MR/AK)**: the race
+  catalogue (`races_catalog`, ~66 races from the Rassenbrief) wires Geschwindigkeit
+  (`gsBase`), Psyche (`meta.psycheBase`) and Resilienz (`baseValues.resilienzBase`)
+  live already — picking a race locks those three cells to the race's value
+  (editable again only via a different race pick; personal adjustment stays on the
+  existing Mod./Bonus column). Still store-and-display only for the other five
+  bonuses (LE/AU/AsE/MR/AK): they show as info text under the race picker but are
+  NOT yet added into `computeResource`/`computeBaseValueBases` in
+  `shared/src/rules.ts`. Deliberately deferred to avoid silently shifting every
+  existing character's computed LE/AU/AsE/MR/AK in the same pass as introducing
+  the catalogue.
 - [sketch] **Shapeshifting characters**: a character that can shapeshift needs
   genuinely different values for almost everything (attributes, base values,
   possibly talents/abilities) per form — effectively a separate sheet per shape
@@ -246,9 +257,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Low-Prio
 
-- [sketch] **Spell-creation table in-app**: creating spells in-game follows a
-  regulated table (`files/spell_creation.webp`). Surface it somewhere visible in
-  the app; also needs styling tweaks to look better.
 - [sketch] **CSS tidy-up**: check for components than can be combined
  - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
  - splitting CSS into more fitting files
@@ -327,8 +335,4 @@ chips. Backend table `char_special_resources`. Open for the full version:
      id in an HTML comment so re-scans never duplicate and items can be safely
      deleted once promoted. Raw passthrough — **no LLM in the script** (no added
      cost); refinement into real tasks happens in a normal coding session.
-
-- **catalogue for character races**
-   - wires into different calculations
-   - data is there, needs inspection by AI
 

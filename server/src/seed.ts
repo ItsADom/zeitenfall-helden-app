@@ -107,6 +107,47 @@ export function seed(): void {
       console.warn('server/data/languages.json fehlt — Sprachen-Katalog leer');
     }
   }
+
+  const raceCount = (db.prepare('SELECT COUNT(*) AS n FROM races_catalog').get() as { n: number }).n;
+  if (raceCount === 0) {
+    const file = path.join(dataDir, 'races.json');
+    if (fs.existsSync(file)) {
+      const races = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+        gruppe: string;
+        name: string;
+        beschreibung: string;
+        spezialisierung: string;
+        talente: string;
+        le: number | null;
+        au: number | null;
+        ae: number | null;
+        mr: number | null;
+        ak: number | null;
+        gs: number | null;
+        psyche: number | null;
+        resilienz: number | null;
+        notiz: string;
+        sort: number;
+      }[];
+      const stmt = db.prepare(
+        `INSERT INTO races_catalog (gruppe, name, beschreibung, spezialisierung, talente, le, au, ae, mr, ak, gs, psyche, resilienz, notiz, sort)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      const tx = db.transaction(() => {
+        for (const r of races) {
+          stmt.run(
+            r.gruppe, r.name, r.beschreibung, r.spezialisierung, r.talente,
+            r.le, r.au, r.ae, r.mr, r.ak, r.gs, r.psyche, r.resilienz,
+            r.notiz, r.sort,
+          );
+        }
+      });
+      tx();
+      console.log(`Rassen-Katalog geladen: ${races.length} Einträge`);
+    } else {
+      console.warn('server/data/races.json fehlt — Rassen-Katalog leer');
+    }
+  }
 }
 
 seed();

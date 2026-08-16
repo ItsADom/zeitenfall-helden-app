@@ -44,7 +44,7 @@ export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs
     todesschwelle: ceil((wundschwelle + v('MU')) / 4),
     wundschwelle,
     ausweichen: ceil((v('GE') + v('GE') + v('IN')) / 3),
-    resilienz: ceil((v('MU') + v('MU') + mrErgebnis) / 5),
+    resilienz: ceil((v('MU') + v('MU') + mrErgebnis) / 5) + (inputs.resilienzBase ?? 0),
     mr,
     gs: inputs.gsBase,
   };

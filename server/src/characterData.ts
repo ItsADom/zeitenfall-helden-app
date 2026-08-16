@@ -82,11 +82,13 @@ export function loadBaseValueInputs(charId: number): BaseValueInputs {
   }[];
   const mods = Object.fromEntries(BASE_VALUE_KEYS.map((k) => [k, 0])) as BaseValueInputs['mods'];
   let gsBase = 0;
+  let resilienzBase = 0;
   for (const r of rows) {
     if (BASE_VALUE_KEYS.includes(r.key as never)) mods[r.key as keyof typeof mods] = r.mod;
     if (r.key === 'gs') gsBase = r.base;
+    if (r.key === 'resilienz') resilienzBase = r.base;
   }
-  return { mods, gsBase };
+  return { mods, gsBase, resilienzBase };
 }
 
 export function loadResources(charId: number): Resources {
@@ -1342,7 +1344,15 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       const body = (data ?? {}) as Record<string, unknown>;
       const cols = Object.keys(existing).filter((k) => k !== 'character_id');
       const assignments = cols.map((c) => `${c} = ?`).join(', ');
-      const values = cols.map((c) => (section === 'meta' ? num(body[c]) : str(body[c])));
+      // rasseId ist die einzige nicht-textuelle char_bio-Spalte (Verweis in
+      // races_catalog) — nullbare Ganzzahl statt der sonst üblichen str().
+      const values = cols.map((c) => {
+        if (c === 'rasseId') {
+          const v = body[c];
+          return v == null || v === '' ? null : Math.trunc(num(v));
+        }
+        return section === 'meta' ? num(body[c]) : str(body[c]);
+      });
       db.prepare(`UPDATE ${table} SET ${assignments} WHERE character_id = ?`).run(...values, charId);
       return;
     }
@@ -1356,10 +1366,11 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       return;
     }
     if (section === 'baseValues') {
-      const body = (data ?? {}) as { mods?: Record<string, unknown>; gsBase?: unknown };
+      const body = (data ?? {}) as { mods?: Record<string, unknown>; gsBase?: unknown; resilienzBase?: unknown };
       const stmt = db.prepare('UPDATE char_base_values SET mod = ?, base = ? WHERE character_id = ? AND key = ?');
       for (const key of BASE_VALUE_KEYS) {
-        stmt.run(num(body.mods?.[key]), key === 'gs' ? num(body.gsBase) : 0, charId, key);
+        const base = key === 'gs' ? num(body.gsBase) : key === 'resilienz' ? num(body.resilienzBase) : 0;
+        stmt.run(num(body.mods?.[key]), base, charId, key);
       }
       return;
     }

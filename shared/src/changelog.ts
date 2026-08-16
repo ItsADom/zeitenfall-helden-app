@@ -104,7 +104,7 @@ export const COMING_SOON: string[] = [
   'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — samt hinterlegter Regeln.',
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
-  'Ein Rassen-Katalog, der z. B. direkt in die Psyche-Berechnung und Geschwindigkeit einfließt.',
+  'Die Rassen-Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) fließen direkt in die berechneten Werte ein, statt nur als Info zu stehen.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Komplettüberarbeitung des Waffenbriefs.',
   'Visuelles Feintuning'
@@ -152,12 +152,18 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-16',
     title: 'Event-Gruppen',
+    added: [
+      'Ein Rassen-Katalog mit den Rassen aus dem Rassenbrief: im Heldenbrief wählst du unter „Herkunft" deine Rasse jetzt aus einer Liste statt sie frei einzutippen. Kurzbeschreibung und die hinterlegten Boni werden direkt angezeigt. Geschwindigkeit, Psyche (Rassengrundwert) und Resilienz (Rassengrundwert) übernehmen dabei automatisch den Wert der Rasse und sind danach gesperrt — persönliche Anpassungen laufen über die jeweils vorhandene Mod.-/Bonus-Spalte. Die übrigen Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) werden vorerst nur angezeigt und fließen noch nicht automatisch in die berechneten Werte ein — das kommt in einem späteren Schritt.',
+      'Eine Regeltabelle fürs Erschaffen neuer Zauber im Spiel — aufklappbar unter „Zauber & Fähigkeiten verwalten".',
+    ],
     changed: [
       'Der Waffen-Reiter zeigt jede Waffe jetzt als aufklappbare Karte statt als Tabellenzeile: Name und die fertig berechnete Angriffs-/Paraden-/Blocken- bzw. Fernkampfprobe stehen sofort da, alle Details (Schaden, Material, Reichweite, Kampftalent, Besonderes, Notiz …) öffnen sich mit einem Klick. Der bisherige, tabellenbasierte Waffen-Reiter („Waffen (alt)") entfällt damit — nichts ist verloren gegangen, alle bestehenden Einträge sind in die neue Ansicht übernommen.',
+      'Die Attribut-Tabelle im Heldenbrief heißt jetzt „Basis"/„Bonus" statt „Akt."/„Mod." — passt zur Sprache, die die anderen Tabellen (Basiswerte, Energien) schon verwenden.',
     ],
     admin: [
       '(Spielleiter) Neben der festen Gruppe gibt es jetzt Event-Gruppen für einzelne Sessions abseits der regulären Zusammensetzung — unter „Kataloge & Nutzer" anlegen und Charaktere zuordnen, ohne deren feste Gruppe zu verändern. Ein Charakter kann in beliebig vielen Event-Gruppen zugleich stecken und sieht seine Event-Zugehörigkeit als Hinweis auf dem eigenen Bogen. Jede Event-Gruppe hat eine eigene Spielleiter-Übersicht wie die festen Gruppen.',
       '(Spielleiter) Die Spielleiter-Übersicht zeigt jetzt auch Merkmale (z. B. „Hat Gefahreninstinkt") als Chips je Charakter — verwaltet unter „Kataloge & Nutzer" → „Merkmale-Katalog" und dort auf jeder Karte zuweisbar — sowie ein freies Notizfeld pro Charakter, das nur der Spielleiter sieht (unabhängig von der persönlichen Notiz in der Seitenleiste).',
+      '(Verwaltung) Der Rassen-Katalog lässt sich unter „Kataloge & Nutzer" pflegen, genau wie Talente, Sprachen und Merkmale.',
     ],
   },
   {

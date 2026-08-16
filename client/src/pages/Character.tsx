@@ -30,7 +30,9 @@ const BUILTIN_TAB_LABELS: Record<string, string> = {
 };
 
 export interface FullData {
-  bio: Record<string, string>;
+  // Fast alle Bio-Felder sind Freitext; rasseId ist die einzige Zahl (Verweis
+  // in races_catalog, null = keine Rasse gewählt).
+  bio: Record<string, string> & { rasseId: number | null };
   meta: Record<string, number>;
   attributes: Attributes;
   baseValues: BaseValueInputs;
@@ -83,9 +85,28 @@ export interface LanguageCatalogRow {
   komplexitaet: string;
   sort: number;
 }
+export interface RaceCatalogRow {
+  id: number;
+  gruppe: string;
+  name: string;
+  beschreibung: string;
+  spezialisierung: string;
+  talente: string;
+  le: number | null;
+  au: number | null;
+  ae: number | null;
+  mr: number | null;
+  ak: number | null;
+  gs: number | null;
+  psyche: number | null;
+  resilienz: number | null;
+  notiz: string;
+  sort: number;
+}
 export interface Catalogs {
   talents: TalentCatalogRow[];
   languages: LanguageCatalogRow[];
+  races: RaceCatalogRow[];
 }
 
 interface CharacterInfo {

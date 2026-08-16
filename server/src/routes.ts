@@ -215,7 +215,8 @@ api.get('/catalogs', requireAuth, (_req, res) => {
   const talents = db.prepare('SELECT * FROM talents_catalog ORDER BY sort').all();
   const languages = db.prepare('SELECT * FROM languages_catalog ORDER BY sort').all();
   const tags = db.prepare('SELECT * FROM tags_catalog ORDER BY sort').all();
-  res.json({ talents, languages, tags });
+  const races = db.prepare('SELECT * FROM races_catalog ORDER BY sort').all();
+  res.json({ talents, languages, tags, races });
 });
 
 // --- Dashboard / Gruppen ---
@@ -1150,10 +1151,35 @@ const CATALOGS = {
     refCol: 'tag_id',
     cols: ['name', 'sort'],
   },
+  races: {
+    table: 'races_catalog',
+    // Kein Join-Table: ein Charakter hat höchstens eine Rasse, char_bio.rasseId
+    // zeigt direkt auf races_catalog(id) — der generische "wird verwendet"-
+    // Check unten funktioniert unverändert auch gegen eine echte Spalte.
+    refTable: 'char_bio',
+    refCol: 'rasseId',
+    cols: ['gruppe', 'name', 'beschreibung', 'spezialisierung', 'talente', 'le', 'au', 'ae', 'mr', 'ak', 'gs', 'psyche', 'resilienz', 'notiz', 'sort'],
+    // Boni/Basiswert sind nullbare Zahlen (leer = „keine Werte-Tabelle in der
+    // Quelle"), anders als bei den übrigen Katalogen, die reine Textspalten sind.
+    numCols: ['le', 'au', 'ae', 'mr', 'ak', 'gs', 'psyche', 'resilienz'],
+  },
 } as const;
 
 function catalogDef(type: string) {
   return type in CATALOGS ? CATALOGS[type as keyof typeof CATALOGS] : null;
+}
+
+// sort ist immer eine Zahl (Reihenfolge), numCols (falls vorhanden) sind
+// nullbare Zahlen (leer/undefined → NULL), alles andere bleibt Text.
+function catalogValue(def: (typeof CATALOGS)[keyof typeof CATALOGS], col: string, raw: unknown): unknown {
+  if (col === 'sort') return Number(raw) || 0;
+  const numCols = 'numCols' in def ? (def.numCols as readonly string[]) : [];
+  if (numCols.includes(col)) {
+    if (raw === '' || raw === null || raw === undefined) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  return String(raw ?? '');
 }
 
 api.post('/admin/catalogs/:type', requireAuth, requireGmOrAdmin, (req, res) => {
@@ -1167,7 +1193,7 @@ api.post('/admin/catalogs/:type', requireAuth, requireGmOrAdmin, (req, res) => {
     res.status(400).json({ error: 'Name erforderlich' });
     return;
   }
-  const values = def.cols.map((c) => (c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
+  const values = def.cols.map((c) => catalogValue(def, c, body[c]));
   const r = db
     .prepare(`INSERT INTO ${def.table} (${def.cols.join(', ')}) VALUES (${def.cols.map(() => '?').join(', ')})`)
     .run(...values);
@@ -1187,7 +1213,7 @@ api.put('/admin/catalogs/:type/:id', requireAuth, requireGmOrAdmin, (req, res) =
     res.status(400).json({ error: 'Keine Felder' });
     return;
   }
-  const values = cols.map((c) => (c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
+  const values = cols.map((c) => catalogValue(def, c, body[c]));
   db.prepare(`UPDATE ${def.table} SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...values, id);
   res.json({ ok: true });
 });

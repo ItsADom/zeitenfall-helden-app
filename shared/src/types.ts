@@ -55,7 +55,7 @@ export const BASE_VALUE_LABELS: Record<BaseValueKey, { label: string; formel: st
   todesschwelle: { label: 'Todesschwelle', formel: '(Wundschwelle+MU):4' },
   wundschwelle: { label: 'Wundschwelle', formel: '(KO):2' },
   ausweichen: { label: 'Ausweichen', formel: '(GE+GE+IN):3' },
-  resilienz: { label: 'Resilienz', formel: '(MU+MU+MR):5' },
+  resilienz: { label: 'Resilienz', formel: '(MU+MU+MR):5 + Rasse' },
   mr: { label: 'Magieresistenz', formel: '(MU+KL+KO):5' },
   gs: { label: 'Geschwindigkeit', formel: '' },
 };
@@ -64,6 +64,11 @@ export const BASE_VALUE_LABELS: Record<BaseValueKey, { label: string; formel: st
 export interface BaseValueInputs {
   mods: Record<BaseValueKey, number>;
   gsBase: number;
+  // Rassengrundwert der Resilienz (additiv zur Attribut-Formel), analog zu
+  // gsBase — vorbelegt bei der Rassen-Auswahl (races_catalog.resilienz),
+  // danach über den Mod.-Spalte anpassbar (nicht direkt editierbar, sobald
+  // die Rasse einen Wert liefert).
+  resilienzBase: number;
 }
 
 // Energien/Ressourcen (LE, AUS, AsE) — echte Vorräte mit Aktuell/Max.
@@ -146,7 +151,11 @@ export interface Bio {
   hautfarbe: string;
   familienstand: string;
   anrede: string;
+  // Freitext-Altbestand (Anzeige-Fallback/Legacy) — wird beim Auswählen einer
+  // Katalog-Rasse mit deren Namen mitgesetzt, aber nicht mehr frei editiert.
   rasse: string;
+  // Verweis in den Rassen-Katalog (races_catalog); null = keine gewählt.
+  rasseId: number | null;
   rasseMod: string;
   kultur: string;
   kulturMod: string;

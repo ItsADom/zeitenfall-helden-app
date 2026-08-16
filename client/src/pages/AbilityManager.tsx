@@ -5,8 +5,22 @@ import { ABILITY_STUFE_MAX, makeAbilityUid } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
 import { useThemeControls } from '../App';
 import { BackToSheet } from '../components/BackToSheet';
+import { CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { Field } from '../components/inputs';
+
+// Regeltabelle fürs Erschaffen neuer Zauber im Spiel: pro Attribut, was es beim
+// Geschoss- bzw. Erschaffen-Typ steuert. Quelle: files/spell_creation.png (GM-Doku).
+const SPELL_CREATION_ROWS: { attribut: string; geschoss: string; erschaffen: string }[] = [
+  { attribut: 'Mut', geschoss: 'Nebeneffekt des Elements gestärkt', erschaffen: 'Magische Beständigkeit (Dauer)' },
+  { attribut: 'Klugheit', geschoss: 'Verstärken; Effekte +', erschaffen: 'Konsistenz des Objekts' },
+  { attribut: 'Intuition', geschoss: 'Genauigkeit erweitern', erschaffen: 'Positionierung des Objekts' },
+  { attribut: 'Charisma', geschoss: 'Einbringung des Karmas', erschaffen: 'Effekt hinzufügen' },
+  { attribut: 'Fingerfertigkeit', geschoss: 'Formen bewegen', erschaffen: 'Formen des Objekts' },
+  { attribut: 'Gewandtheit', geschoss: 'Beschl. / komplexe Bewegung', erschaffen: 'Bewegung / Beweglichkeit' },
+  { attribut: 'Konstitution', geschoss: 'Durchdringung', erschaffen: 'Dichte des Objekts' },
+  { attribut: 'Körperkraft', geschoss: 'Intensität erhöhen', erschaffen: 'Kraft des Objekts' },
+];
 
 // „Zauber & Fähigkeiten verwalten" (Cluster 6): die dedizierte Bearbeitungsseite
 // und „einzige Quelle der Wahrheit". Zwei getrennte Listen — Zauber (magisch) und
@@ -238,6 +252,33 @@ export default function AbilityManagerPage() {
         Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Hier wird alles gepflegt; im Reiter selbst
         wird nur der Lernfortschritt geändert. Änderungen sind erst mit „Speichern" verbindlich.
       </p>
+
+      <CollapsiblePanel collapseKey="spellCreationTable" title="Regeltabelle: Zauber erschaffen" rows={SPELL_CREATION_ROWS.length}>
+        <p className="muted">
+          Wer im Spiel einen neuen Zauber erschafft, bespricht mit der Spielleitung Wirkung und Element, wählt dann
+          passend zur Tabelle die Attribute für die Probe (und die Kosten) und probiert den Zauber im Spiel aus.
+        </p>
+        <div className="table-wrap">
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>Attribut</th>
+                <th>Geschoss</th>
+                <th>Erschaffen</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SPELL_CREATION_ROWS.map((r) => (
+                <tr key={r.attribut}>
+                  <th scope="row">{r.attribut}</th>
+                  <td>{r.geschoss}</td>
+                  <td>{r.erschaffen}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CollapsiblePanel>
 
       {abilities.length === 0 && hasOldTab && (
         <div className="panel werk-seed">
