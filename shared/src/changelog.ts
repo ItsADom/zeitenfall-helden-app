@@ -135,6 +135,13 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-16',
+    title: 'Event-Gruppen',
+    added: [
+      '(Spielleiter) Neben der festen Gruppe gibt es jetzt Event-Gruppen für einzelne Sessions abseits der regulären Zusammensetzung — unter „Kataloge & Nutzer" anlegen und Charaktere zuordnen, ohne deren feste Gruppe zu verändern. Ein Charakter kann in beliebig vielen Event-Gruppen zugleich stecken und sieht seine Event-Zugehörigkeit als Hinweis auf dem eigenen Bogen. Jede Event-Gruppe hat eine eigene Spielleiter-Übersicht wie die festen Gruppen.',
+    ],
+  },
+  {
     date: '2026-08-14',
     version: '0.4',
     title: 'Eigene Charaktere & Zeitenkompass',

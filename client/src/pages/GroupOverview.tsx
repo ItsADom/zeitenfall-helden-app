@@ -51,7 +51,10 @@ function vitalClass(key: string, aktuell: number, max: number): string {
   return '';
 }
 
-export default function GroupOverviewPage() {
+// kind='temp': Event-Gruppe (temp_group_members, additiv zur festen Gruppe) statt
+// fester Gruppe. Server liefert für beide dasselbe Antwortformat (Feld „group"),
+// nur der Endpunkt und die Umrandungstexte unterscheiden sich.
+export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' | 'temp' }) {
   const { id } = useParams();
   const groupId = Number(id);
   const [data, setData] = useState<OverviewData | null>(null);
@@ -61,7 +64,7 @@ export default function GroupOverviewPage() {
   // erscheinen als Spalte auf jeder Karte. Die Auswahl überlebt Reload/Poll und
   // ist je Gruppe gemerkt (client-seitig — reine Anzeigehilfe, kein Serverstand).
   const [query, setQuery] = useState('');
-  const [pinned, setPinned] = usePersistedState<number[]>(`gm-poll:${groupId}`, []);
+  const [pinned, setPinned] = usePersistedState<number[]>(kind === 'temp' ? `gm-poll:temp:${groupId}` : `gm-poll:${groupId}`, []);
   const pin = (tid: number) => {
     setPinned((p) => (p.includes(tid) ? p : [...p, tid]));
     setQuery('');
@@ -73,13 +76,14 @@ export default function GroupOverviewPage() {
   const loadOverview = useCallback(
     (quiet = false) => {
       if (!quiet) setData(null);
-      return apiGet<OverviewData>(`/api/groups/${groupId}/overview`)
+      const path = kind === 'temp' ? `/api/temp-groups/${groupId}/overview` : `/api/groups/${groupId}/overview`;
+      return apiGet<OverviewData>(path)
         .then(setData)
         .catch((e) => {
           if (!quiet) setError(e instanceof Error ? e.message : 'Fehler');
         });
     },
-    [groupId],
+    [groupId, kind],
   );
 
   useEffect(() => {
@@ -129,9 +133,9 @@ export default function GroupOverviewPage() {
   return (
     <>
       <p className="muted">
-        <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>
+        {kind === 'temp' ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
       </p>
-      <h1>Übersicht: {data.group.name}</h1>
+      <h1>{kind === 'temp' ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
 
       <div className="gm-poll">
         <div className="gm-poll-search">
@@ -180,7 +184,7 @@ export default function GroupOverviewPage() {
       </div>
 
       {data.characters.length === 0 ? (
-        <p className="muted">Keine Charaktere in dieser Gruppe.</p>
+        <p className="muted">{kind === 'temp' ? 'Keine Charaktere in dieser Event-Gruppe.' : 'Keine Charaktere in dieser Gruppe.'}</p>
       ) : (
         <div className="gm-cards">
           {data.characters.map((c) => (

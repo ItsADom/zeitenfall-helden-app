@@ -1676,7 +1676,26 @@ export function buildGroupOverview(groupId: number) {
        FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ? ORDER BY c.name`,
     )
     .all(groupId) as { id: number; name: string; ownerName: string }[];
+  return overviewForChars(chars);
+}
 
+// Dieselbe Übersicht für eine temporäre/Event-Gruppe — additiv über
+// temp_group_members statt der festen characters.group_id, sonst identische
+// Aggregation (siehe buildGroupOverview).
+export function buildTempGroupOverview(tempGroupId: number) {
+  const chars = db
+    .prepare(
+      `SELECT c.id, c.name, u.display_name AS ownerName
+       FROM characters c
+       JOIN users u ON u.id = c.owner_user_id
+       JOIN temp_group_members tgm ON tgm.character_id = c.id
+       WHERE tgm.temp_group_id = ? ORDER BY c.name`,
+    )
+    .all(tempGroupId) as { id: number; name: string; ownerName: string }[];
+  return overviewForChars(chars);
+}
+
+function overviewForChars(chars: { id: number; name: string; ownerName: string }[]) {
   return chars.map((c) => {
     const attributes = loadAttributes(c.id);
     const resources = loadResources(c.id);

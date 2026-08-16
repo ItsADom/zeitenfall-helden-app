@@ -56,6 +56,20 @@ db.exec(`
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (group_id, user_id)
   );
+  -- Temporäre/Event-Gruppen: rein additiv zur festen Gruppe (characters.group_id
+  -- bleibt unberührt). GM-only end-to-end, keine Spieler-Selbstanmeldung. Löschen
+  -- entfernt nur die Zuordnungen (ON DELETE CASCADE) — keine Charakterdaten betroffen.
+  CREATE TABLE IF NOT EXISTS temp_groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL DEFAULT '',
+    created_by INTEGER NOT NULL REFERENCES users(id),
+    created_at INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS temp_group_members (
+    temp_group_id INTEGER NOT NULL REFERENCES temp_groups(id) ON DELETE CASCADE,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    PRIMARY KEY (temp_group_id, character_id)
+  );
   CREATE TABLE IF NOT EXISTS characters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,

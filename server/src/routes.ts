@@ -18,6 +18,7 @@ import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
   buildGroupOverview,
+  buildTempGroupOverview,
   buildSummary,
   talentCatalogList,
   deletePortrait,
@@ -416,6 +417,16 @@ api.get('/characters/:id', requireAuth, (req, res) => {
   }
   const owner = db.prepare('SELECT display_name FROM users WHERE id = ?').get(char.owner_user_id) as { display_name: string };
   const group = db.prepare('SELECT name FROM groups WHERE id = ?').get(char.group_id) as { name: string };
+  // Event-Gruppen sind rein additiv (siehe temp_group_members) — der Charakter
+  // steckt hier zusätzlich zu seiner festen Gruppe, für jeden mit Zugriff auf den
+  // Bogen sichtbar (Besitzer wie Spielleitung), nicht nur die Spielleitung.
+  const tempGroups = db
+    .prepare(
+      `SELECT tg.id, tg.name FROM temp_groups tg
+       JOIN temp_group_members m ON m.temp_group_id = tg.id
+       WHERE m.character_id = ? ORDER BY tg.name`,
+    )
+    .all(char.id) as { id: number; name: string }[];
   const info = {
     id: char.id,
     name: char.name,
@@ -423,6 +434,7 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     ownerName: owner?.display_name ?? '',
     groupId: char.group_id,
     groupName: group?.name ?? '',
+    tempGroups,
     theme: char.theme ?? '',
   };
   if (!access) {
@@ -1013,6 +1025,78 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   }
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
   res.json({ ok: true });
+});
+
+// --- Temporäre/Event-Gruppen (GM-only end-to-end, siehe TODO.md) ---
+// Bewusst requireGm statt requireGmOrAdmin wie bei den festen Gruppen: die
+// Verwaltung sieht/verwaltet feste Gruppen mit, Event-Gruppen bleiben Sache der
+// Spielleitung. Mitgliedschaft ist additiv über Charakter-IDs, kein Ersatz für
+// characters.group_id.
+
+api.get('/admin/temp-groups', requireAuth, requireGm, (_req, res) => {
+  const groups = db.prepare('SELECT id, name, created_by AS createdBy, created_at AS createdAt FROM temp_groups ORDER BY created_at DESC').all() as {
+    id: number;
+    name: string;
+    createdBy: number;
+    createdAt: number;
+  }[];
+  const members = db.prepare('SELECT temp_group_id, character_id FROM temp_group_members').all() as {
+    temp_group_id: number;
+    character_id: number;
+  }[];
+  res.json(
+    groups.map((g) => ({
+      ...g,
+      memberCharacterIds: members.filter((m) => m.temp_group_id === g.id).map((m) => m.character_id),
+    })),
+  );
+});
+
+api.post('/admin/temp-groups', requireAuth, requireGm, (req, res) => {
+  const { name } = (req.body ?? {}) as { name?: string };
+  if (!name) {
+    res.status(400).json({ error: 'Name erforderlich' });
+    return;
+  }
+  const r = db
+    .prepare('INSERT INTO temp_groups (name, created_by, created_at) VALUES (?, ?, ?)')
+    .run(name, req.user!.id, Date.now());
+  res.json({ id: Number(r.lastInsertRowid) });
+});
+
+api.put('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
+  const id = Number(req.params.id);
+  const { name, memberCharacterIds } = (req.body ?? {}) as { name?: string; memberCharacterIds?: number[] };
+  if (name) db.prepare('UPDATE temp_groups SET name = ? WHERE id = ?').run(name, id);
+  if (Array.isArray(memberCharacterIds)) {
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM temp_group_members WHERE temp_group_id = ?').run(id);
+      const stmt = db.prepare('INSERT INTO temp_group_members (temp_group_id, character_id) VALUES (?, ?)');
+      for (const cid of memberCharacterIds) stmt.run(id, Number(cid));
+    });
+    tx();
+  }
+  res.json({ ok: true });
+});
+
+// Löschen ist immer erlaubt (anders als feste Gruppen): die Zuordnung ist
+// additiv, ON DELETE CASCADE räumt nur temp_group_members auf — keine
+// Charakterdaten betroffen, daher kein „enthält noch Charaktere"-Schutz nötig.
+api.delete('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
+  db.prepare('DELETE FROM temp_groups WHERE id = ?').run(Number(req.params.id));
+  res.json({ ok: true });
+});
+
+api.get('/temp-groups/:id/overview', requireAuth, requireGm, (req, res) => {
+  const id = Number(req.params.id);
+  const group = db.prepare('SELECT id, name FROM temp_groups WHERE id = ?').get(id) as { id: number; name: string } | undefined;
+  if (!group) {
+    res.status(404).json({ error: 'Event-Gruppe nicht gefunden' });
+    return;
+  }
+  // Gleiches Antwortformat wie /groups/:id/overview (Feld „group") — so kann
+  // die Client-Übersichtsseite für beide Gruppentypen wiederverwendet werden.
+  res.json({ group, talentCatalog: talentCatalogList(), characters: buildTempGroupOverview(id) });
 });
 
 // --- Kataloge bearbeiten (nur Spielleiter) ---

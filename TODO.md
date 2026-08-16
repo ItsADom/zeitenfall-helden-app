@@ -72,26 +72,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
      location system with per-coin weight feeding Traglast. The per-character
      storage model + migration hinge on this → hold the build until it's decided.
   Migration (no data loss): fold existing `geldD/S/H/K/bank` values into whatever lands.
-- [ready] **Temporary/event groups** (concept agreed — additive, GM-managed): for
-  one-off event sessions that don't use the regular group composition, without
-  touching a character's permanent group.
-   - A character's permanent `group_id` is untouched; membership in a temp group
-     is purely additive (a character keeps showing up in their regular group too).
-   - New tables: `temp_groups(id, name, created_by, created_at)` and a
-     many-to-many `temp_group_members(temp_group_id, character_id)` (unlike the
-     permanent group's scalar `characters.group_id`, this needs a join table
-     since it's additive, not exclusive).
-   - GM-only end to end: GM creates/deletes the temp group and adds/removes
-     characters directly (no player self-join, no request/approval step — mirrors
-     admin group CRUD, not the character group-request flow).
-   - Full integration: GM overview (`GroupOverview.tsx` / `buildGroupOverview` in
-     `characterData.ts`) gets a temp-group selector alongside regular groups,
-     reusing the same chip aggregation logic against `temp_group_members` instead
-     of `c.group_id`. Character page shows temp-group membership as an extra
-     read-only line next to "Gruppe: X" (e.g. "Event: Sommerfest").
-   - Lifecycle: manual delete only, by the GM. Deleting a temp group just drops
-     its join-table rows — no character data touched, so this is no-data-loss
-     safe by construction.
 - [ready] **Expanded bio page** (concept agreed): a dedicated route (e.g.
   `/charakter/:id/bio`), linked from the character sheet — deliberately outside
   the existing `char_tabs`/`char_sections` tab system, new territory for the app.

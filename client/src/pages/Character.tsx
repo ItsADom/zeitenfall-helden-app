@@ -89,6 +89,9 @@ interface CharacterInfo {
   ownerName: string;
   groupId: number;
   groupName: string;
+  // Event-Gruppen: rein additiv zur festen Gruppe oben, nur-lesen hier (GM-only
+  // verwaltet unter /verwaltung).
+  tempGroups: { id: number; name: string }[];
   // Farbwelt des Charakters ('' = keine → Betrachter behält seine Vorgabe).
   theme?: string;
 }
@@ -520,6 +523,7 @@ export default function CharacterPage() {
           <span className="muted">
             Spieler: {info.ownerName} · Gruppe:{' '}
             {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName}
+            {info.tempGroups.length > 0 && <> · Event: {info.tempGroups.map((g) => g.name).join(', ')}</>}
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>

@@ -129,6 +129,11 @@ interface AdminGroup {
   name: string;
   memberIds: number[];
 }
+interface AdminTempGroup {
+  id: number;
+  name: string;
+  memberCharacterIds: number[];
+}
 interface AdminChar {
   id: number;
   name: string;
@@ -249,16 +254,118 @@ function GroupMembersEditor({
   );
 }
 
+// Charaktere einer Event-Gruppe: gleiches Muster wie GroupMembersEditor, aber
+// gegen Charaktere statt Nutzer (Event-Mitgliedschaft ist additiv über
+// character_id, siehe temp_group_members).
+function CharacterMembersEditor({
+  memberIds,
+  chars,
+  onCommit,
+  onRemove,
+}: {
+  memberIds: number[];
+  chars: AdminChar[];
+  onCommit: (ids: number[]) => Promise<unknown>;
+  onRemove: (characterId: number) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [staged, setStaged] = useState<number[]>([]);
+  const [open, setOpen] = useState(false);
+
+  const byId = (id: number) => chars.find((c) => c.id === id);
+  const members = chars.filter((c) => memberIds.includes(c.id));
+  const q = query.trim().toLowerCase();
+  const candidates = chars.filter(
+    (c) => !memberIds.includes(c.id) && !staged.includes(c.id) && (q === '' || c.name.toLowerCase().includes(q)),
+  );
+  const stagedVisible = staged.filter((id) => !memberIds.includes(id));
+
+  const stage = (id: number) => {
+    setStaged((s) => (s.includes(id) ? s : [...s, id]));
+    setQuery('');
+    setOpen(false);
+  };
+  const commit = async () => {
+    if (stagedVisible.length === 0) return;
+    await onCommit([...memberIds, ...stagedVisible]);
+    setStaged([]);
+  };
+
+  return (
+    <div className="grp-members">
+      <div className="grp-chips">
+        {members.length === 0 && <span className="muted">— keine —</span>}
+        {members.map((c) => (
+          <span className="grp-chip" key={c.id}>
+            {c.name}
+            <ConfirmDeleteButton className="grp-chip-x" title="Aus der Event-Gruppe entfernen" onConfirm={() => onRemove(c.id)} />
+          </span>
+        ))}
+      </div>
+      <div className="grp-add">
+        <div className="grp-add-field">
+          <input
+            placeholder="Charakter hinzufügen…"
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && candidates.length) {
+                e.preventDefault();
+                stage(candidates[0].id);
+              } else if (e.key === 'Escape') setOpen(false);
+            }}
+          />
+          {open && candidates.length > 0 && (
+            <div className="grp-suggest">
+              {candidates.slice(0, 8).map((c) => (
+                <button key={c.id} className="grp-suggest-item" onMouseDown={(e) => {
+                  e.preventDefault();
+                  stage(c.id);
+                }}>
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {stagedVisible.map((id) => {
+          const c = byId(id);
+          return c ? (
+            <span className="grp-chip grp-chip-staged" key={id}>
+              {c.name}
+              <button className="grp-chip-x" title="Vormerkung entfernen" onClick={() => setStaged((s) => s.filter((x) => x !== id))}>
+                ✕
+              </button>
+            </span>
+          ) : null;
+        })}
+        {stagedVisible.length > 0 && (
+          <button className="primary small" onClick={commit}>
+            Hinzufügen ({stagedVisible.length})
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user: me } = useAuth();
   const { requests, refresh: refreshRequests } = usePendingRequests();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [groups, setGroups] = useState<AdminGroup[]>([]);
+  const [tempGroups, setTempGroups] = useState<AdminTempGroup[]>([]);
   const [chars, setChars] = useState<AdminChar[]>([]);
   const [error, setError] = useState('');
 
   const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '', isGm: false, isAdmin: false });
   const [newGroup, setNewGroup] = useState('');
+  const [newTempGroup, setNewTempGroup] = useState('');
   const [newChar, setNewChar] = useState({ name: '', ownerUserId: 0, groupId: 0 });
   const [importTarget, setImportTarget] = useState({ ownerUserId: 0, groupId: 0 });
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -272,6 +379,10 @@ export default function AdminPage() {
     if (me.isGm || me.isAdmin) {
       apiGet<AdminGroup[]>('/api/admin/groups').then(setGroups);
       apiGet<AdminChar[]>('/api/admin/characters').then(setChars);
+    }
+    // Event-Gruppen bleiben Sache der Spielleitung (GM-only, siehe Server-Route).
+    if (me.isGm) {
+      apiGet<AdminTempGroup[]>('/api/admin/temp-groups').then(setTempGroups);
     }
   };
   useEffect(reload, []);
@@ -568,6 +679,79 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+
+      {/* Event-Gruppen: rein additiv zur festen Gruppe eines Charakters, GM-only
+          (siehe TODO.md „Temporary/event groups"). Mitgliedschaft läuft über
+          Charakter-IDs, nicht Nutzer — ein Charakter kann in seiner festen Gruppe
+          UND beliebig vielen Event-Gruppen zugleich stecken. */}
+      {me.isGm && (
+        <div className="panel">
+          <h2>Event-Gruppen</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Für einzelne Event-Sessions abseits der festen Gruppenzugehörigkeit — die feste Gruppe eines Charakters bleibt dabei unangetastet.
+          </p>
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Charaktere</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {tempGroups.map((g) => (
+                <tr key={g.id}>
+                  <td style={{ width: 200 }}>
+                    <input
+                      defaultValue={g.name}
+                      title="Event-Gruppe umbenennen"
+                      onBlur={(e) => {
+                        const v = e.target.value.trim();
+                        if (v && v !== g.name) run(() => apiPut(`/api/admin/temp-groups/${g.id}`, { name: v }));
+                        else e.target.value = g.name;
+                      }}
+                    />
+                    <div>
+                      <Link to={`/event/${g.id}/uebersicht`}>Übersicht →</Link>
+                    </div>
+                  </td>
+                  <td>
+                    <CharacterMembersEditor
+                      memberIds={g.memberCharacterIds}
+                      chars={chars}
+                      onCommit={(ids) => run(() => apiPut(`/api/admin/temp-groups/${g.id}`, { memberCharacterIds: ids }))}
+                      onRemove={(cid) =>
+                        run(() => apiPut(`/api/admin/temp-groups/${g.id}`, { memberCharacterIds: g.memberCharacterIds.filter((x) => x !== cid) }))
+                      }
+                    />
+                  </td>
+                  <td>
+                    <button className="small" onClick={() => confirm(`Event-Gruppe ${g.name} löschen?`) && run(() => apiDelete(`/api/admin/temp-groups/${g.id}`))}>
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h4>Neue Event-Gruppe</h4>
+          <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
+            <input placeholder="Name" value={newTempGroup} onChange={(e) => setNewTempGroup(e.target.value)} />
+            <button
+              className="primary"
+              disabled={!newTempGroup}
+              onClick={() =>
+                run(async () => {
+                  await apiPost('/api/admin/temp-groups', { name: newTempGroup });
+                  setNewTempGroup('');
+                })
+              }
+            >
+              Anlegen
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="panel">
         <h2>Charaktere</h2>
