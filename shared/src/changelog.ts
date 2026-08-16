@@ -167,6 +167,10 @@ export const CHANGELOG: ChangelogEntry[] = [
       '(Verwaltung) Der Rassen-Katalog lässt sich unter „Kataloge & Nutzer" pflegen, genau wie Talente, Sprachen und Merkmale.',
       '(Verwaltung) Ein Währungs-Katalog lässt sich ebenfalls unter „Kataloge & Nutzer" pflegen: Währungssysteme (z. B. Aventurisch, Myranor, Titania) mit ihren jeweiligen Münzsorten und Umrechnungsfaktoren anlegen, umbenennen und löschen.',
     ],
+    fixed: [
+      'Fernkampfwaffen im Waffen-Reiter berechneten ihre FK-Probe ohne den Bonus des zugeordneten Kampftalents — sie fließt jetzt korrekt mit ein.',
+      'Der Name eines Geldbeutels wurde neben der Kapazitäts-Anzeige teils abgeschnitten — beide Spalten haben jetzt genug eigenen Platz.',
+    ],
   },
   {
     date: '2026-08-14',

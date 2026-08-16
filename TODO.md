@@ -25,7 +25,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ## User feedback
 
 - connect what writing is used in what spoken language
-- ranged weapons do not seem to calculate their Kampftalent accordingly
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
