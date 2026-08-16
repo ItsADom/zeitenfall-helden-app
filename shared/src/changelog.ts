@@ -94,6 +94,11 @@ export const KNOWN_BUGS: KnownBug[] = [
     description: 'Seiten scrollen zurück nach oben, wenn man sie wieder in den Fokus nimmt.',
     status: 'in Arbeit',
   },
+  {
+    title: 'Keine Umrechnung zwischen Münzsorten',
+    description: 'Höhere Werte lassen sich noch nicht automatisch in andere Münzsorten desselben Systems umrechnen (z. B. Silbertaler in Dublonen) — das braucht noch weitere Entwicklung.',
+    status: 'in Arbeit',
+  },
 ];
 
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
@@ -154,7 +159,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Event-Gruppen',
     added: [
       'Ein Rassen-Katalog mit den Rassen aus dem Rassenbrief: im Heldenbrief wählst du unter „Herkunft" deine Rasse jetzt aus einer Liste statt sie frei einzutippen. Kurzbeschreibung und die hinterlegten Boni werden direkt angezeigt. Geschwindigkeit, Psyche (Rassengrundwert) und Resilienz (Rassengrundwert) übernehmen dabei automatisch den Wert der Rasse und sind danach gesperrt — persönliche Anpassungen laufen über die jeweils vorhandene Mod.-/Bonus-Spalte. Die übrigen Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) werden vorerst nur angezeigt und fließen noch nicht automatisch in die berechneten Werte ein — das kommt in einem späteren Schritt.',
-      'Eine Regeltabelle fürs Erschaffen neuer Zauber im Spiel — aufklappbar unter „Zauber & Fähigkeiten verwalten".',
+      'Die Regeltabelle fürs Erschaffen neuer Zauber im Spiel — aufklappbar unter „Zauber & Fähigkeiten verwalten".',
+      'Zauber und Fähigkeiten können jetzt in mehreren Kategorien gleichzeitig stehen (unter „Zauber & Fähigkeiten verwalten" mit Komma trennen) — praktisch, wenn ein Eintrag z. B. sowohl Heil- als auch Kampfmagie ist.',
     ],
     changed: [
       'Der Waffen-Reiter zeigt jede Waffe jetzt als aufklappbare Karte statt als Tabellenzeile: Name und die fertig berechnete Angriffs-/Paraden-/Blocken- bzw. Fernkampfprobe stehen sofort da, alle Details (Schaden, Material, Reichweite, Kampftalent, Besonderes, Notiz …) öffnen sich mit einem Klick. Der bisherige, tabellenbasierte Waffen-Reiter („Waffen (alt)") entfällt damit — nichts ist verloren gegangen, alle bestehenden Einträge sind in die neue Ansicht übernommen.',
@@ -169,7 +175,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     fixed: [
       'Fernkampfwaffen im Waffen-Reiter berechneten ihre FK-Probe ohne den Bonus des zugeordneten Kampftalents — sie fließt jetzt korrekt mit ein.',
-      'Der Name eines Geldbeutels wurde neben der Kapazitäts-Anzeige teils abgeschnitten — beide Spalten haben jetzt genug eigenen Platz.',
+      'Der Bank-Beutel war durch den Geld-Umbau verlorengegangen bzw. ließ sich wie jeder andere Beutel löschen oder umbenennen — er ist jetzt wieder fest da: unbegrenzt, mit festem Namen und ohne Löschen-Knopf.',
     ],
   },
   {

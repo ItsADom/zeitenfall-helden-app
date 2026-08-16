@@ -25,6 +25,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ## User feedback
 
 - connect what writing is used in what spoken language
+- the bank pouch feels a bit unusual with all coin denominations present at once — needs a concept pass (relates to the missing cross-denomination conversion known bug)
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
