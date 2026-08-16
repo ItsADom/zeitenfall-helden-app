@@ -116,7 +116,6 @@ export const COMING_SOON: string[] = [
   'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
   'Die Rassen-Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) fließen direkt in die berechneten Werte ein, statt nur als Info zu stehen.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
-  'Komplettüberarbeitung des Waffenbriefs.',
   'Visuelles Feintuning'
 ];
 
