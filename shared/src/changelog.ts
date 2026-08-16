@@ -17,6 +17,13 @@ export interface ChangelogEntry {
   added?: string[]; // „Neue Funktionen"
   changed?: string[]; // „Änderungen"
   fixed?: string[]; // „Bugfixes"
+  // Spielleiter/Verwaltung-exklusiv — steht IMMER als letzte Gruppe, nach
+  // added/changed/fixed, unabhängig davon, ob der Punkt inhaltlich eine neue
+  // Funktion, eine Änderung oder ein Bugfix ist: die Zielgruppe zählt hier
+  // mehr als die Art der Änderung. Einträge behalten trotzdem ihr „(Spielleiter)"-
+  // oder „(Verwaltung)"-Präfix, weil das die zwei Rollen innerhalb der Gruppe
+  // unterscheidet (siehe CLAUDE.md).
+  admin?: string[]; // „Spielleiter & Verwaltung"
   // Ungegliederte Liste — für die Bestandseinträge (Alpha & frühe Versionen),
   // die bewusst NICHT nachträglich in die Kategorien einsortiert werden. Neue
   // Einträge nutzen stattdessen added/changed/fixed.
@@ -32,10 +39,12 @@ export interface ChangelogGroup {
 
 // Reihenfolge und Überschriften der kategorisierten Abschnitte. Eine Stelle für
 // Client-Anzeige UND Discord-Spiegel.
-const CHANGELOG_GROUP_ORDER: { key: 'added' | 'changed' | 'fixed'; label: string }[] = [
+const CHANGELOG_GROUP_ORDER: { key: 'added' | 'changed' | 'fixed' | 'admin'; label: string }[] = [
   { key: 'added', label: 'Neue Funktionen' },
   { key: 'changed', label: 'Änderungen' },
   { key: 'fixed', label: 'Bugfixes' },
+  // Zuletzt, nicht nach Art sortiert: siehe Kommentar an `admin` in ChangelogEntry.
+  { key: 'admin', label: 'Spielleiter & Verwaltung' },
 ];
 
 // Liefert die anzuzeigenden Abschnitte eines Eintrags: entweder die
@@ -111,7 +120,7 @@ export const COMING_SOON: string[] = [
 //     title: 'Kurzer, sprechender Titel',
 //     // Nur die passenden Abschnitte ausfüllen — leere/fehlende werden NICHT
 //     // gezeigt. Reihenfolge in der Anzeige ist immer: Neue Funktionen,
-//     // Änderungen, Bugfixes (egal, wie sie hier stehen).
+//     // Änderungen, Bugfixes, Spielleiter & Verwaltung (egal, wie sie hier stehen).
 //     added: [                     // → „Neue Funktionen"
 //       'Ein neuer, spürbarer Funktionsumfang in einem Satz.',
 //     ],
@@ -121,6 +130,12 @@ export const COMING_SOON: string[] = [
 //     fixed: [                     // → „Bugfixes"
 //       'Welches Problem jetzt behoben ist.',
 //     ],
+//     admin: [                     // → „Spielleiter & Verwaltung" — NUR Spielleiter-/
+//       // Verwaltungs-exklusives landet hier, unabhängig davon, ob es inhaltlich
+//       // neu/geändert/behoben ist. Präfix „(Spielleiter)"/„(Verwaltung)" bleibt
+//       // trotzdem am Punkt, um die zwei Rollen zu unterscheiden.
+//       '(Spielleiter) Was sich nur in der Spielleiter-Ansicht ändert.',
+//     ],
 //   },
 // │
 // └───────────────────────────────────────────────────────────────────────────┘
@@ -128,7 +143,7 @@ export const COMING_SOON: string[] = [
 // Hinweise:
 //   • Spieler-Sicht, knapp halten: wenige, aussagekräftige Punkte statt Commit-Log.
 //   • `changes: [...]` (flache Liste ohne Überschriften) gibt es weiterhin, ist
-//     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die drei
+//     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die vier
 //     Abschnitte oben.
 //   • Der Discord-Spiegel postet automatisch jeden Eintrag, der NEUER ist als der
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
@@ -137,11 +152,11 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-16',
     title: 'Event-Gruppen',
-    added: [
-      '(Spielleiter) Neben der festen Gruppe gibt es jetzt Event-Gruppen für einzelne Sessions abseits der regulären Zusammensetzung — unter „Kataloge & Nutzer" anlegen und Charaktere zuordnen, ohne deren feste Gruppe zu verändern. Ein Charakter kann in beliebig vielen Event-Gruppen zugleich stecken und sieht seine Event-Zugehörigkeit als Hinweis auf dem eigenen Bogen. Jede Event-Gruppe hat eine eigene Spielleiter-Übersicht wie die festen Gruppen.',
-    ],
     changed: [
       'Der Waffen-Reiter zeigt jede Waffe jetzt als aufklappbare Karte statt als Tabellenzeile: Name und die fertig berechnete Angriffs-/Paraden-/Blocken- bzw. Fernkampfprobe stehen sofort da, alle Details (Schaden, Material, Reichweite, Kampftalent, Besonderes, Notiz …) öffnen sich mit einem Klick. Der bisherige, tabellenbasierte Waffen-Reiter („Waffen (alt)") entfällt damit — nichts ist verloren gegangen, alle bestehenden Einträge sind in die neue Ansicht übernommen.',
+    ],
+    admin: [
+      '(Spielleiter) Neben der festen Gruppe gibt es jetzt Event-Gruppen für einzelne Sessions abseits der regulären Zusammensetzung — unter „Kataloge & Nutzer" anlegen und Charaktere zuordnen, ohne deren feste Gruppe zu verändern. Ein Charakter kann in beliebig vielen Event-Gruppen zugleich stecken und sieht seine Event-Zugehörigkeit als Hinweis auf dem eigenen Bogen. Jede Event-Gruppe hat eine eigene Spielleiter-Übersicht wie die festen Gruppen.',
     ],
   },
   {
