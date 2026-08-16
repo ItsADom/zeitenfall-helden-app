@@ -160,6 +160,7 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-16',
+    version: '0.5',
     title: 'Event-Gruppen',
     added: [
       'Ein Rassen-Katalog mit den Rassen aus dem Rassenbrief: im Heldenbrief wählst du unter „Herkunft" deine Rasse jetzt aus einer Liste statt sie frei einzutippen. Kurzbeschreibung und die hinterlegten Boni werden direkt angezeigt. Geschwindigkeit, Psyche (Rassengrundwert) und Resilienz (Rassengrundwert) übernehmen dabei automatisch den Wert der Rasse und sind danach gesperrt — persönliche Anpassungen laufen über die jeweils vorhandene Mod.-/Bonus-Spalte. Die übrigen Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) werden vorerst nur angezeigt und fließen noch nicht automatisch in die berechneten Werte ein — das kommt in einem späteren Schritt.',
