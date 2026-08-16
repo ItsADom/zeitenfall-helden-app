@@ -3925,6 +3925,65 @@ li {
   opacity: 0.65;
 }
 
+/* GM-Merkmale (Kataloge → Merkmale): eigener Akzent, damit sie sich von den
+   ausgewerteten Talent-Chips unterscheiden lassen — freiwillig vom SL vergeben,
+   nicht aus dem Charakter abgeleitet. Entfernen-Button wie .gm-poll-tag. */
+.gm-chips--tags {
+  align-items: center;
+}
+.gm-chip--tag {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+  padding-right: 4px;
+  gap: 6px;
+}
+.gm-chip--tag button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.gm-chip--tag button:hover,
+.gm-chip--tag button:focus-visible {
+  color: var(--text);
+  background: var(--input-bg);
+}
+.gm-tag-add {
+  font-size: 12px;
+  padding: 2px 6px;
+  border: 1px dashed var(--border);
+  border-radius: 999px;
+  background: var(--input-bg);
+  color: var(--muted);
+}
+
+/* Freitext-GM-Notiz je Karte — bewusst dezent (kein sheet-input-Rahmen), damit
+   sie sich von den bearbeitbaren Charakterwerten abhebt. */
+.gm-note {
+  width: 100%;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--input-bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  resize: vertical;
+}
+.gm-note::placeholder {
+  color: var(--muted);
+}
+
 /* ---------- Waffen-Karten (Reiter „Waffen") ---------- */
 /* Eine Karte je Waffe statt einer Tabellenzeile: eine Tabelle erzwingt EINE
    Spaltenbreite über alle Waffen, und „Besonderes" braucht mal drei Zeilen und

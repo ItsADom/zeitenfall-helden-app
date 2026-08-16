@@ -216,6 +216,29 @@ db.exec(`
     PRIMARY KEY (character_id, language_id)
   );
 
+  -- Merkmale-Katalog (GM-Tags, z.B. "Hat Gefahreninstinkt"): frei vom
+  -- Spielleiter gepflegt (wie Talente/Sprachen), auf der GM-Übersicht je
+  -- Charakter zugewiesen. Zuweisung ist bewusst NICHT Teil der normalen
+  -- section-save-Rechte (Besitzer hat dort 'edit') — eigene requireGm-Routen.
+  CREATE TABLE IF NOT EXISTS tags_catalog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS char_tags (
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    tag_id INTEGER NOT NULL REFERENCES tags_catalog(id) ON DELETE CASCADE,
+    PRIMARY KEY (character_id, tag_id)
+  );
+
+  -- Freitext-GM-Notiz je Charakter: bewusst eigene Tabelle statt char_bio
+  -- (dort hat der Besitzer 'edit'-Zugriff) — nur der Spielleiter sieht/ändert
+  -- das, unabhängig von der Sichtbarkeits-/Bearbeitungsrechten des Heldenbriefs.
+  CREATE TABLE IF NOT EXISTS char_gm_notes (
+    character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+    notiz TEXT NOT NULL DEFAULT ''
+  );
+
   ${listTables}
 
   CREATE TABLE IF NOT EXISTS char_tabs (

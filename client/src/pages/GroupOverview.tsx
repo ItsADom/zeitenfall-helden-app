@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { ResourceKey } from '@shared/types';
-import { apiGet } from '../api';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
@@ -14,6 +14,10 @@ interface Vital {
   aktuell: number;
   max: number;
 }
+interface CharTag {
+  id: number;
+  name: string;
+}
 interface OverviewChar {
   id: number;
   name: string;
@@ -24,6 +28,8 @@ interface OverviewChar {
   thresholds: { wund: number; tod: number };
   attributes: { code: string; value: number }[];
   talents: { id: number; taw: number }[];
+  tags: CharTag[];
+  gmNotiz: string;
 }
 interface CatalogTalent {
   id: number;
@@ -33,6 +39,7 @@ interface CatalogTalent {
 interface OverviewData {
   group: { id: number; name: string };
   talentCatalog: CatalogTalent[];
+  tagCatalog: CharTag[];
   characters: OverviewChar[];
 }
 
@@ -49,6 +56,35 @@ function vitalClass(key: string, aktuell: number, max: number): string {
   if (overfilled(aktuell, max)) return 'res-over';
   if (key === 'le' || key === 'aus') return depletionClass(key as ResourceKey, aktuell, max);
   return '';
+}
+
+// Freitext-GM-Notiz je Charakter: eigene, kleine Save-Debounce-Logik statt der
+// TextInput/NumInput-Displaymode-Kopplung, weil das hier GM-only und außerhalb
+// des normalen section-save-Wegs ist. `initial` wird nur beim ersten Rendern
+// übernommen, damit ein stiller Poll währenddessen nicht mittippt.
+function GmNoteField({ charId, initial }: { charId: number; initial: string }) {
+  const [value, setValue] = useState(initial);
+  const timer = useRef<number | undefined>(undefined);
+
+  const onChange = (v: string) => {
+    setValue(v);
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      void apiPut(`/api/characters/${charId}/gm-notiz`, { notiz: v });
+    }, 1200);
+  };
+
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+
+  return (
+    <textarea
+      className="gm-note"
+      placeholder="Notiz (nur für den Spielleiter)…"
+      rows={2}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
 }
 
 // kind='temp': Event-Gruppe (temp_group_members, additiv zur festen Gruppe) statt
@@ -70,6 +106,25 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
     setQuery('');
   };
   const unpin = (tid: number) => setPinned((p) => p.filter((x) => x !== tid));
+
+  // Merkmal-Zuweisung: optimistisch in `data` fortschreiben, sobald der Server
+  // bestätigt hat — der nächste stille Poll bringt ohnehin denselben Stand.
+  const addTag = (charId: number, tag: CharTag) => {
+    void apiPost(`/api/characters/${charId}/tags`, { tagId: tag.id }).then(() => {
+      setData((d) =>
+        d ? { ...d, characters: d.characters.map((c) => (c.id === charId ? { ...c, tags: [...c.tags, tag] } : c)) } : d,
+      );
+    });
+  };
+  const removeTag = (charId: number, tagId: number) => {
+    void apiDelete(`/api/characters/${charId}/tags/${tagId}`).then(() => {
+      setData((d) =>
+        d
+          ? { ...d, characters: d.characters.map((c) => (c.id === charId ? { ...c, tags: c.tags.filter((t) => t.id !== tagId) } : c)) }
+          : d,
+      );
+    });
+  };
 
   // quiet=true: stille Hintergrund-Aktualisierung, der bisherige Stand bleibt
   // stehen, bis neue Daten da sind (gleiches Muster wie die Gruppenseite).
@@ -260,6 +315,41 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
                     </div>
                   );
                 })()}
+
+              <div className="gm-chips gm-chips--tags">
+                {c.tags.map((t) => (
+                  <span className="gm-chip gm-chip--tag" key={t.id}>
+                    <span className="gm-chip-label">{t.name}</span>
+                    <button onClick={() => removeTag(c.id, t.id)} title="Merkmal entfernen" aria-label={`${t.name} entfernen`}>
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                {(() => {
+                  const assigned = new Set(c.tags.map((t) => t.id));
+                  const options = data.tagCatalog.filter((t) => !assigned.has(t.id));
+                  if (options.length === 0) return null;
+                  return (
+                    <select
+                      className="gm-tag-add"
+                      value=""
+                      onChange={(e) => {
+                        const tag = options.find((t) => t.id === Number(e.target.value));
+                        if (tag) addTag(c.id, tag);
+                      }}
+                    >
+                      <option value="">+ Merkmal…</option>
+                      {options.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  );
+                })()}
+              </div>
+
+              <GmNoteField key={c.id} charId={c.id} initial={c.gmNotiz} />
             </div>
           ))}
         </div>

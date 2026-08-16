@@ -17,10 +17,14 @@ import { db, initCharacterRows } from './db.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
+  addCharTag,
   buildGroupOverview,
   buildTempGroupOverview,
   buildSummary,
+  removeCharTag,
+  setGmNotiz,
   talentCatalogList,
+  tagCatalogList,
   deletePortrait,
   importFullCharacter,
   instantiateStandardSections,
@@ -210,7 +214,8 @@ api.put('/me/displayName', requireAuth, (req, res) => {
 api.get('/catalogs', requireAuth, (_req, res) => {
   const talents = db.prepare('SELECT * FROM talents_catalog ORDER BY sort').all();
   const languages = db.prepare('SELECT * FROM languages_catalog ORDER BY sort').all();
-  res.json({ talents, languages });
+  const tags = db.prepare('SELECT * FROM tags_catalog ORDER BY sort').all();
+  res.json({ talents, languages, tags });
 });
 
 // --- Dashboard / Gruppen ---
@@ -271,7 +276,32 @@ api.get('/groups/:id/overview', requireAuth, requireGm, (req, res) => {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
-  res.json({ group, talentCatalog: talentCatalogList(), characters: buildGroupOverview(groupId) });
+  res.json({ group, talentCatalog: talentCatalogList(), tagCatalog: tagCatalogList(), characters: buildGroupOverview(groupId) });
+});
+
+// Merkmal einem Charakter zuweisen/entziehen und die GM-Notiz setzen — bewusst
+// eigene requireGm-Routen statt des generischen section-save-Wegs (dort hat der
+// Charakterbesitzer 'edit'-Zugriff, hier soll ausschließlich der SL schreiben).
+api.post('/characters/:id/tags', requireAuth, requireGm, (req, res) => {
+  const charId = Number(req.params.id);
+  const tagId = Number((req.body ?? {}).tagId);
+  if (!tagId) {
+    res.status(400).json({ error: 'tagId erforderlich' });
+    return;
+  }
+  addCharTag(charId, tagId);
+  res.json({ ok: true });
+});
+
+api.delete('/characters/:id/tags/:tagId', requireAuth, requireGm, (req, res) => {
+  removeCharTag(Number(req.params.id), Number(req.params.tagId));
+  res.json({ ok: true });
+});
+
+api.put('/characters/:id/gm-notiz', requireAuth, requireGm, (req, res) => {
+  const notiz = String((req.body ?? {}).notiz ?? '');
+  setGmNotiz(Number(req.params.id), notiz);
+  res.json({ ok: true });
 });
 
 // --- Gemeinsame Gruppeninhalte (jedes Gruppenmitglied darf bearbeiten) ---
@@ -1096,7 +1126,7 @@ api.get('/temp-groups/:id/overview', requireAuth, requireGm, (req, res) => {
   }
   // Gleiches Antwortformat wie /groups/:id/overview (Feld „group") — so kann
   // die Client-Übersichtsseite für beide Gruppentypen wiederverwendet werden.
-  res.json({ group, talentCatalog: talentCatalogList(), characters: buildTempGroupOverview(id) });
+  res.json({ group, talentCatalog: talentCatalogList(), tagCatalog: tagCatalogList(), characters: buildTempGroupOverview(id) });
 });
 
 // --- Kataloge bearbeiten (nur Spielleiter) ---
@@ -1113,6 +1143,12 @@ const CATALOGS = {
     refTable: 'char_languages',
     refCol: 'language_id',
     cols: ['kind', 'familie', 'name', 'komplexitaet', 'sort'],
+  },
+  tags: {
+    table: 'tags_catalog',
+    refTable: 'char_tags',
+    refCol: 'tag_id',
+    cols: ['name', 'sort'],
   },
 } as const;
 

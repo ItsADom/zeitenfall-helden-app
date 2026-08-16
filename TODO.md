@@ -222,19 +222,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
      eventually, same reasoning as the weapon rework itself.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
-- [ready] **Group overview page for GM** (concept agreed — chip-based, stats only):
-   - Separate GM-only screen at `/gruppe/:id/uebersicht`, linked from the group
-     page. NOT a table — one card per character, stats shown as chips, grid reflows.
-   - Card header: portrait thumbnail + name + player + Stufe
-   - Chips: Vitals (LE, AUS, AsE, Psyche) as `akt/max`, color-coded by drain %
-     (AsE chip hidden when the character has no ASP); Wundschwelle + Todesschwelle;
-     the eight attributes (MU KL IN CH FF GE KO KK) as small chips. Defenses skipped.
-   - Data: new GM-only aggregate endpoint over `buildSummary` for the whole group,
-     live quiet-refresh on focus (reuse the group page's focus/visibility pattern).
-   - Deferred (later pass): GM overlay of flags + private notes per character.
-     "Hat Gefahreninstinkt" = TaW ≠ 0 in the Gefahreninstinkt talent — a talent-
-     catalogue-derived boolean (ensure the talent exists in the catalogue), NOT a
-     hand-maintained checklist. Make checklist (which Talents are looked up) editable by GM.
 - [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
   every system change). Concept to build when it comes off hold:
    - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —

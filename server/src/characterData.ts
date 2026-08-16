@@ -1749,6 +1749,14 @@ function overviewForChars(chars: { id: number; name: string; ownerName: string }
       talents: loadTalents(c.id)
         .filter((t) => t.taw !== 0)
         .map((t) => ({ id: t.talentId, taw: t.taw })),
+      tags: db
+        .prepare(
+          `SELECT t.id, t.name FROM char_tags ct JOIN tags_catalog t ON t.id = ct.tag_id
+           WHERE ct.character_id = ? ORDER BY t.sort, t.name`,
+        )
+        .all(c.id) as { id: number; name: string }[],
+      gmNotiz: (db.prepare('SELECT notiz FROM char_gm_notes WHERE character_id = ?').get(c.id) as { notiz: string } | undefined)
+        ?.notiz ?? '',
     };
   });
 }
@@ -1759,4 +1767,27 @@ export function talentCatalogList() {
   return db
     .prepare('SELECT id, name, gruppe FROM talents_catalog ORDER BY name')
     .all() as { id: number; name: string; gruppe: string }[];
+}
+
+// Merkmale-Katalog für die GM-Übersicht (Zuweis-Auswahl je Karte).
+export function tagCatalogList() {
+  return db.prepare('SELECT id, name FROM tags_catalog ORDER BY sort, name').all() as { id: number; name: string }[];
+}
+
+// Merkmal-Zuweisung und GM-Notiz sind bewusst NICHT über den normalen
+// section-save-Weg (dort hat der Charakterbesitzer 'edit') — eigene,
+// requireGm-geschützte Schreiboperationen (siehe routes.ts).
+export function addCharTag(charId: number, tagId: number) {
+  db.prepare('INSERT OR IGNORE INTO char_tags (character_id, tag_id) VALUES (?, ?)').run(charId, tagId);
+}
+
+export function removeCharTag(charId: number, tagId: number) {
+  db.prepare('DELETE FROM char_tags WHERE character_id = ? AND tag_id = ?').run(charId, tagId);
+}
+
+export function setGmNotiz(charId: number, notiz: string) {
+  db.prepare(
+    `INSERT INTO char_gm_notes (character_id, notiz) VALUES (?, ?)
+     ON CONFLICT(character_id) DO UPDATE SET notiz = excluded.notiz`,
+  ).run(charId, notiz);
 }

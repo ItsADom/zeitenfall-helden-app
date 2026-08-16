@@ -13,15 +13,15 @@ interface CatalogColumn {
 }
 
 // Editierbarer Katalog (Talente / Sprachen) — speichert je Feld beim Verlassen
-function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages'; title: string; columns: CatalogColumn[] }) {
+function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' | 'tags'; title: string; columns: CatalogColumn[] }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
   const [neu, setNeu] = useState<Record<string, string>>({});
 
   const reload = () => {
-    apiGet<{ talents: Record<string, unknown>[]; languages: Record<string, unknown>[] }>('/api/catalogs').then((c) =>
-      setRows(c[type]),
-    );
+    apiGet<{ talents: Record<string, unknown>[]; languages: Record<string, unknown>[]; tags: Record<string, unknown>[] }>(
+      '/api/catalogs',
+    ).then((c) => setRows(c[type]));
   };
   useEffect(reload, [type]);
 
@@ -930,6 +930,14 @@ export default function AdminPage() {
           { key: 'familie', label: 'Familie', width: 200 },
           { key: 'name', label: 'Name' },
           { key: 'komplexitaet', label: 'Komplexität', width: 110 },
+          { key: 'sort', label: 'Sortierung', width: 80 },
+        ]}
+      />
+      <CatalogPanel
+        type="tags"
+        title="Merkmale-Katalog"
+        columns={[
+          { key: 'name', label: 'Name' },
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />
