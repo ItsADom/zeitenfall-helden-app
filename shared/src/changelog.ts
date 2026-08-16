@@ -159,11 +159,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     changed: [
       'Der Waffen-Reiter zeigt jede Waffe jetzt als aufklappbare Karte statt als Tabellenzeile: Name und die fertig berechnete Angriffs-/Paraden-/Blocken- bzw. Fernkampfprobe stehen sofort da, alle Details (Schaden, Material, Reichweite, Kampftalent, Besonderes, Notiz …) öffnen sich mit einem Klick. Der bisherige, tabellenbasierte Waffen-Reiter („Waffen (alt)") entfällt damit — nichts ist verloren gegangen, alle bestehenden Einträge sind in die neue Ansicht übernommen.',
       'Die Attribut-Tabelle im Heldenbrief heißt jetzt „Basis"/„Bonus" statt „Akt."/„Mod." — passt zur Sprache, die die anderen Tabellen (Basiswerte, Energien) schon verwenden.',
+      'Geld ist umgebaut: statt fester Dublonen/Silbertaler/Heller/Kreuzer + Bank legst du dir jetzt beliebig viele benannte Geldbeutel an (z. B. „Gürtelbeutel", „Bank"), jeder mit eigener Kapazität in Münzen und einer Währung aus dem Katalog. Deine bisherigen Münzen und dein Bankguthaben sind automatisch in einen „Gürtelbeutel" bzw. „Bank"-Beutel übernommen worden. Ein Gesamtvermögen über alle Beutel/Währungen hinweg wird nicht mehr angezeigt.',
     ],
     admin: [
       '(Spielleiter) Neben der festen Gruppe gibt es jetzt Event-Gruppen für einzelne Sessions abseits der regulären Zusammensetzung — unter „Kataloge & Nutzer" anlegen und Charaktere zuordnen, ohne deren feste Gruppe zu verändern. Ein Charakter kann in beliebig vielen Event-Gruppen zugleich stecken und sieht seine Event-Zugehörigkeit als Hinweis auf dem eigenen Bogen. Jede Event-Gruppe hat eine eigene Spielleiter-Übersicht wie die festen Gruppen.',
       '(Spielleiter) Die Spielleiter-Übersicht zeigt jetzt auch Merkmale (z. B. „Hat Gefahreninstinkt") als Chips je Charakter — verwaltet unter „Kataloge & Nutzer" → „Merkmale-Katalog" und dort auf jeder Karte zuweisbar — sowie ein freies Notizfeld pro Charakter, das nur der Spielleiter sieht (unabhängig von der persönlichen Notiz in der Seitenleiste).',
       '(Verwaltung) Der Rassen-Katalog lässt sich unter „Kataloge & Nutzer" pflegen, genau wie Talente, Sprachen und Merkmale.',
+      '(Verwaltung) Ein Währungs-Katalog lässt sich ebenfalls unter „Kataloge & Nutzer" pflegen: Währungssysteme (z. B. Aventurisch, Myranor, Titania) mit ihren jeweiligen Münzsorten und Umrechnungsfaktoren anlegen, umbenennen und löschen.',
     ],
   },
   {

@@ -114,6 +114,179 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' 
   );
 }
 
+// Währungs-Katalog: zweistufig (System → Münzsorten), passt nicht in das
+// generische CatalogPanel (eine Tabelle, flache Zeilen) — daher ein eigenes,
+// bewusst kleines Formular statt einer weiteren Abstraktionsschicht.
+interface DenominationRow {
+  id: number;
+  system_id: number;
+  code: string;
+  name: string;
+  faktor: number;
+  sort: number;
+}
+interface CurrencySystemRow {
+  id: number;
+  name: string;
+  notiz: string;
+  sort: number;
+  denominations: DenominationRow[];
+}
+
+function CurrencyCatalogPanel() {
+  const [systems, setSystems] = useState<CurrencySystemRow[]>([]);
+  const [error, setError] = useState('');
+  const [neuSystem, setNeuSystem] = useState('');
+  const [neuDenom, setNeuDenom] = useState<Record<number, { code: string; name: string; faktor: string }>>({});
+
+  const reload = () => {
+    apiGet<{ currencies: CurrencySystemRow[] }>('/api/catalogs').then((c) => setSystems(c.currencies));
+  };
+  useEffect(reload, []);
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setError('');
+    try {
+      await fn();
+      reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  };
+
+  const denomDraft = (systemId: number) => neuDenom[systemId] ?? { code: '', name: '', faktor: '' };
+
+  return (
+    <details className="panel">
+      <summary style={{ cursor: 'pointer', fontWeight: 600 }}>Währungs-Katalog ({systems.length} System(e))</summary>
+      {error && <p className="error">{error}</p>}
+      {systems.map((s) => (
+        <div key={s.id} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <input
+              defaultValue={s.name}
+              style={{ fontWeight: 600, width: 160 }}
+              onBlur={(e) => e.target.value !== s.name && run(() => apiPut(`/api/admin/currency-systems/${s.id}`, { name: e.target.value }))}
+            />
+            <input
+              placeholder="Notiz"
+              defaultValue={s.notiz}
+              style={{ flex: 1 }}
+              onBlur={(e) => e.target.value !== s.notiz && run(() => apiPut(`/api/admin/currency-systems/${s.id}`, { notiz: e.target.value }))}
+            />
+            <button
+              className="small"
+              title="Währungssystem löschen"
+              onClick={() => confirm(`"${s.name}" aus dem Katalog löschen?`) && run(() => apiDelete(`/api/admin/currency-systems/${s.id}`))}
+            >
+              ✕
+            </button>
+          </div>
+          <table className="sheet" style={{ marginTop: 6 }}>
+            <thead>
+              <tr>
+                <th style={{ width: 80 }}>Code</th>
+                <th>Name</th>
+                <th style={{ width: 100 }}>Faktor</th>
+                <th style={{ width: 40 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {s.denominations.map((d) => (
+                <tr key={d.id}>
+                  <td>
+                    <input
+                      defaultValue={d.code}
+                      onBlur={(e) => e.target.value !== d.code && run(() => apiPut(`/api/admin/currency-denominations/${d.id}`, { code: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      defaultValue={d.name}
+                      onBlur={(e) => e.target.value !== d.name && run(() => apiPut(`/api/admin/currency-denominations/${d.id}`, { name: e.target.value }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      defaultValue={String(d.faktor)}
+                      onBlur={(e) =>
+                        e.target.value !== String(d.faktor) &&
+                        run(() => apiPut(`/api/admin/currency-denominations/${d.id}`, { faktor: e.target.value }))
+                      }
+                    />
+                  </td>
+                  <td>
+                    <button
+                      className="small"
+                      title="Münzsorte löschen"
+                      onClick={() => confirm(`"${d.name}" löschen?`) && run(() => apiDelete(`/api/admin/currency-denominations/${d.id}`))}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <td>
+                  <input
+                    placeholder="Code"
+                    value={denomDraft(s.id).code}
+                    onChange={(e) => setNeuDenom({ ...neuDenom, [s.id]: { ...denomDraft(s.id), code: e.target.value } })}
+                  />
+                </td>
+                <td>
+                  <input
+                    placeholder="Name"
+                    value={denomDraft(s.id).name}
+                    onChange={(e) => setNeuDenom({ ...neuDenom, [s.id]: { ...denomDraft(s.id), name: e.target.value } })}
+                  />
+                </td>
+                <td>
+                  <input
+                    placeholder="Faktor"
+                    value={denomDraft(s.id).faktor}
+                    onChange={(e) => setNeuDenom({ ...neuDenom, [s.id]: { ...denomDraft(s.id), faktor: e.target.value } })}
+                  />
+                </td>
+                <td>
+                  <button
+                    className="small primary"
+                    disabled={!denomDraft(s.id).code || !denomDraft(s.id).name}
+                    onClick={() =>
+                      run(async () => {
+                        await apiPost('/api/admin/currency-denominations', { systemId: s.id, ...denomDraft(s.id) });
+                        setNeuDenom({ ...neuDenom, [s.id]: { code: '', name: '', faktor: '' } });
+                      })
+                    }
+                  >
+                    +
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      ))}
+      <h4>Neues Währungssystem</h4>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input placeholder="Name (z. B. Aventurisch, Myranor, Titania)" value={neuSystem} onChange={(e) => setNeuSystem(e.target.value)} />
+        <button
+          className="primary"
+          disabled={!neuSystem}
+          onClick={() =>
+            run(async () => {
+              await apiPost('/api/admin/currency-systems', { name: neuSystem });
+              setNeuSystem('');
+            })
+          }
+        >
+          Anlegen
+        </button>
+      </div>
+    </details>
+  );
+}
+
 interface AdminUser {
   id: number;
   username: string;
@@ -965,6 +1138,7 @@ export default function AdminPage() {
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />
+      <CurrencyCatalogPanel />
     </>
   );
 }

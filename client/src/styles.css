@@ -2200,12 +2200,27 @@ body.resizing-col {
   text-align: center;
 }
 
-/* ---------- Geld / Münzen ---------- */
+/* ---------- Geld / Münzen (Geldbeutel, GM-Währungskatalog) ---------- */
+.pouch {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+.pouch-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pouch-head > *:first-child {
+  flex: 1;
+  min-width: 0;
+}
 .coins {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
-  margin-bottom: 10px;
 }
 .coin {
   display: flex;
@@ -2238,47 +2253,10 @@ body.resizing-col {
   flex-shrink: 0;
   text-align: center;
 }
-/* Nur-Lese-Betrag (Übersicht) — gleiche Spur wie das Eingabefeld */
-.coin-value {
-  width: 92px;
-  flex-shrink: 0;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  font-weight: 700;
-  color: var(--computed-text);
-}
-/* Gesamtvermögen in Dublonen unter den Münzen */
-.coin-total {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 8px 12px 0;
-  border-top: 1px solid var(--border);
-}
-.coin-total > span {
-  font-weight: 600;
-  font-size: 13px;
-  color: var(--muted);
-}
-.coin-total > strong {
-  font-variant-numeric: tabular-nums;
-  font-size: 16px;
-  color: var(--accent);
-}
 
-.coin-gold   { --coin-bg: #fbf3dc; --coin-edge: #c39a2b; --coin-hi: #f6e39a; }
-.coin-silver { --coin-bg: #f1f2f4; --coin-edge: #9298a0; --coin-hi: #e6e9ed; }
-.coin-bronze { --coin-bg: #f5ebdf; --coin-edge: #a86e3c; --coin-hi: #e0b184; }
-.coin-iron   { --coin-bg: #edeef0; --coin-edge: #6c7175; --coin-hi: #c3c8cc; }
-.coin-bank   { --coin-bg: var(--accent-soft); --coin-edge: var(--accent); --coin-hi: #e7b6bc; }
-
-/* Nachtmodus: die hellen Material-Flächen würden das Panel überstrahlen und den
+/* Nachtmodus: die helle Münz-Fläche würde das Panel überstrahlen und den
    hellen Text unlesbar machen. Fläche daher dunkel halten — die Münz-Identität
-   bleibt über die Scheibe und die farbige linke Kante erhalten. */
-/* Münz-Panels im Dunkeln lesbar halten — in jeder dunklen Farbwelt, nicht nur
-   in den Schattenlande. */
+   bleibt über die farbige linke Kante erhalten. */
 :root[data-mode='dark'] .coin,
 :root[data-theme='nacht'] .coin {
   background: var(--surface-head);

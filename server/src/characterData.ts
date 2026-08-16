@@ -46,6 +46,7 @@ import type {
   BaseValueInputs,
   CharTalent,
   CharLanguage,
+  CoinPouch,
   ContainerArt,
   KapazitaetArt,
   DynColumn,
@@ -759,6 +760,7 @@ export function loadFullCharacter(charId: number) {
     itemCategories: loadItemCategories(charId),
     abilities: loadAbilities(charId),
     abilityLists: loadAbilityLists(charId),
+    pouches: loadPouches(charId),
   };
 }
 
@@ -900,6 +902,69 @@ export function saveItemCategories(charId: number, raw: unknown): void {
     db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
     const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
     clean.forEach((name, i) => ins.run(charId, i, name));
+  });
+  tx();
+}
+
+// --- Geldbeutel (Geld-Umbau) ---
+
+const MAX_POUCHES = 50;
+const MAX_POUCH_NAME = 200;
+
+export function loadPouches(charId: number): CoinPouch[] {
+  const pouches = db
+    .prepare('SELECT id, name, system_id, kapazitaet FROM char_pouches WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as { id: number; name: string; system_id: number | null; kapazitaet: number }[];
+  const coinRows = db
+    .prepare(
+      `SELECT pc.pouch_id, pc.denomination_id, pc.anzahl FROM char_pouch_coins pc
+       JOIN char_pouches p ON p.id = pc.pouch_id WHERE p.character_id = ?`,
+    )
+    .all(charId) as { pouch_id: number; denomination_id: number; anzahl: number }[];
+  const coinsByPouch = new Map<number, Record<number, number>>();
+  for (const r of coinRows) {
+    const coins = coinsByPouch.get(r.pouch_id) ?? {};
+    coins[r.denomination_id] = r.anzahl;
+    coinsByPouch.set(r.pouch_id, coins);
+  }
+  return pouches.map((p) => ({
+    id: p.id,
+    name: p.name,
+    systemId: p.system_id,
+    kapazitaet: p.kapazitaet,
+    coins: coinsByPouch.get(p.id) ?? {},
+  }));
+}
+
+// Ganze Liste ersetzen (wie saveItems): Delete+Insert, serverseitig gedeckelt.
+export function savePouches(charId: number, raw: unknown): void {
+  const arr = Array.isArray(raw) ? (raw as Record<string, unknown>[]).slice(0, MAX_POUCHES) : [];
+  // Stets gegen den tatsächlichen Katalogstand prüfen: eine zwischenzeitlich vom
+  // Spielleiter gelöschte Währung/Münzsorte darf nicht als Fremdschlüssel-
+  // Verletzung den ganzen Speichervorgang zum Absturz bringen — solche
+  // Verweise werden hier still ausgelassen (das Feld erscheint dann leer/„—").
+  const validSystemIds = new Set((db.prepare('SELECT id FROM currency_systems').all() as { id: number }[]).map((r) => r.id));
+  const validDenomIds = new Set((db.prepare('SELECT id FROM currency_denominations').all() as { id: number }[]).map((r) => r.id));
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_pouches WHERE character_id = ?').run(charId);
+    const insPouch = db.prepare(
+      'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet) VALUES (?, ?, ?, ?, ?)',
+    );
+    const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
+    arr.forEach((raw, i) => {
+      const o = (raw ?? {}) as Record<string, unknown>;
+      const systemIdRaw = o.systemId == null || o.systemId === '' ? null : Math.trunc(Number(o.systemId));
+      const systemId = systemIdRaw != null && validSystemIds.has(systemIdRaw) ? systemIdRaw : null;
+      const pouchId = Number(
+        insPouch.run(charId, i, String(o.name ?? '').slice(0, MAX_POUCH_NAME), systemId, clampMin(o.kapazitaet)).lastInsertRowid,
+      );
+      const coins = (o.coins ?? {}) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(coins)) {
+        const denomId = Math.trunc(Number(key));
+        const anzahl = clampMin(value);
+        if (validDenomIds.has(denomId) && anzahl > 0) insCoin.run(pouchId, denomId, anzahl);
+      }
+    });
   });
   tx();
 }
@@ -1342,7 +1407,13 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       const table = section === 'bio' ? 'char_bio' : 'char_meta';
       const existing = db.prepare(`SELECT * FROM ${table} WHERE character_id = ?`).get(charId) as Record<string, unknown>;
       const body = (data ?? {}) as Record<string, unknown>;
-      const cols = Object.keys(existing).filter((k) => k !== 'character_id');
+      // Geld-Umbau: geldD/geldS/geldH/geldK/bank sind kein Teil des Meta-Typs mehr
+      // (siehe shared/src/types.ts) — die Spalten bleiben als Altbestand in
+      // char_meta stehen, dürfen aber nicht länger mitgeschrieben werden (sonst
+      // würde ein normales Meta-Speichern sie auf 0 zurücksetzen, weil `body`
+      // diese Schlüssel gar nicht mehr enthält).
+      const LEGACY_GELD_COLS = new Set(['geldD', 'geldS', 'geldH', 'geldK', 'bank']);
+      const cols = Object.keys(existing).filter((k) => k !== 'character_id' && !LEGACY_GELD_COLS.has(k));
       const assignments = cols.map((c) => `${c} = ?`).join(', ');
       // rasseId ist die einzige nicht-textuelle char_bio-Spalte (Verweis in
       // races_catalog) — nullbare Ganzzahl statt der sonst üblichen str().

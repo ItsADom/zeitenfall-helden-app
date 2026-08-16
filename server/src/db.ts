@@ -257,6 +257,47 @@ db.exec(`
     sort INTEGER NOT NULL DEFAULT 0
   );
 
+  -- Währungs-Katalog (GM-editierbar wie Talente/Sprachen/Rassen): ein System
+  -- hat mehrere Münzsorten mit eigenem Umrechnungsfaktor zur kleinsten Einheit
+  -- des Systems — nicht zwingend dezimal (z. B. Aventurisch: K/H/S/D bei je
+  -- ×10, dazu eine Garethische Dublone bei ×500), daher Katalog-Zeilen statt
+  -- fester Spalten wie früher (char_meta.geldD/S/H/K).
+  CREATE TABLE IF NOT EXISTS currency_systems (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    notiz TEXT NOT NULL DEFAULT '',
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS currency_denominations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    system_id INTEGER NOT NULL REFERENCES currency_systems(id) ON DELETE CASCADE,
+    code TEXT NOT NULL,
+    name TEXT NOT NULL,
+    faktor REAL NOT NULL DEFAULT 1,
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Geldbeutel je Charakter: ein oder mehrere benannte Behälter (Gürtelbeutel,
+  -- Bank, …), jeder an EIN Währungssystem gebunden. kapazitaet zählt in Münzen
+  -- (Stück, jede Sorte gleich gewichtet) — 0 = unbegrenzt, gleiche Konvention
+  -- wie char_items.kapazitaet. Bewusst NICHT Teil des allgemeinen Behälter-
+  -- Systems (char_items/ist_behaelter): die Kapazität wird direkt im Geld-
+  -- Bereich gepflegt, nicht über die Ausrüstung (Spieler-Entscheidung 2026-08-16).
+  CREATE TABLE IF NOT EXISTS char_pouches (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    system_id INTEGER REFERENCES currency_systems(id) ON DELETE SET NULL,
+    kapazitaet REAL NOT NULL DEFAULT 0
+  );
+  CREATE TABLE IF NOT EXISTS char_pouch_coins (
+    pouch_id INTEGER NOT NULL REFERENCES char_pouches(id) ON DELETE CASCADE,
+    denomination_id INTEGER NOT NULL REFERENCES currency_denominations(id) ON DELETE CASCADE,
+    anzahl REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (pouch_id, denomination_id)
+  );
+
   -- Freitext-GM-Notiz je Charakter: bewusst eigene Tabelle statt char_bio
   -- (dort hat der Besitzer 'edit'-Zugriff) — nur der Spielleiter sieht/ändert
   -- das, unabhängig von der Sichtbarkeits-/Bearbeitungsrechten des Heldenbriefs.
@@ -718,6 +759,66 @@ if (hasTable('sec_techniken')) {
   migrate();
 }
 
+// Migration (Geld-Umbau): Aventurisch-Basissystem seeden — D/S/H/K exakt wie
+// das alte Vier-Münzen-Modell (gleiche Codes, gleiche ×10-Leiter), damit die
+// Übernahme eine reine Umbenennung ist — und bestehende char_meta-Werte
+// (geldD/S/H/K/bank) einmalig in neue Geldbeutel kopieren: "Gürtelbeutel" für
+// die vier Münzsorten, "Bank" für den alten bank-Wert (stand in Dublonen,
+// wandert 1:1 in die D-Sorte). Nichts geht verloren; die alten char_meta-
+// Spalten bleiben unverändert stehen (Altbestand, saveSection schreibt sie
+// nicht mehr, siehe characterData.ts). Läuft nur, solange currency_systems
+// leer ist — GM-gepflegte Katalogdaten werden danach nicht mehr angefasst,
+// auch nicht bei neuen Charakteren ohne Altdaten.
+{
+  const systemsEmpty = (db.prepare('SELECT COUNT(*) AS n FROM currency_systems').get() as { n: number }).n === 0;
+  if (systemsEmpty) {
+    const seed = db.transaction(() => {
+      const sysId = Number(
+        db.prepare("INSERT INTO currency_systems (name, notiz, sort) VALUES ('Aventurisch', '', 0)").run().lastInsertRowid,
+      );
+      const insDenom = db.prepare(
+        'INSERT INTO currency_denominations (system_id, code, name, faktor, sort) VALUES (?, ?, ?, ?, ?)',
+      );
+      const denomIds: Record<string, number> = {};
+      const denoms: [string, string, number, number][] = [
+        ['D', 'Dublone', 1000, 0],
+        ['S', 'Silbertaler', 100, 1],
+        ['H', 'Heller', 10, 2],
+        ['K', 'Kreuzer', 1, 3],
+      ];
+      for (const [code, name, faktor, sort] of denoms) {
+        denomIds[code] = Number(insDenom.run(sysId, code, name, faktor, sort).lastInsertRowid);
+      }
+
+      const chars = db
+        .prepare(
+          `SELECT character_id, geldD, geldS, geldH, geldK, bank FROM char_meta
+           WHERE geldD <> 0 OR geldS <> 0 OR geldH <> 0 OR geldK <> 0 OR bank <> 0`,
+        )
+        .all() as { character_id: number; geldD: number; geldS: number; geldH: number; geldK: number; bank: number }[];
+      const insPouch = db.prepare(
+        'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet) VALUES (?, ?, ?, ?, 0)',
+      );
+      const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
+      for (const c of chars) {
+        if (c.geldD || c.geldS || c.geldH || c.geldK) {
+          const pouchId = Number(insPouch.run(c.character_id, 0, 'Gürtelbeutel', sysId).lastInsertRowid);
+          if (c.geldD) insCoin.run(pouchId, denomIds.D, c.geldD);
+          if (c.geldS) insCoin.run(pouchId, denomIds.S, c.geldS);
+          if (c.geldH) insCoin.run(pouchId, denomIds.H, c.geldH);
+          if (c.geldK) insCoin.run(pouchId, denomIds.K, c.geldK);
+        }
+        if (c.bank) {
+          const pouchId = Number(insPouch.run(c.character_id, 1, 'Bank', sysId).lastInsertRowid);
+          insCoin.run(pouchId, denomIds.D, c.bank);
+        }
+      }
+    });
+    seed();
+    console.log('Migration: Aventurisch-Währungssystem geseedet, bestehende Münzen/Bank in Geldbeutel übernommen');
+  }
+}
+
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
 export function initCharacterRows(characterId: number): void {
   const attr = db.prepare('INSERT OR IGNORE INTO char_attributes (character_id, attr) VALUES (?, ?)');
@@ -728,4 +829,18 @@ export function initCharacterRows(characterId: number): void {
   for (const key of RESOURCE_KEYS) res.run(characterId, key);
   db.prepare('INSERT OR IGNORE INTO char_bio (character_id) VALUES (?)').run(characterId);
   db.prepare('INSERT OR IGNORE INTO char_meta (character_id) VALUES (?)').run(characterId);
+  // Neue Charaktere starten mit einem leeren, unbegrenzten Standard-Geldbeutel
+  // im ersten Katalog-System (sortiert) — ohne das wäre ein frischer Charakter
+  // ohne jeden Beutel und müsste erst „+ Beutel" klicken, um überhaupt Geld
+  // eintragen zu können.
+  const firstSystem = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as
+    | { id: number }
+    | undefined;
+  if (firstSystem) {
+    db.prepare('INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet) VALUES (?, 0, ?, ?, 0)').run(
+      characterId,
+      'Gürtelbeutel',
+      firstSystem.id,
+    );
+  }
 }

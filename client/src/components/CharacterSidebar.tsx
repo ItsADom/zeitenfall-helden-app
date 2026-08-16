@@ -1,13 +1,13 @@
 import { ATTR_CODES, ATTR_LABELS, RESOURCE_KEYS } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
 import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
+import { pouchUeberfuellt } from '@shared/currency';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
 import { TextInput } from './inputs';
 import { AlwaysEditable } from './displayMode';
 import { useCollapsed } from './collapse';
 import { overfilled, poolClass } from './energie';
-import { gesamtDublonen } from './GeldPanel';
 import { usePersistedState } from './persist';
 
 // Immer sichtbare Seitenleiste des Charakterbogens: die Werte, die im Spiel am
@@ -210,15 +210,19 @@ function SidebarNotiz() {
   );
 }
 
-// Geld — nur die Gesamtsumme in Dublonen. Die einzelnen Münzen werden im
-// Heldenbrief gepflegt.
+// Geld — kein Gesamtvermögen mehr (Geld-Umbau: mehrere Währungen lassen sich
+// nicht sinnvoll zu einer Zahl zusammenrechnen). Die Seitenleiste zeigt hier
+// nur eine Warnung, wenn ein Beutel über seiner Kapazität ist — Münzen selbst
+// werden im Heldenbrief gepflegt.
 function SidebarGeld() {
   const { data } = useChar();
+  const overfilledPouches = data.pouches.filter((p) => pouchUeberfuellt(p));
+  if (overfilledPouches.length === 0) return null;
   return (
     <div className="side-block">
       <h4>Geld</h4>
-      <div className="side-geld" title="Alle Münzen in Dublonen umgerechnet, inklusive Bank">
-        <strong>{gesamtDublonen(data.meta).toLocaleString('de-DE', { maximumFractionDigits: 3 })} D</strong>
+      <div className="side-geld res-over" title={overfilledPouches.map((p) => p.name).join(', ')}>
+        {overfilledPouches.length === 1 ? `„${overfilledPouches[0].name}" übervoll` : `${overfilledPouches.length} Beutel übervoll`}
       </div>
     </div>
   );

@@ -33,6 +33,7 @@ import {
   loadFullCharacter,
   loadItemCategories,
   loadItems,
+  loadPouches,
   hasPortrait,
   loadPortrait,
   manageAbilityList,
@@ -42,6 +43,7 @@ import {
   saveAbilities,
   saveItemCategories,
   saveItems,
+  savePouches,
   saveSection,
   saveTabOrder,
   saveTableWidths,
@@ -216,7 +218,8 @@ api.get('/catalogs', requireAuth, (_req, res) => {
   const languages = db.prepare('SELECT * FROM languages_catalog ORDER BY sort').all();
   const tags = db.prepare('SELECT * FROM tags_catalog ORDER BY sort').all();
   const races = db.prepare('SELECT * FROM races_catalog ORDER BY sort').all();
-  res.json({ talents, languages, tags, races });
+  const currencies = currencySystemsList();
+  res.json({ talents, languages, tags, races, currencies });
 });
 
 // --- Dashboard / Gruppen ---
@@ -644,6 +647,14 @@ api.put('/characters/:id/items', requireAuth, (req, res) => {
   if (!char) return;
   saveItems(char.id, req.body);
   res.json({ items: loadItems(char.id) });
+});
+
+// Geldbeutel (Geld-Umbau) — ganze Liste ersetzen, wie /items.
+api.put('/characters/:id/pouches', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  savePouches(char.id, req.body);
+  res.json({ pouches: loadPouches(char.id) });
 });
 
 api.put('/characters/:id/item-categories', requireAuth, (req, res) => {
@@ -1231,6 +1242,101 @@ api.delete('/admin/catalogs/:type/:id', requireAuth, requireGmOrAdmin, (req, res
     return;
   }
   db.prepare(`DELETE FROM ${def.table} WHERE id = ?`).run(id);
+  res.json({ ok: true });
+});
+
+// Währungs-Katalog (Geld-Umbau): zweistufig (System → Münzsorten), passt nicht
+// in das generische CATALOGS-Muster oben (eine Tabelle, flache Zeilen) — daher
+// eigene Routen. Löschen ist blockiert, solange ein Geldbeutel/eine Münzzeile
+// noch darauf verweist, gleiche Prüfung wie bei den übrigen Katalogen.
+function currencySystemsList() {
+  const systems = db.prepare('SELECT * FROM currency_systems ORDER BY sort').all() as { id: number }[];
+  const denominations = db.prepare('SELECT * FROM currency_denominations ORDER BY sort').all() as {
+    id: number;
+    system_id: number;
+  }[];
+  return systems.map((s) => ({ ...s, denominations: denominations.filter((d) => d.system_id === s.id) }));
+}
+
+api.post('/admin/currency-systems', requireAuth, requireGmOrAdmin, (req, res) => {
+  const { name, notiz } = (req.body ?? {}) as { name?: unknown; notiz?: unknown };
+  if (!name) {
+    res.status(400).json({ error: 'Name erforderlich' });
+    return;
+  }
+  const r = db
+    .prepare('INSERT INTO currency_systems (name, notiz, sort) VALUES (?, ?, 9999)')
+    .run(String(name), String(notiz ?? ''));
+  res.json({ id: r.lastInsertRowid });
+});
+
+api.put('/admin/currency-systems/:id', requireAuth, requireGmOrAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const cols = ['name', 'notiz', 'sort'].filter((c) => c in body);
+  if (cols.length === 0) {
+    res.status(400).json({ error: 'Keine Felder' });
+    return;
+  }
+  const values = cols.map((c) => (c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
+  db.prepare(`UPDATE currency_systems SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...values, id);
+  res.json({ ok: true });
+});
+
+api.delete('/admin/currency-systems/:id', requireAuth, requireGmOrAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const used = db.prepare('SELECT COUNT(*) AS n FROM char_pouches WHERE system_id = ?').get(id) as { n: number };
+  if (used.n > 0) {
+    res.status(400).json({ error: `Wird von ${used.n} Geldbeutel(n) verwendet` });
+    return;
+  }
+  db.prepare('DELETE FROM currency_systems WHERE id = ?').run(id);
+  res.json({ ok: true });
+});
+
+api.post('/admin/currency-denominations', requireAuth, requireGmOrAdmin, (req, res) => {
+  const { systemId, code, name, faktor } = (req.body ?? {}) as {
+    systemId?: unknown;
+    code?: unknown;
+    name?: unknown;
+    faktor?: unknown;
+  };
+  const sysId = Number(systemId);
+  if (!sysId || !code || !name) {
+    res.status(400).json({ error: 'Währungssystem, Code und Name erforderlich' });
+    return;
+  }
+  if (!db.prepare('SELECT 1 FROM currency_systems WHERE id = ?').get(sysId)) {
+    res.status(400).json({ error: 'Unbekanntes Währungssystem' });
+    return;
+  }
+  const r = db
+    .prepare('INSERT INTO currency_denominations (system_id, code, name, faktor, sort) VALUES (?, ?, ?, ?, 9999)')
+    .run(sysId, String(code), String(name), Number(faktor) || 1);
+  res.json({ id: r.lastInsertRowid });
+});
+
+api.put('/admin/currency-denominations/:id', requireAuth, requireGmOrAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const cols = ['code', 'name', 'faktor', 'sort'].filter((c) => c in body);
+  if (cols.length === 0) {
+    res.status(400).json({ error: 'Keine Felder' });
+    return;
+  }
+  const values = cols.map((c) => (c === 'faktor' || c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
+  db.prepare(`UPDATE currency_denominations SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...values, id);
+  res.json({ ok: true });
+});
+
+api.delete('/admin/currency-denominations/:id', requireAuth, requireGmOrAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  const used = db.prepare('SELECT COUNT(*) AS n FROM char_pouch_coins WHERE denomination_id = ?').get(id) as { n: number };
+  if (used.n > 0) {
+    res.status(400).json({ error: `Wird von ${used.n} Geldbeutel(n) verwendet` });
+    return;
+  }
+  db.prepare('DELETE FROM currency_denominations WHERE id = ?').run(id);
   res.json({ ok: true });
 });
 

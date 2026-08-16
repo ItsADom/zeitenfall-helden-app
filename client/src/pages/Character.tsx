@@ -4,6 +4,7 @@ import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAtt
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
 import type { Ability } from '@shared/abilities';
+import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
 import { apiGet, apiPut } from '../api';
 import { useAuth, useThemeControls } from '../App';
@@ -65,6 +66,9 @@ export interface FullData {
   // ändert sich einzig der Fortschritt. Speichert über eine eigene Route.
   abilities: Ability[];
   abilityLists: { element: string[]; kategorie: string[] };
+  // Geldbeutel (Geld-Umbau): eine Liste, jeder Beutel an ein Katalog-
+  // Währungssystem gebunden. Speichert über eine eigene Route, nicht /section/:s.
+  pouches: CoinPouch[];
 }
 
 export interface TalentCatalogRow {
@@ -107,6 +111,7 @@ export interface Catalogs {
   talents: TalentCatalogRow[];
   languages: LanguageCatalogRow[];
   races: RaceCatalogRow[];
+  currencies: CurrencySystem[];
 }
 
 interface CharacterInfo {
@@ -283,6 +288,7 @@ export default function CharacterPage() {
         else if (s === 'items') await apiPut(`/api/characters/${charId}/items`, d.items);
         else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
         else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities`, d.abilities);
+        else if (s === 'pouches') await apiPut(`/api/characters/${charId}/pouches`, d.pouches);
         else {
           const value =
             s === 'bio' ? d.bio
@@ -322,6 +328,7 @@ export default function CharacterPage() {
         if (section === 'items') return { ...prev, items: value as Item[] };
         if (section === 'itemCategories') return { ...prev, itemCategories: value as string[] };
         if (section === 'abilities') return { ...prev, abilities: value as Ability[] };
+        if (section === 'pouches') return { ...prev, pouches: value as CoinPouch[] };
         return { ...prev, lists: { ...prev.lists, [section]: value as Row[] } };
       });
       dirty.current.add(section);

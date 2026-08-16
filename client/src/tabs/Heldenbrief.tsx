@@ -93,7 +93,7 @@ const META_FIELDS: [string, string][] = [
 export default function HeldenbriefTab() {
   const { charId, data, catalogs, update } = useChar();
   const readOnly = useReadOnly();
-  const { attributes, baseValues, resources, special, bio, meta, attrExtern } = data;
+  const { attributes, baseValues, resources, special, bio, meta, attrExtern, pouches } = data;
 
   // Aktuell gewählte Rasse (für Anzeige UND um Basis-Zellen zu sperren, siehe unten).
   const selectedRace = catalogs.races.find((r) => r.id === bio.rasseId) ?? null;
@@ -569,7 +569,7 @@ export default function HeldenbriefTab() {
           </div>
         </div>
 
-        <GeldPanel meta={meta} setMeta={setMeta} />
+        <GeldPanel pouches={pouches} systems={catalogs.currencies} setPouches={(next) => update('pouches', next)} />
       </div>
     </>
   );

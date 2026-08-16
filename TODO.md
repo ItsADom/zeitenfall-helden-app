@@ -25,6 +25,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ## User feedback
 
 - connect what writing is used in what spoken language
+- ranged weapons do not seem to calculate their Kampftalent accordingly
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
@@ -69,20 +70,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
   alternate sheets folded into a single character, with a dropdown to switch
   the active form. Needs a concept pass (data model + how much duplicates vs.
   derives from a base sheet) before building.
-- [sketch] **Money rework** (concept in progress): replace the fixed 4-coin + Bank
-  structure (`GeldPanel.tsx`, meta keys `geldD/S/H/K/bank`, ×10 tiers, total in
-  Dublonen) with flexible currencies. Decided:
-   - Currencies come from a **GM world catalogue** (Verwaltung → Kataloge, like
-     talents/languages): rename the coins, add/remove currency types. One
-     canonical set for all of Zeitenfall; players pick from it, don't invent their own.
-   - **No combined wealth total** — per-currency counters only; drop the
-     „Gesamt"-in-Dublonen figure (incl. the one the sidebar shows).
-  OPEN — **blocked, dev clarifying with the community**:
-   - Pouches & "carrying": separate money pouches (Bank = a non-carried pouch,
-     coins stay weightless) vs. integrating money into the Ausrüstung/Inventar
-     location system with per-coin weight feeding Traglast. The per-character
-     storage model + migration hinge on this → hold the build until it's decided.
-  Migration (no data loss): fold existing `geldD/S/H/K/bank` values into whatever lands.
 - [ready] **Expanded bio page** (concept agreed): a dedicated route (e.g.
   `/charakter/:id/bio`), linked from the character sheet — deliberately outside
   the existing `char_tabs`/`char_sections` tab system, new territory for the app.

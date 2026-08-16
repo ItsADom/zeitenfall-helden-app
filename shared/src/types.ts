@@ -165,7 +165,8 @@ export interface Bio {
   goettergeschenke: string;
 }
 
-// Meta (Stufe, AP, Karma, Geld, Psyche, Ruf)
+// Meta (Stufe, AP, Karma, Psyche, Ruf). Geld ist NICHT mehr Teil von Meta —
+// siehe CoinPouch in shared/src/currency.ts (Geldbeutel + GM-Währungskatalog).
 export interface Meta {
   stufe: number;
   ap: number;
@@ -184,11 +185,6 @@ export interface Meta {
   // psycheMax() aus Rassengrundwert + Bonus + MU-Anteil berechnet. Die Spalte
   // bleibt (Altbestand), wird aber nicht mehr gelesen.
   psycheMax: number;
-  geldD: number;
-  geldS: number;
-  geldH: number;
-  geldK: number;
-  bank: number;
   // Zusatz auf die berechnete maximale Traglast (kg). Additiv, kann negativ sein
   // (z. B. Vor-/Nachteile). Die Formel bleibt sichtbar; dies erhöht nur das Maximum.
   traglastBonus: number;
