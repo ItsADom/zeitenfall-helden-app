@@ -593,11 +593,12 @@ for (const s of LIST_SECTIONS) {
   }
 }
 
-// Migration: bestehende Nah-/Fernkampfwaffen einmalig in die neue, kompaktere
-// Waffen-Tabelle (waffenNahNeu/waffenFernNeu, gepaarte Spalten im Client)
-// kopieren — reine 1:1-Umbenennung der Felder ("tp" heißt jetzt klarer
-// "haltbarkeit"), nichts geht verloren. sec_waffenNah/sec_waffenFern bleiben
-// unverändert bestehen, der alte Reiter „Waffen (alt)" liest weiter von dort.
+// Migration: bestehende Nah-/Fernkampfwaffen einmalig in die neue Waffen-
+// Tabelle (waffenNahNeu/waffenFernNeu, Kartenansicht im Client) kopieren —
+// reine 1:1-Umbenennung der Felder ("tp" heißt jetzt klarer "haltbarkeit"),
+// nichts geht verloren. sec_waffenNah/sec_waffenFern bleiben unverändert
+// bestehen (der alte Reiter „Waffen (alt)" ist seit 2026-08-16 stillgelegt,
+// keine UI liest mehr live von dort — die Tabellen sind reines Archiv).
 // Läuft nur einmal: sobald die neue Tabelle Zeilen hat, fasst der Serverstart
 // sie nicht mehr an (auch nicht für neue Charaktere — die haben ohnehin nichts
 // in der alten Tabelle zu migrieren).

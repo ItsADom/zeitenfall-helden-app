@@ -89,7 +89,7 @@ const RAW_SECTIONS: ListSectionDef[] = [
     id: 'waffenFernNeu',
     label: 'Fernkampfwaffen',
     columns: [
-      t('typ', 'Waffe/Typ', 3), t('eBE', 'eBE', 1), t('haltbarkeit', 'Haltbarkeit', 1),
+      t('typ', 'Waffe/Typ', 3), t('eBE', 'Material', 1), t('haltbarkeit', 'Haltbarkeit', 1),
       t('entfernung', 'Entfernung', 2), t('besonderes', 'Besonderes', 3),
       t('schaden', 'Schaden', 2), n('talentId', 'Kampftalent', 2), n('atMod', 'AT-Mod', 1),
     ],

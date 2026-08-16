@@ -20,11 +20,13 @@ export const FIXED_TAB_KEYS = ['Heldenbrief'] as const;
 // Voreinstellung hinter den selbst angelegten, weil es eine Einstellung ist und
 // kein Inhalt. „Inventar" und „Ausrüstung" sind seit Cluster 5 eingebaute Reiter
 // (eigenes Gegenstands-Modell) statt selbst angelegter Tabellen.
-// „Waffen" ist der alte, generisch-listenbasierte Reiter (Anzeige: „Waffen
-// (alt)", siehe BUILTIN_TAB_LABELS in Character.tsx); „WaffenNeu" der neue,
-// zweckgebaute mit kompaktem Spaltenlayout (Anzeige: „Waffen"). Beide bleiben
-// vorerst nebeneinander bestehen.
-export const MOVABLE_BUILTIN_TAB_KEYS = ['Talente', 'Waffen', 'WaffenNeu', 'Zauber', 'Fähigkeiten', 'Inventar', 'Ausrüstung', 'Sprachen'] as const;
+// „WaffenNeu" (Anzeige: „Waffen", siehe BUILTIN_TAB_LABELS in Character.tsx)
+// ist der einzige Waffen-Reiter. Der alte, generisch-listenbasierte „Waffen"
+// (vormals „Waffen (alt)") wurde am 2026-08-16 stillgelegt, NICHT gelöscht —
+// seine Daten stecken bereits 1:1 in sec_waffenNahNeu/sec_waffenFernNeu (siehe
+// die Migration in server/src/db.ts), aber sec_waffenNah/sec_waffenFern und der
+// Schlüssel selbst bleiben unangetastet in der Datenbank liegen.
+export const MOVABLE_BUILTIN_TAB_KEYS = ['Talente', 'WaffenNeu', 'Zauber', 'Fähigkeiten', 'Inventar', 'Ausrüstung', 'Sprachen'] as const;
 export const SICHTBARKEIT_TAB_KEY = 'Sichtbarkeit';
 
 // Grenzen für die gespeicherte Liste. Kein Reiter-Schlüssel ist lang, und mehr

@@ -198,18 +198,28 @@ chips. Backend table `char_special_resources`. Open for the full version:
         the result and group reaction are immediately visible.
    - Structurally scoped per group already (`GroupInfo`, per-group routes exist
      in `routes.ts`) — but no per-group real-time channel exists yet.
-- [ready] **Weapon tab rework — in progress**: Nahkampf-/Fernkampfwaffen live now
-  in a new bespoke tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown
-  as „Waffen" — compact paired-column layout, two-row header) alongside the old
-  generic-list tab (key `Waffen`, now labelled „Waffen (alt)" in
-  `Character.tsx`). Existing rows were migrated 1:1 into `waffenNahNeu`/
-  `waffenFernNeu` (see the guarded migration in `server/src/db.ts`); the old
-  `sec_waffenNah`/`sec_waffenFern` tables and tab are untouched and still work.
-  Remaining:
-   - Decide when/whether to retire „Waffen (alt)" once the new tab is confirmed
-     good, and remove the old list sections + migration guard at that point.
-   - `Waffenloser Kampf`/`Munition`/`Kampfstile` still use the old generic
-     `ListEditor` — no scroll problem there today, left out of this pass.
+- [ready] **Weapon tab rework — in progress**: Nahkampf-/Fernkampfwaffen live in
+  a bespoke card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`,
+  shown as „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK
+  probe shown next to the name in the collapsed head, full field grid on
+  expand; follows the Ausrüstung item-chip pattern). The old generic-list tab
+  (key `Waffen`) was retired 2026-08-16: removed from `MOVABLE_BUILTIN_TAB_KEYS`
+  in `shared/src/tabOrder.ts` and from the render switch/label map in
+  `Character.tsx`, so it no longer appears for anyone. Its data was already
+  migrated 1:1 into `waffenNahNeu`/`waffenFernNeu` (guarded migration in
+  `server/src/db.ts`); `sec_waffenNah`/`sec_waffenFern` and `client/src/tabs/
+  Waffen.tsx` still exist as untouched archive — nothing was deleted, the tab
+  is just unreachable now. Remaining:
+   - `client/src/tabs/Waffen.tsx` is dead code (no longer imported anywhere) —
+     safe to delete once nobody needs to resurrect the old tab for reference.
+   - `Waffenloser Kampf`/`Kampfstile`/`Pfeile-Bolzen` (Munition) were NEVER part
+     of the waffenNahNeu/waffenFernNeu migration and only ever lived in the
+     retired tab — moved into `WaffenNeu.tsx` as-is (still the old generic
+     `ListEditor` table, unstyled as cards) so existing entries stay reachable.
+     Munition gets its own solution once the planned lookup catalogue exists
+     (see „Look-up lists" below) — low priority, don't card-ify it first.
+     Waffenloser Kampf/Kampfstile still want their own card treatment
+     eventually, same reasoning as the weapon rework itself.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
 - [ready] **Group overview page for GM** (concept agreed — chip-based, stats only):
