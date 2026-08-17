@@ -18,6 +18,7 @@ export const TABS_VAR = '--tabs-h';
 export const SEARCH_VAR = '--search-h';
 export const EINSTHEAD_VAR = '--einsthead-h';
 export const EINSTNAV_VAR = '--einstnav-h';
+export const WIKIBAR_VAR = '--wikibar-h';
 
 /**
  * Schreibt die Höhe eines klebenden Elements in eine CSS-Variable am
@@ -88,3 +89,6 @@ export const useEinstHeadHeight = () => useMeasuredHeight(EINSTHEAD_VAR);
 
 /** Referenz für die Sprung-Navigation der Einstellungen-Seite — setzt `--einstnav-h`. */
 export const useEinstNavHeight = () => useMeasuredHeight(EINSTNAV_VAR);
+
+/** Referenz für die Bearbeitungsleiste im Wiki — setzt `--wikibar-h`. */
+export const useWikiBarHeight = () => useMeasuredHeight(WIKIBAR_VAR);

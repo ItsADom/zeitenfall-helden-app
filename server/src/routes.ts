@@ -13,6 +13,7 @@ import {
   verifyPassword,
 } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
+import { wikiApi } from './wiki/router.js';
 import { db, initCharacterRows } from './db.js';
 import {
   MAX_TABLE_COLUMNS,
@@ -71,6 +72,11 @@ import {
 } from './dynSections.js';
 
 export const api = Router();
+
+// Das Wiki bringt seine eigenen Routen, seinen eigenen Zugriffscheck und sein
+// eigenes Schema mit (server/src/wiki/) und hängt sich hier mit einer Zeile ein
+// — statt diese Datei weiter wachsen zu lassen.
+api.use('/wiki', wikiApi);
 
 // Hinter einem HTTPS-Reverse-Proxy SECURE_COOKIES=1 setzen, damit das
 // Sitzungs-Cookie nur über verschlüsselte Verbindungen übertragen wird.

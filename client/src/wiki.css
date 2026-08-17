@@ -1,0 +1,273 @@
+/* ---------- Wiki ----------
+   Eigene Datei, weil styles.css schon 4336 Zeilen hat. Jede Regel ist mit
+   .wiki- benannt, damit nichts in den Rest der App ausstrahlt.
+
+   Ausschließlich Token, nie feste Farben: die Farbwelten laufen über zwei
+   Achsen (Farbe × hell/dunkel), und ein hart notierter Farbwert bricht sofort
+   eine der Varianten. */
+
+.wiki {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.wiki-kopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.wiki-kopf h1 {
+  margin-bottom: 2px;
+}
+.wiki-meta {
+  margin: 0;
+  font-size: 13px;
+}
+.wiki-kopf-aktionen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Pfeil am Wiki-Eintrag der Kopfleiste: der Link öffnet einen neuen Tab, und
+   das soll man vorher sehen. */
+.wiki-neuertab {
+  margin-left: 3px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* --- Übersicht --- */
+
+.wiki-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.wiki-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wiki-tag {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  text-decoration: none;
+}
+.wiki-tag:hover {
+  border-color: var(--border-hover);
+}
+.wiki-tag.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.wiki-karte h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.wiki-marke {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* --- Gelesener Inhalt --- */
+
+.wiki-inhalt {
+  line-height: 1.6;
+}
+.wiki-inhalt > :first-child {
+  margin-top: 0;
+}
+.wiki-ueberschrift {
+  margin: 22px 0 8px;
+  /* Ankersprünge dürfen nicht unter der klebenden Kopfleiste landen. */
+  scroll-margin-top: calc(var(--topbar-h, 47px) + 12px);
+}
+.wiki-liste {
+  margin: 8px 0 8px 22px;
+}
+.wiki-liste li {
+  margin: 3px 0;
+}
+.wiki-zitat {
+  margin: 12px 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-sunken);
+  color: var(--muted);
+}
+.wiki-trenner {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
+}
+.wiki-code {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+}
+.wiki-codeblock {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.wiki-link {
+  color: var(--accent-dark);
+}
+/* Rotlink: das Ziel gibt es (noch) nicht. Bewusst der Fehlerton und NICHT der
+   Akzent — der ist je nach Farbwelt selbst schon rot und würde sich nicht vom
+   gewöhnlichen Verweis unterscheiden. */
+.wiki-rotlink {
+  color: var(--error-text);
+  border-bottom: 1px dotted currentColor;
+  text-decoration: none;
+}
+
+.wiki-bild {
+  margin: 14px 0;
+}
+.wiki-bild-platzhalter {
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-panel);
+  padding: 18px;
+  text-align: center;
+  font-size: 13px;
+}
+
+/* GM-Block: erreicht ohnehin nur die Spielleitung — der Server entfernt diese
+   Bereiche für alle anderen aus der Antwort. Die Markierung sagt also „das
+   sehen die Spieler nicht", sie schützt nichts. */
+.wiki-gm {
+  position: relative;
+  margin: 14px 0;
+  padding: 12px 14px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-panel);
+  background: var(--accent-soft);
+}
+.wiki-gm-marke {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  margin-bottom: 6px;
+}
+.wiki-gm > :last-child {
+  margin-bottom: 0;
+}
+
+/* Wiki-Tabellen erben das Blatt-Aussehen, bekommen aber KEINEN eigenen
+   Scrollbereich (siehe CLAUDE.md) — und da im Wiki keine Reiterleiste klebt,
+   darf hier auch nichts mit --tabs-h gerechnet werden. */
+.wiki-tabelle table.sheet thead {
+  position: static;
+}
+
+/* --- Editor --- */
+
+.wiki-editorleiste {
+  position: sticky;
+  top: var(--topbar-h, 47px);
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  margin-bottom: 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.wiki-editorleiste-links,
+.wiki-editorleiste-rechts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wiki-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.wiki-seg button {
+  border: 0;
+  border-radius: 0;
+  padding: 4px 12px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.wiki-seg button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Wächst mit dem Inhalt (autosize) statt selbst zu scrollen. */
+.wiki-quelle {
+  width: 100%;
+  min-height: 320px;
+  padding: 12px 14px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--input-bg);
+  color: var(--text);
+  resize: none;
+  overflow: hidden;
+}
+
+.wiki-vorschau {
+  min-height: 320px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+
+.wiki-hinweis {
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-panel);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.wiki-hinweis-warn {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+}
+
+@media (max-width: 700px) {
+  .wiki-kopf {
+    flex-direction: column;
+  }
+}

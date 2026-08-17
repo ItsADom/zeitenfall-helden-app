@@ -1,0 +1,204 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { parseWiki } from '@shared/wikiMarkup';
+import { WIKI_LIMITS } from '@shared/wikiTypen';
+import type { WikiSeiteVoll } from '@shared/wikiTypen';
+import { ApiError } from '../api';
+import { observeAutosize } from '../components/autosize';
+import { usePersistedState } from '../components/persist';
+import { useWikiBarHeight } from '../components/stickyChrome';
+import WikiMarkup from './Markup';
+import { ladeSeite, speichereSeite } from './api';
+
+// Editing a page.
+//
+// Explicit „Speichern", not the sheet's debounced autosave: every save becomes
+// one entry in the change log, and forty entries per paragraph would make that
+// log useless. The comment field only makes sense at a deliberate save too.
+//
+// The crash guard is a per-device localStorage draft. It never creates a
+// revision — it exists so a closed tab does not cost an evening's writing.
+
+type Ansicht = 'schreiben' | 'vorschau';
+
+export default function WikiEditor() {
+  const { slug = '' } = useParams();
+  const navigate = useNavigate();
+  const barRef = useWikiBarHeight();
+
+  const [seite, setSeite] = useState<WikiSeiteVoll | null>(null);
+  const [titel, setTitel] = useState('');
+  const [text, setText] = useState('');
+  const [kommentar, setKommentar] = useState('');
+  const [tags, setTags] = useState('');
+  const [basisRev, setBasisRev] = useState<number | null>(null);
+  const [ansicht, setAnsicht] = useState<Ansicht>('schreiben');
+  const [status, setStatus] = useState('');
+  const [fehler, setFehler] = useState('');
+  const [konflikt, setKonflikt] = useState<{ text: string; autor: string } | null>(null);
+  const feldRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Survives a crashed tab; cleared the moment a real save succeeds.
+  const [entwurf, setEntwurf] = usePersistedState<string | null>(`wiki:entwurf:${slug}`, null);
+
+  useEffect(() => {
+    ladeSeite(slug)
+      .then((d) => {
+        setSeite(d.seite);
+        setTitel(d.seite.titel);
+        setText(d.seite.text);
+        setTags(d.seite.tags.join(', '));
+        setBasisRev(d.seite.revisionId || null);
+      })
+      .catch(() => setFehler('Seite konnte nicht geladen werden'));
+  }, [slug]);
+
+  // The textarea grows with its content instead of scrolling inside itself —
+  // no box in this app gets its own scroll area.
+  useEffect(() => {
+    if (feldRef.current) return observeAutosize(feldRef.current);
+  }, [seite, ansicht]);
+
+  const schmutzig = !!seite && (titel !== seite.titel || text !== seite.text || tags !== seite.tags.join(', '));
+
+  useEffect(() => {
+    if (schmutzig) setEntwurf(text);
+  }, [schmutzig, text, setEntwurf]);
+
+  // Browsers only honour this for a real navigation away, which is exactly the
+  // case the crash draft cannot cover.
+  useEffect(() => {
+    if (!schmutzig) return;
+    const warnen = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener('beforeunload', warnen);
+    return () => window.removeEventListener('beforeunload', warnen);
+  }, [schmutzig]);
+
+  const speichern = useCallback(async () => {
+    if (!seite) return;
+    setFehler('');
+    setKonflikt(null);
+    setStatus('Speichere…');
+    try {
+      const d = await speichereSeite(slug, { titel, text, kommentar, tags, basisRev });
+      setSeite(d.seite);
+      setBasisRev(d.seite.revisionId || null);
+      setKommentar('');
+      setEntwurf(null);
+      setStatus(`Gespeichert (${new Date().toLocaleTimeString()})`);
+      navigate(`/wiki/${d.kanonisch}`);
+    } catch (e) {
+      setStatus('');
+      if (e instanceof ApiError && e.status === 409) {
+        // Somebody else saved first. No automatic merge — the author decides,
+        // with both texts in front of them.
+        setKonflikt({ text: '', autor: '' });
+        setFehler('Die Seite wurde geändert, seit du angefangen hast. Deine Fassung ist noch da — vergleiche sie mit der aktuellen, bevor du erneut speicherst.');
+      } else if (e instanceof ApiError && e.status === 403) {
+        setFehler('Diese Seite ist geschützt — nur die Spielleitung darf sie bearbeiten.');
+      } else {
+        setFehler(e instanceof Error ? e.message : 'Fehler beim Speichern');
+      }
+    }
+  }, [seite, slug, titel, text, kommentar, tags, basisRev, navigate, setEntwurf]);
+
+  // Ctrl+S is what everyone's fingers already do in an editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void speichern();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [speichern]);
+
+  if (fehler && !seite) return <p className="error">{fehler}</p>;
+  if (!seite) return <p className="muted">Lade…</p>;
+
+  return (
+    <div className="wiki wiki-editor">
+      <div className="wiki-editorleiste screen-only" ref={barRef}>
+        <div className="wiki-editorleiste-links">
+          <div className="wiki-seg">
+            <button className={ansicht === 'schreiben' ? 'active' : ''} onClick={() => setAnsicht('schreiben')}>
+              Schreiben
+            </button>
+            <button className={ansicht === 'vorschau' ? 'active' : ''} onClick={() => setAnsicht('vorschau')}>
+              Vorschau
+            </button>
+          </div>
+          {schmutzig && <span className="muted">Ungespeicherte Änderungen</span>}
+          <span className="savestate">{status}</span>
+        </div>
+        <div className="wiki-editorleiste-rechts">
+          <Link className="small" to={`/wiki/${seite.slug}`}>
+            Abbrechen
+          </Link>
+          <button className="primary" onClick={() => void speichern()} disabled={!schmutzig}>
+            Speichern
+          </button>
+        </div>
+      </div>
+
+      {entwurf != null && entwurf !== text && (
+        <p className="wiki-hinweis">
+          Es liegt ein ungespeicherter Entwurf von diesem Gerät vor.{' '}
+          <button className="small" onClick={() => setText(entwurf)}>
+            Entwurf übernehmen
+          </button>{' '}
+          <button className="small" onClick={() => setEntwurf(null)}>
+            Verwerfen
+          </button>
+        </p>
+      )}
+
+      {fehler && <p className="error">{fehler}</p>}
+      {konflikt && (
+        <p className="wiki-hinweis wiki-hinweis-warn">
+          Tipp: öffne die Seite in einem zweiten Tab, um die aktuelle Fassung daneben zu lesen.
+        </p>
+      )}
+
+      <div className="field">
+        <label>Titel</label>
+        <input
+          value={titel}
+          maxLength={WIKI_LIMITS.TITEL_MAX}
+          onChange={(e) => setTitel(e.target.value)}
+          placeholder="Titel der Seite"
+        />
+      </div>
+
+      {ansicht === 'schreiben' ? (
+        <textarea
+          ref={feldRef}
+          className="wiki-quelle"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Text der Seite…"
+          spellCheck
+        />
+      ) : (
+        <div className="wiki-vorschau">
+          <WikiMarkup doc={parseWiki(text)} ziele={seite.linkZiele} />
+        </div>
+      )}
+
+      <div className="field">
+        <label>Kategorien (mit Komma getrennt)</label>
+        <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Ort, NPCs" />
+      </div>
+      <div className="field">
+        <label>Was hast du geändert? (erscheint im Änderungsprotokoll)</label>
+        <input
+          value={kommentar}
+          maxLength={WIKI_LIMITS.KOMMENTAR_MAX}
+          onChange={(e) => setKommentar(e.target.value)}
+          placeholder="Kurze Notiz, optional"
+        />
+      </div>
+    </div>
+  );
+}

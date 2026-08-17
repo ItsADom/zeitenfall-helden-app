@@ -1,0 +1,129 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import type { WikiSeiteInfo } from '@shared/wikiTypen';
+import { CollapsedText } from '../components/notes';
+import NeueSeiteDialog from './NeueSeiteDialog';
+import { ladeListe } from './api';
+
+// The wiki's front door: every page, plus a category filter and the entry point
+// for creating one. Search arrives in its own phase; until then the filter is a
+// plain substring match over what is already loaded, which is the same thing
+// the talent tab does and is plenty for a few dozen pages.
+
+export default function WikiUebersicht() {
+  const navigate = useNavigate();
+  const [seiten, setSeiten] = useState<WikiSeiteInfo[] | null>(null);
+  const [fehler, setFehler] = useState('');
+  const [suche, setSuche] = useState('');
+  const [kategorie, setKategorie] = useState<string | null>(null);
+  const [dialogOffen, setDialogOffen] = useState(false);
+
+  const laden = useCallback(() => {
+    ladeListe()
+      .then((d) => setSeiten(d.seiten))
+      .catch((e) => setFehler(e instanceof Error ? e.message : 'Fehler'));
+  }, []);
+
+  useEffect(laden, [laden]);
+
+  // Someone else may have written a page while this tab sat open — the wiki
+  // lives in its own tab, so coming back to it is the natural refresh moment.
+  useEffect(() => {
+    const vielleicht = () => {
+      if (document.visibilityState === 'visible') laden();
+    };
+    window.addEventListener('focus', vielleicht);
+    document.addEventListener('visibilitychange', vielleicht);
+    return () => {
+      window.removeEventListener('focus', vielleicht);
+      document.removeEventListener('visibilitychange', vielleicht);
+    };
+  }, [laden]);
+
+  if (fehler) return <p className="error">{fehler}</p>;
+
+  const q = suche.trim().toLowerCase();
+  const gefiltert = (seiten ?? []).filter(
+    (s) =>
+      (!kategorie || s.tags.includes(kategorie)) &&
+      (!q || s.titel.toLowerCase().includes(q) || s.auszug.toLowerCase().includes(q)),
+  );
+  const kategorien = [...new Set((seiten ?? []).flatMap((s) => s.tags))].sort((a, b) => a.localeCompare(b, 'de'));
+
+  return (
+    <div className="wiki">
+      <div className="wiki-kopf">
+        <div>
+          <h1>Wiki</h1>
+          <p className="muted">Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.</p>
+        </div>
+        <div className="wiki-kopf-aktionen">
+          <Link className="small" to="/wiki/aenderungen">
+            Letzte Änderungen
+          </Link>
+          <button className="primary" onClick={() => setDialogOffen(true)}>
+            + Neue Seite
+          </button>
+        </div>
+      </div>
+
+      <div className="wiki-filter">
+        <div className="talent-search">
+          <input type="text" placeholder="Seite suchen…" value={suche} onChange={(e) => setSuche(e.target.value)} />
+          {suche && (
+            <button className="small" onClick={() => setSuche('')} title="Suche zurücksetzen">
+              ✕
+            </button>
+          )}
+        </div>
+        {kategorien.length > 0 && (
+          <div className="wiki-tags">
+            <button className={`wiki-tag${kategorie === null ? ' active' : ''}`} onClick={() => setKategorie(null)}>
+              Alle
+            </button>
+            {kategorien.map((t) => (
+              <button
+                key={t}
+                className={`wiki-tag${kategorie === t ? ' active' : ''}`}
+                onClick={() => setKategorie(kategorie === t ? null : t)}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {seiten == null ? (
+        <p className="muted">Lade…</p>
+      ) : gefiltert.length === 0 ? (
+        <p className="muted">
+          {seiten.length === 0 ? 'Noch keine Seiten. Lege die erste an.' : 'Keine Seite gefunden.'}
+        </p>
+      ) : (
+        <div className="cardlist">
+          {gefiltert.map((s) => (
+            <Link className="card wiki-karte" key={s.slug} to={`/wiki/${s.slug}`}>
+              <h3>
+                {s.titel}
+                {s.gmOnly && <span className="wiki-marke">nur SL</span>}
+                {s.geschuetzt && <span className="wiki-marke">geschützt</span>}
+              </h3>
+              {s.auszug ? (
+                <CollapsedText className="muted" text={s.auszug} />
+              ) : (
+                <span className="muted">Noch ohne Inhalt.</span>
+              )}
+            </Link>
+          ))}
+        </div>
+      )}
+
+      <NeueSeiteDialog
+        open={dialogOffen}
+        onClose={() => setDialogOffen(false)}
+        onAngelegt={(slug) => navigate(`/wiki/${slug}/bearbeiten`)}
+      />
+    </div>
+  );
+}

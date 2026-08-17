@@ -103,6 +103,20 @@ export default function HomePage() {
 
       <section className="home-section">
         <div className="home-section-head">
+          <h2>Nachschlagen</h2>
+        </div>
+        <div className="cardlist">
+          {/* Wie in der Kopfleiste in einem neuen Tab: Nachschlagen mitten im
+              Spiel soll den Bogen nicht wegnehmen, auf dem man gerade war. */}
+          <a className="card home-tile" href="/wiki" target="_blank" rel="noopener noreferrer">
+            <h3>Wiki ↗</h3>
+            <span className="muted">Weltwissen und Spielregeln — öffnet in einem neuen Tab.</span>
+          </a>
+        </div>
+      </section>
+
+      <section className="home-section">
+        <div className="home-section-head">
           <h2>Neuste Änderungen</h2>
           <Link to="/changelog">Ganze Historie →</Link>
         </div>

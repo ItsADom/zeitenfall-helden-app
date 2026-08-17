@@ -7,6 +7,9 @@ import { api } from './routes.js';
 import { startBackupSchedule } from './backup.js';
 import { mirrorChangelog } from './discord.js';
 import './db.js';
+// Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
+// wenn die Grundtabellen und ihre Migrationen durch sind.
+import './wiki/schema.js';
 import './seed.js';
 
 // Abgelaufene Sitzungen beim Start und danach täglich aufräumen

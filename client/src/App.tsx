@@ -18,6 +18,8 @@ import ThemePicker from './components/ThemePicker';
 import ModeToggle from './components/ModeToggle';
 import NavMenu from './components/NavMenu';
 import ProfileMenu from './components/ProfileMenu';
+import WikiNavLink from './wiki/NavLink';
+import WikiRoutes from './wiki/Routes';
 import { OverviewProvider } from './components/overview';
 import { RequestsProvider, PendingBadge } from './components/requests';
 import BannerFx from './components/BannerFx';
@@ -106,6 +108,8 @@ export default function App() {
         <Link to="/" className="wordmark">Zeitenkompass</Link>
         <NavMenu kind="charaktere" />
         <NavMenu kind="gruppen" />
+        {/* Inhalt zuerst, Verwaltung danach — das Wiki gehört zu den Inhalten. */}
+        <WikiNavLink />
         {/* Spielleiter verwalten Kataloge & Nutzer. Für Spieler ist „Einstellungen"
             aus der Leiste ins Profil-Flyout gewandert (unten) — und direkt vom
             Charakterbogen erreichbar. Route bleibt intern /verwaltung. */}
@@ -143,6 +147,9 @@ export default function App() {
           <Route path="/event/:id/uebersicht" element={user.isGm ? <GroupOverviewPage kind="temp" /> : <Navigate to="/charaktere" />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/charakter/:id/zauber-faehigkeiten" element={<AbilityManagerPage />} />
+          {/* Splat-Route: das Wiki bringt seine eigenen Unterrouten mit. Steht
+              vor dem Auffang-* darunter. */}
+          <Route path="/wiki/*" element={<WikiRoutes />} />
           <Route path="/changelog" element={<ChangelogPage />} />
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
