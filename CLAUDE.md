@@ -23,10 +23,11 @@ These are standing instructions — follow them without being reminded.
 ## Language
 
 - **English by default for anything that isn't UI or otherwise user-visible:**
-  commit messages, code comments you write, internal notes. German stays
-  reserved for player/GM-facing text — UI strings, the in-app changelog,
-  `TODO.md`. Existing German comments in the codebase don't need to be
-  translated retroactively; this is about what you write going forward.
+  commit messages, code comments you write, internal notes, `TODO.md` (it's a
+  developer-only backlog, not player-facing). German stays reserved for
+  actual player/GM-facing text — UI strings, the in-app changelog. Existing
+  German comments in the codebase don't need to be translated retroactively;
+  this is about what you write going forward.
 - **Exception: changelog styling drafts.** Draft/preview text you write while
   iterating on a `shared/src/changelog.ts` entry's wording or tone may stay
   German, since it's a direct working draft of German user-facing copy, not
