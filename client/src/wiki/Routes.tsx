@@ -3,7 +3,9 @@ import { useState } from 'react';
 import NeueSeiteDialog from './NeueSeiteDialog';
 import WikiAenderungen from './Aenderungen';
 import WikiEditor from './Editor';
+import WikiKategorie from './Kategorie';
 import WikiSeite from './Seite';
+import WikiSuche from './Suche';
 import WikiUebersicht from './Uebersicht';
 import WikiVerlauf from './Verlauf';
 
@@ -37,6 +39,8 @@ export default function WikiRoutes() {
       <Route index element={<WikiUebersicht />} />
       <Route path="neu" element={<NeueSeite />} />
       <Route path="aenderungen" element={<WikiAenderungen />} />
+      <Route path="suche" element={<WikiSuche />} />
+      <Route path="kategorie/:tag" element={<WikiKategorie />} />
       <Route path=":slug" element={<WikiSeite />} />
       <Route path=":slug/bearbeiten" element={<WikiEditor />} />
       <Route path=":slug/verlauf" element={<WikiVerlauf />} />

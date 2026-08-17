@@ -74,6 +74,22 @@ export interface WikiSeiteVoll extends WikiSeiteInfo {
   linkZiele: Record<string, string | null>;
 }
 
+/** One search hit. `schnipsel` marks matches with « », never with HTML. */
+export interface WikiTreffer {
+  slug: string;
+  titel: string;
+  schnipsel: string;
+}
+
+/** A category and how many visible pages carry it. */
+export interface WikiKategorie {
+  /** Folded form — „NPCs" and „npcs" are one category. */
+  key: string;
+  /** Spelling to display. */
+  tag: string;
+  anzahl: number;
+}
+
 /** One entry of the per-page history and of the wiki-wide change log. */
 export interface WikiLogEintrag {
   id: number;

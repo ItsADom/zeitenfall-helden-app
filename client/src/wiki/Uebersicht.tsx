@@ -68,14 +68,28 @@ export default function WikiUebersicht() {
       </div>
 
       <div className="wiki-filter">
-        <div className="talent-search">
-          <input type="text" placeholder="Seite suchen…" value={suche} onChange={(e) => setSuche(e.target.value)} />
+        {/* Tippen filtert sofort über Titel und Anriss der geladenen Liste —
+            das ist bei ein paar Dutzend Seiten das Schnellste. Enter geht in
+            die Volltextsuche, die auch im Text der Seiten sucht. */}
+        <form
+          className="talent-search"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (suche.trim()) navigate(`/wiki/suche?q=${encodeURIComponent(suche.trim())}`);
+          }}
+        >
+          <input
+            type="search"
+            placeholder="Seite suchen… (Enter durchsucht auch den Text)"
+            value={suche}
+            onChange={(e) => setSuche(e.target.value)}
+          />
           {suche && (
-            <button className="small" onClick={() => setSuche('')} title="Suche zurücksetzen">
+            <button type="button" className="small" onClick={() => setSuche('')} title="Suche zurücksetzen">
               ✕
             </button>
           )}
-        </div>
+        </form>
         {kategorien.length > 0 && (
           <div className="wiki-tags">
             <button className={`wiki-tag${kategorie === null ? ' active' : ''}`} onClick={() => setKategorie(null)}>

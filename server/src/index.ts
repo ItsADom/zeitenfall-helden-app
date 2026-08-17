@@ -10,7 +10,13 @@ import './db.js';
 // Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
 // wenn die Grundtabellen und ihre Migrationen durch sind.
 import './wiki/schema.js';
+import { indexNachziehen } from './wiki/suche.js';
 import './seed.js';
+
+// Suchindex nachziehen, falls er hinter den Seiten hängt — nach einer
+// Wiederherstellung aus einer Sicherung von vor dem Wiki etwa, oder nach einem
+// Rücksprung auf eine ältere Version. Kostet eine Zählabfrage, wenn alles passt.
+indexNachziehen();
 
 // Abgelaufene Sitzungen beim Start und danach täglich aufräumen
 cleanupSessions();

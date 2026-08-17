@@ -19,7 +19,7 @@ import {
   wikiSuchtext,
   zeilenBilanz,
 } from 'shared';
-import type { WikiArt, WikiSeiteInfo, WikiSeiteVoll, WikiTag } from 'shared';
+import type { WikiArt, WikiDoc, WikiSeiteInfo, WikiSeiteVoll, WikiTag } from 'shared';
 import { db } from '../db.js';
 import { HAT_FTS } from './schema.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
@@ -256,23 +256,37 @@ export function schreibeAbgeleitetes(pageId: number, titel: string, quelle: stri
   const tagStmt = db.prepare('INSERT OR IGNORE INTO wiki_page_tags (page_id, tag_key, tag) VALUES (?, ?, ?)');
   for (const t of tags) tagStmt.run(pageId, t.key, t.tag);
 
-  if (HAT_FTS) {
-    // Two indexes so a player's snippet can never quote a GM-only block.
-    db.prepare('DELETE FROM wiki_fts WHERE rowid = ?').run(pageId);
-    db.prepare('DELETE FROM wiki_fts_gm WHERE rowid = ?').run(pageId);
-    db.prepare('INSERT INTO wiki_fts (rowid, titel, text) VALUES (?, ?, ?)').run(
-      pageId,
-      titel,
-      wikiSuchtext(titel, alsKlartext(docPublic)),
-    );
-    db.prepare('INSERT INTO wiki_fts_gm (rowid, titel, text) VALUES (?, ?, ?)').run(
-      pageId,
-      titel,
-      wikiSuchtext(titel, alsKlartext(docVoll)),
-    );
-  }
+  schreibeIndex(pageId, titel, docVoll);
 
   return auszug;
+}
+
+/**
+ * Both search indexes for one page. Separate from the rest of the derived data
+ * because a rebuild needs exactly this and nothing else — and because there
+ * must be only ONE place that decides which text lands in which index.
+ */
+export function schreibeIndex(pageId: number, titel: string, docVoll: WikiDoc): void {
+  if (!HAT_FTS) return;
+  loescheIndex(pageId);
+  // Two indexes so a player's snippet can never quote a GM-only block.
+  db.prepare('INSERT INTO wiki_fts (rowid, titel, text) VALUES (?, ?, ?)').run(
+    pageId,
+    titel,
+    wikiSuchtext(titel, alsKlartext(ohneGmBloecke(docVoll))),
+  );
+  db.prepare('INSERT INTO wiki_fts_gm (rowid, titel, text) VALUES (?, ?, ?)').run(
+    pageId,
+    titel,
+    wikiSuchtext(titel, alsKlartext(docVoll)),
+  );
+}
+
+/** Takes a page out of both indexes — soft delete, and before every rewrite. */
+export function loescheIndex(pageId: number): void {
+  if (!HAT_FTS) return;
+  db.prepare('DELETE FROM wiki_fts WHERE rowid = ?').run(pageId);
+  db.prepare('DELETE FROM wiki_fts_gm WHERE rowid = ?').run(pageId);
 }
 
 function slugVergeben(slug: string): boolean {

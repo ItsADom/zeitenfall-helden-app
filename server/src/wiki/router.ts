@@ -12,6 +12,7 @@ import { requireAuth, requireGm } from '../auth.js';
 import { WikiGeschuetzt, WikiKonflikt } from './seiten.js';
 import { ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
+import { kategorien, neuIndizieren, seitenInKategorie, sucheSeiten } from './suche.js';
 import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
 import { darfBearbeiten, seiteFuer } from './zugriff.js';
 
@@ -211,6 +212,24 @@ wikiApi.get('/aenderungen/filter', requireAuth, (req, res) => {
     autoren: autoren(user),
     seiten: listeSeiten(user).map((s) => ({ slug: s.slug, titel: s.titel })),
   });
+});
+
+wikiApi.get('/suche', requireAuth, (req, res) => {
+  const q = String(req.query.q ?? '');
+  res.json({ q, treffer: sucheSeiten(leser(req), q) });
+});
+
+wikiApi.get('/kategorien', requireAuth, (req, res) => {
+  res.json({ kategorien: kategorien(leser(req)) });
+});
+
+wikiApi.get('/kategorie/:tag', requireAuth, (req, res) => {
+  res.json({ seiten: seitenInKategorie(leser(req), String(req.params.tag)) });
+});
+
+/** Manual repair for the GM. indexNachziehen() covers the automatic cases. */
+wikiApi.post('/neu-indizieren', requireAuth, requireGm, (_req, res) => {
+  res.json({ seiten: neuIndizieren() });
 });
 
 // Placeholder so the GM-only surface has a home from the start; the trash UI
