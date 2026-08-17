@@ -13,11 +13,15 @@ import { useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
 import { THEMES } from '../theme';
 
-// Einstellungen (Spieler): oben die persönliche Anzeige (sofort wirksam).
-// Darunter je Charakter — Farbwelt, Reiter (umbenennen/sortieren/anlegen/löschen),
+// Einstellungen: oben die persönliche Anzeige (sofort wirksam). Darunter je
+// Charakter — Farbwelt, Reiter (umbenennen/sortieren/anlegen/löschen),
 // Sichtbarkeit für Gruppenmitglieder und Inventar-Kategorien. Charakterbezogene
 // Änderungen sind erst mit „Speichern" verbindlich (der Bogen selbst speichert
 // dagegen laufend — deshalb ist Reiter-Verwaltung bewusst NICHT auf ihm).
+//
+// Gilt auch für den Spielleiter, aber nur für seine eigenen Charaktere: die
+// Charakterliste kommt mit ?mine=1, damit /api/overview ihn nicht auf ALLE
+// Charaktere schaltet (wie sonst für Spielleiter üblich).
 
 interface CharLite {
   id: number;
@@ -76,7 +80,7 @@ export default function EinstellungenPage() {
   const [overKey, setOverKey] = useState<string | null>(null);
 
   useEffect(() => {
-    apiGet<{ characters: CharLite[] }>('/api/overview')
+    apiGet<{ characters: CharLite[] }>('/api/overview?mine=1')
       .then((d) => {
         setChars(d.characters);
         const wanted = paramChar && d.characters.some((c) => c.id === paramChar) ? paramChar : null;

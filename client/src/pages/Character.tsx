@@ -583,8 +583,9 @@ export default function CharacterPage() {
           )}
           {/* Eigene Figur: direkter Sprung in die Einstellungen dieses Charakters
               (Reiter, Kategorien, Sichtbarkeit, Farbwelt) — spart den Umweg über
-              die Kopfleiste. Der Spielleiter hat keine Einstellungen-Seite. */}
-          {!viewAs && access === 'edit' && !user.isGm && (
+              die Kopfleiste. Der Spielleiter hat zwar überall "edit"-Zugriff,
+              aber die Einstellungen-Seite nur für die EIGENEN Charaktere. */}
+          {!viewAs && access === 'edit' && info.ownerUserId === user.id && (
             <Link className="small" to={`/einstellungen?char=${charId}&from=${encodeURIComponent(activeKey)}`} title="Einstellungen für diesen Charakter">
               Einstellungen
             </Link>

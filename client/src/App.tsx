@@ -14,7 +14,6 @@ import ChangelogPage from './pages/Changelog';
 import HomePage from './pages/Home';
 import EinstellungenPage from './pages/Einstellungen';
 import AbilityManagerPage from './pages/AbilityManager';
-import ThemePicker from './components/ThemePicker';
 import ModeToggle from './components/ModeToggle';
 import NavMenu from './components/NavMenu';
 import ProfileMenu from './components/ProfileMenu';
@@ -106,9 +105,9 @@ export default function App() {
         <Link to="/" className="wordmark">Zeitenkompass</Link>
         <NavMenu kind="charaktere" />
         <NavMenu kind="gruppen" />
-        {/* Spielleiter verwalten Kataloge & Nutzer. Für Spieler ist „Einstellungen"
-            aus der Leiste ins Profil-Flyout gewandert (unten) — und direkt vom
-            Charakterbogen erreichbar. Route bleibt intern /verwaltung. */}
+        {/* Spielleiter verwalten zusätzlich Kataloge & Nutzer. „Einstellungen"
+            liegt für alle Rollen im Profil-Flyout (unten) — und ist vom
+            Charakterbogen aus direkt erreichbar. Route bleibt intern /verwaltung. */}
         {(user.isGm || user.isAdmin) && (
           <Link to="/verwaltung">
             Kataloge &amp; Nutzer
@@ -116,16 +115,11 @@ export default function App() {
           </Link>
         )}
         <div className="spacer" />
-        {/* Die Farbwelt-Auswahl in der Kopfleiste bleibt dem Spielleiter — für
-            Spieler ist sie auf die Einstellungen-Seite gewandert. */}
         <Link to="/changelog">Changelog</Link>
         {/* Hell/Dunkel liegt für ALLE direkt in der Kopfleiste; die Farbwelt-
-            Auswahl (Farbwelt + Animation) bleibt Spielleiter-Sache. */}
+            Auswahl (Farbwelt + Animation) ist auf die Einstellungen-Seite gewandert. */}
         <ModeToggle />
-        {user.isGm && (
-          <ThemePicker theme={theme} onChange={setTheme} animate={anim} onAnimateChange={setAnim} />
-        )}
-        {/* Der Name: Profil + (für Spieler) Einstellungen als Flyout. */}
+        {/* Der Name: Profil + Einstellungen als Flyout. */}
         <ProfileMenu />
         <button onClick={logout}>Abmelden</button>
       </header>
@@ -136,8 +130,10 @@ export default function App() {
           <Route path="/gruppen" element={<GruppenPage />} />
           <Route path="/profil" element={<ProfilPage />} />
           <Route path="/verwaltung" element={user.isGm || user.isAdmin ? <AdminPage /> : <Navigate to="/charaktere" />} />
-          {/* Einstellungen sind Spieler-Sache; der Spielleiter hat „Kataloge & Nutzer". */}
-          <Route path="/einstellungen" element={user.isGm ? <Navigate to="/verwaltung" /> : <EinstellungenPage />} />
+          {/* Einstellungen stehen auch dem Spielleiter offen (u. a. für die
+              Farbwelt); die Seite selbst beschränkt ihn serverseitig auf
+              die eigenen Charaktere (owner_user_id), nie auf fremde. */}
+          <Route path="/einstellungen" element={<EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/gruppe/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
           <Route path="/event/:id/uebersicht" element={user.isGm ? <GroupOverviewPage kind="temp" /> : <Navigate to="/charaktere" />} />

@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../App';
 
 // Der Name in der Kopfleiste als Flyout: „Profil" und „Einstellungen". Ersetzt
-// den früheren eigenständigen Einstellungen-Eintrag in der Leiste. Der
-// Spielleiter hat keine Einstellungen-Seite — für ihn bleibt es ein schlichter
-// Profil-Link ohne Klappmenü. Optik/Verhalten wie NavMenu.
+// den früheren eigenständigen Einstellungen-Eintrag in der Leiste. Gilt für
+// alle Rollen, auch den Spielleiter (dort auf seine eigenen Charaktere
+// beschränkt). Optik/Verhalten wie NavMenu.
 export default function ProfileMenu() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -42,10 +42,6 @@ export default function ProfileMenu() {
   useEffect(() => () => window.clearTimeout(closeTimer.current), []);
 
   const label = `${user.displayName}${user.isGm ? ' (Spielleiter)' : ''}`;
-
-  if (user.isGm) {
-    return <Link to="/profil">{label}</Link>;
-  }
 
   return (
     <div

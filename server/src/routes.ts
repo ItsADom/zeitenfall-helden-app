@@ -226,10 +226,14 @@ api.get('/catalogs', requireAuth, (_req, res) => {
 
 api.get('/overview', requireAuth, (req, res) => {
   const user = req.user!;
-  const characters = user.isGm
+  // ?mine=1 zwingt auch den Spielleiter auf die eigenen Charaktere/Gruppen —
+  // genutzt von der Einstellungen-Seite, damit der GM dort nicht die Konten
+  // anderer Spieler umkonfigurieren kann.
+  const allScope = user.isGm && req.query.mine !== '1';
+  const characters = allScope
     ? db.prepare('SELECT * FROM characters ORDER BY name').all()
     : db.prepare('SELECT * FROM characters WHERE owner_user_id = ? ORDER BY name').all(user.id);
-  const groups = user.isGm
+  const groups = allScope
     ? db.prepare('SELECT * FROM groups ORDER BY name').all()
     : db.prepare('SELECT g.* FROM groups g JOIN group_members m ON m.group_id = g.id WHERE m.user_id = ? ORDER BY g.name').all(user.id);
   res.json({ characters, groups });

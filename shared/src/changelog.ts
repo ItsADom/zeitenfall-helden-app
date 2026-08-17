@@ -178,6 +178,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Fernkampfwaffen im Waffen-Reiter hatten kein Feld für die Rüstungsdurchdringung (RD).',
       'Schaden (und falls vorhanden RD) einer Waffe standen im Waffen-Reiter erst nach dem Aufklappen der Karte — jetzt stehen sie schon im Kartenkopf neben der Probe.',
     ],
+    admin: [
+      '(Spielleiter) Die Einstellungen-Seite steht jetzt auch dem Spielleiter offen (u. a. für die Farbwelt, die zuvor nur in der Kopfleiste wählbar war) — dort erscheinen ausschließlich die eigenen Charaktere des Spielleiter-Kontos, nie die anderer Spieler.',
+    ],
   },
   {
     date: '2026-08-16',
