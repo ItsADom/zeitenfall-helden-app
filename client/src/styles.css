@@ -3136,15 +3136,46 @@ li {
   align-items: center;
   gap: 8px;
 }
+/* Auf größeren Bildschirmen übernimmt der Ziehgriff das Umsortieren; die
+   Pfeile blieben daneben nur noch nutzlose Handarbeit. Unter 700px (Touch,
+   kein zuverlässiges Drag) sind sie die einzige Bedienung und kommen wieder. */
 .tabm-arrows {
-  display: inline-flex;
+  display: none;
   gap: 2px;
+}
+@media (max-width: 700px) {
+  .tabm-arrows {
+    display: inline-flex;
+  }
 }
 .tabm-row input {
   width: 16em;
 }
 .tabm-fixed {
   width: 16em;
+}
+/* Umsortieren per Ziehen — Griff, Zieh- und Einfüge-Zustand wie in der
+   Zauber-&-Fähigkeiten-Werkstatt (.abil-grip/.abil-row), damit beide Listen
+   sich gleich anfühlen. */
+.tabm-grip {
+  cursor: grab;
+  color: var(--muted);
+  padding: 0 2px;
+  user-select: none;
+  font-size: 1.05em;
+}
+.tabm-grip:active {
+  cursor: grabbing;
+}
+.tabm-grip.disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.tabm-row.drop-before {
+  box-shadow: inset 0 2px 0 0 var(--accent, var(--border-strong));
+}
+.tabm-row.dragging {
+  opacity: 0.5;
 }
 .vis-grid {
   display: grid;

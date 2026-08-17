@@ -4,7 +4,7 @@ import { useLocation, useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
 import type { ExternalAttrPoint } from '@shared/types';
 import { MAX_EXTERNAL_ATTR_POINTS, MAX_EXTERNAL_ATTR_POINT_NAME, VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
-import { defaultTabKeys, dynTabId, dynTabKey, orderTabKeys } from '@shared/tabOrder';
+import { canStepTab, defaultTabKeys, dynTabId, dynTabKey, isFixedTab, moveTabKey, orderTabKeys, stepTabKey } from '@shared/tabOrder';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
@@ -70,6 +70,10 @@ export default function EinstellungenPage() {
   const [vis, setVis] = useState<Record<string, boolean>>({});
   const [tabRows, setTabRows] = useState<TabRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
+  // Ziehen zum Umsortieren der Reiter — dragKey ist der gezogene, overKey der
+  // gerade überflogene Schlüssel (für die Einfügemarke).
+  const [dragKey, setDragKey] = useState<string | null>(null);
+  const [overKey, setOverKey] = useState<string | null>(null);
 
   useEffect(() => {
     apiGet<{ characters: CharLite[] }>('/api/overview')
@@ -155,17 +159,18 @@ export default function EinstellungenPage() {
   const dirty = charTheme !== savedTheme || catsChanged || tabsChanged || visChanged || attrExternChanged;
 
   // --- Reiter-Verwaltung ---
-  const canUp = (i: number) => i >= 2; // Index 0 = Heldenbrief (fest, immer vorn)
-  const canDown = (i: number) => i >= 1 && i < tabRows.length - 1;
-  const moveRow = (i: number, dir: -1 | 1) => {
-    const j = i + dir;
-    if (j < 1 || j >= tabRows.length) return; // nie vor den festen Heldenbrief
-    setTabRows((rows) => {
-      const next = rows.slice();
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
+  // Reihenfolge und feste/verschiebbare Regeln kommen aus shared/src/tabOrder.ts
+  // (dieselbe Logik, die auch die gespeicherte Reihenfolge normalisiert) — so
+  // bleiben Pfeile und Ziehen zwangsläufig konsistent statt zwei getrennte
+  // Implementierungen der „Heldenbrief bleibt vorn"-Regel zu pflegen.
+  const tabOrderKeys = tabRows.map((r) => r.key);
+  const applyTabOrder = (order: string[]) => {
+    const byKey = new Map(tabRows.map((r) => [r.key, r]));
+    setTabRows(order.map((k) => byKey.get(k) as TabRow));
   };
+  const canUp = (i: number) => canStepTab(tabOrderKeys, tabRows[i].key, -1);
+  const canDown = (i: number) => canStepTab(tabOrderKeys, tabRows[i].key, 1);
+  const moveRow = (i: number, dir: -1 | 1) => applyTabOrder(stepTabKey(tabOrderKeys, tabRows[i].key, dir));
   const renameRow = (i: number, name: string) => setTabRows((rows) => rows.map((r, j) => (j === i ? { ...r, name } : r)));
   const deleteRow = (i: number) =>
     setTabRows((rows) => {
@@ -327,7 +332,42 @@ export default function EinstellungenPage() {
             </p>
             <div className="tab-manage">
               {tabRows.map((r, i) => (
-                <div className="tabm-row" key={r.key}>
+                <div
+                  className={`tabm-row${dragKey === r.key ? ' dragging' : ''}${overKey === r.key && dragKey && dragKey !== r.key ? ' drop-before' : ''}`}
+                  key={r.key}
+                  onDragOver={(e) => {
+                    if (!dragKey) return;
+                    e.preventDefault();
+                    if (overKey !== r.key) setOverKey(r.key);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const from = e.dataTransfer.getData('text/plain') || dragKey;
+                    if (from) applyTabOrder(moveTabKey(tabOrderKeys, from, r.key, 'before'));
+                    setDragKey(null);
+                    setOverKey(null);
+                  }}
+                >
+                  {isFixedTab(r.key) ? (
+                    <span className="tabm-grip disabled" title="Heldenbrief bleibt vorn">⠿</span>
+                  ) : (
+                    <span
+                      className="tabm-grip"
+                      draggable
+                      title="Ziehen zum Umsortieren"
+                      onDragStart={(e) => {
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', r.key);
+                        setDragKey(r.key);
+                      }}
+                      onDragEnd={() => {
+                        setDragKey(null);
+                        setOverKey(null);
+                      }}
+                    >
+                      ⠿
+                    </span>
+                  )}
                   <span className="tabm-arrows">
                     <button className="small" disabled={!canUp(i)} onClick={() => moveRow(i, -1)} title="nach oben">
                       ↑
