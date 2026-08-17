@@ -66,6 +66,16 @@ export default function ProfileMenu() {
             <Link className="nav-flyout-item" to="/einstellungen" role="menuitem" onClick={closeNow}>
               Einstellungen
             </Link>
+            <a
+              className="nav-flyout-item"
+              href="https://paypal.me/ItsADom"
+              target="_blank"
+              rel="noopener noreferrer"
+              role="menuitem"
+              onClick={closeNow}
+            >
+              Kaffeekasse
+            </a>
           </div>
         </div>
       )}

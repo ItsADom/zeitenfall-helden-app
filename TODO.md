@@ -96,7 +96,9 @@ chips. Backend table `char_special_resources`. Open for the full version:
 - [sketch] **Dice rolls and chat** (concept fully worked out, split into
   sub-pieces below — already teased in the changelog's `COMING_SOON`. Left as
   `[sketch]` rather than bumped to `[ready]` deliberately: this is large enough
-  that a build plan should re-walk it piece by piece anyway):
+  that a build plan should re-walk it piece by piece anyway; that build plan
+  now exists at `docs/concepts/dice-rolls-and-chat.md`, phased and ready to
+  implement on its own feature branch):
    - **Roll mechanic (decided):** a Probe rolls N d20, where N = the number of
      attributes in that Probe's formula (`talentProbeZahl`/`probeExprZahl` in
      `shared/src/rules.ts` already compute the target number = summed attributes

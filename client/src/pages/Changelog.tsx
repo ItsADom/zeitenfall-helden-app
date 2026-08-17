@@ -79,6 +79,11 @@ export default function ChangelogPage() {
           ))}
         </div>
       ))}
+
+      <p className="muted" style={{ marginTop: 20 }}>
+        Diese App läuft auf privat finanzierten Servern. Wer die Serverkosten
+        unterstützen möchte, findet im Profil-Menü oben rechts eine Kaffeekasse.
+      </p>
     </>
   );
 }

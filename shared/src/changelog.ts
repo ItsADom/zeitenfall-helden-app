@@ -169,6 +169,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Getragene Ausrüstung zählt zur Traglast',
     added: [
       'Neuer Dialog zum Anlegen von Gegenständen und Behältern im Inventar: Name, Kategorie, Gewicht usw. werden vorher abgefragt, statt einen leeren Eintrag einzufügen und ihn danach zu bearbeiten. Für Ausrüstung lassen sich dabei auch RS und „Quickslots" (Anzahl direkt hineinsteckbarer Gegenstände, wie bei einem Gürtel) mit angeben.',
+      'Kaffeekasse'
     ],
     changed: [
       'Am Körper getragene Ausrüstung (Rüstung, Waffen in der Hand usw.) zählt jetzt zur Hälfte ihres Gewichts zur Traglast — bisher zählte sie gar nicht mit. Dadurch kann sich die angezeigte Traglast bestehender Charaktere spürbar erhöhen. Abgelegte, nicht getragene Gegenstände zählen weiterhin nicht mit.',
@@ -177,6 +178,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     fixed: [
       'Fernkampfwaffen im Waffen-Reiter hatten kein Feld für die Rüstungsdurchdringung (RD).',
       'Schaden (und falls vorhanden RD) einer Waffe standen im Waffen-Reiter erst nach dem Aufklappen der Karte — jetzt stehen sie schon im Kartenkopf neben der Probe.',
+      'Valoric weiß nun, was Bananen sind.'
     ],
     admin: [
       '(Spielleiter) Die Einstellungen-Seite steht jetzt auch dem Spielleiter offen (u. a. für die Farbwelt, die zuvor nur in der Kopfleiste wählbar war) — dort erscheinen ausschließlich die eigenen Charaktere des Spielleiter-Kontos, nie die anderer Spieler.',
