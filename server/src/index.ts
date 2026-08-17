@@ -6,6 +6,7 @@ import { attachUser, cleanupSessions } from './auth.js';
 import { api } from './routes.js';
 import { startBackupSchedule } from './backup.js';
 import { startAssetSweep } from './assets/sweep.js';
+import { migrierePortraits } from './assets/portraits.js';
 import { mirrorChangelog } from './discord.js';
 import './db.js';
 // Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
@@ -18,6 +19,11 @@ import './seed.js';
 // Wiederherstellung aus einer Sicherung von vor dem Wiki etwa, oder nach einem
 // Rücksprung auf eine ältere Version. Kostet eine Zählabfrage, wenn alles passt.
 indexNachziehen();
+
+// Porträts nach helden-assets.db kopieren, damit dort wirklich ALLE Bilder
+// liegen. Kopiert, nicht verschoben: char_portraits bleibt als Rückfallebene
+// stehen, bis eine Ausgabe ohne Rücksprung vergangen ist.
+migrierePortraits();
 
 // Abgelaufene Sitzungen beim Start und danach täglich aufräumen
 cleanupSessions();

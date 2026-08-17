@@ -126,7 +126,7 @@ eigener Domain den benannten Tunnel einrichten (`cloudflared tunnel login`).
 | `ADMIN_PASSWORD` | — | Passwort dazu — nur beim Anlegen, setzt später nichts zurück |
 | `ADMIN_NAME` | = `ADMIN_USER` | Anzeigename des zweiten Kontos |
 | `HELDEN_DB` | `server/data/helden.db` | Pfad zur SQLite-Datei |
-| `HELDEN_ASSETS_DB` | `server/data/helden-assets.db` | Zweite Datei, nur für Bilder (Wiki, später Porträts) |
+| `HELDEN_ASSETS_DB` | `server/data/helden-assets.db` | Zweite Datei für alle Bilder — Wiki und Charakter-Porträts |
 | `BACKUP_DIR` | `server/data/backups` | Ablage beider Sicherungsreihen |
 | `BACKUP_KEEP` | `14` | Aufbewahrte Sicherungen von `helden.db` |
 | `BACKUP_INTERVAL_HOURS` | `24` | Abstand der Sicherungsläufe für `helden.db` |

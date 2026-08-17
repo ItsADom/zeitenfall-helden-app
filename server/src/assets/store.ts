@@ -125,6 +125,48 @@ export function legeAssetAn(neu: NeuesAsset): string | null {
   return slug;
 }
 
+/**
+ * „There is exactly one image in this role for this owner" — a portrait, and
+ * later anything else that is one-of rather than many-of. Replaces instead of
+ * appending, so the role cannot accumulate leftovers.
+ */
+export function setzeEinzelAsset(rolle: string, neu: NeuesAsset): string | null {
+  const db = assetsDb();
+  if (!db) return null;
+  const ersetzen = db.transaction(() => {
+    db.prepare('DELETE FROM assets WHERE owner_type = ? AND owner_id = ? AND rolle = ?').run(
+      neu.ownerType,
+      neu.ownerId,
+      rolle,
+    );
+    return legeAssetAn({ ...neu, rolle });
+  });
+  return ersetzen();
+}
+
+/** The one image in a role, or null. */
+export function einzelAsset(ownerType: OwnerTyp, ownerId: number, rolle: string): AssetDaten | null {
+  const db = assetsDb();
+  if (!db) return null;
+  const row = db
+    .prepare(
+      `SELECT mime, data, owner_type AS ownerType, owner_id AS ownerId, gm_only AS gmOnly
+         FROM assets WHERE owner_type = ? AND owner_id = ? AND rolle = ? ORDER BY id DESC LIMIT 1`,
+    )
+    .get(ownerType, ownerId, rolle) as (Omit<AssetDaten, 'gmOnly'> & { gmOnly: number }) | undefined;
+  return row ? { ...row, gmOnly: !!row.gmOnly } : null;
+}
+
+export function loescheEinzelAsset(ownerType: OwnerTyp, ownerId: number, rolle: string): number {
+  const db = assetsDb();
+  if (!db) return 0;
+  return db.prepare('DELETE FROM assets WHERE owner_type = ? AND owner_id = ? AND rolle = ?').run(
+    ownerType,
+    ownerId,
+    rolle,
+  ).changes;
+}
+
 /** Only a GM ever calls this — see the wiki router. */
 export function setzeAssetGmOnly(slug: string, gmOnly: boolean): boolean {
   const db = assetsDb();

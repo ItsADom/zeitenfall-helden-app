@@ -372,6 +372,12 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 - **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
 
+- **drop `char_portraits`** — portraits now live in `helden-assets.db`; the old
+  table was deliberately kept as a read fallback (copied, not moved) so a
+  rollback onto older code still shows portraits. Once a release has gone by
+  without needing one, delete the table and the fallback branches in
+  `assets/portraits.ts`. Not before: it is the only copy an older build can see.
+
 - **wiki: inline span-level GM tagging** — the wiki marks GM-only content at
   block level (a fenced ` ```gm ... ``` ` region). Marking a few words
   *mid-sentence* as GM-only is the open piece, and it is harder than it looks:

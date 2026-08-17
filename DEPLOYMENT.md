@@ -11,8 +11,11 @@ Internet → Router (80/443) → Nginx (TLS) → 127.0.0.1:3001 → Express → 
 ```
 
 Ein einziger Node-Prozess liefert API **und** Web-UI aus (siehe `server/src/index.ts`),
-Nginx terminiert nur TLS und reicht durch. Der gesamte Zustand steckt in **einer**
-SQLite-Datei — inklusive der Porträts, die als BLOB in der Datenbank liegen.
+Nginx terminiert nur TLS und reicht durch. Der Zustand steckt in **zwei**
+SQLite-Dateien: `helden.db` für alles Geschriebene (Charaktere, Wiki-Texte,
+Protokolle) und `helden-assets.db` für alle Bilder (Wiki-Bilder und Porträts).
+Getrennt sind sie wegen der Sicherung, nicht wegen der Struktur — siehe
+„Zwei Datenbanken, zwei Takte".
 
 ## Werte für diese Installation
 
@@ -784,7 +787,7 @@ nicht). Pro Tag entsteht genau eine Sicherung, eine vorhandene wird nie
 ### Zwei Datenbanken, zwei Takte
 
 Seit dem Wiki gibt es eine **zweite** Datei: `/srv/helden/data/helden-assets.db`
-enthält ausschließlich Bilder (Wiki-Bilder, später auch Porträts). Sie liegt
+enthält ausschließlich Bilder — Wiki-Bilder und Charakter-Porträts. Sie liegt
 bereits innerhalb der `ReadWritePaths` der Unit — an der systemd-Datei ist
 **nichts** zu ändern.
 
@@ -801,6 +804,18 @@ Zwei Details fallen dabei günstig aus:
   die Bilder fahren einfach siebenmal seltener mit.
 - Die lokalen Aufräum-Regeln trennen sauber: jede Reihe hat ihr eigenes
   Namensmuster, `BACKUP_KEEP` fasst die Bilder nicht an und umgekehrt.
+
+**Porträts sind mit umgezogen.** Beim ersten Start nach dem Update kopiert der
+Server jedes Porträt aus `char_portraits` in die Bilddatenbank und schreibt eine
+Zeile ins Journal. **Kopiert, nicht verschoben:** `char_portraits` bleibt
+unangetastet stehen und dient weiter als Rückfallebene, falls die Bilddatenbank
+fehlt oder ein Rücksprung auf einen älteren Stand nötig wird. Erst wenn eine
+Ausgabe ohne Rücksprung vergangen ist, kann die alte Tabelle entfallen — bis
+dahin nicht löschen. Der Lauf ist wiederholbar: er füllt nur Lücken.
+
+```bash
+journalctl -u helden-app | grep 'Porträt'
+```
 
 Derselbe wöchentliche Takt räumt außerdem verwaiste Bilder weg — solche, deren
 Wiki-Seite oder Charakter gelöscht wurde. SQLite kann nicht über Dateigrenzen
