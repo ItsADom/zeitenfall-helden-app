@@ -106,6 +106,9 @@ export default function WikiUebersicht() {
             <Link className="card wiki-karte" key={s.slug} to={`/wiki/${s.slug}`}>
               <h3>
                 {s.titel}
+                {/* Von jemand anderem geändert, seit du zuletzt in die
+                    Änderungen geschaut hast. */}
+                {s.neu && <span className="wiki-marke wiki-marke-neu">neu</span>}
                 {s.gmOnly && <span className="wiki-marke">nur SL</span>}
                 {s.geschuetzt && <span className="wiki-marke">geschützt</span>}
               </h3>

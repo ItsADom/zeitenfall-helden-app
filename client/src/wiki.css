@@ -88,6 +88,12 @@
   background: var(--accent);
   color: var(--on-accent);
 }
+/* „neu" hebt sich von den Sachmarken (nur SL, geschützt) ab: es beschreibt
+   nicht die Seite, sondern deinen Blick darauf. Steht NACH .wiki-marke —
+   gleiche Spezifität, also gewinnt die spätere Regel. */
+.wiki-marke-neu {
+  background: var(--over-line);
+}
 
 /* --- Gelesener Inhalt --- */
 

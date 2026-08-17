@@ -89,12 +89,29 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_wiki_tags_key ON wiki_page_tags (tag_key);
 
-  -- Wasserstand je Nutzer für „N Änderungen seit deinem letzten Besuch".
-  CREATE TABLE IF NOT EXISTS wiki_gelesen (
-    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-    gesehen_bis TEXT NOT NULL
-  );
 `);
+
+// Wasserstand je Nutzer für „N Änderungen seit deinem letzten Besuch".
+//
+// Bewusst eine REVISIONS-ID und kein Zeitstempel: created_at kommt aus
+// datetime('now') und ist auf die Sekunde genau. Fünf Änderungen innerhalb
+// derselben Sekunde sind im Spiel völlig normal (Speichern, Tippfehler,
+// Speichern) — mit einem Zeitstempel als Grenze fielen davon vier unter den
+// Tisch oder blieben ewig ungelesen. Eine id ist eindeutig und monoton.
+//
+// Die erste Fassung dieser Tabelle hatte gesehen_bis TEXT. Sie wurde nie
+// beschrieben (der Zähler entsteht erst hier), deshalb wird sie ersetzt statt
+// migriert — es geht nichts verloren, was je jemand erzeugt hätte.
+{
+  const spalten = (db.prepare('PRAGMA table_info(wiki_gelesen)').all() as { name: string }[]).map((c) => c.name);
+  if (spalten.length > 0 && !spalten.includes('gesehen_rev')) db.exec('DROP TABLE wiki_gelesen');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS wiki_gelesen (
+      user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+      gesehen_rev INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+}
 
 /**
  * Two search indexes, because a player's snippet must never quote GM-only

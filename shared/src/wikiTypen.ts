@@ -52,6 +52,8 @@ export interface WikiSeiteInfo {
   geaendertAm: string;
   autorName: string;
   tags: string[];
+  /** Changed by somebody else since this reader last looked at the change log. */
+  neu?: boolean;
 }
 
 /** A page as the read view needs it. */

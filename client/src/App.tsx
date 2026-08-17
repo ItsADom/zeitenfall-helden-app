@@ -20,6 +20,7 @@ import NavMenu from './components/NavMenu';
 import ProfileMenu from './components/ProfileMenu';
 import WikiNavLink from './wiki/NavLink';
 import WikiRoutes from './wiki/Routes';
+import { WikiNewsProvider } from './wiki/news';
 import { OverviewProvider } from './components/overview';
 import { RequestsProvider, PendingBadge } from './components/requests';
 import BannerFx from './components/BannerFx';
@@ -97,6 +98,9 @@ export default function App() {
       <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, setOverrideTheme }}>
       <OverviewProvider>
       <RequestsProvider enabled={user.isGm || user.isAdmin}>
+      {/* Für alle: das Wiki gehört jedem, und das Abzeichen zählt, was seit dem
+          letzten Blick in die Änderungen dazugekommen ist. */}
+      <WikiNewsProvider>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -154,6 +158,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      </WikiNewsProvider>
       </RequestsProvider>
       </OverviewProvider>
       </ThemeControlsContext.Provider>

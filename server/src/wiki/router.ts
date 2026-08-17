@@ -11,6 +11,7 @@ import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
 import { WikiGeschuetzt, WikiKonflikt } from './seiten.js';
 import { ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
+import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
 import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
 import { darfBearbeiten, seiteFuer } from './zugriff.js';
 
@@ -23,7 +24,19 @@ const leser = (req: { user?: { id: number; isGm: boolean; displayName: string } 
 });
 
 wikiApi.get('/seiten', requireAuth, (req, res) => {
-  res.json({ seiten: listeSeiten(leser(req)) });
+  const user = leser(req);
+  const neu = neueSeiten(user);
+  res.json({ seiten: listeSeiten(user).map((s) => ({ ...s, neu: neu.has(s.slug) })) });
+});
+
+/** Drives the count next to „Wiki" in the top bar. */
+wikiApi.get('/neuigkeiten', requireAuth, (req, res) => {
+  res.json({ anzahl: anzahlNeu(leser(req)) });
+});
+
+/** „Ich habe es gesehen" — sent when the change log is opened. */
+wikiApi.post('/gelesen', requireAuth, (req, res) => {
+  res.json({ gesehenRev: merkeGesehen(req.user!.id) });
 });
 
 wikiApi.post('/seiten', requireAuth, (req, res) => {

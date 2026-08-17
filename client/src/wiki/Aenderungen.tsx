@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { WikiLogEintrag } from '@shared/wikiTypen';
 import { LogZeile } from './log';
+import { useWikiNews } from './news';
 import { ladeAenderungen, ladeAenderungsFilter } from './api';
 
 // „Letzte Änderungen" — the wiki-wide change log.
@@ -35,6 +36,11 @@ export default function WikiAenderungen() {
     autoren: [],
     seiten: [],
   });
+  const { markiereGelesen } = useWikiNews();
+
+  // Being on this page IS having looked — the badge counts what you have not
+  // seen, and you are looking at it.
+  useEffect(markiereGelesen, [markiereGelesen]);
 
   useEffect(() => {
     ladeAenderungsFilter()

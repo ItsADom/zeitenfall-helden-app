@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { WikiBadge } from './news';
 
 // The wiki's entry in the top bar.
 //
@@ -14,6 +15,7 @@ export default function WikiNavLink() {
   return (
     <Link to="/wiki" target="_blank" rel="noopener noreferrer" aria-label="Wiki — öffnet in neuem Tab">
       Wiki
+      <WikiBadge />
       <span className="wiki-neuertab" aria-hidden>
         ↗
       </span>
