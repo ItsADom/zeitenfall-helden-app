@@ -8,7 +8,6 @@ import {
   itemsInContainer,
   itemGewicht,
   lastInfo,
-  makeUid,
   zoneView,
 } from '@shared/items';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
@@ -51,17 +50,6 @@ export default function AusruestungTab() {
         .filter((it) => it.uid !== uid)
         .map((it) => (it.containerUid === uid ? { ...it, location: 'inventar', containerUid: '' } : it)),
     );
-
-  const blank = (over: Partial<Item>): Item => ({
-    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'bench',
-    zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
-    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, notiz: '', ...over,
-  });
-  const addTo = (over: Partial<Item>) => {
-    const it = blank(over);
-    setItems([...items, it]);
-    setOpenUid(it.uid);
-  };
 
   const ancestors = (uid: string): Set<string> => {
     const seen = new Set<string>();
@@ -179,14 +167,7 @@ export default function AusruestungTab() {
             const zi = zoneView(items, z);
             return (
               <div className="zone-cell" key={z}>
-                <div className="zone-name">
-                  {z}
-                  {!ro && (
-                    <button className="zone-add" title={`Ausrüstung auf „${z}" anlegen`} onClick={() => addTo({ location: 'getragen', zone: z })}>
-                      +
-                    </button>
-                  )}
-                </div>
+                <div className="zone-name">{z}</div>
                 <div {...dropProps({ location: 'getragen', zone: z })}>
                   {zi.map(chip)}
                   {zi.length === 0 && <span className="zone-empty">—</span>}
@@ -205,14 +186,7 @@ export default function AusruestungTab() {
 
       {/* Nicht getragen — Bank zum Umrüsten */}
       <div className="panel">
-        <h3>
-          Nicht getragen
-          {!ro && (
-            <button className="small add-inline" onClick={() => addTo({ location: 'bench' })} title="Ausrüstung anlegen">
-              + Ausrüstung
-            </button>
-          )}
-        </h3>
+        <h3>Nicht getragen</h3>
         <div {...dropProps({ location: 'bench' })}>
           {bench.map(chip)}
           {bench.length === 0 && <span className="zone-empty">—</span>}

@@ -335,19 +335,16 @@ chips. Backend table `char_special_resources`. Open for the full version:
   default-script field on `sprache`-kind catalog rows (or a join table), plus
   how to surface it in the UI (sub-label on the Sprachen row, auto-suggest in
   the Schriften table, …).
-- [sketch] **Inventory item creation — fill fields while inserting** (user
-  feedback): `Ausruestung.tsx`'s `addTo()` currently inserts a fully blank
-  `Item` (`blank()`) into the live list and auto-opens its editor — a
-  create-then-edit two-step. `Inventar.tsx` already has the wanted pattern for
-  items added inside a storage container: `AddItemRow` is a small inline form
-  (name/kategorie/anzahl/gewicht) that collects fields before calling
-  `commit()`, nothing blank ever hits the list. Rework target: bring
-  `Ausruestung.tsx`'s worn-zone/bench "+" creation in line with that
-  `AddItemRow` pattern; `Inventar.tsx`'s own `addContainer()` has the same
-  instant-blank-object issue and could be swept into the same fix. Needs a
-  concept pass: which fields belong in the inline form (name-only vs.
-  name+RS+weight), and whether worn-zone items need different prefill than
-  bench items.
+- [ready] **Reuse the item-creation `Dialog` for spells/abilities and weapons**:
+  the new `components/Dialog.tsx` (generic modal chrome) plus the pattern
+  established in `components/itemDialogs.tsx` (fill fields before insert,
+  instead of pushing a blank record and auto-opening its editor) should
+  extend to two remaining blank-then-edit spots: `AbilityManager.tsx`'s
+  `emptyAbility()`, and `WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()`
+  (~10+ fields each, inserted blank on "+ Waffe", collapsed by default but
+  still fill-after-insert). Each needs its own concept pass for field
+  selection — Ability's shape (Element, Stufe, Komplexität, Probe, Effekt)
+  and the weapon fields are both unrelated to Item's.
 - [sketch] **Spell creation table — theme it, make it feel less like a plain
   table** (user feedback): `AbilityManager.tsx`'s "Regeltabelle: Zauber
   erschaffen" panel (`SPELL_CREATION_ROWS`, ~line 12) renders as a plain

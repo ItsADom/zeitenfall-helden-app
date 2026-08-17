@@ -167,8 +167,12 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-16',
     title: 'Getragene Ausrüstung zählt zur Traglast',
+    added: [
+      'Neuer Dialog zum Anlegen von Gegenständen und Behältern im Inventar: Name, Kategorie, Gewicht usw. werden vorher abgefragt, statt einen leeren Eintrag einzufügen und ihn danach zu bearbeiten. Für Ausrüstung lassen sich dabei auch RS und „Quickslots" (Anzahl direkt hineinsteckbarer Gegenstände, wie bei einem Gürtel) mit angeben.',
+    ],
     changed: [
       'Am Körper getragene Ausrüstung (Rüstung, Waffen in der Hand usw.) zählt jetzt zur Hälfte ihres Gewichts zur Traglast — bisher zählte sie gar nicht mit. Dadurch kann sich die angezeigte Traglast bestehender Charaktere spürbar erhöhen. Abgelegte, nicht getragene Gegenstände zählen weiterhin nicht mit.',
+      'Neue Ausrüstung wird jetzt im Inventar angelegt und von dort in die Ausrüstungs-Zonen gezogen — die „+"-Knöpfe im Ausrüstungs-Reiter sind entfallen.',
     ],
     fixed: [
       'Fernkampfwaffen im Waffen-Reiter hatten kein Feld für die Rüstungsdurchdringung (RD).',

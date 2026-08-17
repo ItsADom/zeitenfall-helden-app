@@ -2761,22 +2761,6 @@ li {
   color: var(--accent);
   margin-bottom: 4px;
 }
-.zone-add {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 15px;
-  line-height: 1;
-  padding: 0 4px;
-}
-.add-inline {
-  margin-left: 10px;
-  font-weight: normal;
-  vertical-align: middle;
-}
-
 /* Behälter: je ein Panel mit Kopf (Name + Füllung/Kapazität) und Inhalt. */
 .container-grid {
   display: grid;
@@ -3062,29 +3046,149 @@ li {
 .cat-toggle:focus-visible .cat-chev {
   color: var(--accent);
 }
-/* Anlegen-Zeile: Name + Kategorie + Anzahl + Gewicht in einer Leiste. */
-.inv-add {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: 8px;
+/* Löst die Anlegen-Zeile ab: nur noch ein Auslöse-Knopf, das Sammeln der
+   Felder passiert im Dialog (siehe .dialog-*). */
+.inv-add-trigger {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px dashed var(--border);
 }
-.inv-add-name {
-  flex: 1 1 14em;
-  min-width: 10em;
-}
-.inv-add-num {
+
+/* ---------- Dialog (generischer modaler Rahmen, siehe components/Dialog.tsx) ---------- */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 16, 10, 0.45);
   display: flex;
-  flex-direction: column;
-  font-size: 11px;
-  color: var(--muted);
-  gap: 2px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 8vh 16px 40px;
+  z-index: 200;
 }
-.inv-add-num input {
-  width: 6em;
+.dialog-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.16);
+  width: 100%;
+  max-width: 420px;
+  overflow: hidden;
+}
+.dialog-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dialog-head h4 {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 17px;
+  color: var(--accent-dark);
+}
+.dialog-close {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: var(--muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+}
+.dialog-close:hover {
+  color: var(--text);
+}
+.dialog-body {
+  padding: 16px 18px;
+}
+.dialog-foot {
+  padding: 12px 18px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Umschalter Allgemein/Ausrüstung im Gegenstand-Dialog. */
+.dlg-seg {
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.dlg-seg button {
+  flex: 1;
+  background: var(--panel);
+  border: none;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+  cursor: pointer;
+  border-right: 1px solid var(--border-strong);
+}
+.dlg-seg button:last-child {
+  border-right: none;
+}
+.dlg-seg button.active {
+  background: var(--accent);
+  color: var(--on-accent-fill);
+  font-weight: 600;
+}
+
+.dlg-field {
+  display: block;
+  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.dlg-field input,
+.dlg-field select {
+  margin-top: 4px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--text);
+}
+.dlg-row2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.dlg-locked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-head);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px 9px;
+  margin-top: 4px;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.dlg-badge {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border-radius: 5px;
+  padding: 1px 7px;
+  font-weight: 600;
+  font-size: 12px;
+}
+.dlg-fade-group {
+  border-top: 1px dashed var(--border-soft);
+  padding-top: 12px;
+  margin-top: 4px;
+  margin-bottom: 12px;
+}
+.dlg-group-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 8px;
 }
 
 /* ---------- Einstellungen-Seite ---------- */
