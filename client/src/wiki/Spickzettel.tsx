@@ -26,6 +26,8 @@ const BLOCK: Zeile[] = [
   { code: '> Zitat', was: 'Eingerückter Kasten' },
   { code: '---', was: 'Trennlinie' },
   { code: '| Kopf | Kopf |\n| --- | --- |\n| Zelle | Zelle |', was: 'Tabelle (Trennzeile nicht vergessen)' },
+  { code: '[[bild:karte-a1b2c3]]', was: 'Bild — allein auf einer Zeile, sonst bleibt es Text' },
+  { code: '[[bild:karte-a1b2c3|Die Karte von Gareth]]', was: 'Bild mit Bildunterschrift darunter' },
 ];
 
 const INLINE: Zeile[] = [
@@ -59,6 +61,13 @@ export default function WikiSpickzettel({ istGm }: { istGm: boolean }) {
         Eine Leerzeile beginnt einen neuen Absatz, ein einfacher Zeilenumbruch bleibt ein Zeilenumbruch.
       </p>
       <Liste zeilen={BLOCK} />
+      {/* Den Namen tippt niemand ab — er entsteht beim Hochladen. Ohne diesen
+          Satz sieht die Bildzeile oben aus wie etwas, das man raten muss. */}
+      <p className="muted">
+        Den Namen eines Bildes musst du nicht kennen: „+ Bild hochladen" unter <em>Bilder</em>, dann „In den Text" —
+        das setzt die Zeile fertig an der Schreibmarke ein. Die Bildunterschrift hinter dem <code>|</code> darfst du
+        danach frei ändern; lässt du sie weg, steht das Bild ohne Beschriftung da.
+      </p>
       <Liste zeilen={INLINE} />
       {istGm && (
         <>
