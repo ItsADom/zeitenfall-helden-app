@@ -4,6 +4,7 @@ import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
+import { useTabsHeight } from '../components/stickyChrome';
 import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
@@ -20,6 +21,12 @@ const NO_ATTRIBUTES = {} as Attributes;
 export default function GroupPage() {
   const { user } = useAuth();
   const { id } = useParams();
+  // Die Reiterleiste klebt oben — was darunter ebenfalls klebt (die
+  // Tabellenköpfe in den Sektionen), braucht ihre GEMESSENE Höhe. Ohne diese
+  // Referenz blieb `--tabs-h` hier ungesetzt, und die Tabellenköpfe rechneten
+  // mit dem Ersatzwert 45px: richtig bei einer Reihe Reiter, um eine ganze
+  // Zeile daneben, sobald sie umbrechen.
+  const tabsRef = useTabsHeight();
   const groupId = Number(id);
   const [data, setData] = useState<GroupData | null>(null);
   const [error, setError] = useState('');
@@ -134,7 +141,7 @@ export default function GroupPage() {
       </div>
 
       <h2>Gemeinsames</h2>
-      <div className="tabs">
+      <div className="tabs" ref={tabsRef}>
         {tabs.map((t) => (
           <button key={t.id} className={t.id === activeTab ? 'active' : ''} onClick={() => setActiveTab(t.id)}>
             {t.name}

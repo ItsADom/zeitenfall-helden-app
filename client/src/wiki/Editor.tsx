@@ -183,17 +183,20 @@ export default function WikiEditor() {
     });
   }, []);
 
-  // Ctrl+S is what everyone's fingers already do in an editor.
+  // Ctrl+S is what everyone's fingers already do in an editor. Escape leaves —
+  // but ONLY with nothing unsaved: a key pressed by reflex must never be able
+  // to throw away half an hour of writing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault();
         void speichern();
       }
+      if (e.key === 'Escape' && !schmutzig && seite) navigate(`/wiki/${seite.slug}`);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [speichern]);
+  }, [speichern, schmutzig, seite, navigate]);
 
   if (fehler && !seite) return <p className="error">{fehler}</p>;
   if (!seite) return <p className="muted">Lade…</p>;

@@ -248,12 +248,12 @@
   margin-bottom: 0;
 }
 
-/* Wiki-Tabellen erben das Blatt-Aussehen, bekommen aber KEINEN eigenen
-   Scrollbereich (siehe CLAUDE.md) — und da im Wiki keine Reiterleiste klebt,
-   darf hier auch nichts mit --tabs-h gerechnet werden. */
-.wiki-tabelle table.sheet thead {
-  position: static;
-}
+/* Wiki-Tabellen erben das Blatt-Aussehen samt klebendem Kopf und bekommen
+   KEINEN eigenen Scrollbereich (siehe CLAUDE.md).
+   Der klebende Kopf rechnet mit --tabs-h; im Wiki gibt es keine Reiterleiste,
+   die Variable ist also ungesetzt und fällt auf 0px — seit alle Seiten mit
+   Reiterleiste ihre Höhe messen, ist das der richtige Ersatzwert und der Kopf
+   klebt hier genau unter der Kopfleiste. */
 
 /* --- Rechte-Leiste der Spielleitung --- */
 
@@ -561,5 +561,31 @@
 @media (max-width: 700px) {
   .wiki-kopf {
     flex-direction: column;
+  }
+}
+
+/* --- Druck ---
+   Das Wiki baut KEINE eigene Druckansicht: eine Wiki-Seite ist bereits ein
+   Dokument, kein Formular. Die Bedienelemente tragen `screen-only` und
+   verschwinden über die vorhandene Regel in styles.css; hier bleiben nur die
+   zwei Dinge übrig, die dort an `.print-root` hängen und deshalb nicht
+   greifen. */
+@media print {
+  .wiki .table-wrap {
+    overflow: visible !important;
+  }
+  /* Auf Papier gibt es nichts zum Ankleben. */
+  .wiki .table-wrap table.sheet thead {
+    position: static;
+  }
+  /* Ein Bild soll nicht über den Seitenrand hinauslaufen. */
+  .wiki-bild img {
+    max-height: 12cm;
+    object-fit: contain;
+  }
+  .wiki-inhalt,
+  .wiki-bild,
+  .wiki-zitat {
+    break-inside: avoid;
   }
 }

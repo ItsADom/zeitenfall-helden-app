@@ -138,3 +138,29 @@ These are standing instructions — follow them without being reminded.
 - **No data loss on migration** (top-ranking rule): map known fields and fold any
   unmapped/custom column into the row's `notiz` as `Label: value`. Nothing a
   player typed is ever silently dropped.
+- **Hiding text from a reader is not enough — you must not send it.** The wiki's
+  ` ```gm ` regions are removed server-side before the response. A client that
+  merely declined to render them would still have shipped the text, and anyone
+  could read it in the network tab. The same applies to search snippets (two FTS
+  tables, not one filtered query), to old revisions, and to a 409 conflict body.
+  When adding any new endpoint that returns page text, ask which of those it is.
+- **…but never send it and then silently drop it either.** A reader who may edit
+  gets `[[gm:n]]` markers where GM regions stand (`verbergeGmBloecke` /
+  `stelleGmBloeckeHer`), so their save puts the original back. Stripping for both
+  reading *and* editing would mean a player's ordinary edit deletes the GM's
+  notes — that is the no-data-loss rule above, applied to somebody else's text.
+- **A backticked fence inside a SQL template literal ends the literal.** Writing
+  ` ```gm ` in a `db.exec(\`…\`)` comment produces a wall of confusing syntax
+  errors far from the cause. Reword the comment; this has now bitten twice.
+- **`--tabs-h` falls back to `0px`, and every `.tabs` bar is measured.** All three
+  renderers (Character, Group, Admin) attach `useTabsHeight()`. A page without a
+  tab bar — the wiki — must not inherit a guessed offset, so any new page that
+  sticks a tab bar has to measure it rather than relying on a fallback.
+- **SQLite has no cross-database CASCADE.** Images live in `helden-assets.db`,
+  everything else in `helden.db`. Any new delete path must call
+  `loescheAssetsFuer()` by hand; the weekly sweeper in `assets/sweep.ts` is a
+  safety net for what gets missed, not the mechanism.
+- **Verified FTS5 facts, so nobody "fixes" them:** raw user input in `MATCH`
+  *throws* (always go through `ftsAnfrage`), `bm25()` returns negative values so
+  the sort is `ASC`, and `remove_diacritics 2` folds `ü` but **not** `ß` — which
+  is why `wikiSuchtext` indexes a written-out copy alongside the original.

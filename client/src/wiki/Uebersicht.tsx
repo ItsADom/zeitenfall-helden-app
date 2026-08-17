@@ -75,7 +75,7 @@ export default function WikiUebersicht() {
           <h1>Wiki</h1>
           <p className="muted">Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.</p>
         </div>
-        <div className="wiki-kopf-aktionen">
+        <div className="wiki-kopf-aktionen screen-only">
           <Link className="small" to="/wiki/aenderungen">
             Letzte Änderungen
           </Link>
@@ -95,7 +95,7 @@ export default function WikiUebersicht() {
         </div>
       </div>
 
-      <div className="wiki-filter">
+      <div className="wiki-filter screen-only">
         {/* Tippen filtert sofort über Titel und Anriss der geladenen Liste —
             das ist bei ein paar Dutzend Seiten das Schnellste. Enter geht in
             die Volltextsuche, die auch im Text der Seiten sucht. */}

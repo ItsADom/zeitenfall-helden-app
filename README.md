@@ -182,6 +182,21 @@ beiden Dateien lassen sich unabhängig voneinander zurückspielen.
   freigegebene Bereiche als schreibgeschützte Zusammenfassung.
 - Alle anderen: kein Zugriff (404).
 
+### Im Wiki
+
+- **Jeder Angemeldete** liest alle Seiten und legt neue an, bearbeitet, benennt
+  um und holt ältere Fassungen zurück. Nichts wartet auf eine Freigabe — die
+  Aufsicht ist das Änderungsprotokoll, nicht eine Schleuse davor.
+- **Spielleiter** zusätzlich: Seiten auf „nur Spielleiter" oder „geschützt"
+  stellen, löschen, den Papierkorb leeren und den Suchindex neu bauen. Nur der
+  Spielleiter sieht Nur-SL-Seiten, `gm`-Abschnitte und Nur-SL-Bilder.
+- **Verwaltung** (`is_admin` ohne `is_gm`) hat im Wiki **keine** Rechte über die
+  eines Spielers hinaus — dieselbe Überlegung, die sie aus den Charakterbögen
+  heraushält, gilt für Spielgeheimnisse.
+- Wer etwas nicht sehen darf, bekommt 404 statt 403 — sonst verriete die
+  Fehlermeldung, dass es die Seite gibt. Einzige Ausnahme: eine **geschützte**
+  Seite antwortet beim Schreiben mit 403, denn sie ist ohnehin sichtbar.
+
 ## Kataloge
 
 Talent- und Sprachlisten sind Daten (aus dem Blatt extrahiert, per Seed geladen) und können

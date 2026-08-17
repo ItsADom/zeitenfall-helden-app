@@ -1179,10 +1179,17 @@ a.card.home-tile h3 {
    steht oben schon.
    Der Versatz ist alles, was oben schon klebt: Kopfleiste, Reiterleiste und —
    nur im Talent-Reiter — die Suchleiste. Alle drei werden gemessen
-   (components/stickyChrome.ts), `--search-h` fehlt anderswo und fällt auf 0. */
+   (components/stickyChrome.ts), `--search-h` fehlt anderswo und fällt auf 0.
+
+   Auch `--tabs-h` fällt bewusst auf 0px, nicht auf einen geschätzten Wert:
+   Jede Seite mit einer Reiterleiste MISST sie inzwischen (Charakter, Gruppe,
+   Verwaltung), und wo keine ist — im Wiki etwa — wäre jeder andere Wert
+   schlicht falsch und schöbe den Tabellenkopf um eine Leiste zu tief, die es
+   dort gar nicht gibt. `stickyChrome.ts` räumt die Variable beim Verlassen
+   wieder ab, damit „nicht gesetzt" auch wirklich „nicht vorhanden" heißt. */
 .table-wrap table.sheet thead {
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px) + var(--search-h, 0px));
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 0px) + var(--search-h, 0px));
   /* Unter den Leisten, die weiter oben kleben (Kopfleiste 20, Reiter 15,
      Suche 12) — der Tabellenkopf schiebt sich darunter, nicht darüber. */
   z-index: 4;
@@ -1718,7 +1725,7 @@ tr.slot-row td {
    schmal. */
 .talent-search {
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 0px));
   z-index: 12;
   display: flex;
   align-items: center;
@@ -1918,7 +1925,7 @@ main {
   flex: 0 0 var(--sidebar-w, 300px);
   width: var(--sidebar-w, 300px);
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px) + 8px);
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 0px) + 8px);
   display: flex;
   flex-direction: row;
   border: 1px solid var(--border);
@@ -1945,7 +1952,7 @@ body.resizing-col {
 .side-scroll {
   flex: 1;
   min-width: 0;
-  max-height: calc(100dvh - (var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px)) - 20px);
+  max-height: calc(100dvh - (var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 0px)) - 20px);
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2971,7 +2978,7 @@ li {
    die Behälter darunter nicht durchscheinen. */
 .inv-equip-drop {
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 0px));
   z-index: 12;
 }
 .grip-cell {
@@ -3517,7 +3524,7 @@ li {
    sitzt sie in einem .panel); der Hintergrund verdeckt die Tabelle darunter. */
 .abil-controls {
   position: sticky;
-  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 45px));
+  top: calc(var(--topbar-h, 47px) + var(--charhead-h, 0px) + var(--tabs-h, 0px));
   z-index: 11;
   background: var(--panel);
   /* Bis an die Panel-Ränder ziehen (Panel-Polster 16px): der Hintergrund deckt

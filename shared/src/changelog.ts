@@ -113,7 +113,6 @@ export const COMING_SOON: string[] = [
   'Ein Würfel-Chat mit Befehlen wie „/me“ und eigenen Wurf-Kürzeln.',
   'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — samt hinterlegter Regeln.',
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
-  'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
   'Die Rassen-Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) fließen direkt in die berechneten Werte ein, statt nur als Info zu stehen.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -168,6 +167,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-16',
     title: 'Getragene Ausrüstung zählt zur Traglast',
     added: [
+      'Ein Wiki für Weltwissen und Spielregeln, über „Wiki" in der Kopfleiste — es öffnet sich bewusst in einem neuen Tab, damit Nachschlagen mitten im Spiel nicht den Bogen wegnimmt, auf dem du gerade warst. Jeder darf Seiten anlegen und bearbeiten; nichts muss vorher freigegeben werden. Geschrieben wird in einer einfachen Formatierung (Überschriften, Listen, Tabellen, **fett**, *kursiv*), mit Vorschau und einem Spickzettel direkt im Editor. Seiten verweisen mit [[Doppelklammern]] aufeinander — zeigt ein Verweis ins Leere, ist er rot und legt die Seite auf Klick an. Dazu Inhaltsverzeichnis, „Verweise hierher", Kategorien und Bilder.',
+      'Volltextsuche über das ganze Wiki, samt Umlaut- und ß-Behandlung: „strasse" findet auch „Straße".',
+      'Ein vollständiges Änderungsprotokoll: Jede Bearbeitung bleibt dauerhaft erhalten, mit Autor, Zeitpunkt und deinem Kommentar dazu. Unter „Letzte Änderungen" siehst du alles auf einen Blick — filterbar nach Person, Seite und Zeitraum —, kannst zwei Fassungen vergleichen und jede ältere Fassung zurückholen. Neben „Wiki" steht, wie viel sich seit deinem letzten Besuch getan hat.',
+      'Bearbeiten zwei Leute gleichzeitig dieselbe Seite, geht nichts verloren: Der zweite Speichervorgang zeigt die Unterschiede und lässt dich entscheiden, statt still etwas zu überschreiben.',
       'Neuer Dialog zum Anlegen von Gegenständen und Behältern im Inventar: Name, Kategorie, Gewicht usw. werden vorher abgefragt, statt einen leeren Eintrag einzufügen und ihn danach zu bearbeiten. Für Ausrüstung lassen sich dabei auch RS und „Quickslots" (Anzahl direkt hineinsteckbarer Gegenstände, wie bei einem Gürtel) mit angeben.',
     ],
     changed: [
@@ -177,6 +180,11 @@ export const CHANGELOG: ChangelogEntry[] = [
     fixed: [
       'Fernkampfwaffen im Waffen-Reiter hatten kein Feld für die Rüstungsdurchdringung (RD).',
       'Schaden (und falls vorhanden RD) einer Waffe standen im Waffen-Reiter erst nach dem Aufklappen der Karte — jetzt stehen sie schon im Kartenkopf neben der Probe.',
+      'Auf der Gruppenseite rutschten die Tabellenköpfe beim Scrollen unter die Reiterleiste, sobald diese auf zwei Zeilen umbrach.',
+    ],
+    admin: [
+      '(Spielleiter) Im Wiki kannst du eine Seite auf „nur Spielleiter" stellen — für Spieler existiert sie dann nirgends, weder in Liste, Suche, Kategorien noch im Änderungsprotokoll. Einzelne Abschnitte innerhalb einer sonst öffentlichen Seite gehen genauso: Was zwischen ```gm und ``` steht, verlässt den Server für niemanden sonst. Bilder lassen sich einzeln ebenso kennzeichnen.',
+      '(Spielleiter) Außerdem im Wiki: „geschützt" (die Seite bleibt sichtbar, aber nur du darfst sie bearbeiten) und ein Papierkorb — gelöschte Seiten behalten Verlauf und Bilder und lassen sich zurückholen; erst das endgültige Löschen ist unwiderruflich.',
     ],
   },
   {
