@@ -84,25 +84,7 @@ db.exec(`
     requested_at INTEGER,
     -- Farbwelt des Charakters (Theme-Id, '' = keine → Betrachter sieht seine
     -- persönliche Vorgabe). Gilt für JEDEN, der den Charakter öffnet.
-    theme TEXT NOT NULL DEFAULT '',
-    -- Formwandler (siehe TODO.md „Shapeshifting"): jede Form ist ein
-    -- vollständiger, eigenständiger characters-Datensatz. shapeshift_of zeigt
-    -- von einer Form auf ihre Basis-Figur (NULL = ist selbst die Basis).
-    -- active_form_id sitzt NUR auf der Basis-Zeile und trägt, welche Form
-    -- gerade gespielt wird (NULL = die Basis selbst ist aktiv). Damit kodiert
-    -- ausschließlich group_id, welche Form in der Gruppen-Liste/GM-Übersicht
-    -- auftaucht — ruhende Formen sind schlicht gruppenlos, ganz ohne eigene
-    -- Abfragen dort. ON DELETE SET NULL statt CASCADE: löscht man eine Form
-    -- (oder die Basis), verlieren die übrigen Formen nur die Verknüpfung,
-    -- nicht ihre Daten.
-    shapeshift_of INTEGER REFERENCES characters(id) ON DELETE SET NULL,
-    active_form_id INTEGER REFERENCES characters(id) ON DELETE SET NULL,
-    -- Nur auf einer Basis-Zeile (shapeshift_of IS NULL) maßgeblich: schaltet
-    -- „Neue Form" frei. Explizit statt aus vorhandenen Formen abgeleitet, damit
-    -- eine frisch als Formwandler markierte Figur die Anlage-Möglichkeit schon
-    -- VOR ihrer ersten Form hat. Selbst bei der Anlage setzbar; danach nur noch
-    -- über die Verwaltung (PUT /characters/:id) umschaltbar.
-    is_shapeshifter INTEGER NOT NULL DEFAULT 0
+    theme TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS character_visibility (
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
@@ -594,17 +576,6 @@ db.exec(`
     if (!cols.has('requested_group_id')) db.exec('ALTER TABLE characters ADD COLUMN requested_group_id INTEGER REFERENCES groups(id)');
     if (!cols.has('requested_at')) db.exec('ALTER TABLE characters ADD COLUMN requested_at INTEGER');
   }
-}
-
-// Migration: Formwandler-Verknüpfung ergänzen (shapeshift_of/active_form_id,
-// siehe Kommentar am CREATE TABLE oben). Bewusst NACH dem group_id-Neuaufbau
-// oben: dessen fest verdrahtetes characters_new-Schema kennt diese Spalten
-// nicht — vor dem Neuaufbau hinzugefügt gingen sie beim Neuaufbau verloren.
-{
-  const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
-  if (!cols.has('shapeshift_of')) db.exec('ALTER TABLE characters ADD COLUMN shapeshift_of INTEGER REFERENCES characters(id) ON DELETE SET NULL');
-  if (!cols.has('active_form_id')) db.exec('ALTER TABLE characters ADD COLUMN active_form_id INTEGER REFERENCES characters(id) ON DELETE SET NULL');
-  if (!cols.has('is_shapeshifter')) db.exec('ALTER TABLE characters ADD COLUMN is_shapeshifter INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration: 'is_admin'-Rolle an bestehende users ergänzen. Rollen wurden

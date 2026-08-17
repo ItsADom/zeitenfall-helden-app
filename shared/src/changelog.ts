@@ -167,9 +167,6 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-16',
     title: 'Getragene Ausrüstung zählt zur Traglast',
-    added: [
-      'Formwandler-Charaktere: ein Charakter kann jetzt als „Formwandler" angelegt werden (Haken beim Anlegen, nachträglich über die Verwaltung umschaltbar) und dann mehrere vollständige, eigenständige Bögen als „Formen" bekommen — z. B. eine menschliche und eine tierische Gestalt. Über „+ Neue Form" (auf der Charakterliste und auf dem Bogen selbst, neben „Bearbeiten") legst du eine neue Form an; die Auswahl daneben schaltet zwischen vorhandenen Formen um. Immer nur die gerade gespielte Form erscheint in der Gruppen-/Spielleiter-Übersicht, die übrigen ruhen im Hintergrund — ein alter Link zu einer ruhenden Form führt automatisch zur aktuell gespielten.',
-    ],
     changed: [
       'Am Körper getragene Ausrüstung (Rüstung, Waffen in der Hand usw.) zählt jetzt zur Hälfte ihres Gewichts zur Traglast — bisher zählte sie gar nicht mit. Dadurch kann sich die angezeigte Traglast bestehender Charaktere spürbar erhöhen. Abgelegte, nicht getragene Gegenstände zählen weiterhin nicht mit.',
     ],

@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAttrPoint, Resources, SpecialResource } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
 import type { Ability } from '@shared/abilities';
 import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
-import { apiGet, apiPost, apiPut } from '../api';
+import { apiGet, apiPut } from '../api';
 import { useAuth, useThemeControls } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
 import { DisplayModeProvider } from '../components/displayMode';
@@ -126,14 +126,6 @@ interface CharacterInfo {
   tempGroups: { id: number; name: string }[];
   // Farbwelt des Charakters ('' = keine → Betrachter behält seine Vorgabe).
   theme?: string;
-  // Formwandler: die gerade gespielte Form (kann der Charakter selbst sein).
-  // Weicht sie ab, leitet die Seite dorthin um — siehe Effekt unten.
-  activeFormId: number;
-  // Ob „Neue Form" angeboten wird. `forms` ist die volle Familie (mind. der
-  // Charakter selbst) — bleibt nutzbar, auch wenn isShapeshifter zurück-
-  // geschaltet wurde, damit bereits angelegte Formen erreichbar bleiben.
-  isShapeshifter: boolean;
-  forms: { id: number; name: string }[];
 }
 
 interface CharCtxValue {
@@ -149,7 +141,6 @@ export default function CharacterPage() {
   const { id } = useParams();
   const charId = Number(id);
   const { user } = useAuth();
-  const navigate = useNavigate();
   const [info, setInfo] = useState<CharacterInfo | null>(null);
   const [access, setAccess] = useState<'edit' | 'summary' | null>(null);
   const [data, setData] = useState<FullData | null>(null);
@@ -185,9 +176,6 @@ export default function CharacterPage() {
   // Namensänderung: null = Anzeige, sonst der Entwurf im Eingabefeld.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [nameError, setNameError] = useState('');
-
-  // Formwandler: Form wechseln oder eine neue anlegen.
-  const [formBusy, setFormBusy] = useState(false);
 
   // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID.
   const canViewAs = !!user.isGm && !!user.devViewAs;
@@ -260,18 +248,6 @@ export default function CharacterPage() {
     setOverrideTheme(info?.theme ?? null);
     return () => setOverrideTheme(null);
   }, [info?.theme, setOverrideTheme]);
-
-  // Formwandler: eine ruhende Form öffnet sich nie selbst — ein alter
-  // Lesezeichen-/Listen-Link landet stattdessen sofort bei der Form, die
-  // gerade wirklich gespielt wird. Gilt ausnahmslos, auch für die
-  // Spielleitung (siehe Konzept-Absprache) — niemand soll aus Versehen auf
-  // veralteten Werten weiterspielen. `replace`, damit „Zurück" nicht auf die
-  // ruhende Form zurückführt.
-  useEffect(() => {
-    if (info && info.activeFormId !== charId) {
-      navigate(`/charakter/${info.activeFormId}${window.location.search}`, { replace: true });
-    }
-  }, [info, charId, navigate]);
 
   const viewAsBar = canViewAs ? (
     <div className="viewas-bar">
@@ -444,15 +420,6 @@ export default function CharacterPage() {
     );
   }
 
-  if (info.activeFormId !== charId) {
-    return (
-      <>
-        {viewAsBar}
-        <p className="muted">Wechsle zur aktiven Form…</p>
-      </>
-    );
-  }
-
   if (access === 'summary') {
     return (
       <>
@@ -549,33 +516,6 @@ export default function CharacterPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Form wechseln oder eine neue anlegen — beides landet über die
-  // Weiterleitung oben automatisch auf dem frisch aktivierten Bogen.
-  const switchForm = async (targetId: number) => {
-    if (targetId === charId || formBusy) return;
-    setFormBusy(true);
-    try {
-      await apiPost(`/api/characters/${charId}/switch-form`, { targetId });
-      navigate(`/charakter/${targetId}`);
-    } catch (e) {
-      setSaveState(`Fehler beim Formwechsel: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setFormBusy(false);
-    }
-  };
-  const addForm = async () => {
-    if (formBusy) return;
-    setFormBusy(true);
-    try {
-      const { id } = await apiPost<{ id: number }>(`/api/characters/${charId}/forms`, {});
-      navigate(`/charakter/${id}`);
-    } catch (e) {
-      setSaveState(`Fehler beim Anlegen der Form: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      setFormBusy(false);
-    }
-  };
-
   return (
     <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
       <TableLayoutProvider widths={data!.tableWidths ?? {}} save={saveTableWidths}>
@@ -621,34 +561,6 @@ export default function CharacterPage() {
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>
-          {/* Formwandler: Form wechseln (Auswahl erscheint nur, wenn es schon
-              mehr als eine gibt — sonst gäbe es nichts zur Auswahl) und/oder
-              eine neue anlegen (nur, wenn is_shapeshifter das erlaubt).
-              Selbstbedienung, deshalb wie „Einstellungen" nur für die eigene
-              Figur, nicht die Spielleitung. */}
-          {!viewAs && access === 'edit' && !user.isGm && (
-            <>
-              {info.forms.length > 1 && (
-                <select
-                  value={charId}
-                  disabled={formBusy}
-                  title="Aktive Form wechseln"
-                  onChange={(e) => void switchForm(Number(e.target.value))}
-                >
-                  {info.forms.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {info.isShapeshifter && (
-                <button className="small" disabled={formBusy} onClick={() => void addForm()} title="Neue Form dieses Formwandlers anlegen">
-                  + Neue Form
-                </button>
-              )}
-            </>
-          )}
           {/* Im Ansehen-als-Modus gibt es nichts zu bearbeiten — die Vorschau
               ist rein lesend, ein Bearbeiten-Knopf wäre dort eine Falle. */}
           {!viewAs && (

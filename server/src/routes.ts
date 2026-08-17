@@ -92,52 +92,10 @@ interface CharRow {
   requested_group_id: number | null;
   requested_at: number | null;
   theme: string;
-  // Formwandler: shapeshift_of zeigt von einer Form auf ihre Basis-Figur (NULL
-  // = ist selbst die Basis). active_form_id sitzt nur auf der Basis-Zeile und
-  // trägt, welche Form gerade gespielt wird (NULL = die Basis selbst). Siehe
-  // Kommentar am CREATE TABLE characters in db.ts.
-  shapeshift_of: number | null;
-  active_form_id: number | null;
-  // Nur auf der Basis-Zeile maßgeblich (siehe db.ts) — schaltet „Neue Form" frei.
-  is_shapeshifter: number;
 }
 
 function getChar(id: number): CharRow | undefined {
   return db.prepare('SELECT * FROM characters WHERE id = ?').get(id) as CharRow | undefined;
-}
-
-// Die Basis-Zeile eines Formwandlers (die Form selbst, falls sie schon die
-// Basis ist). Fällt auf `char` zurück, falls die verwiesene Basis nicht mehr
-// existiert (sollte durch ON DELETE SET NULL nicht vorkommen, aber robust).
-function baseCharOf(char: CharRow): CharRow {
-  if (char.shapeshift_of == null) return char;
-  return getChar(char.shapeshift_of) ?? char;
-}
-
-// Die gerade gespielte Form eines Formwandlers (kann `char` selbst sein).
-function activeFormIdOf(char: CharRow): number {
-  const base = baseCharOf(char);
-  return base.active_form_id ?? base.id;
-}
-
-// Schaltet `targetId` als aktive Form von `base` (dessen Basis-Zeile) — verschiebt
-// active_form_id und, falls die Formen gerade in einer Gruppe stehen, zugleich
-// group_id von der bisher aktiven auf die neue Form. Ruhende Formen bleiben
-// dadurch zwangsläufig gruppenlos; die Gruppen-Liste/GM-Übersicht braucht
-// dafür keine eigene Logik. No-op, wenn targetId schon aktiv ist.
-function activateForm(base: CharRow, targetId: number): void {
-  const currentActiveId = base.active_form_id ?? base.id;
-  if (currentActiveId === targetId) return;
-  const currentActive = getChar(currentActiveId)!;
-  const apply = db.transaction(() => {
-    db.prepare('UPDATE characters SET active_form_id = ? WHERE id = ?').run(targetId === base.id ? null : targetId, base.id);
-    if (currentActive.group_id != null) {
-      const groupId = currentActive.group_id;
-      db.prepare('UPDATE characters SET group_id = NULL WHERE id = ?').run(currentActive.id);
-      db.prepare('UPDATE characters SET group_id = ? WHERE id = ?').run(groupId, targetId);
-    }
-  });
-  apply();
 }
 
 function isGroupMember(userId: number, groupId: number): boolean {
@@ -512,19 +470,6 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     groupName: group?.name ?? '',
     tempGroups,
     theme: char.theme ?? '',
-    // Formwandler: die gerade gespielte Form dieses Charakters (kann er selbst
-    // sein). Weicht sie von char.id ab, leitet der Client auf sie um — so
-    // landet niemand (auch nicht die Spielleitung) versehentlich auf einer
-    // ruhenden Form.
-    activeFormId: activeFormIdOf(char),
-    // Ob „Neue Form" angeboten wird (nur die Basis-Zeile trägt das Flag
-    // maßgeblich). `forms` ist die volle Familie (mind. der Charakter selbst) —
-    // bleibt auch nach Zurückschalten des Flags nutzbar, damit bereits
-    // angelegte Formen nie unerreichbar werden.
-    isShapeshifter: !!baseCharOf(char).is_shapeshifter,
-    forms: db
-      .prepare('SELECT id, name FROM characters WHERE id = ? OR shapeshift_of = ? ORDER BY id')
-      .all(baseCharOf(char).id, baseCharOf(char).id) as { id: number; name: string }[],
   };
   if (!access) {
     res.json({ character: info, access: null, viewAs });
@@ -636,7 +581,7 @@ api.put('/characters/:id/name', requireAuth, (req, res) => {
 // muss von Spielleitung/Verwaltung freigegeben werden, bevor der Charakter dort
 // auftaucht. Standard-Zeilen/-Sektionen wie bei der Verwaltungs-Anlage.
 api.post('/characters', requireAuth, (req, res) => {
-  const body = (req.body ?? {}) as { name?: unknown; requestedGroupId?: unknown; isShapeshifter?: unknown };
+  const body = (req.body ?? {}) as { name?: unknown; requestedGroupId?: unknown };
   const name = String(body.name ?? '').trim();
   if (!name) {
     res.status(400).json({ error: 'Name darf nicht leer sein' });
@@ -655,66 +600,12 @@ api.post('/characters', requireAuth, (req, res) => {
     }
   }
   const r = db
-    .prepare(
-      'INSERT INTO characters (name, owner_user_id, group_id, requested_group_id, requested_at, is_shapeshifter) VALUES (?, ?, NULL, ?, ?, ?)',
-    )
-    .run(name, req.user!.id, requestedGroupId, requestedGroupId ? Date.now() : null, body.isShapeshifter ? 1 : 0);
+    .prepare('INSERT INTO characters (name, owner_user_id, group_id, requested_group_id, requested_at) VALUES (?, ?, NULL, ?, ?)')
+    .run(name, req.user!.id, requestedGroupId, requestedGroupId ? Date.now() : null);
   const newId = Number(r.lastInsertRowid);
   initCharacterRows(newId);
   instantiateStandardSections(newId);
   res.json({ id: newId });
-});
-
-// Neue Form eines Formwandlers anlegen: ein komplett eigenständiger, aber über
-// shapeshift_of an die Basis-Figur gebundener Charakter. Wird sofort aktiv
-// geschaltet (übernimmt eine etwaige Gruppenzugehörigkeit von der bisher
-// aktiven Form) — sonst leitete die frisch angelegte, noch ruhende Form beim
-// ersten Öffnen ihres Bogens sofort wieder zur alten aktiven Form um (siehe
-// activateForm/Character.tsx-Weiterleitung), und niemand käme je an sie heran.
-// Zugriff wie jede andere Bearbeitung (Besitzer oder Spielleitung).
-api.post('/characters/:id/forms', requireAuth, (req, res) => {
-  const char = getChar(Number(req.params.id));
-  if (!char || characterAccess(req.user!, char) !== 'edit') {
-    res.status(404).json({ error: 'Charakter nicht gefunden' });
-    return;
-  }
-  const base = baseCharOf(char);
-  if (!base.is_shapeshifter) {
-    res.status(400).json({ error: 'Charakter ist kein Formwandler' });
-    return;
-  }
-  const name = String(((req.body ?? {}) as { name?: unknown }).name ?? '').trim() || `${base.name} (neue Form)`;
-  if (name.length > MAX_CHAR_NAME) {
-    res.status(400).json({ error: `Name darf höchstens ${MAX_CHAR_NAME} Zeichen lang sein` });
-    return;
-  }
-  const r = db
-    .prepare('INSERT INTO characters (name, owner_user_id, group_id, shapeshift_of) VALUES (?, ?, NULL, ?)')
-    .run(name, base.owner_user_id, base.id);
-  const newId = Number(r.lastInsertRowid);
-  initCharacterRows(newId);
-  instantiateStandardSections(newId);
-  activateForm(base, newId);
-  res.json({ id: newId });
-});
-
-// Aktive Form wechseln: nur der Besitzer, selbstbedient (kein Freigabe-Umweg —
-// er ändert ja nur Charaktere, die ihm ohnehin schon gehören).
-api.post('/characters/:id/switch-form', requireAuth, (req, res) => {
-  const char = getChar(Number(req.params.id));
-  if (!char || char.owner_user_id !== req.user!.id) {
-    res.status(404).json({ error: 'Charakter nicht gefunden' });
-    return;
-  }
-  const base = baseCharOf(char);
-  const targetId = Number(((req.body ?? {}) as { targetId?: unknown }).targetId);
-  const target = getChar(targetId);
-  if (!target || baseCharOf(target).id !== base.id) {
-    res.status(400).json({ error: 'Keine Form dieses Charakters' });
-    return;
-  }
-  activateForm(base, targetId);
-  res.json({ ok: true, activeFormId: targetId });
 });
 
 // Gruppen-Anfrage eines gruppenlosen Charakters setzen, ändern oder zurückziehen
@@ -998,25 +889,15 @@ api.put('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
-  const { name, ownerUserId, groupId, isShapeshifter } = (req.body ?? {}) as {
-    name?: string;
-    ownerUserId?: number;
-    groupId?: number;
-    isShapeshifter?: boolean;
-  };
+  const { name, ownerUserId, groupId } = (req.body ?? {}) as { name?: string; ownerUserId?: number; groupId?: number };
   const nextGroup = groupId ?? char.group_id;
   // Weist die Verwaltung/Spielleitung direkt eine Gruppe zu, ist eine etwaige
   // offene Anfrage damit erledigt — sonst bliebe der Charakter in „Offene
   // Anfragen" hängen, obwohl er schon in einer Gruppe steckt.
   const clearRequest = nextGroup != null;
-  // is_shapeshifter ist nur auf einer Basis-Zeile maßgeblich (siehe db.ts) —
-  // auf einer Form gesetzt hätte es keine Wirkung, deshalb hier ignoriert
-  // (die Verwaltungsoberfläche bietet den Schalter ohnehin nur an Basis-
-  // Zeilen an, das ist nur die serverseitige Absicherung dagegen).
-  const nextShapeshifter = isShapeshifter == null || char.shapeshift_of != null ? char.is_shapeshifter : isShapeshifter ? 1 : 0;
   db.prepare(
-    `UPDATE characters SET name = ?, owner_user_id = ?, group_id = ?, is_shapeshifter = ?${clearRequest ? ', requested_group_id = NULL, requested_at = NULL' : ''} WHERE id = ?`,
-  ).run(name ?? char.name, ownerUserId ?? char.owner_user_id, nextGroup, nextShapeshifter, char.id);
+    `UPDATE characters SET name = ?, owner_user_id = ?, group_id = ?${clearRequest ? ', requested_group_id = NULL, requested_at = NULL' : ''} WHERE id = ?`,
+  ).run(name ?? char.name, ownerUserId ?? char.owner_user_id, nextGroup, char.id);
   res.json({ ok: true });
 });
 
@@ -1516,9 +1397,7 @@ api.post('/admin/requests/:id/reject', requireAuth, requireGmOrAdmin, (req, res)
 // Bewusst getrennt von /overview (das die persönliche Charakter-Startseite
 // bedient), damit ein reiner Admin dort weiter nur seine eigenen sieht.
 api.get('/admin/characters', requireAuth, requireGmOrAdmin, (_req, res) => {
-  res.json(
-    db.prepare('SELECT id, name, owner_user_id, group_id, shapeshift_of, is_shapeshifter FROM characters ORDER BY name').all(),
-  );
+  res.json(db.prepare('SELECT id, name, owner_user_id, group_id FROM characters ORDER BY name').all());
 });
 
 api.post('/admin/characters', requireAuth, requireGmOrAdmin, (req, res) => {

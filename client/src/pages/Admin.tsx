@@ -318,10 +318,6 @@ interface AdminChar {
   // NULL, solange der Charakter keiner Gruppe angehört (Selbst-Anlage vor der
   // Freigabe oder eine abgelehnte Anfrage).
   group_id: number | null;
-  // Formwandler: shapeshift_of zeigt auf die Basis-Form (NULL = ist selbst die
-  // Basis). is_shapeshifter ist nur auf einer Basis-Zeile maßgeblich.
-  shapeshift_of: number | null;
-  is_shapeshifter: number;
 }
 
 // Umschaltung der Charakterliste in der Verwaltung: nach Gruppe, nach Besitzer
@@ -986,7 +982,6 @@ export default function AdminPage() {
               <th>Charakter</th>
               <th>Besitzer</th>
               <th>Gruppe</th>
-              <th>Formwandler</th>
               <th />
             </tr>
           </thead>
@@ -995,7 +990,7 @@ export default function AdminPage() {
               <Fragment key={sec.key}>
                 {charGroupBy !== 'none' && (
                   <tr className="subtle-head">
-                    <td colSpan={5}>
+                    <td colSpan={4}>
                       <span className="sticky-label">
                         {sec.label} <span className="muted">· {sec.rows.length}</span>
                       </span>
@@ -1039,22 +1034,6 @@ export default function AdminPage() {
                       </option>
                     ))}
                   </select>
-                </td>
-                <td>
-                  {/* Nur an einer Basis-Zeile maßgeblich (siehe AdminChar-
-                      Kommentar) — eine Form zeigt stattdessen, wessen Form sie
-                      ist, statt einen wirkungslosen Schalter anzubieten. */}
-                  {c.shapeshift_of != null ? (
-                    <span className="muted">Form von: {chars.find((x) => x.id === c.shapeshift_of)?.name ?? '?'}</span>
-                  ) : (
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <input
-                        type="checkbox"
-                        checked={!!c.is_shapeshifter}
-                        onChange={(e) => run(() => apiPut(`/api/characters/${c.id}`, { isShapeshifter: e.target.checked }))}
-                      />
-                    </label>
-                  )}
                 </td>
                 <td>
                   <button className="small" onClick={() => confirm(`Charakter ${c.name} unwiderruflich löschen?`) && run(() => apiDelete(`/api/characters/${c.id}`))}>
