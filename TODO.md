@@ -24,14 +24,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
-- connect what writing is used in what spoken language
-- ranged weapons need a damage and rüstungsdurchdringung value too
-  - in the same pass: show damage calculation while collapsed
-- add theme coloring to the spell creation table
-  - make it less "table like" even though it is a table
-- rework workflow of creating items in inventory
-  - make them fully creatable while inserting
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
@@ -236,6 +228,27 @@ chips. Backend table `char_special_resources`. Open for the full version:
      eventually, same reasoning as the weapon rework itself.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
+   - [ready] **Fernkampf missing RD field** (user feedback): `emptyFernRow()`
+     has `schaden` but no `rd` — Nahkampf already has both (`NahCards`' "RD"
+     field, `WaffenNeu.tsx`). Add `rd` to `emptyFernRow()` and a matching
+     `Feld label="RD" title="Rüstungsdurchdringung"` block in `FernCards`,
+     mirroring the Nah pattern.
+   - [ready] **Show Schaden in the collapsed card head** (user feedback): only
+     the AT/PA/BL or FK probe chip shows collapsed today (`CardHead`); the raw
+     `schaden` string (e.g. "1W6+2") isn't visible until expanded. Add it next
+     to the probe chip(s) in `CardHead`, for both Nah and Fern cards.
+   - [sketch] **Fold ammunition damage into the Fernkampf damage formula**
+     (user feedback): every ranged weapon has its own `schaden` value today,
+     but the ammunition actually loaded/used should add to it — currently
+     nothing links the two, so a weapon's shown/computed damage ignores which
+     ammo is equipped. Blocked on the **Ammunition** catalogue (Low-Prio,
+     below) existing first, since there's no per-ammo damage value to pull in
+     yet; once that catalogue has one, wire it into the Fernkampf damage
+     calc (and presumably the collapsed-head Schaden display above). Needs a
+     concept pass: how ammo gets selected/tracked per weapon (a field on the
+     Fern row referencing the ammo catalogue? current stock/inventory-linked?),
+     and how its damage combines with the weapon's own (added flat, or
+     replaces part of the dice formula).
 - [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
   every system change). Concept to build when it comes off hold:
    - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
@@ -274,7 +287,10 @@ chips. Backend table `char_special_resources`. Open for the full version:
    - Accepted simplification (revisit only if it bites): an item's load follows its
     own `location`, so a container placed on the animal still has its contents
     counted as carried.
-- [sketch] **Ammunition**: damage values and effects (new catalogue).
+- [sketch] **Ammunition**: damage values and effects (new catalogue). Once it
+  has a per-ammo damage value, wire it into the Fernkampf damage formula (see
+  „Fold ammunition damage into the Fernkampf damage formula" under the Weapon
+  tab rework, Mid-Prio) — currently blocking that item.
 - [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
 - [ready] **Secret "chaos mode" easter egg** (concept agreed — gag, not a real
   theme): click the decorative `banner-fx` strip in the header (`App.tsx:99-103`
@@ -332,6 +348,36 @@ chips. Backend table `char_special_resources`. Open for the full version:
   requirements are still not fleshed out.
 - [sketch] **Portrait follow-ups**: on-page cutout editor (choose the crop instead of
   auto-center). click image to view bigger (check for storage usage)
+- [sketch] **Link spoken languages to their writing system** (user feedback):
+  `Sprachen.tsx` treats languages and scripts as two entirely separate,
+  unlinked catalogs (`kind: 'sprache' | 'schrift'`), rendered by the same
+  generic `LanguageTable` and grouped by `familie` — no field anywhere says
+  "spoken language X uses script Y". Needs a concept pass: a `schriftId` /
+  default-script field on `sprache`-kind catalog rows (or a join table), plus
+  how to surface it in the UI (sub-label on the Sprachen row, auto-suggest in
+  the Schriften table, …).
+- [sketch] **Inventory item creation — fill fields while inserting** (user
+  feedback): `Ausruestung.tsx`'s `addTo()` currently inserts a fully blank
+  `Item` (`blank()`) into the live list and auto-opens its editor — a
+  create-then-edit two-step. `Inventar.tsx` already has the wanted pattern for
+  items added inside a storage container: `AddItemRow` is a small inline form
+  (name/kategorie/anzahl/gewicht) that collects fields before calling
+  `commit()`, nothing blank ever hits the list. Rework target: bring
+  `Ausruestung.tsx`'s worn-zone/bench "+" creation in line with that
+  `AddItemRow` pattern; `Inventar.tsx`'s own `addContainer()` has the same
+  instant-blank-object issue and could be swept into the same fix. Needs a
+  concept pass: which fields belong in the inline form (name-only vs.
+  name+RS+weight), and whether worn-zone items need different prefill than
+  bench items.
+- [sketch] **Spell creation table — theme it, make it feel less like a plain
+  table** (user feedback): `AbilityManager.tsx`'s "Regeltabelle: Zauber
+  erschaffen" panel (`SPELL_CREATION_ROWS`, ~line 12) renders as a plain
+  `<table className="sheet">` (3 cols, 8 static rows) with none of the app's
+  card/chip theming — unlike the rest of the same page's ability list, which
+  already uses the `abil-row`/`abil-compact` card pattern, or `WaffenNeu.tsx`'s
+  `.wpn-card` / `Ausruestung.tsx`'s `.item-chip` styling used elsewhere. Needs
+  a concept pass: restyle as themed table variant, or restructure as cards
+  (one per attribute row)?
 - [ready] **New-tab category picker** (concept agreed — convenience seeding only):
   right now creating a tab (character sheet via Einstellungen `addTab`, and group
   tabs via the group page's `+ Tab` button) just gives an empty "Neuer Tab" with
