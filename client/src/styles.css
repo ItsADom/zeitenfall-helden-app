@@ -1133,12 +1133,18 @@ a.card.home-tile h3 {
    werdenden Spalte, damit weitere Kataloge die Seite nicht in die Höhe
    ziehen. Jede Karte bleibt ein eigenständiges <details>-Panel (auf/zu);
    align-items:start verhindert, dass ein aufgeklapptes Panel die Nachbarn in
-   seiner Zeile in die Höhe zieht. */
+   seiner Zeile in die Höhe zieht. Ein geöffnetes Panel spannt zusätzlich über
+   die volle Breite (grid-column via das native [open]-Attribut, kein State
+   nötig) — die Tabellen darin brauchen mehr als eine Spalte Platz zum
+   Bearbeiten; die übrigen Karten rücken darunter nach. */
 .kat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
   align-items: start;
+}
+.kat-grid > details.panel[open] {
+  grid-column: 1 / -1;
 }
 .kat-grid > .panel {
   margin-bottom: 0;
