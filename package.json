@@ -18,7 +18,8 @@
     "start:secure": "cross-env SECURE_COOKIES=1 npm run start",
     "test": "npm run test -w shared",
     "seed": "npm run seed -w server",
-    "seed:dummy": "npm run seed:dummy -w server"
+    "seed:dummy": "npm run seed:dummy -w server",
+    "seed:testuser": "npm run seed:testuser -w server"
   },
   "devDependencies": {
     "cross-env": "^10.1.0"
