@@ -29,7 +29,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   - in the same pass: show damage calculation while collapsed
 - add theme coloring to the spell creation table
   - make it less "table like" even though it is a table
-- rework workflow of creating items
+- rework workflow of creating items in inventory
   - make them fully creatable while inserting
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
@@ -91,6 +91,20 @@ chips. Backend table `char_special_resources`. Open for the full version:
      the new markdown content is the only place with GM-only tagging.
    - Still open before a build plan: markdown library choice, where the markdown
      source is stored (new column/table), exact link/entry point from the sheet.
+   - Consider storing the images in a separate, shared SQLite file (e.g.
+     `helden-assets.db`) with its own, less frequent backup schedule (see
+     `backup.ts`), instead of in `helden.db` alongside the frequently-changing
+     character/wiki data. Reason: `backup.ts` does full daily snapshots, not
+     incremental — a large, mostly-static image blob table would bloat every
+     daily backup even on days nothing changed, wasting OneDrive sync bandwidth.
+     Shared across features (bio gallery, wiki images, and eventually portraits)
+     rather than one image db per feature, keyed by owner_type/owner_id, to
+     avoid a growing pile of near-identical blob-storage db files. Catch:
+     SQLite has no cross-database FK/CASCADE, so character/page deletion would
+     need a manual cleanup hook against the second file instead of relying on
+     `ON DELETE CASCADE`. Wiki *text* content itself stays in `helden.db`
+     (see wiki entry below) — only images get split out; text is cheap enough
+     that splitting it out isn't worth the operational cost of a third db.
 - [sketch] **Dice rolls and chat** (concept fully worked out, split into
   sub-pieces below — already teased in the changelog's `COMING_SOON`. Left as
   `[sketch]` rather than bumped to `[ready]` deliberately: this is large enough
@@ -270,6 +284,34 @@ chips. Backend table `char_special_resources`. Open for the full version:
   a garish/clashing "chaos" color mode — a joke, not a real addition to `THEMES`
   in `theme.ts`. Timed: runs for a fixed short duration (~10–15s) then auto-
   reverts to whatever theme was active before, no persistence, no toggle-off needed.
+  Not yet implemented — when it is, it needs to report itself to the easter-egg
+  tracker below (same as any future egg), so build the trigger with that hook
+  from the start rather than adding it after the fact.
+- [ready] **Easter egg tracker** (concept agreed; visual reference at
+  `docs/concepts/easter-egg-tracker.html`): a public page listing every
+  easter egg that exists, who found it first, and when — first-finder-only,
+  deliberately competitive/leaderboard in tone, visible to all players.
+   - Generic across eggs so adding a new egg later is a code change only, no
+     schema change: catalog table `easter_eggs(key, name, added_at)` (one row
+     per egg, `key` a stable slug like `chaos-mode`), plus
+     `easter_egg_finds(id, egg_key, user_id, found_at)` with
+     `UNIQUE(egg_key, user_id)` — insert-or-ignore, so only the first trigger
+     per (player, egg) sticks and later triggers are silently no-ops.
+   - Each egg's trigger needs to call a small `POST /easter-eggs/:key/found`
+     (or similar) when it fires — there's no other persistence today (chaos
+     mode is 100% client-side), so this is new wiring on the egg itself, not
+     just a new page reading existing data.
+   - **Decided:** the list itself is a normal, always-reachable page — NOT an
+     egg to find (considered, dropped: paradoxical to gate a "how many eggs
+     have been found" page behind being found itself).
+   - **Decided:** found eggs show name/description/finder/date, unveiled for
+     everyone once triggered. Unfound eggs are NOT individually listed (no
+     per-egg "???" row, no exact remaining count) — instead, a single trailing
+     "???" line is appended to the list ONLY while at least one egg is still
+     unfound, just to tease that more exist. That line disappears once every
+     known egg has been found.
+   - Still open before a build plan: exact route/entry point for the public
+     page.
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
    - Tables break across pages mid-section — add break-inside handling / keep
     sections together / repeat table headers.
@@ -306,7 +348,11 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 - **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
 
-- **wiki for world lore and game rules**
+- **wiki for world lore and game rules** — no cross-interaction with character
+  sheets planned beyond living on the same site. Page text/structure belongs in
+  `helden.db` alongside character data (cheap, no backup-weight concern); wiki
+  images belong in the shared `helden-assets.db` discussed under „Expanded bio
+  page" above, not a wiki-specific db file.
 
 - **Discord feedback → TODO scan** (concept agreed; needs bot setup before build)
    - A local CLI script (like the changelog test flags) reads the feedback

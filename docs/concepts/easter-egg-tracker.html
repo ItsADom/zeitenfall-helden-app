@@ -1,0 +1,235 @@
+<title>Osternestsuche</title>
+<style>
+  :root {
+    --bg: #f6f3ec;
+    --panel: #ffffff;
+    --panel-hi: #fffdf8;
+    --border: #e4ddce;
+    --border-strong: #d3c9b4;
+    --border-soft: #f0ebdf;
+    --text: #292018;
+    --muted: #8a7d68;
+    --accent: #8b2635;
+    --accent-dark: #6f1d2a;
+    --accent-soft: #faf1ee;
+    --surface-head: #faf7ef;
+    --surface-hover: #fcfaf5;
+    --shadow: 0 1px 2px rgba(41, 32, 24, 0.06), 0 4px 16px rgba(41, 32, 24, 0.05);
+    --on-accent: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme='light']) {
+      --bg: #17140f;
+      --panel: #221d16;
+      --panel-hi: #2a241b;
+      --border: #3a3226;
+      --border-strong: #4a4030;
+      --border-soft: #322b20;
+      --text: #ece3d2;
+      --muted: #a99e86;
+      --accent: #d06a48;
+      --accent-dark: #e0855f;
+      --accent-soft: #35221a;
+      --surface-head: #262019;
+      --surface-hover: #2b2519;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+      --on-accent: #ffffff;
+    }
+  }
+  :root[data-theme='dark'] {
+    --bg: #17140f;
+    --panel: #221d16;
+    --panel-hi: #2a241b;
+    --border: #3a3226;
+    --border-strong: #4a4030;
+    --border-soft: #322b20;
+    --text: #ece3d2;
+    --muted: #a99e86;
+    --accent: #d06a48;
+    --accent-dark: #e0855f;
+    --accent-soft: #35221a;
+    --surface-head: #262019;
+    --surface-hover: #2b2519;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.35);
+    --on-accent: #ffffff;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 40px 20px 64px;
+  }
+  main {
+    width: 100%;
+    max-width: 640px;
+  }
+
+  .page-head {
+    margin-bottom: 22px;
+  }
+  .page-head h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--accent-dark);
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+  .page-head p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    max-width: 46ch;
+    line-height: 1.5;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  ul.egg-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .egg-list li {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .egg-list li:last-child {
+    border-bottom: none;
+  }
+  .egg-list li:not(.teaser):hover {
+    background: var(--surface-hover);
+  }
+
+  .medallion {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    color: var(--accent-dark);
+    margin-top: 1px;
+  }
+  .egg-list li.teaser .medallion {
+    background: var(--surface-head);
+    color: var(--muted);
+    border-style: dashed;
+  }
+
+  .egg-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .egg-name {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 15.5px;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 3px;
+  }
+  .egg-desc {
+    margin: 0 0 7px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+  .egg-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+  .egg-meta .finder {
+    font-weight: 600;
+    color: var(--accent-dark);
+  }
+  .egg-meta .sep {
+    color: var(--border-strong);
+  }
+
+  .egg-list li.teaser {
+    align-items: center;
+  }
+  .egg-list li.teaser .egg-name {
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    color: var(--muted);
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    font-size: 13px;
+    margin: 0;
+  }
+</style>
+
+<main>
+  <div class="page-head">
+    <h1>Osternestsuche</h1>
+    <p>Wer als Erstes ein Nest fand, steht hier für alle sichtbar. Was noch niemand gefunden hat, bleibt verborgen.</p>
+  </div>
+
+  <div class="panel">
+    <ul class="egg-list">
+      <li>
+        <div class="medallion">✺</div>
+        <div class="egg-body">
+          <p class="egg-name">Chaosmodus</p>
+          <p class="egg-desc">Fünfmal hintereinander auf das Banner in der Kopfleiste geklickt — für ein paar Sekunden bricht die Farbwelt der Seite komplett zusammen.</p>
+          <div class="egg-meta">
+            <span class="finder">Raskir</span>
+            <span class="sep">·</span>
+            <span>zuerst gefunden am 3. März 2026</span>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="medallion">☾</div>
+        <div class="egg-body">
+          <p class="egg-name">Nachtschicht</p>
+          <p class="egg-desc">Nach Mitternacht geöffnet, verändert sich das Wappen-Sigel für ein paar Sekunden zu einer Eule.</p>
+          <div class="egg-meta">
+            <span class="finder">Elvenya</span>
+            <span class="sep">·</span>
+            <span>zuerst gefunden am 11. Mai 2026</span>
+          </div>
+        </div>
+      </li>
+      <li>
+        <div class="medallion">✎</div>
+        <div class="egg-body">
+          <p class="egg-name">Freudscher Verschreiber</p>
+          <p class="egg-desc">Ein bestimmter Tippfehler in der Notiz eines Talents öffnet eine versteckte Randbemerkung des Spielleiters.</p>
+          <div class="egg-meta">
+            <span class="finder">Bodrik</span>
+            <span class="sep">·</span>
+            <span>zuerst gefunden am 2. Juli 2026</span>
+          </div>
+        </div>
+      </li>
+      <li class="teaser">
+        <div class="medallion">?</div>
+        <div class="egg-body">
+          <p class="egg-name">???</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+</main>
