@@ -5,6 +5,7 @@ import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { usePersistedState } from '../components/persist';
 import { usePendingRequests } from '../components/requests';
+import { useTabsHeight } from '../components/stickyChrome';
 
 interface CatalogColumn {
   key: string;
@@ -324,6 +325,18 @@ interface AdminChar {
 type CharGroupBy = 'gruppe' | 'spieler' | 'none';
 const CHAR_GROUP_LABEL: Record<Exclude<CharGroupBy, 'none'>, string> = { gruppe: 'Gruppe', spieler: 'Spieler' };
 
+// Reiter der Verwaltungsseite — hält die Seite kurz, egal wie viele Kataloge
+// oder Verwaltungsbereiche dazukommen. Offene Anfragen stecken thematisch bei
+// Gruppen (sie münden in eine Gruppenzuordnung) und zeigen sich dort nur als
+// Abzeichen an der Reiter-Beschriftung, statt einen eigenen Reiter zu belegen.
+type AdminTab = 'benutzer' | 'gruppen' | 'charaktere' | 'kataloge';
+const ADMIN_TABS: { key: AdminTab; label: string }[] = [
+  { key: 'benutzer', label: 'Benutzer' },
+  { key: 'gruppen', label: 'Gruppen' },
+  { key: 'charaktere', label: 'Charaktere' },
+  { key: 'kataloge', label: 'Kataloge' },
+];
+
 // Mitglieder einer Gruppe: bestehende als entfernbare Chips, plus ein
 // „Hinzufügen…"-Feld mit Vorschlägen aus der Spielerliste. Ausgewählte sammeln
 // sich zunächst als vorgemerkte Chips; erst „Hinzufügen" schreibt sie in einem
@@ -538,6 +551,8 @@ export default function AdminPage() {
   const [tempGroups, setTempGroups] = useState<AdminTempGroup[]>([]);
   const [chars, setChars] = useState<AdminChar[]>([]);
   const [error, setError] = useState('');
+  const [tab, setTab] = usePersistedState<AdminTab>('admin:tab', 'benutzer');
+  const tabsRef = useTabsHeight();
 
   const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '', isGm: false, isAdmin: false });
   const [newGroup, setNewGroup] = useState('');
@@ -635,6 +650,16 @@ export default function AdminPage() {
       <h1>Kataloge &amp; Nutzer</h1>
       {error && <p className="error">{error}</p>}
 
+      <div className="tabs" ref={tabsRef}>
+        {ADMIN_TABS.map((t) => (
+          <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+            {t.label}
+            {t.key === 'gruppen' && requests.length > 0 && <span className="tab-badge">{requests.length}</span>}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'benutzer' && (
       <div className="panel">
         <h2>Benutzer</h2>
         <table className="sheet">
@@ -748,7 +773,10 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+      )}
 
+      {tab === 'gruppen' && (
+      <>
       {/* Offene Gruppen-Anfragen selbst angelegter Charaktere. Nur sichtbar,
           solange welche offen sind. Annehmen ordnet den Charakter der erbetenen
           Gruppe zu und macht den Besitzer zum Gruppenmitglied; Ablehnen setzt nur
@@ -928,7 +956,10 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+      </>
+      )}
 
+      {tab === 'charaktere' && (
       <div className="panel">
         <h2>Charaktere</h2>
         <div className="abil-grouprow">
@@ -1080,11 +1111,14 @@ export default function AdminPage() {
           </button>
         </div>
       </div>
+      )}
 
-      <h2>Kataloge</h2>
+      {tab === 'kataloge' && (
+      <>
       <p className="muted">
         Änderungen wirken für alle Charaktere. Einträge, die von Charakteren verwendet werden, lassen sich nicht löschen.
       </p>
+      <div className="kat-grid">
       <CatalogPanel
         type="talents"
         title="Talent-Katalog"
@@ -1139,6 +1173,9 @@ export default function AdminPage() {
         ]}
       />
       <CurrencyCatalogPanel />
+      </div>
+      </>
+      )}
     </>
   );
 }

@@ -1106,6 +1106,43 @@ a.card.home-tile h3 {
   color: var(--on-accent-fill);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
 }
+/* Zahl-Abzeichen an einem Reiter (z. B. offene Charakter-Anfragen bei
+   "Gruppen") — passt sich der Reiterfarbe an statt fest auf Akzent zu stehen. */
+.tabs button .tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent-fill);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+.tabs button.active .tab-badge {
+  background: var(--on-accent-fill);
+  color: var(--accent);
+}
+
+/* Katalog-Karten in der Verwaltung: als Raster statt einer immer länger
+   werdenden Spalte, damit weitere Kataloge die Seite nicht in die Höhe
+   ziehen. Jede Karte bleibt ein eigenständiges <details>-Panel (auf/zu);
+   align-items:start verhindert, dass ein aufgeklapptes Panel die Nachbarn in
+   seiner Zeile in die Höhe zieht. */
+.kat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.kat-grid > .panel {
+  margin-bottom: 0;
+}
 
 /* Pfeile zum Umsortieren über den eingebauten Reitern — bündig rechts, wie in
    der Kopfzeile der selbst angelegten Reiter. */
