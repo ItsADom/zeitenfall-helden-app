@@ -22,6 +22,12 @@ export interface WikiSeiteRow {
   gm_only: number;
   geschuetzt: number;
   geloescht_at: string | null;
+  /** 'seite' | 'kategorie' — follows from the title, see wikiNamensraum.ts. */
+  namensraum: string;
+  /** Folded category key; only ever set when namensraum is 'kategorie'. */
+  kategorie_key: string | null;
+  /** Target slug when this page is a signpost rather than an article. */
+  weiterleitung: string | null;
   created_at: string;
   updated_at: string;
 }

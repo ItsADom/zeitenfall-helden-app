@@ -1,24 +1,25 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import type { WikiSeiteInfo } from '@shared/wikiTypen';
 import { useAuth } from '../App';
 import { CollapsedText } from '../components/notes';
-import NeueSeiteDialog from './NeueSeiteDialog';
 import { ladeListe, neuIndizieren } from './api';
 
-// The wiki's front door: every page, plus a category filter and the entry point
-// for creating one. Search arrives in its own phase; until then the filter is a
-// plain substring match over what is already loaded, which is the same thing
-// the talent tab does and is plenty for a few dozen pages.
+// The wiki's front door: every article, with a quick filter over the loaded
+// list and the categories as chips.
+//
+// The filter here is NOT the search in the bar above, and both earn their
+// place: this one narrows the list you are looking at as you type, the other
+// searches the full text of every page. Category pages and redirects are not
+// in this list — the first belong in the category directory, the second are
+// signposts whose card would say nothing but the name of somewhere else.
 
 export default function WikiUebersicht() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const [seiten, setSeiten] = useState<WikiSeiteInfo[] | null>(null);
   const [fehler, setFehler] = useState('');
-  const [suche, setSuche] = useState('');
+  const [filter, setFilter] = useState('');
   const [kategorie, setKategorie] = useState<string | null>(null);
-  const [dialogOffen, setDialogOffen] = useState(false);
   const [indexBusy, setIndexBusy] = useState(false);
   const [indexStatus, setIndexStatus] = useState('');
 
@@ -60,7 +61,7 @@ export default function WikiUebersicht() {
 
   if (fehler) return <p className="error">{fehler}</p>;
 
-  const q = suche.trim().toLowerCase();
+  const q = filter.trim().toLowerCase();
   const gefiltert = (seiten ?? []).filter(
     (s) =>
       (!kategorie || s.tags.includes(kategorie)) &&
@@ -72,48 +73,28 @@ export default function WikiUebersicht() {
     <div className="wiki">
       <div className="wiki-kopf">
         <div>
-          <h1>Wiki</h1>
+          <h1>Alle Seiten</h1>
           <p className="muted">Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.</p>
         </div>
-        <div className="wiki-kopf-aktionen screen-only">
-          <Link className="small" to="/wiki/aenderungen">
-            Letzte Änderungen
-          </Link>
-          {user.isGm && (
-            <>
-              <Link className="small" to="/wiki/papierkorb">
-                Papierkorb
-              </Link>
-              <button className="small" disabled={indexBusy} onClick={() => void indexNeuBauen()}>
-                {indexStatus || 'Suchindex neu aufbauen'}
-              </button>
-            </>
-          )}
-          <button className="primary" onClick={() => setDialogOffen(true)}>
-            + Neue Seite
-          </button>
-        </div>
+        {user.isGm && (
+          <div className="wiki-kopf-aktionen screen-only">
+            <button className="small" disabled={indexBusy} onClick={() => void indexNeuBauen()}>
+              {indexStatus || 'Suchindex neu aufbauen'}
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="wiki-filter screen-only">
-        {/* Tippen filtert sofort über Titel und Anriss der geladenen Liste —
-            das ist bei ein paar Dutzend Seiten das Schnellste. Enter geht in
-            die Volltextsuche, die auch im Text der Seiten sucht. */}
-        <form
-          className="talent-search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (suche.trim()) navigate(`/wiki/suche?q=${encodeURIComponent(suche.trim())}`);
-          }}
-        >
+        <form className="talent-search" onSubmit={(e) => e.preventDefault()}>
           <input
             type="search"
-            placeholder="Seite suchen… (Enter durchsucht auch den Text)"
-            value={suche}
-            onChange={(e) => setSuche(e.target.value)}
+            placeholder="Liste filtern…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
           />
-          {suche && (
-            <button type="button" className="small" onClick={() => setSuche('')} title="Suche zurücksetzen">
+          {filter && (
+            <button type="button" className="small" onClick={() => setFilter('')} title="Filter zurücksetzen">
               ✕
             </button>
           )}
@@ -132,6 +113,9 @@ export default function WikiUebersicht() {
                 {t}
               </button>
             ))}
+            <Link className="wiki-tag" to="/wiki/kategorien">
+              alle Kategorien →
+            </Link>
           </div>
         )}
       </div>
@@ -140,7 +124,13 @@ export default function WikiUebersicht() {
         <p className="muted">Lade…</p>
       ) : gefiltert.length === 0 ? (
         <p className="muted">
-          {seiten.length === 0 ? 'Noch keine Seiten. Lege die erste an.' : 'Keine Seite gefunden.'}
+          {seiten.length === 0 ? (
+            <>
+              Noch keine Seiten. <Link to="/wiki/neu">Lege die erste an.</Link>
+            </>
+          ) : (
+            'Keine Seite gefunden.'
+          )}
         </p>
       ) : (
         <div className="cardlist">
@@ -163,12 +153,6 @@ export default function WikiUebersicht() {
           ))}
         </div>
       )}
-
-      <NeueSeiteDialog
-        open={dialogOffen}
-        onClose={() => setDialogOffen(false)}
-        onAngelegt={(slug) => navigate(`/wiki/${slug}/bearbeiten`)}
-      />
     </div>
   );
 }

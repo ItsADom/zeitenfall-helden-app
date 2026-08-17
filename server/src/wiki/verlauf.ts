@@ -198,12 +198,15 @@ export function stelleFassungHer(
       autor: { id: user.id, name: user.name },
       basisRev: jetzt?.id ?? null,
     });
-    const auszug = schreibeAbgeleitetes(seite.id, seite.titel, text, tags);
-    db.prepare("UPDATE wiki_pages SET aktuelle_rev = ?, auszug = ?, updated_at = datetime('now') WHERE id = ?").run(
-      revIdNeu,
-      auszug,
-      seite.id,
-    );
+    // Restoring a revision restores what it did to the derived data too — a
+    // page that used to be a redirect becomes one again, and one that stopped
+    // being a redirect stops.
+    const { auszug, weiterleitung } = schreibeAbgeleitetes(seite.id, seite.titel, text, tags, seite.slug);
+    db.prepare(
+      `UPDATE wiki_pages
+          SET aktuelle_rev = ?, auszug = ?, weiterleitung = ?, updated_at = datetime('now')
+        WHERE id = ?`,
+    ).run(revIdNeu, auszug, weiterleitung, seite.id);
     const neu = db.prepare('SELECT nr FROM wiki_revisions WHERE id = ?').get(revIdNeu) as { nr: number };
     return { nr: neu.nr };
   });

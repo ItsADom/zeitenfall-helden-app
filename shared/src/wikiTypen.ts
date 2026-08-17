@@ -42,6 +42,13 @@ export const WIKI_LIMITS = {
   AUSZUG_MAX: 180,
 } as const;
 
+/**
+ * Which namespace a page lives in. Follows from its title („Kategorie:Orte"),
+ * see wikiNamensraum.ts — declared here because that module imports wikiTags,
+ * which imports this one.
+ */
+export type WikiNamensraum = 'seite' | 'kategorie';
+
 /** One row of the page list. Deliberately without the body. */
 export interface WikiSeiteInfo {
   slug: string;
@@ -52,6 +59,9 @@ export interface WikiSeiteInfo {
   geaendertAm: string;
   autorName: string;
   tags: string[];
+  namensraum: WikiNamensraum;
+  /** Slug this page points at, when it is a redirect rather than an article. */
+  weiterleitung?: string | null;
   /** Changed by somebody else since this reader last looked at the change log. */
   neu?: boolean;
 }
@@ -66,6 +76,12 @@ export interface WikiSeiteVoll extends WikiSeiteInfo {
   revisionId: number;
   nr: number;
   darfBearbeiten: boolean;
+  /**
+   * Set when the reader typed one address and landed on another — the „(weiter-
+   * geleitet von …)" note. Carries the signpost's own address so the reader can
+   * still reach and edit it, which is the only way a wrong redirect gets fixed.
+   */
+  weitergeleitetVon?: { slug: string; titel: string } | null;
   /**
    * Every [[target]] this page links to, mapped to the target's title or null
    * when it does not exist (or is invisible to this reader) — that is what
@@ -87,7 +103,33 @@ export interface WikiKategorie {
   key: string;
   /** Spelling to display. */
   tag: string;
+  /** Ordinary pages in it. Subcategories are counted separately, as on Wikipedia. */
   anzahl: number;
+  unterAnzahl: number;
+  /**
+   * Address of the „Kategorie:…" page describing this category, or null while
+   * nobody has written one. A category exists as soon as a page carries the
+   * tag — the description is optional, and the red link inviting one is the
+   * point.
+   */
+  seitenSlug?: string | null;
+  /**
+   * Folded keys of the categories this category itself belongs to. What turns a
+   * flat tag list into a tree, without anyone having to design a hierarchy.
+   */
+  eltern: string[];
+}
+
+/** Everything the view of one category needs, in one round trip. */
+export interface WikiKategorieAnsicht {
+  key: string;
+  tag: string;
+  /** The description page, if one exists — an ordinary page in every respect. */
+  seite: WikiSeiteVoll | null;
+  unterkategorien: WikiKategorie[];
+  seiten: { slug: string; titel: string; auszug: string }[];
+  /** Categories the description page itself carries — the way back up. */
+  eltern: string[];
 }
 
 /** One entry of the per-page history and of the wiki-wide change log. */

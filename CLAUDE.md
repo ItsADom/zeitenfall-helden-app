@@ -128,9 +128,15 @@ These are standing instructions — follow them without being reminded.
   container; `hidden` would break it). Below 700px is the deliberate exception:
   the table keeps its own horizontal scroller and the header sticks within it.
 - **Sticky offsets are measured, not hard-coded.** Each thing stuck at the top
-  (top bar, sheet header, tab bar, talent search) writes its height into a CSS
-  variable via `components/stickyChrome.ts`; the stylesheet sums them with
+  (top bar, sheet header, tab bar, talent search, wiki bar) writes its height into
+  a CSS variable via `components/stickyChrome.ts`; the stylesheet sums them with
   `calc()`. One variable per observer, so none depends on who measured first.
+  **Adding a new sticky bar is not done when its own rule is written** — every
+  `calc()` for something that sticks *below* it has to gain the new term, and
+  some of those rules are shared with pages that never see the bar (`.talent-search`
+  is the wiki's list filter *and* the character sheet's search; `.table-wrap
+  table.sheet thead` renders inside wiki articles too). Adding the term there is
+  safe precisely because an unset variable falls back to `0px`.
 - **Everything editable flows through `NumInput`/`TextInput`** (they read the
   display mode themselves), which is why one provider flips a whole sheet at once.
   Structural buttons (`+ Zeile`, columns, delete, tab reorder, portrait) do NOT
@@ -138,6 +144,16 @@ These are standing instructions — follow them without being reminded.
 - **No data loss on migration** (top-ranking rule): map known fields and fold any
   unmapped/custom column into the row's `notiz` as `Label: value`. Nothing a
   player typed is ever silently dropped.
+- **A derived column added by `ALTER TABLE` is filled with its DEFAULT, not with
+  the right answer.** New tables are free (`CREATE TABLE IF NOT EXISTS` and
+  `user_version` stays put), but a new *column* on an existing table starts wrong
+  for every row already there. So each derived column gets a boot-time re-derive
+  next to `indexNachziehen()` — `namensraeumeNachziehen()` recomputes the wiki's
+  `namensraum`/`kategorie_key`/`weiterleitung` from title and text. This is not
+  only about the first upgrade: a release **rollback** puts old code on a migrated
+  database, and an edit made under that code updates the text while leaving the
+  derived column stale. A `user_version` step would catch neither that nor a
+  restore from an older backup.
 - **Hiding text from a reader is not enough — you must not send it.** The wiki's
   ` ```gm ` regions are removed server-side before the response. A client that
   merely declined to render them would still have shipped the text, and anyone

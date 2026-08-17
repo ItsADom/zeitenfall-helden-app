@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { inhaltsverzeichnis, parseWiki } from '@shared/wikiMarkup';
+import { teileTitel } from '@shared/wikiNamensraum';
+import { wikiTagKey } from '@shared/wikiTags';
 import type { WikiSeiteVoll } from '@shared/wikiTypen';
 import { ApiError } from '../api';
 import { useAuth } from '../App';
@@ -17,21 +19,26 @@ import { ladeSeite } from './api';
 
 export default function WikiSeite() {
   const { slug = '' } = useParams();
+  const [params] = useSearchParams();
   const { user } = useAuth();
   const [seite, setSeite] = useState<WikiSeiteVoll | null>(null);
   const [kanonisch, setKanonisch] = useState<string | null>(null);
   const [fehler, setFehler] = useState('');
 
+  // „?folgen=nein" — reached deliberately THROUGH the „weitergeleitet von"
+  // note, to look at the signpost itself rather than where it points.
+  const folgen = params.get('folgen') !== 'nein';
+
   const laden = useCallback(() => {
     setFehler('');
     setSeite(null);
-    ladeSeite(slug)
+    ladeSeite(slug, folgen)
       .then((d) => {
         setSeite(d.seite);
         setKanonisch(d.kanonisch);
       })
       .catch((e) => setFehler(e instanceof ApiError && e.status === 404 ? 'nicht-gefunden' : 'Fehler beim Laden'));
-  }, [slug]);
+  }, [slug, folgen]);
 
   useEffect(laden, [laden]);
 
@@ -41,7 +48,9 @@ export default function WikiSeite() {
   const toc = useMemo(() => inhaltsverzeichnis(doc), [doc]);
 
   // Reached through an old address after a rename: move the URL over so links
-  // copied from here are the current ones.
+  // copied from here are the current ones. A followed redirect does NOT do this
+  // — the server keeps `kanonisch` on the signpost precisely so the address
+  // stays where the reader typed it, as it does on Wikipedia.
   if (kanonisch && kanonisch !== slug) return <Navigate to={`/wiki/${kanonisch}`} replace />;
 
   if (fehler === 'nicht-gefunden') {
@@ -59,11 +68,40 @@ export default function WikiSeite() {
   if (fehler) return <p className="error">{fehler}</p>;
   if (!seite) return <p className="muted">Lade…</p>;
 
+  // A category page belongs in the category view, which shows its description
+  // AND what is in it. Reaching it under its own address is not wrong, just
+  // half the picture.
+  if (seite.namensraum === 'kategorie') {
+    const key = wikiTagKey(teileTitel(seite.titel).name);
+    if (key) return <Navigate to={`/wiki/kategorie/${encodeURIComponent(key)}`} replace />;
+  }
+
+  // Standing ON a signpost (reached with ?folgen=nein, or its target is gone).
+  // Rendering the source would show a heading shouting „WEITERLEITUNG".
+  const istWegweiser = !!seite.weiterleitung;
+  const zielTitel = istWegweiser ? seite.linkZiele[seite.weiterleitung!] : null;
+
   return (
     <div className="wiki">
+      {seite.tags.length > 0 && (
+        <nav className="wiki-brotkrumen screen-only" aria-label="Pfad">
+          <Link to="/wiki">Wiki</Link>
+          <span aria-hidden>›</span>
+          <Link to={`/wiki/kategorie/${encodeURIComponent(seite.tags[0])}`}>{seite.tags[0]}</Link>
+          <span aria-hidden>›</span>
+          <span>{seite.titel}</span>
+        </nav>
+      )}
+
       <div className="wiki-kopf">
         <div>
           <h1>{seite.titel}</h1>
+          {seite.weitergeleitetVon && (
+            <p className="muted wiki-weitergeleitet screen-only">
+              (weitergeleitet von{' '}
+              <Link to={`/wiki/${seite.weitergeleitetVon.slug}?folgen=nein`}>{seite.weitergeleitetVon.titel}</Link>)
+            </p>
+          )}
           <p className="muted wiki-meta">
             {seite.nr > 0 ? `Fassung ${seite.nr}` : 'Neu angelegt'}
             {seite.autorName && ` · zuletzt von ${seite.autorName}`}
@@ -95,8 +133,27 @@ export default function WikiSeite() {
         </div>
       )}
 
-      <WikiInhalt zeilen={toc} />
-      <WikiMarkup doc={doc} ziele={seite.linkZiele} />
+      {istWegweiser ? (
+        <p className="wiki-wegweiser">
+          <span aria-hidden>↳</span> Diese Seite ist eine Weiterleitung auf{' '}
+          {zielTitel ? (
+            <Link className="wiki-link" to={`/wiki/${seite.weiterleitung}`}>
+              {zielTitel}
+            </Link>
+          ) : (
+            <>
+              <span className="wiki-rotlink">{seite.weiterleitung}</span> — dorthin führt zurzeit nichts, das Ziel gibt
+              es nicht (mehr).
+            </>
+          )}
+        </p>
+      ) : (
+        <>
+          <WikiInhalt zeilen={toc} />
+          <WikiMarkup doc={doc} ziele={seite.linkZiele} />
+        </>
+      )}
+
       <WikiVerweise slug={seite.slug} />
     </div>
   );

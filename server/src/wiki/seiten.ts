@@ -9,21 +9,25 @@ import {
   alsKlartext,
   auszug as auszugVon,
   freierSlug,
+  kategorieKeyFuerTitel,
   normalizeWikiTags,
   ohneGmBloecke,
   parseWiki,
   quelleOhneGm,
   sammleLinks,
   stelleGmBloeckeHer,
+  teileTitel,
   verbergeGmBloecke,
+  weiterleitungsZiel,
+  wikiSlug,
   wikiSuchtext,
   zeilenBilanz,
 } from 'shared';
-import type { WikiArt, WikiDoc, WikiSeiteInfo, WikiSeiteVoll, WikiTag } from 'shared';
+import type { WikiArt, WikiDoc, WikiNamensraum, WikiSeiteInfo, WikiSeiteVoll, WikiTag } from 'shared';
 import { db } from '../db.js';
 import { HAT_FTS } from './schema.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
-import { sichtbarkeitsFilter } from './zugriff.js';
+import { seiteFuer, sichtbarkeitsFilter } from './zugriff.js';
 
 /** Somebody else saved while this editor was open. Surfaces as 409. */
 export class WikiKonflikt extends Error {
@@ -42,6 +46,18 @@ export class WikiGeschuetzt extends Error {
   constructor() {
     super('Diese Seite ist geschützt');
     this.name = 'WikiGeschuetzt';
+  }
+}
+
+/**
+ * A category may have only one description page, so renaming a page onto an
+ * occupied „Kategorie:…" title is refused rather than silently made a duplicate
+ * — two pages describing one category is how they start contradicting.
+ */
+export class WikiTitelVergeben extends Error {
+  constructor(readonly titel: string) {
+    super(`Es gibt bereits eine Seite „${titel}"`);
+    this.name = 'WikiTitelVergeben';
   }
 }
 
@@ -80,21 +96,45 @@ function alsInfo(row: WikiSeiteRow, autorName: string): WikiSeiteInfo {
     geaendertAm: row.updated_at,
     autorName,
     tags: tagsVon(row.id),
+    namensraum: row.namensraum as WikiNamensraum,
+    weiterleitung: row.weiterleitung,
   };
 }
 
-export function listeSeiten(user: WikiLeser): WikiSeiteInfo[] {
+/**
+ * The page list.
+ *
+ * `alle` is for the change-log filter, which offers every page somebody could
+ * have edited. The default is the reader's list — articles only: a category
+ * page belongs in the category directory, and a redirect is a signpost whose
+ * card would say nothing but the name of somewhere else.
+ */
+export function listeSeiten(user: WikiLeser, { alle = false }: { alle?: boolean } = {}): WikiSeiteInfo[] {
   const filter = sichtbarkeitsFilter(user);
+  const nurArtikel = alle ? '' : " AND p.namensraum = 'seite' AND p.weiterleitung IS NULL";
   const rows = db
     .prepare(
       `SELECT p.*, COALESCE(r.author_name, '') AS autorName
        FROM wiki_pages p
        LEFT JOIN wiki_revisions r ON r.id = p.aktuelle_rev
-       WHERE ${filter.sql} AND p.geloescht_at IS NULL
+       WHERE ${filter.sql} AND p.geloescht_at IS NULL${nurArtikel}
        ORDER BY p.titel COLLATE NOCASE`,
     )
     .all(...filter.args) as (WikiSeiteRow & { autorName: string })[];
   return rows.map((r) => alsInfo(r, r.autorName));
+}
+
+/**
+ * The live description page of a category, by folded key. Null while nobody has
+ * written one — a category exists as soon as a page carries the tag, and the
+ * red link inviting a description is the point.
+ */
+export function kategorieSeite(user: WikiLeser, key: string): WikiSeiteRow | null {
+  const row = db
+    .prepare("SELECT * FROM wiki_pages WHERE kategorie_key = ? AND namensraum = 'kategorie' AND geloescht_at IS NULL")
+    .get(key) as WikiSeiteRow | undefined;
+  if (!row) return null;
+  return user.isGm || !row.gm_only ? row : null;
 }
 
 /**
@@ -166,7 +206,28 @@ export function sichtbareQuelle(user: WikiLeser, quelle: string, modus: LadeModu
   return modus === 'bearbeiten' ? verbergeGmBloecke(quelle).text : quelleOhneGm(quelle);
 }
 
-export function ladeSeite(user: WikiLeser, row: WikiSeiteRow, modus: LadeModus = 'lesen'): WikiSeiteVoll {
+/**
+ * The page a redirect points at — exactly ONE hop.
+ *
+ * Chasing a chain would need loop detection and would hide the fact that the
+ * chain exists; landing on a second signpost makes the problem visible to the
+ * person best placed to fix it. Same call MediaWiki makes.
+ */
+export function folgeWeiterleitung(user: WikiLeser, seite: WikiSeiteRow): WikiSeiteRow | null {
+  if (!seite.weiterleitung) return null;
+  const ziel = seiteFuer(user, seite.weiterleitung);
+  // Invisible or missing target: stay on the signpost, which at least says
+  // where it meant to go and can be edited.
+  if (!ziel || ziel.id === seite.id) return null;
+  return ziel;
+}
+
+export function ladeSeite(
+  user: WikiLeser,
+  row: WikiSeiteRow,
+  modus: LadeModus = 'lesen',
+  weitergeleitetVon?: WikiSeiteRow | null,
+): WikiSeiteVoll {
   const rev = letzteFassung(row.id);
   const quelle = rev?.text ?? '';
   // GM-only regions are removed HERE, on the server. A client that merely
@@ -181,7 +242,8 @@ export function ladeSeite(user: WikiLeser, row: WikiSeiteRow, modus: LadeModus =
     revisionId: rev?.id ?? 0,
     nr: rev?.nr ?? 0,
     darfBearbeiten: user.isGm || !row.geschuetzt,
-    linkZiele: linkZiele(user, sammleLinks(doc)),
+    linkZiele: linkZiele(user, [...sammleLinks(doc), ...(row.weiterleitung ? [row.weiterleitung] : [])]),
+    weitergeleitetVon: weitergeleitetVon ? { slug: weitergeleitetVon.slug, titel: weitergeleitetVon.titel } : null,
   };
 }
 
@@ -243,14 +305,29 @@ export function schreibeLog(e: LogEinfuegen): number {
  * save transaction, never on its own — derived data that can be written
  * separately is derived data that will eventually disagree.
  */
-export function schreibeAbgeleitetes(pageId: number, titel: string, quelle: string, tags: WikiTag[]): string {
+export function schreibeAbgeleitetes(
+  pageId: number,
+  titel: string,
+  quelle: string,
+  tags: WikiTag[],
+  eigenerSlug: string,
+): { auszug: string; weiterleitung: string | null } {
   const docVoll = parseWiki(quelle);
   const docPublic = ohneGmBloecke(docVoll);
   const auszug = auszugVon(docPublic);
 
+  // A page pointing at itself is a loop with one step in it. Treating it as an
+  // ordinary page is the only reading that leaves the text reachable.
+  const ziel = weiterleitungsZiel(quelle);
+  const weiterleitung = ziel && ziel !== eigenerSlug ? ziel : null;
+
   db.prepare('DELETE FROM wiki_links WHERE from_page_id = ?').run(pageId);
   const linkStmt = db.prepare('INSERT OR IGNORE INTO wiki_links (from_page_id, to_slug) VALUES (?, ?)');
-  for (const ziel of sammleLinks(docVoll)) linkStmt.run(pageId, ziel);
+  for (const zielSlug of sammleLinks(docVoll)) linkStmt.run(pageId, zielSlug);
+  // The redirect marker is a link too — otherwise the target's „Was hierher
+  // verweist" would not list the signpost pointing at it, which is exactly
+  // where a wrong redirect gets noticed.
+  if (weiterleitung) linkStmt.run(pageId, weiterleitung);
 
   db.prepare('DELETE FROM wiki_page_tags WHERE page_id = ?').run(pageId);
   const tagStmt = db.prepare('INSERT OR IGNORE INTO wiki_page_tags (page_id, tag_key, tag) VALUES (?, ?, ?)');
@@ -258,7 +335,7 @@ export function schreibeAbgeleitetes(pageId: number, titel: string, quelle: stri
 
   schreibeIndex(pageId, titel, docVoll);
 
-  return auszug;
+  return { auszug, weiterleitung };
 }
 
 /**
@@ -296,17 +373,43 @@ function slugVergeben(slug: string): boolean {
   );
 }
 
+/**
+ * Address for a title. A category gets the predictable `kategorie-orte` rather
+ * than whatever the generic slugger produces, so the address can be typed and
+ * guessed — and falls back to the ordinary allocator if something already sits
+ * there, which is why the tag→page link runs over kategorie_key and not this.
+ */
+function slugFuerTitel(titel: string, istVergeben: (slug: string) => boolean = slugVergeben): string {
+  const { namensraum, name } = teileTitel(titel);
+  if (namensraum !== 'kategorie') return freierSlug(titel, istVergeben);
+  const wunsch = `kategorie-${wikiSlug(name)}`;
+  return istVergeben(wunsch) ? freierSlug(titel, istVergeben) : wunsch;
+}
+
 export function legeSeiteAn(autor: { id: number; name: string }, titelRoh: string): WikiSeiteRow {
   const titel = kappe(titelRoh, WIKI_LIMITS.TITEL_MAX).trim();
   if (!titel) throw new Error('Titel fehlt');
+  const { namensraum } = teileTitel(titel);
+  const kategorieKey = kategorieKeyFuerTitel(titel);
 
   const anlegen = db.transaction((): WikiSeiteRow => {
-    const slug = freierSlug(titel, slugVergeben);
-    const info = db.prepare('INSERT INTO wiki_pages (slug, titel) VALUES (?, ?)').run(slug, titel);
+    // Two pages describing one category would eventually contradict each other.
+    // Node runs this transaction to completion before the next request, so the
+    // check and the insert cannot be interleaved.
+    if (kategorieKey) {
+      const schon = db
+        .prepare("SELECT * FROM wiki_pages WHERE kategorie_key = ? AND namensraum = 'kategorie' AND geloescht_at IS NULL")
+        .get(kategorieKey) as WikiSeiteRow | undefined;
+      if (schon) throw new WikiTitelVergeben(titel);
+    }
+    const slug = slugFuerTitel(titel);
+    const info = db
+      .prepare('INSERT INTO wiki_pages (slug, titel, namensraum, kategorie_key) VALUES (?, ?, ?, ?)')
+      .run(slug, titel, namensraum, kategorieKey);
     const pageId = Number(info.lastInsertRowid);
     const revId = schreibeLog({ pageId, art: 'angelegt', titel, text: '', autor });
     db.prepare('UPDATE wiki_pages SET aktuelle_rev = ? WHERE id = ?').run(revId, pageId);
-    schreibeAbgeleitetes(pageId, titel, '', []);
+    schreibeAbgeleitetes(pageId, titel, '', [], slug);
     return db.prepare('SELECT * FROM wiki_pages WHERE id = ?').get(pageId) as WikiSeiteRow;
   });
   return anlegen();
@@ -359,7 +462,22 @@ export function speichereSeite(
   // record changes, not visits to the editor.
   if (!textGeaendert && !titelGeaendert) return seite;
 
+  // The namespace follows the title, so a rename can move a page into the
+  // category namespace or back out of it. Refused only when the target category
+  // already has a description page.
+  const { namensraum } = teileTitel(titel);
+  const kategorieKey = kategorieKeyFuerTitel(titel);
+  if (titelGeaendert && kategorieKey && kategorieKey !== seite.kategorie_key) {
+    const schon = db
+      .prepare(
+        "SELECT 1 FROM wiki_pages WHERE kategorie_key = ? AND namensraum = 'kategorie' AND geloescht_at IS NULL AND id <> ?",
+      )
+      .get(kategorieKey, seite.id);
+    if (schon) throw new WikiTitelVergeben(titel);
+  }
+
   const speichern = db.transaction((): WikiSeiteRow => {
+    let slug = seite.slug;
     if (titelGeaendert) {
       schreibeLog({
         pageId: seite.id,
@@ -372,12 +490,18 @@ export function speichereSeite(
       });
       // The old address keeps working; inbound [[…]] are deliberately NOT
       // rewritten, which would mass-edit other pages under this author's name.
-      const neuerSlug = freierSlug(titel, (s) => s !== seite.slug && slugVergeben(s));
+      const neuerSlug = slugFuerTitel(titel, (s) => s !== seite.slug && slugVergeben(s));
       if (neuerSlug !== seite.slug) {
         db.prepare('INSERT OR IGNORE INTO wiki_slug_alias (slug, page_id) VALUES (?, ?)').run(seite.slug, seite.id);
         db.prepare('DELETE FROM wiki_slug_alias WHERE slug = ?').run(neuerSlug);
         db.prepare('UPDATE wiki_pages SET slug = ? WHERE id = ?').run(neuerSlug, seite.id);
+        slug = neuerSlug;
       }
+      db.prepare('UPDATE wiki_pages SET namensraum = ?, kategorie_key = ? WHERE id = ?').run(
+        namensraum,
+        kategorieKey,
+        seite.id,
+      );
     }
 
     let revId = seite.aktuelle_rev;
@@ -397,13 +521,81 @@ export function speichereSeite(
       });
     }
 
-    const auszug = schreibeAbgeleitetes(seite.id, titel, text, tags);
+    const { auszug, weiterleitung } = schreibeAbgeleitetes(seite.id, titel, text, tags, slug);
     db.prepare(
-      "UPDATE wiki_pages SET titel = ?, aktuelle_rev = ?, auszug = ?, updated_at = datetime('now') WHERE id = ?",
-    ).run(titel, revId, auszug, seite.id);
+      `UPDATE wiki_pages
+          SET titel = ?, aktuelle_rev = ?, auszug = ?, weiterleitung = ?, updated_at = datetime('now')
+        WHERE id = ?`,
+    ).run(titel, revId, auszug, weiterleitung, seite.id);
     return db.prepare('SELECT * FROM wiki_pages WHERE id = ?').get(seite.id) as WikiSeiteRow;
   });
   return speichern();
+}
+
+/**
+ * Repairs pages whose namespace or redirect disagrees with what their title and
+ * text say, at boot.
+ *
+ * Same idea as indexNachziehen(): a column added to an existing database is
+ * backfilled with its DEFAULT, not with the right answer. A page somebody had
+ * already titled „Kategorie:Orte" before namespaces existed would keep
+ * namensraum='seite' and never show up as the category it plainly is.
+ *
+ * The redirect column drifts the other way round, and that case is realistic:
+ * a release rollback puts code back on a migrated database, and an edit made
+ * under the older code updates the text without touching the column. The page
+ * would then keep redirecting after rolling forward although its text no longer
+ * says so. Both columns are derived, so both are recomputed — a derived value
+ * nobody re-derives is a value that eventually lies.
+ *
+ * Runs unconditionally rather than behind a version counter: a counter would
+ * miss the rollback case and a database restored from an older backup alike.
+ */
+export function namensraeumeNachziehen(): void {
+  const kandidaten = db
+    .prepare(
+      `SELECT p.id AS id, p.slug AS slug, p.titel AS titel, p.namensraum AS namensraum,
+              p.kategorie_key AS kategorieKey, p.weiterleitung AS weiterleitung,
+              COALESCE(r.text, '') AS text
+         FROM wiki_pages p LEFT JOIN wiki_revisions r ON r.id = p.aktuelle_rev`,
+    )
+    .all() as {
+    id: number;
+    slug: string;
+    titel: string;
+    namensraum: string;
+    kategorieKey: string | null;
+    weiterleitung: string | null;
+    text: string;
+  }[];
+
+  const belegt = new Set(
+    kandidaten.filter((k) => k.kategorieKey && k.namensraum === 'kategorie').map((k) => k.kategorieKey as string),
+  );
+
+  let geaendert = 0;
+  const lauf = db.transaction(() => {
+    for (const k of kandidaten) {
+      const { namensraum } = teileTitel(k.titel);
+      const key = kategorieKeyFuerTitel(k.titel);
+      const ziel = weiterleitungsZiel(k.text);
+      const weiterleitung = ziel && ziel !== k.slug ? ziel : null;
+      if (namensraum === k.namensraum && key === k.kategorieKey && weiterleitung === k.weiterleitung) continue;
+      // Two pre-existing pages could both be titled „Kategorie:Orte"; only the
+      // first may claim the category, or the unique index rejects the second.
+      if (key && belegt.has(key)) continue;
+      if (key) belegt.add(key);
+      db.prepare('UPDATE wiki_pages SET namensraum = ?, kategorie_key = ?, weiterleitung = ? WHERE id = ?').run(
+        namensraum,
+        key,
+        weiterleitung,
+        k.id,
+      );
+      geaendert++;
+    }
+  });
+  lauf();
+  if (geaendert > 0) console.log(`[wiki] Namensräume nachgezogen: ${geaendert} Seite(n)`);
 }
 
 // Reading the change log lives in verlauf.ts — this module owns writing it.

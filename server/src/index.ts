@@ -12,8 +12,15 @@ import './db.js';
 // Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
 // wenn die Grundtabellen und ihre Migrationen durch sind.
 import './wiki/schema.js';
+import { namensraeumeNachziehen } from './wiki/seiten.js';
 import { indexNachziehen } from './wiki/suche.js';
 import './seed.js';
+
+// Namensräume nachziehen, BEVOR der Index gebaut wird: eine Spalte, die einer
+// bestehenden Datenbank hinzugefügt wird, steht auf ihrem Vorgabewert und nicht
+// auf der richtigen Antwort — eine Seite, die schon vorher „Kategorie:Orte"
+// hieß, wäre sonst für immer ein gewöhnlicher Artikel.
+namensraeumeNachziehen();
 
 // Suchindex nachziehen, falls er hinter den Seiten hängt — nach einer
 // Wiederherstellung aus einer Sicherung von vor dem Wiki etwa, oder nach einem

@@ -43,6 +43,7 @@ export const RESERVIERTE_SLUGS: ReadonlySet<string> = new Set([
   'neu',
   'suche',
   'kategorie',
+  'kategorien',
   'aenderungen',
   'papierkorb',
   'bilder',

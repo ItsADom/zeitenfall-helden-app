@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ApiError } from '../api';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { zeitText } from './log';
 import type { WikiPapierkorbEintrag } from './api';
@@ -30,8 +31,10 @@ export default function WikiPapierkorb() {
     try {
       await holeZurueck(slug);
       laden();
-    } catch {
-      setFehler('Die Seite konnte nicht zurückgeholt werden.');
+    } catch (e) {
+      // Der Server sagt bei einer inzwischen neu beschriebenen Kategorie
+      // genauer, warum es nicht geht — das ist kein „ging halt nicht".
+      setFehler(e instanceof ApiError && e.status === 409 ? e.message : 'Die Seite konnte nicht zurückgeholt werden.');
     }
   };
 

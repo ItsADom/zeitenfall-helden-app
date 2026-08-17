@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { parseWiki } from '@shared/wikiMarkup';
+import { wikiTagKey } from '@shared/wikiTags';
 import { WIKI_LIMITS } from '@shared/wikiTypen';
-import type { WikiSeiteVoll } from '@shared/wikiTypen';
+import type { WikiKategorie, WikiSeiteVoll } from '@shared/wikiTypen';
 import { ApiError } from '../api';
 import { observeAutosize } from '../components/autosize';
 import { usePersistedState } from '../components/persist';
@@ -13,7 +14,22 @@ import WikiBilder from './Bilder';
 import WikiDiff from './Diff';
 import WikiMarkup from './Markup';
 import WikiSpickzettel from './Spickzettel';
-import { ladeQuelle, speichereSeite } from './api';
+import { ladeKategorien, ladeQuelle, speichereSeite } from './api';
+
+/**
+ * Toggles one category in the comma-separated field, comparing on the folded
+ * key so clicking „NPCs" removes an „npcs" that is already there instead of
+ * adding a second spelling of the same category.
+ */
+function schalteKategorie(feld: string, tag: string): string {
+  const vorhanden = feld
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean);
+  const key = wikiTagKey(tag);
+  const ohne = vorhanden.filter((t) => wikiTagKey(t) !== key);
+  return (ohne.length === vorhanden.length ? [...vorhanden, tag] : ohne).join(', ');
+}
 
 // Editing a page.
 //
@@ -42,6 +58,7 @@ export default function WikiEditor() {
   const [status, setStatus] = useState('');
   const [fehler, setFehler] = useState('');
   const [konflikt, setKonflikt] = useState<{ text: string; autor: string } | null>(null);
+  const [bekannteKategorien, setBekannteKategorien] = useState<WikiKategorie[]>([]);
   const feldRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Survives a crashed tab; cleared the moment a real save succeeds.
@@ -66,6 +83,15 @@ export default function WikiEditor() {
         ),
       );
   }, [slug]);
+
+  // What other pages are already filed under. Without this, „NSC" and „NPC"
+  // become two categories within a week and nobody notices until neither is
+  // complete. Failure is silent on purpose — the field still works typed.
+  useEffect(() => {
+    ladeKategorien()
+      .then((d) => setBekannteKategorien(d.kategorien))
+      .catch(() => setBekannteKategorien([]));
+  }, []);
 
   // The textarea grows with its content instead of scrolling inside itself —
   // no box in this app gets its own scroll area.
@@ -300,6 +326,24 @@ export default function WikiEditor() {
       <div className="field">
         <label>Kategorien (mit Komma getrennt)</label>
         <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="Ort, NPCs" />
+        {bekannteKategorien.length > 0 && (
+          <div className="wiki-tags wiki-tagwahl screen-only">
+            <span className="muted">Schon vergeben:</span>
+            {bekannteKategorien.map((k) => {
+              const gesetzt = tags.split(',').some((t) => wikiTagKey(t) === k.key);
+              return (
+                <button
+                  key={k.key}
+                  type="button"
+                  className={`wiki-tag${gesetzt ? ' active' : ''}`}
+                  onClick={() => setTags(schalteKategorie(tags, k.tag))}
+                >
+                  {k.tag}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="field">
         <label>Was hast du geändert? (erscheint im Änderungsprotokoll)</label>

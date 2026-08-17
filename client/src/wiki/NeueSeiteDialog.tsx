@@ -72,6 +72,10 @@ export default function NeueSeiteDialog({
           }}
           placeholder="z. B. Die Straße nach Gareth"
         />
+        <p className="muted">
+          Beginnt der Titel mit <code>Kategorie:</code> — etwa <code>Kategorie:Orte</code> — entsteht die
+          Beschreibungsseite dieser Kategorie statt eines gewöhnlichen Artikels.
+        </p>
       </div>
       {fehler && <p className="error">{fehler}</p>}
     </Dialog>

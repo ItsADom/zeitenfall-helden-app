@@ -187,6 +187,10 @@ beiden Dateien lassen sich unabhängig voneinander zurückspielen.
 - **Jeder Angemeldete** liest alle Seiten und legt neue an, bearbeitet, benennt
   um und holt ältere Fassungen zurück. Nichts wartet auf eine Freigabe — die
   Aufsicht ist das Änderungsprotokoll, nicht eine Schleuse davor.
+- **Eine Kategorieseite ist eine gewöhnliche Seite.** „Kategorie:Orte" hat
+  Verlauf, Rechte und Suche wie jede andere — auch „nur Spielleiter" und
+  „geschützt" wirken dort genauso. Der Titel entscheidet über den Namensraum;
+  eine Weiterleitung entsteht aus `#WEITERLEITUNG [[Ziel]]` in der ersten Zeile.
 - **Spielleiter** zusätzlich: Seiten auf „nur Spielleiter" oder „geschützt"
   stellen, löschen, den Papierkorb leeren und den Suchindex neu bauen. Nur der
   Spielleiter sieht Nur-SL-Seiten, `gm`-Abschnitte und Nur-SL-Bilder.

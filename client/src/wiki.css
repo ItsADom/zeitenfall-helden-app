@@ -6,9 +6,114 @@
    Achsen (Farbe × hell/dunkel), und ein hart notierter Farbwert bricht sofort
    eine der Varianten. */
 
+.wiki-schale,
 .wiki {
   max-width: 1100px;
   margin: 0 auto;
+}
+
+/* --- Die Wiki-Leiste ---
+   Auf JEDER Wiki-Seite, weil ein Wiki ohne sie keine hat, von der man
+   irgendwohin kommt. Klebt unter der Kopfleiste und misst sich selbst in
+   `--wikikopf-h` (stickyChrome.ts) — die Einträge brechen auf schmalen
+   Fenstern um, und alles, was darunter klebt, rechnet mit dem gemessenen Wert
+   statt mit einem geschätzten. */
+.wiki-leiste {
+  position: sticky;
+  top: var(--topbar-h, 47px);
+  /* Über dem Tabellenkopf (4) und der Bearbeitungsleiste (12), unter der
+     Kopfleiste (20) — die Reihenfolge von oben nach unten. */
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  margin-bottom: 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.wiki-wortmarke {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: var(--text);
+  white-space: nowrap;
+}
+.wiki-wortmarke:hover {
+  color: var(--accent-dark);
+}
+
+/* Nimmt den freien Platz, damit die Navigation rechts steht — und schrumpft
+   zuerst, wenn es eng wird. */
+.wiki-leiste-suche {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+.wiki-leiste-suche input {
+  width: 100%;
+}
+
+.wiki-leiste-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.wiki-leiste-nav a {
+  font-size: 13px;
+  padding: 4px 9px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.wiki-leiste-nav a:hover {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+/* react-router setzt `.active` auf dem passenden NavLink. */
+.wiki-leiste-nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.wiki-brotkrumen {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wiki-brotkrumen a {
+  color: var(--muted);
+}
+.wiki-brotkrumen a:hover {
+  color: var(--accent-dark);
+}
+
+/* Das „Kategorie:" vor dem Namen ist Beiwerk, nicht Teil des Namens. */
+.wiki-namensraum {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.wiki-weitergeleitet {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Man steht auf einem Wegweiser statt auf einem Artikel. */
+.wiki-wegweiser {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-panel);
+  padding: 10px 14px;
+  background: var(--panel);
 }
 
 .wiki-kopf {
@@ -105,8 +210,9 @@
 }
 .wiki-ueberschrift {
   margin: 22px 0 8px;
-  /* Ankersprünge dürfen nicht unter der klebenden Kopfleiste landen. */
-  scroll-margin-top: calc(var(--topbar-h, 47px) + 12px);
+  /* Ankersprünge dürfen weder unter der Kopfleiste noch unter der Wiki-Leiste
+     landen — beide kleben darüber, beide sind gemessen. */
+  scroll-margin-top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px) + 12px);
 }
 .wiki-liste {
   margin: 8px 0 8px 22px;
@@ -485,7 +591,9 @@
 
 .wiki-editorleiste {
   position: sticky;
-  top: var(--topbar-h, 47px);
+  /* Unter der Wiki-Leiste, nicht dahinter. Eigene gemessene Variable je Leiste
+     — so hängt keine davon ab, welche zuerst gemessen wurde. */
+  top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px));
   z-index: 12;
   display: flex;
   align-items: center;
@@ -558,9 +666,57 @@
   background: var(--warn-soft);
 }
 
+/* --- Kategorien ---
+   Der Baum entsteht daraus, dass eine Kategorieseite selbst Kategorien trägt.
+   Deshalb eine schlichte verschachtelte Liste: die Tiefe ist die Aussage. */
+
+.wiki-kat-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-kat-liste li {
+  padding: 3px 0;
+}
+/* Eingerückt und mit Faden, damit die Ebene ohne Zählen erkennbar bleibt. */
+.wiki-kat-liste .wiki-kat-liste {
+  margin-left: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+.wiki-kat-wurzel {
+  margin-top: 8px;
+}
+.wiki-kat-name {
+  font-weight: 600;
+}
+.wiki-kat-zahl {
+  margin-left: 8px;
+  font-size: 12px;
+}
+.wiki-kat-ohne {
+  margin-left: 8px;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Vorhandene Kategorien unter dem Eingabefeld — gegen „NSC" und „NPC"
+   nebeneinander. */
+.wiki-tagwahl {
+  align-items: center;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
 @media (max-width: 700px) {
   .wiki-kopf {
     flex-direction: column;
+  }
+  /* Auf schmalen Fenstern rutscht die Suche unter Wortmarke und Navigation,
+     statt beide auf Briefmarkengröße zu quetschen. */
+  .wiki-leiste-suche {
+    order: 3;
+    flex-basis: 100%;
   }
 }
 

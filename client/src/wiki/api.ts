@@ -1,6 +1,13 @@
 // Typed wrappers over the shared fetch helpers. Nothing clever — just one place
 // that knows the wiki's URL shapes, so a route rename is one edit.
-import type { WikiKategorie, WikiLogEintrag, WikiSeiteInfo, WikiSeiteVoll, WikiTreffer } from '@shared/wikiTypen';
+import type {
+  WikiKategorie,
+  WikiKategorieAnsicht,
+  WikiLogEintrag,
+  WikiSeiteInfo,
+  WikiSeiteVoll,
+  WikiTreffer,
+} from '@shared/wikiTypen';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 
 export interface SeiteAntwort {
@@ -14,7 +21,13 @@ export interface SeiteAntwort {
 
 export const ladeListe = () => apiGet<{ seiten: WikiSeiteInfo[] }>('/api/wiki/seiten');
 
-export const ladeSeite = (slug: string) => apiGet<SeiteAntwort>(`/api/wiki/seiten/${encodeURIComponent(slug)}`);
+/**
+ * `folgen: false` stops on a redirect page instead of being sent to its target
+ * — the „(weitergeleitet von …)" note links here, and it is the only way to
+ * reach a wrong signpost in order to fix it.
+ */
+export const ladeSeite = (slug: string, folgen = true) =>
+  apiGet<SeiteAntwort>(`/api/wiki/seiten/${encodeURIComponent(slug)}${folgen ? '' : '?folgen=nein'}`);
 
 /**
  * The editor's payload. Deliberately a different endpoint from ladeSeite: it
@@ -98,9 +111,7 @@ export const sucheSeiten = (q: string) =>
 export const ladeKategorien = () => apiGet<{ kategorien: WikiKategorie[] }>('/api/wiki/kategorien');
 
 export const ladeKategorie = (tag: string) =>
-  apiGet<{ seiten: { slug: string; titel: string; auszug: string }[] }>(
-    `/api/wiki/kategorie/${encodeURIComponent(tag)}`,
-  );
+  apiGet<WikiKategorieAnsicht>(`/api/wiki/kategorie/${encodeURIComponent(tag)}`);
 
 // --- Nur Spielleitung ---
 

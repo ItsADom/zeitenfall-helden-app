@@ -10,10 +10,10 @@ import express, { Router } from 'express';
 import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
 import { bildFuer, bilderFuerSeite, legeBildAn, loescheBild, markiereBildGmOnly } from './bilder.js';
-import { WikiGeschuetzt, WikiKonflikt } from './seiten.js';
-import { ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
+import { WikiGeschuetzt, WikiKonflikt, WikiTitelVergeben } from './seiten.js';
+import { folgeWeiterleitung, ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
-import { kategorien, neuIndizieren, seitenInKategorie, sucheSeiten } from './suche.js';
+import { kategorieAnsicht, kategorien, neuIndizieren, sucheSeiten } from './suche.js';
 import { endgueltigLoeschen, loescheSeite, papierkorb, setzeFlag, stelleSeiteHer } from './verwaltung.js';
 import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
 import { darfBearbeiten, seiteFuer } from './zugriff.js';
@@ -52,8 +52,16 @@ wikiApi.post('/seiten', requireAuth, (req, res) => {
     res.status(400).json({ error: 'Titel ist zu lang' });
     return;
   }
-  const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel);
-  res.json({ slug: seite.slug });
+  try {
+    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel);
+    res.json({ slug: seite.slug });
+  } catch (err) {
+    if (err instanceof WikiTitelVergeben) {
+      res.status(409).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 wikiApi.get('/seiten/:slug', requireAuth, (req, res) => {
@@ -63,8 +71,21 @@ wikiApi.get('/seiten/:slug', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Seite nicht gefunden' });
     return;
   }
+  // „#WEITERLEITUNG [[Ziel]]" lands the reader on the target — unless they came
+  // through the „(weitergeleitet von …)" note, which is how a wrong signpost
+  // gets reached and repaired.
+  const folgen = !/^(0|nein|false)$/i.test(String(req.query.folgen ?? ''));
+  const ziel = folgen ? folgeWeiterleitung(user, seite) : null;
   // A hit through the alias table answers under the canonical slug so the
   // client can replace the URL instead of keeping a stale one.
+  if (ziel) {
+    // `kanonisch` stays the SIGNPOST's address, not the target's: the client
+    // replaces the URL whenever the two differ, and rewriting it here would
+    // bounce straight onto the target and lose the „weitergeleitet von" note
+    // that is the only way back to the redirect page.
+    res.json({ seite: ladeSeite(user, ziel, 'lesen', seite), kanonisch: seite.slug });
+    return;
+  }
   res.json({ seite: ladeSeite(user, seite), kanonisch: seite.slug });
 });
 
@@ -121,6 +142,10 @@ wikiApi.put('/seiten/:slug', requireAuth, (req, res) => {
     }
     if (err instanceof WikiGeschuetzt) {
       res.status(403).json({ error: 'Diese Seite ist geschützt' });
+      return;
+    }
+    if (err instanceof WikiTitelVergeben) {
+      res.status(409).json({ error: err.message });
       return;
     }
     throw err;
@@ -212,7 +237,9 @@ wikiApi.get('/aenderungen/filter', requireAuth, (req, res) => {
   const user = leser(req);
   res.json({
     autoren: autoren(user),
-    seiten: listeSeiten(user).map((s) => ({ slug: s.slug, titel: s.titel })),
+    // Everything somebody could have edited, category pages and redirects
+    // included — the filter offers what the log can contain.
+    seiten: listeSeiten(user, { alle: true }).map((s) => ({ slug: s.slug, titel: s.titel })),
   });
 });
 
@@ -326,7 +353,7 @@ wikiApi.get('/kategorien', requireAuth, (req, res) => {
 });
 
 wikiApi.get('/kategorie/:tag', requireAuth, (req, res) => {
-  res.json({ seiten: seitenInKategorie(leser(req), String(req.params.tag)) });
+  res.json(kategorieAnsicht(leser(req), String(req.params.tag)));
 });
 
 /** Manual repair for the GM. indexNachziehen() covers the automatic cases. */
@@ -374,9 +401,19 @@ wikiApi.get('/papierkorb', requireAuth, requireGm, (_req, res) => {
 wikiApi.post('/papierkorb/:slug', requireAuth, requireGm, (req, res) => {
   const user = leser(req);
   const seite = seiteFuer(user, String(req.params.slug));
-  if (!seite || !stelleSeiteHer(user, seite)) {
-    res.status(404).json({ error: 'Seite nicht gefunden' });
-    return;
+  try {
+    if (!seite || !stelleSeiteHer(user, seite)) {
+      res.status(404).json({ error: 'Seite nicht gefunden' });
+      return;
+    }
+  } catch (err) {
+    // Die Kategorie wurde inzwischen neu beschrieben — das ist etwas anderes
+    // als „gibt es nicht" und verdient eine Meldung, die das sagt.
+    if (err instanceof WikiTitelVergeben) {
+      res.status(409).json({ error: `${err.message} — diese Kategorie hat schon wieder eine Beschreibung.` });
+      return;
+    }
+    throw err;
   }
   res.json({ slug: seite.slug });
 });

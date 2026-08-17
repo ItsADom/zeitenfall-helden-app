@@ -386,6 +386,34 @@ chips. Backend table `char_special_resources`. Open for the full version:
   typo. Same decision as the bio page's, and it should stay one decision for
   both.
 
+- **wiki: Steckbriefe, dann Vorlagen** (concept settled, deliberately deferred —
+  the navigation/category/redirect round shipped without it). Two steps, in this
+  order, because the first is the visible half and carries none of the second's
+  cost:
+   - **Steckbrief block** — a ` ```infobox ` fence of `Schlüssel: Wert` lines,
+     rendered as the floated box every Wikipedia article has. A parser node plus
+     CSS; no reuse machinery, no staleness, no recursion.
+   - **Transclusion** — `{{Vorlage:NSC|name=Alrik}}`, where a Vorlage is a page
+     in a `vorlage` namespace (the `namensraum` column already carries one) whose
+     text holds an infobox with `{{{name}}}` placeholders. Named parameters and
+     defaults only; **no conditionals or parser functions** — that is where
+     Wikipedia's template language becomes a programming language nobody can
+     debug.
+   - Two constraints that are not optional if this gets built: expansion happens
+     **server-side on the read path, before the GM strip** (a Vorlage may contain
+     a ` ```gm ` region, so the order is expand → strip, never the reverse), and
+     it must **never touch the source the editor loads**, or the `[[gm:n]]`
+     marker scheme breaks and a save writes the expanded text back.
+   - The search index keeps storing the **unexpanded** source. Otherwise editing
+     one Vorlage silently stales fifty pages' index entries (Wikipedia runs a job
+     queue for exactly this) — and every NSC page would match „Rüstungsschutz"
+     because the boilerplate says so.
+
+- **wiki: Beobachtungsliste — decided AGAINST for now.** A per-page watchlist
+  duplicates what the „N Änderungen seit deinem letzten Besuch" badge already
+  does for a group this size. Revisit only if notifications land; that sketch is
+  its proper home.
+
 - **Discord feedback → TODO scan** (concept agreed; needs bot setup before build)
    - A local CLI script (like the changelog test flags) reads the feedback
      **forum channel** via a real Discord **Bot** (not the existing webhook —

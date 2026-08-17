@@ -561,3 +561,31 @@ export function quelleOhneGm(quelle: string): string {
     .filter((z) => !GM_PLATZHALTER.test(z.trim()))
     .join('\n');
 }
+
+// A page whose first line is `#WEITERLEITUNG [[Ziel]]` is a signpost, not an
+// article. `#REDIRECT` is accepted too — it is what anyone who has edited
+// Wikipedia in English will type, and refusing it would only produce a page
+// with a strange heading.
+//
+// The `#` doubles as the heading marker, so a redirect that cannot be followed
+// (missing target) renders as a heading. The read view catches that case and
+// shows the signpost instead, rather than a page shouting „WEITERLEITUNG".
+const WEITERLEITUNG = /^#\s*(?:WEITERLEITUNG|REDIRECT)\s*\[\[([^\]|]+)\]\]/i;
+
+/**
+ * The slug this page redirects to, or null if it is an ordinary page.
+ *
+ * Reads the source rather than the tree because the marker has to be the FIRST
+ * thing on the page: allowing it anywhere would mean a redirect could hide at
+ * the bottom of a long article and teleport readers away from text that is
+ * still there.
+ */
+export function weiterleitungsZiel(quelle: string): string | null {
+  for (const zeile of (quelle ?? '').replace(/\r\n?/g, '\n').split('\n')) {
+    if (!zeile.trim()) continue;
+    const treffer = WEITERLEITUNG.exec(zeile.trim());
+    if (!treffer) return null;
+    return wikiSlug(treffer[1].trim()) || null;
+  }
+  return null;
+}

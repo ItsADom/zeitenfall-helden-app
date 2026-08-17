@@ -12,7 +12,7 @@
 import { parseWiki } from 'shared';
 import { db } from '../db.js';
 import { assetsFuer, loescheAssetsFuer } from '../assets/store.js';
-import { loescheIndex, schreibeIndex, schreibeLog } from './seiten.js';
+import { WikiTitelVergeben, loescheIndex, schreibeIndex, schreibeLog } from './seiten.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
 
 export interface PapierkorbEintrag {
@@ -89,9 +89,27 @@ export function loescheSeite(user: Autor, seite: WikiSeiteRow): boolean {
   return true;
 }
 
-/** Back out of the trash, index included. */
+/**
+ * Back out of the trash, index included.
+ *
+ * A category page can only come back if its category is still free: somebody
+ * may have written a new „Kategorie:Orte" while the old one sat in the trash,
+ * and two description pages for one category is exactly the state the unique
+ * index exists to prevent. Refusing here turns that into a clear message
+ * instead of a constraint violation.
+ */
 export function stelleSeiteHer(user: Autor, seite: WikiSeiteRow): boolean {
   if (!seite.geloescht_at) return false;
+  if (seite.kategorie_key) {
+    const belegt = db
+      .prepare(
+        "SELECT 1 FROM wiki_pages WHERE kategorie_key = ? AND namensraum = 'kategorie' AND geloescht_at IS NULL AND id <> ?",
+      )
+      .get(seite.kategorie_key, seite.id);
+    // Thrown, not returned false: the caller maps false onto „gibt es nicht",
+    // and that is the one thing this is not.
+    if (belegt) throw new WikiTitelVergeben(seite.titel);
+  }
   const text =
     (db.prepare('SELECT text FROM wiki_revisions WHERE id = ?').get(seite.aktuelle_rev) as
       | { text: string | null }

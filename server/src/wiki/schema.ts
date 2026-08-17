@@ -28,6 +28,16 @@ db.exec(`
     geschuetzt INTEGER NOT NULL DEFAULT 0,
     -- Weiches Löschen: ein Abend Arbeit verschwindet nicht durch einen Fehlklick.
     geloescht_at TEXT,
+    -- 'seite' | 'kategorie'. Ergibt sich aus dem Titel („Kategorie:Orte"), damit
+    -- eine Kategorie eine ganz normale Seite ist — mit Verlauf, Rechten, Suche.
+    namensraum TEXT NOT NULL DEFAULT 'seite',
+    -- Nur bei namensraum='kategorie': der gefaltete Schlüssel, unter dem die
+    -- Seiten dieser Kategorie in wiki_page_tags stehen. Bewusst gespeichert und
+    -- nicht aus dem Slug abgeleitet — freierSlug() kann „kategorie-orte-2"
+    -- vergeben, und eine Suche über den Slug fände die Seite dann nicht mehr.
+    kategorie_key TEXT,
+    -- Ziel-Slug, wenn die Seite ein Wegweiser ist (#WEITERLEITUNG [[…]]).
+    weiterleitung TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
@@ -89,6 +99,29 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_wiki_tags_key ON wiki_page_tags (tag_key);
 
+`);
+
+// Nachgereichte Spalten von wiki_pages. Die Tabelle steht in freier Wildbahn
+// schon, deshalb reicht `CREATE TABLE IF NOT EXISTS` oben für sie nicht mehr —
+// dort stehen sie trotzdem, damit eine frische Datenbank das Schema an einem
+// Stück beschreibt und niemand die Definition aus zwei Stellen zusammensucht.
+{
+  const spalten = (db.prepare('PRAGMA table_info(wiki_pages)').all() as { name: string }[]).map((c) => c.name);
+  if (!spalten.includes('namensraum')) {
+    db.exec("ALTER TABLE wiki_pages ADD COLUMN namensraum TEXT NOT NULL DEFAULT 'seite'");
+  }
+  if (!spalten.includes('kategorie_key')) db.exec('ALTER TABLE wiki_pages ADD COLUMN kategorie_key TEXT');
+  if (!spalten.includes('weiterleitung')) db.exec('ALTER TABLE wiki_pages ADD COLUMN weiterleitung TEXT');
+}
+
+db.exec(`
+  -- Eine Kategorie hat höchstens EINE Beschreibungsseite. Der Teilindex nimmt
+  -- gelöschte Seiten aus: sonst blockierte eine im Papierkorb liegende
+  -- „Kategorie:Orte" das Neuanlegen derselben Kategorie auf Dauer.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_wiki_kategorie_key
+    ON wiki_pages (kategorie_key)
+    WHERE kategorie_key IS NOT NULL AND geloescht_at IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_wiki_weiterleitung ON wiki_pages (weiterleitung);
 `);
 
 // Wasserstand je Nutzer für „N Änderungen seit deinem letzten Besuch".

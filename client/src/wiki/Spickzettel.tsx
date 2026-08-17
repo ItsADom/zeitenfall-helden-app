@@ -17,6 +17,10 @@ interface Zeile {
 
 const BLOCK: Zeile[] = [
   { code: '# Überschrift', was: 'Überschrift (## und ### für Unterebenen)' },
+  {
+    code: '#WEITERLEITUNG [[Gareth]]',
+    was: 'Ganz oben als erste Zeile: die Seite wird zum Wegweiser auf eine andere',
+  },
   { code: '- Punkt', was: 'Aufzählung' },
   { code: '1. Punkt', was: 'Nummerierte Liste' },
   { code: '> Zitat', was: 'Eingerückter Kasten' },

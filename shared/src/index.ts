@@ -14,3 +14,4 @@ export * from './wikiMarkup.js';
 export * from './wikiDiff.js';
 export * from './wikiSuche.js';
 export * from './wikiTags.js';
+export * from './wikiNamensraum.js';

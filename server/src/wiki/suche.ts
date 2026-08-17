@@ -17,11 +17,11 @@
 // public text, wiki_fts_gm the full text. A player's snippet therefore cannot
 // quote a GM-only block even by accident, because that text is not in the
 // table they searched.
-import { ftsAnfrage, parseWiki, wikiTagKey } from 'shared';
-import type { WikiKategorie, WikiTreffer } from 'shared';
+import { ftsAnfrage, parseWiki, teileTitel, wikiTagKey } from 'shared';
+import type { WikiKategorie, WikiKategorieAnsicht, WikiTreffer } from 'shared';
 import { db } from '../db.js';
 import { HAT_FTS } from './schema.js';
-import { schreibeIndex } from './seiten.js';
+import { kategorieSeite, ladeSeite, schreibeIndex } from './seiten.js';
 import type { WikiLeser } from './zugriff.js';
 import { sichtbarkeitsFilter } from './zugriff.js';
 
@@ -80,31 +80,109 @@ export function sucheSeiten(user: WikiLeser, roh: string): WikiTreffer[] {
   }
 }
 
-/** Every category with the number of visible pages in it. */
+/**
+ * Every category, with its own description page and its place in the tree.
+ *
+ * A category exists as soon as one page carries the tag — and also as soon as
+ * somebody writes „Kategorie:Orte" without anything being in it yet, which is
+ * how you build a structure before filling it. Hence the UNION: the tag table
+ * alone would miss the empty ones, the page table alone the undescribed ones.
+ *
+ * Pages and subcategories are counted apart, the way Wikipedia lists them.
+ */
 export function kategorien(user: WikiLeser): WikiKategorie[] {
   const filter = sichtbarkeitsFilter(user);
-  return db
+  const zeilen = db
     .prepare(
-      `SELECT t.tag_key AS key, MIN(t.tag) AS tag, COUNT(*) AS anzahl
+      `SELECT t.tag_key AS key,
+              MIN(t.tag)                                        AS tag,
+              SUM(CASE WHEN p.namensraum = 'seite'     THEN 1 ELSE 0 END) AS anzahl,
+              SUM(CASE WHEN p.namensraum = 'kategorie' THEN 1 ELSE 0 END) AS unterAnzahl
          FROM wiki_page_tags t JOIN wiki_pages p ON p.id = t.page_id
         WHERE ${filter.sql} AND p.geloescht_at IS NULL
-        GROUP BY t.tag_key
-        ORDER BY tag COLLATE NOCASE`,
+        GROUP BY t.tag_key`,
     )
-    .all(...filter.args) as WikiKategorie[];
+    .all(...filter.args) as { key: string; tag: string; anzahl: number; unterAnzahl: number }[];
+
+  const nachKey = new Map(zeilen.map((z) => [z.key, { ...z, seitenSlug: null as string | null, eltern: [] as string[] }]));
+
+  // The description pages: they supply the display spelling for an empty
+  // category, and their own tags are what makes the tree a tree.
+  const seiten = db
+    .prepare(
+      `SELECT p.kategorie_key AS key, p.slug AS slug, p.titel AS titel
+         FROM wiki_pages p
+        WHERE p.namensraum = 'kategorie' AND p.kategorie_key IS NOT NULL
+          AND ${filter.sql} AND p.geloescht_at IS NULL`,
+    )
+    .all(...filter.args) as { key: string; slug: string; titel: string }[];
+
+  for (const s of seiten) {
+    const vorhanden = nachKey.get(s.key);
+    if (vorhanden) {
+      vorhanden.seitenSlug = s.slug;
+      continue;
+    }
+    nachKey.set(s.key, {
+      key: s.key,
+      tag: teileTitel(s.titel).name,
+      anzahl: 0,
+      unterAnzahl: 0,
+      seitenSlug: s.slug,
+      eltern: [],
+    });
+  }
+
+  // Parents, read off the description pages' own categories.
+  const eltern = db
+    .prepare(
+      `SELECT p.kategorie_key AS kind, t.tag_key AS elternKey
+         FROM wiki_pages p JOIN wiki_page_tags t ON t.page_id = p.id
+        WHERE p.namensraum = 'kategorie' AND p.kategorie_key IS NOT NULL
+          AND ${filter.sql} AND p.geloescht_at IS NULL`,
+    )
+    .all(...filter.args) as { kind: string; elternKey: string }[];
+  for (const e of eltern) nachKey.get(e.kind)?.eltern.push(e.elternKey);
+
+  return [...nachKey.values()].sort((a, b) => a.tag.localeCompare(b.tag, 'de'));
 }
 
-/** The pages in one category, matched on the folded key („NPCs" = „npcs"). */
+/** The ordinary pages in one category, matched on the folded key („NPCs" = „npcs"). */
 export function seitenInKategorie(user: WikiLeser, tag: string): { slug: string; titel: string; auszug: string }[] {
   const filter = sichtbarkeitsFilter(user);
   return db
     .prepare(
       `SELECT p.slug AS slug, p.titel AS titel, p.auszug AS auszug
          FROM wiki_page_tags t JOIN wiki_pages p ON p.id = t.page_id
-        WHERE t.tag_key = ? AND ${filter.sql} AND p.geloescht_at IS NULL
+        WHERE t.tag_key = ? AND p.namensraum = 'seite'
+          AND ${filter.sql} AND p.geloescht_at IS NULL
         ORDER BY p.titel COLLATE NOCASE`,
     )
     .all(wikiTagKey(tag), ...filter.args) as { slug: string; titel: string; auszug: string }[];
+}
+
+/**
+ * Everything the view of one category needs, in one round trip: its description
+ * page (an ordinary page, so it goes through ladeSeite and gets the same GM
+ * treatment as any other), its subcategories, its pages, and the categories it
+ * belongs to itself.
+ */
+export function kategorieAnsicht(user: WikiLeser, tagRoh: string): WikiKategorieAnsicht {
+  const key = wikiTagKey(tagRoh);
+  const alle = kategorien(user);
+  const eigen = alle.find((k) => k.key === key);
+  const seite = kategorieSeite(user, key);
+
+  return {
+    key,
+    // The description page's own title wins over whatever spelling the tags
+    // happen to carry: somebody wrote it down there deliberately.
+    tag: seite ? teileTitel(seite.titel).name : (eigen?.tag ?? tagRoh),
+    seite: seite ? ladeSeite(user, seite) : null,
+    unterkategorien: alle.filter((k) => k.eltern.includes(key)),
+    seiten: seitenInKategorie(user, key),
+    eltern: eigen?.eltern ?? [],
+  };
 }
 
 /**

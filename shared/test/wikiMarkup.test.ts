@@ -13,6 +13,7 @@ import {
   sammleLinks,
   stelleGmBloeckeHer,
   verbergeGmBloecke,
+  weiterleitungsZiel,
 } from '../src/wikiMarkup.js';
 
 const bloecke = (quelle: string): WikiBlock[] => parseWiki(quelle).bloecke;
@@ -327,5 +328,40 @@ describe('Robustheit', () => {
   it('accepts empty and whitespace-only input', () => {
     expect(parseWiki('').bloecke).toEqual([]);
     expect(parseWiki('   \n\n  ').bloecke).toEqual([]);
+  });
+});
+
+describe('weiterleitungsZiel', () => {
+  it('reads the target as a slug', () => {
+    expect(weiterleitungsZiel('#WEITERLEITUNG [[Gareth]]')).toBe('gareth');
+    expect(weiterleitungsZiel('#WEITERLEITUNG [[Die Straße nach Gareth]]')).toBe('die-strasse-nach-gareth');
+  });
+
+  it('accepts #REDIRECT, spacing and casing', () => {
+    expect(weiterleitungsZiel('#REDIRECT [[Gareth]]')).toBe('gareth');
+    expect(weiterleitungsZiel('# weiterleitung[[Gareth]]')).toBe('gareth');
+    expect(weiterleitungsZiel('  #WEITERLEITUNG  [[Gareth]]  ')).toBe('gareth');
+  });
+
+  it('skips leading blank lines but nothing else', () => {
+    expect(weiterleitungsZiel('\n\n  \n#WEITERLEITUNG [[Gareth]]')).toBe('gareth');
+  });
+
+  it('ignores the marker anywhere but at the top', () => {
+    // Otherwise a redirect could hide at the bottom of a long article and
+    // teleport readers away from text that is still there.
+    expect(weiterleitungsZiel('Ein Absatz.\n\n#WEITERLEITUNG [[Gareth]]')).toBeNull();
+    expect(weiterleitungsZiel('# Überschrift\n#WEITERLEITUNG [[Gareth]]')).toBeNull();
+  });
+
+  it('is null for an ordinary page', () => {
+    expect(weiterleitungsZiel('')).toBeNull();
+    expect(weiterleitungsZiel('# Gareth\n\nEine Stadt.')).toBeNull();
+    expect(weiterleitungsZiel('#WEITERLEITUNG ohne Ziel')).toBeNull();
+    expect(weiterleitungsZiel('#WEITERLEITUNG [[]]')).toBeNull();
+  });
+
+  it('does not fall for a pipe — a redirect has no display text', () => {
+    expect(weiterleitungsZiel('#WEITERLEITUNG [[Gareth|die Stadt]]')).toBeNull();
   });
 });
