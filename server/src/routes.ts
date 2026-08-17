@@ -14,6 +14,7 @@ import {
 } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { wikiApi } from './wiki/router.js';
+import { loescheAssetsFuer } from './assets/store.js';
 import { db, initCharacterRows } from './db.js';
 import {
   MAX_TABLE_COLUMNS,
@@ -908,7 +909,14 @@ api.put('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
 });
 
 api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
-  db.prepare('DELETE FROM characters WHERE id = ?').run(Number(req.params.id));
+  const id = Number(req.params.id);
+  db.prepare('DELETE FROM characters WHERE id = ?').run(id);
+  // Bilder liegen in einer ZWEITEN Datei (helden-assets.db), und SQLite kann
+  // nicht über Dateigrenzen kaskadieren — der Haken muss von Hand gesetzt sein.
+  // Heute noch ein Leerlauf (Porträts liegen weiterhin in char_portraits), aber
+  // er steht hier, bevor er gebraucht wird. Ein wöchentlicher Durchlauf fängt
+  // ohnehin ab, was hier durchrutscht.
+  loescheAssetsFuer('character', id);
   res.json({ ok: true });
 });
 

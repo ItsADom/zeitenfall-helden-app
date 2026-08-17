@@ -9,6 +9,7 @@ import { usePersistedState } from '../components/persist';
 import { useWikiBarHeight } from '../components/stickyChrome';
 import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import WikiBilder from './Bilder';
 import WikiDiff from './Diff';
 import WikiMarkup from './Markup';
 import WikiSpickzettel from './Spickzettel';
@@ -155,6 +156,33 @@ export default function WikiEditor() {
     }
   }, [slug, setEntwurf]);
 
+  /**
+   * Drops markup in at the caret. Appending at the end would be simpler and
+   * wrong: an image belongs where the author was writing, and hunting for it at
+   * the bottom of the source afterwards is exactly the friction that stops
+   * people using pictures at all.
+   */
+  const einfuegen = useCallback((markup: string) => {
+    const feld = feldRef.current;
+    if (!feld) {
+      setText((t) => `${t}\n\n${markup}\n`);
+      return;
+    }
+    const von = feld.selectionStart ?? feld.value.length;
+    const bis = feld.selectionEnd ?? von;
+    // Bildmarken müssen allein auf ihrer Zeile stehen — sonst sind sie Text.
+    const davor = feld.value.slice(0, von);
+    const danach = feld.value.slice(bis);
+    const block = `${davor.endsWith('\n') || !davor ? '' : '\n'}${markup}\n${danach.startsWith('\n') ? '' : '\n'}`;
+    setText(davor + block + danach);
+    setAnsicht('schreiben');
+    requestAnimationFrame(() => {
+      feld.focus();
+      const ende = (davor + block).length;
+      feld.setSelectionRange(ende, ende);
+    });
+  }, []);
+
   // Ctrl+S is what everyone's fingers already do in an editor.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -261,6 +289,8 @@ export default function WikiEditor() {
           <WikiMarkup doc={parseWiki(text)} ziele={seite.linkZiele} />
         </div>
       )}
+
+      <WikiBilder slug={seite.slug} istGm={user.isGm} onEinfuegen={einfuegen} />
 
       <WikiSpickzettel istGm={user.isGm} />
 

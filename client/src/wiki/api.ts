@@ -1,7 +1,7 @@
 // Typed wrappers over the shared fetch helpers. Nothing clever — just one place
 // that knows the wiki's URL shapes, so a route rename is one edit.
 import type { WikiKategorie, WikiLogEintrag, WikiSeiteInfo, WikiSeiteVoll, WikiTreffer } from '@shared/wikiTypen';
-import { apiGet, apiPost, apiPut } from '../api';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 
 export interface SeiteAntwort {
   seite: WikiSeiteVoll;
@@ -72,6 +72,25 @@ export const ladeAenderungen = (filter: AenderungsFilter = {}) => {
   }
   return apiGet<{ eintraege: WikiLogEintrag[] }>(`/api/wiki/aenderungen?${p}`);
 };
+
+export interface WikiBildInfo {
+  slug: string;
+  titel: string;
+  mime: string;
+  bytes: number;
+  breite: number;
+  hoehe: number;
+  pos: number;
+  gmOnly: boolean;
+  uploaderName: string;
+  erstelltAm: string;
+}
+
+export const ladeBilder = (slug: string) =>
+  apiGet<{ bilder: WikiBildInfo[] }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/bilder`);
+
+export const loescheBild = (slug: string, bild: string) =>
+  apiDelete<{ ok: true }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/bilder/${encodeURIComponent(bild)}`);
 
 export const sucheSeiten = (q: string) =>
   apiGet<{ q: string; treffer: WikiTreffer[] }>(`/api/wiki/suche?q=${encodeURIComponent(q)}`);

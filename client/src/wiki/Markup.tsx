@@ -145,11 +145,16 @@ function BlockKnoten({ block, ziele }: { block: WikiBlock; ziele: LinkZiele }) {
         </div>
       );
     case 'bild':
-      // Images arrive with the assets database; until then the reference is
-      // shown as a placeholder rather than a broken picture.
+      // The bytes come from helden-assets.db through the wiki's own route,
+      // which repeats the page's visibility check — so a picture a reader may
+      // not have simply does not load, rather than being hidden by CSS.
       return (
         <figure className="wiki-bild">
-          <div className="wiki-bild-platzhalter muted">Bild „{block.slug}" — Bilder kommen später.</div>
+          <img
+            src={`/api/wiki/bilder/${encodeURIComponent(block.slug)}`}
+            alt={block.unterschrift || 'Bild'}
+            loading="lazy"
+          />
           {block.unterschrift && <figcaption>{block.unterschrift}</figcaption>}
         </figure>
       );

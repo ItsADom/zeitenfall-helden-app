@@ -6,9 +6,10 @@
 //
 // Mounted from routes.ts with one line. The alternative — appending to a file
 // that is already 1461 lines — is how that file got to 1461 lines.
-import { Router } from 'express';
+import express, { Router } from 'express';
 import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
+import { bildFuer, bilderFuerSeite, legeBildAn, loescheBild, markiereBildGmOnly } from './bilder.js';
 import { WikiGeschuetzt, WikiKonflikt } from './seiten.js';
 import { ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
@@ -212,6 +213,106 @@ wikiApi.get('/aenderungen/filter', requireAuth, (req, res) => {
     autoren: autoren(user),
     seiten: listeSeiten(user).map((s) => ({ slug: s.slug, titel: s.titel })),
   });
+});
+
+// --- Bilder ---
+//
+// The bytes live in helden-assets.db, on their own weekly backup cycle. The
+// access rule lives in bilder.ts; this layer only maps null onto 404.
+
+wikiApi.get('/bilder/:slug', requireAuth, (req, res) => {
+  const bild = bildFuer(leser(req), String(req.params.slug));
+  if (!bild) {
+    res.status(404).end();
+    return;
+  }
+  res.type(bild.mime);
+  // Ein Bild ändert sich nie unter derselben Adresse — der Slug ist einmalig.
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.send(bild.data);
+});
+
+wikiApi.get('/seiten/:slug/bilder', requireAuth, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  // Ein Spieler sieht die Nur-SL-Bilder der Seite gar nicht erst in der Liste.
+  const bilder = bilderFuerSeite(seite).filter((b) => user.isGm || !b.gmOnly);
+  res.json({ bilder });
+});
+
+wikiApi.put(
+  '/seiten/:slug/bilder',
+  requireAuth,
+  // Eigener Body-Parser wie beim Porträt: express.json lässt Nicht-JSON durch,
+  // und das Bild kommt roh. 3 MB deckt ein herunterskaliertes Foto reichlich ab.
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const user = leser(req);
+    const seite = seiteFuer(user, String(req.params.slug));
+    if (!seite) {
+      res.status(404).json({ error: 'Seite nicht gefunden' });
+      return;
+    }
+    if (!darfBearbeiten(user, seite)) {
+      res.status(403).json({ error: 'Diese Seite ist geschützt' });
+      return;
+    }
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const slug = legeBildAn(seite, {
+      titel: String(req.query.titel ?? 'Bild').slice(0, WIKI_LIMITS.TITEL_MAX),
+      mime: String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim(),
+      data: buf,
+      // Nur die Spielleitung darf ein Bild als „nur Spielleiter" einstellen.
+      gmOnly: user.isGm && /^(1|true)$/i.test(String(req.query.nurSl ?? '')),
+      hochgeladenVon: { id: user.id, name: user.name },
+    });
+    if (!slug) {
+      res.status(503).json({ error: 'Die Bilddatenbank ist nicht verfügbar' });
+      return;
+    }
+    res.json({ slug });
+  },
+);
+
+wikiApi.put('/seiten/:slug/bilder/:bild', requireAuth, requireGm, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  const ok = markiereBildGmOnly(seite, String(req.params.bild), !!(req.body ?? {}).gmOnly);
+  if (!ok) {
+    res.status(404).json({ error: 'Bild nicht gefunden' });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+wikiApi.delete('/seiten/:slug/bilder/:bild', requireAuth, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  if (!darfBearbeiten(user, seite)) {
+    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    return;
+  }
+  if (!loescheBild(seite, String(req.params.bild))) {
+    res.status(404).json({ error: 'Bild nicht gefunden' });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 wikiApi.get('/suche', requireAuth, (req, res) => {

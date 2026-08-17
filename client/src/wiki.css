@@ -157,12 +157,72 @@
 .wiki-bild {
   margin: 14px 0;
 }
-.wiki-bild-platzhalter {
-  border: 1px dashed var(--border-strong);
+.wiki-bild img {
+  max-width: 100%;
+  height: auto;
   border-radius: var(--radius-panel);
-  padding: 18px;
-  text-align: center;
+  border: 1px solid var(--border-soft);
+}
+.wiki-bild figcaption {
+  margin-top: 4px;
   font-size: 13px;
+  color: var(--muted);
+}
+
+/* --- Bilderverwaltung im Editor --- */
+
+.wiki-bild-aktionen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.wiki-bild-nursl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.wiki-bild-hinweis {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.wiki-bildliste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-bildliste li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-bildliste img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-sunken);
+}
+.wiki-bildliste-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+}
+.wiki-bildliste-text .wiki-marke {
+  align-self: flex-start;
+}
+.wiki-bildliste-aktionen {
+  display: flex;
+  gap: 6px;
 }
 
 /* GM-Block: erreicht ohnehin nur die Spielleitung — der Server entfernt diese

@@ -126,9 +126,12 @@ eigener Domain den benannten Tunnel einrichten (`cloudflared tunnel login`).
 | `ADMIN_PASSWORD` | — | Passwort dazu — nur beim Anlegen, setzt später nichts zurück |
 | `ADMIN_NAME` | = `ADMIN_USER` | Anzeigename des zweiten Kontos |
 | `HELDEN_DB` | `server/data/helden.db` | Pfad zur SQLite-Datei |
-| `BACKUP_DIR` | `server/data/backups` | Ablage der täglichen Sicherungen |
-| `BACKUP_KEEP` | `14` | Anzahl aufbewahrter Sicherungen (ältere werden gelöscht) |
-| `BACKUP_INTERVAL_HOURS` | `24` | Abstand zwischen den Sicherungsläufen |
+| `HELDEN_ASSETS_DB` | `server/data/helden-assets.db` | Zweite Datei, nur für Bilder (Wiki, später Porträts) |
+| `BACKUP_DIR` | `server/data/backups` | Ablage beider Sicherungsreihen |
+| `BACKUP_KEEP` | `14` | Aufbewahrte Sicherungen von `helden.db` |
+| `BACKUP_INTERVAL_HOURS` | `24` | Abstand der Sicherungsläufe für `helden.db` |
+| `BACKUP_ASSETS_KEEP` | `8` | Aufbewahrte Sicherungen von `helden-assets.db` (≈ zwei Monate) |
+| `BACKUP_ASSETS_INTERVAL_HOURS` | `168` | Abstand der Bilder-Sicherung — wöchentlich; steuert auch den Aufräumlauf für verwaiste Bilder |
 
 ## Zweites Spielleiter-Konto
 
@@ -153,9 +156,22 @@ das nicht). Pro Tag entsteht **eine** Sicherung; eine bereits vorhandene wird ni
 überschrieben, damit ein Neustart mit beschädigtem Stand die gute Kopie des Tages
 nicht ersetzt. Ältere Sicherungen jenseits von `BACKUP_KEEP` werden aufgeräumt.
 
+**Zwei Reihen, zwei Takte.** Bilder liegen in einer eigenen Datei
+(`helden-assets.db`) und werden **wöchentlich** nach
+`helden-assets-JJJJ-MM-TT.db` gesichert. Der Grund ist die Auslagerung: Bilder
+sind groß und ändern sich selten — täglich mitzukopieren würde jede
+Tagessicherung vervielfachen, ohne dass mehr Inhalt geschützt wäre. Die beiden
+Aufräum-Regeln fassen sich gegenseitig nicht an, jede trifft nur ihr eigenes
+Namensmuster.
+
+Weil SQLite nicht über Dateigrenzen kaskadieren kann, räumt derselbe
+wöchentliche Takt Bilder auf, deren Seite oder Charakter es nicht mehr gibt.
+Der Lauf schreibt ins Protokoll, was er entfernt hat.
+
 Wiederherstellen: Server stoppen, die gewünschte Sicherung nach
 `server/data/helden.db` kopieren (vorhandene `helden.db-wal`/`-shm` daneben
-entfernen), Server starten.
+entfernen), Server starten. Für Bilder dasselbe mit `helden-assets.db` — die
+beiden Dateien lassen sich unabhängig voneinander zurückspielen.
 
 ## Rollen & Rechte
 

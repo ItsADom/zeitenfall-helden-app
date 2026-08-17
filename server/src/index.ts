@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { attachUser, cleanupSessions } from './auth.js';
 import { api } from './routes.js';
 import { startBackupSchedule } from './backup.js';
+import { startAssetSweep } from './assets/sweep.js';
 import { mirrorChangelog } from './discord.js';
 import './db.js';
 // Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
@@ -22,8 +23,10 @@ indexNachziehen();
 cleanupSessions();
 setInterval(cleanupSessions, 24 * 60 * 60 * 1000).unref();
 
-// Tägliche Sicherung der Datenbank
+// Sicherungen: helden.db täglich, helden-assets.db wöchentlich
 startBackupSchedule();
+// Verwaiste Bilder aufräumen — SQLite kann nicht über Dateigrenzen kaskadieren
+startAssetSweep();
 
 // Neue Changelog-Einträge nach Discord spiegeln (nur wenn ein Webhook gesetzt
 // ist). Bewusst nicht blockierend: der Server startet auch, wenn Discord klemmt.
