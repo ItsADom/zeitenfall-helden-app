@@ -51,13 +51,15 @@ chips. Backend table `char_special_resources`. Open for the full version:
   `shared/src/rules.ts`. Deliberately deferred to avoid silently shifting every
   existing character's computed LE/AU/AsE/MR/AK in the same pass as introducing
   the catalogue.
-- [sketch] **Shapeshifting characters**: a character that can shapeshift needs
-  genuinely different values for almost everything (attributes, base values,
-  possibly talents/abilities) per form — effectively a separate sheet per shape
-  bundled under one character. Player-suggested approach: a full set of
-  alternate sheets folded into a single character, with a dropdown to switch
-  the active form. Needs a concept pass (data model + how much duplicates vs.
-  derives from a base sheet) before building.
+- [sketch] **Shapeshifting characters** (design notes at
+  `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
+  data-model disagreement with the GM, written up there instead of lost):
+  a character that can shapeshift needs genuinely different values for
+  almost everything (attributes, base values, possibly talents/abilities)
+  per form — effectively a separate sheet per shape bundled under one
+  character, not multiple independent characters. Still needs a concept
+  pass with the GM (data model + how much duplicates vs. derives from a
+  base sheet) before building.
 - [ready] **Expanded bio page** (concept agreed): a dedicated route (e.g.
   `/charakter/:id/bio`), linked from the character sheet — deliberately outside
   the existing `char_tabs`/`char_sections` tab system, new territory for the app.
