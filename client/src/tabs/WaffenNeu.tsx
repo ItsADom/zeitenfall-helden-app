@@ -50,7 +50,7 @@ function emptyNahRow(): Row {
 }
 function emptyFernRow(): Row {
   return {
-    typ: '', eBE: '', haltbarkeit: '', entfernung: '', besonderes: '', schaden: '',
+    typ: '', eBE: '', rd: '', haltbarkeit: '', entfernung: '', besonderes: '', schaden: '',
     talentId: 0, atMod: 0, [NOTIZ_KEY]: '',
   };
 }
@@ -224,6 +224,8 @@ function ProbeChip({ label, value, title }: { label: string; value: number; titl
 function CardHead({
   name,
   sub,
+  schaden,
+  rd,
   notiz,
   open,
   onToggle,
@@ -231,6 +233,10 @@ function CardHead({
 }: {
   name: string;
   sub: string;
+  /** Roher Schaden-String (z.B. "1W6+2") — im Kopf schon sichtbar, nicht erst beim Ausklappen. */
+  schaden: string;
+  /** Rüstungsdurchdringung — steht mit im Schaden-Chip, eigener Wert wäre hier zu klein. */
+  rd: string;
   notiz: string;
   open: boolean;
   onToggle: () => void;
@@ -258,7 +264,15 @@ function CardHead({
           breiten Schirm liegen sonst 1500px zwischen Waffe und ihren Zahlen,
           und man verliert die Zuordnung. Nähe schlägt hier die saubere
           Zahlenkolonne. */}
-      <span className="wpn-probes">{children}</span>
+      <span className="wpn-probes">
+        {schaden && (
+          <span className="wpn-chip" title="Schaden">
+            <span className="wpn-chip-label">Schaden</span>
+            <span className="wpn-chip-val">{schaden}{rd && ` · RD ${rd}`}</span>
+          </span>
+        )}
+        {children}
+      </span>
       {sub && <span className="muted wpn-sub">{sub}</span>}
       {notiz && (
         <span className="wpn-note-flag" title={notiz} aria-label="Notiz vorhanden">
@@ -338,7 +352,15 @@ function NahCards({
           const sub = exp ? `EXP/LVL ${exp}` : '';
           return (
             <div className={`wpn-card${open ? ' open' : ''}`} key={i}>
-              <CardHead name={String(row.typ ?? '')} sub={sub} notiz={notiz} open={open} onToggle={() => toggle(i)}>
+              <CardHead
+                name={String(row.typ ?? '')}
+                sub={sub}
+                schaden={String(row.schaden ?? '')}
+                rd={String(row.rd ?? '')}
+                notiz={notiz}
+                open={open}
+                onToggle={() => toggle(i)}
+              >
                 <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" />
                 <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" />
                 <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" />
@@ -441,7 +463,15 @@ function FernCards({
             <div className={`wpn-card${open ? ' open' : ''}`} key={i}>
               {/* Kein Beiwerk im Kopf: das Kampftalent steckt schon in der
                   FK-Probe daneben, und eine Stufe gibt es hier nicht. */}
-              <CardHead name={String(row.typ ?? '')} sub="" notiz={notiz} open={open} onToggle={() => toggle(i)}>
+              <CardHead
+                name={String(row.typ ?? '')}
+                sub=""
+                schaden={String(row.schaden ?? '')}
+                rd={String(row.rd ?? '')}
+                notiz={notiz}
+                open={open}
+                onToggle={() => toggle(i)}
+              >
                 <ProbeChip label="FK" value={fkProbeFor(row)} title="Fernkampf — fertige Probe" />
               </CardHead>
               {open && (
@@ -458,6 +488,9 @@ function FernCards({
                   </Feld>
                   <Feld label="Material" leer={!String(row.eBE ?? '')}>
                     <TextInput value={String(row.eBE ?? '')} onChange={(v) => patch(i, { eBE: v })} />
+                  </Feld>
+                  <Feld label="RD" title="Rüstungsdurchdringung" leer={!String(row.rd ?? '')}>
+                    <TextInput value={String(row.rd ?? '')} onChange={(v) => patch(i, { rd: v })} />
                   </Feld>
                   <Feld label="Entfernung" leer={!String(row.entfernung ?? '')}>
                     <TextInput value={String(row.entfernung ?? '')} onChange={(v) => patch(i, { entfernung: v })} />

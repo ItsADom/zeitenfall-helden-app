@@ -14,12 +14,6 @@ concept worked out (and sign-off) before building. **[ready]** = concept agreed,
 can go straight to a build plan. Priority is the section (High/Mid/Low);
 "on hold" / "blocked" notes stay inline and are a separate axis.
 
-## Decisions (settled — feed the open work below)
-
-- **Special Energien** (Drachenkraft etc.) are added by the player: name +
-  attribute formula + bonus. **Psyche stays built in** — every character has one;
-  it is a system rule, not a personal power.
-
 ---
 
 ## User feedback
@@ -204,39 +198,22 @@ chips. Backend table `char_special_resources`. Open for the full version:
         the result and group reaction are immediately visible.
    - Structurally scoped per group already (`GroupInfo`, per-group routes exist
      in `routes.ts`) — but no per-group real-time channel exists yet.
-- [ready] **Weapon tab rework — in progress**: Nahkampf-/Fernkampfwaffen live in
-  a bespoke card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`,
-  shown as „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK
-  probe shown next to the name in the collapsed head, full field grid on
-  expand; follows the Ausrüstung item-chip pattern). The old generic-list tab
-  (key `Waffen`) was retired 2026-08-16: removed from `MOVABLE_BUILTIN_TAB_KEYS`
-  in `shared/src/tabOrder.ts` and from the render switch/label map in
-  `Character.tsx`, so it no longer appears for anyone. Its data was already
-  migrated 1:1 into `waffenNahNeu`/`waffenFernNeu` (guarded migration in
-  `server/src/db.ts`); `sec_waffenNah`/`sec_waffenFern` and `client/src/tabs/
-  Waffen.tsx` still exist as untouched archive — nothing was deleted, the tab
-  is just unreachable now. Remaining:
-   - `client/src/tabs/Waffen.tsx` is dead code (no longer imported anywhere) —
-     safe to delete once nobody needs to resurrect the old tab for reference.
-   - `Waffenloser Kampf`/`Kampfstile`/`Pfeile-Bolzen` (Munition) were NEVER part
-     of the waffenNahNeu/waffenFernNeu migration and only ever lived in the
-     retired tab — moved into `WaffenNeu.tsx` as-is (still the old generic
-     `ListEditor` table, unstyled as cards) so existing entries stay reachable.
-     Munition gets its own solution once the planned lookup catalogue exists
-     (see „Look-up lists" below) — low priority, don't card-ify it first.
-     Waffenloser Kampf/Kampfstile still want their own card treatment
-     eventually, same reasoning as the weapon rework itself.
+- [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
+  card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
+  „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
+  shown next to the name in the collapsed head, full field grid on expand;
+  follows the Ausrüstung item-chip pattern). Remaining:
+   - `client/src/tabs/Waffen.tsx` (the retired generic-list tab, unreachable
+     but still on disk) is dead code — safe to delete once nobody needs it
+     for reference.
+   - `Waffenloser Kampf`/`Kampfstile` (still the old generic `ListEditor`
+     table inside `WaffenNeu.tsx`, unstyled as cards) still want their own
+     card treatment eventually, same reasoning as the weapon rework itself.
+   - `Pfeile-Bolzen` (Munition, same old-table situation) gets its own
+     solution once the planned lookup catalogue exists (see „Look-up lists"
+     below) — low priority, don't card-ify it first.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
-   - [ready] **Fernkampf missing RD field** (user feedback): `emptyFernRow()`
-     has `schaden` but no `rd` — Nahkampf already has both (`NahCards`' "RD"
-     field, `WaffenNeu.tsx`). Add `rd` to `emptyFernRow()` and a matching
-     `Feld label="RD" title="Rüstungsdurchdringung"` block in `FernCards`,
-     mirroring the Nah pattern.
-   - [ready] **Show Schaden in the collapsed card head** (user feedback): only
-     the AT/PA/BL or FK probe chip shows collapsed today (`CardHead`); the raw
-     `schaden` string (e.g. "1W6+2") isn't visible until expanded. Add it next
-     to the probe chip(s) in `CardHead`, for both Nah and Fern cards.
    - [sketch] **Fold ammunition damage into the Fernkampf damage formula**
      (user feedback): every ranged weapon has its own `schaden` value today,
      but the ammunition actually loaded/used should add to it — currently
