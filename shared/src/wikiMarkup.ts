@@ -32,7 +32,13 @@ export type WikiBlock =
   | { typ: 'trenner' }
   | { typ: 'code'; text: string }
   | { typ: 'tabelle'; kopf: WikiInline[][]; zeilen: WikiInline[][][] }
-  | { typ: 'bild'; slug: string; unterschrift: string }
+  | {
+      typ: 'bild';
+      slug: string;
+      unterschrift: string;
+      groesse?: WikiBildGroesse;
+      position?: WikiBildPosition;
+    }
   | { typ: 'gmblock'; bloecke: WikiBlock[] }
   /**
    * Stands in for a GM-only region in an editor that may not see its content.
@@ -183,6 +189,64 @@ const ZITAT = /^>\s?(.*)$/;
 const TRENNER = /^-{3,}\s*$/;
 const ZAUN = /^```(.*)$/;
 const BILD = /^\[\[bild:([^\]|]+)(?:\|([^\]]*))?\]\]$/i;
+
+/**
+ * Named sizes rather than pixel widths, for the same reason the stylesheet uses
+ * colour tokens: a number in the markup is a number that has to be rescued with
+ * a media query on every phone, and four choices keep pages looking like one
+ * wiki instead of like four authors.
+ */
+export type WikiBildGroesse = 'klein' | 'mittel' | 'gross' | 'voll';
+export type WikiBildPosition = 'links' | 'rechts' | 'mitte';
+
+const GROESSEN: Record<string, WikiBildGroesse> = {
+  klein: 'klein',
+  mittel: 'mittel',
+  gross: 'gross',
+  groß: 'gross',
+  voll: 'voll',
+};
+const POSITIONEN: Record<string, WikiBildPosition> = {
+  links: 'links',
+  rechts: 'rechts',
+  mitte: 'mitte',
+};
+
+interface BildOptionen {
+  unterschrift: string;
+  groesse?: WikiBildGroesse;
+  position?: WikiBildPosition;
+}
+
+/**
+ * Splits everything after the first pipe into keywords and caption.
+ *
+ * Order does not matter and anything unrecognised becomes caption text — a
+ * mistyped „rehcts" then shows up as a strange caption instead of an error, and
+ * a page written before sizes existed parses exactly as it did before, because
+ * with no keywords every part is caption and joining them back with `|`
+ * reproduces the original string.
+ */
+function bildOptionen(schwanz: string): BildOptionen {
+  const teile = (schwanz ?? '').split('|');
+  const rest: string[] = [];
+  let groesse: WikiBildGroesse | undefined;
+  let position: WikiBildPosition | undefined;
+
+  for (const teil of teile) {
+    const wort = teil.trim().toLowerCase();
+    if (!groesse && GROESSEN[wort]) {
+      groesse = GROESSEN[wort];
+      continue;
+    }
+    if (!position && POSITIONEN[wort]) {
+      position = POSITIONEN[wort];
+      continue;
+    }
+    rest.push(teil);
+  }
+  return { unterschrift: rest.join('|').trim(), groesse, position };
+}
 const GM_PLATZHALTER = /^\[\[gm:(\d{1,4})\]\]$/i;
 const TABELLEN_TRENNER = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
@@ -268,7 +332,8 @@ function parseBloecke(zeilen: string[], anker: Map<string, number>, tiefe: numbe
 
     const bild = BILD.exec(zeile.trim());
     if (bild) {
-      out.push({ typ: 'bild', slug: bild[1].trim(), unterschrift: (bild[2] ?? '').trim() });
+      const { unterschrift, groesse, position } = bildOptionen(bild[2] ?? '');
+      out.push({ typ: 'bild', slug: bild[1].trim(), unterschrift, groesse, position });
       i += 1;
       continue;
     }

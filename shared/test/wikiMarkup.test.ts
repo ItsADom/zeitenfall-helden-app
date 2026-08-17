@@ -365,3 +365,76 @@ describe('weiterleitungsZiel', () => {
     expect(weiterleitungsZiel('#WEITERLEITUNG [[Gareth|die Stadt]]')).toBeNull();
   });
 });
+
+describe('Bildgrößen und -lage', () => {
+  const bild = (quelle: string) => {
+    const b = ersterBlock(quelle);
+    if (b.typ !== 'bild') throw new Error('Bild erwartet');
+    return b;
+  };
+
+  it('reads size and position keywords in any order', () => {
+    expect(bild('[[bild:karte|klein|rechts|Die Karte]]')).toEqual({
+      typ: 'bild',
+      slug: 'karte',
+      unterschrift: 'Die Karte',
+      groesse: 'klein',
+      position: 'rechts',
+    });
+    expect(bild('[[bild:karte|rechts|klein|Die Karte]]')).toMatchObject({
+      groesse: 'klein',
+      position: 'rechts',
+      unterschrift: 'Die Karte',
+    });
+  });
+
+  it('accepts every documented keyword, and ß as well as ss', () => {
+    for (const [wort, erwartet] of [
+      ['klein', 'klein'],
+      ['mittel', 'mittel'],
+      ['gross', 'gross'],
+      ['groß', 'gross'],
+      ['GROSS', 'gross'],
+      ['voll', 'voll'],
+    ] as const) {
+      expect(bild(`[[bild:karte|${wort}]]`).groesse).toBe(erwartet);
+    }
+    for (const wort of ['links', 'rechts', 'mitte'] as const) {
+      expect(bild(`[[bild:karte|${wort}]]`).position).toBe(wort);
+    }
+  });
+
+  // The compatibility property: a page written before sizes existed must parse
+  // exactly as it did, and a typo must never become an error.
+  it('leaves an unknown word as the caption', () => {
+    expect(bild('[[bild:karte|Die Karte von Gareth]]')).toEqual({
+      typ: 'bild',
+      slug: 'karte',
+      unterschrift: 'Die Karte von Gareth',
+      groesse: undefined,
+      position: undefined,
+    });
+    expect(bild('[[bild:karte|rehcts|Die Karte]]').unterschrift).toBe('rehcts|Die Karte');
+    expect(bild('[[bild:karte|rehcts|Die Karte]]').position).toBeUndefined();
+  });
+
+  it('keeps a caption that itself contains a pipe', () => {
+    expect(bild('[[bild:karte|Norden | Süden]]').unterschrift).toBe('Norden | Süden');
+  });
+
+  it('takes only the first keyword of each kind, rest is caption', () => {
+    const b = bild('[[bild:karte|klein|mittel|rechts]]');
+    expect(b.groesse).toBe('klein');
+    expect(b.position).toBe('rechts');
+    expect(b.unterschrift).toBe('mittel');
+  });
+
+  it('still collects the slug for the image list', () => {
+    expect(sammleBilder(parseWiki('[[bild:karte|klein|rechts|Die Karte]]'))).toEqual(['karte']);
+  });
+
+  it('keeps only the caption in the plain-text extract, never the keywords', () => {
+    // Otherwise a page teaser would read „klein rechts Die Karte".
+    expect(alsKlartext(parseWiki('[[bild:karte|klein|rechts|Die Karte]]'))).toBe('Die Karte');
+  });
+});

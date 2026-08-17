@@ -28,6 +28,10 @@ const BLOCK: Zeile[] = [
   { code: '| Kopf | Kopf |\n| --- | --- |\n| Zelle | Zelle |', was: 'Tabelle (Trennzeile nicht vergessen)' },
   { code: '[[bild:karte-a1b2c3]]', was: 'Bild — allein auf einer Zeile, sonst bleibt es Text' },
   { code: '[[bild:karte-a1b2c3|Die Karte von Gareth]]', was: 'Bild mit Bildunterschrift darunter' },
+  {
+    code: '[[bild:karte-a1b2c3|klein|rechts|Die Karte]]',
+    was: 'Größe: klein, mittel, gross, voll · Lage: links, rechts, mitte',
+  },
 ];
 
 const INLINE: Zeile[] = [
@@ -67,6 +71,11 @@ export default function WikiSpickzettel({ istGm }: { istGm: boolean }) {
         Den Namen eines Bildes musst du nicht kennen: „+ Bild hochladen" unter <em>Bilder</em>, dann „In den Text" —
         das setzt die Zeile fertig an der Schreibmarke ein. Die Bildunterschrift hinter dem <code>|</code> darfst du
         danach frei ändern; lässt du sie weg, steht das Bild ohne Beschriftung da.
+      </p>
+      <p className="muted">
+        Größe und Lage stehen in beliebiger Reihenfolge zwischen den Strichen; alles andere wird zur Bildunterschrift.
+        Mit <code>links</code> oder <code>rechts</code> fließt der Text daneben. Ein verkleinertes Bild öffnet sich per
+        Klick in voller Größe, und auf dem Telefon rückt es automatisch wieder über die ganze Breite.
       </p>
       <Liste zeilen={INLINE} />
       {istGm && (

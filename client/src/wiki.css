@@ -269,10 +269,95 @@
   border-radius: var(--radius-panel);
   border: 1px solid var(--border-soft);
 }
+.wiki-bild a {
+  /* Der Link ist der Rahmen ums Bild, keine Textstelle — Unterstrich und
+     Linkfarbe hätten hier nichts zu tun. */
+  display: block;
+  line-height: 0;
+}
 .wiki-bild figcaption {
   margin-top: 4px;
   font-size: 13px;
   color: var(--muted);
+}
+
+/* --- Bildgrößen ---
+   Benannt statt in Pixeln: eine Zahl in der Markierung müsste auf jedem
+   schmalen Gerät per Media Query wieder eingefangen werden, und vier
+   Möglichkeiten halten Seiten einheitlich. Die Breite steht an der figure,
+   nicht am img, damit die Bildunterschrift genauso breit ist wie das Bild und
+   nicht quer über die Spalte läuft. */
+.wiki-bild-klein {
+  width: 180px;
+}
+.wiki-bild-mittel {
+  width: 320px;
+}
+.wiki-bild-gross {
+  width: 520px;
+}
+.wiki-bild-voll {
+  width: 100%;
+}
+/* Ein schmales Fenster ist schmaler als „gross" — die feste Breite darf das
+   Bild nie aus der Spalte schieben. */
+.wiki-bild-klein,
+.wiki-bild-mittel,
+.wiki-bild-gross {
+  max-width: 100%;
+}
+.wiki-bild-klein img,
+.wiki-bild-mittel img,
+.wiki-bild-gross img,
+.wiki-bild-voll img {
+  width: 100%;
+}
+
+/* --- Ausrichtung --- */
+
+.wiki-bild-links {
+  float: left;
+  margin: 6px 16px 10px 0;
+}
+.wiki-bild-rechts {
+  float: right;
+  margin: 6px 0 10px 16px;
+}
+.wiki-bild-mitte {
+  margin-left: auto;
+  margin-right: auto;
+}
+.wiki-bild-mitte figcaption {
+  text-align: center;
+}
+
+/* Zwei Dinge, an denen umflossene Bilder sonst zuverlässig scheitern:
+   eine Überschrift, die neben dem Bild hochrutscht statt darunter zu beginnen,
+   und ein Bild, das unten aus dem Textblock herausragt. */
+.wiki-inhalt .wiki-ueberschrift,
+.wiki-inhalt .wiki-trenner,
+.wiki-inhalt .wiki-gm {
+  clear: both;
+}
+.wiki-inhalt::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
+@media (max-width: 700px) {
+  /* Neben einem 180px-Bild bleibt auf einem Telefon keine lesbare Textspalte
+     übrig — dann lieber unter- statt nebeneinander. */
+  .wiki-bild-links,
+  .wiki-bild-rechts {
+    float: none;
+    margin: 14px 0;
+  }
+  .wiki-bild-klein,
+  .wiki-bild-mittel,
+  .wiki-bild-gross {
+    width: 100%;
+  }
 }
 
 /* --- Bilderverwaltung im Editor --- */
@@ -738,6 +823,11 @@
   .wiki-bild img {
     max-height: 12cm;
     object-fit: contain;
+  }
+  /* Auf Papier bleibt das Umfließen erhalten — nur der Klick-Link ist dort
+     sinnlos und darf sich nicht als Linkfarbe bemerkbar machen. */
+  .wiki-bild a {
+    color: inherit;
   }
   .wiki-inhalt,
   .wiki-bild,

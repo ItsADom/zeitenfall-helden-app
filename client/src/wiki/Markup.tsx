@@ -144,20 +144,38 @@ function BlockKnoten({ block, ziele }: { block: WikiBlock; ziele: LinkZiele }) {
           </table>
         </div>
       );
-    case 'bild':
+    case 'bild': {
       // The bytes come from helden-assets.db through the wiki's own route,
       // which repeats the page's visibility check — so a picture a reader may
       // not have simply does not load, rather than being hidden by CSS.
+      const quelle = `/api/wiki/bilder/${encodeURIComponent(block.slug)}`;
+      const klassen = [
+        'wiki-bild',
+        block.groesse && `wiki-bild-${block.groesse}`,
+        block.position && `wiki-bild-${block.position}`,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      const bild = (
+        <img src={quelle} alt={block.unterschrift || 'Bild'} loading="lazy" />
+      );
       return (
-        <figure className="wiki-bild">
-          <img
-            src={`/api/wiki/bilder/${encodeURIComponent(block.slug)}`}
-            alt={block.unterschrift || 'Bild'}
-            loading="lazy"
-          />
+        <figure className={klassen}>
+          {/* Verkleinert man ein Bild, kann man es nicht mehr lesen — deshalb
+              führt genau dann ein Klick zur vollen Auflösung. Ohne Größenangabe
+              ändert sich nichts: eine Seite von vorher bekommt keinen Link,
+              den sie nie hatte. */}
+          {block.groesse ? (
+            <a href={quelle} target="_blank" rel="noopener noreferrer" title="In voller Größe öffnen">
+              {bild}
+            </a>
+          ) : (
+            bild
+          )}
           {block.unterschrift && <figcaption>{block.unterschrift}</figcaption>}
         </figure>
       );
+    }
     case 'gmplatzhalter':
       // Only in the editor, and only for someone who may not read the region:
       // the text stays on the server, the marker keeps its place in the
