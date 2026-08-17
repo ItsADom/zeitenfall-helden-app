@@ -4,6 +4,7 @@ import NeueSeiteDialog from './NeueSeiteDialog';
 import WikiAenderungen from './Aenderungen';
 import WikiEditor from './Editor';
 import WikiKategorie from './Kategorie';
+import WikiPapierkorb from './Papierkorb';
 import WikiSeite from './Seite';
 import WikiSuche from './Suche';
 import WikiUebersicht from './Uebersicht';
@@ -41,6 +42,9 @@ export default function WikiRoutes() {
       <Route path="aenderungen" element={<WikiAenderungen />} />
       <Route path="suche" element={<WikiSuche />} />
       <Route path="kategorie/:tag" element={<WikiKategorie />} />
+      {/* Der Server antwortet Nicht-Spielleitern ohnehin mit 403; die Route
+          hier zu führen erspart eine zweite Rollenprüfung im Router. */}
+      <Route path="papierkorb" element={<WikiPapierkorb />} />
       <Route path=":slug" element={<WikiSeite />} />
       <Route path=":slug/bearbeiten" element={<WikiEditor />} />
       <Route path=":slug/verlauf" element={<WikiVerlauf />} />

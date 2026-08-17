@@ -102,5 +102,30 @@ export const ladeKategorie = (tag: string) =>
     `/api/wiki/kategorie/${encodeURIComponent(tag)}`,
   );
 
+// --- Nur Spielleitung ---
+
+export const setzeFlags = (slug: string, flags: { gmOnly?: boolean; geschuetzt?: boolean }) =>
+  apiPut<{ gmOnly: boolean; geschuetzt: boolean }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/flags`, flags);
+
+export const loescheSeite = (slug: string) =>
+  apiDelete<{ ok: true }>(`/api/wiki/seiten/${encodeURIComponent(slug)}`);
+
+export interface WikiPapierkorbEintrag {
+  slug: string;
+  titel: string;
+  geloeschtAm: string;
+  bilder: number;
+}
+
+export const ladePapierkorb = () => apiGet<{ seiten: WikiPapierkorbEintrag[] }>('/api/wiki/papierkorb');
+
+export const holeZurueck = (slug: string) =>
+  apiPost<{ slug: string }>(`/api/wiki/papierkorb/${encodeURIComponent(slug)}`);
+
+export const loescheEndgueltig = (slug: string) =>
+  apiDelete<{ ok: true }>(`/api/wiki/papierkorb/${encodeURIComponent(slug)}`);
+
+export const neuIndizieren = () => apiPost<{ seiten: number }>('/api/wiki/neu-indizieren');
+
 export const ladeAenderungsFilter = () =>
   apiGet<{ autoren: string[]; seiten: { slug: string; titel: string }[] }>('/api/wiki/aenderungen/filter');

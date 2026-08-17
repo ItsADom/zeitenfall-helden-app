@@ -255,6 +255,26 @@
   position: static;
 }
 
+/* --- Rechte-Leiste der Spielleitung --- */
+
+.wiki-rechte {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+}
+.wiki-rechte label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* --- Suchtreffer --- */
 
 .wiki-treffer {

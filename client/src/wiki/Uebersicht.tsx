@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import type { WikiSeiteInfo } from '@shared/wikiTypen';
+import { useAuth } from '../App';
 import { CollapsedText } from '../components/notes';
 import NeueSeiteDialog from './NeueSeiteDialog';
-import { ladeListe } from './api';
+import { ladeListe, neuIndizieren } from './api';
 
 // The wiki's front door: every page, plus a category filter and the entry point
 // for creating one. Search arrives in its own phase; until then the filter is a
@@ -12,11 +13,28 @@ import { ladeListe } from './api';
 
 export default function WikiUebersicht() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [seiten, setSeiten] = useState<WikiSeiteInfo[] | null>(null);
   const [fehler, setFehler] = useState('');
   const [suche, setSuche] = useState('');
   const [kategorie, setKategorie] = useState<string | null>(null);
   const [dialogOffen, setDialogOffen] = useState(false);
+  const [indexBusy, setIndexBusy] = useState(false);
+  const [indexStatus, setIndexStatus] = useState('');
+
+  // Repariert von Hand, was indexNachziehen() beim Start automatisch erledigt —
+  // gebraucht, wenn jemand die Datenbank von außen angefasst hat.
+  const indexNeuBauen = async () => {
+    setIndexBusy(true);
+    try {
+      const d = await neuIndizieren();
+      setIndexStatus(`${d.seiten} Seiten indiziert`);
+    } catch {
+      setIndexStatus('Fehlgeschlagen');
+    } finally {
+      setIndexBusy(false);
+    }
+  };
 
   const laden = useCallback(() => {
     ladeListe()
@@ -61,6 +79,16 @@ export default function WikiUebersicht() {
           <Link className="small" to="/wiki/aenderungen">
             Letzte Änderungen
           </Link>
+          {user.isGm && (
+            <>
+              <Link className="small" to="/wiki/papierkorb">
+                Papierkorb
+              </Link>
+              <button className="small" disabled={indexBusy} onClick={() => void indexNeuBauen()}>
+                {indexStatus || 'Suchindex neu aufbauen'}
+              </button>
+            </>
+          )}
           <button className="primary" onClick={() => setDialogOffen(true)}>
             + Neue Seite
           </button>

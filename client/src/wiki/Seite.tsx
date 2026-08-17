@@ -3,8 +3,10 @@ import { Link, Navigate, useParams } from 'react-router-dom';
 import { inhaltsverzeichnis, parseWiki } from '@shared/wikiMarkup';
 import type { WikiSeiteVoll } from '@shared/wikiTypen';
 import { ApiError } from '../api';
+import { useAuth } from '../App';
 import WikiInhalt from './Inhalt';
 import WikiMarkup from './Markup';
+import WikiSeitenrechte from './Seitenrechte';
 import WikiVerweise from './Verweise';
 import { ladeSeite } from './api';
 
@@ -15,6 +17,7 @@ import { ladeSeite } from './api';
 
 export default function WikiSeite() {
   const { slug = '' } = useParams();
+  const { user } = useAuth();
   const [seite, setSeite] = useState<WikiSeiteVoll | null>(null);
   const [kanonisch, setKanonisch] = useState<string | null>(null);
   const [fehler, setFehler] = useState('');
@@ -79,6 +82,8 @@ export default function WikiSeite() {
           )}
         </div>
       </div>
+
+      {user.isGm && <WikiSeitenrechte seite={seite} onGeaendert={laden} />}
 
       {seite.tags.length > 0 && (
         <div className="wiki-tags screen-only">

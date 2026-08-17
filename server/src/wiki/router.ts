@@ -14,6 +14,7 @@ import { WikiGeschuetzt, WikiKonflikt } from './seiten.js';
 import { ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
 import { kategorien, neuIndizieren, seitenInKategorie, sucheSeiten } from './suche.js';
+import { endgueltigLoeschen, loescheSeite, papierkorb, setzeFlag, stelleSeiteHer } from './verwaltung.js';
 import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
 import { darfBearbeiten, seiteFuer } from './zugriff.js';
 
@@ -333,8 +334,59 @@ wikiApi.post('/neu-indizieren', requireAuth, requireGm, (_req, res) => {
   res.json({ seiten: neuIndizieren() });
 });
 
-// Placeholder so the GM-only surface has a home from the start; the trash UI
-// arrives with the protection phase.
+// --- Nur Spielleitung: Sichtbarkeit, Schutz, Papierkorb ---
+//
+// requireGm, never requireGmOrAdmin: a pure Admin manages accounts and
+// deliberately has no insight into character sheets. Story secrets follow the
+// same reasoning.
+
+wikiApi.put('/seiten/:slug/flags', requireAuth, requireGm, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  const body = (req.body ?? {}) as { gmOnly?: unknown; geschuetzt?: unknown };
+  let aktuell = seite;
+  if (typeof body.gmOnly === 'boolean') aktuell = setzeFlag(user, aktuell, 'gm_only', body.gmOnly) ?? aktuell;
+  if (typeof body.geschuetzt === 'boolean') {
+    aktuell = setzeFlag(user, aktuell, 'geschuetzt', body.geschuetzt) ?? aktuell;
+  }
+  res.json({ gmOnly: !!aktuell.gm_only, geschuetzt: !!aktuell.geschuetzt });
+});
+
+/** Soft delete — into the trash, not out of existence. */
+wikiApi.delete('/seiten/:slug', requireAuth, requireGm, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite || !loescheSeite(user, seite)) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  res.json({ ok: true });
+});
+
 wikiApi.get('/papierkorb', requireAuth, requireGm, (_req, res) => {
-  res.json({ seiten: [] });
+  res.json({ seiten: papierkorb() });
+});
+
+wikiApi.post('/papierkorb/:slug', requireAuth, requireGm, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite || !stelleSeiteHer(user, seite)) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  res.json({ slug: seite.slug });
+});
+
+/** Irreversible, and the only place the asset cleanup hook fires for the wiki. */
+wikiApi.delete('/papierkorb/:slug', requireAuth, requireGm, (req, res) => {
+  const seite = seiteFuer(leser(req), String(req.params.slug));
+  if (!seite || !endgueltigLoeschen(seite)) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  res.json({ ok: true });
 });
