@@ -8,6 +8,8 @@ import { observeAutosize } from '../components/autosize';
 import { usePersistedState } from '../components/persist';
 import { useWikiBarHeight } from '../components/stickyChrome';
 import { useAuth } from '../App';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import WikiDiff from './Diff';
 import WikiMarkup from './Markup';
 import WikiSpickzettel from './Spickzettel';
 import { ladeQuelle, speichereSeite } from './api';
@@ -85,13 +87,19 @@ export default function WikiEditor() {
     return () => window.removeEventListener('beforeunload', warnen);
   }, [schmutzig]);
 
-  const speichern = useCallback(async () => {
+  /**
+   * `basis` overrides the revision this save claims to build on. Only the
+   * conflict view passes it, to re-base onto what is now current — a deliberate
+   * overwrite by someone who has seen the difference.
+   */
+  const speichern = useCallback(
+    async (basis: number | null = basisRev) => {
     if (!seite) return;
     setFehler('');
     setKonflikt(null);
     setStatus('Speichere…');
     try {
-      const d = await speichereSeite(slug, { titel, text, kommentar, tags, basisRev });
+      const d = await speichereSeite(slug, { titel, text, kommentar, tags, basisRev: basis });
       setSeite(d.seite);
       setBasisRev(d.seite.revisionId || null);
       setKommentar('');
@@ -101,17 +109,51 @@ export default function WikiEditor() {
     } catch (e) {
       setStatus('');
       if (e instanceof ApiError && e.status === 409) {
-        // Somebody else saved first. No automatic merge — the author decides,
-        // with both texts in front of them.
-        setKonflikt({ text: '', autor: '' });
-        setFehler('Die Seite wurde geändert, seit du angefangen hast. Deine Fassung ist noch da — vergleiche sie mit der aktuellen, bevor du erneut speicherst.');
+        // Somebody else saved first. No automatic merge — that is where prose
+        // quietly dies. The author gets both texts side by side and decides.
+        const body = (e.data ?? {}) as { aktuellerText?: string; aktuellerAutor?: string };
+        setKonflikt({ text: String(body.aktuellerText ?? ''), autor: String(body.aktuellerAutor ?? '') });
+        setFehler(
+          'Die Seite wurde geändert, seit du angefangen hast. Dein Text steht noch im Feld — vergleiche ihn unten mit der aktuellen Fassung.',
+        );
       } else if (e instanceof ApiError && e.status === 403) {
         setFehler('Diese Seite ist geschützt — nur die Spielleitung darf sie bearbeiten.');
       } else {
         setFehler(e instanceof Error ? e.message : 'Fehler beim Speichern');
       }
     }
-  }, [seite, slug, titel, text, kommentar, tags, basisRev, navigate, setEntwurf]);
+    },
+    [seite, slug, titel, text, kommentar, tags, basisRev, navigate, setEntwurf],
+  );
+
+  /** Keep my text, accept that it replaces theirs. */
+  const trotzdemSpeichern = useCallback(async () => {
+    try {
+      const d = await ladeQuelle(slug);
+      setBasisRev(d.seite.revisionId || null);
+      // Passed explicitly: the state above has not landed yet when speichern runs.
+      await speichern(d.seite.revisionId || null);
+    } catch {
+      setFehler('Die aktuelle Fassung konnte nicht geladen werden.');
+    }
+  }, [slug, speichern]);
+
+  /** Throw my text away and start again from theirs. */
+  const neuLaden = useCallback(async () => {
+    try {
+      const d = await ladeQuelle(slug);
+      setSeite(d.seite);
+      setTitel(d.seite.titel);
+      setText(d.seite.text);
+      setTags(d.seite.tags.join(', '));
+      setBasisRev(d.seite.revisionId || null);
+      setEntwurf(null);
+      setKonflikt(null);
+      setFehler('');
+    } catch {
+      setFehler('Die aktuelle Fassung konnte nicht geladen werden.');
+    }
+  }, [slug, setEntwurf]);
 
   // Ctrl+S is what everyone's fingers already do in an editor.
   useEffect(() => {
@@ -167,9 +209,32 @@ export default function WikiEditor() {
 
       {fehler && <p className="error">{fehler}</p>}
       {konflikt && (
-        <p className="wiki-hinweis wiki-hinweis-warn">
-          Tipp: öffne die Seite in einem zweiten Tab, um die aktuelle Fassung daneben zu lesen.
-        </p>
+        <div className="panel wiki-konflikt screen-only">
+          <h3>Gleichzeitig bearbeitet{konflikt.autor && ` — zuletzt von ${konflikt.autor}`}</h3>
+          <p className="muted">
+            Nichts wird automatisch zusammengeführt — dabei geht am Ende immer Text verloren, den jemand
+            geschrieben hat. Unten steht, was sich unterscheidet: <span className="wiki-diff-minus">−</span> ist die
+            gespeicherte Fassung, <span className="wiki-diff-plus">+</span> deine. Arbeite fehlende Stellen von Hand
+            ein und speichere erneut.
+          </p>
+          <div className="wiki-konflikt-aktionen">
+            <ConfirmDeleteButton
+              className="small"
+              title="Deinen Text verwerfen und die gespeicherte Fassung laden"
+              onConfirm={() => void neuLaden()}
+            >
+              Meinen Text verwerfen
+            </ConfirmDeleteButton>
+            <ConfirmDeleteButton
+              className="small"
+              title="Deinen Text speichern und die andere Fassung überschreiben"
+              onConfirm={() => void trotzdemSpeichern()}
+            >
+              Trotzdem speichern (überschreibt)
+            </ConfirmDeleteButton>
+          </div>
+          <WikiDiff alt={konflikt.text} neu={text} />
+        </div>
       )}
 
       <div className="field">

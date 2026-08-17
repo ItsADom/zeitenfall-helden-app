@@ -19,7 +19,7 @@ import {
   wikiSuchtext,
   zeilenBilanz,
 } from 'shared';
-import type { WikiArt, WikiLogEintrag, WikiSeiteInfo, WikiSeiteVoll, WikiTag } from 'shared';
+import type { WikiArt, WikiSeiteInfo, WikiSeiteVoll, WikiTag } from 'shared';
 import { db } from '../db.js';
 import { HAT_FTS } from './schema.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
@@ -161,7 +161,7 @@ export function verweiseAuf(user: WikiLeser, seite: WikiSeiteRow): { slug: strin
 export type LadeModus = 'lesen' | 'bearbeiten';
 
 /** The text of `quelle` this reader may receive, in this mode. */
-function sichtbareQuelle(user: WikiLeser, quelle: string, modus: LadeModus): string {
+export function sichtbareQuelle(user: WikiLeser, quelle: string, modus: LadeModus): string {
   if (user.isGm) return quelle;
   return modus === 'bearbeiten' ? verbergeGmBloecke(quelle).text : quelleOhneGm(quelle);
 }
@@ -194,7 +194,7 @@ function naechsteNr(pageId: number): number {
   return row.n + 1;
 }
 
-interface LogEinfuegen {
+export interface LogEinfuegen {
   pageId: number;
   art: WikiArt;
   titel: string;
@@ -210,7 +210,7 @@ interface LogEinfuegen {
   basisRev?: number | null;
 }
 
-function schreibeLog(e: LogEinfuegen): number {
+export function schreibeLog(e: LogEinfuegen): number {
   const info = db
     .prepare(
       `INSERT INTO wiki_revisions
@@ -243,7 +243,7 @@ function schreibeLog(e: LogEinfuegen): number {
  * save transaction, never on its own — derived data that can be written
  * separately is derived data that will eventually disagree.
  */
-function schreibeAbgeleitetes(pageId: number, titel: string, quelle: string, tags: WikiTag[]): string {
+export function schreibeAbgeleitetes(pageId: number, titel: string, quelle: string, tags: WikiTag[]): string {
   const docVoll = parseWiki(quelle);
   const docPublic = ohneGmBloecke(docVoll);
   const auszug = auszugVon(docPublic);
@@ -392,57 +392,4 @@ export function speichereSeite(
   return speichern();
 }
 
-// --- Change log ---
-
-function alsLogEintrag(row: Record<string, unknown>): WikiLogEintrag {
-  return {
-    id: Number(row.id),
-    slug: String(row.slug),
-    titel: String(row.titel),
-    nr: Number(row.nr),
-    art: String(row.art) as WikiArt,
-    autorName: String(row.author_name ?? ''),
-    erstelltAm: String(row.created_at),
-    kommentar: String(row.kommentar ?? ''),
-    zeilenPlus: Number(row.zeilen_plus ?? 0),
-    zeilenMinus: Number(row.zeilen_minus ?? 0),
-    ...(row.feld ? { feld: String(row.feld) } : {}),
-    ...(row.alt_wert != null ? { altWert: String(row.alt_wert) } : {}),
-    ...(row.neu_wert != null ? { neuWert: String(row.neu_wert) } : {}),
-  };
-}
-
-/** One page's history, newest first. */
-export function verlaufFuer(pageId: number): WikiLogEintrag[] {
-  const rows = db
-    .prepare(
-      `SELECT r.*, p.slug AS slug
-         FROM wiki_revisions r JOIN wiki_pages p ON p.id = r.page_id
-        WHERE r.page_id = ?
-        ORDER BY r.nr DESC`,
-    )
-    .all(pageId) as Record<string, unknown>[];
-  return rows.map(alsLogEintrag);
-}
-
-/** The wiki-wide feed. Filtered in SQL so invisible pages never reach the page. */
-export function letzteAenderungen(user: WikiLeser, limit = 100, vor?: string): WikiLogEintrag[] {
-  const filter = sichtbarkeitsFilter(user);
-  const rows = db
-    .prepare(
-      `SELECT r.*, p.slug AS slug
-         FROM wiki_revisions r JOIN wiki_pages p ON p.id = r.page_id
-        WHERE ${filter.sql} ${vor ? 'AND r.created_at < ?' : ''}
-        ORDER BY r.created_at DESC, r.id DESC
-        LIMIT ?`,
-    )
-    .all(...filter.args, ...(vor ? [vor] : []), Math.min(limit, 300)) as Record<string, unknown>[];
-  return rows.map(alsLogEintrag);
-}
-
-export function fassungsText(pageId: number, revId: number): string | null {
-  const row = db.prepare('SELECT text FROM wiki_revisions WHERE id = ? AND page_id = ?').get(revId, pageId) as
-    | { text: string | null }
-    | undefined;
-  return row?.text ?? null;
-}
+// Reading the change log lives in verlauf.ts — this module owns writing it.

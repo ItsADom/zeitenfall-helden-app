@@ -85,6 +85,11 @@ export interface WikiLogEintrag {
   kommentar: string;
   zeilenPlus: number;
   zeilenMinus: number;
+  /**
+   * Whether this row carries a content version. Only such a row can be compared
+   * or restored — a rename has nothing to diff against.
+   */
+  hatText: boolean;
   /** Metadata events only. */
   feld?: string;
   altWert?: string;

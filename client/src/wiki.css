@@ -215,6 +215,131 @@
   margin-top: 24px;
 }
 
+/* --- Änderungsprotokoll & Verlauf --- */
+
+.wiki-logfilter {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.wiki-logfilter .field {
+  margin: 0;
+}
+
+.wiki-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-log-zeile {
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-log-kopf {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.wiki-log-kommentar,
+.wiki-log-feld {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.wiki-log-kommentar {
+  color: var(--muted);
+  font-style: italic;
+}
+.wiki-log-aktionen {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.wiki-log-link {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.wiki-bilanz {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* Hinzugefügt blau, entfernt rot — nicht grün/rot: die Farbwelten bringen kein
+   Grün mit, und das Paar --over-*/--crit-* ist ohnehin besser unterscheidbar.
+   Die Zeichen + und − tragen die Bedeutung auch ohne Farbe. */
+.wiki-bilanz-plus,
+.wiki-diff-plus {
+  color: var(--over-line);
+}
+.wiki-bilanz-minus,
+.wiki-diff-minus {
+  color: var(--crit-line);
+}
+
+/* --- Unterschiede --- */
+
+/* Kein eigener Scrollbereich am Block (siehe CLAUDE.md) — lange Zeilen brechen
+   um statt seitlich zu scrollen. */
+.wiki-diff {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+.wiki-diff-luecke {
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.wiki-diff-zeile {
+  display: grid;
+  grid-template-columns: 3.2em 3.2em 1.2em minmax(0, 1fr);
+  gap: 0 6px;
+  padding: 0 8px;
+}
+.wiki-diff-nr {
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.wiki-diff-zeichen {
+  user-select: none;
+}
+.wiki-diff-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wiki-diff-zeile.wiki-diff-plus {
+  background: var(--over-soft);
+}
+.wiki-diff-zeile.wiki-diff-minus {
+  background: var(--crit-soft);
+}
+
+.wiki-vergleich h3,
+.wiki-konflikt h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wiki-konflikt-aktionen {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
 /* --- Editor --- */
 
 /* Spickzettel: zweispaltiges Raster statt Tabelle — dieselbe Wirkung ohne die

@@ -1,8 +1,15 @@
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /**
+   * Der geparste Fehlerkörper, sofern die Antwort einen hatte. Meist reicht
+   * `message`; ein 409 aus dem Wiki bringt aber den konkurrierenden Text mit,
+   * und den will der Aufrufer sehen, nicht nur „konflikt".
+   */
+  data?: unknown;
+  constructor(status: number, message: string, data?: unknown) {
     super(message);
     this.status = status;
+    this.data = data;
   }
 }
 
@@ -23,13 +30,15 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   if (res.status === 401 && !path.endsWith('/login')) onUnauthorized?.();
   if (!res.ok) {
     let message = res.statusText;
+    let body: unknown;
     try {
-      const data = (await res.json()) as { error?: string };
+      body = await res.json();
+      const data = body as { error?: string };
       if (data.error) message = data.error;
     } catch {
       // Antwort ohne JSON-Körper
     }
-    throw new ApiError(res.status, message);
+    throw new ApiError(res.status, message, body);
   }
   return (await res.json()) as T;
 }

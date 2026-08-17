@@ -10,16 +10,8 @@ import { Router } from 'express';
 import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
 import { WikiGeschuetzt, WikiKonflikt } from './seiten.js';
-import {
-  fassungsText,
-  ladeSeite,
-  legeSeiteAn,
-  letzteAenderungen,
-  listeSeiten,
-  speichereSeite,
-  verlaufFuer,
-  verweiseAuf,
-} from './seiten.js';
+import { ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
+import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
 import { darfBearbeiten, seiteFuer } from './zugriff.js';
 
 export const wikiApi = Router();
@@ -136,7 +128,11 @@ wikiApi.get('/seiten/:slug/verlauf', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Seite nicht gefunden' });
     return;
   }
-  res.json({ titel: seite.titel, eintraege: verlaufFuer(seite.id) });
+  res.json({
+    titel: seite.titel,
+    darfBearbeiten: darfBearbeiten(user, seite),
+    eintraege: verlaufFuer(user, seite.id),
+  });
 });
 
 wikiApi.get('/seiten/:slug/fassung/:rev', requireAuth, (req, res) => {
@@ -146,7 +142,7 @@ wikiApi.get('/seiten/:slug/fassung/:rev', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Seite nicht gefunden' });
     return;
   }
-  const text = fassungsText(seite.id, Number(req.params.rev));
+  const text = fassungsText(user, seite.id, Number(req.params.rev));
   if (text == null) {
     res.status(404).json({ error: 'Fassung nicht gefunden' });
     return;
@@ -154,9 +150,54 @@ wikiApi.get('/seiten/:slug/fassung/:rev', requireAuth, (req, res) => {
   res.json({ text });
 });
 
+// „Diese Fassung übernehmen". Writes a NEW revision rather than rewinding, so
+// the undo shows up in the log like any other change.
+wikiApi.post('/seiten/:slug/wiederherstellen', requireAuth, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  if (!darfBearbeiten(user, seite)) {
+    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    return;
+  }
+  const rev = Number((req.body ?? {}).revisionId);
+  const ergebnis = stelleFassungHer(user, seite, rev);
+  if (!ergebnis) {
+    res.status(404).json({ error: 'Fassung nicht gefunden oder bereits die aktuelle' });
+    return;
+  }
+  res.json({ nr: ergebnis.nr, slug: seite.slug });
+});
+
 wikiApi.get('/aenderungen', requireAuth, (req, res) => {
-  const vor = req.query.vor ? String(req.query.vor) : undefined;
-  res.json({ eintraege: letzteAenderungen(leser(req), Number(req.query.limit ?? 100), vor) });
+  const q = req.query;
+  const text = (name: string): string | undefined => {
+    const wert = q[name];
+    const s = wert == null ? '' : String(wert).trim();
+    return s || undefined;
+  };
+  res.json({
+    eintraege: letzteAenderungen(leser(req), {
+      autor: text('autor'),
+      slug: text('seite'),
+      von: text('von'),
+      bis: text('bis'),
+      vor: text('vor'),
+      limit: Number(q.limit ?? 50),
+    }),
+  });
+});
+
+/** Feeds the change-log filters: who has written, and which pages exist. */
+wikiApi.get('/aenderungen/filter', requireAuth, (req, res) => {
+  const user = leser(req);
+  res.json({
+    autoren: autoren(user),
+    seiten: listeSeiten(user).map((s) => ({ slug: s.slug, titel: s.titel })),
+  });
 });
 
 // Placeholder so the GM-only surface has a home from the start; the trash UI

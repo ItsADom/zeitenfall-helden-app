@@ -43,10 +43,35 @@ export const speichereSeite = (slug: string, eingabe: SpeichernEingabe) =>
   apiPut<SeiteAntwort>(`/api/wiki/seiten/${encodeURIComponent(slug)}`, eingabe);
 
 export const ladeVerlauf = (slug: string) =>
-  apiGet<{ titel: string; eintraege: WikiLogEintrag[] }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/verlauf`);
+  apiGet<{ titel: string; darfBearbeiten: boolean; eintraege: WikiLogEintrag[] }>(
+    `/api/wiki/seiten/${encodeURIComponent(slug)}/verlauf`,
+  );
 
 export const ladeFassung = (slug: string, rev: number) =>
   apiGet<{ text: string }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/fassung/${rev}`);
 
-export const ladeAenderungen = (limit = 100) =>
-  apiGet<{ eintraege: WikiLogEintrag[] }>(`/api/wiki/aenderungen?limit=${limit}`);
+/** „Diese Fassung übernehmen" — the server writes a new revision from an old text. */
+export const stelleFassungHer = (slug: string, revisionId: number) =>
+  apiPost<{ nr: number; slug: string }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/wiederherstellen`, {
+    revisionId,
+  });
+
+export interface AenderungsFilter {
+  autor?: string;
+  seite?: string;
+  von?: string;
+  bis?: string;
+  vor?: string;
+  limit?: number;
+}
+
+export const ladeAenderungen = (filter: AenderungsFilter = {}) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(filter)) {
+    if (v !== '' && v != null) p.set(k, String(v));
+  }
+  return apiGet<{ eintraege: WikiLogEintrag[] }>(`/api/wiki/aenderungen?${p}`);
+};
+
+export const ladeAenderungsFilter = () =>
+  apiGet<{ autoren: string[]; seiten: { slug: string; titel: string }[] }>('/api/wiki/aenderungen/filter');
