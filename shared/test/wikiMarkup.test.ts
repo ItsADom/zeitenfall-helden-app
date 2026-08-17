@@ -11,6 +11,8 @@ import {
   quelleOhneGm,
   sammleBilder,
   sammleLinks,
+  stelleGmBloeckeHer,
+  verbergeGmBloecke,
 } from '../src/wikiMarkup.js';
 
 const bloecke = (quelle: string): WikiBlock[] => parseWiki(quelle).bloecke;
@@ -220,6 +222,67 @@ describe('GM-Blöcke', () => {
   it('leaves an ordinary code fence alone when stripping', () => {
     const mitCode = 'a\n\n```\ncode bleibt\n```\n\nb';
     expect(quelleOhneGm(mitCode)).toContain('code bleibt');
+  });
+});
+
+// The editor's half of the same rule. A player must be able to edit a page with
+// GM-only sections in it WITHOUT deleting them: they never see the text, but
+// they do see that something stands there, and a save puts it back.
+describe('GM-Blöcke im Editor (Platzhalter)', () => {
+  const quelle = 'Oben.\n\n```gm\nGeheim.\n```\n\nUnten.';
+
+  it('replaces each region with a marker and keeps the text out of the payload', () => {
+    const { text: sichtbar, bloecke: versteckt } = verbergeGmBloecke(quelle);
+    expect(sichtbar).not.toContain('Geheim');
+    expect(sichtbar).toContain('[[gm:1]]');
+    expect(sichtbar.indexOf('Oben')).toBeLessThan(sichtbar.indexOf('[[gm:1]]'));
+    expect(sichtbar.indexOf('[[gm:1]]')).toBeLessThan(sichtbar.indexOf('Unten'));
+    expect(versteckt).toEqual(['```gm\nGeheim.\n```']);
+  });
+
+  it('round-trips an untouched text back to the original', () => {
+    const { text: sichtbar, bloecke: versteckt } = verbergeGmBloecke(quelle);
+    expect(stelleGmBloeckeHer(sichtbar, versteckt)).toBe(quelle);
+  });
+
+  it('keeps the hidden region when the surrounding text is rewritten', () => {
+    const { bloecke: versteckt } = verbergeGmBloecke(quelle);
+    const bearbeitet = 'Ganz neuer Text.\n\n[[gm:1]]\n\nUnd noch einer.';
+    const zusammen = stelleGmBloeckeHer(bearbeitet, versteckt);
+    expect(zusammen).toContain('Geheim.');
+    expect(zusammen).toContain('Ganz neuer Text.');
+    expect(zusammen).toContain('Und noch einer.');
+  });
+
+  it('drops the region only when the author deletes its marker', () => {
+    const { bloecke: versteckt } = verbergeGmBloecke(quelle);
+    expect(stelleGmBloeckeHer('Nur noch das hier.', versteckt)).toBe('Nur noch das hier.');
+  });
+
+  it('ignores a marker number that has no region', () => {
+    expect(stelleGmBloeckeHer('a\n[[gm:9]]\nb', ['```gm\nx\n```'])).toBe('a\nb');
+  });
+
+  it('numbers several regions in document order', () => {
+    const zwei = '```gm\nEins\n```\n\nMitte\n\n```gm\nZwei\n```';
+    const { text: sichtbar, bloecke: versteckt } = verbergeGmBloecke(zwei);
+    expect(versteckt).toHaveLength(2);
+    expect(sichtbar).toBe('[[gm:1]]\n\nMitte\n\n[[gm:2]]');
+    expect(stelleGmBloeckeHer(sichtbar, versteckt)).toBe(zwei);
+  });
+
+  it('parses a marker line as its own block, so the editor can render a lock', () => {
+    expect(ersterBlock('[[gm:2]]')).toEqual({ typ: 'gmplatzhalter', nr: 2 });
+  });
+
+  it('leaves a marker mid-sentence as literal text, never as a link', () => {
+    const block = ersterBlock('siehe [[gm:1]] dort');
+    expect(block.typ).toBe('absatz');
+    expect(sammleLinks(parseWiki('siehe [[gm:1]] dort'))).toEqual([]);
+  });
+
+  it('keeps the read view free of markers as well', () => {
+    expect(quelleOhneGm(quelle)).not.toContain('[[gm:');
   });
 });
 

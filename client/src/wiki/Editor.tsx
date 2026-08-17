@@ -7,8 +7,10 @@ import { ApiError } from '../api';
 import { observeAutosize } from '../components/autosize';
 import { usePersistedState } from '../components/persist';
 import { useWikiBarHeight } from '../components/stickyChrome';
+import { useAuth } from '../App';
 import WikiMarkup from './Markup';
-import { ladeSeite, speichereSeite } from './api';
+import WikiSpickzettel from './Spickzettel';
+import { ladeQuelle, speichereSeite } from './api';
 
 // Editing a page.
 //
@@ -25,6 +27,7 @@ export default function WikiEditor() {
   const { slug = '' } = useParams();
   const navigate = useNavigate();
   const barRef = useWikiBarHeight();
+  const { user } = useAuth();
 
   const [seite, setSeite] = useState<WikiSeiteVoll | null>(null);
   const [titel, setTitel] = useState('');
@@ -42,7 +45,9 @@ export default function WikiEditor() {
   const [entwurf, setEntwurf] = usePersistedState<string | null>(`wiki:entwurf:${slug}`, null);
 
   useEffect(() => {
-    ladeSeite(slug)
+    // ladeQuelle, not ladeSeite: the editor needs the source WITH the [[gm:n]]
+    // markers, so saving cannot drop a GM-only section it was never shown.
+    ladeQuelle(slug)
       .then((d) => {
         setSeite(d.seite);
         setTitel(d.seite.titel);
@@ -50,7 +55,13 @@ export default function WikiEditor() {
         setTags(d.seite.tags.join(', '));
         setBasisRev(d.seite.revisionId || null);
       })
-      .catch(() => setFehler('Seite konnte nicht geladen werden'));
+      .catch((e) =>
+        setFehler(
+          e instanceof ApiError && e.status === 403
+            ? 'Diese Seite ist geschützt — nur die Spielleitung darf sie bearbeiten.'
+            : 'Seite konnte nicht geladen werden',
+        ),
+      );
   }, [slug]);
 
   // The textarea grows with its content instead of scrolling inside itself —
@@ -185,6 +196,8 @@ export default function WikiEditor() {
           <WikiMarkup doc={parseWiki(text)} ziele={seite.linkZiele} />
         </div>
       )}
+
+      <WikiSpickzettel istGm={user.isGm} />
 
       <div className="field">
         <label>Kategorien (mit Komma getrennt)</label>

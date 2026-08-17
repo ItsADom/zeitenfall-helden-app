@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
-import { parseWiki } from '@shared/wikiMarkup';
+import { inhaltsverzeichnis, parseWiki } from '@shared/wikiMarkup';
 import type { WikiSeiteVoll } from '@shared/wikiTypen';
 import { ApiError } from '../api';
+import WikiInhalt from './Inhalt';
 import WikiMarkup from './Markup';
+import WikiVerweise from './Verweise';
 import { ladeSeite } from './api';
 
 // Reading a page. Read and edit are two routes rather than one view with a
@@ -29,6 +31,11 @@ export default function WikiSeite() {
   }, [slug]);
 
   useEffect(laden, [laden]);
+
+  // Parsed once per text: the rendering and the table of contents must agree
+  // about the heading anchors, and they only do if they read the same tree.
+  const doc = useMemo(() => parseWiki(seite?.text ?? ''), [seite?.text]);
+  const toc = useMemo(() => inhaltsverzeichnis(doc), [doc]);
 
   // Reached through an old address after a rename: move the URL over so links
   // copied from here are the current ones.
@@ -83,7 +90,9 @@ export default function WikiSeite() {
         </div>
       )}
 
-      <WikiMarkup doc={parseWiki(seite.text)} ziele={seite.linkZiele} />
+      <WikiInhalt zeilen={toc} />
+      <WikiMarkup doc={doc} ziele={seite.linkZiele} />
+      <WikiVerweise slug={seite.slug} />
     </div>
   );
 }

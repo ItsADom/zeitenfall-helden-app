@@ -18,6 +18,7 @@ import {
   listeSeiten,
   speichereSeite,
   verlaufFuer,
+  verweiseAuf,
 } from './seiten.js';
 import { darfBearbeiten, seiteFuer } from './zugriff.js';
 
@@ -59,6 +60,23 @@ wikiApi.get('/seiten/:slug', requireAuth, (req, res) => {
   res.json({ seite: ladeSeite(user, seite), kanonisch: seite.slug });
 });
 
+// The editor's own payload. Separate from the read route because the two want
+// different text: reading drops GM-only regions, editing keeps a [[gm:n]]
+// marker where each stood so a save cannot delete what it never showed.
+wikiApi.get('/seiten/:slug/quelle', requireAuth, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  if (!darfBearbeiten(user, seite)) {
+    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    return;
+  }
+  res.json({ seite: ladeSeite(user, seite, 'bearbeiten'), kanonisch: seite.slug });
+});
+
 wikiApi.put('/seiten/:slug', requireAuth, (req, res) => {
   const user = leser(req);
   const seite = seiteFuer(user, String(req.params.slug));
@@ -82,7 +100,8 @@ wikiApi.put('/seiten/:slug', requireAuth, (req, res) => {
       tags: body.tags,
       basisRev: body.basisRev == null ? null : Number(body.basisRev),
     });
-    res.json({ seite: ladeSeite(user, gespeichert), kanonisch: gespeichert.slug });
+    // The editor is the caller, so it gets the editor's view of the text back.
+    res.json({ seite: ladeSeite(user, gespeichert, 'bearbeiten'), kanonisch: gespeichert.slug });
   } catch (err) {
     if (err instanceof WikiKonflikt) {
       res.status(409).json({
@@ -98,6 +117,16 @@ wikiApi.put('/seiten/:slug', requireAuth, (req, res) => {
     }
     throw err;
   }
+});
+
+wikiApi.get('/seiten/:slug/verweise', requireAuth, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  res.json({ verweise: verweiseAuf(user, seite) });
 });
 
 wikiApi.get('/seiten/:slug/verlauf', requireAuth, (req, res) => {

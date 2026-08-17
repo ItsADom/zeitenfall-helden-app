@@ -16,6 +16,19 @@ export const ladeListe = () => apiGet<{ seiten: WikiSeiteInfo[] }>('/api/wiki/se
 
 export const ladeSeite = (slug: string) => apiGet<SeiteAntwort>(`/api/wiki/seiten/${encodeURIComponent(slug)}`);
 
+/**
+ * The editor's payload. Deliberately a different endpoint from ladeSeite: it
+ * returns the source with a `[[gm:n]]` marker where a GM-only region stands, so
+ * saving cannot delete a section the editor was never shown.
+ */
+export const ladeQuelle = (slug: string) =>
+  apiGet<SeiteAntwort>(`/api/wiki/seiten/${encodeURIComponent(slug)}/quelle`);
+
+export const ladeVerweise = (slug: string) =>
+  apiGet<{ verweise: { slug: string; titel: string }[] }>(
+    `/api/wiki/seiten/${encodeURIComponent(slug)}/verweise`,
+  );
+
 export const legeSeiteAn = (titel: string) => apiPost<{ slug: string }>('/api/wiki/seiten', { titel });
 
 export interface SpeichernEingabe {

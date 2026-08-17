@@ -33,7 +33,12 @@ export type WikiBlock =
   | { typ: 'code'; text: string }
   | { typ: 'tabelle'; kopf: WikiInline[][]; zeilen: WikiInline[][][] }
   | { typ: 'bild'; slug: string; unterschrift: string }
-  | { typ: 'gmblock'; bloecke: WikiBlock[] };
+  | { typ: 'gmblock'; bloecke: WikiBlock[] }
+  /**
+   * Stands in for a GM-only region in an editor that may not see its content.
+   * Never produced by the read path — see verbergeGmBloecke().
+   */
+  | { typ: 'gmplatzhalter'; nr: number };
 
 export interface WikiDoc {
   bloecke: WikiBlock[];
@@ -56,8 +61,9 @@ export function istSichereUrl(url: string): boolean {
 // --- Inline ---
 
 function wikilinkKnoten(inner: string): WikiInline | null {
-  // [[bild:…]] is a block, not an inline: mid-sentence it stays literal text.
-  if (/^bild:/i.test(inner.trim())) return null;
+  // [[bild:…]] and [[gm:…]] are blocks, not inlines: mid-sentence they stay
+  // literal text rather than becoming a link to a page named „bild".
+  if (/^(bild|gm):/i.test(inner.trim())) return null;
   const strich = inner.indexOf('|');
   const ziel = (strich === -1 ? inner : inner.slice(0, strich)).trim();
   const text = (strich === -1 ? inner : inner.slice(strich + 1)).trim();
@@ -177,6 +183,7 @@ const ZITAT = /^>\s?(.*)$/;
 const TRENNER = /^-{3,}\s*$/;
 const ZAUN = /^```(.*)$/;
 const BILD = /^\[\[bild:([^\]|]+)(?:\|([^\]]*))?\]\]$/i;
+const GM_PLATZHALTER = /^\[\[gm:(\d{1,4})\]\]$/i;
 const TABELLEN_TRENNER = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
 /** Does this line start a block of its own? Used to end a paragraph. */
@@ -189,7 +196,8 @@ function istBlockAnfang(zeile: string): boolean {
     ZITAT.test(zeile) ||
     TRENNER.test(zeile) ||
     ZAUN.test(zeile) ||
-    BILD.test(zeile.trim())
+    BILD.test(zeile.trim()) ||
+    GM_PLATZHALTER.test(zeile.trim())
   );
 }
 
@@ -261,6 +269,13 @@ function parseBloecke(zeilen: string[], anker: Map<string, number>, tiefe: numbe
     const bild = BILD.exec(zeile.trim());
     if (bild) {
       out.push({ typ: 'bild', slug: bild[1].trim(), unterschrift: (bild[2] ?? '').trim() });
+      i += 1;
+      continue;
+    }
+
+    const platzhalter = GM_PLATZHALTER.exec(zeile.trim());
+    if (platzhalter) {
+      out.push({ typ: 'gmplatzhalter', nr: Number(platzhalter[1]) });
       i += 1;
       continue;
     }
@@ -463,31 +478,86 @@ export function hatGmBloecke(doc: WikiDoc): boolean {
  * still have shipped the text, and anyone could read it in the network tab.
  */
 export function ohneGmBloecke(doc: WikiDoc): WikiDoc {
-  return { bloecke: doc.bloecke.filter((b) => b.typ !== 'gmblock') };
+  return { bloecke: doc.bloecke.filter((b) => b.typ !== 'gmblock' && b.typ !== 'gmplatzhalter') };
 }
 
 /**
- * Same removal on the raw source, so the server can send a GM-free source text
- * (the read view renders from source, and the editor needs the original).
+ * Splits raw source into "everything a non-GM may see" and the GM-only regions.
+ *
+ * `text` keeps one `[[gm:n]]` line where each region stood; `bloecke[n-1]` is
+ * that region's source INCLUDING its fences. Two different callers need the two
+ * halves:
+ *
+ *   * the read view takes `text` with the markers dropped (quelleOhneGm),
+ *   * the editor takes `text` as it is, so a player who cannot see a secret
+ *     section can still see THAT one is there and keep it in place.
+ *
+ * Without the marker a player's save would silently delete the GM's notes: they
+ * would receive text without those regions, edit it, and send back exactly what
+ * they received. Nothing a player typed is ever dropped, and neither is
+ * anything the GM typed.
  */
-export function quelleOhneGm(quelle: string): string {
+export function verbergeGmBloecke(quelle: string): { text: string; bloecke: string[] } {
   const zeilen = (quelle ?? '').replace(/\r\n?/g, '\n').split('\n');
   const out: string[] = [];
-  let imGm = false;
+  const bloecke: string[] = [];
+  let aktuell: string[] | null = null;
+
   for (const zeile of zeilen) {
     const zaun = ZAUN.exec(zeile);
     if (zaun) {
       const info = zaun[1].trim().toLowerCase();
-      if (!imGm && info === 'gm') {
-        imGm = true;
+      if (!aktuell && info === 'gm') {
+        aktuell = [zeile];
         continue;
       }
-      if (imGm) {
-        imGm = false;
+      if (aktuell) {
+        aktuell.push(zeile);
+        bloecke.push(aktuell.join('\n'));
+        out.push(`[[gm:${bloecke.length}]]`);
+        aktuell = null;
         continue;
       }
     }
-    if (!imGm) out.push(zeile);
+    if (aktuell) aktuell.push(zeile);
+    else out.push(zeile);
   }
-  return out.join('\n');
+  // Unterminated fence: keep what there is rather than losing it.
+  if (aktuell) {
+    bloecke.push(aktuell.join('\n'));
+    out.push(`[[gm:${bloecke.length}]]`);
+  }
+  return { text: out.join('\n'), bloecke };
+}
+
+/**
+ * Puts the regions back where their markers stand. A marker the author deleted
+ * takes its region with it — that is a deliberate, visible act — and a number
+ * without a region simply disappears.
+ */
+export function stelleGmBloeckeHer(text: string, bloecke: readonly string[]): string {
+  if (bloecke.length === 0) return text ?? '';
+  return (text ?? '')
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((zeile) => {
+      const treffer = GM_PLATZHALTER.exec(zeile.trim());
+      if (!treffer) return zeile;
+      return bloecke[Number(treffer[1]) - 1] ?? null;
+    })
+    .filter((z): z is string => z !== null)
+    .join('\n');
+}
+
+/**
+ * Same removal on the raw source, so the server can send a GM-free source text
+ * (the read view renders from source). Markers go too — the reader is not
+ * editing anything, so a placeholder would only raise a question it cannot
+ * answer.
+ */
+export function quelleOhneGm(quelle: string): string {
+  return verbergeGmBloecke(quelle)
+    .text.split('\n')
+    .filter((z) => !GM_PLATZHALTER.test(z.trim()))
+    .join('\n');
 }

@@ -189,7 +189,66 @@
   position: static;
 }
 
+/* --- Inhaltsverzeichnis & Verweise --- */
+
+.wiki-toc {
+  margin-bottom: 16px;
+}
+.wiki-toc-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-toc-liste li {
+  margin: 2px 0;
+}
+/* Einrückung nach Ebene — die Gliederung der Seite soll man sehen, nicht
+   nachzählen müssen. */
+.wiki-toc-e2 {
+  padding-left: 16px;
+}
+.wiki-toc-e3 {
+  padding-left: 32px;
+}
+
+.wiki-verweise {
+  margin-top: 24px;
+}
+
 /* --- Editor --- */
+
+/* Spickzettel: zweispaltiges Raster statt Tabelle — dieselbe Wirkung ohne die
+   Tabellen-Maschinerie (klebender Kopf, Spaltenbreiten) mitzuschleppen. */
+.wiki-spick {
+  margin: 8px 0 0;
+}
+.wiki-spick-zeile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 4px 14px;
+  padding: 3px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-spick-zeile dt code {
+  /* Mehrzeilige Beispiele (Tabelle, gm-Block) sollen ihre Zeilen behalten. */
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.wiki-spick-zeile dd {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Der ausgeblendete Nur-SL-Abschnitt im Editor: gestrichelt und blass — er
+   markiert einen Platz, an dem etwas steht, das man nicht lesen darf. */
+.wiki-gm-verborgen {
+  opacity: 0.75;
+}
+.wiki-gm-verborgen p {
+  margin: 0;
+  font-size: 13px;
+}
+
 
 .wiki-editorleiste {
   position: sticky;

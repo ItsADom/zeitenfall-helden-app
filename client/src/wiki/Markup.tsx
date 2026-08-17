@@ -153,6 +153,18 @@ function BlockKnoten({ block, ziele }: { block: WikiBlock; ziele: LinkZiele }) {
           {block.unterschrift && <figcaption>{block.unterschrift}</figcaption>}
         </figure>
       );
+    case 'gmplatzhalter':
+      // Only in the editor, and only for someone who may not read the region:
+      // the text stays on the server, the marker keeps its place in the
+      // document, and a save puts the original back exactly here.
+      return (
+        <div className="wiki-gm wiki-gm-verborgen">
+          <div className="wiki-gm-marke">Nur Spielleiter</div>
+          <p className="muted">
+            Dieser Abschnitt ist für dich ausgeblendet. Lass die Zeile stehen, dann bleibt er erhalten.
+          </p>
+        </div>
+      );
     case 'gmblock':
       // Only ever reaches a GM: the server strips these regions from the
       // response for everyone else, so this is a marker, not a permission check.

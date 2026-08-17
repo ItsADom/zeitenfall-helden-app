@@ -14,6 +14,8 @@ import {
   parseWiki,
   quelleOhneGm,
   sammleLinks,
+  stelleGmBloeckeHer,
+  verbergeGmBloecke,
   wikiSuchtext,
   zeilenBilanz,
 } from 'shared';
@@ -123,13 +125,54 @@ export function linkZiele(user: WikiLeser, slugs: readonly string[]): Record<str
   return out;
 }
 
-export function ladeSeite(user: WikiLeser, row: WikiSeiteRow): WikiSeiteVoll {
+/**
+ * Which visible pages link HERE. Reads wiki_links backwards — the table is
+ * written from the current text of every page, so this is always the live
+ * answer rather than a cached one.
+ *
+ * Old addresses count: after a rename, pages still pointing at the previous
+ * slug are genuinely linking to this page and would otherwise vanish from the
+ * list exactly when someone needs to find them.
+ */
+export function verweiseAuf(user: WikiLeser, seite: WikiSeiteRow): { slug: string; titel: string }[] {
+  const aliase = (
+    db.prepare('SELECT slug FROM wiki_slug_alias WHERE page_id = ?').all(seite.id) as { slug: string }[]
+  ).map((r) => r.slug);
+  const slugs = [seite.slug, ...aliase];
+  const platzhalter = slugs.map(() => '?').join(',');
+  const filter = sichtbarkeitsFilter(user);
+  return db
+    .prepare(
+      `SELECT DISTINCT p.slug AS slug, p.titel AS titel
+         FROM wiki_links l JOIN wiki_pages p ON p.id = l.from_page_id
+        WHERE l.to_slug IN (${platzhalter}) AND p.id <> ?
+          AND ${filter.sql} AND p.geloescht_at IS NULL
+        ORDER BY p.titel COLLATE NOCASE`,
+    )
+    .all(...slugs, seite.id, ...filter.args) as { slug: string; titel: string }[];
+}
+
+/**
+ * How much of the source a reader gets. Reading drops GM regions entirely;
+ * editing replaces each with a `[[gm:n]]` marker so a player can move around it
+ * without deleting it. GM regions themselves are never sent to a non-GM either
+ * way — this is not a rendering flag.
+ */
+export type LadeModus = 'lesen' | 'bearbeiten';
+
+/** The text of `quelle` this reader may receive, in this mode. */
+function sichtbareQuelle(user: WikiLeser, quelle: string, modus: LadeModus): string {
+  if (user.isGm) return quelle;
+  return modus === 'bearbeiten' ? verbergeGmBloecke(quelle).text : quelleOhneGm(quelle);
+}
+
+export function ladeSeite(user: WikiLeser, row: WikiSeiteRow, modus: LadeModus = 'lesen'): WikiSeiteVoll {
   const rev = letzteFassung(row.id);
   const quelle = rev?.text ?? '';
   // GM-only regions are removed HERE, on the server. A client that merely
   // declined to render them would still have shipped the text, and anyone could
   // read it in the network tab.
-  const text = user.isGm ? quelle : quelleOhneGm(quelle);
+  const text = sichtbareQuelle(user, quelle, modus);
   const doc = parseWiki(text);
 
   return {
@@ -279,11 +322,20 @@ export function speichereSeite(
   const alt = letzteFassung(seite.id);
   const altText = alt?.text ?? '';
   if (eingabe.basisRev != null && alt && eingabe.basisRev !== alt.id) {
-    throw new WikiKonflikt(seite, altText, alt.author_name);
+    // The competing text goes back to the author to compare against — through
+    // the same mask, or the 409 body would hand a player what the read path
+    // just refused them.
+    throw new WikiKonflikt(seite, sichtbareQuelle(user, altText, 'bearbeiten'), alt.author_name);
   }
 
   const titel = kappe(eingabe.titel, WIKI_LIMITS.TITEL_MAX).trim() || seite.titel;
-  const text = kappe(eingabe.text, WIKI_LIMITS.TEXT_MAX);
+  // A non-GM edited a text whose GM-only regions were markers. Put them back
+  // where the markers now stand, before anything derived is computed — the
+  // stored text is always the complete one.
+  const eingereicht = kappe(eingabe.text, WIKI_LIMITS.TEXT_MAX);
+  const text = user.isGm
+    ? eingereicht
+    : stelleGmBloeckeHer(eingereicht, verbergeGmBloecke(altText).bloecke);
   const tags = normalizeWikiTags(eingabe.tags);
   const autor = { id: user.id, name: user.name };
 
