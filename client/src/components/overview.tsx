@@ -12,7 +12,20 @@ import { apiGet } from '../api';
 export interface Overview {
   // group_id ist NULL, solange der Charakter keiner Gruppe angehört (Selbst-
   // Anlage vor der Freigabe). requested_group_id trägt dann die erbetene Gruppe.
-  characters: { id: number; name: string; group_id: number | null; requested_group_id: number | null }[];
+  // Formwandler (siehe shared/tabOrder-Nachbarschaft: server/src/db.ts,
+  // Kommentar am CREATE TABLE characters): shapeshift_of zeigt auf die
+  // Basis-Form (NULL = ist selbst die Basis), active_form_id sitzt nur auf der
+  // Basis-Zeile und trägt, welche Form gerade gespielt wird.
+  characters: {
+    id: number;
+    name: string;
+    group_id: number | null;
+    requested_group_id: number | null;
+    shapeshift_of: number | null;
+    active_form_id: number | null;
+    // Nur auf einer Basis-Zeile maßgeblich — schaltet „Neue Form" frei.
+    is_shapeshifter: number;
+  }[];
   groups: { id: number; name: string }[];
 }
 
