@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
+import { parseDiceExpression } from '@shared/dice';
+import type { RollVisibility } from '@shared/diceProtocol';
 import { usePersistedState } from '../persist';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
+import ShortcutsFlyout from './ShortcutsFlyout';
+import VisibilityPicker from './VisibilityPicker';
 
 // Größe frei ziehbar (Ecke oben links, siehe startResize) und je Gerät
 // gemerkt — wie CharacterSidebar's Breiten-Ziehgriff, nur an zwei Achsen.
@@ -19,10 +23,28 @@ const clampH = (n: number): number => Math.min(MAX_H, Math.max(MIN_H, Math.round
 // `hidden`) — which room is open no longer follows page navigation, see the
 // room selector below.
 export default function DicePanel() {
-  const { groupId, myGroups, feed, connected, hasMore, loadingMore, collapsed, toggle, selectRoom, sendChat, loadMore } =
-    useDicePanel();
+  const {
+    groupId,
+    charId,
+    myGroups,
+    feed,
+    connected,
+    hasMore,
+    loadingMore,
+    collapsed,
+    toggle,
+    selectRoom,
+    sendChat,
+    rollExpr,
+    refreshRooms,
+    loadMore,
+  } = useDicePanel();
   const activeRoom = myGroups.find((g) => g.id === groupId);
   const [draft, setDraft] = useState('');
+  // Gilt für den nächsten Wurf (Favorit wie Freihand) — nicht für den Chat,
+  // Nachrichten sind immer öffentlich.
+  const [visibility, setVisibility] = usePersistedState<RollVisibility>('dice:visibility', 'public');
+  const [error, setError] = useState('');
   const [width, setWidth] = usePersistedState<number>('dice:w', DEFAULT_W);
   const [height, setHeight] = usePersistedState<number>('dice:h', DEFAULT_H);
   const w = clampW(width);
@@ -48,9 +70,22 @@ export default function DicePanel() {
     );
   }
 
+  // Eine Eingabezeile für alles — wie „/me" ist auch der Wurf ein Befehl:
+  // „/r 2w6+5" bzw. „/roll 2w6+5". Alles andere ist eine normale Nachricht.
   const send = () => {
-    if (!draft.trim() || groupId === null) return;
-    sendChat(draft);
+    const text = draft.trim();
+    if (!text || groupId === null) return;
+    const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
+    if (roll) {
+      if (!parseDiceExpression(roll[1])) {
+        setError(`„${roll[1]}" ist kein gültiger Würfelausdruck (z. B. 2w6+5).`);
+        return;
+      }
+      rollExpr(roll[1], visibility);
+    } else {
+      sendChat(text);
+    }
+    setError('');
     setDraft('');
   };
 
@@ -121,7 +156,19 @@ export default function DicePanel() {
           </>
         )}
       </div>
+      {error && <p className="dice-dock-error">{error}</p>}
       <div className="dice-dock-input">
+        <ShortcutsFlyout
+          raw={activeRoom?.myDiceShortcuts ?? ''}
+          charId={charId}
+          onOpen={refreshRooms}
+          onPick={(label, expression) => {
+            if (groupId === null) return;
+            setError('');
+            rollExpr(expression, visibility, label);
+          }}
+        />
+        <VisibilityPicker value={visibility} onChange={setVisibility} />
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -132,7 +179,7 @@ export default function DicePanel() {
             }
           }}
           disabled={groupId === null}
-          placeholder={activeRoom?.myCharacterName ? `Als ${activeRoom.myCharacterName}… (/me für Aktionen)` : 'Nachricht… (/me für Aktionen)'}
+          placeholder={activeRoom?.myCharacterName ? `Als ${activeRoom.myCharacterName}… (/r 2w6)` : 'Nachricht… (/r 2w6)'}
         />
         <button className="small" onClick={send} disabled={!draft.trim() || groupId === null}>
           Senden

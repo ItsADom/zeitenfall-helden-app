@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../App';
 import { useOverview, useOverviewRefresh } from './overview';
+import { useHoverFlyout } from './useHoverFlyout';
 
 // Schnellzugriff-Menü in der Kopfleiste: die Beschriftung („Charaktere" /
 // „Gruppen") verlinkt weiter auf die volle Listenseite; beim Überfahren (oder
@@ -25,43 +25,9 @@ export default function NavMenu({ kind }: { kind: 'charaktere' | 'gruppen' }) {
   const refresh = useOverviewRefresh();
   const location = useLocation();
 
-  const [open, setOpen] = useState(false);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const closeTimer = useRef<number | undefined>(undefined);
-
-  const openNow = () => {
-    window.clearTimeout(closeTimer.current);
-    setOpen(true);
-    refresh(); // stale-while-revalidate: sichtbar bleibt der zwischengespeicherte Stand
-  };
-  // Kleiner Verzug beim Schließen, damit der Weg von der Beschriftung ins Menü
-  // nicht abreißt.
-  const closeSoon = () => {
-    closeTimer.current = window.setTimeout(() => setOpen(false), 120);
-  };
-  const closeNow = () => {
-    window.clearTimeout(closeTimer.current);
-    setOpen(false);
-  };
-
-  // Bei offenem Menü: Klick außerhalb und Escape schließen (wie beim Farbmenü).
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false);
-    };
-    document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [open]);
-
-  useEffect(() => () => window.clearTimeout(closeTimer.current), []);
+  // stale-while-revalidate beim Aufklappen: sichtbar bleibt der
+  // zwischengespeicherte Stand, während frisch nachgeladen wird.
+  const { open, wrapRef, closeNow, hoverProps } = useHoverFlyout<HTMLDivElement>(refresh);
 
   const listPath = kind === 'charaktere' ? '/charaktere' : '/gruppen';
   const label = kind === 'charaktere' ? 'Charaktere' : 'Gruppen';
@@ -71,17 +37,7 @@ export default function NavMenu({ kind }: { kind: 'charaktere' | 'gruppen' }) {
   const activeGroupId = matchId(location.pathname, 'gruppe');
 
   return (
-    <div
-      className={`nav-menu${open ? ' open' : ''}`}
-      ref={wrapRef}
-      onMouseEnter={openNow}
-      onMouseLeave={closeSoon}
-      onFocus={openNow}
-      onBlur={(e) => {
-        // Verlässt der Fokus die ganze Gruppe, schließen.
-        if (!e.currentTarget.contains(e.relatedTarget as Node)) closeSoon();
-      }}
-    >
+    <div className={`nav-menu${open ? ' open' : ''}`} ref={wrapRef} {...hoverProps}>
       <Link className="nav-menu-label" to={listPath} aria-haspopup="true" aria-expanded={open} onClick={closeNow}>
         {label}
       </Link>

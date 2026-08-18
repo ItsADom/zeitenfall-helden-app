@@ -262,25 +262,34 @@ api.get('/groups/mine', requireAuth, (req, res) => {
   // die grundsätzlich ohne Charakterbezug chattet.
   if (user.isGm) {
     const groups = db.prepare('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[];
-    res.json(groups.map((g) => ({ ...g, myCharacterId: null, myCharacterName: null })));
+    res.json(groups.map((g) => ({ ...g, myCharacterId: null, myCharacterName: null, myDiceShortcuts: '' })));
     return;
   }
   const rows = db
     .prepare(
-      `SELECT g.id, g.name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName
+      `SELECT g.id, g.name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName,
+              c.dice_shortcuts AS charShortcuts
        FROM groups g
        JOIN group_members m ON m.group_id = g.id
        LEFT JOIN characters c ON c.group_id = g.id AND c.owner_user_id = m.user_id
        WHERE m.user_id = ?
        ORDER BY g.name`,
     )
-    .all(user.id) as { id: number; name: string; charId: number | null; charName: string | null; charChatName: string | null }[];
+    .all(user.id) as {
+    id: number;
+    name: string;
+    charId: number | null;
+    charName: string | null;
+    charChatName: string | null;
+    charShortcuts: string | null;
+  }[];
   res.json(
     rows.map((r) => ({
       id: r.id,
       name: r.name,
       myCharacterId: r.charId,
       myCharacterName: r.charId ? r.charChatName || r.charName : null,
+      myDiceShortcuts: r.charShortcuts ?? '',
     })),
   );
 });

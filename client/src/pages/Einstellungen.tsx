@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
+import { parseDiceShortcuts } from '@shared/dice';
 import type { ExternalAttrPoint } from '@shared/types';
 import { MAX_EXTERNAL_ATTR_POINTS, MAX_EXTERNAL_ATTR_POINT_NAME, VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
 import { canStepTab, defaultTabKeys, dynTabId, dynTabKey, isFixedTab, moveTabKey, orderTabKeys, stepTabKey } from '@shared/tabOrder';
@@ -70,6 +71,8 @@ export default function EinstellungenPage() {
   const [charTheme, setCharTheme] = useState('');
   const [savedChatName, setSavedChatName] = useState('');
   const [chatName, setChatName] = useState('');
+  const [savedShortcuts, setSavedShortcuts] = useState('');
+  const [shortcuts, setShortcuts] = useState('');
   const [catRows, setCatRows] = useState<CatRow[]>([]);
   const [savedAttrExtern, setSavedAttrExtern] = useState<ExternalAttrPoint[]>([]);
   const [attrExternRows, setAttrExternRows] = useState<ExternalAttrPoint[]>([]);
@@ -95,12 +98,13 @@ export default function EinstellungenPage() {
     setLoading(true);
     setMsg('');
     return apiGet<{
-      character: { theme?: string; chatName?: string };
+      character: { theme?: string; chatName?: string; diceShortcuts?: string };
       data?: { tabs?: DynTab[]; tabOrder?: string[]; visibility?: Record<string, boolean>; itemCategories?: string[]; attrExtern?: ExternalAttrPoint[] };
     }>(`/api/characters/${id}`)
       .then((res) => {
         const theme = res.character.theme ?? '';
         const chatNameVal = res.character.chatName ?? '';
+        const shortcutsVal = res.character.diceShortcuts ?? '';
         const cats = res.data?.itemCategories ?? [];
         const attrExtern = res.data?.attrExtern ?? [];
         const tabs = res.data?.tabs ?? [];
@@ -119,6 +123,8 @@ export default function EinstellungenPage() {
         setCharTheme(theme);
         setSavedChatName(chatNameVal);
         setChatName(chatNameVal);
+        setSavedShortcuts(shortcutsVal);
+        setShortcuts(shortcutsVal);
         setSavedCats(cats);
         setCatRows(cats.map((c) => ({ orig: c, name: c })));
         setSavedAttrExtern(attrExtern);
@@ -166,7 +172,9 @@ export default function EinstellungenPage() {
   );
   const attrExternChanged = JSON.stringify(cleanAttrExtern) !== JSON.stringify(savedAttrExtern);
   const chatNameChanged = chatName.trim() !== savedChatName;
-  const dirty = charTheme !== savedTheme || chatNameChanged || catsChanged || tabsChanged || visChanged || attrExternChanged;
+  const shortcutsChanged = shortcuts !== savedShortcuts;
+  const dirty =
+    charTheme !== savedTheme || chatNameChanged || shortcutsChanged || catsChanged || tabsChanged || visChanged || attrExternChanged;
 
   // --- Reiter-Verwaltung ---
   // Reihenfolge und feste/verschiebbare Regeln kommen aus shared/src/tabOrder.ts
@@ -204,6 +212,9 @@ export default function EinstellungenPage() {
       }
       if (chatNameChanged) {
         await apiPut(`/api/characters/${selId}/chat-name`, { chatName: chatName.trim() });
+      }
+      if (shortcutsChanged) {
+        await apiPut(`/api/characters/${selId}/dice-shortcuts`, { text: shortcuts });
       }
       // Reiter: erst anlegen (neue Ids), dann löschen, umbenennen, sortieren.
       const tmpToReal = new Map<string, number>();
@@ -254,6 +265,7 @@ export default function EinstellungenPage() {
       ? ([
           ['farbwelt', 'Farbwelt'],
           ['chatname', 'Chat-Anzeigename'],
+          ['wuerfel', 'Würfel-Favoriten'],
           ['reiter', 'Reiter'],
           ['sichtbarkeit', 'Sichtbarkeit'],
           ['kategorien', 'Kategorien'],
@@ -350,6 +362,23 @@ export default function EinstellungenPage() {
                 placeholder={chars.find((c) => c.id === selId)?.name ?? ''}
               />
             </div>
+          </div>
+
+          <div className="panel" id="wuerfel">
+            <h3>Würfel-Favoriten</h3>
+            <p className="muted">
+              Eigene Würfe für den Chat — je Zeile <code>Bezeichnung: Ausdruck</code>, z. B.{' '}
+              <code>Dolch-Schaden: 2w6+5</code>. Eine Zeile aus Strichen (<code>---</code>) trennt Gruppen. Im Chat
+              liegen sie hinter dem 🎲-Knopf; ein Klick würfelt sofort.
+            </p>
+            <textarea
+              className="dice-shortcuts-input"
+              rows={7}
+              value={shortcuts}
+              onChange={(e) => setShortcuts(e.target.value)}
+              placeholder={'Dolch-Schaden: 2w6+5\n---\nInitiative: 1w6+8'}
+            />
+            <ShortcutsPreview raw={shortcuts} />
           </div>
 
           {/* Reiter-Verwaltung — läuft nur hier; auf der Charakterseite gibt es
@@ -502,5 +531,36 @@ export default function EinstellungenPage() {
       )}
       {loading && <p className="muted">Lade…</p>}
     </>
+  );
+}
+
+// Zeigt sofort, was aus dem Klartext oben tatsächlich wird — fehlerhafte
+// Zeilen werden hier benannt, statt im Chat stillschweigend zu fehlen.
+function ShortcutsPreview({ raw }: { raw: string }) {
+  const lines = parseDiceShortcuts(raw);
+  if (lines.length === 0) return null;
+  const broken = lines.filter((l) => l.kind === 'shortcut' && !l.valid);
+  return (
+    <div className="dice-shortcuts-preview">
+      <span className="muted">Vorschau:</span>
+      <div className="dice-shortcuts-chips">
+        {lines.map((l, i) =>
+          l.kind === 'separator' ? (
+            <span key={i} className="dice-shortcuts-sep" aria-hidden />
+          ) : (
+            <span key={i} className={`dice-shortcuts-chip${l.valid ? '' : ' invalid'}`} title={l.valid ? l.expression : 'Ungültig'}>
+              {l.label || '(ohne Bezeichnung)'}
+              {l.valid && <span className="muted"> {l.expression}</span>}
+            </span>
+          ),
+        )}
+      </div>
+      {broken.length > 0 && (
+        <p className="muted dice-shortcuts-hint">
+          {broken.length === 1 ? 'Eine Zeile wird' : `${broken.length} Zeilen werden`} nicht übernommen — erwartet wird
+          <code> Bezeichnung: Ausdruck</code> mit einem Würfelausdruck wie <code>2w6+5</code>.
+        </p>
+      )}
+    </div>
   );
 }

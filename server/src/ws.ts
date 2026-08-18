@@ -4,11 +4,13 @@
 import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
-import type { ClientToServerMessage, FeedEntry, ServerToClientMessage } from 'shared';
+import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ServerToClientMessage } from 'shared';
+import { parseDiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
+import { performExpressionRoll } from './dice.js';
 import { isGroupMember } from './routes.js';
-import { canSeeFeedEntry, insertFeedMessage } from './feed.js';
+import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, type FeedAuthor } from './feed.js';
 
 interface SocketMeta {
   userId: number;
@@ -35,6 +37,20 @@ export function broadcastToGroup(groupId: number, entry: FeedEntry): void {
   }
 }
 
+// Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
+// gehört (sonst könnte man unter fremdem Namen posten) — sonst das Konto. Der
+// kurze Chat-Anzeigename hat Vorrang vor dem vollen Charakternamen.
+function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
+  const charId = rawCharId != null ? Number(rawCharId) : null;
+  if (charId != null) {
+    const char = db
+      .prepare('SELECT name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?')
+      .get(charId, meta.userId) as { name: string; chat_name: string } | undefined;
+    if (char) return { userId: meta.userId, charId, name: char.chat_name || char.name };
+  }
+  return { userId: meta.userId, charId: null, name: meta.displayName };
+}
+
 function handleMessage(ws: WebSocket, raw: RawData): void {
   const meta = socketMeta.get(ws);
   if (!meta) return;
@@ -53,22 +69,37 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Leere Nachricht' });
         return;
       }
-      const charId = msg.charId != null ? Number(msg.charId) : null;
       // Posting as a character shows ITS name (e.g. "/me baut eine Sandburg"
-      // -> "Raskir baut eine Sandburg"), not the account's display name. Only
-      // trusts a charId the sender actually owns.
-      let authorName = meta.displayName;
-      if (charId != null) {
-        const char = db
-          .prepare('SELECT name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?')
-          .get(charId, meta.userId) as { name: string; chat_name: string } | undefined;
-        if (char) authorName = char.chat_name || char.name;
-      }
-      insertFeedMessage(meta.groupId, { userId: meta.userId, charId, name: authorName }, text, !!msg.isMe);
+      // -> "Raskir baut eine Sandburg"), not the account's display name.
+      insertFeedMessage(meta.groupId, resolveAuthor(meta, msg.charId), text, !!msg.isMe);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
-    // roll.expr / roll.probe / roll.pending.* land here in later build-plan phases.
+    case 'roll.expr': {
+      const expression = parseDiceExpression(String(msg.expression ?? ''));
+      if (!expression) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
+        return;
+      }
+      // 'gm_player' braucht ein Gegenüber und eine Anfrage — freie Würfe
+      // kennen beides nicht (kommt mit dem GM+Spieler-Fluss in Phase 6).
+      const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
+      const result = performExpressionRoll(expression);
+      const roll: ExpressionRollPayload = {
+        mode: 'expr',
+        label: String(msg.label ?? '').slice(0, 60).trim(),
+        expression: result.expression,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        flagged: result.flagged,
+      };
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), null, visibility, roll);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // roll.probe / roll.pending.* land here in later build-plan phases.
     default:
       send(ws, { type: 'error', reqId: msg.reqId, message: 'Noch nicht implementiert' });
   }

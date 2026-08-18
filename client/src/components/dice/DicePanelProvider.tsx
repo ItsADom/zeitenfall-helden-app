@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { ClientToServerMessage, FeedEntry, ServerToClientMessage } from '@shared/diceProtocol';
+import type { ClientToServerMessage, FeedEntry, RollVisibility, ServerToClientMessage } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 
@@ -27,6 +27,8 @@ export interface DiceGroupOption {
   // you happen to be looking at.
   myCharacterId: number | null;
   myCharacterName: string | null;
+  /** Rohtext der Würfel-Favoriten dieses Charakters (siehe parseDiceShortcuts). */
+  myDiceShortcuts: string;
 }
 
 interface DicePanelCtxValue {
@@ -44,6 +46,9 @@ interface DicePanelCtxValue {
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
+  rollExpr: (expression: string, visibility: RollVisibility, label?: string) => void;
+  /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
+  refreshRooms: () => void;
   loadMore: () => void;
 }
 
@@ -65,6 +70,8 @@ export function useDicePanel(): DicePanelCtxValue {
       setHidden: () => {},
       selectRoom: () => {},
       sendChat: () => {},
+      rollExpr: () => {},
+      refreshRooms: () => {},
       loadMore: () => {},
     }
   );
@@ -169,6 +176,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [myGroups, applyRoom],
   );
 
+  // Nachladen nach Änderungen anderswo (z. B. Chat-Anzeigename oder
+  // Würfel-Favoriten in den Einstellungen) — applyRoom greift dabei nicht,
+  // der offene Raum bleibt offen.
+  const refreshRooms = useCallback(() => {
+    apiGet<DiceGroupOption[]>('/api/groups/mine').then(setMyGroups).catch(() => {});
+  }, []);
+
   // Restores the last-picked room (localStorage) on load, or — if nothing's
   // picked yet and there's no ambiguity — auto-opens a player's one and only
   // group. 2+ groups with nothing persisted stays unselected: the room
@@ -204,6 +218,23 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
+  const rollExpr = useCallback(
+    (expression: string, visibility: RollVisibility, label = '') => {
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const msg: ClientToServerMessage = {
+        type: 'roll.expr',
+        reqId: crypto.randomUUID(),
+        label,
+        expression,
+        visibility,
+        charId,
+      };
+      ws.send(JSON.stringify(msg));
+    },
+    [charId],
+  );
+
   const loadMore = useCallback(() => {
     if (groupId === null || loadingMore || !hasMore || feed.length === 0) return;
     setLoadingMore(true);
@@ -232,6 +263,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setHidden,
         selectRoom,
         sendChat,
+        rollExpr,
+        refreshRooms,
         loadMore,
       }}
     >
