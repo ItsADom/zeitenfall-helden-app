@@ -48,6 +48,10 @@ export interface ProbeRollPayload {
   criticalFailureCount: number;
   criticalFailure: boolean;
   success: boolean;
+  /** Bestanden, aber nur knapp — siehe NARROW_PASS_MARGIN. */
+  narrow: boolean;
+  /** Sauber bestanden mit stehengebliebener 1 — Gegenstück zum Patzer. */
+  criticalSuccess: boolean;
 }
 
 export interface ExpressionRollPayload {

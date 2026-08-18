@@ -25,6 +25,14 @@
 export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_SIDES = 1000;
 
+/**
+ * „Knapp gelungen": ein Wurf aus MEHREREN Würfeln gilt noch als gelungen,
+ * wenn er die Probe-Zahl um höchstens so viel überschreitet. Bei Würfen mit
+ * nur einem Würfel (Waffen-, Eigenschaftsproben) gibt es diesen Spielraum
+ * nicht.
+ */
+export const NARROW_PASS_MARGIN = 4;
+
 export interface DieConfirmation {
   dieIndex: number;
   trigger: 20 | 1;
@@ -54,14 +62,30 @@ export interface RolledConfirmation {
   value: number | null;
 }
 
+/**
+ * Welche Würfel eines Wurfs eine Bestätigung auslösen.
+ *
+ * 20er und 1er heben sich dabei PAARWEISE AUF: nur der Überhang zählt, und
+ * zwar so, als hätte der Wurf allein diese Zahl gezeigt. Zwei 20er und eine 1
+ * sind also eine 20; je eine 20 und eine 1 sind gar nichts. Das passiert vor
+ * allem anderen — aufgehobene Würfel lösen keine Bestätigung aus und tauchen
+ * darum auch nicht als offener Wurf auf.
+ */
 export function findCritTriggers(dice: number[], sides: number): { dieIndex: number; trigger: 20 | 1 }[] {
   if (sides !== 20) return [];
-  const out: { dieIndex: number; trigger: 20 | 1 }[] = [];
+  const twenties: number[] = [];
+  const ones: number[] = [];
   dice.forEach((v, dieIndex) => {
-    if (v === 20) out.push({ dieIndex, trigger: 20 });
-    else if (v === 1) out.push({ dieIndex, trigger: 1 });
+    if (v === 20) twenties.push(dieIndex);
+    else if (v === 1) ones.push(dieIndex);
   });
-  return out;
+  const net = twenties.length - ones.length;
+  if (net === 0) return [];
+  // Vom Überhang die vordersten Würfel behalten, damit die Anzeige stabil
+  // bleibt (Reihenfolge = Würfelreihenfolge).
+  return net > 0
+    ? twenties.slice(0, net).map((dieIndex) => ({ dieIndex, trigger: 20 as const }))
+    : ones.slice(0, -net).map((dieIndex) => ({ dieIndex, trigger: 1 as const }));
 }
 
 export function confirmationsNeeded(dice: number[], sides: number): number {
@@ -79,7 +103,16 @@ export interface ProbeRollResult {
   probeZahl: number;
   criticalFailureCount: number;
   criticalFailure: boolean;
+  /** Bestanden — schließt „knapp" mit ein. */
   success: boolean;
+  /** Bestanden, aber nur knapp (Spielraum ausgereizt oder unbestätigte 20). */
+  narrow: boolean;
+  /**
+   * Sauber bestanden UND mit stehengebliebener natürlicher 1 — das Gegenstück
+   * zum Patzer. Hängt nur am Würfel, nicht an seiner Bestätigung. Ein nur
+   * knapp bestandener Wurf zählt nicht.
+   */
+  criticalSuccess: boolean;
 }
 
 // Teilt die Auslöser in „schon geworfen" und „noch offen" und verrechnet die
@@ -128,9 +161,24 @@ export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], p
   const { confirmations, pending, adjustedSum, criticalFailureCount } = applyConfirmations(triggers, rolled, rawSum);
   const resolved = pending.length === 0;
   const criticalFailure = criticalFailureCount > 0;
+  // Der Spielraum gilt nur für Würfe aus mehreren Würfeln.
+  const withinMargin =
+    dice.length > 1 && adjustedSum > probeZahl && adjustedSum <= probeZahl + NARROW_PASS_MARGIN;
+  // Eine stehengebliebene (nicht bestätigte) 20 lässt keinen sauberen Erfolg
+  // mehr zu — bestenfalls einen knappen. Verworfene Bestätigungen zählen
+  // hier nicht mit, die sind ja gerade als wirkungslos erklärt worden.
+  const unconfirmedTwenty = confirmations.some((c) => c.trigger === 20 && c.confirmed === false);
   // Solange etwas offen ist, gilt der Wurf als nicht entschieden: eine noch
   // ausstehende 20 könnte ihn ohnehin zum Patzer machen.
-  const success = resolved && !criticalFailure && adjustedSum <= probeZahl;
+  const success = resolved && !criticalFailure && (adjustedSum <= probeZahl || withinMargin);
+  const narrow = success && (withinMargin || unconfirmedTwenty);
+  // Eine stehengebliebene natürliche 1 macht aus einem sauberen Erfolg einen
+  // kritischen. Das hängt allein am Würfel selbst: die Bestätigung wird zwar
+  // geworfen und ihr Wert wie immer abgezogen, aber sie hat bei 1ern keine
+  // Schwelle, an der sich etwas entscheiden könnte — eine 1 ist eine 1.
+  // (Aufgehobene 1er zählen nicht, die sind gar keine mehr.) 20er können hier
+  // nicht dazwischenfunken — die hätten sich mit den 1ern aufgehoben.
+  const keptOne = triggers.some((t) => t.trigger === 1);
   return {
     dice,
     confirmations,
@@ -142,6 +190,8 @@ export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], p
     criticalFailureCount,
     criticalFailure,
     success,
+    narrow,
+    criticalSuccess: success && !narrow && keptOne,
   };
 }
 

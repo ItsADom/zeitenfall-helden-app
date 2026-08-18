@@ -152,6 +152,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         criticalFailureCount: result.criticalFailureCount,
         criticalFailure: result.criticalFailure,
         success: result.success,
+        narrow: result.narrow,
+        criticalSuccess: result.criticalSuccess,
       };
       insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), null, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });

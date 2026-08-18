@@ -14,17 +14,50 @@ describe('findCritTriggers / confirmationsNeeded', () => {
     expect(confirmationsNeeded([5, 12, 8], 20)).toBe(0);
   });
 
-  it('finds a natural 20 and a natural 1 by index', () => {
-    const triggers = findCritTriggers([20, 5, 1], 20);
-    expect(triggers).toEqual([
-      { dieIndex: 0, trigger: 20 },
-      { dieIndex: 2, trigger: 1 },
-    ]);
-    expect(confirmationsNeeded([20, 5, 1], 20)).toBe(2);
+  it('findet eine einzelne natürliche 20 bzw. 1 am richtigen Würfel', () => {
+    expect(findCritTriggers([20, 5, 7], 20)).toEqual([{ dieIndex: 0, trigger: 20 }]);
+    expect(findCritTriggers([5, 7, 1], 20)).toEqual([{ dieIndex: 2, trigger: 1 }]);
   });
 
   it('never triggers on non-d20 dice, even at matching face values', () => {
     expect(findCritTriggers([20, 1], 6)).toEqual([]);
+  });
+});
+
+// 20er und 1er heben sich paarweise auf; nur der Überhang zählt, und zwar
+// so, als hätte der Wurf allein diese Zahl gezeigt.
+describe('findCritTriggers: 20er und 1er heben sich auf', () => {
+  it('eine 20 und eine 1 löschen sich vollständig aus', () => {
+    expect(findCritTriggers([20, 5, 1], 20)).toEqual([]);
+    expect(confirmationsNeeded([20, 5, 1], 20)).toBe(0);
+  });
+
+  it('zwei 20er und eine 1 zählen wie eine einzelne 20', () => {
+    expect(findCritTriggers([20, 20, 1], 20)).toEqual([{ dieIndex: 0, trigger: 20 }]);
+  });
+
+  it('zwei 1er und eine 20 zählen wie eine einzelne 1', () => {
+    expect(findCritTriggers([1, 1, 20], 20)).toEqual([{ dieIndex: 0, trigger: 1 }]);
+  });
+
+  it('gleich viele heben sich auch in größerer Zahl auf', () => {
+    expect(findCritTriggers([20, 20, 1, 1, 9], 20)).toEqual([]);
+  });
+
+  it('ohne Gegenstück bleibt alles stehen', () => {
+    expect(findCritTriggers([20, 20, 9], 20)).toEqual([
+      { dieIndex: 0, trigger: 20 },
+      { dieIndex: 1, trigger: 20 },
+    ]);
+  });
+
+  it('ein aufgehobener Wurf hat gar keine Bestätigung und damit keine Wirkung', () => {
+    const r = resolveProbeRoll([20, 1, 8], [], 30);
+    expect(r.pending).toEqual([]);
+    expect(r.resolved).toBe(true);
+    expect(r.adjustedSum).toBe(29); // unverändert, keine Zu-/Abschläge
+    expect(r.criticalFailure).toBe(false);
+    expect(r.success).toBe(true);
   });
 });
 
@@ -77,14 +110,13 @@ describe('resolveProbeRoll', () => {
     expect(r.success).toBe(false);
   });
 
-  it('mixed 20s and 1s each get their own independent confirmation, in dice order', () => {
-    const r = resolveProbeRoll([20, 1, 8], [{ dieIndex: 0, value: 5 }, { dieIndex: 1, value: 9 }], 30);
-    // die 0 = 20 unconfirmed (+5), die 1 = 1 (-9 always)
+  it('mehrere gleichartige Auslöser bekommen je eine eigene Bestätigung, in Würfelreihenfolge', () => {
+    const r = resolveProbeRoll([20, 20, 8], [{ dieIndex: 0, value: 5 }, { dieIndex: 1, value: 4 }], 60);
     expect(r.confirmations).toEqual([
       { dieIndex: 0, trigger: 20, value: 5, confirmed: false },
-      { dieIndex: 1, trigger: 1, value: 9 },
+      { dieIndex: 1, trigger: 20, value: 4, confirmed: false },
     ]);
-    expect(r.adjustedSum).toBe(29 + 5 - 9); // rawSum=29
+    expect(r.adjustedSum).toBe(48 + 5 + 4); // rawSum=48, beide unbestätigt
   });
 
   it('N=1 weapon Probe can crit/fumble on its own', () => {
@@ -100,30 +132,30 @@ describe('resolveProbeRoll', () => {
 
 describe('Bestätigungen werden einzeln nachgereicht', () => {
   it('meldet jeden Auslöser als offen, solange nichts geworfen wurde', () => {
-    const r = resolveProbeRoll([20, 1, 8], [], 30);
+    const r = resolveProbeRoll([1, 1, 8], [], 30);
     expect(r.pending).toEqual([
-      { dieIndex: 0, trigger: 20 },
+      { dieIndex: 0, trigger: 1 },
       { dieIndex: 1, trigger: 1 },
     ]);
     expect(r.confirmations).toEqual([]);
     expect(r.resolved).toBe(false);
     // Unentschieden, solange etwas offen ist — auch wenn die Summe reichen würde.
-    expect(r.adjustedSum).toBe(29);
+    expect(r.adjustedSum).toBe(10);
     expect(r.success).toBe(false);
   });
 
   it('verrechnet Teil-Bestätigungen und lässt den Rest offen', () => {
-    const r = resolveProbeRoll([20, 1, 8], [{ dieIndex: 1, value: 9 }], 30);
+    const r = resolveProbeRoll([1, 1, 8], [{ dieIndex: 1, value: 9 }], 30);
     expect(r.confirmations).toEqual([{ dieIndex: 1, trigger: 1, value: 9 }]);
-    expect(r.pending).toEqual([{ dieIndex: 0, trigger: 20 }]);
+    expect(r.pending).toEqual([{ dieIndex: 0, trigger: 1 }]);
     expect(r.resolved).toBe(false);
-    expect(r.adjustedSum).toBe(20); // 29 - 9
+    expect(r.adjustedSum).toBe(1); // 10 - 9
     expect(r.success).toBe(false); // noch offen
   });
 
   it('gilt erst als entschieden, wenn nichts mehr offen ist', () => {
     const r = resolveProbeRoll(
-      [20, 1, 8],
+      [1, 1, 8],
       [
         { dieIndex: 1, value: 9 },
         { dieIndex: 0, value: 4 },
@@ -132,7 +164,7 @@ describe('Bestätigungen werden einzeln nachgereicht', () => {
     );
     expect(r.pending).toEqual([]);
     expect(r.resolved).toBe(true);
-    expect(r.adjustedSum).toBe(24); // 29 + 4 - 9
+    expect(r.adjustedSum).toBe(-3); // 10 - 9 - 4
     expect(r.success).toBe(true);
   });
 
@@ -173,6 +205,88 @@ describe('Bestätigungen werden einzeln nachgereicht', () => {
     expect(skipped.adjustedSum).toBe(20);
     // Die 20 ist trotzdem passiert — der Eintrag bleibt hervorgehoben.
     expect(skipped.flagged).toBe(true);
+  });
+});
+
+// Ein Wurf aus mehreren Würfeln gilt noch als bestanden, wenn er die
+// Probe-Zahl um höchstens NARROW_PASS_MARGIN überschreitet.
+describe('Knapp gelungen', () => {
+  it('überschreitet die Probe-Zahl um bis zu 4 und gilt trotzdem als bestanden', () => {
+    const r = resolveProbeRoll([14, 14, 14], [], 38); // 42 = 38 + 4
+    expect(r.adjustedSum).toBe(42);
+    expect(r.success).toBe(true);
+    expect(r.narrow).toBe(true);
+  });
+
+  it('bei 5 darüber ist Schluss', () => {
+    const r = resolveProbeRoll([14, 14, 15], [], 38); // 43 = 38 + 5
+    expect(r.success).toBe(false);
+  });
+
+  it('genau auf der Probe-Zahl ist ein sauberer Erfolg, nicht nur ein knapper', () => {
+    const r = resolveProbeRoll([12, 13, 13], [], 38);
+    expect(r.adjustedSum).toBe(38);
+    expect(r.success).toBe(true);
+    expect(r.narrow).toBe(false);
+  });
+
+  it('gibt es bei Würfen mit nur einem Würfel nicht', () => {
+    // Waffen-/Eigenschaftsprobe: 14 gegen 12 ist schlicht misslungen.
+    const r = resolveProbeRoll([14], [], 12);
+    expect(r.success).toBe(false);
+  });
+
+  it('eine unbestätigte 20 drückt einen sauberen Erfolg auf „knapp"', () => {
+    // 20+4+7 = 31, Bestätigung 5 nicht bestätigt → 36, unter der Probe-Zahl.
+    const r = resolveProbeRoll([20, 4, 7], [{ dieIndex: 0, value: 5 }], 38);
+    expect(r.adjustedSum).toBe(36);
+    expect(r.success).toBe(true);
+    expect(r.narrow).toBe(true);
+  });
+});
+
+describe('Kritischer Erfolg', () => {
+  it('eine stehengebliebene 1 macht aus einem sauberen Erfolg einen kritischen', () => {
+    const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 7 }], 25);
+    expect(r.adjustedSum).toBe(14); // 21 - 7
+    expect(r.success).toBe(true);
+    expect(r.criticalSuccess).toBe(true);
+  });
+
+  it('hängt nicht am Wert der Bestätigung — eine 1 ist eine 1', () => {
+    const hoch = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 19 }], 25);
+    const niedrig = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 2 }], 25);
+    expect(hoch.criticalSuccess).toBe(true);
+    expect(niedrig.criticalSuccess).toBe(true);
+  });
+
+  it('nicht bei einem nur knapp bestandenen Wurf', () => {
+    // 1+19+19 = 39, Bestätigung zieht 1 ab → 38, also genau 4 über der
+    // Probe-Zahl: bestanden, aber eben nur knapp.
+    const r = resolveProbeRoll([1, 19, 19], [{ dieIndex: 0, value: 1 }], 34);
+    expect(r.adjustedSum).toBe(38);
+    expect(r.success).toBe(true);
+    expect(r.narrow).toBe(true);
+    expect(r.criticalSuccess).toBe(false);
+  });
+
+  it('nicht bei einem misslungenen Wurf', () => {
+    const r = resolveProbeRoll([1, 19, 19], [{ dieIndex: 0, value: 2 }], 20);
+    expect(r.success).toBe(false);
+    expect(r.criticalSuccess).toBe(false);
+  });
+
+  it('nicht, wenn die 1 von einer 20 aufgehoben wurde', () => {
+    const r = resolveProbeRoll([1, 20, 5], [], 30);
+    expect(r.pending).toEqual([]);
+    expect(r.success).toBe(true);
+    expect(r.criticalSuccess).toBe(false);
+  });
+
+  it('steht erst fest, wenn nichts mehr offen ist', () => {
+    const r = resolveProbeRoll([1, 10, 10], [], 25);
+    expect(r.resolved).toBe(false);
+    expect(r.criticalSuccess).toBe(false);
   });
 });
 

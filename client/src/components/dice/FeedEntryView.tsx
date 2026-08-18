@@ -3,6 +3,10 @@ import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProto
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
 
+// Gegenstück zum „Patzer". An einer Stelle, damit sich die Bezeichnung ohne
+// Suchen umstellen lässt.
+const CRITICAL_SUCCESS_LABEL = 'Kritischer Erfolg';
+
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
@@ -96,9 +100,13 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
     : isProbe
       ? roll.criticalFailure
         ? 'crit'
-        : roll.success
-          ? 'success'
-          : 'fail'
+        : roll.criticalSuccess
+          ? 'critsuccess'
+          : roll.success
+            ? roll.narrow
+              ? 'narrow'
+              : 'success'
+            : 'fail'
       : roll.flagged
         ? 'flagged'
         : '';
@@ -128,9 +136,13 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
               ? roll.criticalFailureCount > 1
                 ? `Patzer ×${roll.criticalFailureCount}`
                 : 'Patzer'
-              : roll.success
-                ? 'Gelungen'
-                : 'Misslungen'}
+              : roll.criticalSuccess
+                ? CRITICAL_SUCCESS_LABEL
+                : roll.success
+                  ? roll.narrow
+                    ? 'Knapp gelungen'
+                    : 'Gelungen'
+                  : 'Misslungen'}
           </span>
         )}
       </div>

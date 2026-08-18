@@ -4088,6 +4088,20 @@ body.resizing-dice {
 .feed-roll--success {
   border-left-color: #3f7d3f;
 }
+/* Kritischer Erfolg — Gegenstück zum Patzer, entsprechend deutlich. */
+.feed-roll--critsuccess {
+  border-left-color: var(--mastery);
+}
+.feed-roll--critsuccess .feed-roll-outcome {
+  color: var(--mastery);
+}
+/* Knapp gelungen — bestanden, aber am Rand: grün, nur gedämpfter. */
+.feed-roll--narrow {
+  border-left-color: #7d9a4a;
+}
+.feed-roll--narrow .feed-roll-outcome {
+  color: #7d9a4a;
+}
 .feed-roll--fail {
   border-left-color: var(--muted);
 }
