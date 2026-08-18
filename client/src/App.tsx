@@ -52,11 +52,12 @@ export interface ThemeControls {
 const ThemeControlsContext = createContext<ThemeControls | null>(null);
 export const useThemeControls = () => useContext(ThemeControlsContext)!;
 
-// Nur rendern, solange eine Gruppe geöffnet ist (siehe DicePanelProvider.open) —
-// sonst gäbe es nichts, worüber der Docked-Chat sprechen könnte.
+// Immer sichtbar (der Chatraum ist jetzt eine eigene Auswahl, nicht von der
+// gerade betrachteten Seite abhängig) — außer eine Seite blendet ihn bewusst
+// aus (DicePanelProvider.setHidden), z. B. eine künftige eigene Chat-Seite.
 function DicePanelDock() {
-  const { groupId } = useDicePanel();
-  if (groupId === null) return null;
+  const { hidden } = useDicePanel();
+  if (hidden) return null;
   return <DicePanel />;
 }
 

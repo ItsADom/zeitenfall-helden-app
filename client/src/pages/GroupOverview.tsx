@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom';
 import type { ResourceKey } from '@shared/types';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
-import { useDicePanel } from '../components/dice/DicePanelProvider';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
 
@@ -94,16 +93,8 @@ function GmNoteField({ charId, initial }: { charId: number; initial: string }) {
 export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' | 'temp' }) {
   const { id } = useParams();
   const groupId = Number(id);
-  const dice = useDicePanel();
   const [data, setData] = useState<OverviewData | null>(null);
   const [error, setError] = useState('');
-
-  // Event-Gruppen (kind='temp') haben keine group_feed-Zeile (die WS-Route
-  // prüft ausschließlich groups) — der Docked-Chat bleibt hier zu.
-  useEffect(() => {
-    if (kind === 'temp') return;
-    dice.open(groupId, null);
-  }, [kind, groupId, dice.open]);
 
   // Talent-Abfrage: der Spielleiter tippt einen Talentnamen, angepinnte Talente
   // erscheinen als Spalte auf jeder Karte. Die Auswahl überlebt Reload/Poll und

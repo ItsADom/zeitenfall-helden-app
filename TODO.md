@@ -202,6 +202,36 @@ chips. Backend table `char_special_resources`. Open for the full version:
         the result and group reaction are immediately visible.
    - Structurally scoped per group already (`GroupInfo`, per-group routes exist
      in `routes.ts`) — but no per-group real-time channel exists yet.
+   - [sketch] **Open design questions surfaced after building phases 1-3**
+     (connection/feed state already lives in `DicePanelProvider`, mounted once
+     at the `App.tsx` root — both points below build on that, not against it):
+      - **Dedicated chat page / future "virtual table" compatibility.** A
+        docked-only panel would collide with a possible future virtual-table
+        feature (not fleshed out anywhere yet, just flagged so it isn't lost).
+        Not a rework: any page can call `useDicePanel()` and read the same
+        `feed`/`sendChat`/etc., so a dedicated full-page chat view is additive
+        — reuses `FeedEntryView` for individual messages/rolls, no duplicate
+        connection. **Settled:** that dedicated page does NOT also render the
+        floating dock (`DicePanel.tsx`'s fixed widget) — showing the same feed
+        twice on the same page would be redundant.
+      - **Chatroom switching via page navigation feels counter-productive**
+        (user feedback): today `open(groupId, charId)` is called by
+        `Group.tsx`/`GroupOverview.tsx`/`Character.tsx` on mount, so merely
+        visiting a different group's page silently swaps which chat the dock
+        shows — surprising if you're mid-conversation and just glance at
+        another group. Proposed alternative, not yet agreed: an explicit
+        chatroom selector (dropdown) in the panel, fed from the player's
+        active groups (`GET /api/overview` already returns a user's `groups`,
+        scoped by membership for players / all groups for the GM — no new
+        endpoint needed) — picking a room is the ONLY thing that switches the
+        displayed feed; page navigation would at most update WHICH character
+        you post as *if* the page's group matches the currently-open room,
+        never switch rooms on its own. Open questions before this can move to
+        `[ready]`: where the selector lives if the dock is closed/no room is
+        open yet (entry point independent of `groupId != null`), whether the
+        last-open room persists across reloads (`localStorage`, like the
+        dock's collapsed/size state already does), and how a GM's much longer
+        group list should be presented vs. a player's usually-one-group case.
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe

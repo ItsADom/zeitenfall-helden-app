@@ -562,6 +562,14 @@ db.exec(`
   if (!cols.has('dice_shortcuts')) db.exec("ALTER TABLE characters ADD COLUMN dice_shortcuts TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration: add 'chat_name' column to existing characters — a short optional
+// override for the name shown in the group feed (chat/rolls), so a character
+// with a long full name doesn't flood the chat with it. '' = use the full name.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('chat_name')) db.exec("ALTER TABLE characters ADD COLUMN chat_name TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: Selbst-Anlage von Charakteren mit ausstehender Gruppen-Freigabe.
 // Zwei Teile: (a) group_id von NOT NULL auf NULLBAR lockern (ein gruppenloser
 // Charakter braucht keine Gruppe), (b) requested_group_id/requested_at ergänzen.

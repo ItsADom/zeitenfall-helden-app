@@ -9,7 +9,6 @@ import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
 import { apiGet, apiPut } from '../api';
 import { useAuth, useThemeControls } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
-import { useDicePanel } from '../components/dice/DicePanelProvider';
 import { DisplayModeProvider } from '../components/displayMode';
 import type { Row } from '../components/inputs';
 import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
@@ -142,7 +141,6 @@ export default function CharacterPage() {
   const { id } = useParams();
   const charId = Number(id);
   const { user } = useAuth();
-  const dice = useDicePanel();
   const [info, setInfo] = useState<CharacterInfo | null>(null);
   const [access, setAccess] = useState<'edit' | 'summary' | null>(null);
   const [data, setData] = useState<FullData | null>(null);
@@ -408,14 +406,6 @@ export default function CharacterPage() {
       window.clearTimeout(t);
     };
   }, [printing]);
-
-  // Groupless characters (groupId null at runtime — CharacterInfo's type says
-  // otherwise, see the build plan's phase-5 note to fix that) have no feed to
-  // post to; the dock stays on whatever group was last opened elsewhere.
-  const diceGroupId = info?.groupId || null;
-  useEffect(() => {
-    if (diceGroupId) dice.open(diceGroupId, charId);
-  }, [diceGroupId, charId, dice.open]);
 
   if (error) return <p className="error">{error}</p>;
   // Während eines Wechsels (auch „Ansehen als") sind data/summary kurz null,

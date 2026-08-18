@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type { ClientToServerMessage, FeedEntry, ServerToClientMessage } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
@@ -18,16 +18,31 @@ function mergeFeed(existing: FeedEntry[], incoming: FeedEntry[]): FeedEntry[] {
   return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
+export interface DiceGroupOption {
+  id: number;
+  name: string;
+  // Who this user posts as in this room — always the group's own character
+  // (GM: always null, chats under their account). Never mixed with other
+  // pages/rooms: the room you have open decides who you are, not the page
+  // you happen to be looking at.
+  myCharacterId: number | null;
+  myCharacterName: string | null;
+}
+
 interface DicePanelCtxValue {
   groupId: number | null;
   charId: number | null;
+  myGroups: DiceGroupOption[];
   feed: FeedEntry[];
   connected: boolean;
   hasMore: boolean;
   loadingMore: boolean;
   collapsed: boolean;
   toggle: () => void;
-  open: (groupId: number, charId: number | null) => void;
+  hidden: boolean;
+  setHidden: (h: boolean) => void;
+  /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
+  selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
   loadMore: () => void;
 }
@@ -39,13 +54,16 @@ export function useDicePanel(): DicePanelCtxValue {
     useContext(DicePanelCtx) ?? {
       groupId: null,
       charId: null,
+      myGroups: [],
       feed: [],
       connected: false,
       hasMore: false,
       loadingMore: false,
       collapsed: true,
       toggle: () => {},
-      open: () => {},
+      hidden: false,
+      setHidden: () => {},
+      selectRoom: () => {},
       sendChat: () => {},
       loadMore: () => {},
     }
@@ -55,11 +73,14 @@ export function useDicePanel(): DicePanelCtxValue {
 export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [groupId, setGroupId] = useState<number | null>(null);
   const [charId, setCharId] = useState<number | null>(null);
+  const [myGroups, setMyGroups] = useState<DiceGroupOption[]>([]);
   const [feed, setFeed] = useState<FeedEntry[]>([]);
   const [connected, setConnected] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [collapsed, toggleCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
+  const [hidden, setHidden] = useState(false);
+  const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const groupIdRef = useRef<number | null>(null);
@@ -119,12 +140,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const open = useCallback(
-    (newGroupId: number, newCharId: number | null) => {
-      setCharId(newCharId);
-      if (groupIdRef.current === newGroupId) return; // same group — keep the connection/feed
-      groupIdRef.current = newGroupId;
-      setGroupId(newGroupId);
+  const applyRoom = useCallback(
+    (option: DiceGroupOption) => {
+      if (groupIdRef.current === option.id) return; // already the open room
+      groupIdRef.current = option.id;
+      setGroupId(option.id);
+      setCharId(option.myCharacterId);
+      setPersistedRoom(option.id);
       setFeed([]);
       setHasMore(false);
       setConnected(false);
@@ -134,10 +156,34 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         intentionalCloseRef.current = true;
         wsRef.current.close();
       }
-      connect(newGroupId);
+      connect(option.id);
     },
-    [connect],
+    [connect, setPersistedRoom],
   );
+
+  const selectRoom = useCallback(
+    (newGroupId: number) => {
+      const option = myGroups.find((g) => g.id === newGroupId);
+      if (option) applyRoom(option);
+    },
+    [myGroups, applyRoom],
+  );
+
+  // Restores the last-picked room (localStorage) on load, or — if nothing's
+  // picked yet and there's no ambiguity — auto-opens a player's one and only
+  // group. 2+ groups with nothing persisted stays unselected: the room
+  // selector is how you choose, not a guess.
+  useEffect(() => {
+    apiGet<DiceGroupOption[]>('/api/groups/mine')
+      .then((groups) => {
+        setMyGroups(groups);
+        const persisted = persistedRoom !== null ? groups.find((g) => g.id === persistedRoom) : undefined;
+        if (persisted) applyRoom(persisted);
+        else if (groups.length === 1) applyRoom(groups[0]);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sendChat = useCallback(
     (raw: string) => {
@@ -175,13 +221,16 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       value={{
         groupId,
         charId,
+        myGroups,
         feed,
         connected,
         hasMore,
         loadingMore,
         collapsed,
         toggle: () => toggleCollapsed((v) => !v),
-        open,
+        hidden,
+        setHidden,
+        selectRoom,
         sendChat,
         loadMore,
       }}

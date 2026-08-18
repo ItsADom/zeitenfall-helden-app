@@ -59,10 +59,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // trusts a charId the sender actually owns.
       let authorName = meta.displayName;
       if (charId != null) {
-        const char = db.prepare('SELECT name FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
-          | { name: string }
-          | undefined;
-        if (char) authorName = char.name;
+        const char = db
+          .prepare('SELECT name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?')
+          .get(charId, meta.userId) as { name: string; chat_name: string } | undefined;
+        if (char) authorName = char.chat_name || char.name;
       }
       insertFeedMessage(meta.groupId, { userId: meta.userId, charId, name: authorName }, text, !!msg.isMe);
       send(ws, { type: 'ack', reqId: msg.reqId });

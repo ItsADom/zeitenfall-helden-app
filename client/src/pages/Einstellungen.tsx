@@ -68,6 +68,8 @@ export default function EinstellungenPage() {
   const [savedTabKey, setSavedTabKey] = useState('');
   // Bearbeiteter Stand.
   const [charTheme, setCharTheme] = useState('');
+  const [savedChatName, setSavedChatName] = useState('');
+  const [chatName, setChatName] = useState('');
   const [catRows, setCatRows] = useState<CatRow[]>([]);
   const [savedAttrExtern, setSavedAttrExtern] = useState<ExternalAttrPoint[]>([]);
   const [attrExternRows, setAttrExternRows] = useState<ExternalAttrPoint[]>([]);
@@ -93,11 +95,12 @@ export default function EinstellungenPage() {
     setLoading(true);
     setMsg('');
     return apiGet<{
-      character: { theme?: string };
+      character: { theme?: string; chatName?: string };
       data?: { tabs?: DynTab[]; tabOrder?: string[]; visibility?: Record<string, boolean>; itemCategories?: string[]; attrExtern?: ExternalAttrPoint[] };
     }>(`/api/characters/${id}`)
       .then((res) => {
         const theme = res.character.theme ?? '';
+        const chatNameVal = res.character.chatName ?? '';
         const cats = res.data?.itemCategories ?? [];
         const attrExtern = res.data?.attrExtern ?? [];
         const tabs = res.data?.tabs ?? [];
@@ -114,6 +117,8 @@ export default function EinstellungenPage() {
         });
         setSavedTheme(theme);
         setCharTheme(theme);
+        setSavedChatName(chatNameVal);
+        setChatName(chatNameVal);
         setSavedCats(cats);
         setCatRows(cats.map((c) => ({ orig: c, name: c })));
         setSavedAttrExtern(attrExtern);
@@ -160,7 +165,8 @@ export default function EinstellungenPage() {
     [attrExternRows],
   );
   const attrExternChanged = JSON.stringify(cleanAttrExtern) !== JSON.stringify(savedAttrExtern);
-  const dirty = charTheme !== savedTheme || catsChanged || tabsChanged || visChanged || attrExternChanged;
+  const chatNameChanged = chatName.trim() !== savedChatName;
+  const dirty = charTheme !== savedTheme || chatNameChanged || catsChanged || tabsChanged || visChanged || attrExternChanged;
 
   // --- Reiter-Verwaltung ---
   // Reihenfolge und feste/verschiebbare Regeln kommen aus shared/src/tabOrder.ts
@@ -195,6 +201,9 @@ export default function EinstellungenPage() {
     try {
       if (charTheme !== savedTheme) {
         await apiPut(`/api/characters/${selId}/theme`, { theme: charTheme });
+      }
+      if (chatNameChanged) {
+        await apiPut(`/api/characters/${selId}/chat-name`, { chatName: chatName.trim() });
       }
       // Reiter: erst anlegen (neue Ids), dann löschen, umbenennen, sortieren.
       const tmpToReal = new Map<string, number>();
@@ -244,6 +253,7 @@ export default function EinstellungenPage() {
     ...(selId != null && !loading
       ? ([
           ['farbwelt', 'Farbwelt'],
+          ['chatname', 'Chat-Anzeigename'],
           ['reiter', 'Reiter'],
           ['sichtbarkeit', 'Sichtbarkeit'],
           ['kategorien', 'Kategorien'],
@@ -323,6 +333,22 @@ export default function EinstellungenPage() {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+
+          <div className="panel" id="chatname">
+            <h3>Chat-Anzeigename</h3>
+            <p className="muted">
+              Kurzer Name für den Gruppen-Chat und Würfelwürfe — praktisch bei langen Charakternamen. Leer lassen für
+              den vollen Namen.
+            </p>
+            <div className="set-row">
+              <input
+                value={chatName}
+                onChange={(e) => setChatName(e.target.value)}
+                maxLength={24}
+                placeholder={chars.find((c) => c.id === selId)?.name ?? ''}
+              />
             </div>
           </div>
 

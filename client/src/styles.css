@@ -3826,8 +3826,12 @@ li {
   right: 18px;
   bottom: 0;
   z-index: 210;
-  width: min(340px, calc(100vw - 36px));
-  max-height: min(480px, calc(100vh - 60px));
+  /* Actual width/height come from an inline style (client/src/components/dice/DicePanel.tsx,
+     draggable via .dice-resize) — these are just the safety bounds against the viewport. */
+  min-width: 260px;
+  min-height: 200px;
+  max-width: calc(100vw - 36px);
+  max-height: calc(100vh - 60px);
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -3835,6 +3839,36 @@ li {
   border-bottom: none;
   border-radius: 10px 10px 0 0;
   box-shadow: var(--shadow);
+}
+/* Zieh-Griff in der oberen linken Ecke — der Dock hängt rechts/unten fest,
+   also wächst er beim Ziehen nach links/oben. */
+.dice-resize {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+  cursor: nwse-resize;
+  border-radius: 10px 0 0 0;
+  z-index: 1;
+}
+.dice-resize::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 6px;
+  height: 6px;
+  border-left: 2px solid var(--border-strong);
+  border-top: 2px solid var(--border-strong);
+}
+.dice-resize:hover,
+body.resizing-dice .dice-resize {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+body.resizing-dice {
+  cursor: nwse-resize;
+  user-select: none;
 }
 .dice-dock-head {
   display: flex;
@@ -3845,6 +3879,16 @@ li {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent-dark);
+}
+.dice-dock-room {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  background: transparent;
+  border: none;
+  padding: 2px 0;
 }
 .dice-dock-status {
   font-weight: 400;

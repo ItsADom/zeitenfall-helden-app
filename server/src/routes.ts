@@ -94,6 +94,7 @@ interface CharRow {
   requested_at: number | null;
   theme: string;
   dice_shortcuts: string;
+  chat_name: string;
 }
 
 function getChar(id: number): CharRow | undefined {
@@ -246,6 +247,42 @@ api.get('/overview', requireAuth, (req, res) => {
 // eigentliche Hürde, nicht die Sichtbarkeit der Namen). Bewusst nur id + name.
 api.get('/groups/names', requireAuth, (_req, res) => {
   res.json(db.prepare('SELECT id, name FROM groups ORDER BY name').all());
+});
+
+// Nur die eigenen Gruppen (Mitgliedschaft, GM sieht alle) — für den
+// Chatraum-Umschalter im Dice-Dock. Bewusst ein eigener, schlanker Endpunkt
+// statt /api/overview mitzunutzen, der zusätzlich JEDEN Charakter mitliefert
+// (bei einem Spielleiter potenziell die ganze Kampagne) und für einen simplen
+// Raum-Umschalter unnötig schwer wäre.
+api.get('/groups/mine', requireAuth, (req, res) => {
+  const user = req.user!;
+  // Wer in einer Gruppe postet, ist die Gruppe's eigener Charakter des Nutzers
+  // (siehe DicePanelProvider — der Chatraum bestimmt, wer postet, nicht die
+  // gerade betrachtete Seite) — nie ein Konto-Name, außer für die Spielleitung,
+  // die grundsätzlich ohne Charakterbezug chattet.
+  if (user.isGm) {
+    const groups = db.prepare('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[];
+    res.json(groups.map((g) => ({ ...g, myCharacterId: null, myCharacterName: null })));
+    return;
+  }
+  const rows = db
+    .prepare(
+      `SELECT g.id, g.name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName
+       FROM groups g
+       JOIN group_members m ON m.group_id = g.id
+       LEFT JOIN characters c ON c.group_id = g.id AND c.owner_user_id = m.user_id
+       WHERE m.user_id = ?
+       ORDER BY g.name`,
+    )
+    .all(user.id) as { id: number; name: string; charId: number | null; charName: string | null; charChatName: string | null }[];
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      myCharacterId: r.charId,
+      myCharacterName: r.charId ? r.charChatName || r.charName : null,
+    })),
+  );
 });
 
 api.get('/groups/:id', requireAuth, (req, res) => {
@@ -489,6 +526,7 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     tempGroups,
     theme: char.theme ?? '',
     diceShortcuts: char.dice_shortcuts ?? '',
+    chatName: char.chat_name ?? '',
   };
   if (!access) {
     res.json({ character: info, access: null, viewAs });
@@ -745,6 +783,16 @@ api.put('/characters/:id/dice-shortcuts', requireAuth, (req, res) => {
   const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
   db.prepare('UPDATE characters SET dice_shortcuts = ? WHERE id = ?').run(text, char.id);
   res.json({ diceShortcuts: text });
+});
+
+// Kurzer, optionaler Anzeigename im Gruppen-Feed (Chat/Würfe) — überschreibt
+// den vollen Charakternamen nur dort, wenn gesetzt ('' = voller Name).
+api.put('/characters/:id/chat-name', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const chatName = String((req.body as { chatName?: unknown })?.chatName ?? '').trim().slice(0, 24);
+  db.prepare('UPDATE characters SET chat_name = ? WHERE id = ?').run(chatName, char.id);
+  res.json({ chatName });
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---
