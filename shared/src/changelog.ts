@@ -169,11 +169,14 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Neu: ein andockbarer Würfel-Chat (🎲 unten rechts) mit einem gemeinsamen Verlauf aus Chat-Nachrichten und Würfelwürfen — jederzeit erreichbar, ohne die Seite zu wechseln, und beim Zurückscrollen auch für vergangene Sessions einsehbar.',
       'Proben direkt vom Bogen würfeln: ein Würfel-Knopf steht jetzt neben jeder berechneten Probe — bei Talenten, Waffen (AT/PA/BL/FK), Sprachen und Attributen (inklusive Sozialstatus). Ein Klick würfelt öffentlich für die ganze Gruppe; eine kleine Pfeil-Schaltfläche daneben bietet zusätzlich „Verborgen" an (nur du siehst den Wurf, auch die Spielleitung nicht).',
       'Kritische Erfolge und Patzer bestätigst du selbst: jede gewürfelte 20 oder 1 öffnet einen eigenen Bestätigungswurf, den du per Knopf auslöst — oder mit „Ohne" ablehnst, wenn kein Patzer-Konzept greift (z. B. bei freien Würfen).',
-      'Freie Würfe per Befehl im Chat: „/r 2w6+5" bzw. „/roll 2w6+5" würfelt sofort; „/me" schreibt eine Aktion in der dritten Person (z. B. „/me baut eine Sandburg" → „Raskir baut eine Sandburg").',
+      'Freie Würfe per Befehl im Chat: „/r 2w6+5" bzw. „/roll 2w6+5" würfelt sofort; „/me" schreibt eine Aktion in der dritten Person (z. B. „/me baut eine Sandburg" → „Raskir baut eine Sandburg"). Tippst du stattdessen einen Namen, schlägt der Chat passende Proben deines Charakters vor (Talente, Zauber/Fähigkeiten, Waffen, Sprachen, Attribute) — mit den Pfeiltasten auswählen und Enter würfelt sie direkt.',
       'Eigene Würfel-Favoriten: leg dir in den Einstellungen benannte Kurzformeln an (z. B. „Dolch-Schaden: 2w6+5") und wirf sie per Klick direkt aus dem Chat-Panel.',
+      'Erleichterung/Erschwernis: trägt die Spielleitung am Tisch einen Malus oder Bonus an, stellst du ihn im Chat-Panel ein (neben der Sichtbarkeit) — er gilt für jede Probe, egal ob vom Bogen oder aus dem Chat-Vorschlag gewürfelt, bis du ihn zurücksetzt. Der Wert steht immer sichtbar beim Wurf.',
+      'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
     ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',
+      '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück; ein Klee-Symbol je Charakter zeigt den aktuellen Stand.',
     ],
   },
   {
