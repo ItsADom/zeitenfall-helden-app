@@ -1,7 +1,7 @@
 // Wire types shared by client and server for the group feed (chat + dice
 // rolls) WebSocket protocol and its REST history endpoint.
 
-import type { DieConfirmation, DiceExpression } from './dice.js';
+import type { DieConfirmation, DiceExpression, PendingConfirmation } from './dice.js';
 
 export type RollVisibility = 'public' | 'hidden' | 'gm_player';
 
@@ -35,6 +35,10 @@ export interface ProbeRollPayload {
   probeZahl: number;
   dice: number[];
   confirmations: DieConfirmation[];
+  // Offene Bestätigungswürfe — der Spieler löst sie einzeln aus, erst danach
+  // steht das Ergebnis fest (resolved).
+  pending: PendingConfirmation[];
+  resolved: boolean;
   rawSum: number;
   adjustedSum: number;
   criticalFailureCount: number;
@@ -48,6 +52,8 @@ export interface ExpressionRollPayload {
   expression: DiceExpression;
   dice: number[];
   confirmations: DieConfirmation[];
+  pending: PendingConfirmation[];
+  resolved: boolean;
   rawSum: number;
   adjustedSum: number;
   flagged: boolean;
@@ -88,12 +94,17 @@ export type ClientToServerMessage =
   | { type: 'chat.send'; reqId: string; text: string; isMe: boolean; charId: number | null }
   | { type: 'roll.expr'; reqId: string; label: string; expression: string; visibility: RollVisibility; charId: number | null }
   | { type: 'roll.probe'; reqId: string; source: ProbeSource; charId: number; visibility: 'public' | 'hidden' }
+  // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true
+  // verwerfen (nicht jeder W20-Wurf kennt Patzer). Nur der Werfer selbst.
+  | { type: 'roll.confirm'; reqId: string; entryId: number; dieIndex: number; skip?: boolean }
   | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number }
   | { type: 'roll.pending.accept'; reqId: string; requestId: string }
   | { type: 'roll.pending.decline'; reqId: string; requestId: string };
 
 export type ServerToClientMessage =
   | { type: 'feed.append'; entry: FeedEntry }
+  // Ein bestehender Eintrag hat sich geändert (Bestätigungswurf nachgereicht).
+  | { type: 'feed.update'; entry: FeedEntry }
   | { type: 'roll.pending.created'; request: PendingRollRequest }
   | { type: 'roll.pending.expired'; requestId: string }
   | { type: 'roll.pending.declined'; requestId: string }

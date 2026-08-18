@@ -3,6 +3,7 @@ import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { CollapsiblePanel } from '../components/collapse';
+import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { Field, NumInput, TextInput } from '../components/inputs';
 import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { usePersistedState } from '../components/persist';
@@ -242,7 +243,18 @@ function NormalTable({
                     <Mastery taw={taw} skill100={e.skill100} />
                   </td>
                   <td className="muted">{e.probe || '—'}</td>
-                  <td className="computed">{probe ? talentProbeZahl(data.attributes, probe, taw) : '—'}</td>
+                  <td className="computed">
+                    {probe ? (
+                      <>
+                        {talentProbeZahl(data.attributes, probe, taw)}
+                        {/* Kampftalente haben keine Formel und damit keine Probe —
+                            sie werden über den Waffen-Reiter gewürfelt. */}
+                        <ProbeRollButton source={{ kind: 'talent', talentId: e.id }} title={e.name} />
+                      </>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
                   <td className="num">
                     <NumInput value={taw} max={100} onChange={(x) => setValue(e.id, { taw: x })} />
                   </td>

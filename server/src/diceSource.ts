@@ -13,6 +13,42 @@ export interface ComputedProbe {
   label: string;
 }
 
+// Der Client schickt nur, WELCHE Probe gewürfelt werden soll — hier wird das
+// rohe JSON auf eine der vier bekannten Formen eingegrenzt, bevor irgendetwas
+// damit an die Datenbank geht.
+export function parseProbeSource(raw: unknown): ProbeSource | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const s = raw as Record<string, unknown>;
+  const id = (v: unknown): number | null => {
+    const n = Number(v);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  };
+  switch (s.kind) {
+    case 'talent': {
+      const talentId = id(s.talentId);
+      return talentId ? { kind: 'talent', talentId } : null;
+    }
+    case 'ability': {
+      const abilityId = id(s.abilityId);
+      return abilityId ? { kind: 'ability', abilityId } : null;
+    }
+    case 'sprache': {
+      const languageId = id(s.languageId);
+      if (!languageId) return null;
+      if (s.mode !== 'sprechen' && s.mode !== 'schreiben') return null;
+      return { kind: 'sprache', languageId, mode: s.mode };
+    }
+    case 'weapon': {
+      const sectionRowId = id(s.sectionRowId);
+      if (!sectionRowId) return null;
+      if (s.probe !== 'at' && s.probe !== 'pa' && s.probe !== 'bl' && s.probe !== 'fk') return null;
+      return { kind: 'weapon', sectionRowId, probe: s.probe };
+    }
+    default:
+      return null;
+  }
+}
+
 export function computeProbeForCharacter(characterId: number, source: ProbeSource): ComputedProbe | null {
   const attrs = loadAttributes(characterId);
   switch (source.kind) {

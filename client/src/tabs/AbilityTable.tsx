@@ -4,6 +4,7 @@ import type { Ability, Attributes } from '@shared/abilities';
 import { groupAbilities } from '@shared/abilities';
 import { probeExprZahl } from '@shared/rules';
 import { AlwaysEditable } from '../components/displayMode';
+import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { Field, NumInput } from '../components/inputs';
 import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
@@ -242,7 +243,12 @@ function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch
       <td className="num">{a.kosten}</td>
       <td className="abil-probe">
         {a.probe}
-        {pz != null && <span className="muted"> ({pz})</span>}
+        {pz != null && (
+          <>
+            <span className="muted"> ({pz})</span>
+            <ProbeRollButton source={{ kind: 'ability', abilityId: a.id }} title={a.name} />
+          </>
+        )}
       </td>
       <td className="num">
         <AlwaysEditable>

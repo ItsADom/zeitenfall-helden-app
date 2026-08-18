@@ -6,7 +6,7 @@
 // usual "GM sees everything" pattern.
 import type { ChatFeedEntry, FeedEntry, RollFeedEntry, RollPayload, RollVisibility } from 'shared';
 import { db } from './db.js';
-import { broadcastToGroup } from './ws.js';
+import { broadcastToGroup, broadcastUpdateToGroup } from './ws.js';
 
 export interface FeedAuthor {
   userId: number;
@@ -120,6 +120,25 @@ export function insertFeedRoll(
   };
   broadcastToGroup(groupId, entry);
   return entry;
+}
+
+/** Ein einzelner Eintrag, für Nachreichungen an einem bestehenden Wurf. */
+export function loadFeedEntry(entryId: number): { entry: FeedEntry; groupId: number } | null {
+  const row = db.prepare('SELECT * FROM group_feed WHERE id = ?').get(entryId) as FeedRow | undefined;
+  if (!row) return null;
+  return { entry: rowToEntry(row), groupId: row.group_id };
+}
+
+/**
+ * Schreibt die Wurf-Nutzlast eines bestehenden Eintrags fort (nachgereichte
+ * Bestätigung) und schickt den neuen Stand an alle, die ihn sehen dürfen.
+ */
+export function updateFeedRoll(entryId: number, groupId: number, roll: RollPayload): FeedEntry | null {
+  db.prepare('UPDATE group_feed SET roll_json = ? WHERE id = ?').run(JSON.stringify(roll), entryId);
+  const loaded = loadFeedEntry(entryId);
+  if (!loaded) return null;
+  broadcastUpdateToGroup(groupId, loaded.entry);
+  return loaded.entry;
 }
 
 export function loadFeedPage(

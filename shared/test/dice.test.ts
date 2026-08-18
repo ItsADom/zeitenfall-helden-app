@@ -46,7 +46,7 @@ describe('resolveProbeRoll', () => {
   });
 
   it('single confirmed 20: instant critical failure, overrides the sum comparison', () => {
-    const r = resolveProbeRoll([20, 5, 3], [15], 30);
+    const r = resolveProbeRoll([20, 5, 3], [{ dieIndex: 0, value: 15 }], 30);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 15, confirmed: true }]);
     expect(r.criticalFailureCount).toBe(1);
     expect(r.criticalFailure).toBe(true);
@@ -56,7 +56,7 @@ describe('resolveProbeRoll', () => {
   });
 
   it('single unconfirmed 20: its confirmation value is added to the sum, no override', () => {
-    const r = resolveProbeRoll([20, 5, 3], [7], 30);
+    const r = resolveProbeRoll([20, 5, 3], [{ dieIndex: 0, value: 7 }], 30);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 7, confirmed: false }]);
     expect(r.criticalFailure).toBe(false);
     expect(r.adjustedSum).toBe(35); // 28 + 7
@@ -64,21 +64,21 @@ describe('resolveProbeRoll', () => {
   });
 
   it('single natural 1: its confirmation value is always subtracted, regardless of value', () => {
-    const r = resolveProbeRoll([1, 10, 10], [17], 25);
+    const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 17 }], 25);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 1, value: 17 }]);
     expect(r.adjustedSum).toBe(4); // 21 - 17
     expect(r.success).toBe(true);
   });
 
   it('two confirmed 20s stack into a worse failure (count tracked, still one criticalFailure flag)', () => {
-    const r = resolveProbeRoll([20, 20, 5], [12, 18], 30);
+    const r = resolveProbeRoll([20, 20, 5], [{ dieIndex: 0, value: 12 }, { dieIndex: 1, value: 18 }], 30);
     expect(r.criticalFailureCount).toBe(2);
     expect(r.criticalFailure).toBe(true);
     expect(r.success).toBe(false);
   });
 
   it('mixed 20s and 1s each get their own independent confirmation, in dice order', () => {
-    const r = resolveProbeRoll([20, 1, 8], [5, 9], 30);
+    const r = resolveProbeRoll([20, 1, 8], [{ dieIndex: 0, value: 5 }, { dieIndex: 1, value: 9 }], 30);
     // die 0 = 20 unconfirmed (+5), die 1 = 1 (-9 always)
     expect(r.confirmations).toEqual([
       { dieIndex: 0, trigger: 20, value: 5, confirmed: false },
@@ -88,13 +88,91 @@ describe('resolveProbeRoll', () => {
   });
 
   it('N=1 weapon Probe can crit/fumble on its own', () => {
-    const critFail = resolveProbeRoll([20], [11], 12);
+    const critFail = resolveProbeRoll([20], [{ dieIndex: 0, value: 11 }], 12);
     expect(critFail.criticalFailure).toBe(true);
     expect(critFail.success).toBe(false);
 
-    const fumbleHelped = resolveProbeRoll([1], [9], 12);
+    const fumbleHelped = resolveProbeRoll([1], [{ dieIndex: 0, value: 9 }], 12);
     expect(fumbleHelped.adjustedSum).toBe(-8);
     expect(fumbleHelped.success).toBe(true);
+  });
+});
+
+describe('Bestätigungen werden einzeln nachgereicht', () => {
+  it('meldet jeden Auslöser als offen, solange nichts geworfen wurde', () => {
+    const r = resolveProbeRoll([20, 1, 8], [], 30);
+    expect(r.pending).toEqual([
+      { dieIndex: 0, trigger: 20 },
+      { dieIndex: 1, trigger: 1 },
+    ]);
+    expect(r.confirmations).toEqual([]);
+    expect(r.resolved).toBe(false);
+    // Unentschieden, solange etwas offen ist — auch wenn die Summe reichen würde.
+    expect(r.adjustedSum).toBe(29);
+    expect(r.success).toBe(false);
+  });
+
+  it('verrechnet Teil-Bestätigungen und lässt den Rest offen', () => {
+    const r = resolveProbeRoll([20, 1, 8], [{ dieIndex: 1, value: 9 }], 30);
+    expect(r.confirmations).toEqual([{ dieIndex: 1, trigger: 1, value: 9 }]);
+    expect(r.pending).toEqual([{ dieIndex: 0, trigger: 20 }]);
+    expect(r.resolved).toBe(false);
+    expect(r.adjustedSum).toBe(20); // 29 - 9
+    expect(r.success).toBe(false); // noch offen
+  });
+
+  it('gilt erst als entschieden, wenn nichts mehr offen ist', () => {
+    const r = resolveProbeRoll(
+      [20, 1, 8],
+      [
+        { dieIndex: 1, value: 9 },
+        { dieIndex: 0, value: 4 },
+      ],
+      30,
+    );
+    expect(r.pending).toEqual([]);
+    expect(r.resolved).toBe(true);
+    expect(r.adjustedSum).toBe(24); // 29 + 4 - 9
+    expect(r.success).toBe(true);
+  });
+
+  it('die Reihenfolge der nachgereichten Würfe spielt keine Rolle', () => {
+    const a = resolveProbeRoll([20, 20], [{ dieIndex: 0, value: 12 }, { dieIndex: 1, value: 3 }], 30);
+    const b = resolveProbeRoll([20, 20], [{ dieIndex: 1, value: 3 }, { dieIndex: 0, value: 12 }], 30);
+    expect(a.adjustedSum).toBe(b.adjustedSum);
+    expect(a.criticalFailureCount).toBe(b.criticalFailureCount);
+    expect(a.confirmations).toEqual(b.confirmations);
+  });
+
+  it('eine verworfene Bestätigung erledigt den Auslöser wirkungslos', () => {
+    // Glückswurf/Zufallstabelle: die 20 soll gar kein Patzer-Potenzial haben.
+    const r = resolveProbeRoll([20, 5, 3], [{ dieIndex: 0, value: null }], 30);
+    expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: null, skipped: true }]);
+    expect(r.pending).toEqual([]);
+    expect(r.resolved).toBe(true);
+    expect(r.criticalFailure).toBe(false);
+    expect(r.adjustedSum).toBe(28); // unverändert
+    expect(r.success).toBe(true);
+  });
+
+  it('verwerfen wirkt auch bei einer natürlichen 1 (kein Abzug)', () => {
+    const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: null }], 25);
+    expect(r.adjustedSum).toBe(21); // ohne den sonst üblichen Abzug
+    expect(r.resolved).toBe(true);
+    expect(r.success).toBe(true);
+  });
+
+  it('greift genauso bei Ausdruckswürfen', () => {
+    const expr = { count: 1, sides: 20, modifier: 0 };
+    const open = resolveExpressionRoll(expr, [20], []);
+    expect(open.pending).toEqual([{ dieIndex: 0, trigger: 20 }]);
+    expect(open.resolved).toBe(false);
+
+    const skipped = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: null }]);
+    expect(skipped.resolved).toBe(true);
+    expect(skipped.adjustedSum).toBe(20);
+    // Die 20 ist trotzdem passiert — der Eintrag bleibt hervorgehoben.
+    expect(skipped.flagged).toBe(true);
   });
 });
 
@@ -140,7 +218,7 @@ describe('resolveExpressionRoll', () => {
 
   it('flags but does not override on a confirmed 20 in a d20 expression', () => {
     const expr = { count: 1, sides: 20, modifier: 0 };
-    const r = resolveExpressionRoll(expr, [20], [14]);
+    const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 14 }]);
     expect(r.flagged).toBe(true);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 14, confirmed: true }]);
     expect(r.adjustedSum).toBe(20); // confirmed 20 adds nothing extra
@@ -148,13 +226,13 @@ describe('resolveExpressionRoll', () => {
 
   it('adds an unconfirmed 20 confirmation value into the sum', () => {
     const expr = { count: 1, sides: 20, modifier: 0 };
-    const r = resolveExpressionRoll(expr, [20], [3]);
+    const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 3 }]);
     expect(r.adjustedSum).toBe(23);
   });
 
   it('subtracts a natural-1 confirmation value unconditionally', () => {
     const expr = { count: 1, sides: 20, modifier: 5 };
-    const r = resolveExpressionRoll(expr, [1], [16]);
+    const r = resolveExpressionRoll(expr, [1], [{ dieIndex: 0, value: 16 }]);
     expect(r.adjustedSum).toBe(1 + 5 - 16);
   });
 

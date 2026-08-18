@@ -4042,6 +4042,27 @@ body.resizing-dice {
 .feed-roll--flagged {
   border-left-color: var(--crit-line);
 }
+/* Bestätigung steht noch aus — Ergebnis bewusst noch offen. */
+.feed-roll--open {
+  border-left-color: var(--warn-line);
+  border-left-style: dashed;
+}
+.feed-pending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+.feed-pending-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.feed-pending-skip {
+  opacity: 0.75;
+}
 .feed-roll-head {
   display: flex;
   align-items: baseline;
@@ -4114,6 +4135,53 @@ body.resizing-dice {
   margin-top: 3px;
   font-size: 11px;
   color: var(--muted);
+}
+
+/* Würfel-Knopf neben einer Probe-Zahl auf dem Bogen. Bleibt zurückhaltend,
+   bis man die Zeile/Karte überfährt — sonst tapeziert er den ganzen Bogen. */
+.probe-roll {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  vertical-align: middle;
+  opacity: 0.25;
+  transition: opacity 0.12s;
+}
+tr:hover .probe-roll,
+.wpn-chip:hover .probe-roll,
+.probe-roll:hover,
+.probe-roll.open {
+  opacity: 1;
+}
+.probe-roll-btn,
+.probe-roll-more {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 1px;
+  line-height: 1;
+  color: inherit;
+}
+.probe-roll-btn {
+  font-size: 12px;
+}
+.probe-roll-more {
+  font-size: 9px;
+  color: var(--muted);
+}
+.probe-roll-more:hover {
+  color: var(--accent);
+}
+/* Klappt nach unten auf (anders als im Dock, der am Fensterboden klebt). */
+.probe-roll-flyout {
+  display: block;
+  top: calc(100% + 4px);
+  bottom: auto;
+  left: auto;
+  right: 0;
+  min-width: 150px;
+  text-align: left;
 }
 
 /* Würfel-Favoriten-Editor (Einstellungen). */

@@ -1,5 +1,7 @@
-import type { DieConfirmation } from '@shared/dice';
+import type { DieConfirmation, PendingConfirmation } from '@shared/dice';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
+import { useAuth } from '../../App';
+import { useDicePanel } from './DicePanelProvider';
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -33,7 +35,11 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
     <div className="feed-confirms">
       {confirmations.map((c, i) => (
         <span key={i} className="feed-confirm">
-          {c.trigger === 20 ? (
+          {c.skipped ? (
+            <>
+              {c.trigger} → <em>keine Bestätigung</em>
+            </>
+          ) : c.trigger === 20 ? (
             <>
               20 → <strong>{c.value}</strong> {c.confirmed ? '· bestätigt (Patzer)' : `· nicht bestätigt (+${c.value})`}
             </>
@@ -48,12 +54,54 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
   );
 }
 
+// Offene Bestätigungen — je Würfel ein eigener Knopf, und nur beim Werfer
+// selbst. „Ohne" ist für Würfe, die gar keine Patzer kennen (Glückswurf,
+// Zufallstabelle): der Auslöser wird wirkungslos abgehakt.
+function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pending: PendingConfirmation[]; mine: boolean }) {
+  const { confirmDie } = useDicePanel();
+  if (pending.length === 0) return null;
+  if (!mine) {
+    return (
+      <div className="feed-pending muted">
+        {pending.length === 1 ? 'Bestätigung ausstehend …' : `${pending.length} Bestätigungen ausstehend …`}
+      </div>
+    );
+  }
+  return (
+    <div className="feed-pending">
+      {pending.map((p) => (
+        <span key={p.dieIndex} className="feed-pending-row">
+          <span className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>{p.trigger}</span>
+          <button className="small" onClick={() => confirmDie(entryId, p.dieIndex)}>
+            Bestätigen
+          </button>
+          <button className="small feed-pending-skip" title="Dieser Wurf kennt keine Bestätigung" onClick={() => confirmDie(entryId, p.dieIndex, true)}>
+            Ohne
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function RollView({ entry }: { entry: RollFeedEntry }) {
+  const { user } = useAuth();
   const { roll } = entry;
   const isProbe = roll.mode === 'probe';
-  // Ein bestätigter Patzer schlägt den Zahlenvergleich; sonst entscheidet die
-  // bereinigte Summe gegen die Probe-Zahl (nur bei Proben).
-  const outcome = isProbe ? (roll.criticalFailure ? 'crit' : roll.success ? 'success' : 'fail') : roll.flagged ? 'flagged' : '';
+  const mine = entry.authorUserId === user.id;
+  // Solange Bestätigungen offen sind, steht das Ergebnis bewusst noch nicht
+  // fest — eine ausstehende 20 könnte den Wurf ohnehin zum Patzer machen.
+  const outcome = !roll.resolved
+    ? 'open'
+    : isProbe
+      ? roll.criticalFailure
+        ? 'crit'
+        : roll.success
+          ? 'success'
+          : 'fail'
+      : roll.flagged
+        ? 'flagged'
+        : '';
   const title = isProbe ? roll.label : roll.label || exprText(roll.expression);
 
   return (
@@ -74,7 +122,7 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
           = <strong>{roll.adjustedSum}</strong>
           {isProbe && <span className="muted"> / {roll.probeZahl}</span>}
         </span>
-        {isProbe && (
+        {isProbe && roll.resolved && (
           <span className="feed-roll-outcome">
             {roll.criticalFailure
               ? roll.criticalFailureCount > 1
@@ -87,6 +135,7 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
         )}
       </div>
       <Confirmations confirmations={roll.confirmations} />
+      <PendingConfirmations entryId={entry.id} pending={roll.pending} mine={mine} />
     </div>
   );
 }

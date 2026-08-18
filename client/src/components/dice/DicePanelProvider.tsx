@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { ClientToServerMessage, FeedEntry, RollVisibility, ServerToClientMessage } from '@shared/diceProtocol';
+import type { ClientToServerMessage, FeedEntry, ProbeSource, RollVisibility, ServerToClientMessage } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 
@@ -47,6 +47,14 @@ interface DicePanelCtxValue {
   selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
   rollExpr: (expression: string, visibility: RollVisibility, label?: string) => void;
+  /**
+   * Probe vom Charakterbogen. Wechselt bei Bedarf in den Raum dieser Gruppe
+   * (ein Wurf ist eine bewusste Handlung — anders als bloßes Blättern) und
+   * klappt den Dock auf, damit Ergebnis und Reaktion sichtbar sind.
+   */
+  rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility) => void;
+  /** Offenen Bestätigungswurf erledigen — werfen, oder mit skip verwerfen. */
+  confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
   /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
   refreshRooms: () => void;
   loadMore: () => void;
@@ -71,6 +79,8 @@ export function useDicePanel(): DicePanelCtxValue {
       selectRoom: () => {},
       sendChat: () => {},
       rollExpr: () => {},
+      rollProbe: () => {},
+      confirmDie: () => {},
       refreshRooms: () => {},
       loadMore: () => {},
     }
@@ -85,7 +95,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [collapsed, toggleCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
+  const [collapsed, setCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
   const [hidden, setHidden] = useState(false);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
 
@@ -96,6 +106,15 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const reconnectDelayRef = useRef(RECONNECT_BASE_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalCloseRef = useRef(false);
+  // Nachrichten, die abgeschickt wurden, während die Verbindung (noch) nicht
+  // stand — vor allem beim Würfeln vom Bogen, das erst den Raum wechselt.
+  const outboxRef = useRef<ClientToServerMessage[]>([]);
+
+  const sendMsg = useCallback((msg: ClientToServerMessage) => {
+    const ws = wsRef.current;
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+    else outboxRef.current.push(msg);
+  }, []);
 
   const connect = useCallback((gid: number) => {
     bufferingRef.current = true;
@@ -114,6 +133,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
           liveBufferRef.current = [];
           setConnected(true);
           reconnectDelayRef.current = RECONNECT_BASE_MS;
+          // Was während des Verbindungsaufbaus aufgelaufen ist, jetzt abschicken.
+          const queued = outboxRef.current;
+          outboxRef.current = [];
+          for (const m of queued) ws.send(JSON.stringify(m));
         })
         .catch(() => {
           // History fetch failed — live pushes still buffer until the socket
@@ -127,7 +150,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       } catch {
         return;
       }
-      if (msg.type !== 'feed.append') return;
+      // append und update laufen beide durch mergeFeed (dedupliziert nach id),
+      // ein Update ersetzt den vorhandenen Eintrag also einfach.
+      if (msg.type !== 'feed.append' && msg.type !== 'feed.update') return;
       if (bufferingRef.current) {
         liveBufferRef.current.push(msg.entry);
       } else {
@@ -201,38 +226,47 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
 
   const sendChat = useCallback(
     (raw: string) => {
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
       const isMe = raw.startsWith('/me ');
       const text = isMe ? raw.slice(4).trim() : raw.trim();
       if (!text) return;
-      const msg: ClientToServerMessage = {
-        type: 'chat.send',
-        reqId: crypto.randomUUID(),
-        text,
-        isMe,
-        charId,
-      };
-      ws.send(JSON.stringify(msg));
+      sendMsg({ type: 'chat.send', reqId: crypto.randomUUID(), text, isMe, charId });
     },
-    [charId],
+    [charId, sendMsg],
   );
 
   const rollExpr = useCallback(
     (expression: string, visibility: RollVisibility, label = '') => {
-      const ws = wsRef.current;
-      if (!ws || ws.readyState !== WebSocket.OPEN) return;
-      const msg: ClientToServerMessage = {
-        type: 'roll.expr',
-        reqId: crypto.randomUUID(),
-        label,
-        expression,
-        visibility,
-        charId,
-      };
-      ws.send(JSON.stringify(msg));
+      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId });
     },
-    [charId],
+    [charId, sendMsg],
+  );
+
+  const rollProbe = useCallback(
+    (forGroupId: number, forCharId: number, source: ProbeSource, visibility: RollVisibility) => {
+      // Ein Wurf vom Bogen gehört in den Raum DIESER Gruppe, als DIESER
+      // Charakter — notfalls wird dorthin gewechselt (die Nachricht wartet
+      // dann in der Outbox auf die neue Verbindung).
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      setCollapsed(false); // Ergebnis soll man auch sehen
+      sendMsg({
+        type: 'roll.probe',
+        reqId: crypto.randomUUID(),
+        source,
+        charId: forCharId,
+        visibility: visibility === 'hidden' ? 'hidden' : 'public',
+      });
+    },
+    [myGroups, applyRoom, sendMsg],
+  );
+
+  const confirmDie = useCallback(
+    (entryId: number, dieIndex: number, skip = false) => {
+      sendMsg({ type: 'roll.confirm', reqId: crypto.randomUUID(), entryId, dieIndex, skip });
+    },
+    [sendMsg],
   );
 
   const loadMore = useCallback(() => {
@@ -258,12 +292,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         hasMore,
         loadingMore,
         collapsed,
-        toggle: () => toggleCollapsed((v) => !v),
+        toggle: () => setCollapsed((v) => !v),
         hidden,
         setHidden,
         selectRoom,
         sendChat,
         rollExpr,
+        rollProbe,
+        confirmDie,
         refreshRooms,
         loadMore,
       }}

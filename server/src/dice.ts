@@ -4,7 +4,6 @@
 // crypto module.
 import crypto from 'node:crypto';
 import {
-  confirmationsNeeded,
   resolveExpressionRoll,
   resolveProbeRoll,
   type DiceExpression,
@@ -20,16 +19,15 @@ export function rollD20(): number {
   return rollDie(20);
 }
 
+// Bestätigungswürfe werden hier NICHT mitgewürfelt — sie löst der Spieler
+// später einzeln aus (siehe roll.confirm in ws.ts). Der frische Wurf kommt
+// deshalb mit leerer Bestätigungsliste und meldet die offenen Auslöser.
 export function performProbeRoll(n: number, probeZahl: number): ProbeRollResult {
   const dice = Array.from({ length: n }, () => rollD20());
-  const confirmationCount = confirmationsNeeded(dice, 20);
-  const confirmationRolls = Array.from({ length: confirmationCount }, () => rollD20());
-  return resolveProbeRoll(dice, confirmationRolls, probeZahl);
+  return resolveProbeRoll(dice, [], probeZahl);
 }
 
 export function performExpressionRoll(expression: DiceExpression): ExpressionRollResult {
   const dice = Array.from({ length: expression.count }, () => rollDie(expression.sides));
-  const confirmationCount = confirmationsNeeded(dice, expression.sides);
-  const confirmationRolls = Array.from({ length: confirmationCount }, () => rollD20());
-  return resolveExpressionRoll(expression, dice, confirmationRolls);
+  return resolveExpressionRoll(expression, dice, []);
 }

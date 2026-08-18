@@ -1,6 +1,7 @@
 import { schreibenProbe, sprechenProbe } from '@shared/rules';
 import type { CharLanguage } from '@shared/types';
 import { CollapsiblePanel } from '../components/collapse';
+import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { useReadOnly } from '../components/displayMode';
 import { NumInput } from '../components/inputs';
 import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
@@ -90,7 +91,16 @@ function LanguageTable({
     const v = values.get(e.id);
     rows.push(
       <tr key={e.id}>
-        <td title={e.name}>{e.name}</td>
+        <td title={e.name}>
+          {e.name}
+          {/* Der Wurf-Knopf ist hier die einzige Stelle mit der um die
+              Erleichterung korrigierten Probe — der Blurb über der Tabelle
+              zeigt weiterhin nur den Grundwert (siehe Build-Plan). */}
+          <ProbeRollButton
+            source={{ kind: 'sprache', languageId: e.id, mode: kind === 'sprache' ? 'sprechen' : 'schreiben' }}
+            title={e.name}
+          />
+        </td>
         <td className="num muted">{e.komplexitaet}</td>
         <td className="num">
           <NumInput value={v?.taw ?? 0} onChange={(x) => setValue(e.id, { taw: x })} />

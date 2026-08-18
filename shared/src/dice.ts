@@ -13,6 +13,14 @@
 // re-confirmed. Applies identically at N=1 (weapon Proben) and N=3+
 // (Talente/Zauber/Sprachen). Only triggers on d20s (sides === 20) — other
 // dice never crit/fumble.
+//
+// Confirmations are NOT rolled together with the dice: each one is triggered
+// by the player afterwards, one die at a time (that little bit of ceremony is
+// the point — see the roll flow in docs/concepts/dice-rolls-and-chat.md). The
+// resolvers therefore take however many confirmations have been rolled SO FAR
+// and report the rest as `pending`; a roll counts as `resolved` only once
+// nothing is pending. Until then its success/failure is deliberately not
+// decided, since a confirmed 20 would override it anyway.
 
 export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_SIDES = 1000;
@@ -20,8 +28,30 @@ export const MAX_DICE_SIDES = 1000;
 export interface DieConfirmation {
   dieIndex: number;
   trigger: 20 | 1;
-  value: number;
+  /** null, wenn der Spieler die Bestätigung verworfen hat (siehe skipped). */
+  value: number | null;
   confirmed?: boolean; // only meaningful for trigger===20
+  /**
+   * Verworfen statt geworfen: nicht jeder W20-Wurf kennt überhaupt Patzer —
+   * ein Glückswurf oder eine Zufallstabelle will keine Bestätigung. Zählt
+   * weder in die Summe noch als Patzer.
+   */
+  skipped?: boolean;
+}
+
+/** Ein noch offener Bestätigungswurf — der Spieler löst ihn selbst aus. */
+export interface PendingConfirmation {
+  dieIndex: number;
+  trigger: 20 | 1;
+}
+
+/**
+ * Erledigte Bestätigung, wie sie hereingereicht wird (Reihenfolge egal):
+ * eine Zahl = geworfen, null = vom Spieler verworfen.
+ */
+export interface RolledConfirmation {
+  dieIndex: number;
+  value: number | null;
 }
 
 export function findCritTriggers(dice: number[], sides: number): { dieIndex: number; trigger: 20 | 1 }[] {
@@ -41,6 +71,9 @@ export function confirmationsNeeded(dice: number[], sides: number): number {
 export interface ProbeRollResult {
   dice: number[];
   confirmations: DieConfirmation[];
+  pending: PendingConfirmation[];
+  /** true, sobald keine Bestätigung mehr offen ist — erst dann gilt success/criticalFailure. */
+  resolved: boolean;
   rawSum: number;
   adjustedSum: number;
   probeZahl: number;
@@ -49,30 +82,67 @@ export interface ProbeRollResult {
   success: boolean;
 }
 
-/**
- * Resolves a Probe roll: N d20 summed against a precomputed target number
- * (probeZahl). confirmationRolls must have exactly as many entries, in
- * order, as findCritTriggers(dice, 20) produces.
- */
-export function resolveProbeRoll(dice: number[], confirmationRolls: number[], probeZahl: number): ProbeRollResult {
-  const triggers = findCritTriggers(dice, 20);
-  const rawSum = dice.reduce((a, b) => a + b, 0);
-  let adjustedSum = rawSum;
+// Teilt die Auslöser in „schon geworfen" und „noch offen" und verrechnet die
+// geworfenen. Gemeinsam genutzt von Proben- und Ausdruckswürfen, weil die
+// Bestätigungsmechanik in beiden identisch ist.
+function applyConfirmations(
+  triggers: { dieIndex: number; trigger: 20 | 1 }[],
+  rolled: RolledConfirmation[],
+  startSum: number,
+): { confirmations: DieConfirmation[]; pending: PendingConfirmation[]; adjustedSum: number; criticalFailureCount: number } {
+  const byDie = new Map(rolled.map((r) => [r.dieIndex, r.value]));
+  const confirmations: DieConfirmation[] = [];
+  const pending: PendingConfirmation[] = [];
+  let adjustedSum = startSum;
   let criticalFailureCount = 0;
-  const confirmations: DieConfirmation[] = triggers.map((t, i) => {
-    const value = confirmationRolls[i];
-    if (t.trigger === 20) {
+  for (const t of triggers) {
+    if (!byDie.has(t.dieIndex)) {
+      pending.push({ dieIndex: t.dieIndex, trigger: t.trigger });
+      continue;
+    }
+    const value = byDie.get(t.dieIndex) as number | null;
+    if (value === null) {
+      // Verworfen: erledigt, aber ohne jede Wirkung auf Summe oder Patzer.
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value: null, skipped: true });
+    } else if (t.trigger === 20) {
       const confirmed = value >= 10;
       if (confirmed) criticalFailureCount += 1;
       else adjustedSum += value;
-      return { dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed };
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed });
+    } else {
+      adjustedSum -= value;
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value });
     }
-    adjustedSum -= value;
-    return { dieIndex: t.dieIndex, trigger: t.trigger, value };
-  });
+  }
+  return { confirmations, pending, adjustedSum, criticalFailureCount };
+}
+
+/**
+ * Resolves a Probe roll: N d20 summed against a precomputed target number
+ * (probeZahl). `rolled` carries the confirmations triggered so far (any
+ * order, keyed by dieIndex); the rest come back as `pending`.
+ */
+export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], probeZahl: number): ProbeRollResult {
+  const triggers = findCritTriggers(dice, 20);
+  const rawSum = dice.reduce((a, b) => a + b, 0);
+  const { confirmations, pending, adjustedSum, criticalFailureCount } = applyConfirmations(triggers, rolled, rawSum);
+  const resolved = pending.length === 0;
   const criticalFailure = criticalFailureCount > 0;
-  const success = !criticalFailure && adjustedSum <= probeZahl;
-  return { dice, confirmations, rawSum, adjustedSum, probeZahl, criticalFailureCount, criticalFailure, success };
+  // Solange etwas offen ist, gilt der Wurf als nicht entschieden: eine noch
+  // ausstehende 20 könnte ihn ohnehin zum Patzer machen.
+  const success = resolved && !criticalFailure && adjustedSum <= probeZahl;
+  return {
+    dice,
+    confirmations,
+    pending,
+    resolved,
+    rawSum,
+    adjustedSum,
+    probeZahl,
+    criticalFailureCount,
+    criticalFailure,
+    success,
+  };
 }
 
 export interface DiceExpression {
@@ -97,6 +167,8 @@ export interface ExpressionRollResult {
   expression: DiceExpression;
   dice: number[];
   confirmations: DieConfirmation[];
+  pending: PendingConfirmation[];
+  resolved: boolean;
   rawSum: number;
   adjustedSum: number;
   flagged: boolean;
@@ -110,22 +182,21 @@ export interface ExpressionRollResult {
 export function resolveExpressionRoll(
   expression: DiceExpression,
   dice: number[],
-  confirmationRolls: number[],
+  rolled: RolledConfirmation[],
 ): ExpressionRollResult {
   const triggers = findCritTriggers(dice, expression.sides);
   const rawSum = dice.reduce((a, b) => a + b, 0) + expression.modifier;
-  let adjustedSum = rawSum;
-  const confirmations: DieConfirmation[] = triggers.map((t, i) => {
-    const value = confirmationRolls[i];
-    if (t.trigger === 20) {
-      const confirmed = value >= 10;
-      if (!confirmed) adjustedSum += value;
-      return { dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed };
-    }
-    adjustedSum -= value;
-    return { dieIndex: t.dieIndex, trigger: t.trigger, value };
-  });
-  return { expression, dice, confirmations, rawSum, adjustedSum, flagged: triggers.length > 0 };
+  const { confirmations, pending, adjustedSum } = applyConfirmations(triggers, rolled, rawSum);
+  return {
+    expression,
+    dice,
+    confirmations,
+    pending,
+    resolved: pending.length === 0,
+    rawSum,
+    adjustedSum,
+    flagged: triggers.length > 0,
+  };
 }
 
 export type DiceShortcutLine =

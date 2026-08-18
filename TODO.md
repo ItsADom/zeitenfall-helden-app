@@ -121,6 +121,19 @@ chips. Backend table `char_special_resources`. Open for the full version:
      2+ rolling 1) each gets its own independent Bestätigung roll per the rules
      above, and the effects stack/compound rather than collapsing into one
      shared outcome — e.g. two confirmed 20s is a more severe failure than one.
+   - **Bestätigungen are player-triggered, not auto-rolled (decided):** the
+     roll posts with its 20s/1s visible and the Bestätigungen still *open*;
+     the player then rolls each one themselves, one button per die (that bit
+     of ceremony is the point — some illusion of control over the outcome).
+     Only the roller gets the buttons, the Spielleitung included. Until every
+     Bestätigung is done the entry shows no success/failure at all
+     ("Bestätigung ausstehend") — an outstanding 20 could still flip it to a
+     Patzer, so committing to an outcome early would be a lie. Each open
+     Bestätigung can alternatively be **declined** ("Ohne"): not every d20 roll
+     has a Patzer concept — a luck roll or a random-table roll doesn't — and a
+     declined one is settled with no effect on the sum and no Patzer. Feed
+     entries are therefore mutable: a roll is written once and then updated in
+     place as Bestätigungen come in (`feed.update` beside `feed.append`).
    - Sub-pieces, each decided on its own pass:
       - **Real-time transport (decided): WebSockets, scoped to this feature
         only** — not a general replacement for the app's existing polling.

@@ -143,23 +143,28 @@ export const MAX_DICE_SIDES = 1000;
 export function findCritTriggers(dice: number[], sides: number): { dieIndex: number; trigger: 20 | 1 }[];
 export function confirmationsNeeded(dice: number[], sides: number): number;
 
-export interface DieConfirmation { dieIndex: number; trigger: 20 | 1; value: number; confirmed?: boolean }
+// value: null = vom Spieler verworfen (siehe skipped)
+export interface DieConfirmation { dieIndex: number; trigger: 20 | 1; value: number | null; confirmed?: boolean; skipped?: boolean }
+export interface PendingConfirmation { dieIndex: number; trigger: 20 | 1 }
+export interface RolledConfirmation { dieIndex: number; value: number | null }
 
 export interface ProbeRollResult {
   dice: number[]; confirmations: DieConfirmation[];
+  pending: PendingConfirmation[]; resolved: boolean;
   rawSum: number; adjustedSum: number; probeZahl: number;
   criticalFailureCount: number; criticalFailure: boolean; success: boolean;
 }
-export function resolveProbeRoll(dice: number[], confirmationRolls: number[], probeZahl: number): ProbeRollResult;
+export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], probeZahl: number): ProbeRollResult;
 
 export interface DiceExpression { count: number; sides: number; modifier: number }
 export function parseDiceExpression(expr: string): DiceExpression | null;  // "2w6+5", "w20", case-insensitive "w"
 
 export interface ExpressionRollResult {
   expression: DiceExpression; dice: number[]; confirmations: DieConfirmation[];
+  pending: PendingConfirmation[]; resolved: boolean;
   rawSum: number; adjustedSum: number; flagged: boolean;
 }
-export function resolveExpressionRoll(expression: DiceExpression, dice: number[], confirmationRolls: number[]): ExpressionRollResult;
+export function resolveExpressionRoll(expression: DiceExpression, dice: number[], rolled: RolledConfirmation[]): ExpressionRollResult;
 
 export type DiceShortcutLine =
   | { kind: 'separator' }
@@ -180,6 +185,18 @@ weapon Probe die can still crit/fumble on its own) and at N=3+ (Talente/
 Zauber/Sprachen). Same mechanic applies to raw shortcut/expression rolls
 (only when `sides === 20`), just without a success/fail concept to override —
 the entry is flagged for display instead.
+
+**Confirmations are not rolled with the dice** (decided during phase 5): the
+roll posts with its 20s/1s showing and the confirmations still open, and the
+roller triggers each one afterwards, one button per die. Only the roller gets
+those buttons. Each open confirmation can also be *declined* — not every d20
+roll has a Patzer concept (a luck roll, a random-table roll) — which settles it
+with no effect on the sum and no Patzer. Until nothing is `pending`, the entry
+is not `resolved` and deliberately shows no success/failure, since an
+outstanding 20 could still flip it. Feed entries are therefore mutable: written
+once, then updated in place (`feed.update` beside `feed.append`, `roll.confirm`
+client→server). The resolvers take the confirmations rolled *so far* (any
+order, keyed by `dieIndex`) and report the rest as `pending`.
 
 `shared/test/dice.test.ts` (vitest, same convention as `rules.test.ts`):
 plain pass/fail, single confirmed/unconfirmed 20, single 1, two confirmed 20s

@@ -4,13 +4,15 @@
 import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
-import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ServerToClientMessage } from 'shared';
-import { parseDiceExpression } from 'shared';
+import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ProbeRollPayload, ServerToClientMessage } from 'shared';
+import type { RolledConfirmation } from 'shared';
+import { parseDiceExpression, resolveExpressionRoll, resolveProbeRoll } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
-import { performExpressionRoll } from './dice.js';
+import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
+import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import { isGroupMember } from './routes.js';
-import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, type FeedAuthor } from './feed.js';
+import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
 
 interface SocketMeta {
   userId: number;
@@ -26,15 +28,24 @@ function send(ws: WebSocket, msg: ServerToClientMessage): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
 
-export function broadcastToGroup(groupId: number, entry: FeedEntry): void {
+function broadcast(groupId: number, entry: FeedEntry, type: 'feed.append' | 'feed.update'): void {
   const room = rooms.get(groupId);
   if (!room) return;
   for (const ws of room) {
     const meta = socketMeta.get(ws);
     if (!meta) continue;
     if (!canSeeFeedEntry(entry, { userId: meta.userId })) continue;
-    send(ws, { type: 'feed.append', entry });
+    send(ws, { type, entry } as ServerToClientMessage);
   }
+}
+
+export function broadcastToGroup(groupId: number, entry: FeedEntry): void {
+  broadcast(groupId, entry, 'feed.append');
+}
+
+/** Geänderter Bestandseintrag (nachgereichte Bestätigung) statt neuer Zeile. */
+export function broadcastUpdateToGroup(groupId: number, entry: FeedEntry): void {
+  broadcast(groupId, entry, 'feed.update');
 }
 
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
@@ -91,6 +102,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         expression: result.expression,
         dice: result.dice,
         confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
         rawSum: result.rawSum,
         adjustedSum: result.adjustedSum,
         flagged: result.flagged,
@@ -99,7 +112,82 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
-    // roll.probe / roll.pending.* land here in later build-plan phases.
+    case 'roll.probe': {
+      const source = parseProbeSource(msg.source);
+      if (!source) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Probe' });
+        return;
+      }
+      // Nur eigene Charaktere, und nur in der Gruppe dieses Feeds — sonst
+      // könnte man über eine fremde Gruppe hinweg würfeln lassen.
+      const charId = Number(msg.charId);
+      const char = db
+        .prepare('SELECT id, name, chat_name, group_id FROM characters WHERE id = ? AND owner_user_id = ?')
+        .get(charId, meta.userId) as { id: number; name: string; chat_name: string; group_id: number | null } | undefined;
+      if (!char || char.group_id !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
+        return;
+      }
+      // Die Probe-Zahl wird IMMER hier neu berechnet, nie vom Client
+      // übernommen — sonst ließe sich gegen eine erfundene Schwelle würfeln.
+      const computed = computeProbeForCharacter(char.id, source);
+      if (!computed) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
+        return;
+      }
+      const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
+      const result = performProbeRoll(computed.n, computed.probeZahl);
+      const roll: ProbeRollPayload = {
+        mode: 'probe',
+        source,
+        label: computed.label,
+        n: computed.n,
+        probeZahl: computed.probeZahl,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        criticalFailureCount: result.criticalFailureCount,
+        criticalFailure: result.criticalFailure,
+        success: result.success,
+      };
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), null, visibility, roll);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.confirm': {
+      const loaded = loadFeedEntry(Number(msg.entryId));
+      if (!loaded || loaded.entry.kind !== 'roll' || loaded.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Wurf nicht gefunden' });
+        return;
+      }
+      // Nur der Werfer selbst bestätigt — auch die Spielleitung nicht.
+      if (loaded.entry.authorUserId !== meta.userId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur der Werfer kann bestätigen' });
+        return;
+      }
+      const roll = loaded.entry.roll;
+      const dieIndex = Number(msg.dieIndex);
+      if (!roll.pending.some((p) => p.dieIndex === dieIndex)) {
+        // Schon erledigt (oder nie offen gewesen) — z. B. doppelt geklickt.
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Würfel steht nichts mehr aus' });
+        return;
+      }
+      const done: RolledConfirmation[] = [
+        ...roll.confirmations.map((c) => ({ dieIndex: c.dieIndex, value: c.value })),
+        { dieIndex, value: msg.skip ? null : rollD20() },
+      ];
+      const next =
+        roll.mode === 'probe'
+          ? { ...roll, ...resolveProbeRoll(roll.dice, done, roll.probeZahl) }
+          : { ...roll, ...resolveExpressionRoll(roll.expression, roll.dice, done) };
+      updateFeedRoll(loaded.entry.id, meta.groupId, next);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // roll.pending.* lands here in a later build-plan phase.
     default:
       send(ws, { type: 'error', reqId: msg.reqId, message: 'Noch nicht implementiert' });
   }
