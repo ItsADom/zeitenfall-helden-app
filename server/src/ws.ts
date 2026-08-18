@@ -54,7 +54,17 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       const charId = msg.charId != null ? Number(msg.charId) : null;
-      insertFeedMessage(meta.groupId, { userId: meta.userId, charId, name: meta.displayName }, text, !!msg.isMe);
+      // Posting as a character shows ITS name (e.g. "/me baut eine Sandburg"
+      // -> "Raskir baut eine Sandburg"), not the account's display name. Only
+      // trusts a charId the sender actually owns.
+      let authorName = meta.displayName;
+      if (charId != null) {
+        const char = db.prepare('SELECT name FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
+          | { name: string }
+          | undefined;
+        if (char) authorName = char.name;
+      }
+      insertFeedMessage(meta.groupId, { userId: meta.userId, charId, name: authorName }, text, !!msg.isMe);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

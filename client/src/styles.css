@@ -3794,6 +3794,112 @@ li {
   background: var(--surface-hover);
 }
 
+/* ---------- Würfel-Chat (docked panel, client/src/components/dice/*) ---------- */
+.dice-dock-tab {
+  position: fixed;
+  right: 18px;
+  bottom: 0;
+  z-index: 210;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid var(--accent-dark);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.dice-dock-tab:hover {
+  background: var(--accent-dark);
+}
+.dice-dock-offline {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn-line);
+  margin-left: 6px;
+}
+.dice-dock {
+  position: fixed;
+  right: 18px;
+  bottom: 0;
+  z-index: 210;
+  width: min(340px, calc(100vw - 36px));
+  max-height: min(480px, calc(100vh - 60px));
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  box-shadow: var(--shadow);
+}
+.dice-dock-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+.dice-dock-status {
+  font-weight: 400;
+  font-size: 12px;
+}
+.dice-dock-collapse {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+}
+.dice-dock-collapse:hover {
+  color: var(--text);
+}
+.dice-dock-feed {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 10px;
+  min-height: 160px;
+}
+.dice-dock-empty {
+  text-align: center;
+  margin: 20px 0;
+}
+.dice-dock-more {
+  display: block;
+  margin: 0 auto 10px;
+}
+.feed-entry {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.feed-time {
+  color: var(--muted);
+  font-size: 11px;
+  margin-right: 6px;
+}
+.feed-msg--me .feed-text {
+  font-style: italic;
+}
+.dice-dock-input {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--border);
+}
+.dice-dock-input input {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ---------- Druck / PDF ---------- */
 /* Die Druckansicht (alle Tabs, je Tab eine Seite) hängt normalerweise
    unsichtbar im DOM und wird nur beim Drucken sichtbar. */

@@ -4,6 +4,7 @@ import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
+import { useDicePanel } from '../components/dice/DicePanelProvider';
 import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
@@ -21,6 +22,7 @@ export default function GroupPage() {
   const { user } = useAuth();
   const { id } = useParams();
   const groupId = Number(id);
+  const dice = useDicePanel();
   const [data, setData] = useState<GroupData | null>(null);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<number | null>(null);
@@ -52,6 +54,15 @@ export default function GroupPage() {
   useEffect(() => {
     void loadGroup();
   }, [loadGroup]);
+
+  // Ein Spieler postet als sein einziger Charakter in dieser Gruppe (mehrere
+  // eigene Charaktere in derselben Gruppe unterstützt die App nicht, siehe
+  // Build-Plan) — die Spielleitung chattet ohne Charakterbezug unter ihrem Konto.
+  useEffect(() => {
+    if (!data) return;
+    const charId = user.isGm ? null : data.characters.find((c) => c.access === 'edit')?.id ?? null;
+    dice.open(groupId, charId);
+  }, [data, groupId, user.isGm, dice.open]);
 
   // Bei Rückkehr auf den Tab/ins Fenster still nachladen — so sehen
   // Gruppenmitglieder Änderungen der anderen an den gemeinsamen Inhalten, ohne

@@ -19,6 +19,8 @@ import NavMenu from './components/NavMenu';
 import ProfileMenu from './components/ProfileMenu';
 import { OverviewProvider } from './components/overview';
 import { RequestsProvider, PendingBadge } from './components/requests';
+import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProvider';
+import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
@@ -49,6 +51,14 @@ export interface ThemeControls {
 }
 const ThemeControlsContext = createContext<ThemeControls | null>(null);
 export const useThemeControls = () => useContext(ThemeControlsContext)!;
+
+// Nur rendern, solange eine Gruppe geöffnet ist (siehe DicePanelProvider.open) —
+// sonst gäbe es nichts, worüber der Docked-Chat sprechen könnte.
+function DicePanelDock() {
+  const { groupId } = useDicePanel();
+  if (groupId === null) return null;
+  return <DicePanel />;
+}
 
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -94,6 +104,7 @@ export default function App() {
       <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, setOverrideTheme }}>
       <OverviewProvider>
       <RequestsProvider enabled={user.isGm || user.isAdmin}>
+      <DicePanelProvider>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -143,6 +154,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      <DicePanelDock />
+      </DicePanelProvider>
       </RequestsProvider>
       </OverviewProvider>
       </ThemeControlsContext.Provider>
