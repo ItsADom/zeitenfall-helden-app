@@ -3896,32 +3896,68 @@ body.resizing-dice {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent-dark);
+  cursor: pointer;
+  user-select: none;
 }
-.dice-dock-room {
+.dice-dock-head:hover {
+  background: var(--surface-hover);
+}
+.dice-dock-head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* Der Rest der Zeile ist bewusst leer und dadurch Klappfläche. */
+.dice-dock-head-fill {
   flex: 1;
-  min-width: 0;
-  font-size: 13px;
+  min-width: 8px;
+  align-self: stretch;
+}
+.dice-dock-head .chev {
+  flex: none;
+  font-size: 11px;
+  color: var(--muted);
+}
+.dice-dock-head:hover .chev {
+  color: var(--accent);
+}
+/* Auslöser des Raum-Wählers: nur so breit wie der (gekürzte) Name — alles,
+   was in der Kopfzeile daneben frei bleibt, ist Klappfläche. */
+.dice-dock-room {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
   font-weight: 600;
   color: var(--accent-dark);
   background: transparent;
-  border: none;
-  padding: 2px 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dice-dock-room:hover,
+.dice-flyout-wrap.open .dice-dock-room {
+  border-color: var(--border-strong);
+  background: var(--panel);
+}
+/* Klappt nach UNTEN auf (die Kopfzeile sitzt oben im Dock, anders als die
+   Steuerung an der Eingabezeile). Volle Gruppennamen, ungekürzt.
+   Doppelte Klasse für die Spezifität: .dice-flyout setzt `bottom` und steht
+   weiter unten in dieser Datei — ohne das gewönne es und der Kasten würde
+   zwischen top und bottom plattgedrückt. */
+.dice-flyout.dice-flyout--rooms {
+  top: calc(100% + 4px);
+  bottom: auto;
+  left: 0;
+  max-width: 280px;
+}
+.dice-flyout--rooms .dice-flyout-item {
+  white-space: normal;
 }
 .dice-dock-status {
   font-weight: 400;
   font-size: 12px;
-}
-.dice-dock-collapse {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 2px 4px;
-}
-.dice-dock-collapse:hover {
-  color: var(--text);
 }
 .dice-dock-feed {
   flex: 1;
@@ -4190,8 +4226,10 @@ tr:hover .probe-roll,
 .probe-roll-more:hover {
   color: var(--accent);
 }
-/* Klappt nach unten auf (anders als im Dock, der am Fensterboden klebt). */
-.probe-roll-flyout {
+/* Klappt nach unten auf (anders als im Dock, der am Fensterboden klebt).
+   Doppelte Klasse wie oben bei --rooms: `bottom` aus .dice-flyout muss weg,
+   sonst wird der Kasten zwischen top und bottom plattgedrückt. */
+.dice-flyout.probe-roll-flyout {
   display: block;
   top: calc(100% + 4px);
   bottom: auto;

@@ -4,6 +4,7 @@ import type { RollVisibility } from '@shared/diceProtocol';
 import { usePersistedState } from '../persist';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
+import RoomPicker from './RoomPicker';
 import ShortcutsFlyout from './ShortcutsFlyout';
 import VisibilityPicker from './VisibilityPicker';
 
@@ -33,7 +34,6 @@ export default function DicePanel() {
     loadingMore,
     collapsed,
     toggle,
-    selectRoom,
     sendChat,
     rollExpr,
     refreshRooms,
@@ -114,28 +114,30 @@ export default function DicePanel() {
   return (
     <div className="dice-dock screen-only" style={{ width: w, height: h }}>
       <div className="dice-resize" onPointerDown={startResize} role="separator" title="Größe ziehen" />
-      <div className="dice-dock-head">
-        {myGroups.length >= 2 ? (
-          <select
-            className="dice-dock-room"
-            value={groupId ?? ''}
-            onChange={(e) => selectRoom(Number(e.target.value))}
-            title="Chatraum wählen"
-          >
-            {groupId === null && <option value="" disabled>Chatraum wählen…</option>}
-            {myGroups.map((g) => (
-              <option key={g.id} value={g.id}>
-                🎲 {g.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span>🎲 Chat &amp; Würfel</span>
-        )}
+      {/* Die ganze Kopfzeile klappt ein — nur der Raum-Wähler ist ausgenommen
+          (siehe stopPropagation), damit eine Raumwahl nicht nebenbei zuklappt.
+          Gleiches Muster wie CollapsiblePanel's Überschrift. */}
+      <div
+        className="dice-dock-head"
+        role="button"
+        tabIndex={0}
+        aria-expanded={!collapsed}
+        title="Einklappen"
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            toggle();
+          }
+        }}
+      >
+        <RoomPicker />
         {groupId !== null && !connected && <span className="muted dice-dock-status">verbinde…</span>}
-        <button className="dice-dock-collapse" onClick={toggle} title="Einklappen" aria-label="Einklappen">
+        {/* Füllt den Rest der Zeile — gehört mit zur Klappfläche. */}
+        <span className="dice-dock-head-fill" aria-hidden />
+        <span className="chev" aria-hidden>
           ▾
-        </button>
+        </span>
       </div>
       <div className="dice-dock-feed" ref={scrollRef}>
         {groupId === null ? (
