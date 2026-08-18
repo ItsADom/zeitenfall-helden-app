@@ -3816,7 +3816,9 @@ li {
   position: fixed;
   right: 18px;
   bottom: 0;
-  z-index: 210;
+  /* Below .dialog-backdrop (200) on purpose — a modal must block the dock
+     too, not sit underneath its fixed corner widget. */
+  z-index: 150;
   background: var(--accent);
   color: var(--on-accent);
   border: 1px solid var(--accent-dark);
@@ -3842,7 +3844,8 @@ li {
   position: fixed;
   right: 18px;
   bottom: 0;
-  z-index: 210;
+  /* Same reasoning as .dice-dock-tab above. */
+  z-index: 150;
   /* Actual width/height come from an inline style (client/src/components/dice/DicePanel.tsx,
      draggable via .dice-resize) — these are just the safety bounds against the viewport. */
   min-width: 260px;
@@ -4077,6 +4080,39 @@ body.resizing-dice {
 .dice-flyout-empty {
   margin: 6px 8px;
   font-size: 12px;
+}
+
+@media (max-width: 700px) {
+  /* Desktop's tight padding assumes a mouse pointer; a thumb needs bigger
+     targets. 16px input font specifically stops iOS Safari's auto-zoom on
+     focus (anything under 16px triggers it). Placed after the dock/flyout
+     rules above so it wins the cascade against their unconditional siblings. */
+  .dice-dock-tab {
+    padding: 10px 16px;
+  }
+  .dice-dock-head {
+    padding: 10px 12px;
+  }
+  .dice-dock-room {
+    padding: 5px 8px;
+  }
+  .dice-icon-btn {
+    padding: 8px 9px;
+    font-size: 17px;
+  }
+  .dice-dock-input {
+    padding: 10px;
+  }
+  .dice-dock-input input {
+    font-size: 16px;
+  }
+  .dice-dock-input button.small {
+    padding: 7px 12px;
+  }
+  .dice-resize {
+    width: 22px;
+    height: 22px;
+  }
 }
 
 /* Würfelwurf im Feed. */
