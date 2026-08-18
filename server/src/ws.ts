@@ -14,12 +14,21 @@ import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import { createPendingRequest, getPendingRequest, pendingRequestsFor, removePendingRequest } from './pendingRolls.js';
 import { isGroupMember } from './routes.js';
 import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
+import { createTokenBucket, type TokenBucket } from './rateLimit.js';
 
 interface SocketMeta {
   userId: number;
   isGm: boolean;
   displayName: string;
   groupId: number;
+  rateLimit: TokenBucket;
+}
+
+// Burst up to 20 chat/roll messages, refilling at 5/s after — generous for
+// normal play (nobody rolls or types that fast by hand) while capping a
+// stuck macro or reconnect loop from flooding the permanently-stored feed.
+function createMessageRateLimit(): TokenBucket {
+  return createTokenBucket({ capacity: 20, refillPerSec: 5 });
 }
 
 const rooms = new Map<number, Set<WebSocket>>();
@@ -82,6 +91,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
     return;
   }
   if (!msg || typeof msg !== 'object' || typeof msg.reqId !== 'string') return;
+
+  if ((msg.type === 'chat.send' || msg.type.startsWith('roll.')) && !meta.rateLimit.take()) {
+    send(ws, { type: 'error', reqId: msg.reqId, message: 'Zu viele Anfragen, bitte kurz warten' });
+    return;
+  }
 
   switch (msg.type) {
     case 'chat.send': {
@@ -344,7 +358,7 @@ export function attachWsServer(server: http.Server): void {
     }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      socketMeta.set(ws, { userId: user.id, isGm: user.isGm, displayName: user.displayName, groupId });
+      socketMeta.set(ws, { userId: user.id, isGm: user.isGm, displayName: user.displayName, groupId, rateLimit: createMessageRateLimit() });
       let room = rooms.get(groupId);
       if (!room) {
         room = new Set();

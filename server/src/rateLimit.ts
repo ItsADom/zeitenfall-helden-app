@@ -58,3 +58,28 @@ export function createAttemptLimiter({ windowMs, max }: { windowMs: number; max:
 export function clientIp(req: Request): string {
   return req.ip || req.socket.remoteAddress || 'unknown';
 }
+
+// Plain token bucket, one instance per WebSocket connection (not keyed —
+// each connection already IS the key). Guards against a runaway client
+// (stuck macro, reconnect loop, misfired handler) flooding the DB and the
+// room broadcast, not against a determined attacker — this app sits behind
+// login already. Burst up to `capacity`, then refills at `refillPerSec`.
+export interface TokenBucket {
+  /** True and consumes a token if one was available, false if exhausted. */
+  take(): boolean;
+}
+
+export function createTokenBucket({ capacity, refillPerSec }: { capacity: number; refillPerSec: number }): TokenBucket {
+  let tokens = capacity;
+  let last = Date.now();
+  return {
+    take() {
+      const now = Date.now();
+      tokens = Math.min(capacity, tokens + ((now - last) / 1000) * refillPerSec);
+      last = now;
+      if (tokens < 1) return false;
+      tokens -= 1;
+      return true;
+    },
+  };
+}
