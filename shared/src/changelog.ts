@@ -109,8 +109,6 @@ export const KNOWN_BUGS: KnownBug[] = [
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Würfeln direkt vom Bogen: offene und verdeckte Proben, heimliche Spielleiter-Würfe und ein Wurf-Protokoll.',
-  'Ein Würfel-Chat mit Befehlen wie „/me“ und eigenen Wurf-Kürzeln.',
   'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — samt hinterlegter Regeln.',
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
@@ -164,6 +162,20 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-18',
+    title: 'Würfeln & Chat',
+    added: [
+      'Neu: ein andockbarer Würfel-Chat (🎲 unten rechts) mit einem gemeinsamen Verlauf aus Chat-Nachrichten und Würfelwürfen — jederzeit erreichbar, ohne die Seite zu wechseln, und beim Zurückscrollen auch für vergangene Sessions einsehbar.',
+      'Proben direkt vom Bogen würfeln: ein Würfel-Knopf steht jetzt neben jeder berechneten Probe — bei Talenten, Waffen (AT/PA/BL/FK), Sprachen und Attributen (inklusive Sozialstatus). Ein Klick würfelt öffentlich für die ganze Gruppe; eine kleine Pfeil-Schaltfläche daneben bietet zusätzlich „Verborgen" an (nur du siehst den Wurf, auch die Spielleitung nicht).',
+      'Kritische Erfolge und Patzer bestätigst du selbst: jede gewürfelte 20 oder 1 öffnet einen eigenen Bestätigungswurf, den du per Knopf auslöst — oder mit „Ohne" ablehnst, wenn kein Patzer-Konzept greift (z. B. bei freien Würfen).',
+      'Freie Würfe per Befehl im Chat: „/r 2w6+5" bzw. „/roll 2w6+5" würfelt sofort; „/me" schreibt eine Aktion in der dritten Person (z. B. „/me baut eine Sandburg" → „Raskir baut eine Sandburg").',
+      'Eigene Würfel-Favoriten: leg dir in den Einstellungen benannte Kurzformeln an (z. B. „Dolch-Schaden: 2w6+5") und wirf sie per Klick direkt aus dem Chat-Panel.',
+    ],
+    admin: [
+      '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',
+    ],
+  },
   {
     date: '2026-08-16',
     version: '0.5.1',
