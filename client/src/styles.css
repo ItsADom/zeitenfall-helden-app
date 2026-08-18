@@ -3990,11 +3990,29 @@ body.resizing-dice {
   font-style: italic;
 }
 .dice-dock-input {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
+}
+/* Proben-Vorschläge für "/r <Suchtext>" — klappt wie die Favoriten-/Sichtbar-
+   keits-Flyouts nach OBEN auf, aber über die ganze Eingabezeile statt an
+   einem einzelnen Knopf, weil der Auslöser hier das Tippen selbst ist. */
+.dice-suggest {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: calc(100% + 4px);
+  z-index: 5;
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
 .dice-dock-input input {
   flex: 1;

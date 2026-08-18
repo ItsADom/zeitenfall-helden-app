@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseDiceExpression } from '@shared/dice';
 import type { RollVisibility } from '@shared/diceProtocol';
+import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
 import ModifierPicker from './ModifierPicker';
 import PendingRequestCard from './PendingRequestCard';
+import { PROBE_KIND_LABEL, type RollableProbe } from './rollableProbes';
 import RoomPicker from './RoomPicker';
 import SchicksalspunkteControl from './SchicksalspunkteControl';
 import ShortcutsFlyout from './ShortcutsFlyout';
 import VisibilityPicker from './VisibilityPicker';
+
+// Ab wie vielen Zeichen nach "/r "/"/roll " gesucht wird — kurz genug, um
+// schnell Vorschläge zu sehen, lang genug, um nicht bei jedem Tastendruck
+// eine Liste aufzuklappen, die eh nur "a" oder "ab" enthält.
+const MIN_SEARCH_LEN = 2;
+const MAX_SUGGESTIONS = 8;
 
 // Größe frei ziehbar (Ecke oben links, siehe startResize) und je Gerät
 // gemerkt — wie CharacterSidebar's Breiten-Ziehgriff, nur an zwei Achsen.
@@ -40,6 +48,7 @@ export default function DicePanel() {
     toggle,
     sendChat,
     rollExpr,
+    rollProbe,
     refreshRooms,
     loadMore,
     modifier,
@@ -57,6 +66,43 @@ export default function DicePanel() {
   const h = clampH(height);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string | null>(null);
+
+  // Proben-Vorschläge für "/r <Suchtext>": eigene Liste je Charakter, erst
+  // beim ersten Bedarf geladen (wie RequestProbePicker) und danach gecacht.
+  const [probes, setProbes] = useState<RollableProbe[] | null>(null);
+  const probesCharRef = useRef<number | null>(null);
+  const [highlight, setHighlight] = useState(0);
+  // Escape blendet die Vorschläge aus, ohne den Text zu löschen — man tippt
+  // ja womöglich einfach einen längeren Suchtext weiter. Jede echte Änderung
+  // am Text hebt die Ausblendung wieder auf.
+  const [suggestDismissed, setSuggestDismissed] = useState(false);
+
+  const rollMatch = /^\/(?:r|roll)\s+(.*)$/i.exec(draft);
+  const rollRest = rollMatch ? rollMatch[1] : null;
+  const isValidDice = rollRest !== null && parseDiceExpression(rollRest) !== null;
+  const searchText = rollRest !== null && !isValidDice ? rollRest.trim() : '';
+  const showSuggestions = !suggestDismissed && charId !== null && searchText.length >= MIN_SEARCH_LEN;
+
+  useEffect(() => {
+    if (!showSuggestions || charId === null || probesCharRef.current === charId) return;
+    probesCharRef.current = charId;
+    setProbes(null);
+    apiGet<RollableProbe[]>(`/api/characters/${charId}/probes`)
+      .then(setProbes)
+      .catch(() => setProbes([]));
+  }, [showSuggestions, charId]);
+
+  const q = searchText.toLowerCase();
+  const matches = showSuggestions && probes ? probes.filter((p) => p.label.toLowerCase().includes(q)).slice(0, MAX_SUGGESTIONS) : [];
+  const activeHighlight = Math.min(highlight, Math.max(matches.length - 1, 0));
+
+  const pickProbe = (p: RollableProbe) => {
+    if (groupId === null || charId === null) return;
+    setError('');
+    setDraft('');
+    setSuggestDismissed(false);
+    rollProbe(groupId, charId, p.source, visibility);
+  };
 
   // Ans Ende scrollen, wenn unten etwas Neues steht — ein neuer Eintrag oder
   // eine Anfrage, die ja gerade gesehen werden will.
@@ -80,14 +126,21 @@ export default function DicePanel() {
   }
 
   // Eine Eingabezeile für alles — wie „/me" ist auch der Wurf ein Befehl:
-  // „/r 2w6+5" bzw. „/roll 2w6+5". Alles andere ist eine normale Nachricht.
+  // „/r 2w6+5" bzw. „/roll 2w6+5". Ein Suchtext statt eines Würfelausdrucks
+  // zeigt stattdessen Proben-Vorschläge (siehe showSuggestions/matches oben) —
+  // ein Treffer wird nie hierüber gesendet, dafür ist Enter/Klick auf den
+  // Vorschlag selbst da. Alles andere ist eine normale Nachricht.
   const send = () => {
     const text = draft.trim();
     if (!text || groupId === null) return;
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       if (!parseDiceExpression(roll[1])) {
-        setError(`„${roll[1]}" ist kein gültiger Würfelausdruck (z. B. 2w6+5).`);
+        setError(
+          charId !== null
+            ? `„${roll[1]}" ist weder ein gültiger Würfelausdruck (z. B. 2w6+5) noch eine gefundene Probe — weitertippen für Vorschläge.`
+            : `„${roll[1]}" ist kein gültiger Würfelausdruck (z. B. 2w6+5).`,
+        );
         return;
       }
       rollExpr(roll[1], visibility);
@@ -174,6 +227,31 @@ export default function DicePanel() {
       </div>
       {error && <p className="dice-dock-error">{error}</p>}
       <div className="dice-dock-input">
+        {showSuggestions && (
+          <div className="dice-suggest" role="listbox">
+            {!probes ? (
+              <p className="dice-flyout-empty muted">Lädt…</p>
+            ) : matches.length === 0 ? (
+              <p className="dice-flyout-empty muted">Nichts gefunden.</p>
+            ) : (
+              matches.map((p, i) => (
+                <button
+                  key={`${p.kind}-${p.label}`}
+                  className={`dice-flyout-item${i === activeHighlight ? ' active' : ''}`}
+                  role="option"
+                  aria-selected={i === activeHighlight}
+                  onMouseEnter={() => setHighlight(i)}
+                  onClick={() => pickProbe(p)}
+                >
+                  <span className="dice-shortcut-label">{p.label}</span>
+                  <span className="muted dice-shortcut-expr">
+                    {PROBE_KIND_LABEL[p.kind]} · {p.probeZahl}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
         <ShortcutsFlyout
           raw={activeRoom?.myDiceShortcuts ?? ''}
           charId={charId}
@@ -194,8 +272,34 @@ export default function DicePanel() {
         )}
         <input
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setSuggestDismissed(false);
+            setHighlight(0);
+          }}
           onKeyDown={(e) => {
+            if (showSuggestions && matches.length > 0) {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setHighlight((h) => Math.min(h + 1, matches.length - 1));
+                return;
+              }
+              if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setHighlight((h) => Math.max(h - 1, 0));
+                return;
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                pickProbe(matches[activeHighlight]);
+                return;
+              }
+            }
+            if (e.key === 'Escape' && showSuggestions) {
+              e.preventDefault();
+              setSuggestDismissed(true);
+              return;
+            }
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
               send();

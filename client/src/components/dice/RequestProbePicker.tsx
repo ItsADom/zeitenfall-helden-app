@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import type { ProbeSource } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { useDicePanel } from './DicePanelProvider';
+import { PROBE_KIND_LABEL, type RollableProbe } from './rollableProbes';
 
 // „Probe anfordern" auf der Spielleiter-Übersicht: der einzige Weg, eine Probe
 // von einem Spieler zu erbitten, ohne dessen Bogen zu öffnen — genau dafür
@@ -9,22 +9,6 @@ import { useDicePanel } from './DicePanelProvider';
 //
 // Die Liste kommt erst beim Öffnen vom Server (sie ist lang und wird selten
 // gebraucht) und wird wie die Talent-Abfrage daneben durchsucht.
-
-interface RollableProbe {
-  source: ProbeSource;
-  label: string;
-  n: number;
-  probeZahl: number;
-  kind: 'attribute' | 'talent' | 'ability' | 'sprache' | 'weapon';
-}
-
-const KIND_LABEL: Record<RollableProbe['kind'], string> = {
-  attribute: 'Eigenschaft',
-  talent: 'Talent',
-  ability: 'Zauber/Fähigkeit',
-  sprache: 'Sprache',
-  weapon: 'Waffe',
-};
 
 const MAX_RESULTS = 12;
 
@@ -96,7 +80,7 @@ export default function RequestProbePicker({
                 }}
               >
                 {p.label}
-                <span className="muted"> · {KIND_LABEL[p.kind]} · {p.probeZahl}</span>
+                <span className="muted"> · {PROBE_KIND_LABEL[p.kind]} · {p.probeZahl}</span>
               </button>
             </li>
           ))}

@@ -864,11 +864,13 @@ api.put('/characters/:id/chat-name', requireAuth, (req, res) => {
 });
 
 // Alles, worauf dieser Charakter würfeln kann — Auswahlliste für „Probe
-// anfordern" auf der Spielleiter-Übersicht. Bewusst auf Abruf statt in der
-// Übersicht mitgeladen: die Liste ist lang und wird selten gebraucht.
-api.get('/characters/:id/probes', requireAuth, requireGm, (req, res) => {
+// anfordern" auf der Spielleiter-Übersicht UND für die Talent-Vorschläge im
+// Würfel-Chat (siehe DicePanel.tsx). Bewusst auf Abruf statt mitgeladen: die
+// Liste ist lang und wird selten gebraucht. GM sieht jeden Charakter, der
+// Besitzer nur den eigenen — sonst könnte man fremde Proben-Listen abfragen.
+api.get('/characters/:id/probes', requireAuth, (req, res) => {
   const char = getChar(Number(req.params.id));
-  if (!char) {
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
