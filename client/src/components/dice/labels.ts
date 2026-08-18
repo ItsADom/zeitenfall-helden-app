@@ -37,7 +37,7 @@ export const CONFIRM = {
    * nur Patzer bzw. kritischer Erfolg entfallen.
    */
   cancelled: '· aufgehoben',
-  cancelledConfirmed: '· aufgehoben (kein Patzer)',
+  cancelledConfirmed: '· aufgehoben (kein krit. Fehlschlag)',
 };
 
 /** Offene Bestätigungen (nur beim Werfer). */
