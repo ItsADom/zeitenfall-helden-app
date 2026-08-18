@@ -17,7 +17,7 @@ import { useDicePanel } from './DicePanelProvider';
 // Bogen ist reine Anzeige und wird nie mitgeschickt.
 export default function ProbeRollButton({ source, title }: { source: ProbeSource; title: string }) {
   const { rollCtx, requestCtx } = useChar();
-  const { rollProbe, requestProbe } = useDicePanel();
+  const { rollProbe, requestProbe, modifier } = useDicePanel();
   const { open, wrapRef, closeNow, hoverProps } = useHoverFlyout<HTMLSpanElement>();
 
   if (!rollCtx) {
@@ -40,10 +40,20 @@ export default function ProbeRollButton({ source, title }: { source: ProbeSource
     closeNow();
   };
 
+  // Ein gesetzter Modifikator (Dock, ModifierPicker) gilt für JEDE Probe, auch
+  // diesen Ein-Klick-Weg — die Zahl daneben verhindert, dass er unbemerkt
+  // weiterwirkt, wenn man ihn beim letzten Mal vergessen hat zurückzusetzen.
+  const modLabel = modifier === 0 ? null : modifier > 0 ? `+${modifier}` : String(modifier);
+
   return (
     <span className={`probe-roll screen-only${open ? ' open' : ''}`} ref={wrapRef} {...hoverProps}>
-      <button className="probe-roll-btn" title={`${title} würfeln`} onClick={() => roll('public')}>
+      <button
+        className="probe-roll-btn"
+        title={modLabel ? `${title} würfeln (Modifikator ${modLabel})` : `${title} würfeln`}
+        onClick={() => roll('public')}
+      >
         🎲
+        {modLabel && <span className="probe-roll-mod">{modLabel}</span>}
       </button>
       <button className="probe-roll-more" title="Sichtbarkeit wählen" aria-haspopup="true" aria-expanded={open}>
         ▾

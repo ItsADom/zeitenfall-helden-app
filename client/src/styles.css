@@ -4082,6 +4082,32 @@ body.resizing-dice {
   font-size: 12px;
 }
 
+/* Erleichterung/Erschwernis: Text statt eines einzelnen Emoji, wie .sp-btn
+   vorher — kleinere Schrift, kein Zeilenumbruch. Aktiv (≠0) hebt sich farblich
+   ab, damit ein vergessener Modifikator nicht unbemerkt weiterwirkt. */
+.mod-btn {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.mod-btn--active {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+.mod-flyout {
+  min-width: 210px;
+  padding: 8px;
+}
+.mod-flyout-row input {
+  width: 100%;
+  text-align: center;
+}
+.mod-flyout-hint {
+  margin: 6px 2px 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 /* Schicksalspunkte: ein Klee je Punkt, bewusst größer als die übrigen
    Eingabezeilen-Knöpfe — es ist der einzige Klick, den man hier braucht. */
 .sp-clovers {
@@ -4245,6 +4271,10 @@ body.resizing-dice {
 .feed-roll-sum {
   font-variant-numeric: tabular-nums;
 }
+.feed-roll-mod {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
 .feed-roll-outcome {
   margin-left: auto;
   font-size: 12px;
@@ -4299,6 +4329,15 @@ tr:hover .probe-roll,
 }
 .probe-roll-btn {
   font-size: 12px;
+}
+/* Modifikator-Badge neben dem Würfel — nur sichtbar, wenn ein Modifikator im
+   Dock gesetzt ist (siehe ModifierPicker), damit er vor dem Klick auffällt. */
+.probe-roll-mod {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent-dark);
+  margin-left: 1px;
+  vertical-align: super;
 }
 .probe-roll-more {
   font-size: 9px;

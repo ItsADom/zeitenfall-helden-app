@@ -53,6 +53,13 @@ interface DicePanelCtxValue {
   toggle: () => void;
   hidden: boolean;
   setHidden: (h: boolean) => void;
+  /**
+   * Situative Erleichterung(+)/Erschwernis(-), von der Spielleitung am Tisch
+   * angesagt. Gilt für JEDE Probe ab jetzt — Bogen wie Chat — bis der Wert
+   * wieder geändert wird (sticky wie die Sichtbarkeit, kein Einmal-Wert).
+   */
+  modifier: number;
+  setModifier: (m: number) => void;
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
@@ -98,6 +105,8 @@ export function useDicePanel(): DicePanelCtxValue {
       toggle: () => {},
       hidden: false,
       setHidden: () => {},
+      modifier: 0,
+      setModifier: () => {},
       selectRoom: () => {},
       sendChat: () => {},
       rollExpr: () => {},
@@ -124,6 +133,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [collapsed, setCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
   const [hidden, setHidden] = useState(false);
+  const [modifier, setModifier] = usePersistedState<number>('dice:modifier', 0);
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
 
@@ -299,9 +309,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         source,
         charId: forCharId,
         visibility: visibility === 'hidden' ? 'hidden' : 'public',
+        modifier,
       });
     },
-    [myGroups, applyRoom, sendMsg],
+    [myGroups, applyRoom, sendMsg, modifier],
   );
 
   const confirmDie = useCallback(
@@ -328,9 +339,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const acceptRequest = useCallback(
     (requestId: string) => {
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
-      sendMsg({ type: 'roll.pending.accept', reqId: crypto.randomUUID(), requestId });
+      sendMsg({ type: 'roll.pending.accept', reqId: crypto.randomUUID(), requestId, modifier });
     },
-    [sendMsg],
+    [sendMsg, modifier],
   );
 
   const declineRequest = useCallback(
@@ -394,6 +405,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         toggle: () => setCollapsed((v) => !v),
         hidden,
         setHidden,
+        modifier,
+        setModifier,
         selectRoom,
         sendChat,
         rollExpr,

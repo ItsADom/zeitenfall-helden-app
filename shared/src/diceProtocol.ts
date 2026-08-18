@@ -36,7 +36,11 @@ export interface ProbeRollPayload {
   source: ProbeSource;
   label: string;
   n: number;
+  // probeZahl ist bereits inklusive `modifier` (die situative Erleichterung/
+  // Erschwernis der Spielleitung) — modifier steht nur zur Anzeige separat
+  // daneben, nie erneut angewendet.
   probeZahl: number;
+  modifier: number;
   dice: number[];
   confirmations: DieConfirmation[];
   // Offene Bestätigungswürfe — der Spieler löst sie einzeln aus, erst danach
@@ -103,12 +107,15 @@ export interface PendingRollRequest {
 export type ClientToServerMessage =
   | { type: 'chat.send'; reqId: string; text: string; isMe: boolean; charId: number | null }
   | { type: 'roll.expr'; reqId: string; label: string; expression: string; visibility: RollVisibility; charId: number | null }
-  | { type: 'roll.probe'; reqId: string; source: ProbeSource; charId: number; visibility: 'public' | 'hidden' }
+  // modifier: situative Erleichterung(+)/Erschwernis(-) der Spielleitung, vom
+  // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — der Server
+  // klemmt sie auf einen vernünftigen Bereich, siehe ws.ts.
+  | { type: 'roll.probe'; reqId: string; source: ProbeSource; charId: number; visibility: 'public' | 'hidden'; modifier?: number }
   // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true
   // verwerfen (nicht jeder W20-Wurf kennt Patzer). Nur der Werfer selbst.
   | { type: 'roll.confirm'; reqId: string; entryId: number; dieIndex: number; skip?: boolean }
   | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number }
-  | { type: 'roll.pending.accept'; reqId: string; requestId: string }
+  | { type: 'roll.pending.accept'; reqId: string; requestId: string; modifier?: number }
   | { type: 'roll.pending.decline'; reqId: string; requestId: string };
 
 export type ServerToClientMessage =

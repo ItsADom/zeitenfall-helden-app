@@ -4,6 +4,7 @@ import type { RollVisibility } from '@shared/diceProtocol';
 import { usePersistedState } from '../persist';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
+import ModifierPicker from './ModifierPicker';
 import PendingRequestCard from './PendingRequestCard';
 import RoomPicker from './RoomPicker';
 import SchicksalspunkteControl from './SchicksalspunkteControl';
@@ -41,6 +42,8 @@ export default function DicePanel() {
     rollExpr,
     refreshRooms,
     loadMore,
+    modifier,
+    setModifier,
   } = useDicePanel();
   const activeRoom = myGroups.find((g) => g.id === groupId);
   const [draft, setDraft] = useState('');
@@ -182,6 +185,7 @@ export default function DicePanel() {
           }}
         />
         <VisibilityPicker value={visibility} onChange={setVisibility} />
+        <ModifierPicker value={modifier} onChange={setModifier} />
         {charId !== null && (
           <SchicksalspunkteControl
             aktuell={activeRoom?.schicksalspunkteAktuell ?? 0}

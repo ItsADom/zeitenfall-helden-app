@@ -70,6 +70,16 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
 // gehört (sonst könnte man unter fremdem Namen posten) — sonst das Konto. Der
 // kurze Chat-Anzeigename hat Vorrang vor dem vollen Charakternamen.
+// Situative Erleichterung(+)/Erschwernis(-), vom Spieler selbst eingetragen
+// (Dock, neben VisibilityPicker) — nicht die Bogen-Bestätigung. Trust-based
+// wie Sichtbarkeit/Formeln auch; die Klemmung ist nur ein Schutz gegen
+// Zahlendreher, kein Anti-Cheat, und der Wert steht sichtbar im Feed-Eintrag.
+const MODIFIER_RANGE = 30;
+function clampModifier(raw: unknown): number {
+  const n = Math.trunc(Number(raw) || 0);
+  return Math.max(-MODIFIER_RANGE, Math.min(MODIFIER_RANGE, n));
+}
+
 function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
   const charId = rawCharId != null ? Number(rawCharId) : null;
   if (charId != null) {
@@ -160,13 +170,15 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
-      const result = performProbeRoll(computed.n, computed.probeZahl);
+      const modifier = clampModifier(msg.modifier);
+      const result = performProbeRoll(computed.n, computed.probeZahl + modifier);
       const roll: ProbeRollPayload = {
         mode: 'probe',
         source,
         label: computed.label,
         n: computed.n,
-        probeZahl: computed.probeZahl,
+        probeZahl: computed.probeZahl + modifier,
+        modifier,
         dice: result.dice,
         confirmations: result.confirmations,
         pending: result.pending,
@@ -280,13 +292,15 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       removePendingRequest(request.id);
-      const result = performProbeRoll(computed.n, computed.probeZahl);
+      const modifier = clampModifier(msg.modifier);
+      const result = performProbeRoll(computed.n, computed.probeZahl + modifier);
       const roll: ProbeRollPayload = {
         mode: 'probe',
         source: request.source,
         label: computed.label,
         n: computed.n,
-        probeZahl: computed.probeZahl,
+        probeZahl: computed.probeZahl + modifier,
+        modifier,
         dice: result.dice,
         confirmations: result.confirmations,
         pending: result.pending,

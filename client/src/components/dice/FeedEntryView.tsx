@@ -129,6 +129,15 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
         <span className="feed-roll-sum">
           = <strong>{roll.adjustedSum}</strong>
           {isProbe && <span className="muted"> / {roll.probeZahl}</span>}
+          {/* Modifikator immer sichtbar, wenn gesetzt — sonst wäre eine
+              Erleichterung/Erschwernis für alle anderen unsichtbar angewendet. */}
+          {isProbe && roll.modifier !== 0 && (
+            <span className="feed-roll-mod" title="Erleichterung/Erschwernis der Spielleitung">
+              {' '}
+              ({roll.modifier > 0 ? '+' : ''}
+              {roll.modifier})
+            </span>
+          )}
         </span>
         {isProbe && roll.resolved && (
           <span className="feed-roll-outcome">
