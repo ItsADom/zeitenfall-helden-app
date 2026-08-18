@@ -8,3 +8,5 @@ export * from './abilities.js';
 export * from './tableLayout.js';
 export * from './tabOrder.js';
 export * from './changelog.js';
+export * from './dice.js';
+export * from './diceProtocol.js';
