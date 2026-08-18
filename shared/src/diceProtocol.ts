@@ -2,6 +2,7 @@
 // rolls) WebSocket protocol and its REST history endpoint.
 
 import type { DieConfirmation, DiceExpression, PendingConfirmation } from './dice.js';
+import type { AttrRowCode } from './types.js';
 
 export type RollVisibility = 'public' | 'hidden' | 'gm_player';
 
@@ -9,6 +10,9 @@ export type RollVisibility = 'public' | 'hidden' | 'gm_player';
 // The server recomputes it from the character's stored data (rules.ts),
 // so a tampered client can't roll against an inflated threshold.
 export type ProbeSource =
+  // Eigenschaftsprobe: ein W20 gegen den Attributswert selbst. Schließt
+  // Sozialstatus ein — auch darauf wird gewürfelt.
+  | { kind: 'attribute'; attr: AttrRowCode }
   | { kind: 'talent'; talentId: number }
   | { kind: 'ability'; abilityId: number }
   | { kind: 'sprache'; languageId: number; mode: 'sprechen' | 'schreiben' }

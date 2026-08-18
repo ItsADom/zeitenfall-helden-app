@@ -21,6 +21,7 @@ import {
   psycheMuAnteil,
 } from '@shared/rules';
 import { useReadOnly } from '../components/displayMode';
+import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { NumInput, TextInput } from '../components/inputs';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
@@ -249,7 +250,10 @@ export default function HeldenbriefTab() {
                   <td>
                     <NumInput value={attributes[code].mod} onChange={(v) => setAttr(code, 'mod', v)} />
                   </td>
-                  <td className="computed">{attributes[code].akt + attributes[code].mod}</td>
+                  <td className="computed">
+                    {attributes[code].akt + attributes[code].mod}
+                    <ProbeRollButton source={{ kind: 'attribute', attr: code }} title={ATTR_LABELS[code]} />
+                  </td>
                 </tr>
               ))}
             </tbody>

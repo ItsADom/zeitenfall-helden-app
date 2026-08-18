@@ -2140,6 +2140,23 @@ body.resizing-col {
   border-radius: 7px;
   background: var(--surface-sunken);
 }
+/* Als Knopf ist die Kachel zugleich die Eigenschaftsprobe (siehe
+   SidebarAttribute) — Button-Eigenheiten zurücksetzen, damit sie aussieht
+   wie die Nur-Lese-Variante daneben. */
+button.side-attr {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: center;
+}
+button.side-attr:hover,
+button.side-attr:focus-visible {
+  border-color: var(--accent);
+  background: var(--surface-hover-strong);
+}
+button.side-attr:active {
+  transform: translateY(1px);
+}
 .side-attr-code {
   font-size: 10px;
   letter-spacing: 0.03em;

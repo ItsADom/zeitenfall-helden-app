@@ -2,8 +2,20 @@
 // and die count (n) from a character's stored attributes/TaW/weapon data.
 // The client only ever sends WHICH Probe to roll (a ProbeSource) — never a
 // number — so a tampered client can't roll against an inflated threshold.
-import type { AttrCode, ProbeSource } from 'shared';
-import { computeBaseValueBases, erleichterung, parseProbeExpr, probeExprZahl, schreibenProbe, sprechenProbe, talentProbeZahl, weaponProbe } from 'shared';
+import type { AttrCode, AttrRowCode, ProbeSource } from 'shared';
+import {
+  ATTR_ROW_CODES,
+  ATTR_LABELS,
+  attrMax,
+  computeBaseValueBases,
+  erleichterung,
+  parseProbeExpr,
+  probeExprZahl,
+  schreibenProbe,
+  sprechenProbe,
+  talentProbeZahl,
+  weaponProbe,
+} from 'shared';
 import { db } from './db.js';
 import { loadAttributes, loadBaseValueInputs } from './characterData.js';
 
@@ -24,6 +36,10 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
     return Number.isInteger(n) && n > 0 ? n : null;
   };
   switch (s.kind) {
+    case 'attribute': {
+      // Alle neun Zeilen der Attributstabelle, Sozialstatus eingeschlossen.
+      return ATTR_ROW_CODES.includes(s.attr as AttrRowCode) ? { kind: 'attribute', attr: s.attr as AttrRowCode } : null;
+    }
     case 'talent': {
       const talentId = id(s.talentId);
       return talentId ? { kind: 'talent', talentId } : null;
@@ -52,6 +68,11 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
 export function computeProbeForCharacter(characterId: number, source: ProbeSource): ComputedProbe | null {
   const attrs = loadAttributes(characterId);
   switch (source.kind) {
+    case 'attribute': {
+      // Eigenschaftsprobe: ein einzelner W20 gegen den Attributswert
+      // (Basis + Bonus, wie auf dem Bogen in der Max-Spalte).
+      return { n: 1, probeZahl: attrMax(attrs, source.attr), label: ATTR_LABELS[source.attr] };
+    }
     case 'talent': {
       const row = db
         // Vom KATALOG aus, nicht von char_talents: der Bogen zeigt für jedes
