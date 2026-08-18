@@ -26,10 +26,12 @@ export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_SIDES = 1000;
 
 /**
- * „Knapp gelungen": ein Wurf aus MEHREREN Würfeln gilt noch als gelungen,
- * wenn er die Probe-Zahl um höchstens so viel überschreitet. Bei Würfen mit
- * nur einem Würfel (Waffen-, Eigenschaftsproben) gibt es diesen Spielraum
- * nicht.
+ * Knapper Erfolg: ein Wurf aus MEHREREN Würfeln gilt noch als gelungen, wenn
+ * er die Probe-Zahl um höchstens so viel überschreitet.
+ *
+ * Würfe mit nur einem Würfel (Waffen-, Eigenschaftsproben) kennen diesen
+ * Spielraum überhaupt nicht — dort gibt es kein „knapp", auch nicht über eine
+ * unbestätigte 20. Sie gelingen oder sie misslingen.
  */
 export const NARROW_PASS_MARGIN = 4;
 
@@ -190,9 +192,11 @@ export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], p
   const { confirmations, pending, adjustedSum, criticalFailureCount } = applyConfirmations(triggers, rolled, rawSum);
   const resolved = pending.length === 0;
   const criticalFailure = criticalFailureCount > 0;
-  // Der Spielraum gilt nur für Würfe aus mehreren Würfeln.
-  const withinMargin =
-    dice.length > 1 && adjustedSum > probeZahl && adjustedSum <= probeZahl + NARROW_PASS_MARGIN;
+  // Der ganze Spielraum ist eine Sache von Würfen aus MEHREREN Würfeln —
+  // bei einem einzelnen Würfel (Waffen-, Eigenschaftsprobe) gibt es kein
+  // „knapp", weder über die Punktegrenze noch über eine unbestätigte 20.
+  const multiDie = dice.length > 1;
+  const withinMargin = multiDie && adjustedSum > probeZahl && adjustedSum <= probeZahl + NARROW_PASS_MARGIN;
   // Eine stehengebliebene (nicht bestätigte) 20 lässt keinen sauberen Erfolg
   // mehr zu — bestenfalls einen knappen. Verworfene Bestätigungen zählen
   // hier nicht mit, die sind ja gerade als wirkungslos erklärt worden.
@@ -202,7 +206,7 @@ export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], p
   // Solange etwas offen ist, gilt der Wurf als nicht entschieden: eine noch
   // ausstehende 20 könnte ihn ohnehin zum Patzer machen.
   const success = resolved && !criticalFailure && (adjustedSum <= probeZahl || withinMargin);
-  const narrow = success && (withinMargin || unconfirmedTwenty);
+  const narrow = success && multiDie && (withinMargin || unconfirmedTwenty);
   // Eine stehengebliebene natürliche 1 macht aus einem sauberen Erfolg einen
   // kritischen. Das hängt allein am Würfel selbst: die Bestätigung wird zwar
   // geworfen und ihr Wert wie immer abgezogen, aber sie hat bei 1ern keine

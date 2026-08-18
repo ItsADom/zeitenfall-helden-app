@@ -283,6 +283,17 @@ describe('Knapp gelungen', () => {
     // Waffen-/Eigenschaftsprobe: 14 gegen 12 ist schlicht misslungen.
     const r = resolveProbeRoll([14], [], 12);
     expect(r.success).toBe(false);
+    expect(r.narrow).toBe(false);
+  });
+
+  it('auch eine unbestätigte 20 macht einen Einzelwürfel nicht „knapp"', () => {
+    // 20 + Bestätigung 3 = 23, unter der Probe-Zahl: schlicht gelungen.
+    // Der Spielraum ist bei einem Würfel gar nicht vorhanden, also darf hier
+    // auch nicht „Knapper Erfolg" stehen.
+    const r = resolveProbeRoll([20], [{ dieIndex: 0, value: 3 }], 25);
+    expect(r.adjustedSum).toBe(23);
+    expect(r.success).toBe(true);
+    expect(r.narrow).toBe(false);
   });
 
   it('eine unbestätigte 20 drückt einen sauberen Erfolg auf „knapp"', () => {
