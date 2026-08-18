@@ -11,6 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { wikiSlug } from 'shared';
 import { assetsDb } from './db.js';
+import { bildMasse } from './masse.js';
 
 export type OwnerTyp = 'wiki' | 'character';
 
@@ -102,6 +103,11 @@ export function legeAssetAn(neu: NeuesAsset): string | null {
     ) as { n: number }
   ).n;
 
+  // Maße aus den Bytes, wenn der Aufrufer keine mitbringt: der Upload-Weg
+  // kennt nur Titel und Bild, und ohne das stand in der Bilderliste bei jedem
+  // Eintrag „0×0". Eine Stelle für alle Aufrufer statt in jedem Weg einzeln.
+  const masse = neu.breite && neu.hoehe ? { breite: neu.breite, hoehe: neu.hoehe } : bildMasse(neu.data, neu.mime);
+
   db.prepare(
     `INSERT INTO assets (slug, owner_type, owner_id, rolle, titel, mime, bytes, breite, hoehe, pos, gm_only, data,
                          uploader_user_id, uploader_name)
@@ -114,8 +120,8 @@ export function legeAssetAn(neu: NeuesAsset): string | null {
     neu.titel,
     neu.mime,
     neu.data.length,
-    neu.breite ?? 0,
-    neu.hoehe ?? 0,
+    masse.breite,
+    masse.hoehe,
     pos + 1,
     neu.gmOnly ? 1 : 0,
     neu.data,

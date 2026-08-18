@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "seed": "tsx src/seed.ts",
     "seed:dummy": "tsx src/seedDummy.ts",
+    "seed:wiki": "tsx src/seedWikiDemo.ts",
     "seed:testuser": "tsx src/seedTestUser.ts"
   },
   "dependencies": {

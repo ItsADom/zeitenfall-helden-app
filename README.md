@@ -40,6 +40,19 @@ Er ist idempotent (ein zweiter Lauf legt nichts doppelt an) und **bricht bei
 `NODE_ENV=production` ab**, damit die echte Datenbank niemals versehentlich
 gefüllt wird.
 
+Fürs Wiki gibt es dasselbe noch einmal — eine kleine Beispielwelt, in der jede
+gebaute Funktion einmal vorkommt (Kategoriebaum, Bilder in allen Größen und
+Lagen, Wikilinks samt Rotlink, Weiterleitungen, Nur-SL-Seite und -Abschnitt,
+geschützte Seite, Papierkorb, mehrere Fassungen im Verlauf):
+
+```bash
+npm run seed:wiki         # 15 Seiten, 5 Bilder, zwei Autoren
+```
+
+Die Bilder werden dabei im Code gezeichnet, nicht als Dateien mitgeliefert.
+Gleiche Sicherheitsnetze: idempotent und ein Abbruch bei `NODE_ENV=production`.
+Einstieg im Wiki bei „Willkommen im Zeitenkompass-Wiki".
+
 ### `npm ci` statt `npm install`
 
 `npm ci` installiert stur nach `package-lock.json` und **schreibt die Datei nie um**.
