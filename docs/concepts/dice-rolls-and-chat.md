@@ -10,16 +10,15 @@ actually been built.
 
 ## Status (last updated 2026-08-18)
 
-**Phases 1-6 are built, verified and committed. Phase 7 is the only planned
-work left.** Everything lives on the feature branch `feature/dice-rolls-chat`,
-cut off `develop`; nothing has been merged back yet.
+**All 7 phases are built, verified and committed — nothing planned is left.**
+Everything lives on the feature branch `feature/dice-rolls-chat`, cut off
+`develop`, pushed to `origin`. Merging it back into `develop` is a deliberate
+call left to the developer (per CLAUDE.md, standing instruction: don't merge
+on your own initiative) — this file just records that the branch is ready
+whenever that call is made.
 
-> **Machine handover:** as of this writing the branch exists **only locally** —
-> it has no upstream on `origin`, so all 16 commits sit on a single machine.
-> Push it before continuing anywhere else:
-> `git push -u origin feature/dice-rolls-chat`
-
-The working tree was clean at handover — no uncommitted work to rescue.
+The working tree was clean after phase 7 landed — no uncommitted work to
+rescue.
 
 ### What is done
 
@@ -32,6 +31,7 @@ The working tree was clean at handover — no uncommitted work to rescue.
 | 5 — sheet integration | `3a52fdd`, `baa4e5b`, `9f1633f`, `b217af6` |
 | 5b — crit rule corrections | `7321bb2`, `28fb19b`, `4397634`, `8d99897`, `af8796c` |
 | 6 — GM + selected player requests | `f38fa51` |
+| 7 — rate limiting, changelog, dock polish | `84497af`, `2ce1c41`, `ad5c0d6` |
 
 Phases 4-5 grew well beyond what this plan sketched, driven by rule
 corrections that surfaced while testing. The rules as now implemented (all in
@@ -76,19 +76,31 @@ decides what it is called.
 - The sheet entry point is a separate `🎲?` request button rather than a third
   `VisibilityPicker` option; see the note under Phase 6 below for why.
 
-### What is left — Phase 7
+### Phase 7 — what it did
 
-1. **Per-connection rate limiting** on `chat.send` and `roll.*`. Needs a new
-   token-bucket limiter; `server/src/rateLimit.ts`'s `createAttemptLimiter` is
-   shaped as a login-fail counter and does not fit.
-2. **Changelog entry.** The feature is currently teased in `COMING_SOON`
-   (`shared/src/changelog.ts`). Per CLAUDE.md that line moves into the newest
-   *unreleased* changelog entry once the feature lands. This is a substantial
-   new player-facing capability, so a `0.X.0` bump is the shape to *recommend*
-   — the number itself stays the developer's call.
-3. **z-index / mobile polish** on the fixed dock.
+1. **Per-connection rate limiting** on `chat.send` and `roll.*`
+   (`84497af`): a plain token bucket (burst 20, refill 5/s) per WebSocket
+   connection, in `server/src/ws.ts` — `server/src/rateLimit.ts`'s existing
+   `createAttemptLimiter` is shaped as a login-fail counter and didn't fit a
+   per-message throttle, so `createTokenBucket` was added alongside it. This
+   guards the permanently-stored feed against a runaway client (stuck macro,
+   reconnect loop) rather than a determined attacker — the app already sits
+   behind login.
+2. **Changelog entry** (`ad5c0d6`): the two `COMING_SOON` teasers for this
+   feature are now a real, unversioned `CHANGELOG` entry in
+   `shared/src/changelog.ts` (title „Würfeln & Chat"). Left without a
+   `version` per CLAUDE.md — the developer assigns one when cutting a
+   release. A `0.X.0` (minor) bump is the shape to *recommend*: this is a new
+   player-facing capability, not a same-app-working-better patch.
+3. **Dock z-index / mobile polish** (`2ce1c41`): the dock's fixed `z-index`
+   was `210`, above `.dialog-backdrop`'s `200` — any modal opened while the
+   dock was visible got its corner covered by the dock instead of being
+   blocked by it. Dropped to `150`. Also added a `max-width:700px` block
+   bumping touch targets (icon buttons, send button, resize handle) and the
+   chat input's font-size to 16px, which stops iOS Safari's auto-zoom on
+   focus below that size.
 
-### Still open (not blocking Phase 7)
+### Still open — deliberately out of scope, stays in TODO.md
 
 - **Wording for the critical success** — currently „Krit. Erfolg" in
   `labels.ts`; flagged as not-yet-satisfying and never resettled.
@@ -99,7 +111,12 @@ decides what it is called.
 
 ### Picking it back up
 
-- `npm test -w shared` — the 54 dice tests pass. **Eight failures in
+- `npm ci` on a fresh clone can leave `better-sqlite3` without its native
+  binary — npm blocks its install script by default (`npm warn
+  install-scripts`), and the server then fails to start. Fix once per
+  machine: `npm install-scripts approve better-sqlite3 esbuild && npm
+  rebuild better-sqlite3 esbuild`.
+- `npm test -w shared` — the dice tests pass. **Eight failures in
   `tabOrder` and the `rules` Resilienz suite are pre-existing** and unrelated
   to this branch; they were confirmed against a stashed tree before any dice
   test was added. Do not chase them as regressions.

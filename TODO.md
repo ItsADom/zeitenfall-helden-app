@@ -96,14 +96,16 @@ chips. Backend table `char_special_resources`. Open for the full version:
      (see wiki entry below) — only images get split out; text is cheap enough
      that splitting it out isn't worth the operational cost of a third db.
 - [sketch] **Dice rolls and chat** (concept fully worked out, split into
-  sub-pieces below — already teased in the changelog's `COMING_SOON`. Left as
-  `[sketch]` rather than bumped to `[ready]` deliberately: this is large enough
-  that a build plan should re-walk it piece by piece anyway; that build plan
-  now exists at `docs/concepts/dice-rolls-and-chat.md`. **Being built on
-  `feature/dice-rolls-chat`: phases 1-6 are done, only phase 7 (rate limiting,
-  changelog entry, dock polish) is left — see that file's Status section. The
-  decisions below stay here as the record of what was agreed; prune this entry
-  once the branch merges, keeping only the still-unbuilt sketch at the end.**):
+  sub-pieces below. Left as `[sketch]` rather than bumped to `[ready]`
+  deliberately: this is large enough that a build plan should re-walk it piece
+  by piece anyway; that build plan lives at
+  `docs/concepts/dice-rolls-and-chat.md`. **All 7 planned phases are built,
+  verified and committed on `feature/dice-rolls-chat` — see that file's Status
+  section. A draft, unversioned changelog entry is in place; merging the
+  branch into `develop` and assigning a version are still the developer's
+  calls to make. The decisions below stay here as the record of what was
+  agreed; prune this entry once the branch merges, keeping only the
+  still-unbuilt sketch at the end.**):
    - **Roll mechanic (decided):** a Probe rolls N d20, where N = the number of
      attributes in that Probe's formula (`talentProbeZahl`/`probeExprZahl` in
      `shared/src/rules.ts` already compute the target number = summed attributes
