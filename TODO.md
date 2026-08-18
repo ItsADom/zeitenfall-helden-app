@@ -18,6 +18,8 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
+- alignment on the admin/gm notification is off (number of pending group approvals)
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
