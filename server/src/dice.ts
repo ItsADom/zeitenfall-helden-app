@@ -22,9 +22,9 @@ export function rollD20(): number {
 // Bestätigungswürfe werden hier NICHT mitgewürfelt — sie löst der Spieler
 // später einzeln aus (siehe roll.confirm in ws.ts). Der frische Wurf kommt
 // deshalb mit leerer Bestätigungsliste und meldet die offenen Auslöser.
-export function performProbeRoll(n: number, probeZahl: number): ProbeRollResult {
+export function performProbeRoll(n: number, probeZahl: number, modifier = 0): ProbeRollResult {
   const dice = Array.from({ length: n }, () => rollD20());
-  return resolveProbeRoll(dice, [], probeZahl);
+  return resolveProbeRoll(dice, [], probeZahl, modifier);
 }
 
 export function performExpressionRoll(expression: DiceExpression): ExpressionRollResult {

@@ -54,11 +54,13 @@ interface DicePanelCtxValue {
   hidden: boolean;
   setHidden: (h: boolean) => void;
   /**
-   * Situative Erleichterung(+)/Erschwernis(-), von der Spielleitung am Tisch
-   * angesagt. Gilt für GENAU DIE NÄCHSTE Probe — Bogen wie Chat — und springt
-   * danach von selbst auf 0 zurück (siehe rollProbe/acceptRequest): mehrere
-   * modifizierte Würfe hintereinander sind selten, ein übersehener Rest-
-   * Modifikator wäre der teurere Fehler.
+   * Situative Erleichterung(-)/Erschwernis(+), von der Spielleitung am Tisch
+   * angesagt — wirkt auf die geworfene Summe, nicht auf die Probe-Zahl (man
+   * unterwürfelt den Zielwert, ein positiver Wert erschwert also). Gilt für
+   * GENAU DIE NÄCHSTE Probe — Bogen wie Chat — und springt danach von selbst
+   * auf 0 zurück (siehe rollProbe/acceptRequest): mehrere modifizierte Würfe
+   * hintereinander sind selten, ein übersehener Rest-Modifikator wäre der
+   * teurere Fehler.
    */
   modifier: number;
   setModifier: (m: number) => void;

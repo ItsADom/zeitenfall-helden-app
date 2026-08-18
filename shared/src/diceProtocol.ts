@@ -36,9 +36,11 @@ export interface ProbeRollPayload {
   source: ProbeSource;
   label: string;
   n: number;
-  // probeZahl ist bereits inklusive `modifier` (die situative Erleichterung/
-  // Erschwernis der Spielleitung) — modifier steht nur zur Anzeige separat
-  // daneben, nie erneut angewendet.
+  // probeZahl ist der reine, unveränderte Zielwert — `modifier` (die situative
+  // Erleichterung/Erschwernis der Spielleitung) wirkt stattdessen auf die
+  // GEWORFENE Summe (steckt bereits in adjustedSum, siehe shared/src/dice.ts).
+  // Positiv erschwert (mehr auf der Summe, die unter probeZahl bleiben soll),
+  // negativ erleichtert.
   probeZahl: number;
   modifier: number;
   dice: number[];
@@ -107,9 +109,10 @@ export interface PendingRollRequest {
 export type ClientToServerMessage =
   | { type: 'chat.send'; reqId: string; text: string; isMe: boolean; charId: number | null }
   | { type: 'roll.expr'; reqId: string; label: string; expression: string; visibility: RollVisibility; charId: number | null }
-  // modifier: situative Erleichterung(+)/Erschwernis(-) der Spielleitung, vom
-  // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — der Server
-  // klemmt sie auf einen vernünftigen Bereich, siehe ws.ts.
+  // modifier: situative Erleichterung(-)/Erschwernis(+) der Spielleitung, vom
+  // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — wirkt auf die
+  // geworfene Summe, nicht auf probeZahl (siehe shared/src/dice.ts). Der
+  // Server klemmt sie auf einen vernünftigen Bereich, siehe ws.ts.
   | { type: 'roll.probe'; reqId: string; source: ProbeSource; charId: number; visibility: 'public' | 'hidden'; modifier?: number }
   // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true
   // verwerfen (nicht jeder W20-Wurf kennt Patzer). Nur der Werfer selbst.

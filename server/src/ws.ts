@@ -70,10 +70,13 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
 // gehört (sonst könnte man unter fremdem Namen posten) — sonst das Konto. Der
 // kurze Chat-Anzeigename hat Vorrang vor dem vollen Charakternamen.
-// Situative Erleichterung(+)/Erschwernis(-), vom Spieler selbst eingetragen
-// (Dock, neben VisibilityPicker) — nicht die Bogen-Bestätigung. Trust-based
-// wie Sichtbarkeit/Formeln auch; die Klemmung ist nur ein Schutz gegen
-// Zahlendreher, kein Anti-Cheat, und der Wert steht sichtbar im Feed-Eintrag.
+// Situative Erleichterung(-)/Erschwernis(+), vom Spieler selbst eingetragen
+// (Dock, neben VisibilityPicker) — nicht die Bogen-Bestätigung. Wirkt auf die
+// GEWORFENE Summe, nicht auf probeZahl (siehe resolveProbeRoll in
+// shared/src/dice.ts): man unterwürfelt den Zielwert, also erschwert ein
+// positiver Wert. Trust-based wie Sichtbarkeit/Formeln auch; die Klemmung ist
+// nur ein Schutz gegen Zahlendreher, kein Anti-Cheat, und der Wert steht
+// sichtbar im Feed-Eintrag.
 const MODIFIER_RANGE = 30;
 function clampModifier(raw: unknown): number {
   const n = Math.trunc(Number(raw) || 0);
@@ -171,13 +174,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       }
       const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
       const modifier = clampModifier(msg.modifier);
-      const result = performProbeRoll(computed.n, computed.probeZahl + modifier);
+      const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
       const roll: ProbeRollPayload = {
         mode: 'probe',
         source,
         label: computed.label,
         n: computed.n,
-        probeZahl: computed.probeZahl + modifier,
+        probeZahl: computed.probeZahl,
         modifier,
         dice: result.dice,
         confirmations: result.confirmations,
@@ -217,9 +220,12 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         ...roll.confirmations.map((c) => ({ dieIndex: c.dieIndex, value: c.value })),
         { dieIndex, value: msg.skip ? null : rollD20() },
       ];
+      // Der ursprüngliche Modifikator muss beim Neu-Auflösen wieder mitgegeben
+      // werden — roll.probeZahl ist der reine Zielwert, ohne ihn wäre die
+      // Bestätigung mit einer STILLE Rückkehr zum unmodifizierten Wurf verbunden.
       const next =
         roll.mode === 'probe'
-          ? { ...roll, ...resolveProbeRoll(roll.dice, done, roll.probeZahl) }
+          ? { ...roll, ...resolveProbeRoll(roll.dice, done, roll.probeZahl, roll.modifier) }
           : { ...roll, ...resolveExpressionRoll(roll.expression, roll.dice, done) };
       updateFeedRoll(loaded.entry.id, meta.groupId, next);
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -293,13 +299,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       }
       removePendingRequest(request.id);
       const modifier = clampModifier(msg.modifier);
-      const result = performProbeRoll(computed.n, computed.probeZahl + modifier);
+      const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
       const roll: ProbeRollPayload = {
         mode: 'probe',
         source: request.source,
         label: computed.label,
         n: computed.n,
-        probeZahl: computed.probeZahl + modifier,
+        probeZahl: computed.probeZahl,
         modifier,
         dice: result.dice,
         confirmations: result.confirmations,

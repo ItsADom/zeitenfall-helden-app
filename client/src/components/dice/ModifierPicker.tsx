@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useHoverFlyout } from '../useHoverFlyout';
 
-// Situative Erleichterung(+)/Erschwernis(-), von der Spielleitung am Tisch
+// Situative Erleichterung(-)/Erschwernis(+), von der Spielleitung am Tisch
 // angesagt — NICHT die TaW-Erleichterung, die schon in jeder Probe-Zahl
-// steckt (siehe shared/src/rules.ts). Gilt nur für den NÄCHSTEN Wurf, Bogen
-// wie Chat, und wird danach automatisch auf 0 zurückgesetzt (siehe
-// DicePanelProvider's rollProbe/acceptRequest) — anders als VisibilityPicker,
-// der sticky bleibt. Serverseitig wird der Wert auf ±30 geklemmt
-// (server/src/ws.ts) — reiner Schutz gegen Zahlendreher, kein Anti-Cheat.
+// steckt (siehe shared/src/rules.ts). Wirkt auf die geworfene Summe, nicht
+// auf die Probe-Zahl (man unterwürfelt den Zielwert, ein positiver Wert
+// erschwert also). Gilt nur für den NÄCHSTEN Wurf, Bogen wie Chat, und wird
+// danach automatisch auf 0 zurückgesetzt (siehe DicePanelProvider's
+// rollProbe/acceptRequest) — anders als VisibilityPicker, der sticky bleibt.
+// Serverseitig wird der Wert auf ±30 geklemmt (server/src/ws.ts) — reiner
+// Schutz gegen Zahlendreher, kein Anti-Cheat.
 export default function ModifierPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const { open, wrapRef, closeNow, hoverProps } = useHoverFlyout<HTMLDivElement>();
   const [draft, setDraft] = useState(String(value));
@@ -52,7 +54,7 @@ export default function ModifierPicker({ value, onChange }: { value: number; onC
             />
           </label>
           <p className="mod-flyout-hint muted">
-            Erleichterung (+) oder Erschwernis (−) der Spielleitung — gilt für jede Probe, bis du sie zurücksetzt.
+            Erleichterung (−) oder Erschwernis (+) der Spielleitung, auf die geworfene Summe — gilt nur für den nächsten Wurf.
           </p>
           {value !== 0 && (
             <button

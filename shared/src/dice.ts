@@ -185,11 +185,23 @@ function applyConfirmations(
  * Resolves a Probe roll: N d20 summed against a precomputed target number
  * (probeZahl). `rolled` carries the confirmations triggered so far (any
  * order, keyed by dieIndex); the rest come back as `pending`.
+ *
+ * `modifier` is a situational adjustment to the ROLLED SUM, not the target —
+ * positive makes the roll worse (harder to stay under probeZahl), negative
+ * makes it better, since success means under-rolling. `rawSum` stays the
+ * untouched dice total; `modifier` is folded into `adjustedSum` alongside
+ * the confirmation math, so it survives a later roll.confirm re-resolve as
+ * long as the same `modifier` is passed again (see server/src/ws.ts).
  */
-export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], probeZahl: number): ProbeRollResult {
+export function resolveProbeRoll(
+  dice: number[],
+  rolled: RolledConfirmation[],
+  probeZahl: number,
+  modifier = 0,
+): ProbeRollResult {
   const triggers = findCritTriggers(dice, 20);
   const rawSum = dice.reduce((a, b) => a + b, 0);
-  const { confirmations, pending, adjustedSum, criticalFailureCount } = applyConfirmations(triggers, rolled, rawSum);
+  const { confirmations, pending, adjustedSum, criticalFailureCount } = applyConfirmations(triggers, rolled, rawSum + modifier);
   const resolved = pending.length === 0;
   const criticalFailure = criticalFailureCount > 0;
   // Der ganze Spielraum ist eine Sache von Würfen aus MEHREREN Würfeln —
