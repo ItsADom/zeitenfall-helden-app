@@ -92,6 +92,8 @@ export interface PendingRollRequest {
   gmName: string;
   targetUserId: number;
   targetCharId: number;
+  /** Angezeigt bei der Spielleitung, die auf mehrere Antworten warten kann. */
+  targetCharName: string;
   createdAt: number;
   expiresAt: number;
 }

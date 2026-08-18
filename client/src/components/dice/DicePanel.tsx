@@ -4,6 +4,7 @@ import type { RollVisibility } from '@shared/diceProtocol';
 import { usePersistedState } from '../persist';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
+import PendingRequestCard from './PendingRequestCard';
 import RoomPicker from './RoomPicker';
 import ShortcutsFlyout from './ShortcutsFlyout';
 import VisibilityPicker from './VisibilityPicker';
@@ -32,6 +33,7 @@ export default function DicePanel() {
     connected,
     hasMore,
     loadingMore,
+    pendingRequests,
     collapsed,
     toggle,
     sendChat,
@@ -50,16 +52,19 @@ export default function DicePanel() {
   const w = clampW(width);
   const h = clampH(height);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const lastIdRef = useRef<number | null>(null);
+  const lastIdRef = useRef<string | null>(null);
 
+  // Ans Ende scrollen, wenn unten etwas Neues steht — ein neuer Eintrag oder
+  // eine Anfrage, die ja gerade gesehen werden will.
   useEffect(() => {
     const last = feed.length > 0 ? feed[feed.length - 1].id : null;
-    if (last !== null && last !== lastIdRef.current) {
+    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}`;
+    if (marker !== lastIdRef.current) {
       const el = scrollRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     }
-    lastIdRef.current = last;
-  }, [feed]);
+    lastIdRef.current = marker;
+  }, [feed, pendingRequests]);
 
   if (collapsed) {
     return (
@@ -154,6 +159,11 @@ export default function DicePanel() {
             {feed.length === 0 && <p className="muted dice-dock-empty">Noch nichts los hier.</p>}
             {feed.map((entry) => (
               <FeedEntryView key={entry.id} entry={entry} />
+            ))}
+            {/* Offene Anfragen unten, direkt über der Eingabe — dort schaut
+                man hin, und sie sind das, was gerade zu tun ist. */}
+            {pendingRequests.map((r) => (
+              <PendingRequestCard key={r.id} request={r} />
             ))}
           </>
         )}

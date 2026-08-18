@@ -55,3 +55,16 @@ export const VISIBILITY = {
   hidden: '🔒 nur für dich',
   gmPlayer: '🔒 SL + Spieler',
 };
+
+/** „SL + Spieler": angefragte Probe, die nur ihr beide seht. */
+export const REQUEST = {
+  /** Beim angefragten Spieler. */
+  title: (gmName: string): string => `${gmName} bittet um eine Probe`,
+  /** Bei der Spielleitung, solange noch nichts zurückkam. */
+  waiting: (charName: string, probe: string): string => `${probe} — warte auf ${charName}…`,
+  accept: 'Würfeln',
+  decline: 'Ablehnen',
+  declineHint: 'Es wird nicht gewürfelt und nichts festgehalten',
+  /** Nur ihr beide seht das Ergebnis. */
+  note: 'Nur du und die Spielleitung sehen den Wurf.',
+};

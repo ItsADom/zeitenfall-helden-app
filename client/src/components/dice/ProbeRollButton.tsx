@@ -7,16 +7,33 @@ import { useDicePanel } from './DicePanelProvider';
 // würfelt sofort öffentlich — das ist der Normalfall und soll schnell bleiben;
 // das kleine Dreieck daneben öffnet die selteneren Sichtbarkeiten.
 //
+// Auf einem FREMDEN Bogen (nur Spielleitung) wird stattdessen angefragt: sie
+// würfelt nie für den Spieler, sie bittet ihn darum. Deshalb dort ein einziger
+// Knopf ohne Sichtbarkeits-Auswahl — „SL + Spieler" ist der einzige Modus, den
+// eine Anfrage kennt.
+//
 // Was gewürfelt wird, entscheidet AUSSCHLIESSLICH die `source`: die Probe-Zahl
 // rechnet der Server neu aus (siehe server/src/diceSource.ts). Die Zahl auf dem
 // Bogen ist reine Anzeige und wird nie mitgeschickt.
-//
-// Rendert nichts ohne rollCtx (fremder Bogen oder Charakter ohne Gruppe).
 export default function ProbeRollButton({ source, title }: { source: ProbeSource; title: string }) {
-  const { rollCtx } = useChar();
-  const { rollProbe } = useDicePanel();
+  const { rollCtx, requestCtx } = useChar();
+  const { rollProbe, requestProbe } = useDicePanel();
   const { open, wrapRef, closeNow, hoverProps } = useHoverFlyout<HTMLSpanElement>();
-  if (!rollCtx) return null;
+
+  if (!rollCtx) {
+    if (!requestCtx) return null;
+    return (
+      <span className="probe-roll screen-only">
+        <button
+          className="probe-roll-btn"
+          title={`${title} beim Spieler anfragen (nur ihr beide seht das Ergebnis)`}
+          onClick={() => requestProbe(requestCtx.groupId, requestCtx.targetUserId, requestCtx.charId, source)}
+        >
+          🎲?
+        </button>
+      </span>
+    );
+  }
 
   const roll = (visibility: 'public' | 'hidden') => {
     rollProbe(rollCtx.groupId, rollCtx.charId, source, visibility);

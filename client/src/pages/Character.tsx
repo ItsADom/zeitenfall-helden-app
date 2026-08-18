@@ -142,6 +142,12 @@ interface CharCtxValue {
    * null = die Reiter blenden ihre Würfel-Knöpfe aus.
    */
   rollCtx: { groupId: number; charId: number } | null;
+  /**
+   * Gegenstück für die Spielleitung auf einem FREMDEN Bogen: sie würfelt
+   * nicht selbst, sondern fragt die Probe beim Spieler an („SL + Spieler").
+   * null auf dem eigenen Bogen und ohne Gruppe.
+   */
+  requestCtx: { groupId: number; charId: number; targetUserId: number } | null;
 }
 const CharCtx = createContext<CharCtxValue | null>(null);
 export const useChar = () => useContext(CharCtx)!;
@@ -529,9 +535,14 @@ export default function CharacterPage() {
   // einen fremden Bogen offen hat, würfelt hier NICHT für den Spieler (dafür
   // ist der SL-Anfrage-Fluss da), und ohne Gruppe gibt es keinen Feed.
   const rollCtx = info.groupId != null && info.ownerUserId === user.id ? { groupId: info.groupId, charId } : null;
+  // Spielleitung auf einem fremden Bogen: anfragen statt würfeln.
+  const requestCtx =
+    info.groupId != null && user.isGm && info.ownerUserId !== user.id
+      ? { groupId: info.groupId, charId, targetUserId: info.ownerUserId }
+      : null;
 
   return (
-    <CharCtx.Provider value={{ charId, data: data!, catalogs, update, rollCtx }}>
+    <CharCtx.Provider value={{ charId, data: data!, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data!.tableWidths ?? {}} save={saveTableWidths}>
       <DisplayModeProvider mode={editing ? 'edit' : 'readonly'}>
       <div className="screen-only">

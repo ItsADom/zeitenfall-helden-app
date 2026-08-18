@@ -11,6 +11,7 @@ import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
+import { createPendingRequest, getPendingRequest, pendingRequestsFor, removePendingRequest } from './pendingRolls.js';
 import { isGroupMember } from './routes.js';
 import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
 
@@ -46,6 +47,15 @@ export function broadcastToGroup(groupId: number, entry: FeedEntry): void {
 /** Geänderter Bestandseintrag (nachgereichte Bestätigung) statt neuer Zeile. */
 export function broadcastUpdateToGroup(groupId: number, entry: FeedEntry): void {
   broadcast(groupId, entry, 'feed.update');
+}
+
+/** Gezielt an einen Nutzer in dieser Gruppe (er kann mehrere Tabs offen haben). */
+function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientMessage): void {
+  const room = rooms.get(groupId);
+  if (!room) return;
+  for (const ws of room) {
+    if (socketMeta.get(ws)?.userId === userId) send(ws, msg);
+  }
 }
 
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
@@ -189,9 +199,119 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
-    // roll.pending.* lands here in a later build-plan phase.
-    default:
-      send(ws, { type: 'error', reqId: msg.reqId, message: 'Noch nicht implementiert' });
+    case 'roll.pending.request': {
+      // Nur die Spielleitung fordert Proben an.
+      if (!meta.isGm) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung kann eine Probe anfordern' });
+        return;
+      }
+      const source = parseProbeSource(msg.source);
+      if (!source) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Probe' });
+        return;
+      }
+      const targetCharId = Number(msg.targetCharId);
+      const char = db
+        .prepare('SELECT id, name, chat_name, owner_user_id, group_id FROM characters WHERE id = ?')
+        .get(targetCharId) as
+        | { id: number; name: string; chat_name: string; owner_user_id: number; group_id: number | null }
+        | undefined;
+      if (!char || char.group_id !== meta.groupId || char.owner_user_id !== Number(msg.targetUserId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
+        return;
+      }
+      // Nur zur Anzeige in der Karte — gewürfelt wird erst beim Annehmen, und
+      // dann gegen die dann aktuellen Werte.
+      const computed = computeProbeForCharacter(char.id, source);
+      if (!computed) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
+        return;
+      }
+      const request = createPendingRequest({
+        groupId: meta.groupId,
+        source,
+        label: computed.label,
+        gmUserId: meta.userId,
+        gmName: meta.displayName,
+        targetUserId: char.owner_user_id,
+        targetCharId: char.id,
+        targetCharName: char.chat_name || char.name,
+        onExpire: (expired) => {
+          for (const uid of [expired.targetUserId, expired.gmUserId]) {
+            sendToUserInGroup(expired.groupId, uid, { type: 'roll.pending.expired', requestId: expired.id });
+          }
+        },
+      });
+      // Beide Seiten sehen die Anfrage — der Spieler zum Beantworten, die
+      // Spielleitung, damit sie weiß, dass sie noch offen ist.
+      for (const uid of [request.targetUserId, request.gmUserId]) {
+        sendToUserInGroup(meta.groupId, uid, { type: 'roll.pending.created', request });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.pending.accept': {
+      const request = getPendingRequest(String(msg.requestId));
+      // Annehmen darf nur der angefragte Spieler selbst.
+      if (!request || request.targetUserId !== meta.userId || request.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
+        return;
+      }
+      // Bewusst NEU rechnen statt den Wert von vorhin zu übernehmen: zwischen
+      // Anfrage und Annahme kann sich der Bogen geändert haben.
+      const computed = computeProbeForCharacter(request.targetCharId, request.source);
+      if (!computed) {
+        removePendingRequest(request.id);
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
+        return;
+      }
+      removePendingRequest(request.id);
+      const result = performProbeRoll(computed.n, computed.probeZahl);
+      const roll: ProbeRollPayload = {
+        mode: 'probe',
+        source: request.source,
+        label: computed.label,
+        n: computed.n,
+        probeZahl: computed.probeZahl,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        criticalFailureCount: result.criticalFailureCount,
+        criticalFailure: result.criticalFailure,
+        success: result.success,
+        narrow: result.narrow,
+        criticalSuccess: result.criticalSuccess,
+      };
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, request.targetCharId), request.gmUserId, 'gm_player', roll);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.pending.decline': {
+      const request = getPendingRequest(String(msg.requestId));
+      if (!request || request.targetUserId !== meta.userId || request.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
+        return;
+      }
+      // Ablehnen schreibt nichts — es gab ja nie einen Datenbank-Eintrag.
+      removePendingRequest(request.id);
+      for (const uid of [request.targetUserId, request.gmUserId]) {
+        sendToUserInGroup(request.groupId, uid, { type: 'roll.pending.declined', requestId: request.id });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    default: {
+      // Alle bekannten Typen sind oben abgehandelt — TypeScript hält diesen
+      // Zweig deshalb für unerreichbar. Zur Laufzeit ist er es nicht: die
+      // Nachricht kam als beliebiges JSON herein.
+      const unknown = msg as { reqId?: unknown };
+      if (typeof unknown.reqId === 'string') {
+        send(ws, { type: 'error', reqId: unknown.reqId, message: 'Unbekannte Anfrage' });
+      }
+    }
   }
 }
 
@@ -231,6 +351,12 @@ export function attachWsServer(server: http.Server): void {
         rooms.set(groupId, room);
       }
       room.add(ws);
+
+      // Offene Anfragen nachreichen — wer nach dem Anfragen neu lädt oder die
+      // Verbindung verliert, soll die Karte wiedersehen.
+      for (const request of pendingRequestsFor(groupId, user.id)) {
+        send(ws, { type: 'roll.pending.created', request });
+      }
 
       let alive = true;
       ws.on('pong', () => {

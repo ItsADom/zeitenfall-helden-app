@@ -4259,6 +4259,83 @@ tr:hover .probe-roll,
   text-align: left;
 }
 
+/* „Probe anfordern" auf der Spielleiter-Übersichtskarte. */
+.gm-request-open {
+  margin-top: 6px;
+}
+.gm-request {
+  margin-top: 6px;
+}
+.gm-request-row {
+  display: flex;
+  gap: 6px;
+}
+.gm-request-row input {
+  flex: 1;
+  min-width: 0;
+}
+.gm-request-results {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.gm-request-results button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 5px 8px;
+  font-size: 12px;
+  color: var(--text);
+  cursor: pointer;
+}
+.gm-request-results button:hover {
+  background: var(--surface-hover);
+}
+.gm-request-empty {
+  margin: 4px 0 0;
+  font-size: 12px;
+}
+
+/* Angefragte „SL + Spieler"-Probe im Feed. */
+.feed-request {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: 13px;
+}
+.feed-request--waiting {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: none;
+  padding: 5px 10px;
+}
+.feed-request-title {
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+.feed-request-probe {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.feed-request-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.feed-request-note {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
 /* Würfel-Favoriten-Editor (Einstellungen). */
 .dice-shortcuts-input {
   width: 100%;

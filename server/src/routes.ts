@@ -15,6 +15,7 @@ import {
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
+import { listRollableProbes } from './diceSource.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
@@ -802,6 +803,18 @@ api.put('/characters/:id/chat-name', requireAuth, (req, res) => {
   const chatName = String((req.body as { chatName?: unknown })?.chatName ?? '').trim().slice(0, 24);
   db.prepare('UPDATE characters SET chat_name = ? WHERE id = ?').run(chatName, char.id);
   res.json({ chatName });
+});
+
+// Alles, worauf dieser Charakter würfeln kann — Auswahlliste für „Probe
+// anfordern" auf der Spielleiter-Übersicht. Bewusst auf Abruf statt in der
+// Übersicht mitgeladen: die Liste ist lang und wird selten gebraucht.
+api.get('/characters/:id/probes', requireAuth, requireGm, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char) {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  res.json(listRollableProbes(char.id));
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---

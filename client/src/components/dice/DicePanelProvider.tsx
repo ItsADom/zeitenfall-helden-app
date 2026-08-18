@@ -1,5 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import type { ClientToServerMessage, FeedEntry, ProbeSource, RollVisibility, ServerToClientMessage } from '@shared/diceProtocol';
+import type {
+  ClientToServerMessage,
+  FeedEntry,
+  PendingRollRequest,
+  ProbeSource,
+  RollVisibility,
+  ServerToClientMessage,
+} from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 
@@ -55,6 +62,12 @@ interface DicePanelCtxValue {
   rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility) => void;
   /** Offenen Bestätigungswurf erledigen — werfen, oder mit skip verwerfen. */
   confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
+  /** Offene „SL + Spieler"-Anfragen, die diesen Nutzer betreffen. */
+  pendingRequests: PendingRollRequest[];
+  /** Spielleitung fordert eine bestimmte Probe von einem Spieler an. */
+  requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => void;
+  acceptRequest: (requestId: string) => void;
+  declineRequest: (requestId: string) => void;
   /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
   refreshRooms: () => void;
   loadMore: () => void;
@@ -81,6 +94,10 @@ export function useDicePanel(): DicePanelCtxValue {
       rollExpr: () => {},
       rollProbe: () => {},
       confirmDie: () => {},
+      pendingRequests: [],
+      requestProbe: () => {},
+      acceptRequest: () => {},
+      declineRequest: () => {},
       refreshRooms: () => {},
       loadMore: () => {},
     }
@@ -97,6 +114,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [collapsed, setCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
   const [hidden, setHidden] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -150,9 +168,23 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       } catch {
         return;
       }
+      if (msg.type === 'roll.pending.created') {
+        // Eine Anfrage will gesehen werden — Dock aufklappen.
+        setPendingRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
+        setCollapsed(false);
+        return;
+      }
+      if (msg.type === 'roll.pending.expired' || msg.type === 'roll.pending.declined') {
+        setPendingRequests((prev) => prev.filter((r) => r.id !== msg.requestId));
+        return;
+      }
       // append und update laufen beide durch mergeFeed (dedupliziert nach id),
       // ein Update ersetzt den vorhandenen Eintrag also einfach.
       if (msg.type !== 'feed.append' && msg.type !== 'feed.update') return;
+      // Ein angenommener Wurf erledigt seine Anfrage — die Karte kann weg.
+      if (msg.type === 'feed.append' && msg.entry.kind === 'roll' && msg.entry.visibility === 'gm_player') {
+        setPendingRequests((prev) => prev.filter((r) => r.targetCharId !== msg.entry.authorCharId));
+      }
       if (bufferingRef.current) {
         liveBufferRef.current.push(msg.entry);
       } else {
@@ -269,6 +301,36 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const requestProbe = useCallback(
+    (forGroupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => {
+      // Wie beim Würfeln vom Bogen: erst in den Raum dieser Gruppe, dann
+      // senden (die Nachricht wartet notfalls in der Outbox).
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      setCollapsed(false);
+      sendMsg({ type: 'roll.pending.request', reqId: crypto.randomUUID(), source, targetUserId, targetCharId });
+    },
+    [myGroups, applyRoom, sendMsg, setCollapsed],
+  );
+
+  const acceptRequest = useCallback(
+    (requestId: string) => {
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      sendMsg({ type: 'roll.pending.accept', reqId: crypto.randomUUID(), requestId });
+    },
+    [sendMsg],
+  );
+
+  const declineRequest = useCallback(
+    (requestId: string) => {
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      sendMsg({ type: 'roll.pending.decline', reqId: crypto.randomUUID(), requestId });
+    },
+    [sendMsg],
+  );
+
   const loadMore = useCallback(() => {
     if (groupId === null || loadingMore || !hasMore || feed.length === 0) return;
     setLoadingMore(true);
@@ -300,6 +362,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         rollExpr,
         rollProbe,
         confirmDie,
+        pendingRequests,
+        requestProbe,
+        acceptRequest,
+        declineRequest,
         refreshRooms,
         loadMore,
       }}

@@ -146,3 +146,59 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       return null;
   }
 }
+
+export interface RollableProbe {
+  source: ProbeSource;
+  label: string;
+  n: number;
+  probeZahl: number;
+  /** Grobe Einordnung für die Gruppierung in der Auswahlliste. */
+  kind: 'attribute' | 'talent' | 'ability' | 'sprache' | 'weapon';
+}
+
+/**
+ * Alles, worauf dieser Charakter würfeln kann — für die Auswahlliste der
+ * Spielleitung („Probe anfordern"). Der Charakterbogen braucht das nicht, der
+ * hat seine Zahlen schon; deshalb wird die Liste auch nur auf Anfrage gebaut
+ * und nicht in die Übersicht mitgeladen.
+ */
+export function listRollableProbes(characterId: number): RollableProbe[] {
+  const out: RollableProbe[] = [];
+  const add = (source: ProbeSource, kind: RollableProbe['kind']) => {
+    const computed = computeProbeForCharacter(characterId, source);
+    if (computed) out.push({ source, kind, label: computed.label, n: computed.n, probeZahl: computed.probeZahl });
+  };
+
+  for (const attr of ATTR_ROW_CODES) add({ kind: 'attribute', attr }, 'attribute');
+
+  // Talente/Sprachen aus dem KATALOG (auch ungelernte sind würfelbar, siehe
+  // computeProbeForCharacter) — Kampftalente fallen dort mangels Formel raus.
+  const talents = db.prepare('SELECT id FROM talents_catalog ORDER BY sort, name').all() as { id: number }[];
+  for (const t of talents) add({ kind: 'talent', talentId: t.id }, 'talent');
+
+  const abilities = db.prepare('SELECT id FROM char_abilities WHERE character_id = ? ORDER BY pos, id').all(characterId) as {
+    id: number;
+  }[];
+  for (const a of abilities) add({ kind: 'ability', abilityId: a.id }, 'ability');
+
+  const languages = db.prepare('SELECT id, kind FROM languages_catalog ORDER BY sort, name').all() as {
+    id: number;
+    kind: string;
+  }[];
+  for (const l of languages) {
+    add({ kind: 'sprache', languageId: l.id, mode: l.kind === 'schrift' ? 'schreiben' : 'sprechen' }, 'sprache');
+  }
+
+  const nah = db.prepare('SELECT id FROM sec_waffenNahNeu WHERE character_id = ? ORDER BY pos, id').all(characterId) as {
+    id: number;
+  }[];
+  for (const w of nah) {
+    for (const probe of ['at', 'pa', 'bl'] as const) add({ kind: 'weapon', sectionRowId: w.id, probe }, 'weapon');
+  }
+  const fern = db.prepare('SELECT id FROM sec_waffenFernNeu WHERE character_id = ? ORDER BY pos, id').all(characterId) as {
+    id: number;
+  }[];
+  for (const w of fern) add({ kind: 'weapon', sectionRowId: w.id, probe: 'fk' }, 'weapon');
+
+  return out;
+}

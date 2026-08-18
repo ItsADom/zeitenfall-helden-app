@@ -450,10 +450,16 @@ pending-request flow rather than rolling immediately.
    visibility only — GM+Player still comes in the next phase.
 6. **GM + selected player flow, both entry points** — pending-request
    registry and `roll.pending.*` handling server-side; `listRollableProbes`
-   + `GET /characters/:id/probes`; `PendingRequestCard`, third
-   `VisibilityPicker` option on the sheet, the GM-overview picker UI in
-   `GroupOverview.tsx`, accept/decline wiring, auto-expand on request
-   client-side.
+   + `GET /characters/:id/probes`; `PendingRequestCard`, the GM-overview
+   picker UI in `GroupOverview.tsx`, accept/decline wiring, auto-expand on
+   request client-side.
+   - **Built differently than sketched in one respect:** the sheet entry
+     point is NOT a third `VisibilityPicker` option. Phase 5 had already
+     settled that a GM never rolls *as* a player (`rollCtx` is null on a
+     foreign sheet), so "GM + Player" is not a visibility one picks for
+     one's own roll — it is a different action. The GM therefore gets a
+     separate `🎲?` request button on a foreign sheet (via `requestCtx`),
+     and the picker keeps only Public/Hidden everywhere it appears.
 7. **Hardening/polish** — per-connection rate limiting on `chat.send`/`roll.*`
    (new token-bucket limiter — not a direct reuse of
    `server/src/rateLimit.ts`'s fail-counter-shaped `createAttemptLimiter`,

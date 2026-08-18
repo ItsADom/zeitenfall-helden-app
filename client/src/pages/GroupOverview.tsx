@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { ResourceKey } from '@shared/types';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
+import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
 
@@ -21,6 +22,8 @@ interface CharTag {
 interface OverviewChar {
   id: number;
   name: string;
+  /** Empfänger einer „Probe anfordern"-Anfrage. */
+  ownerUserId: number;
   ownerName: string;
   stufe: number;
   portrait: boolean;
@@ -348,6 +351,12 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
                   );
                 })()}
               </div>
+
+              {/* Event-Gruppen haben keinen eigenen Feed (die WS-Route kennt
+                  nur echte Gruppen) — dort gibt es nichts anzufragen. */}
+              {kind !== 'temp' && (
+                <RequestProbePicker groupId={groupId} charId={c.id} targetUserId={c.ownerUserId} charName={c.name} />
+              )}
 
               <GmNoteField key={c.id} charId={c.id} initial={c.gmNotiz} />
             </div>
