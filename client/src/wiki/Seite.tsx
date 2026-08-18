@@ -6,7 +6,7 @@ import { wikiTagKey } from '@shared/wikiTags';
 import type { WikiSeiteVoll } from '@shared/wikiTypen';
 import { ApiError } from '../api';
 import { useAuth } from '../App';
-import WikiInhalt from './Inhalt';
+import { useInhaltMelden } from './Inhalt';
 import WikiMarkup from './Markup';
 import WikiSeitenrechte from './Seitenrechte';
 import WikiVerweise from './Verweise';
@@ -46,6 +46,11 @@ export default function WikiSeite() {
   // about the heading anchors, and they only do if they read the same tree.
   const doc = useMemo(() => parseWiki(seite?.text ?? ''), [seite?.text]);
   const toc = useMemo(() => inhaltsverzeichnis(doc), [doc]);
+
+  // Das Inhaltsverzeichnis gehört in die linke Spalte, die das Layout besitzt —
+  // gemeldet statt dort noch einmal geparst, sonst könnten die Anker der beiden
+  // Parsedurchläufe irgendwann auseinanderlaufen.
+  useInhaltMelden(toc);
 
   // Reached through an old address after a rename: move the URL over so links
   // copied from here are the current ones. A followed redirect does NOT do this
@@ -148,10 +153,7 @@ export default function WikiSeite() {
           )}
         </p>
       ) : (
-        <>
-          <WikiInhalt zeilen={toc} />
-          <WikiMarkup doc={doc} ziele={seite.linkZiele} />
-        </>
+        <WikiMarkup doc={doc} ziele={seite.linkZiele} />
       )}
 
       <WikiVerweise slug={seite.slug} />

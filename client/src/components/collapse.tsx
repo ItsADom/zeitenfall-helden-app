@@ -20,9 +20,14 @@ const storageKey = (key: string) => `tbl-zu:${key}`;
  * Eingeklappt-Zustand für `key`. Im Druck immer aufgeklappt: dort hängen
  * dieselben Tabellen mit denselben Schlüsseln im DOM, und wer eine Tabelle am
  * Bildschirm zugeklappt hat, will sie trotzdem auf dem Ausdruck haben.
+ *
+ * `standard` gilt nur, solange niemand selbst geklappt hat — danach zählt die
+ * gemerkte Entscheidung. Gedacht für Panels, die Nachschlagewerk sind und nicht
+ * Inhalt: der Formatierungs-Spickzettel etwa hilft beim ersten Mal und steht
+ * danach jedes Mal im Weg zwischen Text und Speichern-Knopf.
  */
-export function useCollapsed(key: string): [boolean, () => void] {
-  const [collapsed, setCollapsed] = usePersistedState<boolean>(storageKey(key), false);
+export function useCollapsed(key: string, standard = false): [boolean, () => void] {
+  const [collapsed, setCollapsed] = usePersistedState<boolean>(storageKey(key), standard);
   const forPrint = useDisplayMode() === 'print';
   return [forPrint ? false : collapsed, () => setCollapsed((v) => !v)];
 }
@@ -43,6 +48,7 @@ export function CollapseChevron({ open }: { open: boolean }) {
  */
 export function CollapsiblePanel({
   collapseKey,
+  standardZu = false,
   title,
   info,
   actions,
@@ -51,6 +57,8 @@ export function CollapsiblePanel({
   children,
 }: {
   collapseKey: string;
+  /** Zugeklappt starten, solange niemand selbst geklappt hat. */
+  standardZu?: boolean;
   title: React.ReactNode;
   info?: React.ReactNode;
   actions?: React.ReactNode;
@@ -64,7 +72,7 @@ export function CollapsiblePanel({
   forceOpen?: boolean;
   children: React.ReactNode;
 }) {
-  const [stored, toggle] = useCollapsed(collapseKey);
+  const [stored, toggle] = useCollapsed(collapseKey, standardZu);
   const collapsed = stored && !forceOpen;
   return (
     <div className="panel">

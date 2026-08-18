@@ -26,6 +26,7 @@ const BLOCK: Zeile[] = [
   { code: '> Zitat', was: 'Eingerückter Kasten' },
   { code: '---', was: 'Trennlinie' },
   { code: '| Kopf | Kopf |\n| --- | --- |\n| Zelle | Zelle |', was: 'Tabelle (Trennzeile nicht vergessen)' },
+  { code: '```\nWörtlich, ohne Formatierung\n```', was: 'Block fester Breite — Zauberformeln, Auszüge' },
   { code: '[[bild:karte-a1b2c3]]', was: 'Bild — allein auf einer Zeile, sonst bleibt es Text' },
   { code: '[[bild:karte-a1b2c3|Die Karte von Gareth]]', was: 'Bild mit Bildunterschrift darunter' },
   {
@@ -74,8 +75,14 @@ export default function WikiSpickzettel({ istGm }: { istGm: boolean }) {
       </p>
       <p className="muted">
         Größe und Lage stehen in beliebiger Reihenfolge zwischen den Strichen; alles andere wird zur Bildunterschrift.
-        Mit <code>links</code> oder <code>rechts</code> fließt der Text daneben. Ein verkleinertes Bild öffnet sich per
-        Klick in voller Größe, und auf dem Telefon rückt es automatisch wieder über die ganze Breite.
+        Ein verkleinertes Bild öffnet sich per Klick in voller Größe, und auf dem Telefon rückt es automatisch wieder
+        über die ganze Breite.
+      </p>
+      <p className="muted">
+        <strong>Text neben ein Bild setzen:</strong> Die Bildzeile mit <code>rechts</code> (oder <code>links</code>)
+        muss <em>vor</em> dem Absatz stehen, der daneben laufen soll — der Text fließt ab da um das Bild herum, so
+        lange er reicht. Steht das Bild hinter dem Absatz, rutscht es unter ihn. Eine Überschrift beginnt immer wieder
+        unter dem Bild, nie daneben.
       </p>
       <Liste zeilen={INLINE} />
       {istGm && (

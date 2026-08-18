@@ -6,10 +6,74 @@
    Achsen (Farbe × hell/dunkel), und ein hart notierter Farbwert bricht sofort
    eine der Varianten. */
 
-.wiki-schale,
+.wiki-schale {
+  /* Breiter als der Artikel selbst: die linke Spalte kommt hinzu, statt dem
+     Text Platz wegzunehmen. */
+  max-width: 1320px;
+  margin: 0 auto;
+}
 .wiki {
   max-width: 1100px;
   margin: 0 auto;
+}
+
+/* --- Zweispaltig: Wegweiser links, Artikel rechts ---
+   `minmax(0, 1fr)` statt `1fr`: eine breite Tabelle im Artikel würde die
+   Spalte sonst aufblähen und die Seite quer scrollen lassen. */
+.wiki-koerper {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 0 32px;
+  align-items: start;
+}
+.wiki-spalte {
+  min-width: 0;
+}
+
+.wiki-seitenleiste {
+  position: sticky;
+  /* Unter beidem, was darüber klebt — beide gemessen, keine geschätzten Werte. */
+  top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px) + 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-right: 14px;
+  border-right: 1px solid var(--border);
+  /* Ein langes Inhaltsverzeichnis darf nicht aus dem Fenster laufen; die
+     Leiste ist der eine Kasten im Wiki, der scrollen DARF, weil er nichts
+     enthält als Verweise. */
+  max-height: calc(100vh - var(--topbar-h, 47px) - var(--wikikopf-h, 0px) - 28px);
+  overflow-y: auto;
+}
+.wiki-seitenleiste-titel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.wiki-seitenleiste-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.wiki-seitenleiste-nav a {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+}
+.wiki-seitenleiste-nav a:hover {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+/* react-router setzt `.active` auf dem passenden NavLink. */
+.wiki-seitenleiste-nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
 }
 
 /* --- Die Wiki-Leiste ---
@@ -493,24 +557,35 @@
 
 /* --- Inhaltsverzeichnis & Verweise --- */
 
-.wiki-toc {
-  margin-bottom: 16px;
-}
 .wiki-toc-liste {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 .wiki-toc-liste li {
-  margin: 2px 0;
+  margin: 0;
 }
-/* Einrückung nach Ebene — die Gliederung der Seite soll man sehen, nicht
-   nachzählen müssen. */
-.wiki-toc-e2 {
-  padding-left: 16px;
+.wiki-toc-liste a {
+  display: block;
+  padding: 3px 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
 }
-.wiki-toc-e3 {
+.wiki-toc-liste a:hover {
+  color: var(--accent-dark);
+  border-left-color: var(--accent);
+}
+/* Die Ebene der Überschrift als Einrückung — mehr Auszeichnung braucht ein
+   Verzeichnis aus höchstens drei Ebenen nicht. */
+.wiki-toc-e2 a {
+  padding-left: 20px;
+}
+.wiki-toc-e3 a {
   padding-left: 32px;
+  font-size: 12px;
 }
 
 .wiki-verweise {
@@ -721,7 +796,9 @@
 /* Wächst mit dem Inhalt (autosize) statt selbst zu scrollen. */
 .wiki-quelle {
   width: 100%;
-  min-height: 320px;
+  /* Wächst ohnehin mit dem Inhalt (autosize) — das hier ist die Fläche, die
+     man beim Anfangen VOR sich hat. 320px waren knapp zwei Absätze. */
+  min-height: max(520px, 60vh);
   padding: 12px 14px;
   font-family: 'Segoe UI', system-ui, sans-serif;
   font-size: 15px;
@@ -794,6 +871,50 @@
   align-items: center;
   margin-top: 6px;
   font-size: 12px;
+}
+
+/* Unter ~1000px bleibt neben einer 190px-Spalte kein lesbarer Artikel mehr
+   übrig: die Leiste rückt über den Text, die Navigation legt sich in eine
+   Zeile, und das Inhaltsverzeichnis steht wieder da, wo es vor der zweiten
+   Spalte stand. */
+@media (max-width: 1000px) {
+  .wiki-koerper {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wiki-seitenleiste {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding: 0 0 10px;
+    margin-bottom: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .wiki-seitenleiste-titel {
+    display: none;
+  }
+  .wiki-seitenleiste-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  /* Quer gelegt wäre ein langes Verzeichnis eine Wand aus Verweisen — als
+     Aufklapper bleibt es eine Zeile, bis jemand es braucht. */
+  .wiki-toc {
+    flex-basis: 100%;
+  }
+  .wiki-toc-liste {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 6px;
+  }
+  .wiki-toc-e2 a,
+  .wiki-toc-e3 a {
+    padding-left: 8px;
+  }
 }
 
 @media (max-width: 700px) {
