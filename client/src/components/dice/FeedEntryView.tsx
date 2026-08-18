@@ -133,7 +133,7 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
         {isProbe && roll.resolved && (
           <span className="feed-roll-outcome">
             {roll.criticalFailure
-              ? OUTCOME.criticalFailure(roll.criticalFailureCount)
+              ? OUTCOME.criticalFailure
               : roll.criticalSuccess
                 ? OUTCOME.criticalSuccess
                 : roll.success
