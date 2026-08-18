@@ -45,6 +45,8 @@ export interface DieConfirmation {
    * weder in die Summe noch als Patzer.
    */
   skipped?: boolean;
+  /** Von einem Gegenstück aufgehoben — siehe CritTrigger.cancelled. */
+  cancelled?: boolean;
 }
 
 /** Ein noch offener Bestätigungswurf — der Spieler löst ihn selbst aus. */
@@ -62,30 +64,54 @@ export interface RolledConfirmation {
   value: number | null;
 }
 
+export interface CritTrigger {
+  dieIndex: number;
+  trigger: 20 | 1;
+  /**
+   * Von einem Gegenstück aufgehoben: zählt NICHT mehr als Patzer bzw. als
+   * kritischer Erfolg. Der Bestätigungswurf wird trotzdem geworfen und wirkt
+   * ganz normal auf die Summe — aufgehoben ist nur die Sonderbedeutung.
+   */
+  cancelled: boolean;
+}
+
 /**
- * Welche Würfel eines Wurfs eine Bestätigung auslösen.
+ * Welche Würfel eines Wurfs eine Bestätigung auslösen — das sind ALLE
+ * natürlichen 20er und 1er.
  *
- * 20er und 1er heben sich dabei PAARWEISE AUF: nur der Überhang zählt, und
- * zwar so, als hätte der Wurf allein diese Zahl gezeigt. Zwei 20er und eine 1
- * sind also eine 20; je eine 20 und eine 1 sind gar nichts. Das passiert vor
- * allem anderen — aufgehobene Würfel lösen keine Bestätigung aus und tauchen
- * darum auch nicht als offener Wurf auf.
+ * 20er und 1er heben sich paarweise auf, und zwar in Wurfreihenfolge, als
+ * würfelte man nacheinander: eine 1 löscht die erste noch offene 20 vor ihr
+ * (und umgekehrt), unabhängig davon, ob diese später bestätigt wird. Was sich
+ * so aufhebt, verliert seine Sonderbedeutung — nicht aber seinen
+ * Bestätigungswurf: der wird geworfen und verrechnet wie jeder andere.
  */
-export function findCritTriggers(dice: number[], sides: number): { dieIndex: number; trigger: 20 | 1 }[] {
+export function findCritTriggers(dice: number[], sides: number): CritTrigger[] {
   if (sides !== 20) return [];
-  const twenties: number[] = [];
-  const ones: number[] = [];
+  const openTwenties: number[] = [];
+  const openOnes: number[] = [];
+  const cancelled = new Set<number>();
   dice.forEach((v, dieIndex) => {
-    if (v === 20) twenties.push(dieIndex);
-    else if (v === 1) ones.push(dieIndex);
+    if (v === 20) {
+      const match = openOnes.shift();
+      if (match === undefined) openTwenties.push(dieIndex);
+      else {
+        cancelled.add(match);
+        cancelled.add(dieIndex);
+      }
+    } else if (v === 1) {
+      const match = openTwenties.shift();
+      if (match === undefined) openOnes.push(dieIndex);
+      else {
+        cancelled.add(match);
+        cancelled.add(dieIndex);
+      }
+    }
   });
-  const net = twenties.length - ones.length;
-  if (net === 0) return [];
-  // Vom Überhang die vordersten Würfel behalten, damit die Anzeige stabil
-  // bleibt (Reihenfolge = Würfelreihenfolge).
-  return net > 0
-    ? twenties.slice(0, net).map((dieIndex) => ({ dieIndex, trigger: 20 as const }))
-    : ones.slice(0, -net).map((dieIndex) => ({ dieIndex, trigger: 1 as const }));
+  const out: CritTrigger[] = [];
+  dice.forEach((v, dieIndex) => {
+    if (v === 20 || v === 1) out.push({ dieIndex, trigger: v as 20 | 1, cancelled: cancelled.has(dieIndex) });
+  });
+  return out;
 }
 
 export function confirmationsNeeded(dice: number[], sides: number): number {
@@ -119,7 +145,7 @@ export interface ProbeRollResult {
 // geworfenen. Gemeinsam genutzt von Proben- und Ausdruckswürfen, weil die
 // Bestätigungsmechanik in beiden identisch ist.
 function applyConfirmations(
-  triggers: { dieIndex: number; trigger: 20 | 1 }[],
+  triggers: CritTrigger[],
   rolled: RolledConfirmation[],
   startSum: number,
 ): { confirmations: DieConfirmation[]; pending: PendingConfirmation[]; adjustedSum: number; criticalFailureCount: number } {
@@ -136,15 +162,18 @@ function applyConfirmations(
     const value = byDie.get(t.dieIndex) as number | null;
     if (value === null) {
       // Verworfen: erledigt, aber ohne jede Wirkung auf Summe oder Patzer.
-      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value: null, skipped: true });
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value: null, skipped: true, cancelled: t.cancelled });
     } else if (t.trigger === 20) {
       const confirmed = value >= 10;
-      if (confirmed) criticalFailureCount += 1;
-      else adjustedSum += value;
-      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed });
+      // Aufgehobene 20er sind kein Patzer — ihre Bestätigung wirkt aber
+      // ganz normal auf die Summe.
+      if (confirmed) {
+        if (!t.cancelled) criticalFailureCount += 1;
+      } else adjustedSum += value;
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed, cancelled: t.cancelled });
     } else {
       adjustedSum -= value;
-      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value });
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, cancelled: t.cancelled });
     }
   }
   return { confirmations, pending, adjustedSum, criticalFailureCount };
@@ -167,7 +196,9 @@ export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], p
   // Eine stehengebliebene (nicht bestätigte) 20 lässt keinen sauberen Erfolg
   // mehr zu — bestenfalls einen knappen. Verworfene Bestätigungen zählen
   // hier nicht mit, die sind ja gerade als wirkungslos erklärt worden.
-  const unconfirmedTwenty = confirmations.some((c) => c.trigger === 20 && c.confirmed === false);
+  // Aufgehobene 20er drücken nicht auf „knapp" — sie sind für die Bewertung
+  // gar nicht da (ihr Bestätigungswert steckt aber schon in adjustedSum).
+  const unconfirmedTwenty = confirmations.some((c) => c.trigger === 20 && c.confirmed === false && !c.cancelled);
   // Solange etwas offen ist, gilt der Wurf als nicht entschieden: eine noch
   // ausstehende 20 könnte ihn ohnehin zum Patzer machen.
   const success = resolved && !criticalFailure && (adjustedSum <= probeZahl || withinMargin);
@@ -176,9 +207,8 @@ export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], p
   // kritischen. Das hängt allein am Würfel selbst: die Bestätigung wird zwar
   // geworfen und ihr Wert wie immer abgezogen, aber sie hat bei 1ern keine
   // Schwelle, an der sich etwas entscheiden könnte — eine 1 ist eine 1.
-  // (Aufgehobene 1er zählen nicht, die sind gar keine mehr.) 20er können hier
-  // nicht dazwischenfunken — die hätten sich mit den 1ern aufgehoben.
-  const keptOne = triggers.some((t) => t.trigger === 1);
+  // Aufgehobene 1er zählen dafür nicht mehr mit.
+  const keptOne = triggers.some((t) => t.trigger === 1 && !t.cancelled);
   return {
     dice,
     confirmations,

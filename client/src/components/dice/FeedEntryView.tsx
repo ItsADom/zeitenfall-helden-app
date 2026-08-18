@@ -38,18 +38,25 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
   return (
     <div className="feed-confirms">
       {confirmations.map((c, i) => (
-        <span key={i} className="feed-confirm">
+        <span key={i} className={`feed-confirm${c.cancelled ? ' feed-confirm--cancelled' : ''}`}>
           {c.skipped ? (
             <>
               {c.trigger} → <em>keine Bestätigung</em>
             </>
           ) : c.trigger === 20 ? (
             <>
-              20 → <strong>{c.value}</strong> {c.confirmed ? '· bestätigt (Patzer)' : `· nicht bestätigt (+${c.value})`}
+              20 → <strong>{c.value}</strong>{' '}
+              {/* Aufgehoben heißt: kein Patzer/kein Krit — der Wert wirkt trotzdem. */}
+              {c.confirmed
+                ? c.cancelled
+                  ? '· aufgehoben (kein Patzer)'
+                  : '· bestätigt (Patzer)'
+                : `· nicht bestätigt (+${c.value})${c.cancelled ? ' · aufgehoben' : ''}`}
             </>
           ) : (
             <>
               1 → <strong>{c.value}</strong> · −{c.value}
+              {c.cancelled && ' · aufgehoben'}
             </>
           )}
         </span>

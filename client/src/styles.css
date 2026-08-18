@@ -4203,6 +4203,12 @@ body.resizing-dice {
   font-size: 11px;
   color: var(--muted);
 }
+/* Von einem Gegenstück aufgehoben: wirkt weiter auf die Summe, zählt aber
+   nicht mehr als Patzer/Krit — entsprechend zurückgenommen dargestellt. */
+.feed-confirm--cancelled {
+  opacity: 0.65;
+  font-style: italic;
+}
 
 /* Würfel-Knopf neben einer Probe-Zahl auf dem Bogen. Bleibt zurückhaltend,
    bis man die Zeile/Karte überfährt — sonst tapeziert er den ganzen Bogen. */
