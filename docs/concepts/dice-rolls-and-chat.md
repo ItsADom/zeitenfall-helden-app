@@ -3,9 +3,111 @@
 Build plan for the "Dice rolls and chat" concept in TODO.md's `[sketch]`
 entry (`TODO.md:96-202`), worked out in a planning session on 2026-08-17.
 Copied here from the local Claude Code plan file so it's available on any
-machine with this repo cloned, not just the one it was written on. Nothing
-here is implemented yet — see TODO.md's entry for the still-current source
-of truth on scope; this file is the concrete build plan derived from it.
+machine with this repo cloned, not just the one it was written on. TODO.md's
+entry stays the source of truth on *scope*; this file is the concrete build
+plan derived from it, and the Status section below records how far it has
+actually been built.
+
+## Status (last updated 2026-08-18)
+
+**Phases 1-6 are built, verified and committed. Phase 7 is the only planned
+work left.** Everything lives on the feature branch `feature/dice-rolls-chat`,
+cut off `develop`; nothing has been merged back yet.
+
+> **Machine handover:** as of this writing the branch exists **only locally** —
+> it has no upstream on `origin`, so all 16 commits sit on a single machine.
+> Push it before continuing anywhere else:
+> `git push -u origin feature/dice-rolls-chat`
+
+The working tree was clean at handover — no uncommitted work to rescue.
+
+### What is done
+
+| Phase | Commit(s) |
+| --- | --- |
+| 1 — shared dice math + schema | `4905c13` |
+| 2 — server WS infra + REST feed | `82b7056` |
+| 3 — client connection layer + chat | `a280724`, `40dcfa9` |
+| 4 — raw dice rolls, shortcuts, visibility | `5a0c277`, `57dd2e3` |
+| 5 — sheet integration | `3a52fdd`, `baa4e5b`, `9f1633f`, `b217af6` |
+| 5b — crit rule corrections | `7321bb2`, `28fb19b`, `4397634`, `8d99897`, `af8796c` |
+| 6 — GM + selected player requests | `f38fa51` |
+
+Phases 4-5 grew well beyond what this plan sketched, driven by rule
+corrections that surfaced while testing. The rules as now implemented (all in
+`shared/src/dice.ts`, all covered by `shared/test/dice.test.ts`):
+
+- **Narrow pass (`NARROW_PASS_MARGIN = 4`).** A roll of **2+ dice** still
+  passes when the adjusted sum overshoots the Probe-Zahl by at most 4
+  („Knapper Erfolg"). **Single-die rolls have no such grace** — they were
+  briefly rendered as though they did; fixed in `af8796c`.
+- **An unconfirmed 20 downgrades** an otherwise clean multi-die pass to a
+  narrow one, even when the sum alone would have passed comfortably.
+- **20s and 1s cancel each other pairwise, in rolling order** — the first
+  open 20 is cancelled by the next 1 and vice versa, as though the dice were
+  thrown one after another. Cancellation removes only the *crit meaning*: a
+  cancelled die **still rolls its confirmation, and that value still moves
+  the sum** (`28fb19b`). Only `criticalFailureCount` ignores them.
+- **A surviving natural 1 on a clean (non-narrow) pass makes it a critical
+  success**, regardless of how its confirmation went — „a 1 is a 1". The
+  confirmation is still rolled, there is simply no threshold on it.
+- **Untrained talents and languages are rollable** (TaW 0 is a legal Probe).
+  The source queries in `server/src/diceSource.ts` therefore start from the
+  *catalogue* and `LEFT JOIN` the character rows with `COALESCE(taw, 0)`;
+  starting from `char_talents`/`char_languages` silently hid every untrained
+  entry (`baa4e5b`).
+- **Attributes (Eigenschaftsproben) are rollable**, Sozialstatus included.
+  Sidebar attribute boxes are click-to-roll; the printed Heldenbrief layout is
+  untouched. SO is left off the *sidebar* only — it is rarely rolled — but is
+  a normal rollable attribute everywhere else.
+
+All player-visible wordings live in `client/src/components/dice/labels.ts`,
+kept apart from the display logic so they can be reworded without touching any
+rules: `shared/src/dice.ts` decides *when* an outcome applies, that file only
+decides what it is called.
+
+### Phase 6 deviations worth knowing
+
+- Pending requests are held **in memory only** (`server/src/pendingRolls.ts`,
+  5-minute TTL), never in the DB. A declined request therefore leaves no trace
+  anywhere, because nothing was ever written.
+- Accepting a request **recomputes** the Probe against the sheet as it stands
+  at accept time — the value carried in the request is never trusted.
+- The sheet entry point is a separate `🎲?` request button rather than a third
+  `VisibilityPicker` option; see the note under Phase 6 below for why.
+
+### What is left — Phase 7
+
+1. **Per-connection rate limiting** on `chat.send` and `roll.*`. Needs a new
+   token-bucket limiter; `server/src/rateLimit.ts`'s `createAttemptLimiter` is
+   shaped as a login-fail counter and does not fit.
+2. **Changelog entry.** The feature is currently teased in `COMING_SOON`
+   (`shared/src/changelog.ts`). Per CLAUDE.md that line moves into the newest
+   *unreleased* changelog entry once the feature lands. This is a substantial
+   new player-facing capability, so a `0.X.0` bump is the shape to *recommend*
+   — the number itself stays the developer's call.
+3. **z-index / mobile polish** on the fixed dock.
+
+### Still open (not blocking Phase 7)
+
+- **Wording for the critical success** — currently „Krit. Erfolg" in
+  `labels.ts`; flagged as not-yet-satisfying and never resettled.
+- **Dedicated chat page / virtual-table compatibility** — deliberately not
+  built. The sketch and its three unresolved questions (selector entry point
+  when no room is open, room persistence across reloads, how a GM's much
+  longer group list should be presented) stay recorded in TODO.md.
+
+### Picking it back up
+
+- `npm test -w shared` — the 54 dice tests pass. **Eight failures in
+  `tabOrder` and the `rules` Resilienz suite are pre-existing** and unrelated
+  to this branch; they were confirmed against a stashed tree before any dice
+  test was added. Do not chase them as regressions.
+- Browser verification needs two logged-in users (a GM plus `seed:testuser`,
+  `testspieler`/`test1234`) — see the Verification section at the end of this
+  file. Feed rows, temporary group memberships and per-character
+  `chat_name`/`dice_shortcuts` written while testing were cleaned up after each
+  round; keep doing that, they are visible to real players otherwise.
 
 ## Context
 

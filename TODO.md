@@ -99,8 +99,11 @@ chips. Backend table `char_special_resources`. Open for the full version:
   sub-pieces below — already teased in the changelog's `COMING_SOON`. Left as
   `[sketch]` rather than bumped to `[ready]` deliberately: this is large enough
   that a build plan should re-walk it piece by piece anyway; that build plan
-  now exists at `docs/concepts/dice-rolls-and-chat.md`, phased and ready to
-  implement on its own feature branch):
+  now exists at `docs/concepts/dice-rolls-and-chat.md`. **Being built on
+  `feature/dice-rolls-chat`: phases 1-6 are done, only phase 7 (rate limiting,
+  changelog entry, dock polish) is left — see that file's Status section. The
+  decisions below stay here as the record of what was agreed; prune this entry
+  once the branch merges, keeping only the still-unbuilt sketch at the end.**):
    - **Roll mechanic (decided):** a Probe rolls N d20, where N = the number of
      attributes in that Probe's formula (`talentProbeZahl`/`probeExprZahl` in
      `shared/src/rules.ts` already compute the target number = summed attributes
