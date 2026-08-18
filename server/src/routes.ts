@@ -14,6 +14,7 @@ import {
 } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { db, initCharacterRows } from './db.js';
+import { loadFeedPage } from './feed.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
@@ -92,13 +93,14 @@ interface CharRow {
   requested_group_id: number | null;
   requested_at: number | null;
   theme: string;
+  dice_shortcuts: string;
 }
 
 function getChar(id: number): CharRow | undefined {
   return db.prepare('SELECT * FROM characters WHERE id = ?').get(id) as CharRow | undefined;
 }
 
-function isGroupMember(userId: number, groupId: number): boolean {
+export function isGroupMember(userId: number, groupId: number): boolean {
   return !!db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
 }
 
@@ -325,6 +327,18 @@ function editableGroup(req: import('express').Request, res: import('express').Re
   return groupId;
 }
 
+// History page for the docked chat/roll panel — filtered through the SAME
+// canSeeFeedEntry predicate used for live broadcast (server/src/ws.ts), so a
+// hidden or GM+player roll can't leak into a page scrolled back into.
+api.get('/groups/:id/feed', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const before = req.query.before != null ? Number(req.query.before) : null;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+  const { entries, hasMore } = loadFeedPage(groupId, { userId: req.user!.id }, before, limit);
+  res.json({ entries, hasMore });
+});
+
 api.post('/groups/:id/tabs', requireAuth, (req, res) => {
   const groupId = editableGroup(req, res);
   if (!groupId) return;
@@ -474,6 +488,7 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     groupName: group?.name ?? '',
     tempGroups,
     theme: char.theme ?? '',
+    diceShortcuts: char.dice_shortcuts ?? '',
   };
   if (!access) {
     res.json({ character: info, access: null, viewAs });
@@ -720,6 +735,16 @@ api.put('/characters/:id/theme', requireAuth, (req, res) => {
   const theme = String((req.body as { theme?: unknown })?.theme ?? '').slice(0, 40);
   db.prepare('UPDATE characters SET theme = ? WHERE id = ?').run(theme, char.id);
   res.json({ theme });
+});
+
+// Würfel-Favoriten des Charakters ("Label: Ausdruck" pro Zeile, siehe
+// shared/src/dice.ts parseDiceShortcuts) — gleiche Rechte wie /theme.
+api.put('/characters/:id/dice-shortcuts', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
+  db.prepare('UPDATE characters SET dice_shortcuts = ? WHERE id = ?').run(text, char.id);
+  res.json({ diceShortcuts: text });
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---

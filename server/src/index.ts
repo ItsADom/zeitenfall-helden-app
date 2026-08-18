@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -6,6 +7,7 @@ import { attachUser, cleanupSessions } from './auth.js';
 import { api } from './routes.js';
 import { startBackupSchedule } from './backup.js';
 import { mirrorChangelog } from './discord.js';
+import { attachWsServer } from './ws.js';
 import './db.js';
 import './seed.js';
 
@@ -57,7 +59,10 @@ if (fs.existsSync(clientDist)) {
   console.log('Liefere gebauten Client aus client/dist aus');
 }
 
+const server = http.createServer(app);
+attachWsServer(server);
+
 const port = Number(process.env.PORT ?? 3001);
-app.listen(port, () => {
+server.listen(port, () => {
   console.log(`Helden-App Server läuft auf http://localhost:${port}`);
 });
