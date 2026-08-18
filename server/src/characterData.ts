@@ -1847,6 +1847,8 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       psycheAkt?: number;
       psycheBase?: number;
       psycheBonus?: number;
+      schicksalspunkteAktuell?: number;
+      schicksalspunkteMax?: number;
     };
 
     // Vitale Pools als Chips „aktuell/max". Als Maximum zählt der NUTZBARE Wert
@@ -1875,6 +1877,15 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
     for (const sr of loadSpecialResources(c.id)) {
       vitals.push({ key: sr.name, aktuell: sr.aktuell, max: sr.max });
     }
+    // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die
+    // Spielleitung zustimmt (siehe DicePanel — Spieler verwalten sie dort selbst).
+    // Chip hier ist reine Anzeige, damit die Übersicht den Stand jedes Charakters
+    // zeigt, ohne dessen Bogen zu öffnen.
+    vitals.push({
+      key: 'schicksalspunkte',
+      aktuell: meta.schicksalspunkteAktuell ?? 0,
+      max: meta.schicksalspunkteMax ?? 0,
+    });
 
     return {
       id: c.id,

@@ -6,6 +6,7 @@ import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
 import PendingRequestCard from './PendingRequestCard';
 import RoomPicker from './RoomPicker';
+import SchicksalspunkteControl from './SchicksalspunkteControl';
 import ShortcutsFlyout from './ShortcutsFlyout';
 import VisibilityPicker from './VisibilityPicker';
 
@@ -181,6 +182,12 @@ export default function DicePanel() {
           }}
         />
         <VisibilityPicker value={visibility} onChange={setVisibility} />
+        {charId !== null && (
+          <SchicksalspunkteControl
+            aktuell={activeRoom?.schicksalspunkteAktuell ?? 0}
+            max={activeRoom?.schicksalspunkteMax ?? 0}
+          />
+        )}
         <input
           value={draft}
           onChange={(e) => setDraft(e.target.value)}

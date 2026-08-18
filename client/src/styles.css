@@ -4082,6 +4082,31 @@ body.resizing-dice {
   font-size: 12px;
 }
 
+/* Schicksalspunkte: ein Klee je Punkt, bewusst größer als die übrigen
+   Eingabezeilen-Knöpfe — es ist der einzige Klick, den man hier braucht. */
+.sp-clovers {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+.sp-clover {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+  padding: 3px;
+  transition: transform 0.12s;
+}
+.sp-clover:hover:not(:disabled) {
+  transform: scale(1.15);
+}
+.sp-clover--spent {
+  opacity: 0.3;
+  filter: grayscale(1);
+  cursor: default;
+}
+
 @media (max-width: 700px) {
   /* Desktop's tight padding assumes a mouse pointer; a thumb needs bigger
      targets. 16px input font specifically stops iOS Safari's auto-zoom on

@@ -479,6 +479,12 @@ db.exec(`
   // tragen ihren Rassengrundwert selbst ein.
   if (!cols.has('psycheBase')) db.exec('ALTER TABLE char_meta ADD COLUMN psycheBase REAL NOT NULL DEFAULT 0');
   if (!cols.has('psycheBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN psycheBonus REAL NOT NULL DEFAULT 0');
+  // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die
+  // Spielleitung zustimmt — reines Zählen, kein eigener Wurf-Mechanismus.
+  // Default 1 ist die aktuell gültige Hausregel (früher 3/Spieltag); Max bleibt
+  // pro Charakter änderbar für Ausnahmen (z. B. Vorteile, die mehr gewähren).
+  if (!cols.has('schicksalspunkteMax')) db.exec('ALTER TABLE char_meta ADD COLUMN schicksalspunkteMax REAL NOT NULL DEFAULT 1');
+  if (!cols.has('schicksalspunkteAktuell')) db.exec('ALTER TABLE char_meta ADD COLUMN schicksalspunkteAktuell REAL NOT NULL DEFAULT 1');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.

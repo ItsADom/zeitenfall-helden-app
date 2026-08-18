@@ -188,6 +188,10 @@ export interface Meta {
   // Zusatz auf die berechnete maximale Traglast (kg). Additiv, kann negativ sein
   // (z. B. Vor-/Nachteile). Die Formel bleibt sichtbar; dies erhöht nur das Maximum.
   traglastBonus: number;
+  // Erlauben, eine komplette Probe neu zu würfeln, wenn die Spielleitung
+  // zustimmt — reine Zählung (siehe DicePanel), kein eigener Wurf-Mechanismus.
+  schicksalspunkteAktuell: number;
+  schicksalspunkteMax: number;
 }
 
 // Talente

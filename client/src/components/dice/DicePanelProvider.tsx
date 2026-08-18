@@ -7,7 +7,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import { apiGet } from '../../api';
+import { apiGet, apiPut } from '../../api';
 import { usePersistedState } from '../persist';
 
 const PAGE_SIZE = 30;
@@ -36,6 +36,9 @@ export interface DiceGroupOption {
   myCharacterName: string | null;
   /** Rohtext der Würfel-Favoriten dieses Charakters (siehe parseDiceShortcuts). */
   myDiceShortcuts: string;
+  /** 0/0 für die Spielleitung (kontolos) oder ein gruppenloser Raum ohne eigenen Charakter. */
+  schicksalspunkteAktuell: number;
+  schicksalspunkteMax: number;
 }
 
 interface DicePanelCtxValue {
@@ -71,6 +74,12 @@ interface DicePanelCtxValue {
   /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
   refreshRooms: () => void;
   loadMore: () => void;
+  /**
+   * Schicksalspunkte des aktuell postenden Charakters ändern (nicht Teil des
+   * Wurf-Protokolls — reine Charakterdaten, siehe PUT .../schicksalspunkte).
+   * `max` weglassen, um nur `aktuell` zu setzen.
+   */
+  setSchicksalspunkte: (aktuell: number, max?: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -100,6 +109,7 @@ export function useDicePanel(): DicePanelCtxValue {
       declineRequest: () => {},
       refreshRooms: () => {},
       loadMore: () => {},
+      setSchicksalspunkte: () => {},
     }
   );
 }
@@ -343,6 +353,33 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setLoadingMore(false));
   }, [groupId, hasMore, loadingMore, feed]);
 
+  const setSchicksalspunkte = useCallback(
+    (aktuell: number, max?: number) => {
+      if (charId === null) return;
+      // Optimistisch in myGroups spiegeln (das ist die einzige Quelle, die die
+      // Anzeige liest) — der Server-Wert (geklemmt) kommt gleich danach nach.
+      setMyGroups((prev) =>
+        prev.map((g) =>
+          g.myCharacterId === charId
+            ? { ...g, schicksalspunkteAktuell: aktuell, schicksalspunkteMax: max ?? g.schicksalspunkteMax }
+            : g,
+        ),
+      );
+      apiPut<{ aktuell: number; max: number }>(`/api/characters/${charId}/schicksalspunkte`, max !== undefined ? { aktuell, max } : { aktuell })
+        .then((res) => {
+          setMyGroups((prev) =>
+            prev.map((g) =>
+              g.myCharacterId === charId
+                ? { ...g, schicksalspunkteAktuell: res.aktuell, schicksalspunkteMax: res.max }
+                : g,
+            ),
+          );
+        })
+        .catch(() => {});
+    },
+    [charId],
+  );
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -368,6 +405,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         declineRequest,
         refreshRooms,
         loadMore,
+        setSchicksalspunkte,
       }}
     >
       {children}
