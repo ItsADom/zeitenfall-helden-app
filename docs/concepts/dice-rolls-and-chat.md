@@ -116,10 +116,10 @@ decides what it is called.
   install-scripts`), and the server then fails to start. Fix once per
   machine: `npm install-scripts approve better-sqlite3 esbuild && npm
   rebuild better-sqlite3 esbuild`.
-- `npm test -w shared` — the dice tests pass. **Eight failures in
-  `tabOrder` and the `rules` Resilienz suite are pre-existing** and unrelated
-  to this branch; they were confirmed against a stashed tree before any dice
-  test was added. Do not chase them as regressions.
+- `npm test -w shared` — all 197 tests pass. (Eight `tabOrder`/`rules`
+  Resilienz failures existed here for a while, unrelated to the dice work —
+  two stale fixtures that hadn't caught up with the `WaffenNeu` tab rename and
+  the race-catalog Resilienz formula. Fixed.)
 - Browser verification needs two logged-in users (a GM plus `seed:testuser`,
   `testspieler`/`test1234`) — see the Verification section at the end of this
   file. Feed rows, temporary group memberships and per-character
