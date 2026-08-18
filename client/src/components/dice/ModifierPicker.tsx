@@ -3,10 +3,11 @@ import { useHoverFlyout } from '../useHoverFlyout';
 
 // Situative Erleichterung(+)/Erschwernis(-), von der Spielleitung am Tisch
 // angesagt — NICHT die TaW-Erleichterung, die schon in jeder Probe-Zahl
-// steckt (siehe shared/src/rules.ts). Gilt sticky für jede Probe ab jetzt,
-// Bogen wie Chat, bis wieder geändert (gleiches Muster wie VisibilityPicker).
-// Serverseitig wird der Wert auf ±30 geklemmt (server/src/ws.ts) — reiner
-// Schutz gegen Zahlendreher, kein Anti-Cheat.
+// steckt (siehe shared/src/rules.ts). Gilt nur für den NÄCHSTEN Wurf, Bogen
+// wie Chat, und wird danach automatisch auf 0 zurückgesetzt (siehe
+// DicePanelProvider's rollProbe/acceptRequest) — anders als VisibilityPicker,
+// der sticky bleibt. Serverseitig wird der Wert auf ±30 geklemmt
+// (server/src/ws.ts) — reiner Schutz gegen Zahlendreher, kein Anti-Cheat.
 export default function ModifierPicker({ value, onChange }: { value: number; onChange: (v: number) => void }) {
   const { open, wrapRef, closeNow, hoverProps } = useHoverFlyout<HTMLDivElement>();
   const [draft, setDraft] = useState(String(value));

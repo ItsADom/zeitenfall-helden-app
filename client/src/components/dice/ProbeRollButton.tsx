@@ -40,9 +40,9 @@ export default function ProbeRollButton({ source, title }: { source: ProbeSource
     closeNow();
   };
 
-  // Ein gesetzter Modifikator (Dock, ModifierPicker) gilt für JEDE Probe, auch
-  // diesen Ein-Klick-Weg — die Zahl daneben verhindert, dass er unbemerkt
-  // weiterwirkt, wenn man ihn beim letzten Mal vergessen hat zurückzusetzen.
+  // Ein gesetzter Modifikator (Dock, ModifierPicker) gilt auch für diesen
+  // Ein-Klick-Weg und wird nach dem Wurf automatisch zurückgesetzt — die Zahl
+  // daneben ist die letzte Chance, ihn VOR dem Klick zu bemerken.
   const modLabel = modifier === 0 ? null : modifier > 0 ? `+${modifier}` : String(modifier);
 
   return (

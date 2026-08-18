@@ -171,7 +171,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Kritische Erfolge und Patzer bestätigst du selbst: jede gewürfelte 20 oder 1 öffnet einen eigenen Bestätigungswurf, den du per Knopf auslöst — oder mit „Ohne" ablehnst, wenn kein Patzer-Konzept greift (z. B. bei freien Würfen).',
       'Freie Würfe per Befehl im Chat: „/r 2w6+5" bzw. „/roll 2w6+5" würfelt sofort; „/me" schreibt eine Aktion in der dritten Person (z. B. „/me baut eine Sandburg" → „Raskir baut eine Sandburg"). Tippst du stattdessen einen Namen, schlägt der Chat passende Proben deines Charakters vor (Talente, Zauber/Fähigkeiten, Waffen, Sprachen, Attribute) — mit den Pfeiltasten auswählen und Enter würfelt sie direkt.',
       'Eigene Würfel-Favoriten: leg dir in den Einstellungen benannte Kurzformeln an (z. B. „Dolch-Schaden: 2w6+5") und wirf sie per Klick direkt aus dem Chat-Panel.',
-      'Erleichterung/Erschwernis: trägt die Spielleitung am Tisch einen Malus oder Bonus an, stellst du ihn im Chat-Panel ein (neben der Sichtbarkeit) — er gilt für jede Probe, egal ob vom Bogen oder aus dem Chat-Vorschlag gewürfelt, bis du ihn zurücksetzt. Der Wert steht immer sichtbar beim Wurf.',
+      'Erleichterung/Erschwernis: trägt die Spielleitung am Tisch einen Malus oder Bonus an, stellst du ihn im Chat-Panel ein (neben der Sichtbarkeit) — er gilt für die nächste Probe, egal ob vom Bogen oder aus dem Chat-Vorschlag gewürfelt, und setzt sich danach von selbst zurück. Der Wert steht immer sichtbar beim Wurf.',
       'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
     ],
     admin: [

@@ -55,8 +55,10 @@ interface DicePanelCtxValue {
   setHidden: (h: boolean) => void;
   /**
    * Situative Erleichterung(+)/Erschwernis(-), von der Spielleitung am Tisch
-   * angesagt. Gilt für JEDE Probe ab jetzt — Bogen wie Chat — bis der Wert
-   * wieder geändert wird (sticky wie die Sichtbarkeit, kein Einmal-Wert).
+   * angesagt. Gilt für GENAU DIE NÄCHSTE Probe — Bogen wie Chat — und springt
+   * danach von selbst auf 0 zurück (siehe rollProbe/acceptRequest): mehrere
+   * modifizierte Würfe hintereinander sind selten, ein übersehener Rest-
+   * Modifikator wäre der teurere Fehler.
    */
   modifier: number;
   setModifier: (m: number) => void;
@@ -311,8 +313,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         visibility: visibility === 'hidden' ? 'hidden' : 'public',
         modifier,
       });
+      // Gilt nur für DIESEN einen Wurf — mehrere modifizierte Würfe hinter-
+      // einander sind selten, ein vergessener Modifikator, der beim nächsten
+      // Klick unbemerkt weiterwirkt, wäre schlimmer als ihn neu einzutippen.
+      if (modifier !== 0) setModifier(0);
     },
-    [myGroups, applyRoom, sendMsg, modifier],
+    [myGroups, applyRoom, sendMsg, modifier, setModifier],
   );
 
   const confirmDie = useCallback(
@@ -340,8 +346,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     (requestId: string) => {
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
       sendMsg({ type: 'roll.pending.accept', reqId: crypto.randomUUID(), requestId, modifier });
+      if (modifier !== 0) setModifier(0);
     },
-    [sendMsg, modifier],
+    [sendMsg, modifier, setModifier],
   );
 
   const declineRequest = useCallback(
