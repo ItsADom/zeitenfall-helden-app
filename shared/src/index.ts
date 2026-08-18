@@ -8,3 +8,4 @@ export * from './abilities.js';
 export * from './tableLayout.js';
 export * from './tabOrder.js';
 export * from './changelog.js';
+export * from './accessGate.js';

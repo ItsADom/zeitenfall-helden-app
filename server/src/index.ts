@@ -58,6 +58,10 @@ if (fs.existsSync(clientDist)) {
 }
 
 const port = Number(process.env.PORT ?? 3001);
-app.listen(port, () => {
+// '::' keeps today's behaviour exactly: dual-stack, all interfaces. Set
+// HOST=127.0.0.1 per instance so nothing can reach the app past nginx, which
+// would skip the login rate limit and the real-IP handling.
+const host = process.env.HOST ?? '::';
+app.listen(port, host, () => {
   console.log(`Helden-App Server läuft auf http://localhost:${port}`);
 });

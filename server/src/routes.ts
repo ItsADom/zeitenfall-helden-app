@@ -1,5 +1,6 @@
 import express, { Router } from 'express';
-import { LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
+import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
+import { instanceGate, mayEnter } from './accessGate.js';
 import {
   createSession,
   destroySession,
@@ -71,6 +72,12 @@ import {
 } from './dynSections.js';
 
 export const api = Router();
+
+// Instance access gate — MUST stay the first middleware on the api router. A
+// sub-router mounted above this line (api.use('/wiki', wikiApi), say) would
+// bypass the gate entirely. Without RESTRICT_TO_ROLES this is a no-op, so
+// nothing changes in production.
+api.use(instanceGate);
 
 // Hinter einem HTTPS-Reverse-Proxy SECURE_COOKIES=1 setzen, damit das
 // Sitzungs-Cookie nur über verschlüsselte Verbindungen übertragen wird.
@@ -168,6 +175,15 @@ api.post('/login', (req, res) => {
     perAccount.fail(acctKey);
     perIp.fail(ip);
     res.status(401).json({ error: 'Benutzername oder Passwort falsch' });
+    return;
+  }
+  // Restricted instance (dev): refuse before a session exists. Deliberately
+  // above perAccount.reset() — the attempt counter only resets on a login that
+  // actually goes through. This 403 does confirm that the credentials were
+  // right, unlike the 401 above; accepted, because a bare "wrong password"
+  // would leave a legitimate player guessing why they cannot get in.
+  if (!mayEnter({ isGm: !!user.is_gm, isAdmin: !!user.is_admin })) {
+    res.status(403).json({ error: ACCESS_DENIED });
     return;
   }
   perAccount.reset(acctKey);
