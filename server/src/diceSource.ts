@@ -54,12 +54,18 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
   switch (source.kind) {
     case 'talent': {
       const row = db
+        // Vom KATALOG aus, nicht von char_talents: der Bogen zeigt für jedes
+        // Talent eine Probe-Zahl, auch für ungelernte (kein char_talents-
+        // Eintrag = TaW 0). Ein Wurf darauf ist ein regulärer ungelernter
+        // Versuch und muss möglich sein.
         .prepare(
-          `SELECT ct.taw, tc.probe, tc.name FROM char_talents ct
-           JOIN talents_catalog tc ON tc.id = ct.talent_id
-           WHERE ct.character_id = ? AND ct.talent_id = ?`,
+          `SELECT tc.probe, tc.name, COALESCE(ct.taw, 0) AS taw
+           FROM talents_catalog tc
+           LEFT JOIN char_talents ct ON ct.talent_id = tc.id AND ct.character_id = ?
+           WHERE tc.id = ?`,
         )
         .get(characterId, source.talentId) as { taw: number; probe: string; name: string } | undefined;
+      // Kampftalente haben keine Formel — sie werden über den Waffen-Reiter gewürfelt.
       if (!row || !row.probe) return null;
       const parts = row.probe.split('/').map((p) => p.trim().toUpperCase());
       if (parts.length !== 3) return null;
@@ -78,10 +84,13 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     }
     case 'sprache': {
       const row = db
+        // Wie bei den Talenten vom Katalog aus — eine nicht gelernte Sprache
+        // (kein char_languages-Eintrag) ist mit TaW 0 trotzdem würfelbar.
         .prepare(
-          `SELECT cl.taw, lc.name FROM char_languages cl
-           JOIN languages_catalog lc ON lc.id = cl.language_id
-           WHERE cl.character_id = ? AND cl.language_id = ?`,
+          `SELECT lc.name, COALESCE(cl.taw, 0) AS taw
+           FROM languages_catalog lc
+           LEFT JOIN char_languages cl ON cl.language_id = lc.id AND cl.character_id = ?
+           WHERE lc.id = ?`,
         )
         .get(characterId, source.languageId) as { taw: number; name: string } | undefined;
       if (!row) return null;
