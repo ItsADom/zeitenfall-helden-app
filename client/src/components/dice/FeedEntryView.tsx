@@ -2,10 +2,8 @@ import type { DieConfirmation, PendingConfirmation } from '@shared/dice';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
-
-// Gegenstück zum „Patzer". An einer Stelle, damit sich die Bezeichnung ohne
-// Suchen umstellen lässt.
-const CRITICAL_SUCCESS_LABEL = 'Kritischer Erfolg';
+// Sämtliche Wortlaute stehen in labels.ts — hier wird nur ausgewählt, welcher.
+import { CONFIRM, OUTCOME, PENDING, VISIBILITY } from './labels';
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -20,8 +18,7 @@ function exprText(e: { count: number; sides: number; modifier: number }): string
 // soll wissen, dass die anderen ihn NICHT sehen.
 function VisibilityTag({ visibility }: { visibility: RollVisibility }) {
   if (visibility === 'public') return null;
-  const label = visibility === 'hidden' ? '🔒 nur für dich' : '🔒 SL + Spieler';
-  return <span className="feed-vis-tag">{label}</span>;
+  return <span className="feed-vis-tag">{visibility === 'hidden' ? VISIBILITY.hidden : VISIBILITY.gmPlayer}</span>;
 }
 
 // Ein Würfel; natürliche 20/1 stechen hervor, weil sie eine Bestätigung auslösen.
@@ -41,7 +38,7 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
         <span key={i} className={`feed-confirm${c.cancelled ? ' feed-confirm--cancelled' : ''}`}>
           {c.skipped ? (
             <>
-              {c.trigger} → <em>keine Bestätigung</em>
+              {c.trigger} → <em>{CONFIRM.skipped}</em>
             </>
           ) : c.trigger === 20 ? (
             <>
@@ -49,14 +46,14 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
               {/* Aufgehoben heißt: kein Patzer/kein Krit — der Wert wirkt trotzdem. */}
               {c.confirmed
                 ? c.cancelled
-                  ? '· aufgehoben (kein Patzer)'
-                  : '· bestätigt (Patzer)'
-                : `· nicht bestätigt (+${c.value})${c.cancelled ? ' · aufgehoben' : ''}`}
+                  ? CONFIRM.cancelledConfirmed
+                  : CONFIRM.confirmed
+                : `${CONFIRM.unconfirmed(c.value as number)}${c.cancelled ? ` ${CONFIRM.cancelled}` : ''}`}
             </>
           ) : (
             <>
-              1 → <strong>{c.value}</strong> · −{c.value}
-              {c.cancelled && ' · aufgehoben'}
+              1 → <strong>{c.value}</strong> {CONFIRM.subtracted(c.value as number)}
+              {c.cancelled && ` ${CONFIRM.cancelled}`}
             </>
           )}
         </span>
@@ -72,11 +69,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
   const { confirmDie } = useDicePanel();
   if (pending.length === 0) return null;
   if (!mine) {
-    return (
-      <div className="feed-pending muted">
-        {pending.length === 1 ? 'Bestätigung ausstehend …' : `${pending.length} Bestätigungen ausstehend …`}
-      </div>
-    );
+    return <div className="feed-pending muted">{PENDING.waiting(pending.length)}</div>;
   }
   return (
     <div className="feed-pending">
@@ -84,10 +77,10 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
         <span key={p.dieIndex} className="feed-pending-row">
           <span className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>{p.trigger}</span>
           <button className="small" onClick={() => confirmDie(entryId, p.dieIndex)}>
-            Bestätigen
+            {PENDING.roll}
           </button>
-          <button className="small feed-pending-skip" title="Dieser Wurf kennt keine Bestätigung" onClick={() => confirmDie(entryId, p.dieIndex, true)}>
-            Ohne
+          <button className="small feed-pending-skip" title={PENDING.skipHint} onClick={() => confirmDie(entryId, p.dieIndex, true)}>
+            {PENDING.skip}
           </button>
         </span>
       ))}
@@ -140,16 +133,14 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
         {isProbe && roll.resolved && (
           <span className="feed-roll-outcome">
             {roll.criticalFailure
-              ? roll.criticalFailureCount > 1
-                ? `Patzer ×${roll.criticalFailureCount}`
-                : 'Patzer'
+              ? OUTCOME.criticalFailure(roll.criticalFailureCount)
               : roll.criticalSuccess
-                ? CRITICAL_SUCCESS_LABEL
+                ? OUTCOME.criticalSuccess
                 : roll.success
                   ? roll.narrow
-                    ? 'Knapp gelungen'
-                    : 'Gelungen'
-                  : 'Misslungen'}
+                    ? OUTCOME.narrow
+                    : OUTCOME.success
+                  : OUTCOME.failure}
           </span>
         )}
       </div>
