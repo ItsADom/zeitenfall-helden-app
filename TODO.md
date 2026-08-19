@@ -20,7 +20,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 - make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
 - confirmation gets rolled for every dice itself, but the player should only decide to roll confirmations as a single decision
-- check if outsourcing the chat-log to a separate page would make sense regarding loading times etc.
 - "/master" for master-dice (fixed set of result names per number)
 - "/wild" will roll a d6 and d20. this is for wild magic, where the d6 sets the category of spell from afixed list. should be made visible
 - give player the choice to use w or d for rolls in display
@@ -114,7 +113,10 @@ chips. Backend table `char_special_resources`. Open for the full version:
   full-page chat view is additive — reuses `FeedEntryView` for individual
   messages/rolls, no duplicate connection. **Settled:** that dedicated page
   does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
-  showing the same feed twice on the same page would be redundant.
+  showing the same feed twice on the same page would be redundant. User
+  feedback also asks whether this would help loading times for a long-running
+  chat log — worth checking pagination/query cost on a full-page view as part
+  of the concept pass, not just navigation ergonomics.
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
