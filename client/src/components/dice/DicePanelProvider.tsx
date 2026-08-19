@@ -84,6 +84,8 @@ interface DicePanelCtxValue {
   requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => void;
   acceptRequest: (requestId: string) => void;
   declineRequest: (requestId: string) => void;
+  /** Spielleitung zieht eine eigene, noch offene Anfrage zurück. */
+  cancelRequest: (requestId: string) => void;
   /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
   refreshRooms: () => void;
   loadMore: () => void;
@@ -123,6 +125,7 @@ export function useDicePanel(): DicePanelCtxValue {
       requestProbe: () => {},
       acceptRequest: () => {},
       declineRequest: () => {},
+      cancelRequest: () => {},
       refreshRooms: () => {},
       loadMore: () => {},
       setSchicksalspunkte: () => {},
@@ -212,7 +215,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       if (
         msg.type === 'roll.pending.expired' ||
         msg.type === 'roll.pending.declined' ||
-        msg.type === 'roll.pending.accepted'
+        msg.type === 'roll.pending.accepted' ||
+        msg.type === 'roll.pending.cancelled'
       ) {
         // Per id, nicht per Charakter — sonst würde eine von mehreren offenen
         // Anfragen an denselben Charakter auch die anderen wegwischen.
@@ -401,6 +405,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const cancelRequest = useCallback(
+    (requestId: string) => {
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      sendMsg({ type: 'roll.pending.cancel', reqId: crypto.randomUUID(), requestId });
+    },
+    [sendMsg],
+  );
+
   const loadMore = useCallback(() => {
     if (groupId === null || loadingMore || !hasMore || feed.length === 0) return;
     setLoadingMore(true);
@@ -466,6 +478,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         requestProbe,
         acceptRequest,
         declineRequest,
+        cancelRequest,
         refreshRooms,
         loadMore,
         setSchicksalspunkte,

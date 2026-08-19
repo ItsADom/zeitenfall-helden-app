@@ -119,7 +119,11 @@ export type ClientToServerMessage =
   | { type: 'roll.confirm'; reqId: string; entryId: number; dieIndex: number; skip?: boolean }
   | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number }
   | { type: 'roll.pending.accept'; reqId: string; requestId: string; modifier?: number }
-  | { type: 'roll.pending.decline'; reqId: string; requestId: string };
+  | { type: 'roll.pending.decline'; reqId: string; requestId: string }
+  // Nur die Spielleitung, und nur für eine Anfrage, die sie selbst gestellt
+  // hat — Gegenstück zu roll.pending.decline (das ist der Spieler-Seite
+  // vorbehalten).
+  | { type: 'roll.pending.cancel'; reqId: string; requestId: string };
 
 export type ServerToClientMessage =
   | { type: 'feed.append'; entry: FeedEntry }
@@ -129,6 +133,7 @@ export type ServerToClientMessage =
   | { type: 'roll.pending.expired'; requestId: string }
   | { type: 'roll.pending.declined'; requestId: string }
   | { type: 'roll.pending.accepted'; requestId: string }
+  | { type: 'roll.pending.cancelled'; requestId: string }
   // GM-Reset (Einzeln oder „Neuer Spieltag") passiert über REST auf der
   // GM-Übersicht, nicht über dieses Socket — ohne diesen Push bliebe der
   // Klee-Zähler in der Spieler-Session stumpf bis zum nächsten Laden.

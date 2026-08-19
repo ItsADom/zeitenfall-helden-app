@@ -180,7 +180,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Freie Würfe können ihren Titel gleich mitbringen: „/r 5w10+6#Glück" beschriftet den Wurf inline als „Glück", ohne erst einen Würfel-Favoriten anzulegen.',
     ],
     admin: [
-      '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',
+      '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas. Noch unbeantwortete Anfragen lassen sich per „Zurückziehen" auch wieder zurücknehmen.',
       '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück; ein Klee-Symbol je Charakter zeigt den aktuellen Stand.',
       '(Spielleiter) Auf der Gruppen-Übersicht bleibt das Portrait jetzt oben an der Karte, statt bei mehrzeiligen Namen mittig zu rutschen.',
     ],

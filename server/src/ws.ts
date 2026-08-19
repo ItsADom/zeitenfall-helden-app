@@ -372,6 +372,21 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
+    case 'roll.pending.cancel': {
+      const request = getPendingRequest(String(msg.requestId));
+      // Nur die Spielleitung, die die Anfrage selbst gestellt hat — sonst
+      // könnte irgendwer fremde Anfragen wegklicken.
+      if (!request || request.gmUserId !== meta.userId || request.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
+        return;
+      }
+      removePendingRequest(request.id);
+      for (const uid of [request.targetUserId, request.gmUserId]) {
+        sendToUserInGroup(request.groupId, uid, { type: 'roll.pending.cancelled', requestId: request.id });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
     default: {
       // Alle bekannten Typen sind oben abgehandelt — TypeScript hält diesen
       // Zweig deshalb für unerreichbar. Zur Laufzeit ist er es nicht: die

@@ -4503,6 +4503,10 @@ tr:hover .probe-roll,
   border-color: var(--border-strong);
   background: none;
   padding: 5px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 .feed-request-title {
   font-weight: 600;

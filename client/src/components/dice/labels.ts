@@ -67,4 +67,7 @@ export const REQUEST = {
   declineHint: 'Es wird nicht gewürfelt und nichts festgehalten',
   /** Nur ihr beide seht das Ergebnis. */
   note: 'Nur du und die Spielleitung sehen den Wurf.',
+  /** Bei der Spielleitung, für eine eigene noch offene Anfrage. */
+  cancel: 'Zurückziehen',
+  cancelHint: 'Zieht die Anfrage zurück, bevor der Spieler reagiert hat',
 };

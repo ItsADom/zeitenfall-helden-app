@@ -23,7 +23,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - check if outsourcing the chat-log to a separate page would make sense regarding loading times etc.
 - "/master" for master-dice (fixed set of result names per number)
 - "/wild" will roll a d6 and d20. this is for wild magic, where the d6 sets the category of spell from afixed list. should be made visible
-- make GM roll request abortable by GM
 - give player the choice to use w or d for rolls in display
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
