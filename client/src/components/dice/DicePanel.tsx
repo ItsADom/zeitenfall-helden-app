@@ -122,6 +122,15 @@ export default function DicePanel() {
     lastIdRef.current = marker;
   }, [feed, pendingRequests]);
 
+  // Verkleinern zieht die Ecke oben links — der Dock bleibt unten/rechts
+  // verankert, also wächst der alte scrollTop plötzlich über den neuen
+  // sichtbaren Bereich hinaus und der jüngste Eintrag rutscht aus dem Feld.
+  // Bei jeder Höhenänderung wieder ans Ende, genau wie bei neuem Inhalt oben.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [h]);
+
   if (collapsed) {
     return (
       <button className="dice-dock-tab screen-only" onClick={toggle} title="Chat & Würfel öffnen">

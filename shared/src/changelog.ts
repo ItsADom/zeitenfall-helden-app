@@ -176,6 +176,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     fixed: [
       'Setzte die Spielleitung deine Schicksalspunkte zurück, blieben die Kleeblätter im Chat-Panel bis zum Neuladen der Seite deaktiviert.',
+      'Verkleinerte man das Chat-Panel per Ziehgriff, rutschte der jüngste Eintrag aus dem sichtbaren Bereich, statt sichtbar zu bleiben.',
     ],
     changed: [
       'Der Zielwert einer Probe (die Zahl hinter dem „/") steht jetzt nur noch beim Werfer selbst und bei der Spielleitung — andere Spieler sehen im Chat weiterhin Würfel, Summe und Erfolg/Misserfolg, aber nicht mehr den genauen Attributs-/Talentwert dahinter.',
