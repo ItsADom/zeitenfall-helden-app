@@ -343,7 +343,16 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
                 {(() => {
                   const assigned = new Set(c.tags.map((t) => t.id));
                   const options = data.tagCatalog.filter((t) => !assigned.has(t.id));
-                  if (options.length === 0) return null;
+                  if (options.length === 0) {
+                    // Bewusst sichtbar statt verschwindend: sonst liest sich ein
+                    // erschöpfter Katalog (oder ein Katalog mit nur einem Eintrag)
+                    // wie eine harte Ein-Merkmal-Grenze statt wie leerer Vorrat.
+                    return (
+                      <span className="muted gm-tag-add-hint">
+                        {data.tagCatalog.length === 0 ? 'Noch keine Merkmale im Katalog' : 'Alle Merkmale bereits zugewiesen'}
+                      </span>
+                    );
+                  }
                   return (
                     <select
                       className="gm-tag-add"

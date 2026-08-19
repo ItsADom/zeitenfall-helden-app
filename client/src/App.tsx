@@ -129,7 +129,7 @@ export default function App() {
             liegt für alle Rollen im Profil-Flyout (unten) — und ist vom
             Charakterbogen aus direkt erreichbar. Route bleibt intern /verwaltung. */}
         {(user.isGm || user.isAdmin) && (
-          <Link to="/verwaltung">
+          <Link to="/verwaltung" className="nav-badge-host">
             Kataloge &amp; Nutzer
             <PendingBadge />
           </Link>

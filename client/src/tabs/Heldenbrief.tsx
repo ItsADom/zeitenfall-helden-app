@@ -266,21 +266,21 @@ export default function HeldenbriefTab() {
         <div className="panel">
           <h3>Basiswerte</h3>
           <div className="table-wrap">
-          <table className="sheet">
+          <table className="sheet sheet-fluid">
             <thead>
               <tr>
-                <th>Wert</th>
-                <th>Formel</th>
-                <th style={{ width: 60 }}>Basis</th>
-                <th style={{ width: 70 }}>Mod.</th>
-                <th style={{ width: 70 }}>Ergebnis</th>
+                <th style={{ width: '26%' }}>Wert</th>
+                <th style={{ width: '34%' }}>Formel</th>
+                <th style={{ width: '12%' }}>Basis</th>
+                <th style={{ width: '14%' }}>Mod.</th>
+                <th style={{ width: '14%' }}>Ergebnis</th>
               </tr>
             </thead>
             <tbody>
               {BASE_VALUE_KEYS.map((key) => (
                 <tr key={key}>
-                  <td>{BASE_VALUE_LABELS[key].label}</td>
-                  <td className="formel">{BASE_VALUE_LABELS[key].formel}</td>
+                  <td title={BASE_VALUE_LABELS[key].label}>{BASE_VALUE_LABELS[key].label}</td>
+                  <td className="formel" title={BASE_VALUE_LABELS[key].formel}>{BASE_VALUE_LABELS[key].formel}</td>
                   <td className={key === 'gs' && selectedRace?.gs == null ? 'num' : 'computed'}>
                     {key === 'gs' ? (
                       selectedRace?.gs != null ? (
@@ -311,14 +311,18 @@ export default function HeldenbriefTab() {
       <div className="panel">
         <h3>Energien</h3>
         <div className="table-wrap">
-        <table className="sheet" style={{ minWidth: 900 }}>
+        <table className="sheet sheet-fluid">
           <thead>
             {/* Zweizeiliger Kopf: oben das Ziel (Maximum bzw. Ausbaugrenze),
                 unten die Herkunft (gewährt bzw. mit AP gekauft). */}
             <tr>
-              <th rowSpan={2}>Energie</th>
-              <th rowSpan={2}>Formel</th>
-              <th rowSpan={2} style={{ width: 80 }}>
+              <th rowSpan={2} style={{ width: '16%' }}>
+                Energie
+              </th>
+              <th rowSpan={2} style={{ width: '28%' }}>
+                Formel
+              </th>
+              <th rowSpan={2} style={{ width: '7%' }}>
                 {RC.formelwert}
               </th>
               <th className="group" colSpan={3}>
@@ -327,17 +331,17 @@ export default function HeldenbriefTab() {
               <th className="group" colSpan={3}>
                 {RC.ausbaugrenze}
               </th>
-              <th rowSpan={2} style={{ width: 80 }}>
+              <th rowSpan={2} style={{ width: '7%' }}>
                 {RC.aktuell}
               </th>
             </tr>
             <tr>
-              <th style={{ width: 80 }}>{RC.bonus}</th>
-              <th style={{ width: 80 }}>{RC.gekauft}</th>
-              <th style={{ width: 80 }}>{RC.summe}</th>
-              <th style={{ width: 80 }}>{RC.bonus}</th>
-              <th style={{ width: 80 }}>{RC.gekauft}</th>
-              <th style={{ width: 80 }}>{RC.summe}</th>
+              <th style={{ width: '7%' }}>{RC.bonus}</th>
+              <th style={{ width: '7%' }}>{RC.gekauft}</th>
+              <th style={{ width: '7%' }}>{RC.summe}</th>
+              <th style={{ width: '7%' }}>{RC.bonus}</th>
+              <th style={{ width: '7%' }}>{RC.gekauft}</th>
+              <th style={{ width: '7%' }}>{RC.summe}</th>
             </tr>
           </thead>
           <tbody>
@@ -350,8 +354,8 @@ export default function HeldenbriefTab() {
               const ratio = r.nutzbar > 0 ? akt / r.nutzbar : 1;
               return (
                 <tr key={key}>
-                  <td>{RESOURCE_LABELS[key].label}</td>
-                  <td className="formel">{RESOURCE_LABELS[key].formel}</td>
+                  <td title={RESOURCE_LABELS[key].label}>{RESOURCE_LABELS[key].label}</td>
+                  <td className="formel" title={RESOURCE_LABELS[key].formel}>{RESOURCE_LABELS[key].formel}</td>
                   <td className="computed">{r.vorergebnis}</td>
                   <td>
                     <NumInput value={resources[key].permanent} onChange={(v) => setResource(key, 'permanent', v)} />
@@ -400,8 +404,8 @@ export default function HeldenbriefTab() {
               const pAkt = meta.psycheAkt ?? 0;
               return (
                 <tr>
-                  <td>Psyche</td>
-                  <td className="formel">Rasse + Bonus + 5·(MU-10)</td>
+                  <td title="Psyche">Psyche</td>
+                  <td className="formel" title="Rasse + Bonus + 5·(MU-10)">Rasse + Bonus + 5·(MU-10)</td>
                   <td className="computed">{pMuAnteil}</td>
                   {/* Eigene Zell-Labels statt der geteilten Kopfzeile: die Psyche
                       hat andere Eingaben (Bonus/Rassenwert) als LE/AUS/AsE, deren

@@ -18,8 +18,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
-- alignment on the admin/gm notification is off (number of pending group approvals)
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
@@ -185,13 +183,11 @@ chips. Backend table `char_special_resources`. Open for the full version:
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.
-   - Accepted simplification (revisit only if it bites): an item's load follows its
-    own `location`, so a container placed on the animal still has its contents
-    counted as carried.
 - [sketch] **Ammunition**: damage values and effects (new catalogue). Once it
   has a per-ammo damage value, wire it into the Fernkampf damage formula (see
   „Fold ammunition damage into the Fernkampf damage formula" under the Weapon
   tab rework, Mid-Prio) — currently blocking that item.
+  This feature will need the players to keep their own list of ammunitions and damage values for them, which then feeds the damage formula. ranged weapons then pick which ammunition is used.
 - [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
 - [ready] **Secret "chaos mode" easter egg** (concept agreed — gag, not a real
   theme): click the decorative `banner-fx` strip in the header (`App.tsx:99-103`
@@ -287,6 +283,10 @@ chips. Backend table `char_special_resources`. Open for the full version:
   freely added/removed. Applies to both character tabs and group tabs.
 
 ## Unsorted ideas (treat all as [sketch])
+
+- logcally connect weapons and inventory
+  - weapons should be real items, too. they just carry some extra information.
+  - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen
 
 - FAQ - like a little manual or easy to miss features
 

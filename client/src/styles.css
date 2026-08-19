@@ -571,6 +571,10 @@ header.topbar a:hover {
 /* Zahl-Abzeichen an einem Kopfleisten-Eintrag (offene Charakter-Anfragen).
    Helle Pille auf dem Akzent-Verlauf, Text in der Akzentfarbe → hebt sich vom
    weißen Leisten-Text ab und nimmt die aktuelle Farbwelt auf. */
+header.topbar .nav-badge-host {
+  display: inline-flex;
+  align-items: center;
+}
 header.topbar .nav-badge {
   display: inline-flex;
   align-items: center;
@@ -585,7 +589,10 @@ header.topbar .nav-badge {
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
-  vertical-align: middle;
+  /* Ziffern haben keine Unterlänge; das Zentrieren der reinen Line-Box
+     schiebt sie optisch nach unten. Manuell ausgleichen. */
+  position: relative;
+  top: -1px;
 }
 /* Wortmarke → Startseite. Klassische Versal-Serife (echt in Kapitälchen), etwas
    weiter gesperrt als die übrigen Einträge, damit der Markenname trägt. */
@@ -1257,6 +1264,28 @@ table.sheet th {
   overflow: hidden;
   text-overflow: ellipsis;
   user-select: none;
+}
+/* Spalten in %, nicht in px: der Tisch bleibt immer exakt containerbreit
+   (`table.sheet` setzt schon width:100%) statt seine Spaltensumme über die
+   Panelbreite zu ziehen — bei table-layout:auto zählt eine px-Spaltenbreite
+   nur als Vorschlag, Inhalt (Formeltext, ein <input>) drückt sie trotzdem
+   weiter auf. Fixed erzwingt die %-Breiten hart; wird eine Spalte dadurch zu
+   schmal, greift die th-Ellipse oben — hier zusätzlich auf die Namens-/
+   Formel-Zellen ausgedehnt, mit `title` als Ausweich-Text bei Bedarf. */
+.sheet-fluid {
+  table-layout: fixed;
+}
+.sheet-fluid td:first-child,
+.sheet-fluid td.formel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-fluid input[type='number'],
+.sheet-fluid input[type='text'] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 table.sheet tbody tr:hover td {
   background: var(--surface-hover);
@@ -2894,6 +2923,14 @@ li {
   color: var(--accent);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+.chip-haltbarkeit {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.chip-haltbarkeit--low {
+  color: var(--error-text);
+  font-weight: 700;
 }
 /* Kennzeichen „beidseitig getragen": dasselbe Stück wird in beiden Zellen
    gezeigt; das Zeichen macht die Spiegelung erkennbar. */
@@ -4668,10 +4705,15 @@ tr:hover .probe-roll,
   flex-wrap: wrap;
   gap: 6px;
 }
-/* Attribute stehen enger und in gleichmäßigen Kästchen — sie sind Referenz,
-   kein Zustand, und sollen die vitalen Chips optisch nicht überstimmen. */
+/* Attribute bilden denselben 4×2-Block wie .side-attrs in der Seitenleiste
+   (feste vier Spalten statt breitenabhängig unsymmetrisch umzubrechen, z. B.
+   6+2 statt 4+4) — UND übernehmen deren Kachel-Look (1fr-Spalten, Kürzel über
+   Wert, zentriert): die Karte ist oft breiter als acht schmale Pillen
+   brauchen, das ließ viel Leerraum neben kleiner Schrift stehen. */
 .gm-chips--attr {
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
 }
 .gm-chip {
   display: inline-flex;
@@ -4697,10 +4739,33 @@ tr:hover .probe-roll,
 }
 .gm-chip--vital {
   font-size: 14px;
+  /* Spezialenergien tragen frei vergebene Namen bis 100 Zeichen (siehe
+     MAX_SPECIAL_RESOURCE_NAME) — .gm-chip erbt sonst white-space: nowrap und
+     ein langer Name sprengt die Karte seitlich, statt im Chip umzubrechen. */
+  white-space: normal;
+  max-width: 100%;
+  /* .gm-chip richtet Label/Wert sonst an der Baseline aus (passt bei einer
+     Zeile) — bei einem umgebrochenen, mehrzeiligen Namen zieht das den Wert
+     an den oberen Rand statt ihn mittig neben dem Namen zu zeigen. */
+  align-items: center;
+}
+.gm-chip--vital .gm-chip-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .gm-chip--attr {
-  padding: 1px 7px;
-  gap: 4px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 4px 2px 5px;
+  border-radius: 7px;
+}
+.gm-chip--attr .gm-chip-label {
+  font-size: 10px;
+}
+.gm-chip--attr .gm-chip-val {
+  font-size: 15px;
 }
 /* Zustandsfärbung der Vital-Chips — dieselben Tokens wie Heldenbrief/Seitenleiste,
    damit „niedrig/kritisch/überladen" überall gleich aussieht. Der linke Streifen
@@ -4861,6 +4926,10 @@ tr:hover .probe-roll,
   border-radius: 999px;
   background: var(--input-bg);
   color: var(--muted);
+}
+.gm-tag-add-hint {
+  font-size: 12px;
+  padding: 2px 6px;
 }
 
 /* Freitext-GM-Notiz je Karte — bewusst dezent (kein sheet-input-Rahmen), damit
