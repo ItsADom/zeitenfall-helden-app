@@ -530,6 +530,22 @@ limit_req_zone $binary_remote_addr zone=helden_login:10m rate=5r/m;
 EOF
 ```
 
+Die WebSocket-Weiche gehört in den `http`-Kontext, genau wie die Ratenbegrenzung
+oben — deshalb ebenfalls ein eigenes File unter `conf.d/`. Ohne sie bleibt eine
+`Upgrade`-Anfrage eine gewöhnliche HTTP-Anfrage, und der Chat (`/ws/groups/...`)
+hängt beim Client dauerhaft auf „Verbinde …", weil `server.on('upgrade', …)` in
+`server/src/ws.ts` nie erreicht wird — unabhängig von Cloudflare, das reicht die
+Upgrade-Anfrage anstandslos durch:
+
+```bash
+sudo tee /etc/nginx/conf.d/helden-websocket-map.conf >/dev/null <<'EOF'
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+EOF
+```
+
 Die Proxy-Kopfzeilen einmal zentral, damit sie nicht an zwei Stellen doppelt stehen:
 
 ```bash
@@ -540,8 +556,15 @@ proxy_set_header Host              $host;
 proxy_set_header X-Real-IP         $remote_addr;
 proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
 proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header Upgrade           $http_upgrade;
+proxy_set_header Connection        $connection_upgrade;
 EOF
 ```
+
+Die Zeile mit `Connection $connection_upgrade` verändert gewöhnliche Anfragen
+nicht — die Map liefert dafür `close`, `Upgrade` läuft nur bei `/ws/...` mit
+gesetztem `Upgrade`-Kopf ins Gewicht. Ein eigener `/ws/`-Location-Block ist
+deshalb nicht nötig, `location /` reicht.
 
 Der Server-Block:
 
@@ -966,6 +989,7 @@ Drei Details, die den Unterschied machen:
 | Anmeldung schlägt fehl, Cookie kommt nicht an | `SECURE_COOKIES=1` bei Zugriff über **`http://`**. Entweder HTTPS nutzen oder die Variable für lokale Tests entfernen. |
 | Porträt-Upload endet mit 413 | `client_max_body_size` im Server-Block fehlt. |
 | Weiße Seite, API antwortet aber | `client/dist` fehlt — `npm run build` im aktiven Release nachholen. |
+| Chat hängt bei „Verbinde …" | Nginx reicht `Upgrade`/`Connection` nicht durch — `helden-proxy.conf` und `helden-websocket-map.conf` aus Phase 6b prüfen. |
 | Nach IP-Wechsel nicht mehr erreichbar | DuckDNS-Aktualisierung prüfen (Router-DDNS oder eigener Timer). |
 | `429` beim Anmelden | Ratenbegrenzung greift: 5 Versuche pro Minute und IP. Kurz warten. |
 
