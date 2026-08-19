@@ -162,6 +162,18 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Low-Prio
 
+- [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
+  `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
+  as orphaned and deletes it from `helden-assets.db`. That's correct when both
+  DBs are the real ones, but there's no cross-check that they actually belong
+  together — point `HELDEN_DB` at an empty/wrong database while
+  `HELDEN_ASSETS_DB` still points at the real one (e.g. a throwaway DB for a
+  manual test, env misconfiguration) and the sweep reads "no owners exist" and
+  wipes real assets on next startup. Bit the dev DB once already. Needs a
+  cheap guard — e.g. skip the sweep (with a loud warning) if `helden.db` has
+  suspiciously few rows in the owner tables relative to what's referenced in
+  `helden-assets.db`, or a shared marker linking a DB pair together — exact
+  approach still open.
 - [sketch] **CSS tidy-up**: check for components than can be combined
  - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
  - splitting CSS into more fitting files
