@@ -24,6 +24,10 @@
 
 export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_SIDES = 1000;
+// Bound on a free-roll's "+N"/"-N" modifier — without this an absurdly long
+// digit string parses to Infinity, which JSON.stringify silently turns into
+// null, corrupting the stored/broadcast roll.
+export const MAX_DICE_MODIFIER = 1000;
 
 /**
  * Knapper Erfolg: ein Wurf aus MEHREREN Würfeln gilt noch als gelungen, wenn
@@ -167,11 +171,11 @@ function applyConfirmations(
       confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value: null, skipped: true, cancelled: t.cancelled });
     } else if (t.trigger === 20) {
       const confirmed = value >= 10;
-      // Aufgehobene 20er sind kein Patzer — ihre Bestätigung wirkt aber
-      // ganz normal auf die Summe.
-      if (confirmed) {
-        if (!t.cancelled) criticalFailureCount += 1;
-      } else adjustedSum += value;
+      // Der Bestätigungswert wirkt immer normal auf die Summe, unabhängig
+      // davon, ob er bestätigt oder aufgehoben ist — "confirmed" entscheidet
+      // nur, ob es (bei einer nicht aufgehobenen 20) ein Patzer wird.
+      if (confirmed && !t.cancelled) criticalFailureCount += 1;
+      adjustedSum += value;
       confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed, cancelled: t.cancelled });
     } else {
       adjustedSum -= value;
@@ -256,6 +260,7 @@ export function parseDiceExpression(expr: string): DiceExpression | null {
   const modifier = m[3] ? parseInt(m[3].replace(/\s+/g, ''), 10) : 0;
   if (count < 1 || count > MAX_DICE_COUNT) return null;
   if (sides < 2 || sides > MAX_DICE_SIDES) return null;
+  if (!Number.isFinite(modifier) || modifier < -MAX_DICE_MODIFIER || modifier > MAX_DICE_MODIFIER) return null;
   return { count, sides, modifier };
 }
 

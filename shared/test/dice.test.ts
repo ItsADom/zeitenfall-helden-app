@@ -78,7 +78,7 @@ describe('findCritTriggers: 20er und 1er heben sich auf', () => {
     expect(r.resolved).toBe(true);
     expect(r.criticalFailure).toBe(false);
     expect(r.criticalSuccess).toBe(false);
-    expect(r.adjustedSum).toBe(18); // 26 − 8 (bestätigte 20 addiert nichts)
+    expect(r.adjustedSum).toBe(32); // 26 + 14 − 8 (aufgehobene, bestätigte 20 zählt normal mit)
   });
 
   it('eine aufgehobene UNbestätigte 20 addiert ihren Wert weiterhin', () => {
@@ -132,8 +132,9 @@ describe('resolveProbeRoll', () => {
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 15, confirmed: true, cancelled: false }]);
     expect(r.criticalFailureCount).toBe(1);
     expect(r.criticalFailure).toBe(true);
-    // adjustedSum stays the raw sum for a confirmed 20 (no add), but success is still false via criticalFailure
-    expect(r.adjustedSum).toBe(28);
+    // The confirmation value moves the sum like any other, but success is
+    // false regardless via criticalFailure.
+    expect(r.adjustedSum).toBe(43); // 28 + 15
     expect(r.success).toBe(false);
   });
 
@@ -404,7 +405,7 @@ describe('resolveExpressionRoll', () => {
     const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 14 }]);
     expect(r.flagged).toBe(true);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 14, confirmed: true, cancelled: false }]);
-    expect(r.adjustedSum).toBe(20); // confirmed 20 adds nothing extra
+    expect(r.adjustedSum).toBe(34); // 20 + 14 — the confirmation value moves the sum like any other
   });
 
   it('adds an unconfirmed 20 confirmation value into the sum', () => {
