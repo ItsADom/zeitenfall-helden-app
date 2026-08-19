@@ -292,19 +292,19 @@ function ItemChip({
           <label title="Haltbarkeit wie LP — 0 Maximum heißt „nicht verfolgt“, die %-Anzeige bleibt dann aus.">
             Haltbarkeit
             <NumInput
+              value={item.haltbarkeitAktuell}
+              min={0}
+              max={item.haltbarkeitMax}
+              onChange={(v) => onPatch({ haltbarkeitAktuell: v })}
+            />
+            /
+            <NumInput
               value={item.haltbarkeitMax}
               min={0}
               onChange={(v) =>
                 // Neu eingeschaltet (war 0/0) → auf voll starten, statt sofort bei 0 %.
                 onPatch(item.haltbarkeitMax === 0 && item.haltbarkeitAktuell === 0 ? { haltbarkeitMax: v, haltbarkeitAktuell: v } : { haltbarkeitMax: v })
               }
-            />
-            /
-            <NumInput
-              value={item.haltbarkeitAktuell}
-              min={0}
-              max={item.haltbarkeitMax}
-              onChange={(v) => onPatch({ haltbarkeitAktuell: v })}
             />
           </label>
           {isPairedZone(item.zone) && (

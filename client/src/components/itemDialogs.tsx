@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { ContainerArt, Item, KapazitaetArt } from '@shared/items';
 import { Dialog } from './Dialog';
+import { NumInput } from './inputs';
 
 // Anlegen-Dialoge fürs Inventar: sammeln alle Felder VOR dem Einfügen, statt
 // einen leeren Item-Datensatz einzufügen und sofort zu bearbeiten (Item
@@ -27,6 +28,7 @@ export function AddItemDialog({
   const [anzahl, setAnzahl] = useState(1);
   const [gewicht, setGewicht] = useState(0);
   const [rs, setRs] = useState(0);
+  const [haltbarkeit, setHaltbarkeit] = useState(0);
   const [quickslots, setQuickslots] = useState(0);
   const [notiz, setNotiz] = useState('');
 
@@ -37,6 +39,7 @@ export function AddItemDialog({
     setAnzahl(1);
     setGewicht(0);
     setRs(0);
+    setHaltbarkeit(0);
     setQuickslots(0);
     setNotiz('');
   };
@@ -53,6 +56,9 @@ export function AddItemDialog({
       anzahl,
       gewicht,
       rs: ausr ? rs : 0,
+      // 0 heißt „nicht verfolgt" (siehe haltbarkeitPct) — startet dann bei Max.
+      haltbarkeitMax: ausr ? haltbarkeit : 0,
+      haltbarkeitAktuell: ausr ? haltbarkeit : 0,
       notiz,
       // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-Behälter
       // (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt der vollen
@@ -103,11 +109,11 @@ export function AddItemDialog({
       <div className="dlg-row2">
         <label className="dlg-field">
           Anzahl
-          <input type="number" min={0} value={anzahl} onChange={(e) => setAnzahl(Number(e.target.value) || 0)} />
+          <NumInput value={anzahl} min={0} onChange={setAnzahl} />
         </label>
         <label className="dlg-field">
           Gewicht (kg/St.)
-          <input type="number" min={0} step="0.1" value={gewicht} onChange={(e) => setGewicht(Number(e.target.value) || 0)} />
+          <NumInput value={gewicht} min={0} onChange={setGewicht} />
         </label>
       </div>
 
@@ -138,13 +144,17 @@ export function AddItemDialog({
           <div className="dlg-row2">
             <label className="dlg-field">
               RS
-              <input type="number" min={0} value={rs} onChange={(e) => setRs(Number(e.target.value) || 0)} />
+              <NumInput value={rs} min={0} onChange={setRs} />
             </label>
-            <label className="dlg-field">
-              Quickslots
-              <input type="number" min={0} value={quickslots} onChange={(e) => setQuickslots(Number(e.target.value) || 0)} />
+            <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
+              Haltbarkeit
+              <NumInput value={haltbarkeit} min={0} onChange={setHaltbarkeit} />
             </label>
           </div>
+          <label className="dlg-field">
+            Quickslots
+            <NumInput value={quickslots} min={0} onChange={setQuickslots} />
+          </label>
         </div>
       )}
 
@@ -235,7 +245,7 @@ export function AddContainerDialog({
       <div className="dlg-row2">
         <label className="dlg-field">
           Kapazität
-          <input type="number" min={0} value={kapazitaet} onChange={(e) => setKapazitaet(Number(e.target.value) || 0)} />
+          <NumInput value={kapazitaet} min={0} onChange={setKapazitaet} />
         </label>
         <label className="dlg-field">
           Einheit
@@ -249,13 +259,7 @@ export function AddContainerDialog({
       {kapazitaetArt !== 'stueck' && (
         <label className="dlg-field">
           Gewichtsreduktion (%)
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={gewichtsreduktion}
-            onChange={(e) => setGewichtsreduktion(Number(e.target.value) || 0)}
-          />
+          <NumInput value={gewichtsreduktion} min={0} max={100} onChange={setGewichtsreduktion} />
         </label>
       )}
 
