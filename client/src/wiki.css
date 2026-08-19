@@ -92,7 +92,10 @@
   align-items: center;
   gap: 8px 14px;
   flex-wrap: wrap;
-  padding: 8px 0;
+  /* Bis zum Beschnittrand ziehen wie .char-header: negativer Rand + gleiches
+     Polster = Hintergrund voll bis zum Seitenrand, Inhalt bleibt im Kasten. */
+  margin-inline: calc(-1 * var(--pad-x));
+  padding: 8px var(--pad-x);
   margin-bottom: 14px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
