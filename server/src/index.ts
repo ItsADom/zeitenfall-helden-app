@@ -10,6 +10,7 @@ import { startAssetSweep } from './assets/sweep.js';
 import { migrierePortraits } from './assets/portraits.js';
 import { mirrorChangelog } from './discord.js';
 import { attachWsServer } from './ws.js';
+import { seedWikiDemo } from './seedWikiDemo.js';
 import './db.js';
 // Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
 // wenn die Grundtabellen und ihre Migrationen durch sind.
@@ -33,6 +34,23 @@ indexNachziehen();
 // liegen. Kopiert, nicht verschoben: char_portraits bleibt als Rückfallebene
 // stehen, bis eine Ausgabe ohne Rücksprung vergangen ist.
 migrierePortraits();
+
+// Demo-Inhalte für eine Wegwerf-Instanz: SEED_WIKI_DEMO=1 füllt ein leeres Wiki
+// bei jedem Start mit der Beispielwelt. Bewusst eine eigene Variable statt
+// NODE_ENV — sonst bekäme jeder, der lokal `npm run dev:server` startet, die
+// Demo-Seiten ungefragt in seine eigene Datenbank. Steht nach migrierePortraits,
+// damit die Bilder-Datenbank offen ist, bevor der Seed Bilder anlegt.
+//
+// Der Seed überspringt, was es schon gibt; ein Neustart kostet also nur eine
+// Handvoll Titelabfragen. Gekapselt, weil ein Fehlschlag den Dienst nicht
+// beenden darf — `Restart=always` machte daraus eine Schleife.
+if (process.env.SEED_WIKI_DEMO === '1') {
+  try {
+    seedWikiDemo();
+  } catch (err) {
+    console.error('[seed:wiki] Demo-Seed übersprungen:', err instanceof Error ? err.message : err);
+  }
+}
 
 // Abgelaufene Sitzungen beim Start und danach täglich aufräumen
 cleanupSessions();

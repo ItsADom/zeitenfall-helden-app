@@ -7,6 +7,12 @@
 // Gedacht zum Anschauen und Kaputtklicken, nicht als Inhalt: `npm run
 // seed:wiki` in einer Entwicklungsdatenbank.
 //
+// Zwei Aufrufwege: als Skript über das npm-Skript, oder beim Serverstart, wenn
+// SEED_WIKI_DEMO=1 gesetzt ist (siehe index.ts). Der zweite Weg füllt eine
+// frisch geleerte dev-Datenbank von selbst wieder. „Idempotent" heißt dabei
+// nicht „stellt den Demo-Zustand wieder her": Erkannt wird am Titel, und
+// `seiteMitTitel` sieht auch gelöschte Seiten — was du wegklickst, bleibt weg.
+//
 // Sicherheitsnetze wie beim Dummy-Seed:
 //   • Bricht bei NODE_ENV=production ab.
 //   • Idempotent: erkannt wird am Titel. Ein zweiter Lauf legt nichts doppelt
@@ -16,6 +22,7 @@
 // (legeSeiteAn/speichereSeite), nie per Hand ins SQL: nur so entstehen Auszug,
 // Verweise, Kategorien, Namensraum, Weiterleitung und beide Suchindizes so, wie
 // sie der Server auch sonst erzeugt.
+import { pathToFileURL } from 'node:url';
 import { db } from './db.js';
 import { hashPassword } from './auth.js';
 import './wiki/schema.js';
@@ -37,10 +44,12 @@ interface Autor {
   name: string;
 }
 
+// Throws rather than exits: since this also runs from the server start (see
+// SEED_WIKI_DEMO in index.ts), a refusal must stay catchable. A process.exit
+// there would kill the service, and Restart=always would make it a loop.
 function abortIfProduction(): void {
   if (process.env.NODE_ENV === 'production') {
-    console.error('✗ Wiki-Demo-Seed abgebrochen: NODE_ENV=production. Diese Seiten gehören nicht in die echte Datenbank.');
-    process.exit(1);
+    throw new Error('NODE_ENV=production — diese Seiten gehören nicht in die echte Datenbank.');
   }
 }
 
@@ -50,8 +59,7 @@ function spielleitung(): Autor {
     | { id: number; name: string }
     | undefined;
   if (!row) {
-    console.error('✗ Kein Spielleiter-Konto gefunden. Erst `npm run seed` laufen lassen.');
-    process.exit(1);
+    throw new Error('Kein Spielleiter-Konto gefunden. Erst `npm run seed` laufen lassen.');
   }
   return { ...row, isGm: true };
 }
@@ -151,13 +159,12 @@ function bild(seite: WikiSeiteRow, quelle: { titel: string; data: Buffer }, auto
     hochgeladenVon: { id: autor.id, name: autor.name },
   });
   if (!slug) {
-    console.error('✗ Bild konnte nicht gespeichert werden — ist helden-assets.db erreichbar?');
-    process.exit(1);
+    throw new Error('Bild konnte nicht gespeichert werden — ist helden-assets.db erreichbar (HELDEN_ASSETS_DB)?');
   }
   return slug;
 }
 
-function seed(): void {
+export function seedWikiDemo(): void {
   abortIfProduction();
   const sl = spielleitung();
   spielleitungCache = sl;
@@ -547,4 +554,15 @@ function seed(): void {
   );
 }
 
-seed();
+// Unlike its sibling seeds this file must stay importable WITHOUT seeding:
+// index.ts calls seedWikiDemo() behind SEED_WIKI_DEMO=1, and a bare call here
+// would fire on the mere import — in every instance, production included.
+// So the script path is gated on being the process entry point.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  try {
+    seedWikiDemo();
+  } catch (err) {
+    console.error(`✗ Wiki-Demo-Seed abgebrochen: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+  }
+}
