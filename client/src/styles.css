@@ -1744,8 +1744,16 @@ tr.slot-row td {
      Hintergrund über die Lücke bis in die Leiste hinein. Ohne Beschnitt deckt
      der Kasten genau die Spalte ab, in der auch die Tabellen scrollen. */
   margin: 0 0 14px;
-  padding: 8px 0;
+  /* Seitliches Polster, damit das Eingabefeld nicht am eigenen Hintergrundrand
+     klebt — derselbe Fehler, den .wiki-leiste schon hatte, nur ohne den
+     Beschnitt-Bezug: hier bleibt die Box an Ort und Stelle, nur der Innenraum
+     um den Inhalt fehlte. */
+  padding: 8px 10px;
   background: var(--bg);
+  /* Nur unten rund: die Box klebt oben an der Leiste darüber (Reiter- oder
+     Wiki-Leiste) — eine runde Ecke dort ließe den Inhalt beim Scrollen durch
+     die entstehende Lücke hindurchschimmern. */
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
 }
 .talent-search .notch {
   flex: 0 1 360px;

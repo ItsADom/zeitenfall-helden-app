@@ -221,6 +221,13 @@
   flex-wrap: wrap;
   margin-bottom: 14px;
 }
+/* `.talent-search` bringt selbst `margin: 0 0 14px` mit (für den Alleinstand
+   auf der Talente-Seite) — hier sorgt `.wiki-filter` schon für den Abstand
+   darunter, und der einseitige Rand hätte sonst die Randbox verschoben und
+   die Suchbox gegenüber den Kategorie-Pillen nach oben aus der Mitte gerückt. */
+.wiki-filter .talent-search {
+  margin-bottom: 0;
+}
 
 .wiki-tags {
   display: flex;
