@@ -180,6 +180,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changed: [
       'Der Zielwert einer Probe (die Zahl hinter dem „/") steht jetzt nur noch beim Werfer selbst und bei der Spielleitung — andere Spieler sehen im Chat weiterhin Würfel, Summe und Erfolg/Misserfolg, aber nicht mehr den genauen Attributs-/Talentwert dahinter.',
       'Jeder Wurf im Chat zeigt jetzt in Klammern, welche Würfel tatsächlich gerollt wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdeckt hätte.',
+      'Pfeiltaste nach oben im leeren Chat-Eingabefeld holt deinen letzten „/r"-Wurf zurück, zum Wiederholen oder Abändern.',
     ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',

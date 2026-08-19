@@ -19,7 +19,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ## User feedback
 
 - make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
-- arrow key up for last roll into chat panel
 - scroll behaviour is off. when making the chat smaller, the newest roll or chat entry should stay visible
 - gm overview: picture should dock to top-left
 - confirmation gets rolled for every dice itself, but the player should only decide to roll confirmations as a single decision

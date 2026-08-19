@@ -67,6 +67,11 @@ export default function DicePanel() {
   const h = clampH(height);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string | null>(null);
+  // Letzter per „/r"/„/roll" abgeschickter Befehl dieser Sitzung — Pfeil-hoch
+  // bei leerem Eingabefeld holt ihn zurück, wie eine Shell-Historie (nur den
+  // letzten, keine ganze Liste; das deckt den eigentlichen Wunsch „nochmal
+  // würfeln, aber mit anderer Sichtbarkeit/Zahl" ab, ohne eigene UI dafür).
+  const lastRollCmdRef = useRef<string | null>(null);
 
   // Proben-Vorschläge für "/r <Suchtext>": eigene Liste je Charakter, erst
   // beim ersten Bedarf geladen (wie RequestProbePicker) und danach gecacht.
@@ -145,6 +150,7 @@ export default function DicePanel() {
         return;
       }
       rollExpr(roll[1], visibility);
+      lastRollCmdRef.current = text;
     } else {
       sendChat(text);
     }
@@ -279,6 +285,13 @@ export default function DicePanel() {
             setHighlight(0);
           }}
           onKeyDown={(e) => {
+            // Nur bei leerem Feld — sonst würde Pfeil-hoch mitten im Tippen
+            // den Text unter der Hand austauschen.
+            if (e.key === 'ArrowUp' && draft === '' && lastRollCmdRef.current) {
+              e.preventDefault();
+              setDraft(lastRollCmdRef.current);
+              return;
+            }
             if (showSuggestions && matches.length > 0) {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
