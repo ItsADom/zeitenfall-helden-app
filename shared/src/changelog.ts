@@ -186,6 +186,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',
       '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück; ein Klee-Symbol je Charakter zeigt den aktuellen Stand.',
+      '(Spielleiter) Auf der Gruppen-Übersicht bleibt das Portrait jetzt oben an der Karte, statt bei mehrzeiligen Namen mittig zu rutschen.',
     ],
   },
   {

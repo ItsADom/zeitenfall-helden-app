@@ -4664,7 +4664,7 @@ tr:hover .probe-roll,
 }
 .gm-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
 }
 .gm-card-portrait {
