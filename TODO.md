@@ -20,18 +20,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 - make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
 - confirmation gets rolled for every dice itself, but the player should only decide to roll confirmations as a single decision
-- [sketch] worried that keeping the whole chat/roll backlog loaded in the docked
-  panel forever will make loading times grow over time. Checked: server-side is
-  already fine — `loadFeedPage` (`server/src/feed.ts:144`) is cursor-paginated
-  against the `(group_id, id)` index (`server/src/db.ts:381`) in bounded
-  batches, cost doesn't grow with total history. The real risk is client-side:
-  `DicePanelProvider`'s `feed` array only ever grows (each `loadMore()` appends
-  via `mergeFeed`, nothing trims), so a long-lived tab or repeated "Ältere
-  Nachrichten laden" clicks bloat React/DOM state, not network calls. Needs a
-  concept pass: cap in-memory history (drop oldest beyond N when appending),
-  and/or list virtualization, and/or lean on the dedicated full-page view
-  (already tracked below) for deep-history browsing while the dock stays
-  capped to recent messages.
 - "/master" for master-dice (fixed set of result names per number)
 - "/wild" will roll a d6 and d20. this is for wild magic, where the d6 sets the category of spell from afixed list. should be made visible
 - give player the choice to use w or d for rolls in display
@@ -178,6 +166,19 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Low-Prio
 
+- [sketch] **Dice-dock backlog is unbounded in memory** (user feedback, checked
+  and deprioritized): server-side is already fine — `loadFeedPage`
+  (`server/src/feed.ts:144`) is cursor-paginated against the `(group_id, id)`
+  index (`server/src/db.ts:381`) in bounded batches, cost doesn't grow with
+  total history. `DicePanelProvider`'s `feed` array itself never trims, though
+  — every `loadMore()` page and every live `feed.append` over the websocket
+  just accumulates for as long as the tab stays open (a page reload resets it
+  to the newest 30). Assessed as low risk: a long combat-heavy session
+  realistically produces a few hundred entries, which React/the DOM handle
+  fine in a small side panel — virtualization only starts to matter in the
+  thousands, which needs either an extreme marathon session without reload or
+  deliberate "Ältere Nachrichten laden" spam. Not worth building a cap/
+  virtualization for now; revisit if it's ever actually reported as slow.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
