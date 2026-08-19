@@ -128,7 +128,10 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
         </span>
         <span className="feed-roll-sum">
           = <strong>{roll.adjustedSum}</strong>
-          {isProbe && <span className="muted"> / {roll.probeZahl}</span>}
+          {/* Der Zielwert verrät den Attributs-/Talentwert dahinter — nur der
+              Werfer selbst und die Spielleitung sehen ihn, andere Spieler nur
+              Würfel, Summe und Erfolg/Misserfolg. */}
+          {isProbe && (mine || user.isGm) && <span className="muted"> / {roll.probeZahl}</span>}
           {/* Modifikator immer sichtbar, wenn gesetzt — sonst wäre eine
               Erleichterung/Erschwernis für alle anderen unsichtbar angewendet. */}
           {isProbe && roll.modifier !== 0 && (

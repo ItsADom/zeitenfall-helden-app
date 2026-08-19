@@ -177,6 +177,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     fixed: [
       'Setzte die Spielleitung deine Schicksalspunkte zurück, blieben die Kleeblätter im Chat-Panel bis zum Neuladen der Seite deaktiviert.',
     ],
+    changed: [
+      'Der Zielwert einer Probe (die Zahl hinter dem „/") steht jetzt nur noch beim Werfer selbst und bei der Spielleitung — andere Spieler sehen im Chat weiterhin Würfel, Summe und Erfolg/Misserfolg, aber nicht mehr den genauen Attributs-/Talentwert dahinter.',
+    ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',
       '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück; ein Klee-Symbol je Charakter zeigt den aktuellen Stand.',

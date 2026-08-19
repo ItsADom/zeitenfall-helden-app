@@ -18,7 +18,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
-- roll target should be hidden for other players (gm can see it)
 - make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
 - some kind of hint that shows, what dice are even rolled. right now you just can guess by the result if it is a d6 or d20 f.e.
   - show "(3W20)" behind an according roll
