@@ -657,7 +657,10 @@
   font-variant-numeric: tabular-nums;
 }
 /* Hinzugefügt blau, entfernt rot — nicht grün/rot: die Farbwelten bringen kein
-   Grün mit, und das Paar --over-*/--crit-* ist ohnehin besser unterscheidbar.
+   Grün mit, und das Paar --over-line und --crit-line ist ohnehin besser
+   unterscheidbar. Die Namen bewusst ausgeschrieben: eine Sternchen-Schreibweise
+   wie --over-…/--crit-… enthielte die Zeichenfolge, die einen CSS-Kommentar
+   beendet, und verschluckte die Regel darunter.
    Die Zeichen + und − tragen die Bedeutung auch ohne Farbe. */
 .wiki-bilanz-plus,
 .wiki-diff-plus {
