@@ -31,6 +31,7 @@ export default function WikiAenderungen() {
   const [filter, setFilter] = useState<Filter>(LEER);
   const [eintraege, setEintraege] = useState<WikiLogEintrag[] | null>(null);
   const [mehr, setMehr] = useState(false);
+  const [laedt, setLaedt] = useState(false);
   const [fehler, setFehler] = useState('');
   const [auswahl, setAuswahl] = useState<{ autoren: string[]; seiten: { slug: string; titel: string }[] }>({
     autoren: [],
@@ -54,12 +55,14 @@ export default function WikiAenderungen() {
   const laden = useCallback(
     (vor?: string) => {
       setFehler('');
+      setLaedt(true);
       ladeAenderungen({ ...filter, limit: SEITE, ...(vor ? { vor } : {}) })
         .then((d) => {
           setEintraege((bisher) => (vor && bisher ? [...bisher, ...d.eintraege] : d.eintraege));
           setMehr(d.eintraege.length === SEITE);
         })
-        .catch(() => setFehler('Die Änderungen konnten nicht geladen werden.'));
+        .catch(() => setFehler('Die Änderungen konnten nicht geladen werden.'))
+        .finally(() => setLaedt(false));
     },
     [filter],
   );
@@ -154,8 +157,15 @@ export default function WikiAenderungen() {
             ))}
           </ul>
           {mehr && (
-            <button className="small screen-only" onClick={() => laden(eintraege[eintraege.length - 1].erstelltAm)}>
-              Ältere laden
+            // Gesperrt, solange nachgeladen wird: zwei Klicks kurz hintereinander
+            // hängten sonst denselben Block zweimal an — sichtbar als doppelte
+            // Zeilen, und React beschwert sich über doppelte Schlüssel.
+            <button
+              className="small screen-only"
+              disabled={laedt}
+              onClick={() => laden(eintraege[eintraege.length - 1].erstelltAm)}
+            >
+              {laedt ? 'Lade…' : 'Ältere laden'}
             </button>
           )}
         </>

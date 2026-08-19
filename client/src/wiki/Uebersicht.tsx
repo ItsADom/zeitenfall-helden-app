@@ -39,7 +39,12 @@ export default function WikiUebersicht() {
 
   const laden = useCallback(() => {
     ladeListe()
-      .then((d) => setSeiten(d.seiten))
+      .then((d) => {
+        setSeiten(d.seiten);
+        // Auch im Erfolgsfall zurücksetzen — sonst bleibt ein Fehler von vorhin
+        // für immer stehen, obwohl die Liste längst wieder da ist.
+        setFehler('');
+      })
       .catch((e) => setFehler(e instanceof Error ? e.message : 'Fehler'));
   }, []);
 
@@ -59,7 +64,12 @@ export default function WikiUebersicht() {
     };
   }, [laden]);
 
-  if (fehler) return <p className="error">{fehler}</p>;
+  // Nur wenn noch NICHTS geladen ist, tritt der Fehler an die Stelle der Seite.
+  // Der Fokus-Wechsel lädt im Hintergrund nach; scheitert das einmal (kurzer
+  // Netzaussetzer, Serverneustart), soll die vorhandene Liste stehen bleiben und
+  // nicht durch eine nackte Fehlerzeile ersetzt werden — genauso hält es
+  // requests.tsx mit seinem Abzeichen.
+  if (fehler && seiten == null) return <p className="error">{fehler}</p>;
 
   const q = filter.trim().toLowerCase();
   const gefiltert = (seiten ?? []).filter(

@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useState } from 'react';
 import NeueSeiteDialog from './NeueSeiteDialog';
 import WikiAenderungen from './Aenderungen';
@@ -40,6 +40,22 @@ function NeueSeite() {
   );
 }
 
+/**
+ * Der Editor wird je Adresse NEU eingehängt.
+ *
+ * Alles, was er hält, beschreibt genau eine Seite: der Entwurf aus dem
+ * localStorage, der ungespeicherte Text, eine Schutzmeldung, ein
+ * Konfliktvergleich. Ohne den Schlüssel bleibt der Baustein beim Wechsel der
+ * Adresse derselbe und behält sie alle — `usePersistedState` liest seinen
+ * Schlüssel nur beim Einhängen, schreibt aber immer unter den aktuellen. Dann
+ * bekommt eine frisch angelegte Seite den Entwurf der vorigen angeboten und
+ * legt ihn beim ersten Tippen auch noch unter ihrem eigenen Schlüssel ab.
+ */
+function EditorFuerSeite() {
+  const { slug = '' } = useParams();
+  return <WikiEditor key={slug} />;
+}
+
 export default function WikiRoutes() {
   return (
     <Routes>
@@ -54,7 +70,7 @@ export default function WikiRoutes() {
             hier zu führen erspart eine zweite Rollenprüfung im Router. */}
         <Route path="papierkorb" element={<WikiPapierkorb />} />
         <Route path=":slug" element={<WikiSeite />} />
-        <Route path=":slug/bearbeiten" element={<WikiEditor />} />
+        <Route path=":slug/bearbeiten" element={<EditorFuerSeite />} />
         <Route path=":slug/verlauf" element={<WikiVerlauf />} />
         <Route path="*" element={<Navigate to="/wiki" replace />} />
       </Route>
