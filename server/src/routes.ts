@@ -467,6 +467,14 @@ api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res
   res.json({ ok: true });
 });
 
+// GM-Reset für einen einzelnen Charakter — dieselbe Aktion wie oben, nur auf
+// eine Karte der GM-Übersicht beschränkt statt auf die ganze Gruppe.
+api.post('/characters/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res) => {
+  const charId = Number(req.params.id);
+  db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax WHERE character_id = ?').run(charId);
+  res.json({ ok: true });
+});
+
 // --- Gemeinsame Gruppeninhalte (jedes Gruppenmitglied darf bearbeiten) ---
 
 function editableGroup(req: import('express').Request, res: import('express').Response): number | null {

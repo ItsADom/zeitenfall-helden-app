@@ -4699,6 +4699,11 @@ tr:hover .probe-roll,
   padding: 2px 8px;
   white-space: nowrap;
 }
+.gm-card-sp-reset {
+  flex: none;
+  align-self: flex-start;
+  padding: 2px 6px;
+}
 
 .gm-chips {
   display: flex;

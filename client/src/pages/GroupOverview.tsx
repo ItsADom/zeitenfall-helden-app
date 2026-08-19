@@ -274,6 +274,13 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
                 <span className="gm-stufe" title="Stufe">
                   Stufe {c.stufe}
                 </span>
+                <button
+                  className="small gm-card-sp-reset"
+                  title="Setzt die Schicksalspunkte dieses Charakters auf sein Maximum zurück"
+                  onClick={() => void apiPost(`/api/characters/${c.id}/schicksalspunkte/reset`).then(() => loadOverview(true))}
+                >
+                  🍀
+                </button>
               </div>
 
               <div className="gm-chips">
