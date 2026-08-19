@@ -148,6 +148,15 @@ export default function DicePanel() {
   const send = () => {
     const text = draft.trim();
     if (!text || groupId === null) return;
+    // Trennlinie: mindestens 3 Bindestriche oder „/line" — Anzahl der
+    // Bindestriche ist egal, gespeichert wird immer derselbe kanonische Text,
+    // damit FeedEntryView ihn zuverlässig erkennt (siehe dort).
+    if (/^-{3,}$/.test(text) || /^\/line$/i.test(text)) {
+      sendChat('---');
+      setError('');
+      setDraft('');
+      return;
+    }
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       if (!parseDiceExpression(roll[1])) {

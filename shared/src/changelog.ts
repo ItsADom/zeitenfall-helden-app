@@ -162,7 +162,7 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-08-18',
+    date: '2026-08-20',
     title: 'Würfeln & Chat',
     added: [
       'Neu: ein andockbarer Würfel-Chat (🎲 unten rechts) mit einem gemeinsamen Verlauf aus Chat-Nachrichten und Würfelwürfen — jederzeit erreichbar, ohne die Seite zu wechseln, und beim Zurückscrollen auch für vergangene Sessions einsehbar.',
@@ -176,6 +176,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Der Zielwert einer Probe (die Zahl hinter dem „/") ist nur für dich selbst und die Spielleitung sichtbar — andere Spieler sehen im Chat Würfel, Summe und Erfolg/Misserfolg, aber nicht den genauen Attributs-/Talentwert dahinter.',
       'Jeder Wurf im Chat zeigt in Klammern, welche Würfel geworfen wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdecken würde.',
       'Pfeiltaste nach oben im leeren Chat-Eingabefeld holt deinen letzten „/r"-Wurf zurück, zum Wiederholen oder Abändern.',
+      'Eine Trennlinie im Chat: drei oder mehr Bindestriche „---" (oder „/line") ziehen einen sichtbaren Strich, praktisch als Markierung für Szenenwechsel oder Sessionende.',
     ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',

@@ -168,8 +168,15 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
   );
 }
 
+// Kanonischer Text, den DicePanel für „---"/„/line" sendet — egal wie viele
+// Bindestriche getippt wurden, gespeichert wird immer derselbe Marker.
+const DIVIDER_TEXT = /^-{3,}$/;
+
 export default function FeedEntryView({ entry }: { entry: FeedEntry }) {
   if (entry.kind === 'roll') return <RollView entry={entry} />;
+  if (DIVIDER_TEXT.test(entry.text.trim())) {
+    return <hr className="feed-divider" />;
+  }
   return (
     <div className={`feed-entry feed-msg${entry.isMe ? ' feed-msg--me' : ''}`}>
       <span className="feed-time">{formatTime(entry.createdAt)}</span>
