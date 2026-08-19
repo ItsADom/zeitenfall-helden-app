@@ -95,163 +95,19 @@ chips. Backend table `char_special_resources`. Open for the full version:
      `ON DELETE CASCADE`. Wiki *text* content itself stays in `helden.db`
      (see wiki entry below) — only images get split out; text is cheap enough
      that splitting it out isn't worth the operational cost of a third db.
-- [sketch] **Dice rolls and chat** (concept fully worked out, split into
-  sub-pieces below. Left as `[sketch]` rather than bumped to `[ready]`
-  deliberately: this is large enough that a build plan should re-walk it piece
-  by piece anyway; that build plan lives at
-  `docs/concepts/dice-rolls-and-chat.md`. **All 7 planned phases are built,
-  verified and committed on `feature/dice-rolls-chat` — see that file's Status
-  section. A draft, unversioned changelog entry is in place; merging the
-  branch into `develop` and assigning a version are still the developer's
-  calls to make. The decisions below stay here as the record of what was
-  agreed; prune this entry once the branch merges, keeping only the
-  still-unbuilt sketch at the end.**):
-   - **Roll mechanic (decided):** a Probe rolls N d20, where N = the number of
-     attributes in that Probe's formula (`talentProbeZahl`/`probeExprZahl` in
-     `shared/src/rules.ts` already compute the target number = summed attributes
-     + Erleichterung — the app models Proben as a single combined number today,
-     not per-attribute). The N d20 results are **summed**, not compared
-     individually; success = that sum ≤ the precomputed Probe-Zahl. Damage rolls
-     are separate and NOT part of this sum.
-   - **Crit rules (decided):** any die rolling a natural 20 triggers its own
-     separate re-roll ("Bestätigung"/confirmation), one per 20 rolled (not one
-     shared confirmation for the whole roll). Bestätigung ≥ 10 → that 20 is
-     confirmed as an instant critical failure, overriding the normal sum-vs-
-     Probe-Zahl comparison; Bestätigung < 10 → not confirmed, its value is
-     instead added to the rolled sum (worsening normal odds). Mirrored for a
-     natural 1: also its own separate Bestätigung roll, but its value is
-     *always* subtracted from the rolled sum regardless of the roll's outcome —
-     improves the odds but does NOT itself guarantee success (the adjusted sum
-     still has to beat the Probe-Zahl normally). With 2+ dice rolling 20 (or
-     2+ rolling 1) each gets its own independent Bestätigung roll per the rules
-     above, and the effects stack/compound rather than collapsing into one
-     shared outcome — e.g. two confirmed 20s is a more severe failure than one.
-   - **Bestätigungen are player-triggered, not auto-rolled (decided):** the
-     roll posts with its 20s/1s visible and the Bestätigungen still *open*;
-     the player then rolls each one themselves, one button per die (that bit
-     of ceremony is the point — some illusion of control over the outcome).
-     Only the roller gets the buttons, the Spielleitung included. Until every
-     Bestätigung is done the entry shows no success/failure at all
-     ("Bestätigung ausstehend") — an outstanding 20 could still flip it to a
-     Patzer, so committing to an outcome early would be a lie. Each open
-     Bestätigung can alternatively be **declined** ("Ohne"): not every d20 roll
-     has a Patzer concept — a luck roll or a random-table roll doesn't — and a
-     declined one is settled with no effect on the sum and no Patzer. Feed
-     entries are therefore mutable: a roll is written once and then updated in
-     place as Bestätigungen come in (`feed.update` beside `feed.append`).
-   - Sub-pieces, each decided on its own pass:
-      - **Real-time transport (decided): WebSockets, scoped to this feature
-        only** — not a general replacement for the app's existing polling.
-        Nothing real-time exists today, only polling (`Group.tsx`/
-        `GroupOverview.tsx`'s "quiet-refresh" pattern, 15s + focus-triggered).
-        For those two pages the traffic is already trivial at this app's scale
-        (small payload, only while focused) — WS being bandwidth-lighter isn't
-        a real win there, so leave them on polling; not worth the added
-        connection-lifecycle/auth/reconnect complexity for a problem they don't
-        have. Chat/live rolls are different: they're inherently "something just
-        happened, tell everyone now," where polling means either laggy updates
-        or an unpleasantly tight interval — a genuine UX argument for a push
-        channel, independent of the bandwidth question. So: build the socket
-        infra for chat/dice, don't retrofit it onto Group/GroupOverview unless
-        a real need shows up later.
-      - **Visibility rules (decided):** chosen per-roll before rolling, via a
-        picker with three modes:
-         - **Public** (default): visible to the whole group, as normal.
-         - **Hidden**: visible to the roller only — completely excluded from
-           everyone else, INCLUDING the GM (no trace in anyone else's feed).
-           Available to anyone rolling, not just the GM.
-         - **GM + selected player**: GM-exclusive to initiate (matches the
-           original ask — "GM rolls with a player without anyone else
-           noticing"); invisible to the rest of the group, no trace. The GM
-           specifies the exact Probe/expression to roll when initiating (e.g.
-           "roll your Sinnesschärfe") — the player doesn't pick anything
-           themselves, their accept is just consent to that specific roll
-           happening. The prompt reaches the targeted player as a pending-
-           request card in their own docked panel (auto-opens it, same as any
-           other roll) with Accept/Decline buttons — not a blocking modal.
-           Declining just means no roll happens, no trace elsewhere.
-      - **Chat surface (decided):**
-         - **Placement**: a docked panel (collapsible sidebar/drawer), not a
-           separate page — usable from the character sheet and group page
-           without losing your place.
-         - **Feed**: one interleaved chronological feed — chat messages and
-           dice-roll results together, not a separate chat log vs. roll log.
-         - `/me` command (e.g. "/me baut eine Sandburg" → "Raskir baut eine
-           Sandburg").
-         - **Dice shortcuts (decided):** saved/named favorites, NOT tied to
-           sheet/talent values — plain dice math a player defines for
-           themselves (inspired by rolz.org's "dicebar", but with our own
-           simpler syntax instead of adopting rolz.org's bracket format).
-           Edited as plain text (fits the app's existing textarea pattern, no
-           form builder): one shortcut per line, `Label: expression` (e.g.
-           `Dolch-Schaden: 2w6+5`), "w" notation matching how it's already
-           written elsewhere in this doc (not "d"); a line of dashes acts as a
-           visual separator between groups. Rendered as a flyout of clickable
-           buttons inside the roll/chat panel — click a shortcut, the roll
-           fires immediately and posts into the feed.
-         - Crit/Bestätigung mechanic (natural 20s/1s → confirmation rolls)
-           applies to these raw expression rolls too, not just Probe rolls
-           (decided): no success/fail concept to override since there's no
-           Probe-Zahl, so a confirmed crit has no mechanical effect on the raw
-           expression rolls — the confirmation roll's value still gets added
-           (20s) or subtracted (1s) into the result as usual, and the entry is
-           visually highlighted/flagged in the feed so the table notices it
-           happened, but nothing beyond that.
-      - **Roll log (decided):** persisted in the DB per group (like other
-        group content, e.g. `group_tabs`) — not ephemeral, players can scroll
-        back through past sessions. **No pruning/retention window** — kept
-        indefinitely. Storage cost is negligible at this scale (small text
-        rows; even heavy monthly-session use over years lands in single-digit
-        MB, dwarfed by e.g. portrait BLOBs already in the DB) and the
-        traceability value is real given how spaced out sessions are (~monthly)
-        — a short window would delete exactly the content people come back to
-        reference. Revisit only if storage genuinely becomes a concern later.
-        **Visibility on history matches the live feed exactly** — hidden and
-        GM+selected-player rolls stay excluded from non-permitted viewers when
-        scrolling back too, no separate/looser access for old entries.
-      - **Dice rollable from sheet (decided):** a roll button next to every
-        already-computed Probe-Zahl on the sheet — Talente (`Talente.tsx`'s
-        "Probe (Zahl)" column), Waffen (AT/PA/BL), Zauber/Liturgien, Sprachen —
-        anywhere `shared/src/rules.ts` already produces a target number, not
-        just Talente/Zauber. One click fires immediately as a **Public** roll
-        (the common case); a secondary control (e.g. a small dropdown arrow
-        next to the button) exposes Hidden/GM+Player for when that's actually
-        wanted — keeps the fast path fast instead of prompting every time.
-        Disabled/hidden for a groupless character (no group ⇒ no feed to post
-        to). Rolling from the sheet auto-opens the docked chat/roll panel so
-        the result and group reaction are immediately visible.
-   - Structurally scoped per group already (`GroupInfo`, per-group routes exist
-     in `routes.ts`) — but no per-group real-time channel exists yet.
-   - [sketch] **Open design questions surfaced after building phases 1-3**
-     (connection/feed state already lives in `DicePanelProvider`, mounted once
-     at the `App.tsx` root — both points below build on that, not against it):
-      - **Dedicated chat page / future "virtual table" compatibility.** A
-        docked-only panel would collide with a possible future virtual-table
-        feature (not fleshed out anywhere yet, just flagged so it isn't lost).
-        Not a rework: any page can call `useDicePanel()` and read the same
-        `feed`/`sendChat`/etc., so a dedicated full-page chat view is additive
-        — reuses `FeedEntryView` for individual messages/rolls, no duplicate
-        connection. **Settled:** that dedicated page does NOT also render the
-        floating dock (`DicePanel.tsx`'s fixed widget) — showing the same feed
-        twice on the same page would be redundant.
-      - **Chatroom switching via page navigation feels counter-productive**
-        (user feedback): today `open(groupId, charId)` is called by
-        `Group.tsx`/`GroupOverview.tsx`/`Character.tsx` on mount, so merely
-        visiting a different group's page silently swaps which chat the dock
-        shows — surprising if you're mid-conversation and just glance at
-        another group. Proposed alternative, not yet agreed: an explicit
-        chatroom selector (dropdown) in the panel, fed from the player's
-        active groups (`GET /api/overview` already returns a user's `groups`,
-        scoped by membership for players / all groups for the GM — no new
-        endpoint needed) — picking a room is the ONLY thing that switches the
-        displayed feed; page navigation would at most update WHICH character
-        you post as *if* the page's group matches the currently-open room,
-        never switch rooms on its own. Open questions before this can move to
-        `[ready]`: where the selector lives if the dock is closed/no room is
-        open yet (entry point independent of `groupId != null`), whether the
-        last-open room persists across reloads (`localStorage`, like the
-        dock's collapsed/size state already does), and how a GM's much longer
-        group list should be presented vs. a player's usually-one-group case.
+- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
+  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
+  player requests, roll log, explicit room switching) shipped on
+  `feature/dice-rolls-chat`; the rules/mechanics are documented in
+  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
+  docked-only panel would collide with a possible future virtual-table
+  feature, now sketched out in `docs/concepts/VTT-concept.md` and
+  `docs/concepts/virtual-table.md`. Not a rework: any page can call
+  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
+  full-page chat view is additive — reuses `FeedEntryView` for individual
+  messages/rolls, no duplicate connection. **Settled:** that dedicated page
+  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
+  showing the same feed twice on the same page would be redundant.
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
