@@ -245,7 +245,7 @@ describe('Bestätigungen werden einzeln nachgereicht', () => {
   });
 
   it('greift genauso bei Ausdruckswürfen', () => {
-    const expr = { count: 1, sides: 20, modifier: 0 };
+    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 0 };
     const open = resolveExpressionRoll(expr, [20], []);
     expect(open.pending).toEqual([{ dieIndex: 0, trigger: 20 }]);
     expect(open.resolved).toBe(false);
@@ -362,24 +362,24 @@ describe('Kritischer Erfolg', () => {
 
 describe('parseDiceExpression', () => {
   it('parses "2w6+5"', () => {
-    expect(parseDiceExpression('2w6+5')).toEqual({ count: 2, sides: 6, modifier: 5 });
+    expect(parseDiceExpression('2w6+5')).toEqual({ groups: [{ count: 2, sides: 6 }], modifier: 5 });
   });
 
   it('parses "w20" with an implicit count of 1', () => {
-    expect(parseDiceExpression('w20')).toEqual({ count: 1, sides: 20, modifier: 0 });
+    expect(parseDiceExpression('w20')).toEqual({ groups: [{ count: 1, sides: 20 }], modifier: 0 });
   });
 
   it('is case-insensitive on the "w"', () => {
-    expect(parseDiceExpression('1W20-1')).toEqual({ count: 1, sides: 20, modifier: -1 });
+    expect(parseDiceExpression('1W20-1')).toEqual({ groups: [{ count: 1, sides: 20 }], modifier: -1 });
   });
 
   it('also accepts "d" as an alias for "w"', () => {
-    expect(parseDiceExpression('2d6+5')).toEqual({ count: 2, sides: 6, modifier: 5 });
-    expect(parseDiceExpression('1D20-1')).toEqual({ count: 1, sides: 20, modifier: -1 });
+    expect(parseDiceExpression('2d6+5')).toEqual({ groups: [{ count: 2, sides: 6 }], modifier: 5 });
+    expect(parseDiceExpression('1D20-1')).toEqual({ groups: [{ count: 1, sides: 20 }], modifier: -1 });
   });
 
   it('tolerates surrounding whitespace', () => {
-    expect(parseDiceExpression('  3w8 + 2  ')).toEqual({ count: 3, sides: 8, modifier: 2 });
+    expect(parseDiceExpression('  3w8 + 2  ')).toEqual({ groups: [{ count: 3, sides: 8 }], modifier: 2 });
   });
 
   it('rejects garbage', () => {
@@ -393,11 +393,45 @@ describe('parseDiceExpression', () => {
     expect(parseDiceExpression('1w1')).toBeNull();
     expect(parseDiceExpression('1w1001')).toBeNull();
   });
+
+  it('parses mixed dice pools, adding multiple groups', () => {
+    expect(parseDiceExpression('1w6+1w20')).toEqual({
+      groups: [
+        { count: 1, sides: 6 },
+        { count: 1, sides: 20 },
+      ],
+      modifier: 0,
+    });
+    expect(parseDiceExpression('2w6+1w4+3')).toEqual({
+      groups: [
+        { count: 2, sides: 6 },
+        { count: 1, sides: 4 },
+      ],
+      modifier: 3,
+    });
+  });
+
+  it('rejects subtracting a dice group — only the flat modifier may be negative', () => {
+    expect(parseDiceExpression('1w6-1w20')).toBeNull();
+  });
+
+  it('caps the total dice count across all groups combined, not per group', () => {
+    expect(parseDiceExpression('10w6+11w6')).toBeNull(); // 21 total > MAX_DICE_COUNT
+    expect(parseDiceExpression('10w6+10w6')).not.toBeNull(); // 20 total is fine
+  });
+
+  it('rejects more than the allowed number of dice groups', () => {
+    expect(parseDiceExpression('1w2+1w3+1w4+1w5+1w6+1w7+1w8')).toBeNull(); // 7 groups
+  });
+
+  it('rejects a bare modifier with no dice group at all', () => {
+    expect(parseDiceExpression('5')).toBeNull();
+  });
 });
 
 describe('resolveExpressionRoll', () => {
   it('sums dice plus modifier with no success/fail concept', () => {
-    const expr = { count: 2, sides: 6, modifier: 3 };
+    const expr = { groups: [{ count: 2, sides: 6 }], modifier: 3 };
     const r = resolveExpressionRoll(expr, [4, 5], []);
     expect(r.rawSum).toBe(12);
     expect(r.adjustedSum).toBe(12);
@@ -405,7 +439,7 @@ describe('resolveExpressionRoll', () => {
   });
 
   it('flags but does not override on a confirmed 20 in a d20 expression', () => {
-    const expr = { count: 1, sides: 20, modifier: 0 };
+    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 0 };
     const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 14 }]);
     expect(r.flagged).toBe(true);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 14, confirmed: true, cancelled: false }]);
@@ -413,23 +447,32 @@ describe('resolveExpressionRoll', () => {
   });
 
   it('adds an unconfirmed 20 confirmation value into the sum', () => {
-    const expr = { count: 1, sides: 20, modifier: 0 };
+    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 0 };
     const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 3 }]);
     expect(r.adjustedSum).toBe(23);
   });
 
   it('subtracts a natural-1 confirmation value unconditionally', () => {
-    const expr = { count: 1, sides: 20, modifier: 5 };
+    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 5 };
     const r = resolveExpressionRoll(expr, [1], [{ dieIndex: 0, value: 16 }]);
     expect(r.adjustedSum).toBe(1 + 5 - 16);
   });
 
   it('never triggers confirmations on a non-d20 expression', () => {
-    const expr = { count: 2, sides: 6, modifier: 0 };
+    const expr = { groups: [{ count: 2, sides: 6 }], modifier: 0 };
     const r = resolveExpressionRoll(expr, [6, 1], []);
     expect(r.flagged).toBe(false);
     expect(r.confirmations).toEqual([]);
     expect(r.adjustedSum).toBe(7);
+  });
+
+  it('only the d20 group triggers confirmations in a mixed pool', () => {
+    // Gruppe 0: 1w6 (Index 0) — Gruppe 1: 1w20 (Index 1). Die 1 auf dem W6
+    // darf keine Bestätigung auslösen, nur die 20 auf dem W20.
+    const expr = { groups: [{ count: 1, sides: 6 }, { count: 1, sides: 20 }], modifier: 0 };
+    const r = resolveExpressionRoll(expr, [1, 20], []);
+    expect(r.flagged).toBe(true);
+    expect(r.pending).toEqual([{ dieIndex: 1, trigger: 20 }]);
   });
 });
 

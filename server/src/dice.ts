@@ -28,6 +28,8 @@ export function performProbeRoll(n: number, probeZahl: number, modifier = 0): Pr
 }
 
 export function performExpressionRoll(expression: DiceExpression): ExpressionRollResult {
-  const dice = Array.from({ length: expression.count }, () => rollDie(expression.sides));
+  // Gruppen der Reihe nach würfeln und flach aneinanderhängen — dieselbe
+  // Reihenfolge, die diceSidesForExpression beim Auflösen erwartet.
+  const dice = expression.groups.flatMap((g) => Array.from({ length: g.count }, () => rollDie(g.sides)));
   return resolveExpressionRoll(expression, dice, []);
 }

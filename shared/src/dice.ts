@@ -90,13 +90,19 @@ export interface CritTrigger {
  * (und umgekehrt), unabhängig davon, ob diese später bestätigt wird. Was sich
  * so aufhebt, verliert seine Sonderbedeutung — nicht aber seinen
  * Bestätigungswurf: der wird geworfen und verrechnet wie jeder andere.
+ *
+ * `sides` ist entweder EIN Wert für den ganzen Pool (Probe: immer W20) oder,
+ * bei einem gemischten Ausdruck (z. B. „1w6+1w20"), ein zu `dice` paralleles
+ * Array — ein W6 in einem gemischten Wurf kritet nie, auch wenn er eine 1
+ * zeigt, nur die W20-Anteile zählen.
  */
-export function findCritTriggers(dice: number[], sides: number): CritTrigger[] {
-  if (sides !== 20) return [];
+export function findCritTriggers(dice: number[], sides: number | number[]): CritTrigger[] {
+  const sidesFor = (i: number): number => (typeof sides === 'number' ? sides : sides[i]);
   const openTwenties: number[] = [];
   const openOnes: number[] = [];
   const cancelled = new Set<number>();
   dice.forEach((v, dieIndex) => {
+    if (sidesFor(dieIndex) !== 20) return;
     if (v === 20) {
       const match = openOnes.shift();
       if (match === undefined) openTwenties.push(dieIndex);
@@ -115,6 +121,7 @@ export function findCritTriggers(dice: number[], sides: number): CritTrigger[] {
   });
   const out: CritTrigger[] = [];
   dice.forEach((v, dieIndex) => {
+    if (sidesFor(dieIndex) !== 20) return;
     if (v === 20 || v === 1) out.push({ dieIndex, trigger: v as 20 | 1, cancelled: cancelled.has(dieIndex) });
   });
   return out;
@@ -245,23 +252,67 @@ export function resolveProbeRoll(
   };
 }
 
-export interface DiceExpression {
+/** Ein Würfel-Block innerhalb eines (ggf. gemischten) Ausdrucks, z. B. "2w6". */
+export interface DiceGroup {
   count: number;
   sides: number;
+}
+
+/**
+ * Ein oder mehrere addierte Würfel-Blöcke plus ein gemeinsamer flacher
+ * Modifikator, z. B. "1w6+1w20+3" → groups: [{1,6},{1,20}], modifier: 3.
+ * `dice`-Arrays, die zu diesem Ausdruck gehören, liegen immer in derselben
+ * Reihenfolge flach hintereinander — Gruppe 0 zuerst, dann Gruppe 1, usw.
+ */
+export interface DiceExpression {
+  groups: DiceGroup[];
   modifier: number;
 }
 
-/** Parses "2w6+5", "w20", "1W20-1", "2d6+5" (case-insensitive "w"/"d", modifier optional). */
+export const MAX_DICE_GROUPS = 6;
+
+/** Ein `sides`-Wert je Würfel, parallel zum flachen `dice`-Array — für findCritTriggers/Anzeige. */
+export function diceSidesForExpression(expression: DiceExpression): number[] {
+  return expression.groups.flatMap((g) => Array(g.count).fill(g.sides) as number[]);
+}
+
+/**
+ * Parses "2w6+5", "w20", "1W20-1", "2d6+5" (case-insensitive "w"/"d") and,
+ * gemischt, "1w6+1w20", "2w6+1w4+3". Mehrere Würfel-Blöcke werden addiert
+ * ("+NwS"); ein Block lässt sich nicht abziehen ("-NwS" ist ungültig — ein
+ * negativer Würfel-Pool ergibt keinen Sinn), nur der flache Zahlenanteil darf
+ * negativ sein.
+ */
 export function parseDiceExpression(expr: string): DiceExpression | null {
-  const m = /^\s*(\d*)[wWdD](\d+)\s*([+-]\s*\d+)?\s*$/.exec(expr);
-  if (!m) return null;
-  const count = m[1] === '' ? 1 : parseInt(m[1], 10);
-  const sides = parseInt(m[2], 10);
-  const modifier = m[3] ? parseInt(m[3].replace(/\s+/g, ''), 10) : 0;
-  if (count < 1 || count > MAX_DICE_COUNT) return null;
-  if (sides < 2 || sides > MAX_DICE_SIDES) return null;
+  const cleaned = expr.replace(/\s+/g, '');
+  if (cleaned === '') return null;
+  const normalized = cleaned[0] === '+' || cleaned[0] === '-' ? cleaned : `+${cleaned}`;
+  const terms = normalized.match(/[+-][^+-]+/g);
+  if (!terms || terms.join('') !== normalized) return null; // muss die ganze Eingabe abdecken, kein Müll dazwischen
+
+  const groups: DiceGroup[] = [];
+  let modifier = 0;
+  let totalCount = 0;
+  for (const term of terms) {
+    const negative = term[0] === '-';
+    const body = term.slice(1);
+    const diceMatch = /^(\d*)[wWdD](\d+)$/.exec(body);
+    if (diceMatch) {
+      if (negative) return null;
+      const count = diceMatch[1] === '' ? 1 : parseInt(diceMatch[1], 10);
+      const sides = parseInt(diceMatch[2], 10);
+      if (sides < 2 || sides > MAX_DICE_SIDES) return null;
+      totalCount += count;
+      groups.push({ count, sides });
+      continue;
+    }
+    if (!/^\d+$/.test(body)) return null;
+    modifier += (negative ? -1 : 1) * parseInt(body, 10);
+  }
+  if (groups.length === 0 || groups.length > MAX_DICE_GROUPS) return null;
+  if (totalCount < 1 || totalCount > MAX_DICE_COUNT) return null;
   if (!Number.isFinite(modifier) || modifier < -MAX_DICE_MODIFIER || modifier > MAX_DICE_MODIFIER) return null;
-  return { count, sides, modifier };
+  return { groups, modifier };
 }
 
 export interface ExpressionRollResult {
@@ -277,15 +328,16 @@ export interface ExpressionRollResult {
 
 /**
  * Resolves a raw expression roll (shortcut or free-form). No success/fail
- * concept — the crit/confirmation mechanic still applies when sides===20,
- * but only to flag the entry for display, not to override an outcome.
+ * concept — the crit/confirmation mechanic still applies to jedem W20-Anteil
+ * (auch innerhalb eines gemischten Pools), aber nur um den Eintrag zu
+ * markieren, nie um ein Ergebnis zu überschreiben.
  */
 export function resolveExpressionRoll(
   expression: DiceExpression,
   dice: number[],
   rolled: RolledConfirmation[],
 ): ExpressionRollResult {
-  const triggers = findCritTriggers(dice, expression.sides);
+  const triggers = findCritTriggers(dice, diceSidesForExpression(expression));
   const rawSum = dice.reduce((a, b) => a + b, 0) + expression.modifier;
   const { confirmations, pending, adjustedSum } = applyConfirmations(triggers, rolled, rawSum);
   return {
@@ -299,6 +351,22 @@ export function resolveExpressionRoll(
     flagged: triggers.length > 0,
   };
 }
+
+// „/master" und „/wild": ein W6 gegen eine feste Ergebnisliste, Index 0 = Auge
+// 1. Serverseitig gewürfelt und nachgeschlagen wie probeZahl — der Spieler
+// wählt nur den Befehl, nie das Ergebnis. Bei „/wild" bleibt der zusätzlich
+// gewürfelte W20 ein reiner Zahlenwert (Unterergebnis in der jeweiligen
+// Kategorie), den Spieler/Spielleitung im Regelwerk nachschlagen.
+export const MASTER_TABLE: readonly string[] = [
+  'Positive Götterinteraktion',
+  'Positive Zusatzhandlung',
+  'Positive Zustandsänderung',
+  'Zufällige Götterinteraktion',
+  'Negative Götterinteraktion',
+  'Nichts',
+];
+
+export const WILD_MAGIC_TABLE: readonly string[] = ['Schaden', 'Beschwörung', 'Buff', 'Debuff', 'Beschwörung (Wesen)', 'Heilung'];
 
 export type DiceShortcutLine =
   | { kind: 'separator' }

@@ -1,4 +1,5 @@
-import type { DieConfirmation, PendingConfirmation } from '@shared/dice';
+import type { DiceExpression, DieConfirmation, PendingConfirmation } from '@shared/dice';
+import { diceSidesForExpression } from '@shared/dice';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
@@ -9,9 +10,12 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-function exprText(e: { count: number; sides: number; modifier: number }): string {
+// Probe-Notation (immer W20) UND ein echter, ggf. gemischter DiceExpression —
+// beide haben Gruppen + einen flachen Modifikator gemeinsam.
+function exprText(e: DiceExpression): string {
+  const groupsText = e.groups.map((g) => `${g.count}w${g.sides}`).join('+');
   const mod = e.modifier === 0 ? '' : e.modifier > 0 ? `+${e.modifier}` : `${e.modifier}`;
-  return `${e.count}w${e.sides}${mod}`;
+  return `${groupsText}${mod}`;
 }
 
 // „Verborgen" bzw. „SL + Spieler" sichtbar markieren — wer den Eintrag sieht,
@@ -115,7 +119,10 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
   // Ergebnis — ein Titel/Favorit verdeckt den Ausdruck ja gerade. Bei einer
   // Probe zählt nur Anzahl/Seiten (immer W20), der Erleichterung/Erschwernis-
   // Modifikator steht schon separat daneben.
-  const notation = isProbe ? exprText({ count: roll.n, sides: 20, modifier: 0 }) : exprText(roll.expression);
+  const notation = isProbe ? exprText({ groups: [{ count: roll.n, sides: 20 }], modifier: 0 }) : exprText(roll.expression);
+  // Pro Würfel der passende Seitenzahl — bei einem gemischten Ausdruck
+  // (z. B. „1w6+1w20") ist das NICHT für alle Würfel dasselbe.
+  const diceSides = isProbe ? roll.dice.map(() => 20) : diceSidesForExpression(roll.expression);
 
   return (
     <div className={`feed-entry feed-roll${outcome ? ` feed-roll--${outcome}` : ''}`}>
@@ -129,7 +136,7 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
       <div className="feed-roll-body">
         <span className="feed-dice">
           {roll.dice.map((d, i) => (
-            <Die key={i} value={d} sides={isProbe ? 20 : roll.expression.sides} />
+            <Die key={i} value={d} sides={diceSides[i]} />
           ))}
         </span>
         <span className="feed-roll-sum">
