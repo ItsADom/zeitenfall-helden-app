@@ -21,6 +21,7 @@ import { loescheAssetsFuer } from './assets/store.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { listRollableProbes } from './diceSource.js';
+import { pushSchicksalspunkte } from './ws.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
@@ -460,10 +461,21 @@ api.put('/characters/:id/schicksalspunkte', requireAuth, (req, res) => {
 // Charakter der Gruppe auf sein eigenes Maximum zurück.
 api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res) => {
   const groupId = Number(req.params.id);
+  const affected = db
+    .prepare(
+      `SELECT c.id AS charId, c.owner_user_id AS ownerUserId, m.schicksalspunkteMax AS max
+       FROM characters c JOIN char_meta m ON m.character_id = c.id
+       WHERE c.group_id = ?`,
+    )
+    .all(groupId) as { charId: number; ownerUserId: number; max: number }[];
   db.prepare(
     `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax
      WHERE character_id IN (SELECT id FROM characters WHERE group_id = ?)`,
   ).run(groupId);
+  // Reset passiert per REST in der GM-Session — die betroffenen Spieler
+  // sitzen in ihrer eigenen Session und würden es sonst erst beim nächsten
+  // Laden der Räume sehen (Dock-Buttons blieben bis dahin fälschlich aus).
+  for (const a of affected) pushSchicksalspunkte(groupId, a.ownerUserId, a.charId, a.max, a.max);
   res.json({ ok: true });
 });
 
@@ -471,7 +483,20 @@ api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res
 // eine Karte der GM-Übersicht beschränkt statt auf die ganze Gruppe.
 api.post('/characters/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res) => {
   const charId = Number(req.params.id);
+  const char = db.prepare('SELECT owner_user_id AS ownerUserId, group_id AS groupId FROM characters WHERE id = ?').get(charId) as
+    | { ownerUserId: number; groupId: number | null }
+    | undefined;
+  if (!char) {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
   db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax WHERE character_id = ?').run(charId);
+  if (char.groupId !== null) {
+    const max = (
+      db.prepare('SELECT schicksalspunkteMax AS max FROM char_meta WHERE character_id = ?').get(charId) as { max: number }
+    ).max;
+    pushSchicksalspunkte(char.groupId, char.ownerUserId, charId, max, max);
+  }
   res.json({ ok: true });
 });
 

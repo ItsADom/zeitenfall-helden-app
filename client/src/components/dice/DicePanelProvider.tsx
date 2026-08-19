@@ -219,6 +219,19 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setPendingRequests((prev) => prev.filter((r) => r.id !== msg.requestId));
         return;
       }
+      if (msg.type === 'schicksalspunkte.update') {
+        // GM-Reset über die GM-Übersicht (REST, andere Session) — ohne
+        // diesen Push bliebe der Klee-Zähler hier stumpf bis zum nächsten
+        // Laden der Räume.
+        setMyGroups((prev) =>
+          prev.map((g) =>
+            g.myCharacterId === msg.charId
+              ? { ...g, schicksalspunkteAktuell: msg.aktuell, schicksalspunkteMax: msg.max }
+              : g,
+          ),
+        );
+        return;
+      }
       if (msg.type === 'error') {
         // Abgelehnte Aktion (Ratenlimit, falsche Gruppe, veraltete Anfrage, …)
         // — sonst bliebe eine Ablehnung unsichtbar, der Klick sähe nach

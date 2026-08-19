@@ -174,6 +174,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
       'Ausrüstungsgegenstände können jetzt eine Haltbarkeit wie LP bekommen — in den Gegenstands-Details einmal ein Maximum eintragen, danach zeigt der Ausrüstungs-Chip den aktuellen Zustand als Prozentsatz; kritisch niedrige Werte fallen rot auf.',
     ],
+    fixed: [
+      'Setzte die Spielleitung deine Schicksalspunkte zurück, blieben die Kleeblätter im Chat-Panel bis zum Neuladen der Seite deaktiviert.',
+    ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',
       '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück; ein Klee-Symbol je Charakter zeigt den aktuellen Stand.',

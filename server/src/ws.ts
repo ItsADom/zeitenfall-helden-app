@@ -86,6 +86,15 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
   }
 }
 
+/**
+ * Nach einem GM-Reset auf der GM-Übersicht (REST, eigene Session) an den
+ * Charakterbesitzer pushen — sonst zeigt dessen Dock den alten Stand, bis
+ * er neu lädt (die Klee-Buttons blieben fälschlich deaktiviert).
+ */
+export function pushSchicksalspunkte(groupId: number, ownerUserId: number, charId: number, aktuell: number, max: number): void {
+  sendToUserInGroup(groupId, ownerUserId, { type: 'schicksalspunkte.update', charId, aktuell, max });
+}
+
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
 // gehört UND zu dieser Gruppe gehört (sonst könnte man unter fremdem Namen
 // oder mit einem Charakter aus einer anderen Gruppe posten) — sonst das

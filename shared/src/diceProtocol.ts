@@ -129,5 +129,9 @@ export type ServerToClientMessage =
   | { type: 'roll.pending.expired'; requestId: string }
   | { type: 'roll.pending.declined'; requestId: string }
   | { type: 'roll.pending.accepted'; requestId: string }
+  // GM-Reset (Einzeln oder „Neuer Spieltag") passiert über REST auf der
+  // GM-Übersicht, nicht über dieses Socket — ohne diesen Push bliebe der
+  // Klee-Zähler in der Spieler-Session stumpf bis zum nächsten Laden.
+  | { type: 'schicksalspunkte.update'; charId: number; aktuell: number; max: number }
   | { type: 'ack'; reqId: string }
   | { type: 'error'; reqId: string; message: string };

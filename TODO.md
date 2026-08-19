@@ -18,6 +18,21 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
+- roll target should be hidden for other players (gm can see it)
+- make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
+- some kind of hint that shows, what dice are even rolled. right now you just can guess by the result if it is a d6 or d20 f.e.
+  - show "(3W20)" behind an according roll
+- arrow key up for last roll into chat panel
+- scroll behaviour is off. when making the chat smaller, the newest roll or chat entry should stay visible
+- gm overview: picture should dock to top-left
+- confirmation gets rolled for every dice itself, but the player should only decide to roll confirmations as a single decision
+- set a divider line by typing "---" minimum of 3 dashes, no maximum, alternatively by /line
+- check if outsourcing the chat-log to a separate page would make sense regarding loading times etc.
+- something like "/r 5w10+6#Glück", should use the part after # as the roll title. like dice favorites do now, but inline settable
+- "/master" for master-dice (fixed set of result names per number)
+- "/wild" will roll a d6 and d20. this is for wild magic, where the d6 sets the category of spell from afixed list. should be made visible
+- make GM roll request abortable by GM
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
@@ -189,6 +204,9 @@ chips. Backend table `char_special_resources`. Open for the full version:
   tab rework, Mid-Prio) — currently blocking that item.
   This feature will need the players to keep their own list of ammunitions and damage values for them, which then feeds the damage formula. ranged weapons then pick which ammunition is used.
 - [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
+  - Andergast as colorless
+  - Orkland dark green, Bornland lighter green
+  - Efferdia light blue
 - [ready] **Secret "chaos mode" easter egg** (concept agreed — gag, not a real
   theme): click the decorative `banner-fx` strip in the header (`App.tsx:99-103`
   — purely decorative today, `aria-hidden`, no click handler, spans every page;
