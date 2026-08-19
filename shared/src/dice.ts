@@ -251,9 +251,9 @@ export interface DiceExpression {
   modifier: number;
 }
 
-/** Parses "2w6+5", "w20", "1W20-1" (case-insensitive "w", modifier optional). */
+/** Parses "2w6+5", "w20", "1W20-1", "2d6+5" (case-insensitive "w"/"d", modifier optional). */
 export function parseDiceExpression(expr: string): DiceExpression | null {
-  const m = /^\s*(\d*)[wW](\d+)\s*([+-]\s*\d+)?\s*$/.exec(expr);
+  const m = /^\s*(\d*)[wWdD](\d+)\s*([+-]\s*\d+)?\s*$/.exec(expr);
   if (!m) return null;
   const count = m[1] === '' ? 1 : parseInt(m[1], 10);
   const sides = parseInt(m[2], 10);

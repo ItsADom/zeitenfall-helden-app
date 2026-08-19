@@ -373,13 +373,17 @@ describe('parseDiceExpression', () => {
     expect(parseDiceExpression('1W20-1')).toEqual({ count: 1, sides: 20, modifier: -1 });
   });
 
+  it('also accepts "d" as an alias for "w"', () => {
+    expect(parseDiceExpression('2d6+5')).toEqual({ count: 2, sides: 6, modifier: 5 });
+    expect(parseDiceExpression('1D20-1')).toEqual({ count: 1, sides: 20, modifier: -1 });
+  });
+
   it('tolerates surrounding whitespace', () => {
     expect(parseDiceExpression('  3w8 + 2  ')).toEqual({ count: 3, sides: 8, modifier: 2 });
   });
 
   it('rejects garbage', () => {
     expect(parseDiceExpression('not a roll')).toBeNull();
-    expect(parseDiceExpression('2d6')).toBeNull(); // "d" not "w"
     expect(parseDiceExpression('')).toBeNull();
   });
 
