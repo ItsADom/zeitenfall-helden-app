@@ -34,6 +34,30 @@
 > Treat unchecked items as blockers. A plan this size that silently goes stale is
 > worse than no plan, because it reads as authoritative.
 
+## Visual reference (early, not final)
+
+A first-pass mockup exists showing the page shell this plan describes: quick
+panel · map · docked chat, a GM view next to a player's to show the fog-of-war
+asymmetry (opaque "Unerforscht" for players vs. semi-transparent for the GM,
+with a hidden token that never reaches the player's view at all), the
+initiative strip with a Todesschwelle countdown, and the per-board Karten-Rechte
+panel from the edit-rights decision.
+
+**It is a rough layout pass, not a design to build from.** Colors, spacing,
+iconography and the map's decorative tokens (tile/fog hues) are first guesses —
+matched to the app's real light/dark palette (see below) but not reviewed as a
+design. Expect this to change before Phase 4.
+
+- Source: `docs/concepts/virtual-table-mockup/` (`Main.dc.html`,
+  `PlayerView.dc.html`, `canvas.json`) — plain HTML/CSS, readable without
+  tooling.
+- It follows the app's actual `:root` tokens for light mode and the real
+  `:root[data-mode='dark']` + Khôm/rot dark-mode values from `styles.css`,
+  switching with the viewer's system preference. The map-specific decorative
+  tokens (`--map-*`, `--tile-*`, `--fog-*`) don't exist in the app yet and are
+  this mockup's own invention, chosen to sit alongside the existing
+  warn/crit/over semantic tones rather than add new hues.
+
 ## Context
 
 The app manages characters for a house DSA-inspired pen-&-paper system. The

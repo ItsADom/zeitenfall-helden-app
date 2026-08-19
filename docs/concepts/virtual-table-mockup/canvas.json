@@ -1,0 +1,11 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1680, "h": 1000 },
+    { "file": "PlayerView.dc.html", "x": 1760, "y": 0, "w": 1680, "h": 1000 }
+  ],
+  "annotations": [
+    { "id": "note-gm", "x": 0, "y": -110, "w": 420, "text": "Spielleitung: volle Werkzeugleiste, Karten-Rechte-Panel, Nebel halbtransparent (zeigt, was verborgen ist), verborgener Ork-Wache-Token sichtbar." },
+    { "id": "note-player", "x": 1760, "y": -110, "w": 420, "text": "Spieler-Sicht: nur freigegebene Werkzeuge (hier: Kacheln + Messen), Nebel deckend (\"Unerforscht\"), der verborgene Token kommt in dieser Ansicht gar nicht erst an." }
+  ],
+  "launch": { "view": "canvas" }
+}
