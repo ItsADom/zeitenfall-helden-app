@@ -172,6 +172,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Eigene Würfel-Favoriten: leg dir in den Einstellungen benannte Kurzformeln an (z. B. „Dolch-Schaden: 2w6+5") und wirf sie per Klick direkt aus dem Chat-Panel.',
       'Erleichterung/Erschwernis: Fragt die Spielleitung am Tisch eine Erleichterung oder Erschwerung an, stellst du das im Chat-Panel ein (neben der Sichtbarkeit) — er gilt für die nächste Probe, egal ob vom Bogen oder aus dem Chat-Vorschlag gewürfelt, und setzt sich danach von selbst zurück. Der Wert steht immer sichtbar beim Wurf.',
       'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
+      'Ausrüstungsgegenstände können jetzt eine Haltbarkeit wie LP bekommen — in den Gegenstands-Details einmal ein Maximum eintragen, danach zeigt der Ausrüstungs-Chip den aktuellen Zustand als Prozentsatz; kritisch niedrige Werte fallen rot auf.',
     ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',

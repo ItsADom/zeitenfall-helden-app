@@ -508,6 +508,8 @@ interface AusrItem {
   kapazitaet: number;
   gewichtsreduktion: number;
   rs: number;
+  haltbarkeitMax: number;
+  haltbarkeitAktuell: number;
   notiz: string;
 }
 
@@ -529,7 +531,7 @@ function ausrRowToItems(
   const base: AusrItem = {
     uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '',
     location: 'inventar', zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage',
-    kapazitaet: 0, gewichtsreduktion: 0, rs: 0, notiz: '',
+    kapazitaet: 0, gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
   };
 
   if (keys.has('slot') && keys.has('beschreibung')) {
@@ -588,7 +590,7 @@ function ausrRowToItems(
       if (!nm) continue;
       children.push({ ...base, uid: makeUid(), name: nm, anzahl: 1, gewicht: 0,
         location: 'behaelter', zone: '', beidseitig: false, containerUid: base.uid, istBehaelter: false, containerArt: 'storage',
-        kapazitaet: 0, gewichtsreduktion: 0, rs: 0, notiz: '' });
+        kapazitaet: 0, gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '' });
     }
   }
 
@@ -780,7 +782,7 @@ const clampMin = (v: unknown, min = 0): number => {
 export function loadItems(charId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -799,6 +801,8 @@ export function loadItems(charId: number): Item[] {
     kapazitaet_art: string;
     gewichtsreduktion: number;
     rs: number;
+    haltbarkeit_max: number;
+    haltbarkeit_aktuell: number;
     notiz: string;
   }[];
   return rows.map((r) => ({
@@ -818,6 +822,8 @@ export function loadItems(charId: number): Item[] {
     kapazitaetArt: (KAPAZITAET_ARTEN as string[]).includes(r.kapazitaet_art) ? (r.kapazitaet_art as KapazitaetArt) : 'gewicht',
     gewichtsreduktion: r.gewichtsreduktion,
     rs: r.rs,
+    haltbarkeitMax: r.haltbarkeit_max,
+    haltbarkeitAktuell: r.haltbarkeit_aktuell,
     notiz: r.notiz,
   }));
 }
@@ -841,8 +847,8 @@ export function saveItems(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -862,6 +868,8 @@ export function saveItems(charId: number, raw: unknown): void {
       const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
       const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
       const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
+      const haltbarkeitMax = clampMin(o.haltbarkeitMax);
+      const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
       ins.run(
         charId,
         i,
@@ -880,6 +888,8 @@ export function saveItems(charId: number, raw: unknown): void {
         kapArt,
         clampPct(o.gewichtsreduktion),
         clampMin(o.rs),
+        haltbarkeitMax,
+        haltbarkeitAktuell,
         String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
       );
     });

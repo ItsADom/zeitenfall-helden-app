@@ -85,7 +85,18 @@ export interface Item {
   // Rüstungsschutz (nur bei Rüstungsteilen sinnvoll). Es wird NICHT summiert —
   // fürs Spiel zählt der höchste getragene Wert (siehe effektiverRs).
   rs: number;
+  // Haltbarkeit wie LP für Gegenstände — nur bei Rüstung/Waffen o.ä. sinnvoll.
+  // 0 = nicht verfolgt (Standard; blendet die %-Anzeige aus, siehe haltbarkeitPct).
+  haltbarkeitMax: number;
+  haltbarkeitAktuell: number;
   notiz: string;
+}
+
+// Haltbarkeit als Prozentsatz (0–100), oder null wenn nicht verfolgt (max = 0).
+export function haltbarkeitPct(item: Pick<Item, 'haltbarkeitMax' | 'haltbarkeitAktuell'>): number | null {
+  if (item.haltbarkeitMax <= 0) return null;
+  const aktuell = Math.min(item.haltbarkeitMax, Math.max(0, Number(item.haltbarkeitAktuell) || 0));
+  return Math.round((aktuell / item.haltbarkeitMax) * 100);
 }
 
 // Neue, stabile Kennung. crypto.randomUUID gibt es im Browser wie in Node 18+.

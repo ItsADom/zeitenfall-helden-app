@@ -7,6 +7,7 @@ import {
   containers,
   effektiverRs,
   getrageneLast,
+  haltbarkeitPct,
   itemGewicht,
   itemsInContainer,
   itemsInZone,
@@ -48,6 +49,8 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     kapazitaetArt: 'gewicht',
     gewichtsreduktion: 0,
     rs: 0,
+    haltbarkeitMax: 0,
+    haltbarkeitAktuell: 0,
     notiz: '',
     ...partial,
   };
@@ -136,6 +139,22 @@ describe('effektiverRs', () => {
   });
   it('ist 0 ohne getragene Rüstung', () => {
     expect(effektiverRs([item({ rs: 4 })])).toBe(0);
+  });
+});
+
+describe('haltbarkeitPct', () => {
+  it('ist null, solange nichts verfolgt wird (Maximum 0)', () => {
+    expect(haltbarkeitPct(item({}))).toBeNull();
+  });
+  it('rechnet aktuell/Maximum als gerundeten Prozentsatz', () => {
+    expect(haltbarkeitPct(item({ haltbarkeitMax: 10, haltbarkeitAktuell: 10 }))).toBe(100);
+    expect(haltbarkeitPct(item({ haltbarkeitMax: 10, haltbarkeitAktuell: 3 }))).toBe(30);
+    expect(haltbarkeitPct(item({ haltbarkeitMax: 3, haltbarkeitAktuell: 1 }))).toBe(33); // gerundet
+  });
+  it('kappt aktuell auf [0, Maximum], auch bei kaputten Werten', () => {
+    expect(haltbarkeitPct(item({ haltbarkeitMax: 10, haltbarkeitAktuell: 999 }))).toBe(100);
+    expect(haltbarkeitPct(item({ haltbarkeitMax: 10, haltbarkeitAktuell: -5 }))).toBe(0);
+    expect(haltbarkeitPct(item({ haltbarkeitMax: 10, haltbarkeitAktuell: NaN }))).toBe(0);
   });
 });
 

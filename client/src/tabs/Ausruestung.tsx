@@ -4,6 +4,7 @@ import {
   BODY_ZONES,
   containerFuellungAnzeige,
   effektiverRs,
+  haltbarkeitPct,
   isPairedZone,
   itemsInContainer,
   itemGewicht,
@@ -263,6 +264,16 @@ function ItemChip({
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
         {w > 0 && <span className="chip-kg"> · {kg(w)} kg</span>}
         {item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>}
+        {(() => {
+          const pct = haltbarkeitPct(item);
+          if (pct === null) return null;
+          return (
+            <span className={`chip-haltbarkeit${pct <= 25 ? ' chip-haltbarkeit--low' : ''}`} title="Haltbarkeit">
+              {' '}
+              {pct}%
+            </span>
+          );
+        })()}
         {item.beidseitig && (
           <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>
         )}
@@ -278,6 +289,24 @@ function ItemChip({
           <label>Anzahl<NumInput value={item.anzahl} min={0} onChange={(v) => onPatch({ anzahl: v })} /></label>
           <label>kg/St.<NumInput value={item.gewicht} min={0} onChange={(v) => onPatch({ gewicht: v })} /></label>
           <label>RS<NumInput value={item.rs} min={0} onChange={(v) => onPatch({ rs: v })} /></label>
+          <label title="Haltbarkeit wie LP — 0 Maximum heißt „nicht verfolgt“, die %-Anzeige bleibt dann aus.">
+            Haltbarkeit
+            <NumInput
+              value={item.haltbarkeitMax}
+              min={0}
+              onChange={(v) =>
+                // Neu eingeschaltet (war 0/0) → auf voll starten, statt sofort bei 0 %.
+                onPatch(item.haltbarkeitMax === 0 && item.haltbarkeitAktuell === 0 ? { haltbarkeitMax: v, haltbarkeitAktuell: v } : { haltbarkeitMax: v })
+              }
+            />
+            /
+            <NumInput
+              value={item.haltbarkeitAktuell}
+              min={0}
+              max={item.haltbarkeitMax}
+              onChange={(v) => onPatch({ haltbarkeitAktuell: v })}
+            />
+          </label>
           {isPairedZone(item.zone) && (
             <label className="chip-check" title="Als Paar auf beiden Seiten getragen — ein Gegenstand, in beiden Zellen gezeigt. Gewicht und RS zählen einmal.">
               <input type="checkbox" checked={item.beidseitig} onChange={(e) => onPatch({ beidseitig: e.target.checked })} />

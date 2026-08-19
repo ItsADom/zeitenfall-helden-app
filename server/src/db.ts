@@ -415,6 +415,10 @@ db.exec(`
     kapazitaet_art TEXT NOT NULL DEFAULT 'gewicht',
     gewichtsreduktion REAL NOT NULL DEFAULT 0,
     rs REAL NOT NULL DEFAULT 0,
+    -- Haltbarkeit wie LP für Gegenstände (0 = nicht verfolgt, siehe haltbarkeitPct
+    -- in shared/src/items.ts).
+    haltbarkeit_max REAL NOT NULL DEFAULT 0,
+    haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT ''
   );
   -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
@@ -707,6 +711,8 @@ db.exec(`
   if (!cols.has('gewichtsreduktion')) db.exec('ALTER TABLE char_items ADD COLUMN gewichtsreduktion REAL NOT NULL DEFAULT 0');
   if (!cols.has('rs')) db.exec('ALTER TABLE char_items ADD COLUMN rs REAL NOT NULL DEFAULT 0');
   if (!cols.has('beidseitig')) db.exec('ALTER TABLE char_items ADD COLUMN beidseitig INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('haltbarkeit_max')) db.exec('ALTER TABLE char_items ADD COLUMN haltbarkeit_max REAL NOT NULL DEFAULT 0');
+  if (!cols.has('haltbarkeit_aktuell')) db.exec('ALTER TABLE char_items ADD COLUMN haltbarkeit_aktuell REAL NOT NULL DEFAULT 0');
   // Bestehende Zeilen ohne uid nachträglich befüllen (eine zufällige je Zeile).
   db.exec("UPDATE char_items SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
 }
