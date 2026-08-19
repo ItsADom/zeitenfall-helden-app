@@ -6,7 +6,7 @@ import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ProbeRollPayload, ServerToClientMessage } from 'shared';
 import type { RolledConfirmation } from 'shared';
-import { parseDiceExpression, resolveExpressionRoll, resolveProbeRoll } from 'shared';
+import { MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
@@ -153,7 +153,15 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       return;
     }
     case 'roll.expr': {
-      const expression = parseDiceExpression(String(msg.expression ?? ''));
+      // „/master"/„/wild": Würfel UND Ergebnistext kommen komplett vom
+      // Server, nie vom Client — sonst könnte sich ein manipulierter Client
+      // sein Tabellenergebnis aussuchen (derselbe Grund wie bei probeZahl).
+      const table = msg.table === 'master' || msg.table === 'wild' ? msg.table : undefined;
+      const expression: DiceExpression | null = table
+        ? table === 'master'
+          ? { groups: [{ count: 1, sides: 6 }], modifier: 0 }
+          : { groups: [{ count: 1, sides: 6 }, { count: 1, sides: 20 }], modifier: 0 }
+        : parseDiceExpression(String(msg.expression ?? ''));
       if (!expression) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
         return;
@@ -162,9 +170,17 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // kennen beides nicht (kommt mit dem GM+Spieler-Fluss in Phase 6).
       const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
       const result = performExpressionRoll(expression);
+      // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
+      // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
+      const outcomeLabel =
+        table === 'master'
+          ? MASTER_TABLE[result.dice[0] - 1]
+          : table === 'wild'
+            ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
+            : undefined;
       const roll: ExpressionRollPayload = {
         mode: 'expr',
-        label: String(msg.label ?? '').slice(0, 60).trim(),
+        label: table ? (table === 'master' ? 'Meisterwurf' : 'Wilde Magie') : String(msg.label ?? '').slice(0, 60).trim(),
         expression: result.expression,
         dice: result.dice,
         confirmations: result.confirmations,
@@ -173,6 +189,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         rawSum: result.rawSum,
         adjustedSum: result.adjustedSum,
         flagged: result.flagged,
+        ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
       };
       insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), null, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });

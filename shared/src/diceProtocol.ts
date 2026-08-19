@@ -71,6 +71,13 @@ export interface ExpressionRollPayload {
   rawSum: number;
   adjustedSum: number;
   flagged: boolean;
+  /**
+   * „/master"/„/wild": ein serverseitig nachgeschlagener Ergebnistext (siehe
+   * MASTER_TABLE/WILD_MAGIC_TABLE in shared/src/dice.ts), angezeigt an der
+   * Stelle, an der eine Probe „Erfolg"/„Fehlschlag" zeigen würde. Unbesetzt
+   * bei einem gewöhnlichen freien Wurf.
+   */
+  outcomeLabel?: string;
 }
 
 export type RollPayload = ProbeRollPayload | ExpressionRollPayload;
@@ -108,7 +115,12 @@ export interface PendingRollRequest {
 // error reply back to the control that sent it.
 export type ClientToServerMessage =
   | { type: 'chat.send'; reqId: string; text: string; isMe: boolean; charId: number | null }
-  | { type: 'roll.expr'; reqId: string; label: string; expression: string; visibility: RollVisibility; charId: number | null }
+  // `table`: „/master"/„/wild" — der Server würfelt die dazu passenden
+  // Würfel und den Ergebnistext selbst (siehe ws.ts), `expression`/`label`
+  // werden dann ignoriert. Nie vom Client übernommen, aus demselben Grund
+  // wie probeZahl: sonst könnte ein manipulierter Client sich ein Ergebnis
+  // aussuchen.
+  | { type: 'roll.expr'; reqId: string; label: string; expression: string; visibility: RollVisibility; charId: number | null; table?: 'master' | 'wild' }
   // modifier: situative Erleichterung(-)/Erschwernis(+) der Spielleitung, vom
   // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — wirkt auf die
   // geworfene Summe, nicht auf probeZahl (siehe shared/src/dice.ts). Der

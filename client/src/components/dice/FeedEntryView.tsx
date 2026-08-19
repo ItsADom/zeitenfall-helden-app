@@ -168,6 +168,9 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
                   : OUTCOME.failure}
           </span>
         )}
+        {/* „/master"/„/wild": derselbe Platz, den eine Probe für Erfolg/
+            Fehlschlag nutzt, mit dem serverseitig nachgeschlagenen Text. */}
+        {!isProbe && roll.outcomeLabel && <span className="feed-roll-outcome">{roll.outcomeLabel}</span>}
       </div>
       <Confirmations confirmations={roll.confirmations} />
       <PendingConfirmations entryId={entry.id} pending={roll.pending} mine={mine} />

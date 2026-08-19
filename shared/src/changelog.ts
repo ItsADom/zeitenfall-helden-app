@@ -178,6 +178,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Pfeiltaste nach oben im leeren Chat-Eingabefeld holt deinen letzten „/r"-Wurf zurück, zum Wiederholen oder Abändern.',
       'Eine Trennlinie im Chat: drei oder mehr Bindestriche „---" (oder „/line") ziehen einen sichtbaren Strich, praktisch als Markierung für Szenenwechsel oder Sessionende.',
       'Freie Würfe können ihren Titel gleich mitbringen: „/r 5w10+6#Glück" beschriftet den Wurf inline als „Glück", ohne erst einen Würfel-Favoriten anzulegen.',
+      'Freie Würfe dürfen jetzt auch verschiedene Würfelarten mischen, z. B. „1w6+1w20" oder „2w6+1w4+3" — alle Blöcke werden addiert (ein Block lässt sich nicht abziehen, nur die flache Zahl am Ende darf negativ sein).',
+      '„/master" würfelt einen Meisterwurf (W6 gegen eine feste Ergebnisliste — Positive/Negative Götterinteraktion, Zusatzhandlung, Zustandsänderung oder Nichts) und „/wild" einen Wurf für wilde Magie (W6 für die Kategorie, dazu ein W20-Unterergebnis) — beide für alle Spieler, nicht nur die Spielleitung.',
     ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas. Noch unbeantwortete Anfragen lassen sich per „Zurückziehen" auch wieder zurücknehmen.',

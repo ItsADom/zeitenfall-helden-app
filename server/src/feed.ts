@@ -38,9 +38,23 @@ interface FeedRow {
   roll_json: string | null;
 }
 
+// Vor der Mehrfach-Würfel-Erweiterung stand `expression` als flaches
+// { count, sides, modifier } im gespeicherten JSON, statt als { groups,
+// modifier }. Ältere Zeilen im Verlauf lassen sich nicht rückwirkend
+// umschreiben — also beim Lesen einmalig heben, sonst stürzt die Anzeige an
+// jedem älteren freien Wurf.
+function migrateLegacyExpression(roll: RollPayload): RollPayload {
+  if (roll.mode !== 'expr') return roll;
+  const expr = roll.expression as unknown as { count?: number; sides?: number; modifier?: number; groups?: unknown };
+  if (expr && expr.groups === undefined && typeof expr.count === 'number' && typeof expr.sides === 'number') {
+    return { ...roll, expression: { groups: [{ count: expr.count, sides: expr.sides }], modifier: expr.modifier ?? 0 } };
+  }
+  return roll;
+}
+
 function rowToEntry(row: FeedRow): FeedEntry {
   if (row.kind === 'roll') {
-    const roll = JSON.parse(row.roll_json ?? '{}') as RollPayload;
+    const roll = migrateLegacyExpression(JSON.parse(row.roll_json ?? '{}') as RollPayload);
     const entry: RollFeedEntry = {
       id: row.id,
       kind: 'roll',

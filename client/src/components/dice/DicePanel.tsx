@@ -166,6 +166,16 @@ export default function DicePanel() {
       setDraft('');
       return;
     }
+    // „/master"/„/wild": fester Würfel-Ausdruck, Ergebnistext kommt vom
+    // Server (siehe ws.ts) — hier nur der Befehl, kein Würfelausdruck nötig.
+    if (/^\/master$/i.test(text) || /^\/wild$/i.test(text)) {
+      const table = /^\/master$/i.test(text) ? 'master' : 'wild';
+      rollExpr(table === 'master' ? '1w6' : '1w6+1w20', visibility, '', table);
+      lastRollCmdRef.current = text;
+      setError('');
+      setDraft('');
+      return;
+    }
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       const { expr, label } = splitInlineTitle(roll[1]);

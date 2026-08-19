@@ -69,7 +69,7 @@ interface DicePanelCtxValue {
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
-  rollExpr: (expression: string, visibility: RollVisibility, label?: string) => void;
+  rollExpr: (expression: string, visibility: RollVisibility, label?: string, table?: 'master' | 'wild') => void;
   /**
    * Probe vom Charakterbogen. Wechselt bei Bedarf in den Raum dieser Gruppe
    * (ein Wurf ist eine bewusste Handlung — anders als bloßes Blättern) und
@@ -335,8 +335,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const rollExpr = useCallback(
-    (expression: string, visibility: RollVisibility, label = '') => {
-      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId });
+    (expression: string, visibility: RollVisibility, label = '', table?: 'master' | 'wild') => {
+      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId, table });
     },
     [charId, sendMsg],
   );
