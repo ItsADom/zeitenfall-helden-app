@@ -25,11 +25,22 @@ export default function WikiKategorie() {
   const [fehler, setFehler] = useState('');
 
   useEffect(() => {
+    // Verworfen, sobald man weiterklickt: sonst gewinnt die langsamste Antwort
+    // statt der letzten, und man liest eine Kategorie unter der Überschrift
+    // einer anderen.
+    let aktuell = true;
     setDaten(null);
     setFehler('');
     ladeKategorie(tag)
-      .then(setDaten)
-      .catch(() => setFehler('Die Kategorie konnte nicht geladen werden.'));
+      .then((d) => {
+        if (aktuell) setDaten(d);
+      })
+      .catch(() => {
+        if (aktuell) setFehler('Die Kategorie konnte nicht geladen werden.');
+      });
+    return () => {
+      aktuell = false;
+    };
   }, [tag]);
 
   const doc = useMemo(() => parseWiki(daten?.seite?.text ?? ''), [daten?.seite?.text]);

@@ -33,11 +33,22 @@ export default function WikiSuche() {
       setTreffer([]);
       return;
     }
+    // Beim Tippen laufen mehrere Anfragen gleichzeitig; ohne Abmeldung zeigt
+    // am Ende die langsamste ihre Treffer zu einem Suchwort, das nicht mehr
+    // im Feld steht.
+    let aktuell = true;
     setTreffer(null);
     setFehler('');
     sucheSeiten(q)
-      .then((d) => setTreffer(d.treffer))
-      .catch(() => setFehler('Die Suche ist fehlgeschlagen.'));
+      .then((d) => {
+        if (aktuell) setTreffer(d.treffer);
+      })
+      .catch(() => {
+        if (aktuell) setFehler('Die Suche ist fehlgeschlagen.');
+      });
+    return () => {
+      aktuell = false;
+    };
   }, [q]);
 
   return (

@@ -30,16 +30,36 @@ export default function WikiSeite() {
   const folgen = params.get('folgen') !== 'nein';
 
   const laden = useCallback(() => {
+    // `kanonisch` MUSS mit zurückgesetzt werden. Es beschreibt die Seite, die
+    // gerade geladen ist — steht dort beim Wechsel noch der Wert der vorigen,
+    // vergleicht die Weiterleitungsprüfung weiter unten den NEUEN Slug mit der
+    // ALTEN Adresse, hält das für eine Umbenennung und schickt zurück, woher
+    // man gerade kam. Die Antwort auf die neue Seite ist da schon unterwegs und
+    // setzt gleich wieder um: Beide Seiten schaukeln sich sekundenlang hoch,
+    // und weil <Navigate> nichts rendert, steht die Spalte dabei leer.
+    let aktuell = true;
     setFehler('');
     setSeite(null);
+    setKanonisch(null);
     ladeSeite(slug, folgen)
       .then((d) => {
+        // Antwort einer Seite, die man inzwischen verlassen hat: verwerfen.
+        // Ohne das gewinnt die langsamste Anfrage statt der letzten.
+        if (!aktuell) return;
         setSeite(d.seite);
         setKanonisch(d.kanonisch);
       })
-      .catch((e) => setFehler(e instanceof ApiError && e.status === 404 ? 'nicht-gefunden' : 'Fehler beim Laden'));
+      .catch((e) => {
+        if (!aktuell) return;
+        setFehler(e instanceof ApiError && e.status === 404 ? 'nicht-gefunden' : 'Fehler beim Laden');
+      });
+    return () => {
+      aktuell = false;
+    };
   }, [slug, folgen]);
 
+  // Der Rückgabewert von `laden` ist die Abmeldung — useEffect räumt damit beim
+  // Wechsel die noch offene Anfrage ab.
   useEffect(laden, [laden]);
 
   // Parsed once per text: the rendering and the table of contents must agree

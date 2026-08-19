@@ -154,6 +154,16 @@ These are standing instructions — follow them without being reminded.
   database, and an edit made under that code updates the text while leaving the
   derived column stale. A `user_version` step would catch neither that nor a
   restore from an older backup.
+- **State that describes "what is loaded" must be cleared when the thing being
+  loaded changes** — and every fetch keyed on a route parameter needs an
+  `let aktuell = true` guard whose cleanup drops the answer. The wiki's page view
+  kept `kanonisch` (the canonical slug of the page it had) across a slug change,
+  so the rename-redirect check compared the NEW slug against the OLD page and
+  navigated back where the reader came from; the in-flight response then bounced
+  it forward again. Twelve round trips in two seconds, with an empty column
+  throughout because `<Navigate>` renders nothing. Resetting the value is what
+  breaks the loop; dropping stale answers is what stops the slowest request from
+  winning over the newest.
 - **Hiding text from a reader is not enough — you must not send it.** The wiki's
   ` ```gm ` regions are removed server-side before the response. A client that
   merely declined to render them would still have shipped the text, and anyone

@@ -34,15 +34,21 @@ export default function WikiVerlauf() {
   const [laedt, setLaedt] = useState(false);
 
   const laden = useCallback(() => {
+    let aktuell = true;
     ladeVerlauf(slug)
       .then((d) => {
+        if (!aktuell) return;
         setTitel(d.titel);
         setEintraege(d.eintraege);
         setDarfBearbeiten(d.darfBearbeiten);
       })
-      .catch((e) =>
-        setFehler(e instanceof ApiError && e.status === 404 ? 'Seite nicht gefunden' : 'Fehler beim Laden'),
-      );
+      .catch((e) => {
+        if (!aktuell) return;
+        setFehler(e instanceof ApiError && e.status === 404 ? 'Seite nicht gefunden' : 'Fehler beim Laden');
+      });
+    return () => {
+      aktuell = false;
+    };
   }, [slug]);
 
   useEffect(laden, [laden]);
