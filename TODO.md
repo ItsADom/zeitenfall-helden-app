@@ -18,10 +18,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
-- make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
-- confirmation gets rolled for every dice itself, but the player should only decide to roll confirmations as a single decision
-- give player the choice to use w or d for rolls in display
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
 
@@ -99,6 +95,55 @@ chips. Backend table `char_special_resources`. Open for the full version:
    - Still open: where the bio markdown source is stored (new column/table) and
      the exact link/entry point from the sheet. The library question is settled
      — there is no library, and the existing renderer is the answer.
+- [ready] **Direct GM+player roll visibility, no request needed** (concept
+  agreed): today "SL + Spieler" visibility only exists via the GM-initiated
+  request flow — `VisibilityPicker.tsx` and `ProbeRollButton.tsx` both already
+  have comments deferring it as a directly-selectable mode to "a later
+  expansion stage." Reuse the existing visibility flyout rather than adding a
+  new UI element (the dock row is already tight) — role-conditional content:
+   - Player: gains a third option "SL + ich" next to Öffentlich/Verborgen.
+     Counterpart resolves to whichever `isGm` account is currently connected
+     to this room's websocket (`ws.ts`'s `rooms` map already tracks
+     `socketMeta.isGm` per connection). If none is connected, reject with an
+     error message (same pattern as other roll errors) rather than silently
+     falling back to fully hidden.
+   - GM: the same flyout instead lists group members to target ("→ <Name>")
+     in place of a flat "SL + Spieler" line — lets the GM roll something
+     (free `/r`, an NPC-style roll) and choose who besides themselves sees it.
+   - No protocol/schema change needed: `canSeeFeedEntry`'s gating
+     (`authorUserId === viewer || gmUserId === viewer`) doesn't care which
+     role each id represents — a GM's targeted roll just puts the TARGET
+     PLAYER's id in the `gmUserId` slot (misleadingly named for this case,
+     works correctly); `insertFeedRoll`'s existing 3rd param already accepts
+     an arbitrary counterpart id.
+   - Scope: the docked chat's free-roll `VisibilityPicker` only for now.
+     `ProbeRollButton.tsx` has its own separate public/hidden-only flyout on
+     sheet dice buttons — same mechanism could extend there later, not
+     required for this pass.
+- [ready] **Single decision for multi-die confirmations** (concept agreed;
+  user feedback): a Probe with 2+ natural 20s/1s currently makes the player
+  click Bestätigen/Ohne once PER triggering die (`PendingConfirmations` in
+  `FeedEntryView.tsx` renders one button-row per `pending` entry). No
+  protocol change needed — `roll.confirm` already resolves one die at a time
+  server-side, and since the server is synchronous SQLite (`better-sqlite3`,
+  no async gap mid-handler), firing several `roll.confirm` messages back-to-
+  back on one connection is safe with no race risk. Purely client-side: swap
+  the per-die rows for ONE combined "Bestätigen alle"/"Ohne alle" pair that
+  loops `confirmDie` over every pending die — all-or-nothing by design, no
+  mixed roll-some-skip-some option (that's the point of the ask).
+- [ready] **"/dicecode" command for w/d display preference** (concept agreed;
+  user feedback): both letters are already accepted as *input* (the existing
+  `d`-alias feature), this is about what the app itself *displays* —
+  `exprText` in `FeedEntryView.tsx` hardcodes `w`. A slash command, not a
+  settings-page toggle or a new dock button (consistent with `/line`,
+  `/master`, `/wild`): `/dicecode w` / `/dicecode d` sets the preference
+  explicitly (clearer than a toggle that requires remembering current
+  state), bare `/dicecode` echoes the current setting. Must stay 100%
+  client-side — detected in `DicePanel.tsx`'s `send()` alongside the other
+  command intercepts, but instead of `sendChat`/`rollExpr` it only writes a
+  `usePersistedState` preference (same pattern as the dock's own
+  width/height/visibility persistence) and clears the draft — never touches
+  the websocket, since it's a personal display setting, not a chat message.
 - [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
   (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
   player requests, roll log, explicit room switching) shipped on
