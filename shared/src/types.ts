@@ -255,7 +255,10 @@ export interface UserInfo {
   isAdmin: boolean;
   // Nur im Entwicklungs-/Opt-in-Modus gesetzt: erlaubt dem Spielleiter die
   // „Ansehen als"-Vorschau von Charakteren aus Sicht anderer Nutzer.
-  devViewAs?: boolean;
+  // Deliberately required: an absent field looks exactly like "switched off",
+  // which is how the login response lost it once — the bar stayed hidden until
+  // a full page reload.
+  devViewAs: boolean;
 }
 
 export interface GroupInfo {

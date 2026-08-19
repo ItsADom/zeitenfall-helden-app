@@ -1,5 +1,6 @@
 import express, { Router } from 'express';
 import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
+import type { UserInfo } from 'shared';
 import { instanceGate, mayEnter } from './accessGate.js';
 import {
   createSession,
@@ -13,6 +14,7 @@ import {
   SESSION_TTL_DAYS,
   verifyPassword,
 } from './auth.js';
+import type { SessionUser } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { db, initCharacterRows } from './db.js';
 import {
@@ -125,6 +127,21 @@ function characterAccess(user: { id: number; isGm: boolean }, char: CharRow): Ac
 // er wählt nur die Ansicht, verleiht aber keine Schreibrechte.
 const DEV_VIEW_AS = process.env.NODE_ENV !== 'production' || process.env.DEV_VIEW_AS === '1';
 
+// The single place that builds the user record the client receives. Login and
+// /api/me have to answer with the same shape: built separately, the login
+// response silently omitted devViewAs, so a freshly logged-in GM saw no
+// "Ansehen als" bar until a full page reload replaced the record via /api/me.
+function userInfo(u: SessionUser): UserInfo {
+  return {
+    id: u.id,
+    username: u.username,
+    displayName: u.displayName,
+    isGm: u.isGm,
+    isAdmin: u.isAdmin,
+    devViewAs: DEV_VIEW_AS,
+  };
+}
+
 // Ermittelt den „Blickwinkel"-Nutzer für einen Request: normal req.user, im
 // Ansehen-als-Modus (nur Spielleiter, nur wenn erlaubt) der gewählte Nutzer.
 function viewerFor(req: import('express').Request): { viewer: { id: number; isGm: boolean }; viewAs: { id: number; name: string } | null } {
@@ -189,7 +206,15 @@ api.post('/login', (req, res) => {
   perAccount.reset(acctKey);
   const token = createSession(user.id);
   res.setHeader('Set-Cookie', sessionCookie(token, SESSION_TTL_DAYS * 24 * 60 * 60));
-  res.json({ id: user.id, username: user.username, displayName: user.display_name, isGm: !!user.is_gm, isAdmin: !!user.is_admin });
+  res.json(
+    userInfo({
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      isGm: !!user.is_gm,
+      isAdmin: !!user.is_admin,
+    }),
+  );
 });
 
 api.post('/logout', (req, res) => {
@@ -200,7 +225,7 @@ api.post('/logout', (req, res) => {
 });
 
 api.get('/me', requireAuth, (req, res) => {
-  res.json({ ...req.user, devViewAs: DEV_VIEW_AS });
+  res.json(userInfo(req.user!));
 });
 
 api.put('/me/password', requireAuth, (req, res) => {
