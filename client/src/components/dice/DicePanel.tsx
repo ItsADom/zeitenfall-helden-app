@@ -53,6 +53,7 @@ export default function DicePanel() {
     loadMore,
     modifier,
     setModifier,
+    serverError,
   } = useDicePanel();
   const activeRoom = myGroups.find((g) => g.id === groupId);
   const [draft, setDraft] = useState('');
@@ -225,7 +226,7 @@ export default function DicePanel() {
           </>
         )}
       </div>
-      {error && <p className="dice-dock-error">{error}</p>}
+      {(error || serverError) && <p className="dice-dock-error">{error || serverError}</p>}
       <div className="dice-dock-input">
         {showSuggestions && (
           <div className="dice-suggest" role="listbox">

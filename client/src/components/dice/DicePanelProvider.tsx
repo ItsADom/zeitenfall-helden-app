@@ -53,6 +53,8 @@ interface DicePanelCtxValue {
   toggle: () => void;
   hidden: boolean;
   setHidden: (h: boolean) => void;
+  /** Letzte Ablehnung vom Server (Ratenlimit, falsche Gruppe, abgelaufene Anfrage, …) — verschwindet von selbst. */
+  serverError: string | null;
   /**
    * Situative Erleichterung(-)/Erschwernis(+), von der Spielleitung am Tisch
    * angesagt — wirkt auf die geworfene Summe, nicht auf die Probe-Zahl (man
@@ -109,6 +111,7 @@ export function useDicePanel(): DicePanelCtxValue {
       toggle: () => {},
       hidden: false,
       setHidden: () => {},
+      serverError: null,
       modifier: 0,
       setModifier: () => {},
       selectRoom: () => {},
@@ -140,6 +143,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [modifier, setModifier] = usePersistedState<number>('dice:modifier', 0);
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
+  const [serverError, setServerError] = useState<string | null>(null);
+  const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const groupIdRef = useRef<number | null>(null);
@@ -156,6 +161,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     else outboxRef.current.push(msg);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (serverErrorTimerRef.current) clearTimeout(serverErrorTimerRef.current);
+    };
   }, []);
 
   const connect = useCallback((gid: number) => {
@@ -198,17 +209,29 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setCollapsed(false);
         return;
       }
-      if (msg.type === 'roll.pending.expired' || msg.type === 'roll.pending.declined') {
+      if (
+        msg.type === 'roll.pending.expired' ||
+        msg.type === 'roll.pending.declined' ||
+        msg.type === 'roll.pending.accepted'
+      ) {
+        // Per id, nicht per Charakter — sonst würde eine von mehreren offenen
+        // Anfragen an denselben Charakter auch die anderen wegwischen.
         setPendingRequests((prev) => prev.filter((r) => r.id !== msg.requestId));
+        return;
+      }
+      if (msg.type === 'error') {
+        // Abgelehnte Aktion (Ratenlimit, falsche Gruppe, veraltete Anfrage, …)
+        // — sonst bliebe eine Ablehnung unsichtbar, der Klick sähe nach
+        // nichts aus. Verschwindet von selbst statt einer weiteren Klick-
+        // fläche zum Wegklicken.
+        if (serverErrorTimerRef.current) clearTimeout(serverErrorTimerRef.current);
+        setServerError(msg.message);
+        serverErrorTimerRef.current = setTimeout(() => setServerError(null), 6000);
         return;
       }
       // append und update laufen beide durch mergeFeed (dedupliziert nach id),
       // ein Update ersetzt den vorhandenen Eintrag also einfach.
       if (msg.type !== 'feed.append' && msg.type !== 'feed.update') return;
-      // Ein angenommener Wurf erledigt seine Anfrage — die Karte kann weg.
-      if (msg.type === 'feed.append' && msg.entry.kind === 'roll' && msg.entry.visibility === 'gm_player') {
-        setPendingRequests((prev) => prev.filter((r) => r.targetCharId !== msg.entry.authorCharId));
-      }
       if (bufferingRef.current) {
         liveBufferRef.current.push(msg.entry);
       } else {
@@ -238,6 +261,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setFeed([]);
       setHasMore(false);
       setConnected(false);
+      // Anfragen aus dem alten Raum haben hier nichts verloren — der neue
+      // Raum reicht seine eigenen offenen Anfragen gleich nach dem Verbinden
+      // nach (siehe server/src/ws.ts, pendingRequestsFor beim Upgrade).
+      setPendingRequests([]);
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) {
@@ -414,6 +441,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         toggle: () => setCollapsed((v) => !v),
         hidden,
         setHidden,
+        serverError,
         modifier,
         setModifier,
         selectRoom,
