@@ -173,10 +173,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Erleichterung/Erschwernis: Fragt die Spielleitung am Tisch eine Erleichterung oder Erschwerung an, stellst du das im Chat-Panel ein (neben der Sichtbarkeit) — er gilt für die nächste Probe, egal ob vom Bogen oder aus dem Chat-Vorschlag gewürfelt, und setzt sich danach von selbst zurück. Der Wert steht immer sichtbar beim Wurf.',
       'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
       'Ausrüstungsgegenstände können jetzt eine Haltbarkeit wie LP bekommen — in den Gegenstands-Details einmal ein Maximum eintragen, danach zeigt der Ausrüstungs-Chip den aktuellen Zustand als Prozentsatz; kritisch niedrige Werte fallen rot auf.',
-    ],
-    changed: [
-      'Der Zielwert einer Probe (die Zahl hinter dem „/") steht jetzt nur noch beim Werfer selbst und bei der Spielleitung — andere Spieler sehen im Chat weiterhin Würfel, Summe und Erfolg/Misserfolg, aber nicht mehr den genauen Attributs-/Talentwert dahinter.',
-      'Jeder Wurf im Chat zeigt jetzt in Klammern, welche Würfel tatsächlich gerollt wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdeckt hätte.',
+      'Der Zielwert einer Probe (die Zahl hinter dem „/") ist nur für dich selbst und die Spielleitung sichtbar — andere Spieler sehen im Chat Würfel, Summe und Erfolg/Misserfolg, aber nicht den genauen Attributs-/Talentwert dahinter.',
+      'Jeder Wurf im Chat zeigt in Klammern, welche Würfel geworfen wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdecken würde.',
       'Pfeiltaste nach oben im leeren Chat-Eingabefeld holt deinen letzten „/r"-Wurf zurück, zum Wiederholen oder Abändern.',
     ],
     admin: [
