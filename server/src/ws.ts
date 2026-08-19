@@ -31,6 +31,25 @@ function createMessageRateLimit(): TokenBucket {
   return createTokenBucket({ capacity: 20, refillPerSec: 5 });
 }
 
+// Keyed by user, not by connection: a plain per-socket bucket would refill
+// to a full burst on every reconnect, which is exactly the "reconnect loop"
+// case the limiter is meant to guard against. Small, bounded by distinct
+// users of this self-hosted app — never cleaned up, same tradeoff as `rooms`.
+const userRateLimits = new Map<number, TokenBucket>();
+function rateLimitFor(userId: number): TokenBucket {
+  let bucket = userRateLimits.get(userId);
+  if (!bucket) {
+    bucket = createMessageRateLimit();
+    userRateLimits.set(userId, bucket);
+  }
+  return bucket;
+}
+
+// Rate-limited by default; nothing is currently exempt. Explicit opt-out
+// list instead of an allow-list match on msg.type, so a future message type
+// can't silently skip the limiter just because it doesn't start with 'roll.'.
+const RATE_LIMIT_EXEMPT: ReadonlySet<ClientToServerMessage['type']> = new Set();
+
 const rooms = new Map<number, Set<WebSocket>>();
 const socketMeta = new WeakMap<WebSocket, SocketMeta>();
 
@@ -68,8 +87,9 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
 }
 
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender
-// gehört (sonst könnte man unter fremdem Namen posten) — sonst das Konto. Der
-// kurze Chat-Anzeigename hat Vorrang vor dem vollen Charakternamen.
+// gehört UND zu dieser Gruppe gehört (sonst könnte man unter fremdem Namen
+// oder mit einem Charakter aus einer anderen Gruppe posten) — sonst das
+// Konto. Der kurze Chat-Anzeigename hat Vorrang vor dem vollen Charakternamen.
 // Situative Erleichterung(-)/Erschwernis(+), vom Spieler selbst eingetragen
 // (Dock, neben VisibilityPicker) — nicht die Bogen-Bestätigung. Wirkt auf die
 // GEWORFENE Summe, nicht auf probeZahl (siehe resolveProbeRoll in
@@ -87,9 +107,9 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
   const charId = rawCharId != null ? Number(rawCharId) : null;
   if (charId != null) {
     const char = db
-      .prepare('SELECT name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?')
-      .get(charId, meta.userId) as { name: string; chat_name: string } | undefined;
-    if (char) return { userId: meta.userId, charId, name: char.chat_name || char.name };
+      .prepare('SELECT name, chat_name, group_id FROM characters WHERE id = ? AND owner_user_id = ?')
+      .get(charId, meta.userId) as { name: string; chat_name: string; group_id: number | null } | undefined;
+    if (char && char.group_id === meta.groupId) return { userId: meta.userId, charId, name: char.chat_name || char.name };
   }
   return { userId: meta.userId, charId: null, name: meta.displayName };
 }
@@ -103,9 +123,9 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
   } catch {
     return;
   }
-  if (!msg || typeof msg !== 'object' || typeof msg.reqId !== 'string') return;
+  if (!msg || typeof msg !== 'object' || typeof msg.reqId !== 'string' || typeof msg.type !== 'string') return;
 
-  if ((msg.type === 'chat.send' || msg.type.startsWith('roll.')) && !meta.rateLimit.take()) {
+  if (!RATE_LIMIT_EXEMPT.has(msg.type) && !meta.rateLimit.take()) {
     send(ws, { type: 'error', reqId: msg.reqId, message: 'Zu viele Anfragen, bitte kurz warten' });
     return;
   }
@@ -298,6 +318,12 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       removePendingRequest(request.id);
+      // Beide Seiten sollen genau DIESE Anfrage als erledigt sehen — per id,
+      // nicht per Charakter, sonst würde das Annehmen einer von mehreren
+      // offenen Anfragen an denselben Charakter auch die anderen wegwischen.
+      for (const uid of [request.targetUserId, request.gmUserId]) {
+        sendToUserInGroup(request.groupId, uid, { type: 'roll.pending.accepted', requestId: request.id });
+      }
       const modifier = clampModifier(msg.modifier);
       const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
       const roll: ProbeRollPayload = {
@@ -378,7 +404,7 @@ export function attachWsServer(server: http.Server): void {
     }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
-      socketMeta.set(ws, { userId: user.id, isGm: user.isGm, displayName: user.displayName, groupId, rateLimit: createMessageRateLimit() });
+      socketMeta.set(ws, { userId: user.id, isGm: user.isGm, displayName: user.displayName, groupId, rateLimit: rateLimitFor(user.id) });
       let room = rooms.get(groupId);
       if (!room) {
         room = new Set();

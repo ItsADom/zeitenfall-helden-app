@@ -128,5 +128,6 @@ export type ServerToClientMessage =
   | { type: 'roll.pending.created'; request: PendingRollRequest }
   | { type: 'roll.pending.expired'; requestId: string }
   | { type: 'roll.pending.declined'; requestId: string }
+  | { type: 'roll.pending.accepted'; requestId: string }
   | { type: 'ack'; reqId: string }
   | { type: 'error'; reqId: string; message: string };
