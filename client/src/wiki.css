@@ -1,0 +1,961 @@
+/* ---------- Wiki ----------
+   Eigene Datei, weil styles.css schon 4336 Zeilen hat. Jede Regel ist mit
+   .wiki- benannt, damit nichts in den Rest der App ausstrahlt.
+
+   Ausschließlich Token, nie feste Farben: die Farbwelten laufen über zwei
+   Achsen (Farbe × hell/dunkel), und ein hart notierter Farbwert bricht sofort
+   eine der Varianten. */
+
+.wiki-schale {
+  /* Breiter als der Artikel selbst: die linke Spalte kommt hinzu, statt dem
+     Text Platz wegzunehmen. */
+  max-width: 1320px;
+  margin: 0 auto;
+}
+.wiki {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* --- Zweispaltig: Wegweiser links, Artikel rechts ---
+   `minmax(0, 1fr)` statt `1fr`: eine breite Tabelle im Artikel würde die
+   Spalte sonst aufblähen und die Seite quer scrollen lassen. */
+.wiki-koerper {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 0 32px;
+  align-items: start;
+}
+.wiki-spalte {
+  min-width: 0;
+}
+
+.wiki-seitenleiste {
+  position: sticky;
+  /* Unter beidem, was darüber klebt — beide gemessen, keine geschätzten Werte. */
+  top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px) + 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding-right: 14px;
+  border-right: 1px solid var(--border);
+  /* Ein langes Inhaltsverzeichnis darf nicht aus dem Fenster laufen; die
+     Leiste ist der eine Kasten im Wiki, der scrollen DARF, weil er nichts
+     enthält als Verweise. */
+  max-height: calc(100vh - var(--topbar-h, 47px) - var(--wikikopf-h, 0px) - 28px);
+  overflow-y: auto;
+}
+.wiki-seitenleiste-titel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.wiki-seitenleiste-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.wiki-seitenleiste-nav a {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--text);
+}
+.wiki-seitenleiste-nav a:hover {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+/* react-router setzt `.active` auf dem passenden NavLink. */
+.wiki-seitenleiste-nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+/* --- Die Wiki-Leiste ---
+   Auf JEDER Wiki-Seite, weil ein Wiki ohne sie keine hat, von der man
+   irgendwohin kommt. Klebt unter der Kopfleiste und misst sich selbst in
+   `--wikikopf-h` (stickyChrome.ts) — die Einträge brechen auf schmalen
+   Fenstern um, und alles, was darunter klebt, rechnet mit dem gemessenen Wert
+   statt mit einem geschätzten. */
+.wiki-leiste {
+  position: sticky;
+  top: var(--topbar-h, 47px);
+  /* Über dem Tabellenkopf (4) und der Bearbeitungsleiste (12), unter der
+     Kopfleiste (20) — die Reihenfolge von oben nach unten. */
+  z-index: 14;
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  margin-bottom: 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.wiki-wortmarke {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  color: var(--text);
+  white-space: nowrap;
+}
+.wiki-wortmarke:hover {
+  color: var(--accent-dark);
+}
+
+/* Nimmt den freien Platz, damit die Navigation rechts steht — und schrumpft
+   zuerst, wenn es eng wird. */
+.wiki-leiste-suche {
+  flex: 1 1 160px;
+  min-width: 120px;
+}
+.wiki-leiste-suche input {
+  width: 100%;
+}
+
+.wiki-leiste-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.wiki-leiste-nav a {
+  font-size: 13px;
+  padding: 4px 9px;
+  border-radius: var(--radius);
+  text-decoration: none;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.wiki-leiste-nav a:hover {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+}
+/* react-router setzt `.active` auf dem passenden NavLink. */
+.wiki-leiste-nav a.active {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.wiki-brotkrumen {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.wiki-brotkrumen a {
+  color: var(--muted);
+}
+.wiki-brotkrumen a:hover {
+  color: var(--accent-dark);
+}
+
+/* Das „Kategorie:" vor dem Namen ist Beiwerk, nicht Teil des Namens. */
+.wiki-namensraum {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.wiki-weitergeleitet {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* Man steht auf einem Wegweiser statt auf einem Artikel. */
+.wiki-wegweiser {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-panel);
+  padding: 10px 14px;
+  background: var(--panel);
+}
+
+.wiki-kopf {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.wiki-kopf h1 {
+  margin-bottom: 2px;
+}
+.wiki-meta {
+  margin: 0;
+  font-size: 13px;
+}
+.wiki-kopf-aktionen {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Pfeil am Wiki-Eintrag der Kopfleiste: der Link öffnet einen neuen Tab, und
+   das soll man vorher sehen. */
+.wiki-neuertab {
+  margin-left: 3px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* --- Übersicht --- */
+
+.wiki-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.wiki-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.wiki-tag {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  text-decoration: none;
+}
+.wiki-tag:hover {
+  border-color: var(--border-hover);
+}
+.wiki-tag.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.wiki-karte {
+  text-decoration: none;
+}
+.wiki-karte h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.wiki-marke {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+/* „neu" hebt sich von den Sachmarken (nur SL, geschützt) ab: es beschreibt
+   nicht die Seite, sondern deinen Blick darauf. Steht NACH .wiki-marke —
+   gleiche Spezifität, also gewinnt die spätere Regel. */
+.wiki-marke-neu {
+  background: var(--over-line);
+}
+
+/* --- Gelesener Inhalt --- */
+
+.wiki-inhalt {
+  line-height: 1.6;
+}
+.wiki-inhalt > :first-child {
+  margin-top: 0;
+}
+.wiki-ueberschrift {
+  margin: 22px 0 8px;
+  /* Ankersprünge dürfen weder unter der Kopfleiste noch unter der Wiki-Leiste
+     landen — beide kleben darüber, beide sind gemessen. */
+  scroll-margin-top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px) + 12px);
+}
+.wiki-liste {
+  margin: 8px 0 8px 22px;
+}
+.wiki-liste li {
+  margin: 3px 0;
+}
+.wiki-zitat {
+  margin: 12px 0;
+  padding: 6px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-sunken);
+  color: var(--muted);
+}
+.wiki-trenner {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 20px 0;
+}
+.wiki-code {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.92em;
+}
+.wiki-codeblock {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+
+.wiki-link {
+  color: var(--accent-dark);
+}
+/* Rotlink: das Ziel gibt es (noch) nicht. Bewusst der Fehlerton und NICHT der
+   Akzent — der ist je nach Farbwelt selbst schon rot und würde sich nicht vom
+   gewöhnlichen Verweis unterscheiden. */
+.wiki-rotlink {
+  color: var(--error-text);
+  border-bottom: 1px dotted currentColor;
+  text-decoration: none;
+}
+
+.wiki-bild {
+  margin: 14px 0;
+}
+.wiki-bild img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--border-soft);
+}
+.wiki-bild a {
+  /* Der Link ist der Rahmen ums Bild, keine Textstelle — Unterstrich und
+     Linkfarbe hätten hier nichts zu tun. */
+  display: block;
+  line-height: 0;
+}
+.wiki-bild figcaption {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* --- Bildgrößen ---
+   Benannt statt in Pixeln: eine Zahl in der Markierung müsste auf jedem
+   schmalen Gerät per Media Query wieder eingefangen werden, und vier
+   Möglichkeiten halten Seiten einheitlich. Die Breite steht an der figure,
+   nicht am img, damit die Bildunterschrift genauso breit ist wie das Bild und
+   nicht quer über die Spalte läuft. */
+.wiki-bild-klein {
+  width: 180px;
+}
+.wiki-bild-mittel {
+  width: 320px;
+}
+.wiki-bild-gross {
+  width: 520px;
+}
+.wiki-bild-voll {
+  width: 100%;
+}
+/* Ein schmales Fenster ist schmaler als „gross" — die feste Breite darf das
+   Bild nie aus der Spalte schieben. */
+.wiki-bild-klein,
+.wiki-bild-mittel,
+.wiki-bild-gross {
+  max-width: 100%;
+}
+.wiki-bild-klein img,
+.wiki-bild-mittel img,
+.wiki-bild-gross img,
+.wiki-bild-voll img {
+  width: 100%;
+}
+
+/* --- Ausrichtung --- */
+
+.wiki-bild-links {
+  float: left;
+  margin: 6px 16px 10px 0;
+}
+.wiki-bild-rechts {
+  float: right;
+  margin: 6px 0 10px 16px;
+}
+.wiki-bild-mitte {
+  margin-left: auto;
+  margin-right: auto;
+}
+.wiki-bild-mitte figcaption {
+  text-align: center;
+}
+
+/* Zwei Dinge, an denen umflossene Bilder sonst zuverlässig scheitern:
+   eine Überschrift, die neben dem Bild hochrutscht statt darunter zu beginnen,
+   und ein Bild, das unten aus dem Textblock herausragt. */
+.wiki-inhalt .wiki-ueberschrift,
+.wiki-inhalt .wiki-trenner,
+.wiki-inhalt .wiki-gm {
+  clear: both;
+}
+.wiki-inhalt::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
+@media (max-width: 700px) {
+  /* Neben einem 180px-Bild bleibt auf einem Telefon keine lesbare Textspalte
+     übrig — dann lieber unter- statt nebeneinander. */
+  .wiki-bild-links,
+  .wiki-bild-rechts {
+    float: none;
+    margin: 14px 0;
+  }
+  .wiki-bild-klein,
+  .wiki-bild-mittel,
+  .wiki-bild-gross {
+    width: 100%;
+  }
+}
+
+/* --- Bilderverwaltung im Editor --- */
+
+.wiki-bild-aktionen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.wiki-bild-nursl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+.wiki-bild-hinweis {
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+.wiki-bildliste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-bildliste li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-bildliste img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-soft);
+  background: var(--surface-sunken);
+}
+.wiki-bildliste-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+  font-size: 13px;
+}
+.wiki-bildliste-text .wiki-marke {
+  align-self: flex-start;
+}
+.wiki-bildliste-aktionen {
+  display: flex;
+  gap: 6px;
+}
+
+/* GM-Block: erreicht ohnehin nur die Spielleitung — der Server entfernt diese
+   Bereiche für alle anderen aus der Antwort. Die Markierung sagt also „das
+   sehen die Spieler nicht", sie schützt nichts. */
+.wiki-gm {
+  position: relative;
+  margin: 14px 0;
+  padding: 12px 14px 10px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-panel);
+  background: var(--accent-soft);
+}
+.wiki-gm-marke {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+  margin-bottom: 6px;
+}
+.wiki-gm > :last-child {
+  margin-bottom: 0;
+}
+
+/* Wiki-Tabellen erben das Blatt-Aussehen samt klebendem Kopf und bekommen
+   KEINEN eigenen Scrollbereich (siehe CLAUDE.md).
+   Der klebende Kopf rechnet mit --tabs-h; im Wiki gibt es keine Reiterleiste,
+   die Variable ist also ungesetzt und fällt auf 0px — seit alle Seiten mit
+   Reiterleiste ihre Höhe messen, ist das der richtige Ersatzwert und der Kopf
+   klebt hier genau unter der Kopfleiste. */
+
+/* --- Rechte-Leiste der Spielleitung --- */
+
+.wiki-rechte {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+}
+.wiki-rechte label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* --- Suchtreffer --- */
+
+.wiki-treffer {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-treffer li {
+  padding: 10px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-treffer p {
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+.wiki-treffer mark {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+/* --- Inhaltsverzeichnis & Verweise --- */
+
+.wiki-toc-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-toc-liste li {
+  margin: 0;
+}
+.wiki-toc-liste a {
+  display: block;
+  padding: 3px 8px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--muted);
+  text-decoration: none;
+  border-left: 2px solid transparent;
+}
+.wiki-toc-liste a:hover {
+  color: var(--accent-dark);
+  border-left-color: var(--accent);
+}
+/* Die Ebene der Überschrift als Einrückung — mehr Auszeichnung braucht ein
+   Verzeichnis aus höchstens drei Ebenen nicht. */
+.wiki-toc-e2 a {
+  padding-left: 20px;
+}
+.wiki-toc-e3 a {
+  padding-left: 32px;
+  font-size: 12px;
+}
+
+.wiki-verweise {
+  margin-top: 24px;
+}
+
+/* --- Änderungsprotokoll & Verlauf --- */
+
+.wiki-logfilter {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.wiki-logfilter .field {
+  margin: 0;
+}
+
+.wiki-log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-log-zeile {
+  padding: 8px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-log-kopf {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.wiki-log-kommentar,
+.wiki-log-feld {
+  font-size: 13px;
+  margin-top: 2px;
+}
+.wiki-log-kommentar {
+  color: var(--muted);
+  font-style: italic;
+}
+.wiki-log-aktionen {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.wiki-log-link {
+  display: inline-block;
+  margin-top: 4px;
+}
+
+.wiki-bilanz {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+/* Hinzugefügt blau, entfernt rot — nicht grün/rot: die Farbwelten bringen kein
+   Grün mit, und das Paar --over-*/--crit-* ist ohnehin besser unterscheidbar.
+   Die Zeichen + und − tragen die Bedeutung auch ohne Farbe. */
+.wiki-bilanz-plus,
+.wiki-diff-plus {
+  color: var(--over-line);
+}
+.wiki-bilanz-minus,
+.wiki-diff-minus {
+  color: var(--crit-line);
+}
+
+/* --- Unterschiede --- */
+
+/* Kein eigener Scrollbereich am Block (siehe CLAUDE.md) — lange Zeilen brechen
+   um statt seitlich zu scrollen. */
+.wiki-diff {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+.wiki-diff-luecke {
+  text-align: center;
+  color: var(--muted);
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+.wiki-diff-zeile {
+  display: grid;
+  grid-template-columns: 3.2em 3.2em 1.2em minmax(0, 1fr);
+  gap: 0 6px;
+  padding: 0 8px;
+}
+.wiki-diff-nr {
+  color: var(--muted);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+.wiki-diff-zeichen {
+  user-select: none;
+}
+.wiki-diff-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.wiki-diff-zeile.wiki-diff-plus {
+  background: var(--over-soft);
+}
+.wiki-diff-zeile.wiki-diff-minus {
+  background: var(--crit-soft);
+}
+
+.wiki-vergleich h3,
+.wiki-konflikt h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.wiki-konflikt-aktionen {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+/* --- Editor --- */
+
+/* Spickzettel: zweispaltiges Raster statt Tabelle — dieselbe Wirkung ohne die
+   Tabellen-Maschinerie (klebender Kopf, Spaltenbreiten) mitzuschleppen. */
+.wiki-spick {
+  margin: 8px 0 0;
+}
+.wiki-spick-zeile {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 4px 14px;
+  padding: 3px 0;
+  border-top: 1px solid var(--border-soft);
+}
+.wiki-spick-zeile dt code {
+  /* Mehrzeilige Beispiele (Tabelle, gm-Block) sollen ihre Zeilen behalten. */
+  white-space: pre-wrap;
+  font-size: 12px;
+}
+.wiki-spick-zeile dd {
+  margin: 0;
+  font-size: 13px;
+}
+
+/* Der ausgeblendete Nur-SL-Abschnitt im Editor: gestrichelt und blass — er
+   markiert einen Platz, an dem etwas steht, das man nicht lesen darf. */
+.wiki-gm-verborgen {
+  opacity: 0.75;
+}
+.wiki-gm-verborgen p {
+  margin: 0;
+  font-size: 13px;
+}
+
+
+.wiki-editorleiste {
+  position: sticky;
+  /* Unter der Wiki-Leiste, nicht dahinter. Eigene gemessene Variable je Leiste
+     — so hängt keine davon ab, welche zuerst gemessen wurde. */
+  top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px));
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  margin-bottom: 10px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.wiki-editorleiste-links,
+.wiki-editorleiste-rechts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wiki-seg {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.wiki-seg button {
+  border: 0;
+  border-radius: 0;
+  padding: 4px 12px;
+  background: var(--panel);
+  font-size: 13px;
+}
+.wiki-seg button.active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Wächst mit dem Inhalt (autosize) statt selbst zu scrollen. */
+.wiki-quelle {
+  width: 100%;
+  /* Wächst ohnehin mit dem Inhalt (autosize) — das hier ist die Fläche, die
+     man beim Anfangen VOR sich hat. 320px waren knapp zwei Absätze. */
+  min-height: max(520px, 60vh);
+  padding: 12px 14px;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--input-bg);
+  color: var(--text);
+  resize: none;
+  overflow: hidden;
+}
+
+.wiki-vorschau {
+  min-height: 320px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+
+.wiki-hinweis {
+  border: 1px dashed var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-panel);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.wiki-hinweis-warn {
+  border-color: var(--warn-line);
+  background: var(--warn-soft);
+}
+
+/* --- Kategorien ---
+   Der Baum entsteht daraus, dass eine Kategorieseite selbst Kategorien trägt.
+   Deshalb eine schlichte verschachtelte Liste: die Tiefe ist die Aussage. */
+
+.wiki-kat-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.wiki-kat-liste li {
+  padding: 3px 0;
+}
+/* Eingerückt und mit Faden, damit die Ebene ohne Zählen erkennbar bleibt. */
+.wiki-kat-liste .wiki-kat-liste {
+  margin-left: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+.wiki-kat-wurzel {
+  margin-top: 8px;
+}
+.wiki-kat-name {
+  font-weight: 600;
+}
+.wiki-kat-zahl {
+  margin-left: 8px;
+  font-size: 12px;
+}
+.wiki-kat-ohne {
+  margin-left: 8px;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Vorhandene Kategorien unter dem Eingabefeld — gegen „NSC" und „NPC"
+   nebeneinander. */
+.wiki-tagwahl {
+  align-items: center;
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+/* Unter ~1000px bleibt neben einer 190px-Spalte kein lesbarer Artikel mehr
+   übrig: die Leiste rückt über den Text, die Navigation legt sich in eine
+   Zeile, und das Inhaltsverzeichnis steht wieder da, wo es vor der zweiten
+   Spalte stand. */
+@media (max-width: 1000px) {
+  .wiki-koerper {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wiki-seitenleiste {
+    position: static;
+    max-height: none;
+    overflow: visible;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    padding: 0 0 10px;
+    margin-bottom: 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .wiki-seitenleiste-titel {
+    display: none;
+  }
+  .wiki-seitenleiste-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  /* Quer gelegt wäre ein langes Verzeichnis eine Wand aus Verweisen — als
+     Aufklapper bleibt es eine Zeile, bis jemand es braucht. */
+  .wiki-toc {
+    flex-basis: 100%;
+  }
+  .wiki-toc-liste {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 6px;
+  }
+  .wiki-toc-e2 a,
+  .wiki-toc-e3 a {
+    padding-left: 8px;
+  }
+}
+
+@media (max-width: 700px) {
+  .wiki-kopf {
+    flex-direction: column;
+  }
+  /* Auf schmalen Fenstern rutscht die Suche unter Wortmarke und Navigation,
+     statt beide auf Briefmarkengröße zu quetschen. */
+  .wiki-leiste-suche {
+    order: 3;
+    flex-basis: 100%;
+  }
+}
+
+/* --- Druck ---
+   Das Wiki baut KEINE eigene Druckansicht: eine Wiki-Seite ist bereits ein
+   Dokument, kein Formular. Die Bedienelemente tragen `screen-only` und
+   verschwinden über die vorhandene Regel in styles.css; hier bleiben nur die
+   zwei Dinge übrig, die dort an `.print-root` hängen und deshalb nicht
+   greifen. */
+@media print {
+  .wiki .table-wrap {
+    overflow: visible !important;
+  }
+  /* Auf Papier gibt es nichts zum Ankleben. */
+  .wiki .table-wrap table.sheet thead {
+    position: static;
+  }
+  /* Ein Bild soll nicht über den Seitenrand hinauslaufen. */
+  .wiki-bild img {
+    max-height: 12cm;
+    object-fit: contain;
+  }
+  /* Auf Papier bleibt das Umfließen erhalten — nur der Klick-Link ist dort
+     sinnlos und darf sich nicht als Linkfarbe bemerkbar machen. */
+  .wiki-bild a {
+    color: inherit;
+  }
+  .wiki-inhalt,
+  .wiki-bild,
+  .wiki-zitat {
+    break-inside: avoid;
+  }
+}

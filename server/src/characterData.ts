@@ -59,6 +59,7 @@ import type {
   VisibilitySection,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
+import { hatPortrait, ladePortrait, loeschePortrait, speicherePortrait } from './assets/portraits.js';
 import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows, updateDynSection } from './dynSections.js';
 
 // --- Laden ---
@@ -1424,28 +1425,27 @@ export function retireOldZauberTab(charId: number): { retired: boolean } {
   return { retired: true };
 }
 
-// --- Porträt (als Blob in der DB, damit es in den täglichen Sicherungen liegt) ---
+// --- Porträt ---
+//
+// Liegt seit dem Wiki in helden-assets.db, zusammen mit allen anderen Bildern
+// und auf deren wöchentlichem Sicherungstakt. Die alte Tabelle `char_portraits`
+// bleibt vorerst als Rückfallebene bestehen; die vier Funktionen hier sind nur
+// noch die Naht, hinter der assets/portraits.ts das Ganze abwickelt.
 
 export function hasPortrait(charId: number): boolean {
-  return !!db.prepare('SELECT 1 FROM char_portraits WHERE character_id = ?').get(charId);
+  return hatPortrait(charId);
 }
 
 export function loadPortrait(charId: number): { mime: string; data: Buffer } | undefined {
-  const row = db.prepare('SELECT mime, data FROM char_portraits WHERE character_id = ?').get(charId) as
-    | { mime: string; data: Buffer }
-    | undefined;
-  return row;
+  return ladePortrait(charId);
 }
 
 export function savePortrait(charId: number, mime: string, data: Buffer): void {
-  db.prepare(
-    `INSERT INTO char_portraits (character_id, mime, data, updated_at) VALUES (?, ?, ?, datetime('now'))
-     ON CONFLICT (character_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`,
-  ).run(charId, mime, data);
+  speicherePortrait(charId, mime, data);
 }
 
 export function deletePortrait(charId: number): void {
-  db.prepare('DELETE FROM char_portraits WHERE character_id = ?').run(charId);
+  loeschePortrait(charId);
 }
 
 // --- Speichern ---

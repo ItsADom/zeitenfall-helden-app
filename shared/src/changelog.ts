@@ -113,7 +113,6 @@ export const COMING_SOON: string[] = [
   'Ein Würfel-Chat mit Befehlen wie „/me“ und eigenen Wurf-Kürzeln.',
   'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — samt hinterlegter Regeln.',
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
-  'Ein Wiki für Weltwissen und Spielregeln — zum Nachschlagen mitten im Spiel.',
   'Die Rassen-Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) fließen direkt in die berechneten Werte ein, statt nur als Info zu stehen.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -164,6 +163,25 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-19',
+    title: 'Das Wiki',
+    added: [
+      'Ein Wiki für Weltwissen und Spielregeln, über „Wiki" in der Kopfleiste — es öffnet sich bewusst in einem neuen Tab, damit Nachschlagen mitten im Spiel nicht den Bogen wegnimmt, auf dem du gerade warst. Jeder darf Seiten anlegen und bearbeiten; nichts muss vorher freigegeben werden. Geschrieben wird in einer einfachen Formatierung (Überschriften, Listen, Tabellen, **fett**, *kursiv*), mit Vorschau und einem Spickzettel direkt im Editor. Seiten verweisen mit [[Doppelklammern]] aufeinander — zeigt ein Verweis ins Leere, ist er rot und legt die Seite auf Klick an. Dazu Inhaltsverzeichnis und „Verweise hierher". Bilder lädst du direkt im Editor hoch und setzt sie per Klick in den Text; mit Angaben wie „klein" und „rechts" fließt der Text daneben, und ein verkleinertes Bild öffnet sich per Klick in voller Größe. Auf jeder Wiki-Seite liegt oben eine eigene Leiste mit Suche, „Alle Seiten", „Kategorien" und „Letzte Änderungen" — von jeder Seite kommt man damit überallhin zurück.',
+      'Volltextsuche über das ganze Wiki, samt Umlaut- und ß-Behandlung: „strasse" findet auch „Straße".',
+      'Kategorien fassen Seiten zu einem Thema zusammen. Trägst du bei einer Seite „Orte" ein, entsteht die Kategorie sofort; eine Seite „Kategorie:Orte" beschreibt sie dann in eigenen Worten. Weil so eine Kategorieseite selbst Kategorien trägt, ordnen sie sich ineinander — „Städte" kann in „Orte" liegen —, und unter „Kategorien" steht der ganze Baum mit Seitenzahlen.',
+      'Weiterleitungen: Steht ganz oben auf einer Seite „#WEITERLEITUNG [[Gareth]]", landet man beim Aufrufen direkt bei Gareth — praktisch für Zweitnamen und Schreibweisen. Ein Hinweis „(weitergeleitet von …)" führt zum Wegweiser zurück, falls er falsch zeigt.',
+      'Ein vollständiges Änderungsprotokoll: Jede Bearbeitung bleibt dauerhaft erhalten, mit Autor, Zeitpunkt und deinem Kommentar dazu. Unter „Letzte Änderungen" siehst du alles auf einen Blick — filterbar nach Person, Seite und Zeitraum —, kannst zwei Fassungen vergleichen und jede ältere Fassung zurückholen. Neben „Wiki" steht, wie viel sich seit deinem letzten Besuch getan hat.',
+      'Bearbeiten zwei Leute gleichzeitig dieselbe Seite, geht nichts verloren: Der zweite Speichervorgang zeigt die Unterschiede und lässt dich entscheiden, statt still etwas zu überschreiben.',
+    ],
+    fixed: [
+      'Auf der Gruppenseite rutschten die Tabellenköpfe beim Scrollen unter die Reiterleiste, sobald diese auf zwei Zeilen umbrach.',
+    ],
+    admin: [
+      '(Spielleiter) Im Wiki kannst du eine Seite auf „nur Spielleiter" stellen — für Spieler existiert sie dann nirgends, weder in Liste, Suche, Kategorien noch im Änderungsprotokoll. Einzelne Abschnitte innerhalb einer sonst öffentlichen Seite gehen genauso: Was zwischen ```gm und ``` steht, verlässt den Server für niemanden sonst. Bilder lassen sich einzeln ebenso kennzeichnen.',
+      '(Spielleiter) Außerdem im Wiki: „geschützt" (die Seite bleibt sichtbar, aber nur du darfst sie bearbeiten) und ein Papierkorb — gelöschte Seiten behalten Verlauf und Bilder und lassen sich zurückholen; erst das endgültige Löschen ist unwiderruflich.',
+    ],
+  },
   {
     date: '2026-08-16',
     version: '0.5.1',

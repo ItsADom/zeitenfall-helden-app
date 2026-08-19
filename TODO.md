@@ -79,20 +79,22 @@ chips. Backend table `char_special_resources`. Open for the full version:
      the new markdown content is the only place with GM-only tagging.
    - Still open before a build plan: markdown library choice, where the markdown
      source is stored (new column/table), exact link/entry point from the sheet.
-   - Consider storing the images in a separate, shared SQLite file (e.g.
-     `helden-assets.db`) with its own, less frequent backup schedule (see
-     `backup.ts`), instead of in `helden.db` alongside the frequently-changing
-     character/wiki data. Reason: `backup.ts` does full daily snapshots, not
-     incremental — a large, mostly-static image blob table would bloat every
-     daily backup even on days nothing changed, wasting OneDrive sync bandwidth.
-     Shared across features (bio gallery, wiki images, and eventually portraits)
-     rather than one image db per feature, keyed by owner_type/owner_id, to
-     avoid a growing pile of near-identical blob-storage db files. Catch:
-     SQLite has no cross-database FK/CASCADE, so character/page deletion would
-     need a manual cleanup hook against the second file instead of relying on
-     `ON DELETE CASCADE`. Wiki *text* content itself stays in `helden.db`
-     (see wiki entry below) — only images get split out; text is cheap enough
-     that splitting it out isn't worth the operational cost of a third db.
+   - Images: `helden-assets.db` **already exists** — the wiki built it, keyed by
+     `owner_type`/`owner_id` and generic from the start precisely so the bio
+     gallery plugs in without a schema change. Use `assets/store.ts` with
+     `owner_type='character'`, `rolle='galerie'`; the weekly backup schedule,
+     the cleanup hook and the orphan sweeper are all in place. Note the catch it
+     was built around: SQLite has no cross-database CASCADE, so any new delete
+     path must call `loescheAssetsFuer()` by hand — the weekly sweeper is the
+     safety net, not the mechanism.
+   - The markup renderer also already exists and is shared, not wiki-private:
+     `shared/src/wikiMarkup.ts` (source → typed AST) plus `client/src/wiki/
+     Markup.tsx` (AST → React elements, no HTML string anywhere), including the
+     ` ```gm ` block. The bio page should import those rather than grow a second
+     parser — that was the whole reason they live in `shared`.
+   - Still open: where the bio markdown source is stored (new column/table) and
+     the exact link/entry point from the sheet. The library question is settled
+     — there is no library, and the existing renderer is the answer.
 - [sketch] **Dice rolls and chat** (concept fully worked out, split into
   sub-pieces below — already teased in the changelog's `COMING_SOON`. Left as
   `[sketch]` rather than bumped to `[ready]` deliberately: this is large enough
@@ -372,11 +374,47 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 - **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
 
-- **wiki for world lore and game rules** — no cross-interaction with character
-  sheets planned beyond living on the same site. Page text/structure belongs in
-  `helden.db` alongside character data (cheap, no backup-weight concern); wiki
-  images belong in the shared `helden-assets.db` discussed under „Expanded bio
-  page" above, not a wiki-specific db file.
+- **drop `char_portraits`** — portraits now live in `helden-assets.db`; the old
+  table was deliberately kept as a read fallback (copied, not moved) so a
+  rollback onto older code still shows portraits. Once a release has gone by
+  without needing one, delete the table and the fallback branches in
+  `assets/portraits.ts`. Not before: it is the only copy an older build can see.
+
+- **wiki: inline span-level GM tagging** — the wiki marks GM-only content at
+  block level (a fenced ` ```gm ... ``` ` region). Marking a few words
+  *mid-sentence* as GM-only is the open piece, and it is harder than it looks:
+  the server strips GM regions from the response before sending, so an inline
+  marker has to survive that removal without leaving a hole that reads as a
+  typo. Same decision as the bio page's, and it should stay one decision for
+  both.
+
+- **wiki: Steckbriefe, dann Vorlagen** (concept settled, deliberately deferred —
+  the navigation/category/redirect round shipped without it). Two steps, in this
+  order, because the first is the visible half and carries none of the second's
+  cost:
+   - **Steckbrief block** — a ` ```infobox ` fence of `Schlüssel: Wert` lines,
+     rendered as the floated box every Wikipedia article has. A parser node plus
+     CSS; no reuse machinery, no staleness, no recursion.
+   - **Transclusion** — `{{Vorlage:NSC|name=Alrik}}`, where a Vorlage is a page
+     in a `vorlage` namespace (the `namensraum` column already carries one) whose
+     text holds an infobox with `{{{name}}}` placeholders. Named parameters and
+     defaults only; **no conditionals or parser functions** — that is where
+     Wikipedia's template language becomes a programming language nobody can
+     debug.
+   - Two constraints that are not optional if this gets built: expansion happens
+     **server-side on the read path, before the GM strip** (a Vorlage may contain
+     a ` ```gm ` region, so the order is expand → strip, never the reverse), and
+     it must **never touch the source the editor loads**, or the `[[gm:n]]`
+     marker scheme breaks and a save writes the expanded text back.
+   - The search index keeps storing the **unexpanded** source. Otherwise editing
+     one Vorlage silently stales fifty pages' index entries (Wikipedia runs a job
+     queue for exactly this) — and every NSC page would match „Rüstungsschutz"
+     because the boilerplate says so.
+
+- **wiki: Beobachtungsliste — decided AGAINST for now.** A per-page watchlist
+  duplicates what the „N Änderungen seit deinem letzten Besuch" badge already
+  does for a group this size. Revisit only if notifications land; that sketch is
+  its proper home.
 
 - **Discord feedback → TODO scan** (concept agreed; needs bot setup before build)
    - A local CLI script (like the changelog test flags) reads the feedback

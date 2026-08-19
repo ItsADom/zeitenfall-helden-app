@@ -40,6 +40,19 @@ Er ist idempotent (ein zweiter Lauf legt nichts doppelt an) und **bricht bei
 `NODE_ENV=production` ab**, damit die echte Datenbank niemals versehentlich
 gefüllt wird.
 
+Fürs Wiki gibt es dasselbe noch einmal — eine kleine Beispielwelt, in der jede
+gebaute Funktion einmal vorkommt (Kategoriebaum, Bilder in allen Größen und
+Lagen, Wikilinks samt Rotlink, Weiterleitungen, Nur-SL-Seite und -Abschnitt,
+geschützte Seite, Papierkorb, mehrere Fassungen im Verlauf):
+
+```bash
+npm run seed:wiki         # 15 Seiten, 5 Bilder, zwei Autoren
+```
+
+Die Bilder werden dabei im Code gezeichnet, nicht als Dateien mitgeliefert.
+Gleiche Sicherheitsnetze: idempotent und ein Abbruch bei `NODE_ENV=production`.
+Einstieg im Wiki bei „Willkommen im Zeitenkompass-Wiki".
+
 ### `npm ci` statt `npm install`
 
 `npm ci` installiert stur nach `package-lock.json` und **schreibt die Datei nie um**.
@@ -126,9 +139,12 @@ eigener Domain den benannten Tunnel einrichten (`cloudflared tunnel login`).
 | `ADMIN_PASSWORD` | — | Passwort dazu — nur beim Anlegen, setzt später nichts zurück |
 | `ADMIN_NAME` | = `ADMIN_USER` | Anzeigename des zweiten Kontos |
 | `HELDEN_DB` | `server/data/helden.db` | Pfad zur SQLite-Datei |
-| `BACKUP_DIR` | `server/data/backups` | Ablage der täglichen Sicherungen |
-| `BACKUP_KEEP` | `14` | Anzahl aufbewahrter Sicherungen (ältere werden gelöscht) |
-| `BACKUP_INTERVAL_HOURS` | `24` | Abstand zwischen den Sicherungsläufen |
+| `HELDEN_ASSETS_DB` | `server/data/helden-assets.db` | Zweite Datei für alle Bilder — Wiki und Charakter-Porträts |
+| `BACKUP_DIR` | `server/data/backups` | Ablage beider Sicherungsreihen |
+| `BACKUP_KEEP` | `14` | Aufbewahrte Sicherungen von `helden.db` |
+| `BACKUP_INTERVAL_HOURS` | `24` | Abstand der Sicherungsläufe für `helden.db` |
+| `BACKUP_ASSETS_KEEP` | `8` | Aufbewahrte Sicherungen von `helden-assets.db` (≈ zwei Monate) |
+| `BACKUP_ASSETS_INTERVAL_HOURS` | `168` | Abstand der Bilder-Sicherung — wöchentlich; steuert auch den Aufräumlauf für verwaiste Bilder |
 
 ## Zweites Spielleiter-Konto
 
@@ -153,9 +169,22 @@ das nicht). Pro Tag entsteht **eine** Sicherung; eine bereits vorhandene wird ni
 überschrieben, damit ein Neustart mit beschädigtem Stand die gute Kopie des Tages
 nicht ersetzt. Ältere Sicherungen jenseits von `BACKUP_KEEP` werden aufgeräumt.
 
+**Zwei Reihen, zwei Takte.** Bilder liegen in einer eigenen Datei
+(`helden-assets.db`) und werden **wöchentlich** nach
+`helden-assets-JJJJ-MM-TT.db` gesichert. Der Grund ist die Auslagerung: Bilder
+sind groß und ändern sich selten — täglich mitzukopieren würde jede
+Tagessicherung vervielfachen, ohne dass mehr Inhalt geschützt wäre. Die beiden
+Aufräum-Regeln fassen sich gegenseitig nicht an, jede trifft nur ihr eigenes
+Namensmuster.
+
+Weil SQLite nicht über Dateigrenzen kaskadieren kann, räumt derselbe
+wöchentliche Takt Bilder auf, deren Seite oder Charakter es nicht mehr gibt.
+Der Lauf schreibt ins Protokoll, was er entfernt hat.
+
 Wiederherstellen: Server stoppen, die gewünschte Sicherung nach
 `server/data/helden.db` kopieren (vorhandene `helden.db-wal`/`-shm` daneben
-entfernen), Server starten.
+entfernen), Server starten. Für Bilder dasselbe mit `helden-assets.db` — die
+beiden Dateien lassen sich unabhängig voneinander zurückspielen.
 
 ## Rollen & Rechte
 
@@ -165,6 +194,25 @@ entfernen), Server starten.
 - **Gruppenmitglieder**: sehen die Personenbeschreibung (Alter, Größe …) immer,
   freigegebene Bereiche als schreibgeschützte Zusammenfassung.
 - Alle anderen: kein Zugriff (404).
+
+### Im Wiki
+
+- **Jeder Angemeldete** liest alle Seiten und legt neue an, bearbeitet, benennt
+  um und holt ältere Fassungen zurück. Nichts wartet auf eine Freigabe — die
+  Aufsicht ist das Änderungsprotokoll, nicht eine Schleuse davor.
+- **Eine Kategorieseite ist eine gewöhnliche Seite.** „Kategorie:Orte" hat
+  Verlauf, Rechte und Suche wie jede andere — auch „nur Spielleiter" und
+  „geschützt" wirken dort genauso. Der Titel entscheidet über den Namensraum;
+  eine Weiterleitung entsteht aus `#WEITERLEITUNG [[Ziel]]` in der ersten Zeile.
+- **Spielleiter** zusätzlich: Seiten auf „nur Spielleiter" oder „geschützt"
+  stellen, löschen, den Papierkorb leeren und den Suchindex neu bauen. Nur der
+  Spielleiter sieht Nur-SL-Seiten, `gm`-Abschnitte und Nur-SL-Bilder.
+- **Verwaltung** (`is_admin` ohne `is_gm`) hat im Wiki **keine** Rechte über die
+  eines Spielers hinaus — dieselbe Überlegung, die sie aus den Charakterbögen
+  heraushält, gilt für Spielgeheimnisse.
+- Wer etwas nicht sehen darf, bekommt 404 statt 403 — sonst verriete die
+  Fehlermeldung, dass es die Seite gibt. Einzige Ausnahme: eine **geschützte**
+  Seite antwortet beim Schreiben mit 403, denn sie ist ohnehin sichtbar.
 
 ## Kataloge
 

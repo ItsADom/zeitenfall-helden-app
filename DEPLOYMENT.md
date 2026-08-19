@@ -11,8 +11,11 @@ Internet → Router (80/443) → Nginx (TLS) → 127.0.0.1:3001 → Express → 
 ```
 
 Ein einziger Node-Prozess liefert API **und** Web-UI aus (siehe `server/src/index.ts`),
-Nginx terminiert nur TLS und reicht durch. Der gesamte Zustand steckt in **einer**
-SQLite-Datei — inklusive der Porträts, die als BLOB in der Datenbank liegen.
+Nginx terminiert nur TLS und reicht durch. Der Zustand steckt in **zwei**
+SQLite-Dateien: `helden.db` für alles Geschriebene (Charaktere, Wiki-Texte,
+Protokolle) und `helden-assets.db` für alle Bilder (Wiki-Bilder und Porträts).
+Getrennt sind sie wegen der Sicherung, nicht wegen der Struktur — siehe
+„Zwei Datenbanken, zwei Takte".
 
 ## Werte für diese Installation
 
@@ -34,8 +37,9 @@ Maschine nur diesen Block anpassen.
 /srv/helden/repo/           Git-Klon, Quelle für Updates
 /srv/helden/releases/<ts>/  ausgerollte Stände
 /srv/helden/app             Symlink auf den aktiven Stand
-/srv/helden/data/           helden.db + WAL        ← überlebt jedes Update
-/srv/helden/backups/        tägliche Sicherungen   ← überlebt jedes Update
+/srv/helden/data/           helden.db + helden-assets.db (Bilder) + WAL
+                                                   ← überlebt jedes Update
+/srv/helden/backups/        Sicherungen beider Reihen ← überlebt jedes Update
 /srv/helden/deploy.sh       Update-Skript
 /etc/helden-app.env         Zugangsdaten, chmod 600
 /etc/systemd/system/helden-app.service
@@ -266,9 +270,12 @@ NODE_ENV=production
 PORT=3001
 SECURE_COOKIES=1
 HELDEN_DB=/srv/helden/data/helden.db
+HELDEN_ASSETS_DB=/srv/helden/data/helden-assets.db
 BACKUP_DIR=/srv/helden/backups
 BACKUP_KEEP=14
 BACKUP_INTERVAL_HOURS=24
+BACKUP_ASSETS_KEEP=8
+BACKUP_ASSETS_INTERVAL_HOURS=168
 SESSION_TTL_DAYS=30
 GM_PASSWORD=PLATZHALTER_GM
 ADMIN_USER=PLATZHALTER_ADMIN_NAME
@@ -777,6 +784,48 @@ SQLite (im laufenden Betrieb und WAL-sicher; ein bloßes Kopieren der Datei wär
 nicht). Pro Tag entsteht genau eine Sicherung, eine vorhandene wird nie
 überschrieben.
 
+### Zwei Datenbanken, zwei Takte
+
+Seit dem Wiki gibt es eine **zweite** Datei: `/srv/helden/data/helden-assets.db`
+enthält ausschließlich Bilder — Wiki-Bilder und Charakter-Porträts. Sie liegt
+bereits innerhalb der `ReadWritePaths` der Unit — an der systemd-Datei ist
+**nichts** zu ändern.
+
+Sie hat ihren eigenen Zeitplan: **wöchentlich** nach
+`helden-assets-JJJJ-MM-TT.db` (`BACKUP_ASSETS_INTERVAL_HOURS=168`,
+`BACKUP_ASSETS_KEEP=8` ≈ zwei Monate). Der Grund ist genau diese Auslagerung:
+Bilder sind groß und ändern sich fast nie, täglich mitzukopieren würde jede
+Tagessicherung vervielfachen, ohne mehr Inhalt zu schützen.
+
+Zwei Details fallen dabei günstig aus:
+
+- Der Filter `--include 'helden-*.db'` unten **passt bereits** auf
+  `helden-assets-JJJJ-MM-TT.db`. Am Auslagerungsskript ist nichts zu ändern,
+  die Bilder fahren einfach siebenmal seltener mit.
+- Die lokalen Aufräum-Regeln trennen sauber: jede Reihe hat ihr eigenes
+  Namensmuster, `BACKUP_KEEP` fasst die Bilder nicht an und umgekehrt.
+
+**Porträts sind mit umgezogen.** Beim ersten Start nach dem Update kopiert der
+Server jedes Porträt aus `char_portraits` in die Bilddatenbank und schreibt eine
+Zeile ins Journal. **Kopiert, nicht verschoben:** `char_portraits` bleibt
+unangetastet stehen und dient weiter als Rückfallebene, falls die Bilddatenbank
+fehlt oder ein Rücksprung auf einen älteren Stand nötig wird. Erst wenn eine
+Ausgabe ohne Rücksprung vergangen ist, kann die alte Tabelle entfallen — bis
+dahin nicht löschen. Der Lauf ist wiederholbar: er füllt nur Lücken.
+
+```bash
+journalctl -u helden-app | grep 'Porträt'
+```
+
+Derselbe wöchentliche Takt räumt außerdem verwaiste Bilder weg — solche, deren
+Wiki-Seite oder Charakter gelöscht wurde. SQLite kann nicht über Dateigrenzen
+kaskadieren, deshalb gibt es diesen Durchlauf zusätzlich zu den Lösch-Haken im
+Code. Was er entfernt, steht im Journal:
+
+```bash
+journalctl -u helden-app | grep '\[assets\]'
+```
+
 **Wiederherstellen:**
 
 ```bash
@@ -827,12 +876,24 @@ echo "→ $QUELLE  →  $ZIEL"
 #
 # Der Filter nimmt nur fertige Tagessicherungen mit: Ein abgebrochener Lauf
 # hinterlässt "…​.db.part", das nicht auf ".db" endet, ebenso die "-wal"/"-shm".
+# Das Muster fasst beide Reihen: helden-JJJJ-MM-TT.db (täglich) und
+# helden-assets-JJJJ-MM-TT.db (wöchentlich, die Bilder).
 rclone copy "$QUELLE" "$ZIEL" \
     --config "$CONFIG" \
     --include 'helden-*.db' \
     --transfers 2 \
     --retries 3 \
     --log-level INFO
+
+# Ausdünnen: copy räumt nie auf, sonst wächst OneDrive ewig weiter. Ältere
+# Tagesstände als 60 Tage fallen weg, der Erste jedes Monats bleibt als
+# Langzeit-Historie stehen. Die Wochensicherungen der Bilder sind davon nicht
+# betroffen — sie tragen ein anderes Präfix.
+rclone delete "$ZIEL" \
+    --config "$CONFIG" \
+    --include 'helden-????-??-??.db' \
+    --exclude 'helden-????-??-01.db' \
+    --min-age 60d
 
 ANZAHL=$(rclone lsf "$ZIEL" --config "$CONFIG" | wc -l)
 echo "✓ Fertig — $ANZAHL Sicherung(en) liegen auf OneDrive"

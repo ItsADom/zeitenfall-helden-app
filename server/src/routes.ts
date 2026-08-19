@@ -16,6 +16,8 @@ import {
 } from './auth.js';
 import type { SessionUser } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
+import { wikiApi } from './wiki/router.js';
+import { loescheAssetsFuer } from './assets/store.js';
 import { db, initCharacterRows } from './db.js';
 import {
   MAX_TABLE_COLUMNS,
@@ -80,6 +82,11 @@ export const api = Router();
 // bypass the gate entirely. Without RESTRICT_TO_ROLES this is a no-op, so
 // nothing changes in production.
 api.use(instanceGate);
+
+// Das Wiki bringt seine eigenen Routen, seinen eigenen Zugriffscheck und sein
+// eigenes Schema mit (server/src/wiki/) und hängt sich hier mit einer Zeile ein
+// — statt diese Datei weiter wachsen zu lassen.
+api.use('/wiki', wikiApi);
 
 // Hinter einem HTTPS-Reverse-Proxy SECURE_COOKIES=1 setzen, damit das
 // Sitzungs-Cookie nur über verschlüsselte Verbindungen übertragen wird.
@@ -947,7 +954,13 @@ api.put('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
 });
 
 api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
-  db.prepare('DELETE FROM characters WHERE id = ?').run(Number(req.params.id));
+  const id = Number(req.params.id);
+  db.prepare('DELETE FROM characters WHERE id = ?').run(id);
+  // Bilder liegen in einer ZWEITEN Datei (helden-assets.db), und SQLite kann
+  // nicht über Dateigrenzen kaskadieren — der Haken muss von Hand gesetzt sein.
+  // Betrifft inzwischen das Porträt; ein wöchentlicher Durchlauf fängt zusätzlich
+  // ab, was hier durchrutscht.
+  loescheAssetsFuer('character', id);
   res.json({ ok: true });
 });
 

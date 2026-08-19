@@ -19,6 +19,7 @@
     "test": "npm run test -w shared",
     "seed": "npm run seed -w server",
     "seed:dummy": "npm run seed:dummy -w server",
+    "seed:wiki": "npm run seed:wiki -w server",
     "seed:testuser": "npm run seed:testuser -w server"
   },
   "devDependencies": {
