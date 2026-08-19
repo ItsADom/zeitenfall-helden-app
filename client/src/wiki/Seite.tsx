@@ -17,46 +17,59 @@ import { ladeSeite } from './api';
 // source), and splitting them is what makes an unsaved-changes guard and a
 // conflict banner natural instead of bolted on.
 
+/**
+ * Was geladen ist — und WOFÜR es geladen wurde.
+ *
+ * Der Schlüssel gehört zwingend mit ins selbe Zustandsobjekt. Lagen die Werte
+ * einzeln daneben, beschrieben sie nach einem Klick auf einen [[Wikilink]] noch
+ * die vorige Seite, während `slug` schon die neue war — und die
+ * Weiterleitungsprüfung unten las diesen Unterschied als Umbenennung und schickte
+ * dorthin zurück, wo man gerade weg wollte. Zurücksetzen im Effekt hilft dagegen
+ * NICHT: der läuft erst nach dem Rendern, das den Schaden anrichtet.
+ *
+ * Mit dem Schlüssel im Objekt gibt es nichts mehr zurückzusetzen. Was nicht zur
+ * aktuellen Adresse gehört, wird beim Ableiten verworfen, und ein vergessenes
+ * `setX(null)` kann es gar nicht mehr geben.
+ */
+interface Geladen {
+  schluessel: string;
+  seite: WikiSeiteVoll | null;
+  kanonisch: string;
+  fehler: string;
+}
+
 export default function WikiSeite() {
   const { slug = '' } = useParams();
   const [params] = useSearchParams();
   const { user } = useAuth();
-  const [seite, setSeite] = useState<WikiSeiteVoll | null>(null);
-  const [kanonisch, setKanonisch] = useState<string | null>(null);
-  const [fehler, setFehler] = useState('');
+  const [geladen, setGeladen] = useState<Geladen | null>(null);
 
   // „?folgen=nein" — reached deliberately THROUGH the „weitergeleitet von"
   // note, to look at the signpost itself rather than where it points.
   const folgen = params.get('folgen') !== 'nein';
+  // Beides bestimmt, WAS geladen wird, also gehört beides in den Schlüssel.
+  const schluessel = `${slug}|${folgen ? 'folgen' : 'halt'}`;
+
+  // Alles, was nicht zu dieser Adresse gehört, ist von der Seite davor.
+  const daten = geladen?.schluessel === schluessel ? geladen : null;
 
   const laden = useCallback(() => {
-    // `kanonisch` MUSS mit zurückgesetzt werden. Es beschreibt die Seite, die
-    // gerade geladen ist — steht dort beim Wechsel noch der Wert der vorigen,
-    // vergleicht die Weiterleitungsprüfung weiter unten den NEUEN Slug mit der
-    // ALTEN Adresse, hält das für eine Umbenennung und schickt zurück, woher
-    // man gerade kam. Die Antwort auf die neue Seite ist da schon unterwegs und
-    // setzt gleich wieder um: Beide Seiten schaukeln sich sekundenlang hoch,
-    // und weil <Navigate> nichts rendert, steht die Spalte dabei leer.
     let aktuell = true;
-    setFehler('');
-    setSeite(null);
-    setKanonisch(null);
     ladeSeite(slug, folgen)
       .then((d) => {
         // Antwort einer Seite, die man inzwischen verlassen hat: verwerfen.
         // Ohne das gewinnt die langsamste Anfrage statt der letzten.
-        if (!aktuell) return;
-        setSeite(d.seite);
-        setKanonisch(d.kanonisch);
+        if (aktuell) setGeladen({ schluessel, seite: d.seite, kanonisch: d.kanonisch, fehler: '' });
       })
       .catch((e) => {
         if (!aktuell) return;
-        setFehler(e instanceof ApiError && e.status === 404 ? 'nicht-gefunden' : 'Fehler beim Laden');
+        const fehler = e instanceof ApiError && e.status === 404 ? 'nicht-gefunden' : 'Fehler beim Laden';
+        setGeladen({ schluessel, seite: null, kanonisch: '', fehler });
       });
     return () => {
       aktuell = false;
     };
-  }, [slug, folgen]);
+  }, [slug, folgen, schluessel]);
 
   // Der Rückgabewert von `laden` ist die Abmeldung — useEffect räumt damit beim
   // Wechsel die noch offene Anfrage ab.
@@ -64,21 +77,16 @@ export default function WikiSeite() {
 
   // Parsed once per text: the rendering and the table of contents must agree
   // about the heading anchors, and they only do if they read the same tree.
-  const doc = useMemo(() => parseWiki(seite?.text ?? ''), [seite?.text]);
+  const doc = useMemo(() => parseWiki(daten?.seite?.text ?? ''), [daten?.seite?.text]);
   const toc = useMemo(() => inhaltsverzeichnis(doc), [doc]);
 
   // Das Inhaltsverzeichnis gehört in die linke Spalte, die das Layout besitzt —
   // gemeldet statt dort noch einmal geparst, sonst könnten die Anker der beiden
-  // Parsedurchläufe irgendwann auseinanderlaufen.
+  // Parsedurchläufe irgendwann auseinanderlaufen. Beim Wechsel ist es leer,
+  // statt weiter die Gliederung der vorigen Seite zu zeigen.
   useInhaltMelden(toc);
 
-  // Reached through an old address after a rename: move the URL over so links
-  // copied from here are the current ones. A followed redirect does NOT do this
-  // — the server keeps `kanonisch` on the signpost precisely so the address
-  // stays where the reader typed it, as it does on Wikipedia.
-  if (kanonisch && kanonisch !== slug) return <Navigate to={`/wiki/${kanonisch}`} replace />;
-
-  if (fehler === 'nicht-gefunden') {
+  if (daten?.fehler === 'nicht-gefunden') {
     return (
       <div className="wiki">
         <h1>Seite nicht gefunden</h1>
@@ -90,8 +98,17 @@ export default function WikiSeite() {
       </div>
     );
   }
-  if (fehler) return <p className="error">{fehler}</p>;
-  if (!seite) return <p className="muted">Lade…</p>;
+  if (daten?.fehler) return <p className="error">{daten.fehler}</p>;
+  if (!daten?.seite) return <p className="muted">Lade…</p>;
+  const seite = daten.seite;
+
+  // Über eine alte Adresse gekommen (Umbenennung): die URL nachziehen, damit von
+  // hier kopierte Verweise die aktuellen sind. Steht bewusst NACH dem Laden —
+  // nur eine Antwort zu genau dieser Adresse darf eine Weiterleitung auslösen.
+  // Einer gefolgten Weiterleitung folgt das NICHT: der Server lässt `kanonisch`
+  // dort auf dem Wegweiser stehen, damit die Adresse bleibt, wo der Leser sie
+  // eingetippt hat — so hält es Wikipedia auch.
+  if (daten.kanonisch !== slug) return <Navigate to={`/wiki/${daten.kanonisch}`} replace />;
 
   // A category page belongs in the category view, which shows its description
   // AND what is in it. Reaching it under its own address is not wrong, just

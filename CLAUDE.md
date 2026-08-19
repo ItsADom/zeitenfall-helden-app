@@ -154,16 +154,23 @@ These are standing instructions — follow them without being reminded.
   database, and an edit made under that code updates the text while leaving the
   derived column stale. A `user_version` step would catch neither that nor a
   restore from an older backup.
-- **State that describes "what is loaded" must be cleared when the thing being
-  loaded changes** — and every fetch keyed on a route parameter needs an
-  `let aktuell = true` guard whose cleanup drops the answer. The wiki's page view
-  kept `kanonisch` (the canonical slug of the page it had) across a slug change,
-  so the rename-redirect check compared the NEW slug against the OLD page and
-  navigated back where the reader came from; the in-flight response then bounced
-  it forward again. Twelve round trips in two seconds, with an empty column
-  throughout because `<Navigate>` renders nothing. Resetting the value is what
-  breaks the loop; dropping stale answers is what stops the slowest request from
-  winning over the newest.
+- **Async state read during render must carry the identity of what it describes.**
+  Clearing it in an effect is TOO LATE — the render that reads it has already run
+  and returned. The wiki page view kept `kanonisch` (the canonical slug of the
+  page it had) in its own `useState`; after a click on a `[[Wikilink]]` the first
+  render compared the NEW slug against the OLD page and its rename-redirect check
+  navigated straight back where the reader came from. Moving the reset into
+  `laden()` did NOT fix it and made it worse: the bounce became deterministic
+  instead of a race, so the target page never loaded at all. The fix is to keep
+  the response and the key it answers in ONE state object and derive
+  `geladen?.schluessel === schluessel ? geladen : null` during render — then there
+  is nothing to reset and no reset to forget. Separately, every fetch keyed on a
+  route parameter or on typing needs a `let aktuell = true` guard whose cleanup
+  drops the answer, or the slowest request wins over the newest.
+  Browser-level regression check: drive the installed Edge through Playwright from
+  a scratch directory (`channel: 'msedge'`, no download, nothing added to
+  package.json) — reasoning about React's render-then-effect order is exactly what
+  got this wrong twice.
 - **Hiding text from a reader is not enough — you must not send it.** The wiki's
   ` ```gm ` regions are removed server-side before the response. A client that
   merely declined to render them would still have shipped the text, and anyone
