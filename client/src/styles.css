@@ -4305,6 +4305,10 @@ body.resizing-dice {
 .feed-roll-title {
   color: var(--muted);
 }
+.feed-roll-notation {
+  font-size: 11px;
+  opacity: 0.7;
+}
 .feed-vis-tag {
   font-size: 11px;
   color: var(--warn-line);

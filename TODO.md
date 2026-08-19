@@ -19,8 +19,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 ## User feedback
 
 - make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
-- some kind of hint that shows, what dice are even rolled. right now you just can guess by the result if it is a d6 or d20 f.e.
-  - show "(3W20)" behind an according roll
 - arrow key up for last roll into chat panel
 - scroll behaviour is off. when making the chat smaller, the newest roll or chat entry should stay visible
 - gm overview: picture should dock to top-left
@@ -31,6 +29,7 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - "/master" for master-dice (fixed set of result names per number)
 - "/wild" will roll a d6 and d20. this is for wild magic, where the d6 sets the category of spell from afixed list. should be made visible
 - make GM roll request abortable by GM
+- give player the choice to use w or d for rolls in display
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)

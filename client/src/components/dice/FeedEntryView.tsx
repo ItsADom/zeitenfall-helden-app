@@ -110,14 +110,20 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
       : roll.flagged
         ? 'flagged'
         : '';
-  const title = isProbe ? roll.label : roll.label || exprText(roll.expression);
+  const title = roll.label;
+  // Welche Würfel überhaupt geworfen wurden, ist sonst reine Ratesache am
+  // Ergebnis — ein Titel/Favorit verdeckt den Ausdruck ja gerade. Bei einer
+  // Probe zählt nur Anzahl/Seiten (immer W20), der Erleichterung/Erschwernis-
+  // Modifikator steht schon separat daneben.
+  const notation = isProbe ? exprText({ count: roll.n, sides: 20, modifier: 0 }) : exprText(roll.expression);
 
   return (
     <div className={`feed-entry feed-roll${outcome ? ` feed-roll--${outcome}` : ''}`}>
       <div className="feed-roll-head">
         <span className="feed-time">{formatTime(entry.createdAt)}</span>
         <strong>{entry.authorName}</strong>
-        <span className="feed-roll-title">{title}</span>
+        {title && <span className="feed-roll-title">{title}</span>}
+        <span className="feed-roll-notation muted">({notation})</span>
         <VisibilityTag visibility={entry.visibility} />
       </div>
       <div className="feed-roll-body">
