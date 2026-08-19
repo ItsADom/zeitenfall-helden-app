@@ -21,7 +21,6 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 - make GM + player rolls selectable by player and GM directly in chat (GM can choose who to send to, different from requesting Probe)
 - confirmation gets rolled for every dice itself, but the player should only decide to roll confirmations as a single decision
 - check if outsourcing the chat-log to a separate page would make sense regarding loading times etc.
-- something like "/r 5w10+6#Glück", should use the part after # as the roll title. like dice favorites do now, but inline settable
 - "/master" for master-dice (fixed set of result names per number)
 - "/wild" will roll a d6 and d20. this is for wild magic, where the d6 sets the category of spell from afixed list. should be made visible
 - make GM roll request abortable by GM

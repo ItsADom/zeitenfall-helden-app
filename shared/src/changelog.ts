@@ -177,6 +177,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Jeder Wurf im Chat zeigt in Klammern, welche Würfel geworfen wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdecken würde.',
       'Pfeiltaste nach oben im leeren Chat-Eingabefeld holt deinen letzten „/r"-Wurf zurück, zum Wiederholen oder Abändern.',
       'Eine Trennlinie im Chat: drei oder mehr Bindestriche „---" (oder „/line") ziehen einen sichtbaren Strich, praktisch als Markierung für Szenenwechsel oder Sessionende.',
+      'Freie Würfe können ihren Titel gleich mitbringen: „/r 5w10+6#Glück" beschriftet den Wurf inline als „Glück", ohne erst einen Würfel-Favoriten anzulegen.',
     ],
     admin: [
       '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas.',

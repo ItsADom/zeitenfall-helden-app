@@ -30,6 +30,15 @@ const DEFAULT_H = 420;
 const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)));
 const clampH = (n: number): number => Math.min(MAX_H, Math.max(MIN_H, Math.round(n)));
 
+// "#Titel" hinten an einem Würfelausdruck setzt dessen Anzeigenamen inline,
+// wie ein Würfel-Favorit einen mitbringt — z. B. "5w10+6#Glück". Das "#"
+// gehört nicht zum Ausdruck, muss also vor dem Parsen abgetrennt werden.
+function splitInlineTitle(rest: string): { expr: string; label: string } {
+  const hashIdx = rest.indexOf('#');
+  if (hashIdx === -1) return { expr: rest, label: '' };
+  return { expr: rest.slice(0, hashIdx).trim(), label: rest.slice(hashIdx + 1).trim() };
+}
+
 // Fixed-position dock, mounted once at the App level (see App.tsx). Always
 // visible unless a page explicitly suppresses it (DicePanelProvider's
 // `hidden`) — which room is open no longer follows page navigation, see the
@@ -85,7 +94,7 @@ export default function DicePanel() {
 
   const rollMatch = /^\/(?:r|roll)\s+(.*)$/i.exec(draft);
   const rollRest = rollMatch ? rollMatch[1] : null;
-  const isValidDice = rollRest !== null && parseDiceExpression(rollRest) !== null;
+  const isValidDice = rollRest !== null && parseDiceExpression(splitInlineTitle(rollRest).expr) !== null;
   const searchText = rollRest !== null && !isValidDice ? rollRest.trim() : '';
   const showSuggestions = !suggestDismissed && charId !== null && searchText.length >= MIN_SEARCH_LEN;
 
@@ -159,7 +168,8 @@ export default function DicePanel() {
     }
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
-      if (!parseDiceExpression(roll[1])) {
+      const { expr, label } = splitInlineTitle(roll[1]);
+      if (!parseDiceExpression(expr)) {
         setError(
           charId !== null
             ? `„${roll[1]}" ist weder ein gültiger Würfelausdruck (z. B. 2w6+5) noch eine gefundene Probe — weitertippen für Vorschläge.`
@@ -167,7 +177,7 @@ export default function DicePanel() {
         );
         return;
       }
-      rollExpr(roll[1], visibility);
+      rollExpr(expr, visibility, label);
       lastRollCmdRef.current = text;
     } else {
       sendChat(text);
