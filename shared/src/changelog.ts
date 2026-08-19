@@ -174,10 +174,6 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
       'Ausrüstungsgegenstände können jetzt eine Haltbarkeit wie LP bekommen — in den Gegenstands-Details einmal ein Maximum eintragen, danach zeigt der Ausrüstungs-Chip den aktuellen Zustand als Prozentsatz; kritisch niedrige Werte fallen rot auf.',
     ],
-    fixed: [
-      'Setzte die Spielleitung deine Schicksalspunkte zurück, blieben die Kleeblätter im Chat-Panel bis zum Neuladen der Seite deaktiviert.',
-      'Verkleinerte man das Chat-Panel per Ziehgriff, rutschte der jüngste Eintrag aus dem sichtbaren Bereich, statt sichtbar zu bleiben.',
-    ],
     changed: [
       'Der Zielwert einer Probe (die Zahl hinter dem „/") steht jetzt nur noch beim Werfer selbst und bei der Spielleitung — andere Spieler sehen im Chat weiterhin Würfel, Summe und Erfolg/Misserfolg, aber nicht mehr den genauen Attributs-/Talentwert dahinter.',
       'Jeder Wurf im Chat zeigt jetzt in Klammern, welche Würfel tatsächlich gerollt wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdeckt hätte.',
