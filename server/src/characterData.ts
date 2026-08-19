@@ -1814,10 +1814,10 @@ export function buildSummary(charId: number) {
 export function buildGroupOverview(groupId: number) {
   const chars = db
     .prepare(
-      `SELECT c.id, c.name, u.display_name AS ownerName
+      `SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
        FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ? ORDER BY c.name`,
     )
-    .all(groupId) as { id: number; name: string; ownerName: string }[];
+    .all(groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
   return overviewForChars(chars);
 }
 
@@ -1827,17 +1827,17 @@ export function buildGroupOverview(groupId: number) {
 export function buildTempGroupOverview(tempGroupId: number) {
   const chars = db
     .prepare(
-      `SELECT c.id, c.name, u.display_name AS ownerName
+      `SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
        FROM characters c
        JOIN users u ON u.id = c.owner_user_id
        JOIN temp_group_members tgm ON tgm.character_id = c.id
        WHERE tgm.temp_group_id = ? ORDER BY c.name`,
     )
-    .all(tempGroupId) as { id: number; name: string; ownerName: string }[];
+    .all(tempGroupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
   return overviewForChars(chars);
 }
 
-function overviewForChars(chars: { id: number; name: string; ownerName: string }[]) {
+function overviewForChars(chars: { id: number; name: string; ownerUserId: number; ownerName: string }[]) {
   return chars.map((c) => {
     const attributes = loadAttributes(c.id);
     const resources = loadResources(c.id);
@@ -1847,6 +1847,8 @@ function overviewForChars(chars: { id: number; name: string; ownerName: string }
       psycheAkt?: number;
       psycheBase?: number;
       psycheBonus?: number;
+      schicksalspunkteAktuell?: number;
+      schicksalspunkteMax?: number;
     };
 
     // Vitale Pools als Chips „aktuell/max". Als Maximum zählt der NUTZBARE Wert
@@ -1875,10 +1877,21 @@ function overviewForChars(chars: { id: number; name: string; ownerName: string }
     for (const sr of loadSpecialResources(c.id)) {
       vitals.push({ key: sr.name, aktuell: sr.aktuell, max: sr.max });
     }
+    // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die
+    // Spielleitung zustimmt (siehe DicePanel — Spieler verwalten sie dort selbst).
+    // Chip hier ist reine Anzeige, damit die Übersicht den Stand jedes Charakters
+    // zeigt, ohne dessen Bogen zu öffnen.
+    vitals.push({
+      key: 'schicksalspunkte',
+      aktuell: meta.schicksalspunkteAktuell ?? 0,
+      max: meta.schicksalspunkteMax ?? 0,
+    });
 
     return {
       id: c.id,
       name: c.name,
+      // Für „Probe anfordern" auf der Übersicht: die Anfrage geht an den Besitzer.
+      ownerUserId: c.ownerUserId,
       ownerName: c.ownerName,
       stufe: meta.stufe ?? 0,
       portrait: hasPortrait(c.id),

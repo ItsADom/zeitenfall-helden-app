@@ -4,6 +4,7 @@ import { NOTIZ_KEY, listSectionById } from '@shared/sections';
 import type { ColumnDef } from '@shared/sections';
 import { CollapseChevron, CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { ListEditor, NumInput, TextInput } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useDisplayMode, useReadOnly } from '../components/displayMode';
@@ -211,12 +212,36 @@ function Feld({
   );
 }
 
-/** Fertige Probe im Kartenkopf — die Zahl, die am Tisch gewürfelt wird. */
-function ProbeChip({ label, value, title }: { label: string; value: number; title: string }) {
+// Der Server schlägt die Waffenzeile über ihre id nach; eine frisch angelegte,
+// noch nicht gespeicherte Zeile hat keine — dort bleibt der Würfel-Knopf weg,
+// bis gespeichert wurde.
+function rollFor(row: Row, probe: 'at' | 'pa' | 'bl' | 'fk') {
+  const sectionRowId = Number(row.id) || 0;
+  return sectionRowId ? { sectionRowId, probe } : undefined;
+}
+
+/**
+ * Fertige Probe im Kartenkopf — die Zahl, die am Tisch gewürfelt wird.
+ * `roll` hängt den Würfel-Knopf an: eine einzelne Stelle für alle vier Chips
+ * (AT/PA/BL am Nahkampf, FK am Fernkampf), statt vier gleiche Knöpfe an den
+ * jeweiligen Aufrufstellen.
+ */
+function ProbeChip({
+  label,
+  value,
+  title,
+  roll,
+}: {
+  label: string;
+  value: number;
+  title: string;
+  roll?: { sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' };
+}) {
   return (
     <span className="wpn-chip" title={title}>
       <span className="wpn-chip-label">{label}</span>
       <span className="wpn-chip-val">{value}</span>
+      {roll && <ProbeRollButton source={{ kind: 'weapon', ...roll }} title={`${title} (${label})`} />}
     </span>
   );
 }
@@ -361,9 +386,9 @@ function NahCards({
                 open={open}
                 onToggle={() => toggle(i)}
               >
-                <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" />
-                <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" />
-                <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" />
+                <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={rollFor(row, 'at')} />
+                <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={rollFor(row, 'pa')} />
+                <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={rollFor(row, 'bl')} />
               </CardHead>
               {open && (
                 <div className="chip-editor">
@@ -472,7 +497,7 @@ function FernCards({
                 open={open}
                 onToggle={() => toggle(i)}
               >
-                <ProbeChip label="FK" value={fkProbeFor(row)} title="Fernkampf — fertige Probe" />
+                <ProbeChip label="FK" value={fkProbeFor(row)} title="Fernkampf — fertige Probe" roll={rollFor(row, 'fk')} />
               </CardHead>
               {open && (
                 <div className="chip-editor">

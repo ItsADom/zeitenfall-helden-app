@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { ResourceKey } from '@shared/types';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
+import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
 
@@ -21,6 +22,8 @@ interface CharTag {
 interface OverviewChar {
   id: number;
   name: string;
+  /** Empfänger einer „Probe anfordern"-Anfrage. */
+  ownerUserId: number;
   ownerName: string;
   stufe: number;
   portrait: boolean;
@@ -44,7 +47,7 @@ interface OverviewData {
 }
 
 // Kürzel wie in der Seitenleiste (RES_ABBR): LP/AUS/ASP, plus Psyche.
-const VITAL_LABELS: Record<string, string> = { le: 'LP', aus: 'AUS', ase: 'ASP', psyche: 'Psyche' };
+const VITAL_LABELS: Record<string, string> = { le: 'LP', aus: 'AUS', ase: 'ASP', psyche: 'Psyche', schicksalspunkte: '🍀 SP' };
 
 // Takt der stillen Auto-Aktualisierung, solange die Übersicht sichtbar offen ist.
 const POLL_MS = 15000;
@@ -191,6 +194,18 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
         {kind === 'temp' ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
       </p>
       <h1>{kind === 'temp' ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
+
+      {kind === 'group' && (
+        <p>
+          <button
+            className="small"
+            title="Setzt die Schicksalspunkte aller Charaktere dieser Gruppe auf ihr jeweiliges Maximum zurück"
+            onClick={() => void apiPost(`/api/groups/${groupId}/schicksalspunkte/reset`).then(() => loadOverview(true))}
+          >
+            🍀 Neuer Spieltag (Schicksalspunkte zurücksetzen)
+          </button>
+        </p>
+      )}
 
       <div className="gm-poll">
         <div className="gm-poll-search">
@@ -348,6 +363,12 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
                   );
                 })()}
               </div>
+
+              {/* Event-Gruppen haben keinen eigenen Feed (die WS-Route kennt
+                  nur echte Gruppen) — dort gibt es nichts anzufragen. */}
+              {kind !== 'temp' && (
+                <RequestProbePicker groupId={groupId} charId={c.id} targetUserId={c.ownerUserId} charName={c.name} />
+              )}
 
               <GmNoteField key={c.id} charId={c.id} initial={c.gmNotiz} />
             </div>

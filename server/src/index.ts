@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,7 @@ import { startBackupSchedule } from './backup.js';
 import { startAssetSweep } from './assets/sweep.js';
 import { migrierePortraits } from './assets/portraits.js';
 import { mirrorChangelog } from './discord.js';
+import { attachWsServer } from './ws.js';
 import './db.js';
 // Nach db.js: das Wiki-Schema greift auf denselben `db` zu und darf erst laufen,
 // wenn die Grundtabellen und ihre Migrationen durch sind.
@@ -82,11 +84,14 @@ if (fs.existsSync(clientDist)) {
   console.log('Liefere gebauten Client aus client/dist aus');
 }
 
+const server = http.createServer(app);
+attachWsServer(server);
+
 const port = Number(process.env.PORT ?? 3001);
 // '::' keeps today's behaviour exactly: dual-stack, all interfaces. Set
 // HOST=127.0.0.1 per instance so nothing can reach the app past nginx, which
 // would skip the login rate limit and the real-IP handling.
 const host = process.env.HOST ?? '::';
-app.listen(port, host, () => {
+server.listen(port, host, () => {
   console.log(`Helden-App Server läuft auf http://localhost:${port}`);
 });

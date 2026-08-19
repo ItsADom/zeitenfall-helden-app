@@ -19,6 +19,8 @@ import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { wikiApi } from './wiki/router.js';
 import { loescheAssetsFuer } from './assets/store.js';
 import { db, initCharacterRows } from './db.js';
+import { loadFeedPage } from './feed.js';
+import { listRollableProbes } from './diceSource.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
@@ -108,13 +110,15 @@ interface CharRow {
   requested_group_id: number | null;
   requested_at: number | null;
   theme: string;
+  dice_shortcuts: string;
+  chat_name: string;
 }
 
 function getChar(id: number): CharRow | undefined {
   return db.prepare('SELECT * FROM characters WHERE id = ?').get(id) as CharRow | undefined;
 }
 
-function isGroupMember(userId: number, groupId: number): boolean {
+export function isGroupMember(userId: number, groupId: number): boolean {
   return !!db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
 }
 
@@ -294,6 +298,65 @@ api.get('/groups/names', requireAuth, (_req, res) => {
   res.json(db.prepare('SELECT id, name FROM groups ORDER BY name').all());
 });
 
+// Nur die eigenen Gruppen (Mitgliedschaft, GM sieht alle) — für den
+// Chatraum-Umschalter im Dice-Dock. Bewusst ein eigener, schlanker Endpunkt
+// statt /api/overview mitzunutzen, der zusätzlich JEDEN Charakter mitliefert
+// (bei einem Spielleiter potenziell die ganze Kampagne) und für einen simplen
+// Raum-Umschalter unnötig schwer wäre.
+api.get('/groups/mine', requireAuth, (req, res) => {
+  const user = req.user!;
+  // Wer in einer Gruppe postet, ist die Gruppe's eigener Charakter des Nutzers
+  // (siehe DicePanelProvider — der Chatraum bestimmt, wer postet, nicht die
+  // gerade betrachtete Seite) — nie ein Konto-Name, außer für die Spielleitung,
+  // die grundsätzlich ohne Charakterbezug chattet.
+  if (user.isGm) {
+    const groups = db.prepare('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[];
+    res.json(
+      groups.map((g) => ({
+        ...g,
+        myCharacterId: null,
+        myCharacterName: null,
+        myDiceShortcuts: '',
+        schicksalspunkteAktuell: 0,
+        schicksalspunkteMax: 0,
+      })),
+    );
+    return;
+  }
+  const rows = db
+    .prepare(
+      `SELECT g.id, g.name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName,
+              c.dice_shortcuts AS charShortcuts, cm.schicksalspunkteAktuell AS spAktuell, cm.schicksalspunkteMax AS spMax
+       FROM groups g
+       JOIN group_members m ON m.group_id = g.id
+       LEFT JOIN characters c ON c.group_id = g.id AND c.owner_user_id = m.user_id
+       LEFT JOIN char_meta cm ON cm.character_id = c.id
+       WHERE m.user_id = ?
+       ORDER BY g.name`,
+    )
+    .all(user.id) as {
+    id: number;
+    name: string;
+    charId: number | null;
+    charName: string | null;
+    charChatName: string | null;
+    charShortcuts: string | null;
+    spAktuell: number | null;
+    spMax: number | null;
+  }[];
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      myCharacterId: r.charId,
+      myCharacterName: r.charId ? r.charChatName || r.charName : null,
+      myDiceShortcuts: r.charShortcuts ?? '',
+      schicksalspunkteAktuell: r.spAktuell ?? 0,
+      schicksalspunkteMax: r.spMax ?? 0,
+    })),
+  );
+});
+
 api.get('/groups/:id', requireAuth, (req, res) => {
   const groupId = Number(req.params.id);
   const user = req.user!;
@@ -360,6 +423,50 @@ api.put('/characters/:id/gm-notiz', requireAuth, requireGm, (req, res) => {
   res.json({ ok: true });
 });
 
+// Schicksalspunkte: eigener, schmaler Endpunkt statt des generischen
+// section-save-Wegs — der schreibt IMMER die komplette char_meta-Zeile, ein
+// Teil-Body von hier (nur aktuell/max) würde also stufe/ap/ruf/psyche/… mit
+// num(undefined) auf 0 zurücksetzen. Der Charakterbesitzer darf NUR AUSGEBEN
+// (aktuell sinken, nie über den bisherigen Stand steigen; max unveränderbar) —
+// Gutschriften und Max-Änderungen sind Spielleitungssache, sonst könnte sich
+// ein Spieler beliebig viele Neuwürfe selbst genehmigen. Das wird hier serverseitig
+// erzwungen, nicht nur in der Oberfläche versteckt.
+api.put('/characters/:id/schicksalspunkte', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  const current = db
+    .prepare('SELECT schicksalspunkteAktuell, schicksalspunkteMax FROM char_meta WHERE character_id = ?')
+    .get(char.id) as { schicksalspunkteAktuell: number; schicksalspunkteMax: number };
+  const body = (req.body ?? {}) as { aktuell?: unknown; max?: unknown };
+  const isGm = req.user!.isGm;
+
+  const max = isGm && body.max !== undefined ? Math.max(0, Number(body.max) || 0) : current.schicksalspunkteMax;
+  let aktuell = body.aktuell !== undefined ? Math.max(0, Number(body.aktuell) || 0) : current.schicksalspunkteAktuell;
+  aktuell = Math.min(max, aktuell);
+  if (!isGm) aktuell = Math.min(aktuell, current.schicksalspunkteAktuell); // Besitzer darf nur ausgeben, nie gutschreiben
+
+  db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = ?, schicksalspunkteMax = ? WHERE character_id = ?').run(
+    aktuell,
+    max,
+    char.id,
+  );
+  res.json({ aktuell, max });
+});
+
+// GM-Sammel-Reset für eine ganze Gruppe („Neuer Spieltag") — setzt jeden
+// Charakter der Gruppe auf sein eigenes Maximum zurück.
+api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res) => {
+  const groupId = Number(req.params.id);
+  db.prepare(
+    `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax
+     WHERE character_id IN (SELECT id FROM characters WHERE group_id = ?)`,
+  ).run(groupId);
+  res.json({ ok: true });
+});
+
 // --- Gemeinsame Gruppeninhalte (jedes Gruppenmitglied darf bearbeiten) ---
 
 function editableGroup(req: import('express').Request, res: import('express').Response): number | null {
@@ -372,6 +479,18 @@ function editableGroup(req: import('express').Request, res: import('express').Re
   }
   return groupId;
 }
+
+// History page for the docked chat/roll panel — filtered through the SAME
+// canSeeFeedEntry predicate used for live broadcast (server/src/ws.ts), so a
+// hidden or GM+player roll can't leak into a page scrolled back into.
+api.get('/groups/:id/feed', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const before = req.query.before != null ? Number(req.query.before) : null;
+  const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
+  const { entries, hasMore } = loadFeedPage(groupId, { userId: req.user!.id }, before, limit);
+  res.json({ entries, hasMore });
+});
 
 api.post('/groups/:id/tabs', requireAuth, (req, res) => {
   const groupId = editableGroup(req, res);
@@ -522,6 +641,8 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     groupName: group?.name ?? '',
     tempGroups,
     theme: char.theme ?? '',
+    diceShortcuts: char.dice_shortcuts ?? '',
+    chatName: char.chat_name ?? '',
   };
   if (!access) {
     res.json({ character: info, access: null, viewAs });
@@ -768,6 +889,40 @@ api.put('/characters/:id/theme', requireAuth, (req, res) => {
   const theme = String((req.body as { theme?: unknown })?.theme ?? '').slice(0, 40);
   db.prepare('UPDATE characters SET theme = ? WHERE id = ?').run(theme, char.id);
   res.json({ theme });
+});
+
+// Würfel-Favoriten des Charakters ("Label: Ausdruck" pro Zeile, siehe
+// shared/src/dice.ts parseDiceShortcuts) — gleiche Rechte wie /theme.
+api.put('/characters/:id/dice-shortcuts', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
+  db.prepare('UPDATE characters SET dice_shortcuts = ? WHERE id = ?').run(text, char.id);
+  res.json({ diceShortcuts: text });
+});
+
+// Kurzer, optionaler Anzeigename im Gruppen-Feed (Chat/Würfe) — überschreibt
+// den vollen Charakternamen nur dort, wenn gesetzt ('' = voller Name).
+api.put('/characters/:id/chat-name', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const chatName = String((req.body as { chatName?: unknown })?.chatName ?? '').trim().slice(0, 24);
+  db.prepare('UPDATE characters SET chat_name = ? WHERE id = ?').run(chatName, char.id);
+  res.json({ chatName });
+});
+
+// Alles, worauf dieser Charakter würfeln kann — Auswahlliste für „Probe
+// anfordern" auf der Spielleiter-Übersicht UND für die Talent-Vorschläge im
+// Würfel-Chat (siehe DicePanel.tsx). Bewusst auf Abruf statt mitgeladen: die
+// Liste ist lang und wird selten gebraucht. GM sieht jeden Charakter, der
+// Besitzer nur den eigenen — sonst könnte man fremde Proben-Listen abfragen.
+api.get('/characters/:id/probes', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  res.json(listRollableProbes(char.id));
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---

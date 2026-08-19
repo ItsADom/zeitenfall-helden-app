@@ -1,0 +1,544 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  /* Light palette (default) — exact values from the app's own :root, plus a
+     handful of map-only decorative tokens (--map-*, --tile-*, --fog-*) that
+     don't exist in the real app yet, chosen to sit alongside its semantic
+     warn/crit/over tones rather than introduce new hues. */
+  :root {
+    --bg: #f6f3ec;
+    --panel: #ffffff;
+    --panel-hi: #fffdf8;
+    --border: #e4ddce;
+    --border-strong: #d3c9b4;
+    --text: #292018;
+    --muted: #8a7d68;
+    --accent: #8b2635;
+    --accent-dark: #6f1d2a;
+    --accent-soft: #faf1ee;
+    --on-accent: #ffffff;
+    --on-accent-fill: #ffffff;
+    --header-grad-a: #6a1a1c;
+    --header-grad-mid: #e0644f;
+    --header-grad-b: #9a2f2c;
+    --shadow: 0 1px 2px rgba(41,32,24,.06), 0 4px 16px rgba(41,32,24,.05);
+    --shadow-soft: 0 1px 1px rgba(41,32,24,.05);
+    --radius: 10px;
+    --radius-panel: 8px;
+    --warn-soft: #f6e7cf;
+    --warn-line: #b06a1f;
+    --crit-soft: #f3d9d2;
+    --crit-line: #9a2f22;
+    --over-soft: #dfe9fb;
+    --over-line: #2f5db0;
+    --surface-head: #faf7ef;
+    --surface-hover: #fcfaf5;
+    --border-soft: #f0ebdf;
+    --mastery: #c8871a;
+    --map-outer: #efe6d1;
+    --map-floor: #efe7d4;
+    --map-line: rgba(41,32,24,.08);
+    --tile-stone: #c9bfa2;
+    --tile-water: #8fb3c9;
+    --tile-hazard: #c96b3f;
+    --fog-gm-a: rgba(90,80,70,.30);
+    --fog-gm-b: rgba(90,80,70,.20);
+    --fog-gm-border: rgba(90,80,70,.55);
+    --fog-gm-label: rgba(60,50,40,.65);
+  }
+  /* Dark — the app's real dark values for the Khôm/rot world (styles.css
+     :root[data-mode='dark'] + :root[data-theme='rot'][data-mode='dark']),
+     applied when the viewer's system prefers dark and the artifact hasn't
+     been forced to light. */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140f;
+      --panel: #221d16;
+      --panel-hi: #2a241b;
+      --border: #3a3226;
+      --border-strong: #4a4030;
+      --text: #ece3d2;
+      --muted: #a99e86;
+      --accent: #d06a48;
+      --accent-dark: #e0855f;
+      --accent-soft: #35221a;
+      --on-accent: #ffffff;
+      --on-accent-fill: #17140f;
+      --header-grad-a: #4a1d16;
+      --header-grad-mid: #cf6247;
+      --header-grad-b: #6f2a20;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
+      --shadow-soft: 0 1px 1px rgba(0,0,0,.35);
+      --warn-soft: #3a2f1c;
+      --warn-line: #d69a4a;
+      --crit-soft: #3a221c;
+      --crit-line: #e0705f;
+      --over-soft: #1b2740;
+      --over-line: #6b90cf;
+      --surface-head: #262019;
+      --surface-hover: #2b2519;
+      --border-soft: #322b20;
+      --mastery: #e0a63a;
+      --map-outer: #1c170f;
+      --map-floor: #241f16;
+      --map-line: rgba(236,227,210,.09);
+      --tile-stone: #4a4234;
+      --tile-water: #274a5c;
+      --tile-hazard: #7a3d22;
+      --fog-gm-a: rgba(236,227,210,.16);
+      --fog-gm-b: rgba(236,227,210,.09);
+      --fog-gm-border: rgba(236,227,210,.35);
+      --fog-gm-label: rgba(230,220,200,.6);
+    }
+  }
+  /* Same set again, forced by an explicit dark choice (wins over the media query). */
+  :root[data-theme="dark"] {
+    --bg: #17140f;
+    --panel: #221d16;
+    --panel-hi: #2a241b;
+    --border: #3a3226;
+    --border-strong: #4a4030;
+    --text: #ece3d2;
+    --muted: #a99e86;
+    --accent: #d06a48;
+    --accent-dark: #e0855f;
+    --accent-soft: #35221a;
+    --on-accent: #ffffff;
+    --on-accent-fill: #17140f;
+    --header-grad-a: #4a1d16;
+    --header-grad-mid: #cf6247;
+    --header-grad-b: #6f2a20;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
+    --shadow-soft: 0 1px 1px rgba(0,0,0,.35);
+    --warn-soft: #3a2f1c;
+    --warn-line: #d69a4a;
+    --crit-soft: #3a221c;
+    --crit-line: #e0705f;
+    --over-soft: #1b2740;
+    --over-line: #6b90cf;
+    --surface-head: #262019;
+    --surface-hover: #2b2519;
+    --border-soft: #322b20;
+    --mastery: #e0a63a;
+    --map-outer: #1c170f;
+    --map-floor: #241f16;
+    --map-line: rgba(236,227,210,.09);
+    --tile-stone: #4a4234;
+    --tile-water: #274a5c;
+    --tile-hazard: #7a3d22;
+    --fog-gm-a: rgba(236,227,210,.16);
+    --fog-gm-b: rgba(236,227,210,.09);
+    --fog-gm-border: rgba(236,227,210,.35);
+    --fog-gm-label: rgba(230,220,200,.6);
+  }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  a { color: var(--accent); } a:hover { color: var(--accent-dark); }
+  .serif { font-family: 'Cormorant Garamond', Georgia, 'Iowan Old Style', serif; }
+  button { font: inherit; cursor: pointer; }
+  .stage { width: 1680px; height: 1000px; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ---- topbar ---- */
+  .topbar {
+    height: 52px; flex: 0 0 auto; display: flex; align-items: center; gap: 18px; padding: 0 18px;
+    background: linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%);
+    color: var(--on-accent); box-shadow: 0 2px 12px rgba(139,38,53,.35);
+  }
+  .wordmark { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 700; font-size: 20px; letter-spacing: .02em; color: #fff; text-decoration: none; }
+  .topbar nav { display: flex; gap: 16px; font-size: 14px; opacity: .92; }
+  .topbar .crumb { opacity: .78; font-size: 13px; }
+  .topbar .room-name { font-weight: 600; font-size: 14px; }
+  .topbar .spacer { flex: 1; }
+  .topbar .gm-pill {
+    font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.35);
+    padding: 3px 9px; border-radius: 999px;
+  }
+  .avatar-chip { width: 28px; height: 28px; border-radius: 50%; background: #d9a15a; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #4a2f10; border: 2px solid rgba(255,255,255,.6); }
+
+  /* ---- body columns ---- */
+  .cols { flex: 1; display: flex; min-height: 0; }
+
+  /* ---- quick panel (character sidebar) ---- */
+  .sidebar { width: 250px; flex: 0 0 250px; border-right: 1px solid var(--border); background: var(--panel); display: flex; flex-direction: column; }
+  .sidebar-head { padding: 12px 14px 8px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-soft); }
+  .sidebar-head .title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .sidebar-scroll { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 14px; }
+  .pool { border: 1px solid var(--border); border-radius: var(--radius-panel); padding: 8px 10px; background: linear-gradient(180deg, var(--panel-hi), var(--panel)); }
+  .pool-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; font-weight: 600; }
+  .pool-bar { height: 7px; border-radius: 999px; background: var(--border-soft); overflow: hidden; margin-bottom: 7px; }
+  .pool-bar > div { height: 100%; border-radius: 999px; }
+  .pool-row { display: flex; align-items: center; gap: 6px; }
+  .stepper { display: flex; align-items: center; gap: 4px; }
+  .stepper button { width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--border-strong); background: var(--panel); color: var(--text); font-size: 13px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+  .stepper input { width: 40px; text-align: center; border: 1px solid var(--border); border-radius: 5px; padding: 2px 0; font-size: 13px; font-weight: 600; }
+  .sec-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 6px; }
+  .attr-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .attr-tile { border: 1px solid var(--border); border-radius: 7px; background: var(--panel); padding: 6px 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .attr-tile .code { font-size: 10px; color: var(--muted); font-weight: 700; }
+  .attr-tile .val { font-size: 15px; font-weight: 700; }
+  .attr-tile .dice { font-size: 10px; color: var(--accent); }
+  .notiz-box { border: 1px solid var(--border-soft); background: var(--surface-hover); border-radius: 7px; padding: 8px 9px; font-size: 12px; color: var(--muted); line-height: 1.5; min-height: 60px; }
+
+  /* ---- map area ---- */
+  .map-col { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--map-outer); position: relative; }
+
+  .toolbar {
+    flex: 0 0 46px; display: flex; align-items: center; gap: 4px; padding: 0 10px;
+    background: var(--panel); border-bottom: 1px solid var(--border); box-shadow: var(--shadow-soft); z-index: 4;
+  }
+  .tool { width: 32px; height: 32px; border-radius: 7px; border: 1px solid transparent; background: transparent; display: flex; align-items: center; justify-content: center; color: var(--text); }
+  .tool svg { width: 18px; height: 18px; }
+  .tool.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-dark); }
+  .tool-sep { width: 1px; height: 22px; background: var(--border); margin: 0 4px; }
+  .toolbar .spacer { flex: 1; }
+  .gm-settings-btn { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); border: 1px solid var(--border); border-radius: 7px; padding: 5px 10px; background: var(--panel); }
+  .gm-settings-btn svg { width: 14px; height: 14px; }
+
+  /* ---- initiative strip ---- */
+  .ini-strip { flex: 0 0 84px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: var(--panel-hi); border-bottom: 1px solid var(--border); z-index: 3; box-shadow: var(--shadow-soft); }
+  .round-badge { flex: 0 0 auto; text-align: center; padding: 6px 14px; border-radius: var(--radius-panel); background: var(--accent); color: #fff; }
+  .round-badge .n { font-size: 20px; font-weight: 700; line-height: 1; font-family: 'Cormorant Garamond', serif; }
+  .round-badge .l { font-size: 9px; letter-spacing: .06em; text-transform: uppercase; opacity: .85; }
+  .ini-list { flex: 1; display: flex; gap: 8px; overflow-x: auto; padding: 4px 0; }
+  .ini-card { flex: 0 0 auto; width: 118px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); padding: 6px 8px; position: relative; }
+  .ini-card.current { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .ini-card .top { display: flex; align-items: center; gap: 6px; }
+  .ini-thumb { width: 22px; height: 22px; border-radius: 50%; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
+  .ini-name { font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+  .ini-val { font-size: 11px; color: var(--muted); font-weight: 700; }
+  .ini-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; }
+  .ini-done { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+  .ini-done input { width: 12px; height: 12px; }
+  .death-tag { font-size: 9px; font-weight: 700; color: var(--crit-line); background: var(--crit-soft); border-radius: 999px; padding: 1px 6px; }
+  .advance-btn { flex: 0 0 auto; font-size: 11px; font-weight: 700; padding: 8px 12px; border-radius: 7px; border: 1px solid var(--border-strong); background: var(--surface-hover); color: var(--muted); text-align: center; line-height: 1.3; }
+
+  /* ---- map canvas ---- */
+  .map-wrap { flex: 1; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .map-canvas {
+    width: 1000px; height: 560px; position: relative; background:
+      linear-gradient(var(--map-line) 1px, transparent 1px) 0 0 / 40px 40px,
+      linear-gradient(90deg, var(--map-line) 1px, transparent 1px) 0 0 / 40px 40px,
+      var(--map-floor);
+    box-shadow: 0 6px 26px rgba(41,32,24,.18); border-radius: 4px;
+  }
+  .tile { position: absolute; }
+  .cover-badge { position: absolute; top: -6px; left: -6px; font-size: 15px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.3)); }
+  .status-row { position: absolute; bottom: -4px; left: 50%; transform: translateX(-50%); display: flex; gap: 1px; }
+  .status-row span { font-size: 12px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
+
+  .token { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .token-shape { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); border: 2px solid var(--panel); position: relative; }
+  .token-label { font-size: 10px; font-weight: 700; background: rgba(255,255,255,.88); padding: 1px 6px; border-radius: 999px; color: var(--text); white-space: nowrap; box-shadow: 0 1px 2px rgba(41,32,24,.15); }
+  .token.pc .token-shape { background: linear-gradient(160deg,#c67a3f,#8b4a24); }
+  .token.monster .token-shape { background: linear-gradient(160deg,#7a8a5c,#4c5a37); border-color: #fff; }
+  .token.dead .token-shape { opacity: .55; filter: grayscale(.5); }
+  .token.dead .token-label { opacity: .6; }
+
+  .fog-gm { position: absolute; background: repeating-linear-gradient(135deg, var(--fog-gm-a) 0 8px, var(--fog-gm-b) 8px 16px); border: 1px dashed var(--fog-gm-border); opacity: .62; pointer-events: none; }
+  .fog-gm::after { content: 'NEBEL'; position: absolute; top: 6px; left: 8px; font-size: 9px; font-weight: 700; letter-spacing: .08em; color: var(--fog-gm-label); }
+
+  .measure-line { position: absolute; height: 2px; background: var(--accent); transform-origin: left center; }
+  .measure-line::before, .measure-line::after { content: ''; position: absolute; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); top: 50%; transform: translateY(-50%); }
+  .measure-line::before { left: -4px; } .measure-line::after { right: -4px; }
+  .measure-tag { position: absolute; font-size: 11px; font-weight: 700; color: #fff; background: var(--accent); padding: 2px 7px; border-radius: 999px; box-shadow: 0 2px 4px rgba(41,32,24,.3); white-space: nowrap; }
+  .measure-circle { position: absolute; border-radius: 50%; border: 2px dashed var(--accent-dark); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+  .map-label { position: absolute; display: flex; align-items: center; gap: 4px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: 999px; padding: 3px 10px 3px 6px; font-size: 11px; font-weight: 600; box-shadow: var(--shadow-soft); }
+  .map-label svg { width: 12px; height: 12px; color: var(--accent); }
+
+  .center-toast { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(41,32,24,.86); color: #fff; font-size: 12px; padding: 6px 14px; border-radius: 999px; display: flex; align-items: center; gap: 6px; }
+  .center-toast svg { width: 13px; height: 13px; }
+
+  /* ---- board settings popover ---- */
+  .settings-pop { position: absolute; top: 52px; right: 14px; width: 232px; background: var(--panel); border: 1px solid var(--border-strong); border-radius: var(--radius-panel); box-shadow: var(--shadow); padding: 12px 13px; z-index: 6; }
+  .settings-pop h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+  .perm-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: 12px; border-top: 1px solid var(--border-soft); }
+  .perm-row:first-of-type { border-top: none; }
+  .seg { display: flex; border: 1px solid var(--border-strong); border-radius: 999px; overflow: hidden; font-size: 10px; }
+  .seg span { padding: 3px 8px; color: var(--muted); }
+  .seg span.on { background: var(--accent); color: #fff; font-weight: 700; }
+  .perm-fixed { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--muted); padding: 6px 0 0; margin-top: 4px; border-top: 1px solid var(--border-soft); }
+
+  /* ---- chat column (dice dock, docked) ---- */
+  .chat-col { width: 300px; flex: 0 0 300px; border-left: 1px solid var(--border-strong); background: var(--panel); display: flex; flex-direction: column; }
+  .chat-head { padding: 10px 13px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .chat-head .room { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+  .chat-head .room svg { width: 13px; height: 13px; color: var(--muted); }
+  .chat-feed { flex: 1; overflow-y: auto; padding: 10px 13px; display: flex; flex-direction: column; gap: 9px; }
+  .msg { font-size: 12.5px; line-height: 1.4; }
+  .msg .who { font-weight: 700; color: var(--accent-dark); }
+  .msg.me { font-style: italic; color: var(--muted); }
+  .roll-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-hover); padding: 8px 10px; }
+  .roll-card .who { font-size: 11px; font-weight: 700; color: var(--accent-dark); margin-bottom: 4px; }
+  .pips { display: flex; gap: 3px; margin: 4px 0; }
+  .pip { width: 18px; height: 18px; border-radius: 4px; border: 1px solid var(--border-strong); background: #fff; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+  .pip.nat20 { background: var(--crit-soft); border-color: var(--crit-line); color: var(--crit-line); }
+  .roll-outcome { font-size: 11px; font-weight: 700; }
+  .roll-outcome.success { color: #3a6b34; }
+  .chat-input { padding: 10px 13px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; }
+  .chat-input .row1 { display: flex; gap: 6px; }
+  .chat-input input[type=text] { flex: 1; border: 1px solid var(--border-strong); border-radius: 7px; padding: 7px 9px; font-size: 12.5px; background: var(--panel); color: var(--text); }
+  .chat-input .send { border: none; background: var(--accent); color: #fff; border-radius: 7px; padding: 0 12px; font-size: 12px; font-weight: 700; }
+  .chat-tools { display: flex; gap: 5px; }
+  .chip-btn { font-size: 10.5px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 8px; color: var(--muted); background: var(--panel); }
+</style>
+</helmet>
+
+<div class="stage">
+
+  <!-- topbar -->
+  <div class="topbar">
+    <span class="wordmark">Zeitenkompass</span>
+    <span class="crumb">Gruppe</span>
+    <span class="room-name">Die Blutmond-Kompanie · Tisch</span>
+    <span class="spacer"></span>
+    <span class="gm-pill">Spielleitung</span>
+    <div class="avatar-chip">SL</div>
+  </div>
+
+  <div class="cols">
+
+    <!-- quick panel -->
+    <aside class="sidebar">
+      <div class="sidebar-head">
+        <span class="title">Überblick — Raskir</span>
+      </div>
+      <div class="sidebar-scroll">
+        <div class="pool">
+          <div class="pool-head"><span>LP</span><span>18 / 34</span></div>
+          <div class="pool-bar"><div style="width:53%; background: var(--crit-line);"></div></div>
+          <div class="pool-row"><div class="stepper"><button>–</button><input value="18"><button>+</button></div></div>
+        </div>
+        <div class="pool">
+          <div class="pool-head"><span>AUS</span><span>21 / 26</span></div>
+          <div class="pool-bar"><div style="width:81%; background: var(--warn-line);"></div></div>
+          <div class="pool-row"><div class="stepper"><button>–</button><input value="21"><button>+</button></div></div>
+        </div>
+        <div class="pool">
+          <div class="pool-head"><span>ASP</span><span>9 / 12</span></div>
+          <div class="pool-bar"><div style="width:75%; background: #4f7db0;"></div></div>
+          <div class="pool-row"><div class="stepper"><button>–</button><input value="9"><button>+</button></div></div>
+        </div>
+        <div>
+          <div class="sec-label">Attribute</div>
+          <div class="attr-grid">
+            <div class="attr-tile"><span class="code">MU</span><span class="val">13</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">KL</span><span class="val">11</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">IN</span><span class="val">12</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">CH</span><span class="val">10</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">FF</span><span class="val">14</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">GE</span><span class="val">15</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">KO</span><span class="val">13</span><span class="dice">🎲</span></div>
+            <div class="attr-tile"><span class="code">KK</span><span class="val">12</span><span class="dice">🎲</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="sec-label">Notiz</div>
+          <div class="notiz-box">Trägt den verfluchten Ring — bei jedem Nat.1 flüstert er.</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- map -->
+    <div class="map-col">
+
+      <div class="toolbar">
+        <button class="tool active" title="Verschieben">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4v6M8 4 6 6M8 4l2 2M16 4v6M16 4l-2 2M16 4l2 2M8 20v-6M8 20l-2-2M8 20l2-2M16 20v-6M16 20l-2-2M16 20l2-2M4 8h6M4 8l2-2M4 8l2 2M20 8h-6M20 8l-2-2M20 8l-2 2M4 16h6M4 16l2-2M4 16l2 2M20 16h-6M20 16l-2-2M20 16l-2 2"/></svg>
+        </button>
+        <button class="tool" title="Kacheln bemalen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15c0 3 2.5 5 6 5s6-2 6-5c0-3-6-9-6-9s-1 1-2.3 2.6"/><path d="M6.5 12 12 6.5l3 3"/></svg>
+        </button>
+        <button class="tool" title="Nebel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 18a3.5 3.5 0 1 1 .6-6.95A4.5 4.5 0 0 1 15.5 9a4 4 0 0 1 .5 7.98"/><path d="M6.5 18h9.5"/></svg>
+        </button>
+        <div class="tool-sep"></div>
+        <button class="tool" title="Lineal">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="6" rx="1" transform="rotate(-30 12 12)"/><path d="M8 8.5 9 10.5M11 6.8 12 8.8M14 5.1 15 7.1" transform="rotate(-30 12 12)"/></svg>
+        </button>
+        <button class="tool" title="Radius">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><path d="M12 12 18 8"/></svg>
+        </button>
+        <button class="tool" title="Kegel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 20 19H4Z"/></svg>
+        </button>
+        <button class="tool" title="Rechteck">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12" rx="1.5"/></svg>
+        </button>
+        <div class="tool-sep"></div>
+        <button class="tool" title="Beschriftung">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6h14M12 6v13"/></svg>
+        </button>
+        <button class="tool" title="Marker anlegen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="9" r="4"/><path d="M3 20c0-3.5 3-6 7-6M17 8v6M14 11h6"/></svg>
+        </button>
+        <div class="spacer"></div>
+        <button class="gm-settings-btn" title="Alle hier zentrieren">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+          Alle zentrieren
+        </button>
+        <button class="gm-settings-btn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.36a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.64 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.64 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.64a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.36 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+          Karten-Rechte
+        </button>
+      </div>
+
+      <!-- initiative -->
+      <div class="ini-strip">
+        <div class="round-badge"><div class="n">3</div><div class="l">Runde</div></div>
+        <div class="ini-list">
+          <div class="ini-card current">
+            <div class="top"><div class="ini-thumb" style="background:#8b4a24;">RA</div><div class="ini-name">Raskir</div></div>
+            <div class="ini-bottom"><span class="ini-val">Ini 14</span><label class="ini-done"><input type="checkbox">fertig</label></div>
+          </div>
+          <div class="ini-card">
+            <div class="top"><div class="ini-thumb" style="background:#5a6f9c;">EL</div><div class="ini-name">Elyndra</div></div>
+            <div class="ini-bottom"><span class="ini-val">Ini 12</span><label class="ini-done"><input type="checkbox" checked>fertig</label></div>
+          </div>
+          <div class="ini-card">
+            <div class="top"><div class="ini-thumb" style="background:#4c5a37;">Or</div><div class="ini-name">Ork-Späher</div></div>
+            <div class="ini-bottom"><span class="ini-val">Ini 10</span><label class="ini-done"><input type="checkbox" checked>fertig</label></div>
+          </div>
+          <div class="ini-card">
+            <div class="top"><div class="ini-thumb" style="background:#7a4c9c;">JO</div><div class="ini-name">Joreth</div></div>
+            <div class="ini-bottom"><span class="ini-val">Ini 7 <span class="death-tag">☠ 2</span></span><label class="ini-done"><input type="checkbox">fertig</label></div>
+          </div>
+        </div>
+        <div class="advance-btn">1 / 4 bereit<br>Runde noch nicht frei</div>
+      </div>
+
+      <!-- map canvas -->
+      <div class="map-wrap">
+        <div class="map-canvas">
+
+          <div class="center-toast">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg>
+            Ansicht für alle zentriert
+          </div>
+
+          <!-- painted tiles: stone path -->
+          <div class="tile" style="left:40px; top:280px; width:200px; height:80px; background:var(--tile-stone);"></div>
+          <div class="tile" style="left:240px; top:240px; width:80px; height:160px; background:var(--tile-stone);"></div>
+          <!-- water -->
+          <div class="tile" style="left:520px; top:80px; width:160px; height:120px; background:var(--tile-water); opacity:.75;"></div>
+          <!-- hazard -->
+          <div class="tile" style="left:360px; top:360px; width:80px; height:80px; background:var(--tile-hazard); opacity:.55;"></div>
+
+          <!-- token hidden under fog — visible to the GM only, dimmed to show it's withheld from players -->
+          <div class="token monster" style="left:770px; top:330px; opacity:.65;">
+            <div class="token-shape" style="width:32px;height:32px;font-size:11px; border-style:dashed;">Or</div>
+            <div class="token-label">Ork-Wache (verborgen)</div>
+          </div>
+
+          <!-- fog patch (GM: semi-transparent, reveals what's under) -->
+          <div class="fog-gm" style="left:640px; top:220px; width:280px; height:280px;"></div>
+
+          <!-- measurement: ruler -->
+          <div class="measure-line" style="left:140px; top:340px; width:170px; transform: rotate(-14deg);"></div>
+          <div class="measure-tag" style="left:200px; top:308px;">6 Schritt</div>
+
+          <!-- measurement: circle radius (spell) -->
+          <div class="measure-circle" style="left:400px; top:60px; width:160px; height:160px;"></div>
+
+          <!-- map label -->
+          <div class="map-label" style="left:250px; top:200px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 21h18Z"/><path d="M12 9v5"/><circle cx="12" cy="17" r=".6" fill="currentColor" stroke="none"/></svg>
+            Einsturzgefahr
+          </div>
+
+          <!-- tokens -->
+          <div class="token pc" style="left:130px; top:355px;">
+            <div class="token-shape">RA
+              <div class="status-row"><span>🔥</span></div>
+            </div>
+            <div class="token-label">Raskir</div>
+          </div>
+
+          <div class="token pc" style="left:470px; top:80px;">
+            <div class="token-shape">EL</div>
+            <div class="token-label">Elyndra</div>
+          </div>
+
+          <div class="token monster" style="left:260px; top:180px;">
+            <div class="token-shape" style="width:32px;height:32px;font-size:11px;">Or
+              <div class="status-row"><span>🛌</span></div>
+            </div>
+            <div class="token-label">Ork-Späher</div>
+          </div>
+
+          <div class="token monster dead" style="left:340px; top:420px;">
+            <div class="token-shape" style="width:32px;height:32px;font-size:11px;">Or
+              <div class="cover-badge">
+                <svg width="30" height="30" viewBox="0 0 30 30"><path fill="#8b2635" opacity=".85" d="M15 3c2 3 5 4 4 8-1 3 2 4 1 7-1 4-6 6-9 3-3-3-1-6-3-8-2-2-1-6 2-7 1-2 3-3 5-3Z"/></svg>
+              </div>
+            </div>
+            <div class="token-label">Ork (tot)</div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- board settings popover -->
+      <div class="settings-pop">
+        <h4>Karten-Rechte dieser Gruppe</h4>
+        <div class="perm-row">Kacheln bemalen <span class="seg"><span>Spielleitung</span><span class="on">Alle</span></span></div>
+        <div class="perm-row">Beschriftungen <span class="seg"><span class="on">Spielleitung</span><span>Alle</span></span></div>
+        <div class="perm-row">Marker anlegen <span class="seg"><span class="on">Spielleitung</span><span>Alle</span></span></div>
+        <div class="perm-row">Token verschieben <span class="seg"><span>Spielleitung</span><span class="on">Alle</span></span></div>
+        <div class="perm-fixed">Messen: immer alle · Nebel: nur Spielleitung</div>
+      </div>
+
+    </div>
+
+    <!-- chat -->
+    <aside class="chat-col">
+      <div class="chat-head">
+        <div class="room">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16v11H8l-4 4Z"/></svg>
+          Die Blutmond-Kompanie
+        </div>
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div class="chat-feed">
+        <div class="msg"><span class="who">Elyndra:</span> Ich schleiche zur Wasserstelle vor.</div>
+        <div class="roll-card">
+          <div class="who">Raskir · Attacke</div>
+          <div class="pips"><div class="pip">14</div><div class="pip nat20">20</div></div>
+          <div class="roll-outcome success">Bestätigung: Treffer! (Sa 9)</div>
+        </div>
+        <div class="msg me">* Raskir flucht leise über den Ring.</div>
+        <div class="msg"><span class="who">Spielleitung:</span> Der Ork-Späher taumelt zurück.</div>
+      </div>
+      <div class="chat-input">
+        <div class="chat-tools">
+          <span class="chip-btn">🎲 Kurzbefehle</span>
+          <span class="chip-btn">Sichtbarkeit: Öffentlich</span>
+          <span class="chip-btn">±0</span>
+        </div>
+        <div class="row1">
+          <input type="text" placeholder="Nachricht oder /r 2w6+5 …">
+          <button class="send">Senden</button>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

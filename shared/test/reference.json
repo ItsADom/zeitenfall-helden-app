@@ -44,7 +44,7 @@
     { "key": "todesschwelle", "label": "Todesschwelle", "formel": "(Wundschwelle+MU):4", "base": 10, "ergebnis": 12 },
     { "key": "wundschwelle", "label": "Wundschwelle", "formel": "(KO):2", "base": 22, "ergebnis": 27 },
     { "key": "ausweichen", "label": "Ausweichen", "formel": "(GE+GE+IN):3", "base": 13, "ergebnis": 13 },
-    { "key": "resilienz", "label": "Resilienz", "formel": "(MU+MU+MR):5", "base": 21, "ergebnis": 31 },
+    { "key": "resilienz", "label": "Resilienz", "formel": "(MU+MU+MR):5 + Rasse", "base": 21, "ergebnis": 31 },
     { "key": "mr", "label": "Magieresistenz", "formel": "(MU+KL+KO):5", "base": 15, "ergebnis": 69 },
     { "key": "gs", "label": "Geschwindigkeit", "formel": "", "base": 8, "ergebnis": 8 }
   ],

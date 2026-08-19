@@ -24,5 +24,10 @@
   },
   "devDependencies": {
     "cross-env": "^10.1.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.1": true,
+    "esbuild@0.25.12": true
   }
 }

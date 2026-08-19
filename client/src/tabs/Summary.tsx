@@ -9,7 +9,8 @@ interface Info {
   id: number;
   name: string;
   ownerName: string;
-  groupId: number;
+  // NULL bei gruppenlosen Charakteren — die Verlinkung unten prüft das schon.
+  groupId: number | null;
   groupName: string;
 }
 interface Summary {

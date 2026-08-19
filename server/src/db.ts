@@ -359,6 +359,27 @@ db.exec(`
     pos INTEGER NOT NULL DEFAULT 0,
     data TEXT NOT NULL DEFAULT '{}'
   );
+
+  -- One feed per group: chat messages and dice rolls interleaved in
+  -- chronological order, instead of two tables + UNION — visibility and
+  -- ordering must be identical for both row kinds. Grows unbounded (no
+  -- retention window), hence the secondary index.
+  CREATE TABLE IF NOT EXISTS group_feed (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    kind TEXT NOT NULL,                        -- 'message' | 'roll'
+    visibility TEXT NOT NULL DEFAULT 'public',  -- 'public' | 'hidden' | 'gm_player'
+    author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    author_char_id INTEGER REFERENCES characters(id) ON DELETE SET NULL,
+    gm_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    author_name TEXT NOT NULL DEFAULT '',       -- display name frozen at post time
+    is_me INTEGER NOT NULL DEFAULT 0,           -- kind='message'
+    text TEXT NOT NULL DEFAULT '',              -- kind='message'
+    roll_json TEXT                              -- kind='roll', see shared/src/diceProtocol.ts
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_feed_group_id ON group_feed(group_id, id);
+
   CREATE TABLE IF NOT EXISTS char_portraits (
     character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
     mime TEXT NOT NULL DEFAULT 'image/jpeg',
@@ -458,6 +479,12 @@ db.exec(`
   // tragen ihren Rassengrundwert selbst ein.
   if (!cols.has('psycheBase')) db.exec('ALTER TABLE char_meta ADD COLUMN psycheBase REAL NOT NULL DEFAULT 0');
   if (!cols.has('psycheBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN psycheBonus REAL NOT NULL DEFAULT 0');
+  // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die
+  // Spielleitung zustimmt — reines Zählen, kein eigener Wurf-Mechanismus.
+  // Default 1 ist die aktuell gültige Hausregel (früher 3/Spieltag); Max bleibt
+  // pro Charakter änderbar für Ausnahmen (z. B. Vorteile, die mehr gewähren).
+  if (!cols.has('schicksalspunkteMax')) db.exec('ALTER TABLE char_meta ADD COLUMN schicksalspunkteMax REAL NOT NULL DEFAULT 1');
+  if (!cols.has('schicksalspunkteAktuell')) db.exec('ALTER TABLE char_meta ADD COLUMN schicksalspunkteAktuell REAL NOT NULL DEFAULT 1');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.
@@ -531,6 +558,22 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('theme')) db.exec("ALTER TABLE characters ADD COLUMN theme TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: add 'dice_shortcuts' column to existing characters (per-character
+// dice favorites, "Label: expression" per line — see shared/src/dice.ts
+// parseDiceShortcuts).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('dice_shortcuts')) db.exec("ALTER TABLE characters ADD COLUMN dice_shortcuts TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: add 'chat_name' column to existing characters — a short optional
+// override for the name shown in the group feed (chat/rolls), so a character
+// with a long full name doesn't flood the chat with it. '' = use the full name.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('chat_name')) db.exec("ALTER TABLE characters ADD COLUMN chat_name TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: Selbst-Anlage von Charakteren mit ausstehender Gruppen-Freigabe.

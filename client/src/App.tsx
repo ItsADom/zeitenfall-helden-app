@@ -22,6 +22,8 @@ import WikiRoutes from './wiki/Routes';
 import { WikiNewsProvider } from './wiki/news';
 import { OverviewProvider } from './components/overview';
 import { RequestsProvider, PendingBadge } from './components/requests';
+import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProvider';
+import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
@@ -52,6 +54,15 @@ export interface ThemeControls {
 }
 const ThemeControlsContext = createContext<ThemeControls | null>(null);
 export const useThemeControls = () => useContext(ThemeControlsContext)!;
+
+// Immer sichtbar (der Chatraum ist jetzt eine eigene Auswahl, nicht von der
+// gerade betrachteten Seite abhängig) — außer eine Seite blendet ihn bewusst
+// aus (DicePanelProvider.setHidden), z. B. eine künftige eigene Chat-Seite.
+function DicePanelDock() {
+  const { hidden } = useDicePanel();
+  if (hidden) return null;
+  return <DicePanel />;
+}
 
 export default function App() {
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -100,6 +111,7 @@ export default function App() {
       {/* Für alle: das Wiki gehört jedem, und das Abzeichen zählt, was seit dem
           letzten Blick in die Änderungen dazugekommen ist. */}
       <WikiNewsProvider>
+      <DicePanelProvider>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -154,6 +166,8 @@ export default function App() {
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      <DicePanelDock />
+      </DicePanelProvider>
       </WikiNewsProvider>
       </RequestsProvider>
       </OverviewProvider>

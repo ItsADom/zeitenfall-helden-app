@@ -119,7 +119,9 @@ interface CharacterInfo {
   name: string;
   ownerUserId: number;
   ownerName: string;
-  groupId: number;
+  // NULL, solange der Charakter keiner Gruppe angehört (Selbst-Anlage vor der
+  // Freigabe) — der Server liefert das schon immer so, der Typ hier log früher.
+  groupId: number | null;
   groupName: string;
   // Event-Gruppen: rein additiv zur festen Gruppe oben, nur-lesen hier (GM-only
   // verwaltet unter /verwaltung).
@@ -133,6 +135,19 @@ interface CharCtxValue {
   data: FullData;
   catalogs: Catalogs;
   update: (section: string, value: unknown) => void;
+  /**
+   * Gesetzt, wenn von diesem Bogen aus gewürfelt werden darf: eigener
+   * Charakter (nie ein fremder — dafür gibt es den SL-Anfrage-Fluss) UND in
+   * einer Gruppe (ohne Gruppe kein Feed, in den der Wurf posten könnte).
+   * null = die Reiter blenden ihre Würfel-Knöpfe aus.
+   */
+  rollCtx: { groupId: number; charId: number } | null;
+  /**
+   * Gegenstück für die Spielleitung auf einem FREMDEN Bogen: sie würfelt
+   * nicht selbst, sondern fragt die Probe beim Spieler an („SL + Spieler").
+   * null auf dem eigenen Bogen und ohne Gruppe.
+   */
+  requestCtx: { groupId: number; charId: number; targetUserId: number } | null;
 }
 const CharCtx = createContext<CharCtxValue | null>(null);
 export const useChar = () => useContext(CharCtx)!;
@@ -516,8 +531,18 @@ export default function CharacterPage() {
     URL.revokeObjectURL(url);
   };
 
+  // Würfeln nur vom eigenen Bogen und nur mit Gruppe — ein Spielleiter, der
+  // einen fremden Bogen offen hat, würfelt hier NICHT für den Spieler (dafür
+  // ist der SL-Anfrage-Fluss da), und ohne Gruppe gibt es keinen Feed.
+  const rollCtx = info.groupId != null && info.ownerUserId === user.id ? { groupId: info.groupId, charId } : null;
+  // Spielleitung auf einem fremden Bogen: anfragen statt würfeln.
+  const requestCtx =
+    info.groupId != null && user.isGm && info.ownerUserId !== user.id
+      ? { groupId: info.groupId, charId, targetUserId: info.ownerUserId }
+      : null;
+
   return (
-    <CharCtx.Provider value={{ charId, data: data!, catalogs, update }}>
+    <CharCtx.Provider value={{ charId, data: data!, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data!.tableWidths ?? {}} save={saveTableWidths}>
       <DisplayModeProvider mode={editing ? 'edit' : 'readonly'}>
       <div className="screen-only">

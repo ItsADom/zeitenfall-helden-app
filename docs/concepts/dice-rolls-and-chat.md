@@ -3,9 +3,128 @@
 Build plan for the "Dice rolls and chat" concept in TODO.md's `[sketch]`
 entry (`TODO.md:96-202`), worked out in a planning session on 2026-08-17.
 Copied here from the local Claude Code plan file so it's available on any
-machine with this repo cloned, not just the one it was written on. Nothing
-here is implemented yet — see TODO.md's entry for the still-current source
-of truth on scope; this file is the concrete build plan derived from it.
+machine with this repo cloned, not just the one it was written on. TODO.md's
+entry stays the source of truth on *scope*; this file is the concrete build
+plan derived from it, and the Status section below records how far it has
+actually been built.
+
+## Status (last updated 2026-08-18)
+
+**All 7 phases are built, verified and committed — nothing planned is left.**
+Everything lives on the feature branch `feature/dice-rolls-chat`, cut off
+`develop`, pushed to `origin`. Merging it back into `develop` is a deliberate
+call left to the developer (per CLAUDE.md, standing instruction: don't merge
+on your own initiative) — this file just records that the branch is ready
+whenever that call is made.
+
+The working tree was clean after phase 7 landed — no uncommitted work to
+rescue.
+
+### What is done
+
+| Phase | Commit(s) |
+| --- | --- |
+| 1 — shared dice math + schema | `4905c13` |
+| 2 — server WS infra + REST feed | `82b7056` |
+| 3 — client connection layer + chat | `a280724`, `40dcfa9` |
+| 4 — raw dice rolls, shortcuts, visibility | `5a0c277`, `57dd2e3` |
+| 5 — sheet integration | `3a52fdd`, `baa4e5b`, `9f1633f`, `b217af6` |
+| 5b — crit rule corrections | `7321bb2`, `28fb19b`, `4397634`, `8d99897`, `af8796c` |
+| 6 — GM + selected player requests | `f38fa51` |
+| 7 — rate limiting, changelog, dock polish | `84497af`, `2ce1c41`, `ad5c0d6` |
+
+Phases 4-5 grew well beyond what this plan sketched, driven by rule
+corrections that surfaced while testing. The rules as now implemented (all in
+`shared/src/dice.ts`, all covered by `shared/test/dice.test.ts`):
+
+- **Narrow pass (`NARROW_PASS_MARGIN = 4`).** A roll of **2+ dice** still
+  passes when the adjusted sum overshoots the Probe-Zahl by at most 4
+  („Knapper Erfolg"). **Single-die rolls have no such grace** — they were
+  briefly rendered as though they did; fixed in `af8796c`.
+- **An unconfirmed 20 downgrades** an otherwise clean multi-die pass to a
+  narrow one, even when the sum alone would have passed comfortably.
+- **20s and 1s cancel each other pairwise, in rolling order** — the first
+  open 20 is cancelled by the next 1 and vice versa, as though the dice were
+  thrown one after another. Cancellation removes only the *crit meaning*: a
+  cancelled die **still rolls its confirmation, and that value still moves
+  the sum** (`28fb19b`). Only `criticalFailureCount` ignores them.
+- **A surviving natural 1 on a clean (non-narrow) pass makes it a critical
+  success**, regardless of how its confirmation went — „a 1 is a 1". The
+  confirmation is still rolled, there is simply no threshold on it.
+- **Untrained talents and languages are rollable** (TaW 0 is a legal Probe).
+  The source queries in `server/src/diceSource.ts` therefore start from the
+  *catalogue* and `LEFT JOIN` the character rows with `COALESCE(taw, 0)`;
+  starting from `char_talents`/`char_languages` silently hid every untrained
+  entry (`baa4e5b`).
+- **Attributes (Eigenschaftsproben) are rollable**, Sozialstatus included.
+  Sidebar attribute boxes are click-to-roll; the printed Heldenbrief layout is
+  untouched. SO is left off the *sidebar* only — it is rarely rolled — but is
+  a normal rollable attribute everywhere else.
+
+All player-visible wordings live in `client/src/components/dice/labels.ts`,
+kept apart from the display logic so they can be reworded without touching any
+rules: `shared/src/dice.ts` decides *when* an outcome applies, that file only
+decides what it is called.
+
+### Phase 6 deviations worth knowing
+
+- Pending requests are held **in memory only** (`server/src/pendingRolls.ts`,
+  5-minute TTL), never in the DB. A declined request therefore leaves no trace
+  anywhere, because nothing was ever written.
+- Accepting a request **recomputes** the Probe against the sheet as it stands
+  at accept time — the value carried in the request is never trusted.
+- The sheet entry point is a separate `🎲?` request button rather than a third
+  `VisibilityPicker` option; see the note under Phase 6 below for why.
+
+### Phase 7 — what it did
+
+1. **Per-connection rate limiting** on `chat.send` and `roll.*`
+   (`84497af`): a plain token bucket (burst 20, refill 5/s) per WebSocket
+   connection, in `server/src/ws.ts` — `server/src/rateLimit.ts`'s existing
+   `createAttemptLimiter` is shaped as a login-fail counter and didn't fit a
+   per-message throttle, so `createTokenBucket` was added alongside it. This
+   guards the permanently-stored feed against a runaway client (stuck macro,
+   reconnect loop) rather than a determined attacker — the app already sits
+   behind login.
+2. **Changelog entry** (`ad5c0d6`): the two `COMING_SOON` teasers for this
+   feature are now a real, unversioned `CHANGELOG` entry in
+   `shared/src/changelog.ts` (title „Würfeln & Chat"). Left without a
+   `version` per CLAUDE.md — the developer assigns one when cutting a
+   release. A `0.X.0` (minor) bump is the shape to *recommend*: this is a new
+   player-facing capability, not a same-app-working-better patch.
+3. **Dock z-index / mobile polish** (`2ce1c41`): the dock's fixed `z-index`
+   was `210`, above `.dialog-backdrop`'s `200` — any modal opened while the
+   dock was visible got its corner covered by the dock instead of being
+   blocked by it. Dropped to `150`. Also added a `max-width:700px` block
+   bumping touch targets (icon buttons, send button, resize handle) and the
+   chat input's font-size to 16px, which stops iOS Safari's auto-zoom on
+   focus below that size.
+
+### Still open — deliberately out of scope, stays in TODO.md
+
+- **Wording for the critical success** — currently „Krit. Erfolg" in
+  `labels.ts`; flagged as not-yet-satisfying and never resettled.
+- **Dedicated chat page / virtual-table compatibility** — deliberately not
+  built. The sketch and its three unresolved questions (selector entry point
+  when no room is open, room persistence across reloads, how a GM's much
+  longer group list should be presented) stay recorded in TODO.md.
+
+### Picking it back up
+
+- `npm ci` on a fresh clone can leave `better-sqlite3` without its native
+  binary — npm blocks its install script by default (`npm warn
+  install-scripts`), and the server then fails to start. Fix once per
+  machine: `npm install-scripts approve better-sqlite3 esbuild && npm
+  rebuild better-sqlite3 esbuild`.
+- `npm test -w shared` — all 197 tests pass. (Eight `tabOrder`/`rules`
+  Resilienz failures existed here for a while, unrelated to the dice work —
+  two stale fixtures that hadn't caught up with the `WaffenNeu` tab rename and
+  the race-catalog Resilienz formula. Fixed.)
+- Browser verification needs two logged-in users (a GM plus `seed:testuser`,
+  `testspieler`/`test1234`) — see the Verification section at the end of this
+  file. Feed rows, temporary group memberships and per-character
+  `chat_name`/`dice_shortcuts` written while testing were cleaned up after each
+  round; keep doing that, they are visible to real players otherwise.
 
 ## Context
 
@@ -143,23 +262,28 @@ export const MAX_DICE_SIDES = 1000;
 export function findCritTriggers(dice: number[], sides: number): { dieIndex: number; trigger: 20 | 1 }[];
 export function confirmationsNeeded(dice: number[], sides: number): number;
 
-export interface DieConfirmation { dieIndex: number; trigger: 20 | 1; value: number; confirmed?: boolean }
+// value: null = vom Spieler verworfen (siehe skipped)
+export interface DieConfirmation { dieIndex: number; trigger: 20 | 1; value: number | null; confirmed?: boolean; skipped?: boolean }
+export interface PendingConfirmation { dieIndex: number; trigger: 20 | 1 }
+export interface RolledConfirmation { dieIndex: number; value: number | null }
 
 export interface ProbeRollResult {
   dice: number[]; confirmations: DieConfirmation[];
+  pending: PendingConfirmation[]; resolved: boolean;
   rawSum: number; adjustedSum: number; probeZahl: number;
   criticalFailureCount: number; criticalFailure: boolean; success: boolean;
 }
-export function resolveProbeRoll(dice: number[], confirmationRolls: number[], probeZahl: number): ProbeRollResult;
+export function resolveProbeRoll(dice: number[], rolled: RolledConfirmation[], probeZahl: number): ProbeRollResult;
 
 export interface DiceExpression { count: number; sides: number; modifier: number }
 export function parseDiceExpression(expr: string): DiceExpression | null;  // "2w6+5", "w20", case-insensitive "w"
 
 export interface ExpressionRollResult {
   expression: DiceExpression; dice: number[]; confirmations: DieConfirmation[];
+  pending: PendingConfirmation[]; resolved: boolean;
   rawSum: number; adjustedSum: number; flagged: boolean;
 }
-export function resolveExpressionRoll(expression: DiceExpression, dice: number[], confirmationRolls: number[]): ExpressionRollResult;
+export function resolveExpressionRoll(expression: DiceExpression, dice: number[], rolled: RolledConfirmation[]): ExpressionRollResult;
 
 export type DiceShortcutLine =
   | { kind: 'separator' }
@@ -180,6 +304,18 @@ weapon Probe die can still crit/fumble on its own) and at N=3+ (Talente/
 Zauber/Sprachen). Same mechanic applies to raw shortcut/expression rolls
 (only when `sides === 20`), just without a success/fail concept to override —
 the entry is flagged for display instead.
+
+**Confirmations are not rolled with the dice** (decided during phase 5): the
+roll posts with its 20s/1s showing and the confirmations still open, and the
+roller triggers each one afterwards, one button per die. Only the roller gets
+those buttons. Each open confirmation can also be *declined* — not every d20
+roll has a Patzer concept (a luck roll, a random-table roll) — which settles it
+with no effect on the sum and no Patzer. Until nothing is `pending`, the entry
+is not `resolved` and deliberately shows no success/failure, since an
+outstanding 20 could still flip it. Feed entries are therefore mutable: written
+once, then updated in place (`feed.update` beside `feed.append`, `roll.confirm`
+client→server). The resolvers take the confirmations rolled *so far* (any
+order, keyed by `dieIndex`) and report the rest as `pending`.
 
 `shared/test/dice.test.ts` (vitest, same convention as `rules.test.ts`):
 plain pass/fail, single confirmed/unconfirmed 20, single 1, two confirmed 20s
@@ -433,10 +569,16 @@ pending-request flow rather than rolling immediately.
    visibility only — GM+Player still comes in the next phase.
 6. **GM + selected player flow, both entry points** — pending-request
    registry and `roll.pending.*` handling server-side; `listRollableProbes`
-   + `GET /characters/:id/probes`; `PendingRequestCard`, third
-   `VisibilityPicker` option on the sheet, the GM-overview picker UI in
-   `GroupOverview.tsx`, accept/decline wiring, auto-expand on request
-   client-side.
+   + `GET /characters/:id/probes`; `PendingRequestCard`, the GM-overview
+   picker UI in `GroupOverview.tsx`, accept/decline wiring, auto-expand on
+   request client-side.
+   - **Built differently than sketched in one respect:** the sheet entry
+     point is NOT a third `VisibilityPicker` option. Phase 5 had already
+     settled that a GM never rolls *as* a player (`rollCtx` is null on a
+     foreign sheet), so "GM + Player" is not a visibility one picks for
+     one's own roll — it is a different action. The GM therefore gets a
+     separate `🎲?` request button on a foreign sheet (via `requestCtx`),
+     and the picker keeps only Public/Hidden everywhere it appears.
 7. **Hardening/polish** — per-connection rate limiting on `chat.send`/`roll.*`
    (new token-bucket limiter — not a direct reuse of
    `server/src/rateLimit.ts`'s fail-counter-shaped `createAttemptLimiter`,

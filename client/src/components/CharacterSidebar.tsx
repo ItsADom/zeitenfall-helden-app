@@ -4,6 +4,7 @@ import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
 import { pouchUeberfuellt } from '@shared/currency';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
+import { useDicePanel } from './dice/DicePanelProvider';
 import { TextInput } from './inputs';
 import { AlwaysEditable } from './displayMode';
 import { useCollapsed } from './collapse';
@@ -177,19 +178,44 @@ function SidebarPools() {
 
 // Attribute — reines Nachschlagen (für Proben ständig gebraucht). Bearbeitet
 // werden sie im Heldenbrief; hier stehen nur die aktuellen Endwerte.
+// Die Kacheln sind zugleich der Würfel-Knopf für die Eigenschaftsprobe: hier
+// ist kein Platz für Knopf + Sichtbarkeits-Menü, und im Spiel will man genau
+// einen Klick. Deshalb bewusst NUR öffentlich — wer verborgen würfeln will,
+// nimmt die Attributs-Tabelle im Heldenbrief (dort sitzt die volle Auswahl).
 function SidebarAttribute() {
-  const { data } = useChar();
+  const { data, rollCtx } = useChar();
+  const { rollProbe } = useDicePanel();
   const { attributes } = data;
   return (
     <div className="side-block">
       <h4>Attribute</h4>
       <div className="side-attrs">
-        {ATTR_CODES.map((code) => (
-          <div className="side-attr" key={code} title={ATTR_LABELS[code]}>
-            <span className="side-attr-code">{code}</span>
-            <span className="side-attr-val">{attributes[code].akt + attributes[code].mod}</span>
-          </div>
-        ))}
+        {ATTR_CODES.map((code) => {
+          const inner = (
+            <>
+              <span className="side-attr-code">{code}</span>
+              <span className="side-attr-val">{attributes[code].akt + attributes[code].mod}</span>
+            </>
+          );
+          if (!rollCtx) {
+            return (
+              <div className="side-attr" key={code} title={ATTR_LABELS[code]}>
+                {inner}
+              </div>
+            );
+          }
+          return (
+            <button
+              type="button"
+              className="side-attr side-attr--roll"
+              key={code}
+              title={`${ATTR_LABELS[code]} würfeln (öffentlich)`}
+              onClick={() => rollProbe(rollCtx.groupId, rollCtx.charId, { kind: 'attribute', attr: code }, 'public')}
+            >
+              {inner}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
