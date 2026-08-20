@@ -26,6 +26,10 @@ db.exec(`
     gm_only INTEGER NOT NULL DEFAULT 0,
     -- geschützt: nur der Spielleiter darf bearbeiten.
     geschuetzt INTEGER NOT NULL DEFAULT 0,
+    -- unlöschbar: Systemseite, die es immer geben soll (siehe seedSystemSeiten.ts).
+    -- Anders als geschuetzt geht es hier nicht ums Bearbeiten, sondern ausschließlich
+    -- ums Löschen — die Spielleitung darf den Inhalt jederzeit ändern.
+    unloeschbar INTEGER NOT NULL DEFAULT 0,
     -- Weiches Löschen: ein Abend Arbeit verschwindet nicht durch einen Fehlklick.
     geloescht_at TEXT,
     -- 'seite' | 'kategorie'. Ergibt sich aus dem Titel („Kategorie:Orte"), damit
@@ -112,6 +116,7 @@ db.exec(`
   }
   if (!spalten.includes('kategorie_key')) db.exec('ALTER TABLE wiki_pages ADD COLUMN kategorie_key TEXT');
   if (!spalten.includes('weiterleitung')) db.exec('ALTER TABLE wiki_pages ADD COLUMN weiterleitung TEXT');
+  if (!spalten.includes('unloeschbar')) db.exec('ALTER TABLE wiki_pages ADD COLUMN unloeschbar INTEGER NOT NULL DEFAULT 0');
 }
 
 db.exec(`

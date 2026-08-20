@@ -68,13 +68,17 @@ export default function WikiSeitenrechte({
         />
         <span>Geschützt — sichtbar, aber nur die Spielleitung darf bearbeiten</span>
       </label>
-      <ConfirmDeleteButton
-        className="small"
-        title={`„${seite.titel}" in den Papierkorb legen`}
-        onConfirm={() => void loeschen()}
-      >
-        In den Papierkorb
-      </ConfirmDeleteButton>
+      {seite.unloeschbar ? (
+        <p className="muted">Diese Systemseite kann nicht gelöscht werden. Sie soll immer da sein, wenn jemand sie braucht.</p>
+      ) : (
+        <ConfirmDeleteButton
+          className="small"
+          title={`„${seite.titel}" in den Papierkorb legen`}
+          onConfirm={() => void loeschen()}
+        >
+          In den Papierkorb
+        </ConfirmDeleteButton>
+      )}
       {fehler && <span className="error">{fehler}</span>}
     </div>
   );

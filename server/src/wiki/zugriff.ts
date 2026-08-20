@@ -21,6 +21,7 @@ export interface WikiSeiteRow {
   auszug: string;
   gm_only: number;
   geschuetzt: number;
+  unloeschbar: number;
   geloescht_at: string | null;
   /** 'seite' | 'kategorie' — follows from the title, see wikiNamensraum.ts. */
   namensraum: string;

@@ -10,7 +10,7 @@ import express, { Router } from 'express';
 import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
 import { bildFuer, bilderFuerSeite, legeBildAn, loescheBild, markiereBildGmOnly } from './bilder.js';
-import { WikiGeschuetzt, WikiKonflikt, WikiTitelVergeben } from './seiten.js';
+import { WikiGeschuetzt, WikiKonflikt, WikiTitelVergeben, WikiUnloeschbar } from './seiten.js';
 import { folgeWeiterleitung, ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
 import { kategorieAnsicht, kategorien, neuIndizieren, sucheSeiten } from './suche.js';
@@ -387,9 +387,21 @@ wikiApi.put('/seiten/:slug/flags', requireAuth, requireGm, (req, res) => {
 wikiApi.delete('/seiten/:slug', requireAuth, requireGm, (req, res) => {
   const user = leser(req);
   const seite = seiteFuer(user, String(req.params.slug));
-  if (!seite || !loescheSeite(user, seite)) {
+  if (!seite) {
     res.status(404).json({ error: 'Seite nicht gefunden' });
     return;
+  }
+  try {
+    if (!loescheSeite(user, seite)) {
+      res.status(404).json({ error: 'Seite nicht gefunden' });
+      return;
+    }
+  } catch (err) {
+    if (err instanceof WikiUnloeschbar) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
   res.json({ ok: true });
 });
@@ -421,9 +433,21 @@ wikiApi.post('/papierkorb/:slug', requireAuth, requireGm, (req, res) => {
 /** Irreversible, and the only place the asset cleanup hook fires for the wiki. */
 wikiApi.delete('/papierkorb/:slug', requireAuth, requireGm, (req, res) => {
   const seite = seiteFuer(leser(req), String(req.params.slug));
-  if (!seite || !endgueltigLoeschen(seite)) {
+  if (!seite) {
     res.status(404).json({ error: 'Seite nicht gefunden' });
     return;
+  }
+  try {
+    if (!endgueltigLoeschen(seite)) {
+      res.status(404).json({ error: 'Seite nicht gefunden' });
+      return;
+    }
+  } catch (err) {
+    if (err instanceof WikiUnloeschbar) {
+      res.status(400).json({ error: err.message });
+      return;
+    }
+    throw err;
   }
   res.json({ ok: true });
 });

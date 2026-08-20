@@ -17,6 +17,7 @@ import './db.js';
 import './wiki/schema.js';
 import { namensraeumeNachziehen } from './wiki/seiten.js';
 import { indexNachziehen } from './wiki/suche.js';
+import { seedSystemSeiten } from './wiki/seedSystemSeiten.js';
 import './seed.js';
 
 // Namensräume nachziehen, BEVOR der Index gebaut wird: eine Spalte, die einer
@@ -29,6 +30,12 @@ namensraeumeNachziehen();
 // Wiederherstellung aus einer Sicherung von vor dem Wiki etwa, oder nach einem
 // Rücksprung auf eine ältere Version. Kostet eine Zählabfrage, wenn alles passt.
 indexNachziehen();
+
+// Zwei Systemseiten ("Würfeln", "Wiki-Hilfe"), die es immer geben soll —
+// anders als seedWikiDemo.ts läuft das auch in Produktion, bei jedem Start.
+// Idempotent (erkannt am Titel) und ohne Wirkung, solange noch kein
+// Spielleiter-Konto existiert; der nächste Neustart holt das nach.
+seedSystemSeiten();
 
 // Porträts nach helden-assets.db kopieren, damit dort wirklich ALLE Bilder
 // liegen. Kopiert, nicht verschoben: char_portraits bleibt als Rückfallebene

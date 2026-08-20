@@ -49,6 +49,14 @@ export class WikiGeschuetzt extends Error {
   }
 }
 
+/** System page (see seedSystemSeiten.ts) — deletion is refused outright, for anyone, GM included. */
+export class WikiUnloeschbar extends Error {
+  constructor() {
+    super('Diese Systemseite kann nicht gelöscht werden');
+    this.name = 'WikiUnloeschbar';
+  }
+}
+
 /**
  * A category may have only one description page, so renaming a page onto an
  * occupied „Kategorie:…" title is refused rather than silently made a duplicate
@@ -93,6 +101,7 @@ function alsInfo(row: WikiSeiteRow, autorName: string): WikiSeiteInfo {
     auszug: row.auszug,
     gmOnly: !!row.gm_only,
     geschuetzt: !!row.geschuetzt,
+    unloeschbar: !!row.unloeschbar,
     geaendertAm: row.updated_at,
     autorName,
     tags: tagsVon(row.id),

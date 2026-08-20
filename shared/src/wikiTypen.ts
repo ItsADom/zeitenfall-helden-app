@@ -56,6 +56,8 @@ export interface WikiSeiteInfo {
   auszug: string;
   gmOnly: boolean;
   geschuetzt: boolean;
+  /** System page (see server/src/wiki/seedSystemSeiten.ts) — deletion is refused outright. */
+  unloeschbar: boolean;
   geaendertAm: string;
   autorName: string;
   tags: string[];

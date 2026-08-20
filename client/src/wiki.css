@@ -409,11 +409,12 @@
 }
 
 /* Zwei Dinge, an denen umflossene Bilder sonst zuverlässig scheitern:
-   eine Überschrift, die neben dem Bild hochrutscht statt darunter zu beginnen,
-   und ein Bild, das unten aus dem Textblock herausragt. */
+   eine Überschrift (oder Tabelle), die neben dem Bild hochrutscht statt
+   darunter zu beginnen, und ein Bild, das unten aus dem Textblock herausragt. */
 .wiki-inhalt .wiki-ueberschrift,
 .wiki-inhalt .wiki-trenner,
-.wiki-inhalt .wiki-gm {
+.wiki-inhalt .wiki-gm,
+.wiki-inhalt .wiki-tabelle {
   clear: both;
 }
 .wiki-inhalt::after {

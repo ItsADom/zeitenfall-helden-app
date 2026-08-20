@@ -12,7 +12,7 @@
 import { parseWiki } from 'shared';
 import { db } from '../db.js';
 import { assetsFuer, loescheAssetsFuer } from '../assets/store.js';
-import { WikiTitelVergeben, loescheIndex, schreibeIndex, schreibeLog } from './seiten.js';
+import { WikiTitelVergeben, WikiUnloeschbar, loescheIndex, schreibeIndex, schreibeLog } from './seiten.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
 
 export interface PapierkorbEintrag {
@@ -69,8 +69,12 @@ export function setzeFlag(
  * The search index rows DO go: leaving them would make indexNachziehen() see a
  * permanent mismatch between live pages and indexed rows and rebuild on every
  * single boot.
+ *
+ * Throws for an `unloeschbar` system page — refused for a GM too, not just
+ * everyone else, since the whole point is that these two pages always exist.
  */
 export function loescheSeite(user: Autor, seite: WikiSeiteRow): boolean {
+  if (seite.unloeschbar) throw new WikiUnloeschbar();
   if (seite.geloescht_at) return false;
   const loeschen = db.transaction(() => {
     db.prepare("UPDATE wiki_pages SET geloescht_at = datetime('now') WHERE id = ?").run(seite.id);
@@ -150,8 +154,14 @@ export function papierkorb(): PapierkorbEintrag[] {
  * Irreversible. Rows in helden.db go by CASCADE; the images do NOT, because
  * they are in a second file and SQLite cannot cascade across one — so the hook
  * is called by hand, here, at the only place a wiki page ever really dies.
+ *
+ * The `unloeschbar` check here is belt-and-suspenders: loescheSeite() already
+ * refuses to put such a page in the trash in the first place, so this path
+ * should be unreachable for one — but a second guard at the one place a page
+ * truly disappears costs nothing.
  */
 export function endgueltigLoeschen(seite: WikiSeiteRow): boolean {
+  if (seite.unloeschbar) throw new WikiUnloeschbar();
   if (!seite.geloescht_at) return false; // Only ever from the trash.
   const bilder = loescheAssetsFuer('wiki', seite.id);
   const loeschen = db.transaction(() => {
