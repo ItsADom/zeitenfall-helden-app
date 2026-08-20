@@ -25,6 +25,8 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   separate `characters` row or something lighter, is all still open. Surfaced
   as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
   started, so treat that teaser as aspirational, not a promise of shape.
+- note field on taw
+- very ambigous and probalby too difficult to handle. parse item bonus to automatically add TaW or Energien while carried
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
