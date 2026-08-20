@@ -25,8 +25,12 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   separate `characters` row or something lighter, is all still open. Surfaced
   as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
   started, so treat that teaser as aspirational, not a promise of shape.
-- note field on taw
-- very ambigous and probalby too difficult to handle. parse item bonus to automatically add TaW or Energien while carried
+- attribut-limit does not grip when entering values directly (bug? not reproducable intentionally)
+- rolls change: a roll containing only a surviving 1 should only be a crit if it is confirmer 10 or higher
+- when rolling a spell or skill, the chat should highlight what attribute got rolled 1 or 20, if it is a surviving one
+- a player has many spells that contain the name "Licht....". when using /r Licht, the list of spells gets cut and can't be scrolled through correctly
+- roll requests for the whole group. results only get published, when everyone has decided to roll or to pass
+- announce using a Schicksalspunkt
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)
@@ -50,6 +54,27 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Mid-Prio
 
+- [ready] **Catalog insert helper** (user feedback): the GM catalog admin
+  (`CatalogPanel`, `Admin.tsx:17-116`) orders entries by a plain manual
+  integer `sort` column; new entries are always appended at `sort: 9999`
+  (`Admin.tsx:106`), and inserting one in the middle of the list today means
+  hand-editing every row after it. Decided: keep the editable number, add an
+  "insert before/after this row" action per row that computes the new value
+  without a full manual renumber — a gap/fractional sort scheme so most
+  inserts just land in the gap, falling back to a full renumber only once a
+  gap is exhausted. Applies to the four `CatalogPanel`-based catalogs
+  (talents, languages, tags/Merkmale, races) — currency's `sort` column
+  exists in the schema but isn't exposed in that UI yet, worth wiring in at
+  the same time.
+- [ready] **Create equipment directly in the Ausrüstung tab** (user
+  feedback): `Ausruestung.tsx` today has no creation UI at all — an item can
+  only be created via `Inventar.tsx`'s `AddItemDialog` (which already has an
+  "Ausrüstung" mode, `itemDialogs.tsx:25`) and then dragged over in two
+  steps. Add a "+ Gegenstand" trigger in `Ausruestung.tsx` that opens the
+  same dialog with `mode='ausruestung'` and `location: 'bench'` (Nicht
+  getragen), so the new item lands unworn — same place an Inventar-created
+  item ends up after being moved over — and the player still drags it to a
+  body zone themselves.
 - [sketch] **Race catalogue → live calculations (LE/AU/AsE/MR/AK)**: the race
   catalogue (`races_catalog`, ~66 races from the Rassenbrief) wires Geschwindigkeit
   (`gsBase`), Psyche (`meta.psycheBase`) and Resilienz (`baseValues.resilienzBase`)
@@ -134,6 +159,14 @@ chips. Backend table `char_special_resources`. Open for the full version:
      below) — low priority, don't card-ify it first.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
+   - [ready] **Structured min/max range for Fernkampf** (user feedback):
+     `entfernung` (`WaffenNeu.tsx:520-522`, `sections.ts:92-93`) is a single
+     freeform text field, historically hand-written like "10/20/30". Decided:
+     replace it with structured numeric `reichweiteMin`/`reichweiteMax`
+     fields rather than adding alongside. Migration must not silently drop
+     existing values (no-data-loss rule) — for rows whose old `entfernung`
+     text doesn't cleanly parse into two numbers, fold the original string
+     into the row's `notiz` instead of discarding it.
    - [sketch] **Fold ammunition damage into the Fernkampf damage formula**
      (user feedback): every ranged weapon has its own `schaden` value today,
      but the ammunition actually loaded/used should add to it — currently
@@ -146,6 +179,112 @@ chips. Backend table `char_special_resources`. Open for the full version:
      Fern row referencing the ammo catalogue? current stock/inventory-linked?),
      and how its damage combines with the weapon's own (added flat, or
      replaces part of the dice formula).
+- [ready] **Editing dialogs for items/weapons/abilities, with item bonuses
+  while worn** (user feedback; supersedes the old "reuse the item-creation
+  Dialog for spells/abilities and weapons" note that used to live in
+  Low-Prio). A full build plan for the items-only slice (data model, compute
+  plumbing across all 7 call sites, UI layer, sequencing, verification) is
+  written up and approved at `docs/concepts/item-bonus-while-worn.md` — start
+  there before re-deriving anything below. Two things merged into one
+  initiative because the second needs the first:
+   - **Move item/weapon/ability editing into dialogs.** Today three tabs
+     edit everything inline: `Ausruestung.tsx`'s `ItemChip` (drag/edit/delete
+     on the chip itself), `Inventar.tsx`'s `AlwaysEditable` rows, and
+     `WaffenNeu.tsx`'s expand-to-edit cards. Creation already uses the
+     `Dialog.tsx`/`itemDialogs.tsx` pattern (fill fields before insert); this
+     extends the same idea to *editing existing* rows.
+     **Decided: hybrid, not a full replacement** — the highest-frequency
+     actions (Anzahl bump, delete, drag-to-equip/reorder) stay inline on the
+     chip/row exactly as today, since those happen constantly during play
+     (using up arrows, equipping mid-combat). A "Bearbeiten" button opens a
+     dialog for the structural fields (RS, Haltbarkeit, Notiz, and the new
+     Bonus list below).
+     **Decided: reuse, not duplicate** — `AddItemDialog` becomes
+     dual-purpose, opening pre-filled for an existing item, matching the
+     fill-before-insert pattern already established rather than adding a
+     second component.
+     **Decided: combined scope** — folds in weapons
+     (`WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()`, ~10+ fields each)
+     and abilities (`AbilityManager.tsx`'s `emptyAbility()`) rather than
+     doing items now and the other two later; each still needs its own field
+     selection pass since none of the three shapes overlap.
+   - **Item bonus while worn** (the feature that needed the room to grow):
+     currently no equip-effect mechanism exists anywhere — the closest
+     precedent, `effektiverRs()` (`shared/src/items.ts:168-170`), is
+     hardcoded to pull only RS from worn items into one computed value.
+     **Decided:** applies only while `location === 'getragen'` (worn — same
+     condition `effektiverRs()` already uses, not merely carried somewhere
+     in inventory).
+     **Decided:** structured, not free-form — a target + amount pair,
+     otherwise the app can't actually compute anything (a free-form field
+     would just be a second `notiz`).
+     **Decided:** an item can carry **multiple** bonuses at once (a
+     repeatable list of target+amount rows) — this is exactly why it needs
+     the dialog rather than an inline field.
+     **Decided:** targets cover everything — attributes (MU..KK), TaW/AT/PA/
+     BL (as an effective value layered on top of the stored one, the same
+     non-destructive way `effektiverRs()` works — TaW/AT/PA/BL are raw
+     player-entered numbers with no formula behind them, so there's nothing
+     to feed a bonus into except the display value), and BaseValueKey/
+     ResourceKey (LE/AU/AsE/etc.).
+     **Decided:** same-target bonuses from multiple worn items **sum** (no
+     single-highest cap the way RS has).
+     **Decided:** the target picker is a grouped `<select><optgroup>` (by
+     Attribut/Basiswert/Energie/Talent) — no new searchable-combobox
+     component needed.
+     **Plumbing plan (resolved):** attributes have a real choke point
+     (`attrMax(attrs, code) = akt + mod`, `shared/src/rules.ts:15-18` — every
+     downstream formula reads through it, so an attribute bonus ripples
+     everywhere for free), but `computeResource`/`computeBaseValueBases` do
+     not — they're called independently from 7 sites total, and not one
+     shared assembler. **Client (3 sites, already solved by existing
+     architecture):** `Heldenbrief.tsx`, `CharacterSidebar.tsx`, and
+     `WaffenNeu.tsx` all read the same `data` object through one shared
+     `CharCtx`/`useChar()` context (`Character.tsx:152`), and `data.items`
+     already sits right next to `data.attributes`/`baseValues`/`resources`
+     in that object — no new data-loading needed, `Heldenbrief.tsx` just
+     needs to start destructuring `items` too. **Server (4 genuinely
+     separate call sites, no shared assembler between them):** `saveSection`
+     (`characterData.ts:1539`, clamps `aktuell` on a resources-section save),
+     `buildSummary` (`characterData.ts:1740,1762`, the limited "summary" view
+     another player sees), `overviewForChars` (`characterData.ts:1854,1874`,
+     GM group-overview chips, one query per character in a loop), and
+     `computeProbeForCharacter` (`diceSource.ts:133`, resolves a weapon probe
+     for a dice roll — bypasses the `Item` model entirely today, reading
+     `sec_waffenFernNeu`/`sec_waffenNahNeu` directly). None of these should
+     be merged into one object — they're deliberately different access
+     levels/purposes — but the fix at each is mechanically the same: add a
+     `loadItems(charId)` call (already exists, used by `loadFullCharacter`
+     at line 762) and apply the one new shared helper described below.
+     Concretely: one new pure function next to `effektiverRs()` in
+     `shared/src/items.ts` — `gatherWornItemBoni(items: Item[])` — filters to
+     `location === 'getragen'` and sums each item's bonus rows by target into
+     `{ attrs, baseValues, resources, talente }` buckets. At every call site,
+     merge that result additively into the *ephemeral* input passed to
+     `computeResource`/`computeBaseValueBases`/`attrMax` — never into the
+     stored `mods`/`permanent`/`akt` values that get persisted, same
+     non-destructive pattern `attrMax` already uses for `akt + mod`.
+     `saveSection`'s clamp fix isn't scope creep — it's necessary: if item
+     boni raise a resource's max and the clamp doesn't know that, a player
+     wearing a bonus item gets `aktuell` silently clamped down wrong. GM
+     overview's per-character loop already does one query per stat category
+     per character; one more `loadItems()` per iteration follows the
+     existing pattern, not a new class of problem. `diceSource.ts` matters
+     most in practice (a bonus item making a weapon roll better) but also
+     needs the most work — both the `loadItems()` addition and wiring the
+     `talente` bucket onto the raw TaW/AT/PA/BL it currently pulls from the
+     legacy section tables.
+     **Target shape (recommendation, not yet locked):** attribute code /
+     base-value key / resource key / a specific talent's TaW-or-AT/PA/BL are
+     four different key-spaces with no shared type today — a small
+     discriminated union (`{kind: 'attr'|'baseValue'|'resource'|'talent',
+     code, talentField?}`) rather than one flat string enum.
+     **Not the same mechanism as ammo damage:** checked and decoupled —
+     "fold ammunition damage into the Fernkampf formula" (below, under
+     Weapon tab rework) targets a weapon's own `schaden` dice-formula field,
+     not an attr/baseValue/resource/talent target, so it doesn't share this
+     bonus system despite looking similar on the surface. Left as its own
+     separate item.
 - [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
   every system change). Concept to build when it comes off hold:
    - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
@@ -170,6 +309,23 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Low-Prio
 
+- [ready] **Note field on Talente** (user feedback): `CharTalent`
+  (`shared/src/types.ts:220`) has no `notiz` field, and neither table
+  renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.
+  Add `notiz: string`, extend the `EMPTY` default, add a column to both
+  tables, reuse the existing `NoteField` component (`components/notes.tsx`)
+  already used for item and weapon-row notes.
+- [sketch] **Potion charges** (user feedback): no charge concept exists
+  today — the closest precedent is `Item.anzahl` (plain stack count).
+  Decided: a charge is a portion/dose — potions come in three fixed sizes
+  with a fixed charge count (klein = 1, mittel = 2, groß = 4), tracked as a
+  current/max pair similar to the existing Haltbarkeit pattern, decrementing
+  on use. Still open: how this interacts with `anzahl` when several
+  identical potions are stacked — a single Item row's current/max charge
+  pair can't represent "3 potions, each at a different remaining charge" any
+  more than Haltbarkeit can today. Needs a concept pass on whether a
+  partially-drunk potion has to split off the stack into its own row, or
+  charges only make sense while `anzahl === 1`.
 - [sketch] **Dice-dock backlog is unbounded in memory** (user feedback, checked
   and deprioritized): server-side is already fine — `loadFeedPage`
   (`server/src/feed.ts:144`) is cursor-paginated against the `(group_id, id)`
@@ -279,16 +435,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
   default-script field on `sprache`-kind catalog rows (or a join table), plus
   how to surface it in the UI (sub-label on the Sprachen row, auto-suggest in
   the Schriften table, …).
-- [ready] **Reuse the item-creation `Dialog` for spells/abilities and weapons**:
-  the new `components/Dialog.tsx` (generic modal chrome) plus the pattern
-  established in `components/itemDialogs.tsx` (fill fields before insert,
-  instead of pushing a blank record and auto-opening its editor) should
-  extend to two remaining blank-then-edit spots: `AbilityManager.tsx`'s
-  `emptyAbility()`, and `WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()`
-  (~10+ fields each, inserted blank on "+ Waffe", collapsed by default but
-  still fill-after-insert). Each needs its own concept pass for field
-  selection — Ability's shape (Element, Stufe, Komplexität, Probe, Effekt)
-  and the weapon fields are both unrelated to Item's.
 - [sketch] **Spell creation table — theme it, make it feel less like a plain
   table** (user feedback): `AbilityManager.tsx`'s "Regeltabelle: Zauber
   erschaffen" panel (`SPELL_CREATION_ROWS`, ~line 12) renders as a plain
