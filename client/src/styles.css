@@ -2451,6 +2451,21 @@ button.side-attr:active {
 .changelog-list li {
   margin: 4px 0;
 }
+/* Funktions-Blöcke eines Eintrags, der ausnahmsweise mehrere große, unabhängig
+   entstandene Funktionen bündelt (siehe ChangelogEntry.features) — deutlich
+   stärker abgesetzt als eine bloße Kategorie-Überschrift, sonst verschwimmen
+   die zwei Funktionen für die Leser ineinander. */
+.changelog-feature + .changelog-feature {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-strong);
+}
+.changelog-feature-title {
+  margin: 0 0 8px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 16px;
+  color: var(--accent-dark, var(--accent));
+}
 /* Kategorie-Abschnitte eines Eintrags (Neue Funktionen / Änderungen / Bugfixes) */
 .changelog-group + .changelog-group {
   margin-top: 12px;
@@ -3185,6 +3200,29 @@ li {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* Chat-Befehlsübersicht (siehe dice/CommandsDialog.tsx). */
+.cmd-list {
+  margin: 0;
+}
+.cmd-list-item {
+  margin-bottom: 12px;
+}
+.cmd-list-item:last-child {
+  margin-bottom: 0;
+}
+.cmd-list-item dt code {
+  font-size: 13px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 6px;
+}
+.cmd-list-item dd {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 /* Umschalter Allgemein/Ausrüstung im Gegenstand-Dialog. */

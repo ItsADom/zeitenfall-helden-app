@@ -18,8 +18,13 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
-- overview for chat-comands
-  - /commands for a read-only dialog-popup that explains all available commands briefly
+- animal/pet companion sheets — a character owning a trained animal or
+  mount with its own small sheet (attributes, maybe a handful of
+  talents/skills). Not concepted at all yet: how much a pet sheet shares
+  with a full character sheet, how it's linked to its owner, whether it's a
+  separate `characters` row or something lighter, is all still open. Surfaced
+  as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
+  started, so treat that teaser as aspirational, not a promise of shape.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections below in a later pass. (Empty = all caught up.)

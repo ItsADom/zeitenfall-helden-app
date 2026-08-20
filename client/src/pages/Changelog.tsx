@@ -67,16 +67,37 @@ export default function ChangelogPage() {
             {entry.version && <span className="changelog-version">Version {entry.version}</span>}
             <time dateTime={entry.date}>{fmtDate(entry.date)}</time>
           </div>
-          {changelogGroups(entry).map((group, gi) => (
-            <div className="changelog-group" key={gi}>
-              {group.label && <h4 className="changelog-group-title">{group.label}</h4>}
-              <ul className="changelog-list">
-                {group.items.map((c, i) => (
-                  <li key={i}>{c}</li>
+          {entry.features ? (
+            // Mehrere große, unabhängig entstandene Funktionen im selben
+            // Release — jede eigene, deutlich abgesetzte Überschrift, damit
+            // ihre Punkte nicht in einer gemeinsamen Liste verschwimmen.
+            entry.features.map((feature) => (
+              <div className="changelog-feature" key={feature.title}>
+                <h4 className="changelog-feature-title">{feature.title}</h4>
+                {changelogGroups(feature).map((group, gi) => (
+                  <div className="changelog-group" key={gi}>
+                    {group.label && <h5 className="changelog-group-title">{group.label}</h5>}
+                    <ul className="changelog-list">
+                      {group.items.map((c, i) => (
+                        <li key={i}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
                 ))}
-              </ul>
-            </div>
-          ))}
+              </div>
+            ))
+          ) : (
+            changelogGroups(entry).map((group, gi) => (
+              <div className="changelog-group" key={gi}>
+                {group.label && <h4 className="changelog-group-title">{group.label}</h4>}
+                <ul className="changelog-list">
+                  {group.items.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
         </div>
       ))}
 

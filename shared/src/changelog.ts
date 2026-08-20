@@ -8,12 +8,11 @@
 // es UND der Server spiegelt neue Einträge nach Discord (siehe server/discord.ts).
 // Client-Import bleibt über die Re-Export-Hülle client/src/changelog.ts erhalten.
 
-export interface ChangelogEntry {
-  date: string; // ISO, z. B. '2026-08-08'
-  version?: string; // optional, erst bei echten Releases
-  title: string;
-  // Kategorisierte Änderungen — bevorzugte Form für neue Einträge. Leere oder
-  // fehlende Gruppen werden nicht angezeigt.
+// Kategorisierte Änderungen, ohne Datum/Titel/Version — die Bausteine, die
+// sowohl ein ganzer Eintrag als auch (bei mehreren gebündelten Funktionen,
+// siehe `features` unten) ein einzelner Funktionsblock trägt.
+export interface ChangelogBullets {
+  // Leere oder fehlende Gruppen werden nicht angezeigt.
   added?: string[]; // „Neue Funktionen"
   changed?: string[]; // „Änderungen"
   fixed?: string[]; // „Bugfixes"
@@ -28,6 +27,34 @@ export interface ChangelogEntry {
   // die bewusst NICHT nachträglich in die Kategorien einsortiert werden. Neue
   // Einträge nutzen stattdessen added/changed/fixed.
   changes?: string[];
+}
+
+// Ein einzelner Funktionsblock innerhalb eines Eintrags, der mehrere große,
+// unabhängig voneinander gebaute Funktionen im selben Release bündelt (siehe
+// `ChangelogEntry.features`) — trägt eigene kategorisierte Abschnitte, damit
+// z. B. Wiki- und Würfel-Punkte nicht in derselben „Neue Funktionen"-Liste
+// verschwimmen.
+export interface ChangelogFeature extends ChangelogBullets {
+  title: string;
+}
+
+export interface ChangelogEntry extends ChangelogBullets {
+  date: string; // ISO, z. B. '2026-08-08'
+  version?: string; // optional, erst bei echten Releases
+  title: string;
+  /**
+   * Nur gesetzt, wenn dieser Eintrag mehrere große, unabhängig entstandene
+   * Funktionen bündelt, die zufällig im selben Release landen (z. B. zwei
+   * fertige Features, die zusammen ausgeliefert werden). Eine gemeinsame
+   * Gruppen-Überschrift wie „Neue Funktionen" reicht dann nicht, um die
+   * Leser nicht durcheinanderzubringen — jeder Block bekommt eine eigene,
+   * deutlich abgesetzte Überschrift samt eigener added/changed/fixed/admin.
+   * Schließt die Felder aus `ChangelogBullets` auf Eintrags-Ebene NICHT aus,
+   * aber die Anzeige nutzt bei vorhandenem `features` nur die Blöcke darin —
+   * für den Normalfall (eine Funktion pro Eintrag) bleibt es bei den flachen
+   * Feldern oben.
+   */
+  features?: ChangelogFeature[];
 }
 
 // Ein anzuzeigender Abschnitt eines Eintrags. `label` ist leer für die
@@ -47,10 +74,11 @@ const CHANGELOG_GROUP_ORDER: { key: 'added' | 'changed' | 'fixed' | 'admin'; lab
   { key: 'admin', label: 'Spielleiter & Verwaltung' },
 ];
 
-// Liefert die anzuzeigenden Abschnitte eines Eintrags: entweder die
+// Liefert die anzuzeigenden Abschnitte EINES Bausteins (ganzer Eintrag ohne
+// `features`, oder ein einzelner Funktionsblock daraus): entweder die
 // kategorisierten (nicht-leeren) Gruppen in fester Reihenfolge oder — für
 // Bestandseinträge — eine einzige unbeschriftete Gruppe aus `changes`.
-export function changelogGroups(e: ChangelogEntry): ChangelogGroup[] {
+export function changelogGroups(e: ChangelogBullets): ChangelogGroup[] {
   const grouped = CHANGELOG_GROUP_ORDER.map(({ key, label }) => ({ label, items: e[key] ?? [] })).filter(
     (g) => g.items.length > 0,
   );
@@ -109,9 +137,12 @@ export const KNOWN_BUGS: KnownBug[] = [
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste — samt hinterlegter Regeln.',
+  'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste, samt hinterlegter Regeln.',
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Die Rassen-Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) fließen direkt in die berechneten Werte ein, statt nur als Info zu stehen.',
+  'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
+  'Ganz frühe Überlegung, noch ohne Konzept: eigene kleine Bögen für Tiere und Begleiter.',
+  'Ein virtueller Spieltisch für Kampf und Erkundung: Karte, Marker und Initiative-Leiste.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
 ];
@@ -153,63 +184,69 @@ export const COMING_SOON: string[] = [
 // └───────────────────────────────────────────────────────────────────────────┘
 //
 // Hinweise:
+//   • Keine Punkte in jeglichen Kategorien außer `added` nötig zu Features, die User sowieso noch nie gesehen haben (wichtig bei generell neuen Features).
 //   • Spieler-Sicht, knapp halten: wenige, aussagekräftige Punkte statt Commit-Log.
 //   • `changes: [...]` (flache Liste ohne Überschriften) gibt es weiterhin, ist
 //     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die vier
 //     Abschnitte oben.
+//   • Bündelt ein Release ausnahmsweise zwei GROSSE, unabhängig entstandene
+//     Funktionen (z. B. zwei fertige Features, die zufällig zusammen
+//     ausgeliefert werden) statt `added`/`changed`/`fixed`/`admin` oben
+//     stattdessen `features: [{ title: 'Erste Funktion', added: [...], ... },
+//     { title: 'Zweite Funktion', ... }]` — jeder Block bekommt eine eigene,
+//     deutlich abgesetzte Überschrift. Der Normalfall (eine Funktion pro
+//     Eintrag) bleibt bei den vier flachen Abschnitten.
 //   • Der Discord-Spiegel postet automatisch jeden Eintrag, der NEUER ist als der
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-20',
-    title: 'Würfeln & Chat',
-    added: [
-      'Neu: ein andockbarer Würfel-Chat (🎲 unten rechts) mit einem gemeinsamen Verlauf aus Chat-Nachrichten und Würfelwürfen — jederzeit erreichbar, ohne die Seite zu wechseln, und beim Zurückscrollen auch für vergangene Sessions einsehbar.',
-      'Proben direkt vom Bogen würfeln: ein Würfel-Knopf steht jetzt neben jeder berechneten Probe — bei Talenten, Waffen (AT/PA/BL/FK), Sprachen und Attributen (inklusive Sozialstatus). Ein Klick würfelt öffentlich für die ganze Gruppe; eine kleine Pfeil-Schaltfläche daneben bietet zusätzlich „Verborgen" an (nur du siehst den Wurf, auch die Spielleitung nicht).',
-      'Kritische Erfolge und Fehlschläge bestätigst du selbst: jede gewürfelte 20 oder 1 öffnet einen eigenen Bestätigungswurf, den du per Knopf auslöst — oder mit „Ohne" ablehnst, wenn kein Patzer-Konzept greift (z. B. bei freien Würfen).',
-      'Freie Würfe per Befehl im Chat: „/r 2w6+5" bzw. „/roll 2w6+5" würfelt sofort; Tippst du stattdessen einen Namen, schlägt der Chat passende Proben deines Charakters vor (Talente, Zauber/Fähigkeiten, Waffen, Sprachen, Attribute) — mit den Pfeiltasten auswählen und Enter würfelt sie direkt.',
-      'Eigene Würfel-Favoriten: leg dir in den Einstellungen benannte Kurzformeln an (z. B. „Dolch-Schaden: 2w6+5") und wirf sie per Klick direkt aus dem Chat-Panel.',
-      'Erleichterung/Erschwernis: Fragt die Spielleitung am Tisch eine Erleichterung oder Erschwerung an, stellst du das im Chat-Panel ein (neben der Sichtbarkeit) — er gilt für die nächste Probe, egal ob vom Bogen oder aus dem Chat-Vorschlag gewürfelt, und setzt sich danach von selbst zurück. Der Wert steht immer sichtbar beim Wurf.',
-      'Schicksalspunkte: im Chat-Panel siehst du deine Kleeblätter — pro Tag verfügbar, um eine komplette Probe zu wiederholen, wenn die Spielleitung zustimmt. Ausgeben geht selbst per Klick; gutgeschrieben werden sie von der Spielleitung.',
-      'Ausrüstungsgegenstände können jetzt eine Haltbarkeit wie LP bekommen — in den Gegenstands-Details einmal ein Maximum eintragen, danach zeigt der Ausrüstungs-Chip den aktuellen Zustand als Prozentsatz; kritisch niedrige Werte fallen rot auf.',
-      'Der Zielwert einer Probe (die Zahl hinter dem „/") ist nur für dich selbst und die Spielleitung sichtbar — andere Spieler sehen im Chat Würfel, Summe und Erfolg/Misserfolg, aber nicht den genauen Attributs-/Talentwert dahinter.',
-      'Jeder Wurf im Chat zeigt in Klammern, welche Würfel geworfen wurden (z. B. „(1w20)"), auch wenn ein Titel oder Würfel-Favorit den Ausdruck sonst verdecken würde.',
-      'Pfeiltaste nach oben im leeren Chat-Eingabefeld holt deinen letzten „/r"-Wurf zurück, zum Wiederholen oder Abändern.',
-      'Eine Trennlinie im Chat: drei oder mehr Bindestriche „---" (oder „/line") ziehen einen sichtbaren Strich, praktisch als Markierung für Szenenwechsel oder Sessionende.',
-      'Freie Würfe können ihren Titel gleich mitbringen: „/r 5w10+6#Glück" beschriftet den Wurf inline als „Glück", ohne erst einen Würfel-Favoriten anzulegen.',
-      'Freie Würfe dürfen jetzt auch verschiedene Würfelarten mischen, z. B. „1w6+1w20" oder „2w6+1w4+3" — alle Blöcke werden addiert (ein Block lässt sich nicht abziehen, nur die flache Zahl am Ende darf negativ sein).',
-      '„/master" würfelt einen Meisterwurf (W6 gegen eine feste Ergebnisliste — Positive/Negative Götterinteraktion, Zusatzhandlung, Zustandsänderung oder Nichts) und „/wild" einen Wurf für wilde Magie (W6 für die Kategorie, dazu ein W20-Unterergebnis) — beide für alle Spieler, nicht nur die Spielleitung.',
-      '„/dicecode w" bzw. „/dicecode d" legt fest, ob Würfelausdrücke im Chat als „w" oder „d" angezeigt werden (z. B. „2w6" vs. „2d6") — reine Anzeige-Vorliebe, beide Buchstaben bleiben als Eingabe immer gültig. Bare „/dicecode" zeigt die aktuelle Einstellung.',
-      'Neue Sichtbarkeit „SL-Wurf" bei freien Würfen im Chat-Panel: nur du und die Spielleitung sehen den Wurf, ganz ohne vorherige Anfrage. Die Spielleitung wählt dabei zusätzlich gezielt, mit welchem Gruppenmitglied sie einen eigenen Wurf teilt.',
-    ],
-    changed: [
-      'Löst eine Probe mehrere Bestätigungswürfe gleichzeitig aus (mehrere Patzer/kritische Erfolge in einem Wurf), gibt es jetzt EIN gemeinsames „Bestätigen alle"/„Ohne alle" statt eines Knopfpaars je Würfel.',
-    ],
-    admin: [
-      '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln: fordere die gewünschte Probe an, der Spieler nimmt an (oder lehnt ab) — niemand sonst in der Gruppe sieht davon etwas. Noch unbeantwortete Anfragen lassen sich per „Zurückziehen" auch wieder zurücknehmen.',
-      '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück; ein Klee-Symbol je Charakter zeigt den aktuellen Stand.',
-      '(Spielleiter) Auf der Gruppen-Übersicht bleibt das Portrait jetzt oben an der Karte, statt bei mehrzeiligen Namen mittig zu rutschen.',
-    ],
-  },
-  {
-    date: '2026-08-19',
     version: '0.6.0',
-    title: 'Das Wiki',
-    added: [
-      'Ein Wiki für Weltwissen und Spielregeln, über „Wiki" in der Kopfleiste — es öffnet sich bewusst in einem neuen Tab, damit Nachschlagen mitten im Spiel nicht den Bogen wegnimmt, auf dem du gerade warst. Jeder darf Seiten anlegen und bearbeiten; nichts muss vorher freigegeben werden. Geschrieben wird in einer einfachen Formatierung (Überschriften, Listen, Tabellen, **fett**, *kursiv*), mit Vorschau und einem Spickzettel direkt im Editor. Seiten verweisen mit [[Doppelklammern]] aufeinander — zeigt ein Verweis ins Leere, ist er rot und legt die Seite auf Klick an. Dazu Inhaltsverzeichnis und „Verweise hierher". Bilder lädst du direkt im Editor hoch und setzt sie per Klick in den Text; mit Angaben wie „klein" und „rechts" fließt der Text daneben, und ein verkleinertes Bild öffnet sich per Klick in voller Größe. Auf jeder Wiki-Seite liegt oben eine eigene Leiste mit Suche, „Alle Seiten", „Kategorien" und „Letzte Änderungen" — von jeder Seite kommt man damit überallhin zurück.',
-      'Volltextsuche über das ganze Wiki, samt Umlaut- und ß-Behandlung: „strasse" findet auch „Straße".',
-      'Kategorien fassen Seiten zu einem Thema zusammen. Trägst du bei einer Seite „Orte" ein, entsteht die Kategorie sofort; eine Seite „Kategorie:Orte" beschreibt sie dann in eigenen Worten. Weil so eine Kategorieseite selbst Kategorien trägt, ordnen sie sich ineinander — „Städte" kann in „Orte" liegen —, und unter „Kategorien" steht der ganze Baum mit Seitenzahlen.',
-      'Weiterleitungen: Steht ganz oben auf einer Seite „#WEITERLEITUNG [[Gareth]]", landet man beim Aufrufen direkt bei Gareth — praktisch für Zweitnamen und Schreibweisen. Ein Hinweis „(weitergeleitet von …)" führt zum Wegweiser zurück, falls er falsch zeigt.',
-      'Ein vollständiges Änderungsprotokoll: Jede Bearbeitung bleibt dauerhaft erhalten, mit Autor, Zeitpunkt und deinem Kommentar dazu. Unter „Letzte Änderungen" siehst du alles auf einen Blick — filterbar nach Person, Seite und Zeitraum —, kannst zwei Fassungen vergleichen und jede ältere Fassung zurückholen. Neben „Wiki" steht, wie viel sich seit deinem letzten Besuch getan hat.',
-      'Bearbeiten zwei Leute gleichzeitig dieselbe Seite, geht nichts verloren: Der zweite Speichervorgang zeigt die Unterschiede und lässt dich entscheiden, statt still etwas zu überschreiben.',
-    ],
-    fixed: [
-      'Auf der Gruppenseite rutschten die Tabellenköpfe beim Scrollen unter die Reiterleiste, sobald diese auf zwei Zeilen umbrach.',
-    ],
-    admin: [
-      '(Spielleiter) Im Wiki kannst du eine Seite auf „nur Spielleiter" stellen — für Spieler existiert sie dann nirgends, weder in Liste, Suche, Kategorien noch im Änderungsprotokoll. Einzelne Abschnitte innerhalb einer sonst öffentlichen Seite gehen genauso: Was zwischen ```gm und ``` steht, verlässt den Server für niemanden sonst. Bilder lassen sich einzeln ebenso kennzeichnen.',
-      '(Spielleiter) Außerdem im Wiki: „geschützt" (die Seite bleibt sichtbar, aber nur du darfst sie bearbeiten) und ein Papierkorb — gelöschte Seiten behalten Verlauf und Bilder und lassen sich zurückholen; erst das endgültige Löschen ist unwiderruflich.',
+    title: 'Wiki & Würfeln',
+    features: [
+      {
+        title: 'Wiki',
+        added: [
+          'Ein Wiki für Weltwissen, Spielregeln und alles Weitere, über „Wiki" in der Kopfleiste. Öffnet bewusst in einem neuen Tab, damit Nachschlagen mitten im Spiel nicht den Charakterbogen verlässt. Jeder darf Seiten anlegen und bearbeiten, mit einfacher Formatierung (Überschriften, Listen, Tabellen, Verweise, Bilder) und Vorschau direkt im Editor.',
+          'Volltextsuche über das ganze Wiki, mit Umlaut- und ß-Behandlung.',
+          'Kategorien fassen Seiten zu einem Thema zusammen und lassen sich ineinander verschachteln.',
+          'Weiterleitungen für Zweitnamen und andere Schreibweisen einer Seite.',
+          'Ein vollständiges Änderungsprotokoll: jede Bearbeitung bleibt nachvollziehbar, samt Vergleich und Wiederherstellung älterer Fassungen.',
+          'Bearbeiten zwei Leute gleichzeitig dieselbe Seite, geht nichts verloren. Ein Konflikt wird angezeigt, statt still etwas zu überschreiben.',
+        ],
+        fixed: [
+          'Auf der Gruppenseite rutschten die Tabellenköpfe beim Scrollen unter die Reiterleiste, sobald diese auf zwei Zeilen umbrach.',
+        ],
+        admin: [
+          '(Spielleiter) Seiten (oder einzelne Abschnitte und Bilder darin) lassen sich auf „nur Spielleiter" stellen: für Spieler unsichtbar, überall.',
+          '(Spielleiter) Außerdem: „geschützt" (bearbeitbar nur von dir) und ein Papierkorb für gelöschte Seiten.',
+        ],
+      },
+      {
+        title: 'Würfeln & Chat',
+        added: [
+          'Ein angedockter Würfel-Chat (🎲 unten rechts) mit gemeinsamem Verlauf aus Chat-Nachrichten und Würfelwürfen, jederzeit erreichbar und auch für vergangene Sessions einsehbar.',
+          'Proben direkt vom Charakterbogen würfeln, per Würfel-Knopf neben jeder berechneten Probe, öffentlich oder verborgen.',
+          'Kritische Erfolge und Fehlschläge bestätigst du selbst, über einen eigenen Bestätigungswurf.',
+          'Freie Würfe per Chat-Befehl, mit Vorschlägen für passende Proben deines Charakters, dazu eigene, benannte Würfel-Favoriten fürs schnelle Würfeln per Klick.',
+          'Erleichterung/Erschwerung und Schicksalspunkte lassen sich direkt im Chat-Panel einstellen bzw. verwalten.',
+          'Der Zielwert einer Probe ist nur für dich selbst und die Spielleitung sichtbar. Andere Spieler sehen nur Würfel und Ergebnis.',
+          'Meisterwurf (/master) und wilde Magie (/wild) lassen sich jederzeit per Befehl würfeln, nicht nur von der Spielleitung.',
+          'Neue Sichtbarkeit „SL-Wurf": nur du und die Spielleitung sehen einen Wurf, ganz ohne vorherige Anfrage.',
+          '„/commands" zeigt eine Übersicht aller Chat-Befehle.',
+        ],
+        admin: [
+          '(Spielleiter) Proben heimlich mit einem einzelnen Spieler würfeln, per Anfrage statt offenem Wurf.',
+          '(Spielleiter) Auf der Gruppen-Übersicht setzt „Neuer Spieltag" die Schicksalspunkte aller Charaktere der Gruppe auf ihr Maximum zurück.',
+        ],
+      },
+      {
+        title: 'Generelles',
+        added: [
+          'Ausrüstungsgegenstände können jetzt eine Haltbarkeit wie LP bekommen. Der Ausrüstungs-Chip zeigt den aktuellen Zustand als Prozentsatz, kritisch niedrige Werte fallen rot auf.',
+        ],
+      },
     ],
   },
   {

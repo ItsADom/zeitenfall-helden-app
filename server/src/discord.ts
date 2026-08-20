@@ -62,9 +62,16 @@ function buildEmbed(e: ChangelogEntry): Record<string, unknown> {
   const title = e.version ? `${e.title} — v${e.version}` : e.title;
   // Kategorisierte Einträge bekommen fette Abschnitts-Überschriften; die
   // ungegliederten Bestandseinträge (label leer) bleiben eine flache Liste.
-  const description = changelogGroups(e)
-    .map((g) => (g.label ? `**${g.label}**\n` : '') + g.items.map((c) => `• ${c}`).join('\n'))
-    .join('\n\n');
+  const renderGroups = (bullets: Parameters<typeof changelogGroups>[0]): string =>
+    changelogGroups(bullets)
+      .map((g) => (g.label ? `**${g.label}**\n` : '') + g.items.map((c) => `• ${c}`).join('\n'))
+      .join('\n\n');
+  // Bündelt der Eintrag mehrere große Funktionen (siehe `features`), bekommt
+  // jede ihre eigene Markdown-Überschrift — sonst würden sie in Discord genau
+  // in derselben Liste landen, die hier eigentlich vermieden werden soll.
+  const description = e.features
+    ? e.features.map((f) => `## ${f.title}\n${renderGroups(f)}`).join('\n\n')
+    : renderGroups(e);
   return {
     title: title.slice(0, 256),
     description: description.slice(0, 4096),
