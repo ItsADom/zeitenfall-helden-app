@@ -181,6 +181,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Freie Würfe dürfen jetzt auch verschiedene Würfelarten mischen, z. B. „1w6+1w20" oder „2w6+1w4+3" — alle Blöcke werden addiert (ein Block lässt sich nicht abziehen, nur die flache Zahl am Ende darf negativ sein).',
       '„/master" würfelt einen Meisterwurf (W6 gegen eine feste Ergebnisliste — Positive/Negative Götterinteraktion, Zusatzhandlung, Zustandsänderung oder Nichts) und „/wild" einen Wurf für wilde Magie (W6 für die Kategorie, dazu ein W20-Unterergebnis) — beide für alle Spieler, nicht nur die Spielleitung.',
       '„/dicecode w" bzw. „/dicecode d" legt fest, ob Würfelausdrücke im Chat als „w" oder „d" angezeigt werden (z. B. „2w6" vs. „2d6") — reine Anzeige-Vorliebe, beide Buchstaben bleiben als Eingabe immer gültig. Bare „/dicecode" zeigt die aktuelle Einstellung.',
+      'Neue Sichtbarkeit „SL-Wurf" bei freien Würfen im Chat-Panel: nur du und die Spielleitung sehen den Wurf, ganz ohne vorherige Anfrage. Die Spielleitung wählt dabei zusätzlich gezielt, mit welchem Gruppenmitglied sie einen eigenen Wurf teilt.',
     ],
     changed: [
       'Löst eine Probe mehrere Bestätigungswürfe gleichzeitig aus (mehrere Patzer/kritische Erfolge in einem Wurf), gibt es jetzt EIN gemeinsames „Bestätigen alle"/„Ohne alle" statt eines Knopfpaars je Würfel.',

@@ -4172,6 +4172,12 @@ body.resizing-dice {
   margin: 6px 8px;
   font-size: 12px;
 }
+.dice-flyout-label {
+  margin: 4px 8px 2px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
 
 /* Erleichterung/Erschwernis: Text statt eines einzelnen Emoji, wie .sp-btn
    vorher — kleinere Schrift, kein Zeilenumbruch. Aktiv (≠0) hebt sich farblich

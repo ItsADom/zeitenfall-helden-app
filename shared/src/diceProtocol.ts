@@ -120,7 +120,21 @@ export type ClientToServerMessage =
   // werden dann ignoriert. Nie vom Client übernommen, aus demselben Grund
   // wie probeZahl: sonst könnte ein manipulierter Client sich ein Ergebnis
   // aussuchen.
-  | { type: 'roll.expr'; reqId: string; label: string; expression: string; visibility: RollVisibility; charId: number | null; table?: 'master' | 'wild' }
+  // targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung
+  // gesendet — welches Gruppenmitglied den Wurf zusätzlich sieht. Von einem
+  // Spieler gesendet, ist das Gegenstück stattdessen die (einzige) gerade
+  // verbundene Spielleitung, serverseitig aufgelöst (siehe ws.ts) — ein
+  // Spieler kann das Gegenüber nicht selbst wählen.
+  | {
+      type: 'roll.expr';
+      reqId: string;
+      label: string;
+      expression: string;
+      visibility: RollVisibility;
+      charId: number | null;
+      table?: 'master' | 'wild';
+      targetUserId?: number;
+    }
   // modifier: situative Erleichterung(-)/Erschwernis(+) der Spielleitung, vom
   // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — wirkt auf die
   // geworfene Summe, nicht auf probeZahl (siehe shared/src/dice.ts). Der

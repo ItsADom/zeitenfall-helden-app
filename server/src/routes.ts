@@ -312,6 +312,18 @@ api.get('/groups/mine', requireAuth, (req, res) => {
   // die grundsätzlich ohne Charakterbezug chattet.
   if (user.isGm) {
     const groups = db.prepare('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[];
+    // Für „SL-Wurf": wen die Spielleitung im Sichtbarkeits-Menü als Gegenüber
+    // wählen kann. Charaktername (Chat-Anzeigename bevorzugt) statt Konto-
+    // name, damit die Liste dieselben Namen zeigt wie der Rest des Docks.
+    const memberRows = db
+      .prepare(
+        `SELECT m.group_id AS groupId, u.id AS userId, COALESCE(NULLIF(c.chat_name, ''), c.name, u.display_name) AS name
+         FROM group_members m
+         JOIN users u ON u.id = m.user_id
+         LEFT JOIN characters c ON c.group_id = m.group_id AND c.owner_user_id = m.user_id
+         ORDER BY name`,
+      )
+      .all() as { groupId: number; userId: number; name: string }[];
     res.json(
       groups.map((g) => ({
         ...g,
@@ -320,6 +332,7 @@ api.get('/groups/mine', requireAuth, (req, res) => {
         myDiceShortcuts: '',
         schicksalspunkteAktuell: 0,
         schicksalspunkteMax: 0,
+        members: memberRows.filter((m) => m.groupId === g.id).map(({ userId, name }) => ({ userId, name })),
       })),
     );
     return;
@@ -354,6 +367,9 @@ api.get('/groups/mine', requireAuth, (req, res) => {
       myDiceShortcuts: r.charShortcuts ?? '',
       schicksalspunkteAktuell: r.spAktuell ?? 0,
       schicksalspunkteMax: r.spMax ?? 0,
+      // Nur die Spielleitung wählt ein Gegenüber (siehe oben) — ein Spieler
+      // sieht dieses Feld gar nicht erst in seiner Sichtbarkeits-Auswahl.
+      members: [] as { userId: number; name: string }[],
     })),
   );
 });

@@ -71,6 +71,11 @@ export default function DicePanel() {
   // Gilt für den nächsten Wurf (Favorit wie Freihand) — nicht für den Chat,
   // Nachrichten sind immer öffentlich.
   const [visibility, setVisibility] = usePersistedState<RollVisibility>('dice:visibility', 'public');
+  // Nur bei visibility 'gm_player' UND Spielleitung relevant — das per Klick
+  // gewählte Gruppenmitglied (siehe VisibilityPicker). Bewusst NICHT
+  // persistiert: an einem Ziel aus der letzten Sitzung festzuhalten wäre der
+  // teurere Fehler als es bei Bedarf neu zu wählen.
+  const [visibilityTarget, setVisibilityTarget] = useState<number | null>(null);
   const [error, setError] = useState('');
   // Rückmeldung rein clientseitiger Befehle wie „/dicecode" — kein Fehler,
   // also eigene, neutral eingefärbte Zeile statt der Fehlerbox.
@@ -123,6 +128,12 @@ export default function DicePanel() {
     setSuggestDismissed(false);
     rollProbe(groupId, charId, p.source, visibility);
   };
+
+  // Ein „SL-Wurf"-Ziel gehört zum vorherigen Raum — dessen Mitglieder gelten
+  // im neuen Raum nicht mehr, also nicht stillschweigend übernehmen.
+  useEffect(() => {
+    setVisibilityTarget(null);
+  }, [groupId]);
 
   // Ans Ende scrollen, wenn unten etwas Neues steht — ein neuer Eintrag oder
   // eine Anfrage, die ja gerade gesehen werden will.
@@ -198,7 +209,7 @@ export default function DicePanel() {
     // Server (siehe ws.ts) — hier nur der Befehl, kein Würfelausdruck nötig.
     if (/^\/master$/i.test(text) || /^\/wild$/i.test(text)) {
       const table = /^\/master$/i.test(text) ? 'master' : 'wild';
-      rollExpr(table === 'master' ? '1w6' : '1w6+1w20', visibility, '', table);
+      rollExpr(table === 'master' ? '1w6' : '1w6+1w20', visibility, '', table, visibilityTarget ?? undefined);
       lastRollCmdRef.current = text;
       setError('');
       setInfo('');
@@ -216,7 +227,7 @@ export default function DicePanel() {
         );
         return;
       }
-      rollExpr(expr, visibility, label);
+      rollExpr(expr, visibility, label, undefined, visibilityTarget ?? undefined);
       lastRollCmdRef.current = text;
     } else {
       sendChat(text);
@@ -335,10 +346,17 @@ export default function DicePanel() {
           onPick={(label, expression) => {
             if (groupId === null) return;
             setError('');
-            rollExpr(expression, visibility, label);
+            rollExpr(expression, visibility, label, undefined, visibilityTarget ?? undefined);
           }}
         />
-        <VisibilityPicker value={visibility} onChange={setVisibility} />
+        <VisibilityPicker
+          value={visibility}
+          targetUserId={visibilityTarget}
+          onChange={(v, targetUserId) => {
+            setVisibility(v);
+            setVisibilityTarget(v === 'gm_player' ? (targetUserId ?? null) : null);
+          }}
+        />
         <ModifierPicker value={modifier} onChange={setModifier} />
         {charId !== null && (
           <SchicksalspunkteControl

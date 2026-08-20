@@ -39,6 +39,8 @@ export interface DiceGroupOption {
   /** 0/0 für die Spielleitung (kontolos) oder ein gruppenloser Raum ohne eigenen Charakter. */
   schicksalspunkteAktuell: number;
   schicksalspunkteMax: number;
+  /** Nur für die Spielleitung befüllt — Gegenüber-Auswahl für „SL-Wurf" (siehe VisibilityPicker). */
+  members: { userId: number; name: string }[];
 }
 
 interface DicePanelCtxValue {
@@ -72,7 +74,14 @@ interface DicePanelCtxValue {
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
-  rollExpr: (expression: string, visibility: RollVisibility, label?: string, table?: 'master' | 'wild') => void;
+  /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — siehe roll.expr im Protokoll. */
+  rollExpr: (
+    expression: string,
+    visibility: RollVisibility,
+    label?: string,
+    table?: 'master' | 'wild',
+    targetUserId?: number,
+  ) => void;
   /**
    * Probe vom Charakterbogen. Wechselt bei Bedarf in den Raum dieser Gruppe
    * (ein Wurf ist eine bewusste Handlung — anders als bloßes Blättern) und
@@ -341,8 +350,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const rollExpr = useCallback(
-    (expression: string, visibility: RollVisibility, label = '', table?: 'master' | 'wild') => {
-      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId, table });
+    (expression: string, visibility: RollVisibility, label = '', table?: 'master' | 'wild', targetUserId?: number) => {
+      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId, table, targetUserId });
     },
     [charId, sendMsg],
   );

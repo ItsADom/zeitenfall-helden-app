@@ -4,7 +4,7 @@
 import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
-import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ProbeRollPayload, ServerToClientMessage } from 'shared';
+import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ProbeRollPayload, RollVisibility, ServerToClientMessage } from 'shared';
 import type { RolledConfirmation } from 'shared';
 import { MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
@@ -112,6 +112,33 @@ function clampModifier(raw: unknown): number {
   return Math.max(-MODIFIER_RANGE, Math.min(MODIFIER_RANGE, n));
 }
 
+/**
+ * 'gm_player'-Sichtbarkeit für einen freien Wurf (kein Anfrage-Fluss): wer
+ * neben dem Werfer selbst noch mitliest. Ein Spieler wählt das Gegenüber
+ * NICHT selbst — sonst könnte er sich einen beliebigen Mitspieler als
+ * heimlichen Zeugen aussuchen; stattdessen zählt die (einzige) gerade in
+ * diesem Raum verbundene Spielleitung. Die Spielleitung wählt umgekehrt
+ * gezielt EIN Gruppenmitglied (`msg.targetUserId`). Ergebnis geht als
+ * `gmUserId` in `insertFeedRoll`/`canSeeFeedEntry` — bei einem GM-Wurf trägt
+ * das Feld also die ID des ZIELSPIELERS, nicht der Spielleitung; die
+ * Prüfung selbst ist rollenblind (siehe feed.ts), das funktioniert trotzdem.
+ * `null` heißt: kein gültiges Gegenüber gefunden.
+ */
+function resolveGmPlayerCounterpart(meta: SocketMeta, rawTargetUserId: unknown): number | null {
+  if (meta.isGm) {
+    const targetUserId = Number(rawTargetUserId);
+    if (!targetUserId || !isGroupMember(targetUserId, meta.groupId)) return null;
+    return targetUserId;
+  }
+  const room = rooms.get(meta.groupId);
+  if (!room) return null;
+  for (const socket of room) {
+    const socketAuthor = socketMeta.get(socket);
+    if (socketAuthor?.isGm) return socketAuthor.userId;
+  }
+  return null;
+}
+
 function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
   const charId = rawCharId != null ? Number(rawCharId) : null;
   if (charId != null) {
@@ -166,9 +193,23 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
         return;
       }
-      // 'gm_player' braucht ein Gegenüber und eine Anfrage — freie Würfe
-      // kennen beides nicht (kommt mit dem GM+Spieler-Fluss in Phase 6).
-      const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
+      let visibility: RollVisibility = 'public';
+      let gmUserId: number | null = null;
+      if (msg.visibility === 'hidden') {
+        visibility = 'hidden';
+      } else if (msg.visibility === 'gm_player') {
+        const counterpart = resolveGmPlayerCounterpart(meta, msg.targetUserId);
+        if (counterpart === null) {
+          send(ws, {
+            type: 'error',
+            reqId: msg.reqId,
+            message: meta.isGm ? 'Unbekanntes Gruppenmitglied' : 'Die Spielleitung ist gerade nicht verbunden',
+          });
+          return;
+        }
+        visibility = 'gm_player';
+        gmUserId = counterpart;
+      }
       const result = performExpressionRoll(expression);
       // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
       // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
@@ -191,7 +232,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         flagged: result.flagged,
         ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
       };
-      insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), null, visibility, roll);
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), gmUserId, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

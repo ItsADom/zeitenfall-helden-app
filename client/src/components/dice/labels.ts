@@ -57,7 +57,7 @@ export const PENDING = {
 /** Hinweis an Einträgen, die nicht alle sehen. */
 export const VISIBILITY = {
   hidden: '🔒 nur für dich',
-  gmPlayer: '🔒 SL + Spieler',
+  gmPlayer: '🔒 SL-Wurf',
 };
 
 /** „SL + Spieler": angefragte Probe, die nur ihr beide seht. */
