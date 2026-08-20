@@ -4091,6 +4091,14 @@ body.resizing-dice {
   background: var(--crit-soft);
   border-top: 1px solid var(--crit-line);
 }
+.dice-dock-info {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border);
+}
 
 /* Flyouts im Dock (Sichtbarkeit, Favoriten) — klappen nach OBEN auf, weil das
    Eingabefeld am unteren Rand sitzt. */

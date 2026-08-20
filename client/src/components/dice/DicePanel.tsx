@@ -62,6 +62,8 @@ export default function DicePanel() {
     loadMore,
     modifier,
     setModifier,
+    diceCode,
+    setDiceCode,
     serverError,
   } = useDicePanel();
   const activeRoom = myGroups.find((g) => g.id === groupId);
@@ -70,6 +72,9 @@ export default function DicePanel() {
   // Nachrichten sind immer öffentlich.
   const [visibility, setVisibility] = usePersistedState<RollVisibility>('dice:visibility', 'public');
   const [error, setError] = useState('');
+  // Rückmeldung rein clientseitiger Befehle wie „/dicecode" — kein Fehler,
+  // also eigene, neutral eingefärbte Zeile statt der Fehlerbox.
+  const [info, setInfo] = useState('');
   const [width, setWidth] = usePersistedState<number>('dice:w', DEFAULT_W);
   const [height, setHeight] = usePersistedState<number>('dice:h', DEFAULT_H);
   const w = clampW(width);
@@ -163,6 +168,29 @@ export default function DicePanel() {
     if (/^-{3,}$/.test(text) || /^\/line$/i.test(text)) {
       sendChat('---');
       setError('');
+      setInfo('');
+      setDraft('');
+      return;
+    }
+    // „/dicecode": rein persönliche Anzeige-Vorliebe (w/d), betrifft nur, wie
+    // Würfelausdrücke im Feed dargestellt werden — als Eingabe bleiben beide
+    // Buchstaben immer gültig. Schreibt nur die persistierte Präferenz,
+    // schickt nie etwas über die Verbindung.
+    const dicecode = /^\/dicecode(?:\s+(\S+))?$/i.exec(text);
+    if (dicecode) {
+      const arg = dicecode[1]?.toLowerCase();
+      if (arg === undefined) {
+        setInfo(`Aktuelle Würfel-Schreibweise: „${diceCode}" (z. B. 2${diceCode}6).`);
+      } else if (arg === 'w' || arg === 'd') {
+        setDiceCode(arg);
+        setInfo(`Würfel-Schreibweise auf „${arg}" gesetzt (z. B. 2${arg}6).`);
+      } else {
+        setError(`„/dicecode" erwartet „w" oder „d", nicht „${dicecode[1]}".`);
+        setInfo('');
+        setDraft('');
+        return;
+      }
+      setError('');
       setDraft('');
       return;
     }
@@ -173,6 +201,7 @@ export default function DicePanel() {
       rollExpr(table === 'master' ? '1w6' : '1w6+1w20', visibility, '', table);
       lastRollCmdRef.current = text;
       setError('');
+      setInfo('');
       setDraft('');
       return;
     }
@@ -193,6 +222,7 @@ export default function DicePanel() {
       sendChat(text);
     }
     setError('');
+    setInfo('');
     setDraft('');
   };
 
@@ -271,6 +301,7 @@ export default function DicePanel() {
         )}
       </div>
       {(error || serverError) && <p className="dice-dock-error">{error || serverError}</p>}
+      {!error && !serverError && info && <p className="dice-dock-info">{info}</p>}
       <div className="dice-dock-input">
         {showSuggestions && (
           <div className="dice-suggest" role="listbox">

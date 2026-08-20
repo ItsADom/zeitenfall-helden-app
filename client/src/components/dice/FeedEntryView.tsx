@@ -11,9 +11,11 @@ function formatTime(ts: number): string {
 }
 
 // Probe-Notation (immer W20) UND ein echter, ggf. gemischter DiceExpression —
-// beide haben Gruppen + einen flachen Modifikator gemeinsam.
-function exprText(e: DiceExpression): string {
-  const groupsText = e.groups.map((g) => `${g.count}w${g.sides}`).join('+');
+// beide haben Gruppen + einen flachen Modifikator gemeinsam. `code` ist reine
+// Anzeige-Vorliebe (`/dicecode`, siehe DicePanelProvider) — „w" und „d" bleiben
+// als EINGABE immer beide gültig, das hier bestimmt nur, was ausgegeben wird.
+function exprText(e: DiceExpression, code: 'w' | 'd'): string {
+  const groupsText = e.groups.map((g) => `${g.count}${code}${g.sides}`).join('+');
   const mod = e.modifier === 0 ? '' : e.modifier > 0 ? `+${e.modifier}` : `${e.modifier}`;
   return `${groupsText}${mod}`;
 }
@@ -66,14 +68,40 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
   );
 }
 
-// Offene Bestätigungen — je Würfel ein eigener Knopf, und nur beim Werfer
-// selbst. „Ohne" ist für Würfe, die gar keine Patzer kennen (Glückswurf,
-// Zufallstabelle): der Auslöser wird wirkungslos abgehakt.
+// Offene Bestätigungen, nur beim Werfer selbst. Bei genau EINEM ausstehenden
+// Würfel ein eigener Knopf wie bisher; bei 2+ (mehrere Patzer/Krits in einer
+// Probe) EIN gemeinsames Knopfpaar für alle — alles-oder-nichts per Design,
+// kein Mischen aus Bestätigen und Ohne. „Ohne" ist für Würfe, die gar keine
+// Patzer kennen (Glückswurf, Zufallstabelle): der Auslöser wird wirkungslos
+// abgehakt.
 function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pending: PendingConfirmation[]; mine: boolean }) {
   const { confirmDie } = useDicePanel();
   if (pending.length === 0) return null;
   if (!mine) {
     return <div className="feed-pending muted">{PENDING.waiting(pending.length)}</div>;
+  }
+  if (pending.length > 1) {
+    return (
+      <div className="feed-pending">
+        <span className="feed-pending-row">
+          {pending.map((p) => (
+            <span key={p.dieIndex} className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>
+              {p.trigger}
+            </span>
+          ))}
+          <button className="small" onClick={() => pending.forEach((p) => confirmDie(entryId, p.dieIndex))}>
+            {PENDING.rollAll}
+          </button>
+          <button
+            className="small feed-pending-skip"
+            title={PENDING.skipAllHint}
+            onClick={() => pending.forEach((p) => confirmDie(entryId, p.dieIndex, true))}
+          >
+            {PENDING.skipAll}
+          </button>
+        </span>
+      </div>
+    );
   }
   return (
     <div className="feed-pending">
@@ -94,6 +122,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
 
 function RollView({ entry }: { entry: RollFeedEntry }) {
   const { user } = useAuth();
+  const { diceCode } = useDicePanel();
   const { roll } = entry;
   const isProbe = roll.mode === 'probe';
   const mine = entry.authorUserId === user.id;
@@ -119,7 +148,9 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
   // Ergebnis — ein Titel/Favorit verdeckt den Ausdruck ja gerade. Bei einer
   // Probe zählt nur Anzahl/Seiten (immer W20), der Erleichterung/Erschwernis-
   // Modifikator steht schon separat daneben.
-  const notation = isProbe ? exprText({ groups: [{ count: roll.n, sides: 20 }], modifier: 0 }) : exprText(roll.expression);
+  const notation = isProbe
+    ? exprText({ groups: [{ count: roll.n, sides: 20 }], modifier: 0 }, diceCode)
+    : exprText(roll.expression, diceCode);
   // Pro Würfel der passende Seitenzahl — bei einem gemischten Ausdruck
   // (z. B. „1w6+1w20") ist das NICHT für alle Würfel dasselbe.
   const diceSides = isProbe ? roll.dice.map(() => 20) : diceSidesForExpression(roll.expression);

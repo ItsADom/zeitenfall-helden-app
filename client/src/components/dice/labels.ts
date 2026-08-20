@@ -45,6 +45,10 @@ export const PENDING = {
   roll: 'Bestätigen',
   skip: 'Ohne',
   skipHint: 'Dieser Wurf kennt keine Bestätigung',
+  /** 2+ offene Bestätigungen in einem Wurf: EIN Knopfpaar für alle statt je einem pro Würfel. */
+  rollAll: 'Bestätigen alle',
+  skipAll: 'Ohne alle',
+  skipAllHint: 'Dieser Wurf kennt keine Bestätigung',
   /** Hinweis für alle anderen, solange der Werfer noch nicht gewürfelt hat. */
   waiting: (count: number): string =>
     count === 1 ? 'Bestätigung ausstehend …' : `${count} Bestätigungen ausstehend …`,

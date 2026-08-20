@@ -66,6 +66,9 @@ interface DicePanelCtxValue {
    */
   modifier: number;
   setModifier: (m: number) => void;
+  /** Anzeige-Vorliebe „w" vs. „d" für Würfelausdrücke (`/dicecode`) — rein client-seitig, betrifft nur die Darstellung, nie die Eingabe (beide bleiben als Eingabe-Alias gültig). */
+  diceCode: 'w' | 'd';
+  setDiceCode: (c: 'w' | 'd') => void;
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
   sendChat: (raw: string) => void;
@@ -116,6 +119,8 @@ export function useDicePanel(): DicePanelCtxValue {
       serverError: null,
       modifier: 0,
       setModifier: () => {},
+      diceCode: 'w',
+      setDiceCode: () => {},
       selectRoom: () => {},
       sendChat: () => {},
       rollExpr: () => {},
@@ -144,6 +149,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
   const [hidden, setHidden] = useState(false);
   const [modifier, setModifier] = usePersistedState<number>('dice:modifier', 0);
+  const [diceCode, setDiceCode] = usePersistedState<'w' | 'd'>('dice:code', 'w');
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -469,6 +475,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         serverError,
         modifier,
         setModifier,
+        diceCode,
+        setDiceCode,
         selectRoom,
         sendChat,
         rollExpr,
