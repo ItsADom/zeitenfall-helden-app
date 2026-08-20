@@ -27,7 +27,7 @@ export const CONFIRM = {
   /** Bestätigung verworfen („Ohne") — der Wurf kennt keinen Patzer. */
   skipped: 'keine Bestätigung',
   /** 20 bestätigt (Wurf ≥ 10) → Patzer. */
-  confirmed: '· bestätigt (Patzer)',
+  confirmed: '· bestätigt (krit. Fehlschlag)',
   /** 20 nicht bestätigt (Wurf < 10) → Wert wird addiert. */
   unconfirmed: (value: number): string => `· nicht bestätigt (+${value})`,
   /** Natürliche 1 → Wert wird immer abgezogen. */

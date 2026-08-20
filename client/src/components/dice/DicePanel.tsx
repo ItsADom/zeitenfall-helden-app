@@ -3,6 +3,7 @@ import { parseDiceExpression } from '@shared/dice';
 import type { RollVisibility } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
+import CommandsDialog from './CommandsDialog';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
 import ModifierPicker from './ModifierPicker';
@@ -80,6 +81,7 @@ export default function DicePanel() {
   // Rückmeldung rein clientseitiger Befehle wie „/dicecode" — kein Fehler,
   // also eigene, neutral eingefärbte Zeile statt der Fehlerbox.
   const [info, setInfo] = useState('');
+  const [commandsOpen, setCommandsOpen] = useState(false);
   const [width, setWidth] = usePersistedState<number>('dice:w', DEFAULT_W);
   const [height, setHeight] = usePersistedState<number>('dice:h', DEFAULT_H);
   const w = clampW(width);
@@ -178,6 +180,14 @@ export default function DicePanel() {
     // damit FeedEntryView ihn zuverlässig erkennt (siehe dort).
     if (/^-{3,}$/.test(text) || /^\/line$/i.test(text)) {
       sendChat('---');
+      setError('');
+      setInfo('');
+      setDraft('');
+      return;
+    }
+    // „/commands": zeigt die Befehlsübersicht — rein clientseitig, wie „/dicecode".
+    if (/^\/commands$/i.test(text)) {
+      setCommandsOpen(true);
       setError('');
       setInfo('');
       setDraft('');
@@ -413,6 +423,7 @@ export default function DicePanel() {
           Senden
         </button>
       </div>
+      <CommandsDialog open={commandsOpen} onClose={() => setCommandsOpen(false)} />
     </div>
   );
 }
