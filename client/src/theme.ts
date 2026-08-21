@@ -7,6 +7,7 @@ import { usePersistedState } from './components/persist';
 //   data-theme   Farbwelt (Region Aventuriens). Overrides in styles.css.
 //   data-mode    hell/dunkel. Jede Farbwelt hat beide Varianten …
 //   data-anim    Kopfleisten-Animation an/aus.
+//   data-dice-icons  Würfelformen im Chat an/aus.
 //
 // … mit einer Ausnahme: die Schattenlande sind von Natur aus dunkel und kennen
 // kein Hell. Sie bleiben eine eigene Farbwelt, ignorieren data-mode (das CSS
@@ -35,6 +36,7 @@ export const DEFAULT_THEME = 'bronze';
 export const THEME_STORAGE_KEY = 'theme';
 export const MODE_STORAGE_KEY = 'theme-mode';
 export const ANIM_STORAGE_KEY = 'theme-anim';
+export const DICE_ICONS_STORAGE_KEY = 'dice-icons';
 
 export type Mode = 'light' | 'dark';
 
@@ -83,6 +85,21 @@ export function useAnimations(): [boolean, (on: boolean) => void] {
 
   useEffect(() => {
     document.documentElement.dataset.anim = on ? 'on' : 'off';
+  }, [on]);
+
+  return [on, setOn];
+}
+
+// Würfelformen im Chat: an heißt jeder Würfel in seiner Polyeder-Silhouette und
+// seinem Sortenton, aus heißt der schlichte Kasten wie vor der Umstellung. Reine
+// Anzeigesache, deshalb dieselbe Machart wie oben — ein Attribut am <html>, den
+// Rest erledigt das Stylesheet, ohne dass eine Würfelkomponente davon weiß.
+// Vorgabe ist AN; wer es abschaltet, hat sich bewusst dagegen entschieden.
+export function useDiceIcons(): [boolean, (on: boolean) => void] {
+  const [on, setOn] = usePersistedState<boolean>(DICE_ICONS_STORAGE_KEY, true);
+
+  useEffect(() => {
+    document.documentElement.dataset.diceIcons = on ? 'on' : 'off';
   }, [on]);
 
   return [on, setOn];

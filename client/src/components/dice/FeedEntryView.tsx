@@ -3,6 +3,7 @@ import { diceSidesForExpression } from '@shared/dice';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
+import Die from './Die';
 // Sämtliche Wortlaute stehen in labels.ts — hier wird nur ausgewählt, welcher.
 import { CONFIRM, OUTCOME, PENDING, VISIBILITY } from './labels';
 
@@ -25,12 +26,6 @@ function exprText(e: DiceExpression, code: 'w' | 'd'): string {
 function VisibilityTag({ visibility }: { visibility: RollVisibility }) {
   if (visibility === 'public') return null;
   return <span className="feed-vis-tag">{visibility === 'hidden' ? VISIBILITY.hidden : VISIBILITY.gmPlayer}</span>;
-}
-
-// Ein Würfel; natürliche 20/1 stechen hervor, weil sie eine Bestätigung auslösen.
-function Die({ value, sides }: { value: number; sides: number }) {
-  const crit = sides === 20 && (value === 20 || value === 1);
-  return <span className={`feed-die${crit ? (value === 20 ? ' feed-die--20' : ' feed-die--1') : ''}`}>{value}</span>;
 }
 
 // Bestätigungswürfe: je natürlicher 20/1 ein eigener Wurf. Bei der 20 heißt
@@ -75,7 +70,7 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
 // Patzer kennen (Glückswurf, Zufallstabelle): der Auslöser wird wirkungslos
 // abgehakt.
 function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pending: PendingConfirmation[]; mine: boolean }) {
-  const { confirmDie } = useDicePanel();
+  const { confirmDie, diceCode } = useDicePanel();
   if (pending.length === 0) return null;
   if (!mine) {
     return <div className="feed-pending muted">{PENDING.waiting(pending.length)}</div>;
@@ -85,9 +80,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
       <div className="feed-pending">
         <span className="feed-pending-row">
           {pending.map((p) => (
-            <span key={p.dieIndex} className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>
-              {p.trigger}
-            </span>
+            <Die key={p.dieIndex} value={p.trigger} sides={20} code={diceCode} />
           ))}
           <button className="small" onClick={() => pending.forEach((p) => confirmDie(entryId, p.dieIndex))}>
             {PENDING.rollAll}
@@ -107,7 +100,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
     <div className="feed-pending">
       {pending.map((p) => (
         <span key={p.dieIndex} className="feed-pending-row">
-          <span className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>{p.trigger}</span>
+          <Die value={p.trigger} sides={20} code={diceCode} />
           <button className="small" onClick={() => confirmDie(entryId, p.dieIndex)}>
             {PENDING.roll}
           </button>
@@ -167,7 +160,7 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
       <div className="feed-roll-body">
         <span className="feed-dice">
           {roll.dice.map((d, i) => (
-            <Die key={i} value={d} sides={diceSides[i]} />
+            <Die key={i} value={d} sides={diceSides[i]} code={diceCode} />
           ))}
         </span>
         <span className="feed-roll-sum">

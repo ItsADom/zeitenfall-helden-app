@@ -308,6 +308,27 @@ export default function EinstellungenPage() {
           <span className="set-label">Farbwelt</span>
           <ThemePicker theme={tc.theme} onChange={tc.setTheme} animate={tc.anim} onAnimateChange={tc.setAnim} />
         </div>
+        <div className="set-row">
+          <span className="set-label">Würfelformen im Chat</span>
+          <button
+            type="button"
+            className={`theme-switch${tc.diceIcons ? ' on' : ''}`}
+            role="switch"
+            aria-checked={tc.diceIcons}
+            title={tc.diceIcons ? 'Würfelformen ausschalten' : 'Würfelformen einschalten'}
+            onClick={() => tc.setDiceIcons(!tc.diceIcons)}
+          >
+            <span className="theme-switch-track" aria-hidden>
+              <span className="theme-switch-knob" />
+            </span>
+            <span className="theme-switch-text">{tc.diceIcons ? 'An' : 'Aus'}</span>
+          </button>
+        </div>
+        <p className="muted">
+          Jeder geworfene Würfel erscheint in der Form seiner Sorte (W4 als Dreieck, W6 als Quadrat …) und in ihrem
+          Farbton. Ausgeschaltet steht jeder Wurf wieder im schlichten Kästchen. Rote 20 und blaue 1 bleiben in
+          beiden Fällen erhalten.
+        </p>
       </div>
 
       <div className="panel" id="charakter">
