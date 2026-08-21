@@ -211,9 +211,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     admin: [
       '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',
+      '(Spielleiter) Die Attribut-Kacheln in der Gruppenübersicht sehen jetzt genauso aus wie in der Charakterbogen-Seitenleiste (Hintergrund, Schriftgröße, Tooltip mit vollem Attributnamen).',
     ],
     changed: [
-      'Eine 1 zählt jetzt nur noch als kritischer Erfolg, wenn ihre Bestätigung ≥10 zeigt — spiegelt die Regel für die 20 (Patzer).',
+      'Eine 1 zählt jetzt nur noch als kritischer Erfolg, wenn ihre Bestätigung ≥10 zeigt — spiegelt die Regel für die 20 (Krit. Fehlschlag).',
       'Der Chat-Eingabeverlauf (Pfeil hoch/runter) merkt sich jetzt die letzten fünf gesendeten Zeilen statt nur der letzten, samt Pfeil-runter zurück zum leeren Chat-Input.',
     ],
     fixed: [
@@ -222,6 +223,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Attributspunkte-Grenze im Heldenbrief ließ sich bei sehr schnellem Tippen überschreiten.',
       'Erleichterung/Erschwerung wurde erst beim Verlassen des Feldes gespeichert, nicht schon beim Tippen.',
       'Die Vorschlagsliste für Proben (/r) ließ sich über die ersten 8 Treffer hinaus nicht scrollen.',
+      'War der Chat-Verlauf ganz nach unten gescrollt, scrollte weiteres Scrollen die Seite dahinter statt einfach am Ende zu bleiben.',
+      '„Einstellungen", „Zauber & Fähigkeiten verwalten" und der Wiki-Editor fragen jetzt nach, bevor eine Seite mit ungespeicherten Änderungen verlassen wird — auch bei einem Klick auf einen anderen Menüpunkt oder „Zurück" im Browser, nicht nur beim Schließen des Tabs.',
     ],
   },
   {

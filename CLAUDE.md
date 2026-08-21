@@ -4,6 +4,18 @@ Rules for any AI assistant working on the Zeitenfall / Heldenverwaltung app. Thi
 file is committed and travels with the repo, so it applies on **every machine**.
 These are standing instructions — follow them without being reminded.
 
+## Game system
+
+**Zeitenfall is explicitly NOT DSA5 (Das Schwarze Auge).** It uses its own
+heavily homebrewed, self-created ruleset — probe mechanics, attributes, and
+formulas only coincidentally resemble DSA5 in places because that's the
+GM's frame of reference, not because the app implements DSA5 rules. Never
+assume a DSA5 rule applies here (e.g. for group/cooperation checks, crit
+confirmation, energy types) without it being spelled out in this repo's own
+docs/concepts or confirmed by the developer — check `shared/src/rules.ts`,
+`shared/src/dice.ts`, and `docs/concepts/` for what this app actually does,
+not general DSA5 knowledge.
+
 ## Git & branches
 
 - **Work on `develop` by default.** It's the shared working line. Only create a

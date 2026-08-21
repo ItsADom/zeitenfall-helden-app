@@ -18,24 +18,34 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
 
 ## User feedback
 
-Refined and sorted below (concept pass done 2026-08-21). [sketch] still needs a
-concept/design pass or open decisions; [ready] can go straight to a build plan.
-New raw points still go in the inbox at the bottom of this section.
-
-- [sketch] **Animal/pet companion sheets**: a character owning a trained animal
-  or mount with its own small sheet (attributes, maybe a handful of
-  talents/skills). Not concepted at all yet: how much a pet sheet shares with
-  a full character sheet, how it's linked to its owner, whether it's a
-  separate `characters` row or something lighter, is all still open. Surfaced
-  as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
-  started, so treat that teaser as aspirational, not a promise of shape.
-- match the Attribute style on gm-overview with the one existing on the chaaracter-sheet sidebar
-- edge-case: IF a user somehow owns mutlipe characters inside a single group, the chat-room selector just shows the same group name multiple times (once per character)
-  - this should not happen on prouction, because the user management is well curated, but we should explore this
-- bug: when the chat is scrolled all the way down,futher scrolling scrolls the page in background instead.
-- possible expansion of group-rolls:
-  - we have a system of cooperation-checks. when 2 (or more) characters try to do something together, their results get checked somewhat as a sum.
-  - Player A and B roll together for "Klettern". Player A's result is 10 above his own target value, Player B is 12 below his own. Player B is now able to balance the roll out, because he is more in plus than Player A is in minus
+- [sketch] **Kooperationsprobe (cooperation check)** (user feedback; concept
+  pass done, build plan still open): a new, separate group-roll type — the
+  existing plain "Gruppenprobe" (everyone rolls independently, e.g. a
+  simultaneous Wahrnehmung check) stays untouched; a GM explicitly requests a
+  Kooperationsprobe when characters act together (e.g. climbing as a team).
+  **Rule (decided):** sum every participant's `probeZahl` (target) into a
+  total target, sum every participant's `adjustedSum` (actual roll result)
+  into a total roll; the group succeeds if total roll ≤ total target — the
+  same "roll low to succeed" logic as a single probe, just applied to the
+  pooled numbers. A confirmed critical failure on any one participant
+  auto-fails the whole group check regardless of the sums,
+  *unless* rescued by a confirmed critical success elsewhere in the group —
+  rescue is 1:1 (each crit-fail needs its own crit-success to cancel; 2
+  crit-fails with only 1 crit-success still auto-fails). A rescue only
+  cancels that crit-fail's auto-fail — it does **not** guarantee success on
+  its own, the sum-check still decides the outcome afterwards (the rescued
+  participant's bad roll value still counts in the sum).
+  **Visibility (decided):** individual target numbers/margins stay private as
+  today (only the roller + GM see `probeZahl`); the group only ever sees each
+  person's own success/fail plus one final pooled group verdict, not the
+  underlying numbers.
+  **Still open before a build plan:** exact trigger UI (how the GM starts a
+  Kooperationsprobe vs. a plain Gruppenprobe — reuses `roll.group.request`
+  plumbing in `server/src/groupRolls.ts`/`server/src/ws.ts:428`, needs a mode
+  flag), where the pooled-sum + crit-rescue logic runs (likely alongside
+  `revealGroupResults`, `server/src/ws.ts:187`), and how the single combined
+  verdict is rendered in the `feed-group-block` (`DicePanel.tsx:356`, today a
+  purely visual wrapper with no aggregate banner).
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
@@ -59,6 +69,13 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 ## Mid-Prio
 
+- [sketch] **Animal/pet companion sheets**: a character owning a trained animal
+  or mount with its own small sheet (attributes, maybe a handful of
+  talents/skills). Not concepted at all yet: how much a pet sheet shares with
+  a full character sheet, how it's linked to its owner, whether it's a
+  separate `characters` row or something lighter, is all still open. Surfaced
+  as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
+  started, so treat that teaser as aspirational, not a promise of shape.
 - [ready] **Catalog insert helper** (user feedback): the GM catalog admin
   (`CatalogPanel`, `Admin.tsx:17-116`) orders entries by a plain manual
   integer `sort` column; new entries are always appended at `sort: 9999`
@@ -79,7 +96,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
   same dialog with `mode='ausruestung'` and `location: 'bench'` (Nicht
   getragen), so the new item lands unworn — same place an Inventar-created
   item ends up after being moved over — and the player still drags it to a
-  body zone themselves.
+  body zone themselves. part of the editing-dialog plan.
 - [sketch] **Race catalogue → live calculations (LE/AU/AsE/MR/AK)**: the race
   catalogue (`races_catalog`, ~66 races from the Rassenbrief) wires Geschwindigkeit
   (`gsBase`), Psyche (`meta.psycheBase`) and Resilienz (`baseValues.resilienzBase`)
