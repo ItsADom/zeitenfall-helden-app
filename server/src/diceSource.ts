@@ -64,7 +64,7 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
       return { kind: 'weapon', sectionRowId, probe: s.probe };
     }
     case 'baseValue': {
-      return s.key === 'ausweichen' ? { kind: 'baseValue', key: 'ausweichen' } : null;
+      return s.key === 'ausweichen' || s.key === 'ini' ? { kind: 'baseValue', key: s.key } : null;
     }
     default:
       return null;
@@ -182,6 +182,7 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
 
   for (const attr of ATTR_ROW_CODES) add({ kind: 'attribute', attr }, 'attribute');
   add({ kind: 'baseValue', key: 'ausweichen' }, 'baseValue');
+  add({ kind: 'baseValue', key: 'ini' }, 'baseValue');
 
   // Talente/Sprachen aus dem KATALOG (auch ungelernte sind würfelbar, siehe
   // computeProbeForCharacter) — Kampftalente fallen dort mangels Formel raus.

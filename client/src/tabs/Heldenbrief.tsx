@@ -325,8 +325,8 @@ export default function HeldenbriefTab() {
                   </td>
                   <td className="computed">
                     {bv[key].ergebnis}
-                    {key === 'ausweichen' && (
-                      <ProbeRollButton source={{ kind: 'baseValue', key: 'ausweichen' }} title={BASE_VALUE_LABELS[key].label} />
+                    {(key === 'ausweichen' || key === 'ini') && (
+                      <ProbeRollButton source={{ kind: 'baseValue', key }} title={BASE_VALUE_LABELS[key].label} />
                     )}
                   </td>
                 </tr>

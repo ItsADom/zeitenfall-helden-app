@@ -17,9 +17,9 @@ export type ProbeSource =
   | { kind: 'ability'; abilityId: number }
   | { kind: 'sprache'; languageId: number; mode: 'sprechen' | 'schreiben' }
   | { kind: 'weapon'; sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' }
-  // Basiswert-Probe: ein W20 gegen den Basiswert selbst (bisher nur
-  // Ausweichen — die einzige Verteidigungsprobe ohne eigenen Waffen-Bezug).
-  | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen'> };
+  // Basiswert-Probe: ein W20 gegen den Basiswert selbst — Ausweichen (die
+  // einzige Verteidigungsprobe ohne eigenen Waffen-Bezug) und Initiative.
+  | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen' | 'ini'> };
 
 export interface ChatFeedEntry {
   id: number;
