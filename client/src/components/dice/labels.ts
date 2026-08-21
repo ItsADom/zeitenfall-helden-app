@@ -30,8 +30,12 @@ export const CONFIRM = {
   confirmed: '· bestätigt (krit. Fehlschlag)',
   /** 20 nicht bestätigt (Wurf < 10) → Wert wird addiert. */
   unconfirmed: (value: number): string => `· nicht bestätigt (+${value})`,
-  /** Natürliche 1 → Wert wird immer abgezogen. */
-  subtracted: (value: number): string => `· −${value}`,
+  /** 1 bestätigt (Wurf ≥ 10) → kritischer Erfolg, Wert wirkt trotzdem wie immer. */
+  confirmedOne: (value: number): string => `· −${value} · bestätigt (krit. Erfolg)`,
+  /** 1 nicht bestätigt (Wurf < 10) → kein kritischer Erfolg, Wert wird trotzdem abgezogen. */
+  unconfirmedOne: (value: number): string => `· −${value} · nicht bestätigt`,
+  /** Bestätigte 1, aber von einem Gegenstück aufgehoben → kein kritischer Erfolg. */
+  cancelledConfirmedOne: (value: number): string => `· −${value} · aufgehoben (kein krit. Erfolg)`,
   /**
    * Von einem Gegenstück aufgehoben. Der Wert wirkt weiter auf die Summe,
    * nur Patzer bzw. kritischer Erfolg entfallen.

@@ -148,7 +148,7 @@ describe('resolveProbeRoll', () => {
 
   it('single natural 1: its confirmation value is always subtracted, regardless of value', () => {
     const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 17 }], 25);
-    expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 1, value: 17, cancelled: false }]);
+    expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 1, value: 17, confirmed: true, cancelled: false }]);
     expect(r.adjustedSum).toBe(4); // 21 - 17
     expect(r.success).toBe(true);
   });
@@ -196,7 +196,7 @@ describe('Bestätigungen werden einzeln nachgereicht', () => {
 
   it('verrechnet Teil-Bestätigungen und lässt den Rest offen', () => {
     const r = resolveProbeRoll([1, 1, 8], [{ dieIndex: 1, value: 9 }], 30);
-    expect(r.confirmations).toEqual([{ dieIndex: 1, trigger: 1, value: 9, cancelled: false }]);
+    expect(r.confirmations).toEqual([{ dieIndex: 1, trigger: 1, value: 9, confirmed: false, cancelled: false }]);
     expect(r.pending).toEqual([{ dieIndex: 0, trigger: 1 }]);
     expect(r.resolved).toBe(false);
     expect(r.adjustedSum).toBe(1); // 10 - 9
@@ -307,48 +307,48 @@ describe('Knapp gelungen', () => {
 });
 
 describe('Kritischer Erfolg', () => {
-  it('eine stehengebliebene 1 macht aus einem sauberen Erfolg einen kritischen', () => {
-    const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 7 }], 25);
-    expect(r.adjustedSum).toBe(14); // 21 - 7
+  it('eine stehengebliebene 1 mit Bestätigung ≥10 macht aus einem sauberen Erfolg einen kritischen', () => {
+    const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 14 }], 25);
+    expect(r.adjustedSum).toBe(7); // 21 - 14
     expect(r.success).toBe(true);
     expect(r.criticalSuccess).toBe(true);
   });
 
-  it('hängt nicht am Wert der Bestätigung — eine 1 ist eine 1', () => {
-    const hoch = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 19 }], 25);
-    const niedrig = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 2 }], 25);
-    expect(hoch.criticalSuccess).toBe(true);
-    expect(niedrig.criticalSuccess).toBe(true);
+  it('unter 10 bleibt es beim sauberen Erfolg, kein krit. Erfolg — mirrors the 20 threshold', () => {
+    const r = resolveProbeRoll([1, 10, 10], [{ dieIndex: 0, value: 7 }], 25);
+    expect(r.adjustedSum).toBe(14); // 21 - 7, Wert wirkt trotzdem
+    expect(r.success).toBe(true);
+    expect(r.criticalSuccess).toBe(false);
   });
 
-  it('nicht bei einem nur knapp bestandenen Wurf', () => {
-    // 1+19+19 = 39, Bestätigung zieht 1 ab → 38, also genau 4 über der
-    // Probe-Zahl: bestanden, aber eben nur knapp.
-    const r = resolveProbeRoll([1, 19, 19], [{ dieIndex: 0, value: 1 }], 34);
-    expect(r.adjustedSum).toBe(38);
+  it('nicht bei einem nur knapp bestandenen Wurf, selbst mit bestätigter 1', () => {
+    // 1+19+19 = 39, bestätigte (≥10) Bestätigung 14 zieht ab → 25, genau 4
+    // über der Probe-Zahl 21: bestanden, aber eben nur knapp.
+    const r = resolveProbeRoll([1, 19, 19], [{ dieIndex: 0, value: 14 }], 21);
+    expect(r.adjustedSum).toBe(25);
     expect(r.success).toBe(true);
     expect(r.narrow).toBe(true);
     expect(r.criticalSuccess).toBe(false);
   });
 
-  it('nicht bei einem misslungenen Wurf', () => {
-    const r = resolveProbeRoll([1, 19, 19], [{ dieIndex: 0, value: 2 }], 20);
+  it('nicht bei einem misslungenen Wurf, selbst mit bestätigter 1', () => {
+    const r = resolveProbeRoll([1, 19, 19], [{ dieIndex: 0, value: 15 }], 10);
     expect(r.success).toBe(false);
     expect(r.criticalSuccess).toBe(false);
   });
 
-  it('nicht, wenn die 1 von einer 20 aufgehoben wurde', () => {
+  it('nicht, wenn die bestätigte 1 von einer 20 aufgehoben wurde', () => {
     // Beide werfen weiterhin eine Bestätigung und wirken auf die Summe —
-    // aufgehoben ist nur die Sonderbedeutung.
+    // aufgehoben ist nur die Sonderbedeutung, auch wenn die 1 ≥10 bestätigt hätte.
     const r = resolveProbeRoll(
       [1, 20, 5],
       [
-        { dieIndex: 0, value: 4 },
+        { dieIndex: 0, value: 14 },
         { dieIndex: 1, value: 3 },
       ],
       30,
     );
-    expect(r.adjustedSum).toBe(25); // 26 − 4 + 3
+    expect(r.adjustedSum).toBe(15); // 26 − 14 + 3
     expect(r.success).toBe(true);
     expect(r.criticalSuccess).toBe(false);
   });

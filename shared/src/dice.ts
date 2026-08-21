@@ -2,14 +2,15 @@
 // calls (crypto.randomInt) and DB/WS orchestration stay server-only — this
 // module only turns already-rolled numbers into a result.
 //
-// Crit/confirmation semantics: each natural 20 gets its own confirmation
-// d20 — confirmation >=10 confirms it as an instant critical failure
+// Crit/confirmation semantics: each natural 20 or natural 1 gets its own
+// confirmation d20, same >=10 threshold for both, just mirrored to the
+// opposite outcome. A confirmed (>=10) 20 is an instant critical failure
 // (overrides the sum/target-number comparison entirely; criticalFailureCount
-// tracks how many, since 2+ stack into a worse failure); confirmation <10
-// leaves it unconfirmed and its value is added to the sum instead. Each
-// natural 1 also gets its own confirmation d20, but that value is always
-// subtracted from the sum, unconditionally (no >=10/<10 branch for 1s —
-// asymmetric with 20s by design). Confirmation rolls are never themselves
+// tracks how many, since 2+ stack into a worse failure). A confirmed (>=10)
+// lone surviving 1 turns a clean success into a critical one. Either way the
+// confirmation's rolled VALUE always moves the sum too (20 adds, 1
+// subtracts) regardless of whether it confirmed — confirmed only decides the
+// crit/fumble special meaning. Confirmation rolls are never themselves
 // re-confirmed. Applies identically at N=1 (weapon Proben) and N=3+
 // (Talente/Zauber/Sprachen). Only triggers on d20s (sides === 20) — other
 // dice never crit/fumble.
@@ -44,7 +45,13 @@ export interface DieConfirmation {
   trigger: 20 | 1;
   /** null, wenn der Spieler die Bestätigung verworfen hat (siehe skipped). */
   value: number | null;
-  confirmed?: boolean; // only meaningful for trigger===20
+  /**
+   * Confirmation >=10 confirms the die's special meaning — instant critical
+   * failure for a 20, critical success for a lone surviving 1 (same
+   * threshold, mirrored to the opposite outcome). Unset for a skipped
+   * confirmation.
+   */
+  confirmed?: boolean;
   /**
    * Verworfen statt geworfen: nicht jeder W20-Wurf kennt überhaupt Patzer —
    * ein Glückswurf oder eine Zufallstabelle will keine Bestätigung. Zählt
@@ -185,8 +192,11 @@ function applyConfirmations(
       adjustedSum += value;
       confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed, cancelled: t.cancelled });
     } else {
+      // Der Bestätigungswert wirkt immer auf die Summe — "confirmed" (gleiche
+      // >=10-Schwelle wie bei der 20) entscheidet nur, ob die stehengebliebene
+      // 1 auch tatsächlich zum kritischen Erfolg wird.
       adjustedSum -= value;
-      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, cancelled: t.cancelled });
+      confirmations.push({ dieIndex: t.dieIndex, trigger: t.trigger, value, confirmed: value >= 10, cancelled: t.cancelled });
     }
   }
   return { confirmations, pending, adjustedSum, criticalFailureCount };
@@ -231,11 +241,10 @@ export function resolveProbeRoll(
   const success = resolved && !criticalFailure && (adjustedSum <= probeZahl || withinMargin);
   const narrow = success && multiDie && (withinMargin || unconfirmedTwenty);
   // Eine stehengebliebene natürliche 1 macht aus einem sauberen Erfolg einen
-  // kritischen. Das hängt allein am Würfel selbst: die Bestätigung wird zwar
-  // geworfen und ihr Wert wie immer abgezogen, aber sie hat bei 1ern keine
-  // Schwelle, an der sich etwas entscheiden könnte — eine 1 ist eine 1.
+  // kritischen — aber erst, wenn ihre Bestätigung das (mit derselben >=10-
+  // Schwelle wie bei der 20, nur in die andere Richtung gedeutet) bestätigt.
   // Aufgehobene 1er zählen dafür nicht mehr mit.
-  const keptOne = triggers.some((t) => t.trigger === 1 && !t.cancelled);
+  const keptOne = confirmations.some((c) => c.trigger === 1 && c.confirmed && !c.cancelled);
   return {
     dice,
     confirmations,

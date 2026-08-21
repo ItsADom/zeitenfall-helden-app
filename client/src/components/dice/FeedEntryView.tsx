@@ -33,9 +33,11 @@ function Die({ value, sides }: { value: number; sides: number }) {
   return <span className={`feed-die${crit ? (value === 20 ? ' feed-die--20' : ' feed-die--1') : ''}`}>{value}</span>;
 }
 
-// Bestätigungswürfe: je natürlicher 20/1 ein eigener Wurf. Bei der 20 heißt
-// ≥10 „bestätigt" (Patzer), <10 wird stattdessen addiert; die 1 wird immer
-// abgezogen. Siehe shared/src/dice.ts.
+// Bestätigungswürfe: je natürlicher 20/1 ein eigener Wurf, dieselbe ≥10-
+// Schwelle für beide, nur gegensätzlich gedeutet — bei der 20 heißt ≥10
+// „bestätigt" (Patzer), bei der 1 heißt ≥10 „bestätigt" (krit. Erfolg). Der
+// Bestätigungswert wirkt immer auf die Summe (20 addiert, 1 zieht ab),
+// unabhängig davon, ob er bestätigt. Siehe shared/src/dice.ts.
 function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) {
   if (confirmations.length === 0) return null;
   return (
@@ -58,8 +60,12 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
             </>
           ) : (
             <>
-              1 → <strong>{c.value}</strong> {CONFIRM.subtracted(c.value as number)}
-              {c.cancelled && ` ${CONFIRM.cancelled}`}
+              1 → <strong>{c.value}</strong>{' '}
+              {c.confirmed
+                ? c.cancelled
+                  ? CONFIRM.cancelledConfirmedOne(c.value as number)
+                  : CONFIRM.confirmedOne(c.value as number)
+                : `${CONFIRM.unconfirmedOne(c.value as number)}${c.cancelled ? ` ${CONFIRM.cancelled}` : ''}`}
             </>
           )}
         </span>
