@@ -128,16 +128,36 @@ export default function HomePage() {
               {latest.version && <span className="changelog-version">Version {latest.version}</span>}
               <time dateTime={latest.date}>{fmtDate(latest.date)}</time>
             </div>
-            {changelogGroups(latest).map((group, gi) => (
-              <div className="changelog-group" key={gi}>
-                {group.label && <h4 className="changelog-group-title">{group.label}</h4>}
-                <ul className="changelog-list">
-                  {group.items.map((c, i) => (
-                    <li key={i}>{c}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+            {latest.features
+              ? // Wie auf der Changelog-Seite: mehrere gebündelte Funktionen
+                // brauchen eigene Überschriften, sonst verschwinden ihre Punkte
+                // (changelogGroups(latest) liefert für einen features-Eintrag
+                // sonst nichts, weil added/changed/fixed auf Eintrags-Ebene leer sind).
+                latest.features.map((feature) => (
+                  <div className="changelog-feature" key={feature.title}>
+                    <h4 className="changelog-feature-title">{feature.title}</h4>
+                    {changelogGroups(feature).map((group, gi) => (
+                      <div className="changelog-group" key={gi}>
+                        {group.label && <h5 className="changelog-group-title">{group.label}</h5>}
+                        <ul className="changelog-list">
+                          {group.items.map((c, i) => (
+                            <li key={i}>{c}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                ))
+              : changelogGroups(latest).map((group, gi) => (
+                  <div className="changelog-group" key={gi}>
+                    {group.label && <h4 className="changelog-group-title">{group.label}</h4>}
+                    <ul className="changelog-list">
+                      {group.items.map((c, i) => (
+                        <li key={i}>{c}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
           </div>
         ) : (
           <p className="muted">Noch keine Einträge.</p>
