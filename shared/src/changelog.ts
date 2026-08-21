@@ -202,10 +202,23 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-21',
-    title: 'Kleinere Korrekturen',
+    title: 'Würfel-Feinschliff & Porträts',
+    added: [
+      'Chat zeigt bei einer stehengebliebenen 1/20 zusätzlich, welches Attribut sie geworfen hat.',
+      'Schicksalspunkt ausgeben fragt jetzt erst nach (gegen Aus-Versehen-Klicks) und meldet die Ausgabe als Chat-Zeile.',
+      'Gruppen bekommen ein eigenes Porträt, genau wie Charaktere.',
+      'Porträt hochladen: der Bildausschnitt lässt sich jetzt selbst wählen (ziehen + zoomen) statt automatisch auf die Mitte zugeschnitten zu werden. Ein Klick aufs Porträt zeigt es vergrößert.',
+    ],
+    changed: [
+      'Eine stehengebliebene 1 zählt jetzt nur noch als kritischer Erfolg, wenn ihre Bestätigung ≥10 zeigt — spiegelt die Regel für die 20 (Patzer).',
+      'Der Chat-Eingabeverlauf (Pfeil hoch/runter) merkt sich jetzt die letzten fünf gesendeten Zeilen statt nur der letzten, samt Pfeil-runter zurück zum leeren Entwurf.',
+    ],
     fixed: [
       'Auf „Charaktere" und der Gruppenseite ließ sich ein Charakter nur über den Namen selbst anklicken — jetzt reicht ein Klick irgendwo auf die Karte.',
       'Beim Überfahren der Würfel-Chat-Kopfzeile mit der Maus durchbrach die Hervorhebung die abgerundeten Ecken des Chat-Fensters.',
+      'Die Attributspunkte-Grenze im Heldenbrief ließ sich bei sehr schnellem Tippen knapp überschreiten.',
+      'Erleichterung/Erschwernis wurde erst beim Verlassen des Feldes gespeichert, nicht schon beim Tippen.',
+      'Die Vorschlagsliste für Proben (/r) ließ sich über die ersten 8 Treffer hinaus nicht scrollen.',
     ],
   },
   {

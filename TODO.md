@@ -29,38 +29,6 @@ New raw points still go in the inbox at the bottom of this section.
   separate `characters` row or something lighter, is all still open. Surfaced
   as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
   started, so treat that teaser as aspirational, not a promise of shape.
-- [ready] **Attribute-limit doesn't grip on direct entry** (bug, not reliably
-  reproducible): the "limit" isn't a hard `max` on the field — `setAttr('akt', …)`
-  in `Heldenbrief.tsx:135-148` computes `delta = v - attributes[code].akt` per
-  keystroke (`NumInput` fires `onChange` on every keystroke, not just blur) and
-  rejects if it exceeds the unused-point budget. Likely cause: a stale-closure
-  race — two keystrokes fired in quick succession can both compute `delta`
-  against the same pre-update `akt` before a re-render lands, letting a value
-  through it should've rejected. Fix: make the check race-safe (derive current
-  `akt` from a ref/latest value rather than the render closure) instead of
-  relying on synchronous re-render timing.
-- [ready] **Crit rule change: lone surviving 1 only crits on confirmation ≥10**:
-  mirrors the existing 20-confirmation logic, just inverted for success/failure.
-- [ready] **Chat highlights which attribute rolled a surviving 1/20**: the data
-  gap is confirmed — `ComputedProbe` (`server/src/diceSource.ts:150`) only
-  returns `{n, probeZahl, label}`; the per-attribute breakdown (`parts`, e.g.
-  `['MU','KL','IN']`) is computed inside `talentProbeZahl`/`probeExprZahl` but
-  discarded before it reaches the client. Fix: add `attrParts?: AttrRowCode[]`
-  to `ComputedProbe`, thread it through the roll result into the persisted feed
-  entry (`diceProtocol.ts`, `server/src/dice.ts`, `feed.ts`), then have
-  `FeedEntryView` map `dieIndex → attrParts[dieIndex]` next to the existing
-  `feed-die--20`/`feed-die--1` highlighting. `parseProbeExpr` already supports
-  an arbitrary-length `+`-separated attribute list (not hardcoded to 3) and
-  `ComputedProbe.n` is already a plain number, so this generalizes cleanly to
-  spells with more than 3 dice.
-- [ready] **Spell/talent suggestion list can't be scrolled past 8 matches**
-  (a player with many "Licht…" spells can't reach the rest via `/r Licht`):
-  root cause confirmed — `matches` in `DicePanel.tsx:123` is hard-capped at
-  `MAX_SUGGESTIONS = 8` with a plain `.slice(0, 8)`, and `.dice-suggest`
-  (`DicePanel.tsx:328`) isn't a scroll container at all, so anything past 8 is
-  silently unreachable by mouse or arrow keys. Fix: make `.dice-suggest`
-  scrollable (max-height + overflow-y), drop/raise the cap, keep the
-  highlighted item scrolled into view on ArrowUp/Down.
 - [ready] **Group-wide synchronized roll requests**: results only publish once
   everyone has rolled or passed. Concept settled — reuses the existing
   `roll.pending.request`/accept/decline mechanic (`diceProtocol.ts:146-148`),
@@ -76,27 +44,6 @@ New raw points still go in the inbox at the bottom of this section.
     wait for someone who isn't online. Still open: whether the GM can target a
     subset instead of always the full connected group (default to full group
     unless that's wanted too).
-- [ready] **Announce spending a Schicksalspunkt to chat**, plus a confirm
-  hint-box when clicking the clover (safeguard against accidental clicks)
-  before the spend is committed.
-- [ready] **Chat input history needs full up/down navigation**: confirmed
-  current state is much thinner than it looks — `lastRollCmdRef`
-  (`DicePanel.tsx:95,223,241`) holds only the single most recent submitted
-  text (command or chat), usable via ArrowUp only when the field is empty, no
-  ArrowDown, no depth. Fix: replace the single ref with a small ring buffer of
-  the last ~5 sent entries plus a history-cursor index — ArrowUp walks back
-  through it, ArrowDown walks forward back to the empty draft (shell-history
-  pattern).
-- [ready] **Group portraits** in the group page and overview: same shape as
-  character portraits (one image per group, same upload/replace/delete flow).
-  Should go straight into `helden-assets.db` (`owner_type='group'`) rather than
-  the legacy `char_portraits` BLOB table, since that table is slated for
-  removal (see „drop `char_portraits`" below).
-- [ready] **Erschwerung/Erleichterung: save on change, not just blur/Enter**:
-  `ModifierPicker.tsx:42-53` currently commits on blur or Enter only. Fix:
-  mirror `NumInput`'s `type()` pattern — call `onChange` on every keystroke
-  (parsed/clamped as typed), keep local `draft` state for in-progress typing.
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -151,7 +98,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
   `shared/src/rules.ts`. Deliberately deferred to avoid silently shifting every
   existing character's computed LE/AU/AsE/MR/AK in the same pass as introducing
   the catalogue.
-- [sketch] **Shapeshifting characters** (design notes at
+- [onHold] **Shapeshifting characters** (design notes at
   `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
   data-model disagreement with the GM, written up there instead of lost):
   a character that can shapeshift needs genuinely different values for
@@ -208,6 +155,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
   messages/rolls, no duplicate connection. **Settled:** that dedicated page
   does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
   showing the same feed twice on the same page would be redundant.
+    - as we have a group that is streaming, this topic will need a higher prio. should ship shortly
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
@@ -490,8 +438,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
 - [sketch] **Liturgien catalogue** (waits until the catalogue content is finished): read
   the character's priest level to unlock Liturgien accordingly. Priest-level
   requirements are still not fleshed out.
-- [sketch] **Portrait follow-ups**: on-page cutout editor (choose the crop instead of
-  auto-center). click image to view bigger (check for storage usage)
 - [sketch] **Link spoken languages to their writing system** (user feedback):
   `Sprachen.tsx` treats languages and scripts as two entirely separate,
   unlinked catalogs (`kind: 'sprache' | 'schrift'`), rendered by the same
