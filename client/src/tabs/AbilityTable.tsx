@@ -2,8 +2,9 @@ import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Ability, Attributes } from '@shared/abilities';
 import { groupAbilities } from '@shared/abilities';
-import { probeExprZahl } from '@shared/rules';
+import { probeExprHasWeaponTerm, probeExprZahl } from '@shared/rules';
 import { AlwaysEditable } from '../components/displayMode';
+import AbilityWeaponRollButton from '../components/dice/AbilityWeaponRollButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { Field, NumInput } from '../components/inputs';
 import { CollapsedText } from '../components/notes';
@@ -231,6 +232,7 @@ export function AbilityTable({
 
 function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch: boolean; attrs: Attributes; onFort: (v: number) => void; pinned?: boolean }) {
   const pz = probeExprZahl(attrs, a.probe);
+  const needsWeapon = probeExprHasWeaponTerm(a.probe);
   return (
     <tr className={pinned ? 'abil-pinned' : undefined}>
       <td>
@@ -243,11 +245,15 @@ function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch
       <td className="num">{a.kosten}</td>
       <td className="abil-probe">
         {a.probe}
-        {pz != null && (
-          <>
-            <span className="muted"> ({pz})</span>
-            <ProbeRollButton source={{ kind: 'ability', abilityId: a.id }} title={a.name} />
-          </>
+        {needsWeapon ? (
+          <AbilityWeaponRollButton abilityId={a.id} title={a.name} />
+        ) : (
+          pz != null && (
+            <>
+              <span className="muted"> ({pz})</span>
+              <ProbeRollButton source={{ kind: 'ability', abilityId: a.id }} title={a.name} />
+            </>
+          )
         )}
       </td>
       <td className="num">

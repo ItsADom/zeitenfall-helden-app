@@ -14,7 +14,11 @@ export type ProbeSource =
   // Sozialstatus ein — auch darauf wird gewürfelt.
   | { kind: 'attribute'; attr: AttrRowCode }
   | { kind: 'talent'; talentId: number }
-  | { kind: 'ability'; abilityId: number }
+  // `weapon` ist nur nötig, wenn die Fähigkeit einen AT/PA/BL-Term führt
+  // (siehe probeExprHasWeaponTerm in rules.ts) — 'row' eine echte Nahkampf-
+  // waffe des Charakters, 'talent' Unbewaffnet (Raufen/Ringen), direkt über
+  // die talents_catalog-id statt über eine Waffenzeile.
+  | { kind: 'ability'; abilityId: number; weapon?: { kind: 'row'; sectionRowId: number } | { kind: 'talent'; talentId: number } }
   | { kind: 'sprache'; languageId: number; mode: 'sprechen' | 'schreiben' }
   | { kind: 'weapon'; sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' }
   // Basiswert-Probe: ein W20 gegen den Basiswert selbst — Ausweichen (die

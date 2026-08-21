@@ -2,10 +2,11 @@
 // and die count (n) from a character's stored attributes/TaW/weapon data.
 // The client only ever sends WHICH Probe to roll (a ProbeSource) — never a
 // number — so a tampered client can't roll against an inflated threshold.
-import type { AttrCode, AttrRowCode, ProbeSource } from 'shared';
+import type { AttrCode, AttrRowCode, Attributes, ProbeSource } from 'shared';
 import {
   ATTR_ROW_CODES,
   ATTR_LABELS,
+  abilityProbeZahl,
   attrMax,
   BASE_VALUE_LABELS,
   computeBaseValues,
@@ -16,6 +17,7 @@ import {
   sprechenProbe,
   talentProbeZahl,
   weaponProbe,
+  weaponProbes,
 } from 'shared';
 import { db } from './db.js';
 import { loadAttributes, loadBaseValueInputs } from './characterData.js';
@@ -49,7 +51,18 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
     }
     case 'ability': {
       const abilityId = id(s.abilityId);
-      return abilityId ? { kind: 'ability', abilityId } : null;
+      if (!abilityId) return null;
+      const w = s.weapon as Record<string, unknown> | undefined;
+      if (!w) return { kind: 'ability', abilityId };
+      if (w.kind === 'row') {
+        const sectionRowId = id(w.sectionRowId);
+        return sectionRowId ? { kind: 'ability', abilityId, weapon: { kind: 'row', sectionRowId } } : null;
+      }
+      if (w.kind === 'talent') {
+        const talentId = id(w.talentId);
+        return talentId ? { kind: 'ability', abilityId, weapon: { kind: 'talent', talentId } } : null;
+      }
+      return null;
     }
     case 'sprache': {
       const languageId = id(s.languageId);
@@ -69,6 +82,38 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
     default:
       return null;
   }
+}
+
+// AT/PA/BL-Term einer Fähigkeiten-Probe: entweder eine echte Nahkampfwaffe
+// (talentId + Waffen-Bonus aus sec_waffenNahNeu) oder Unbewaffnet — direkt
+// über eine talents_catalog-id (Raufen/Ringen), ohne Waffenzeile, Waffen-
+// Bonus dann 0. Beide Fälle rechnen über dieselbe weaponProbes()-Formel wie
+// der Waffen-Reiter, mit der AT/PA/BL-SPALTE des Talents (char_talents.at/
+// pa/bl), NICHT dem TaW — genau die Aufteilung, die auch echte Waffen nutzen.
+function resolveAbilityWeaponProbes(
+  characterId: number,
+  attrs: Attributes,
+  weapon: Extract<ProbeSource, { kind: 'ability' }>['weapon'],
+): { at: number; pa: number; bl: number } | null {
+  if (!weapon) return null;
+  const bv = computeBaseValues(attrs, loadBaseValueInputs(characterId));
+  const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
+  let talentId: number;
+  let weaponMod = { at: 0, pa: 0, bl: 0 };
+  if (weapon.kind === 'row') {
+    const row = db.prepare('SELECT * FROM sec_waffenNahNeu WHERE character_id = ? AND id = ?').get(characterId, weapon.sectionRowId) as
+      | Record<string, unknown>
+      | undefined;
+    if (!row) return null;
+    talentId = Number(row.talentId) || 0;
+    weaponMod = { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0 };
+  } else {
+    talentId = weapon.talentId;
+  }
+  const talent = db
+    .prepare('SELECT at, pa, bl FROM char_talents WHERE character_id = ? AND talent_id = ?')
+    .get(characterId, talentId) as { at: number; pa: number; bl: number } | undefined;
+  return weaponProbes(weaponMod, base, { at: talent?.at ?? 0, pa: talent?.pa ?? 0, bl: talent?.bl ?? 0 });
 }
 
 export function computeProbeForCharacter(characterId: number, source: ProbeSource): ComputedProbe | null {
@@ -105,9 +150,16 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
         .get(characterId, source.abilityId) as { name: string; probe: string } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
-      const probeZahl = probeExprZahl(attrs, row.probe);
-      if (!parts || probeZahl === null) return null;
-      return { n: parts.length, probeZahl, label: row.name, attrParts: parts };
+      if (!parts) return null;
+      const hasWeaponTerm = parts.some((p) => p === 'AT' || p === 'PA' || p === 'BL');
+      // Ohne AT/PA/BL im Ausdruck reicht der attributbasierte Weg — kein
+      // Waffen-Bezug nötig, `source.weapon` wird ignoriert, falls doch gesetzt.
+      const weapon = hasWeaponTerm ? resolveAbilityWeaponProbes(characterId, attrs, source.weapon) : null;
+      if (hasWeaponTerm && !weapon) return null;
+      const probeZahl = abilityProbeZahl(attrs, row.probe, weapon);
+      if (probeZahl === null) return null;
+      const attrParts = parts.filter((p): p is AttrCode => p !== 'AT' && p !== 'PA' && p !== 'BL');
+      return { n: parts.length, probeZahl, label: row.name, attrParts: attrParts.length ? attrParts : undefined };
     }
     case 'sprache': {
       const row = db

@@ -151,19 +151,65 @@ export function weaponProbes(
 }
 
 // --- Techniken / Zauber: Probenausdrücke wie "KO+KO+KO" oder "FF+FF" ---
+//
+// Fähigkeiten dürfen zusätzlich AT/PA/BL als Term führen (z. B. "KK+AT") —
+// die fertige Probe der Waffe, mit der gerade gekämpft wird, statt eines
+// Attributs. Welche Waffe das ist (oder Unbewaffnet), wählt der Spieler erst
+// beim Würfeln (siehe ProbeSource 'ability' in diceProtocol.ts); ohne diese
+// Wahl lässt sich der Ausdruck nicht auf eine Zahl reduzieren — deshalb bleibt
+// `probeExprZahl` (rein attributbasiert) für diesen Fall bei `null`, und nur
+// eine Stelle, die die Waffe schon kennt (siehe `abilityProbeZahl`), rechnet
+// wirklich fertig.
 
 const ATTR_SET = new Set(['MU', 'KL', 'IN', 'CH', 'FF', 'GE', 'KO', 'KK']);
+const WEAPON_PROBE_CODES = new Set(['AT', 'PA', 'BL']);
+export type WeaponProbeCode = 'AT' | 'PA' | 'BL';
+export type ProbeExprToken = AttrCode | WeaponProbeCode;
 
-export function parseProbeExpr(expr: string): AttrCode[] | null {
-  const parts = expr.split('+').map((p) => p.trim().toUpperCase());
-  if (parts.length === 0 || !parts.every((p) => ATTR_SET.has(p))) return null;
-  return parts as AttrCode[];
+function isWeaponProbeCode(p: string): p is WeaponProbeCode {
+  return WEAPON_PROBE_CODES.has(p);
 }
 
+export function parseProbeExpr(expr: string): ProbeExprToken[] | null {
+  const parts = expr.split('+').map((p) => p.trim().toUpperCase());
+  if (parts.length === 0 || !parts.every((p) => ATTR_SET.has(p) || isWeaponProbeCode(p))) return null;
+  return parts as ProbeExprToken[];
+}
+
+export function probeExprHasWeaponTerm(expr: string): boolean {
+  const parts = parseProbeExpr(expr);
+  return !!parts && parts.some((p) => isWeaponProbeCode(p));
+}
+
+// Rein attributbasiert — liefert `null` sowohl bei einem ungültigen Ausdruck
+// als auch, wenn er einen AT/PA/BL-Term enthält (dafür fehlt hier die Waffe).
 export function probeExprZahl(attrs: Attributes, expr: string): number | null {
   const parts = parseProbeExpr(expr);
+  if (!parts || parts.some((p) => isWeaponProbeCode(p))) return null;
+  return parts.reduce((sum, c) => sum + attrMax(attrs, c as AttrCode), 0);
+}
+
+// Fertige Fähigkeiten-Probe inklusive AT/PA/BL-Term(en) — `weapon` ist die
+// bereits fertig gerechnete Probe der gewählten Waffe (oder von Raufen/Ringen
+// bei Unbewaffnet, siehe diceSource.ts), `null` nur zulässig, wenn der
+// Ausdruck gar keinen Waffen-Term enthält.
+export function abilityProbeZahl(
+  attrs: Attributes,
+  expr: string,
+  weapon: { at: number; pa: number; bl: number } | null,
+): number | null {
+  const parts = parseProbeExpr(expr);
   if (!parts) return null;
-  return parts.reduce((sum, c) => sum + attrMax(attrs, c), 0);
+  let sum = 0;
+  for (const p of parts) {
+    if (isWeaponProbeCode(p)) {
+      if (!weapon) return null;
+      sum += weapon[p.toLowerCase() as 'at' | 'pa' | 'bl'];
+    } else {
+      sum += attrMax(attrs, p);
+    }
+  }
+  return sum;
 }
 
 // --- Sprachen ---
