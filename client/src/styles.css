@@ -4422,6 +4422,13 @@ body.resizing-dice {
   color: var(--over-line);
   font-weight: 700;
 }
+.feed-die-attr {
+  margin-left: 2px;
+  font-size: 0.65em;
+  font-weight: 600;
+  vertical-align: sub;
+  opacity: 0.85;
+}
 .feed-roll-sum {
   font-variant-numeric: tabular-nums;
 }

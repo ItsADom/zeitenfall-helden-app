@@ -44,6 +44,13 @@ export interface ProbeRollPayload {
   probeZahl: number;
   modifier: number;
   dice: number[];
+  /**
+   * Welches Attribut (bzw. für 3-Würfel-Proben: welche drei) jeden Würfel
+   * dieses Wurfs stellt, parallel zu `dice` — für die Attribut-Hervorhebung
+   * bei einer stehengebliebenen 1/20 im Feed. Unbesetzt bei Waffenproben, die
+   * keine direkte Attribut-Zuordnung je Würfel kennen.
+   */
+  attrParts?: AttrRowCode[];
   confirmations: DieConfirmation[];
   // Offene Bestätigungswürfe — der Spieler löst sie einzeln aus, erst danach
   // steht das Ergebnis fest (resolved).

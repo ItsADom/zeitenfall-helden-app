@@ -23,6 +23,8 @@ export interface ComputedProbe {
   n: number;
   probeZahl: number;
   label: string;
+  /** Welches Attribut jeden Würfel stellt — siehe ProbeRollPayload.attrParts. */
+  attrParts?: AttrRowCode[];
 }
 
 // Der Client schickt nur, WELCHE Probe gewürfelt werden soll — hier wird das
@@ -71,7 +73,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     case 'attribute': {
       // Eigenschaftsprobe: ein einzelner W20 gegen den Attributswert
       // (Basis + Bonus, wie auf dem Bogen in der Max-Spalte).
-      return { n: 1, probeZahl: attrMax(attrs, source.attr), label: ATTR_LABELS[source.attr] };
+      return { n: 1, probeZahl: attrMax(attrs, source.attr), label: ATTR_LABELS[source.attr], attrParts: [source.attr] };
     }
     case 'talent': {
       const row = db
@@ -91,7 +93,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const parts = row.probe.split('/').map((p) => p.trim().toUpperCase());
       if (parts.length !== 3) return null;
       const probeZahl = talentProbeZahl(attrs, parts as [AttrCode, AttrCode, AttrCode], row.taw);
-      return { n: 3, probeZahl, label: row.name };
+      return { n: 3, probeZahl, label: row.name, attrParts: parts as AttrCode[] };
     }
     case 'ability': {
       const row = db
@@ -101,7 +103,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const parts = parseProbeExpr(row.probe);
       const probeZahl = probeExprZahl(attrs, row.probe);
       if (!parts || probeZahl === null) return null;
-      return { n: parts.length, probeZahl, label: row.name };
+      return { n: parts.length, probeZahl, label: row.name, attrParts: parts };
     }
     case 'sprache': {
       const row = db
@@ -118,7 +120,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const base = source.mode === 'sprechen' ? sprechenProbe(attrs) : schreibenProbe(attrs);
       const probeZahl = base + erleichterung(row.taw);
       const modeLabel = source.mode === 'sprechen' ? 'Sprechen' : 'Schreiben';
-      return { n: 3, probeZahl, label: `${row.name} (${modeLabel})` };
+      const attrParts: AttrCode[] = source.mode === 'sprechen' ? ['KL', 'IN', 'CH'] : ['KL', 'KL', 'FF'];
+      return { n: 3, probeZahl, label: `${row.name} (${modeLabel})`, attrParts };
     }
     case 'weapon': {
       const table = source.probe === 'fk' ? 'sec_waffenFernNeu' : 'sec_waffenNahNeu';

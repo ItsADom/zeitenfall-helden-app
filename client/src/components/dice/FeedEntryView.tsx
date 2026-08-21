@@ -1,6 +1,7 @@
 import type { DiceExpression, DieConfirmation, PendingConfirmation } from '@shared/dice';
 import { diceSidesForExpression } from '@shared/dice';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
+import { ATTR_LABELS, type AttrRowCode } from '@shared/types';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
 // Sämtliche Wortlaute stehen in labels.ts — hier wird nur ausgewählt, welcher.
@@ -27,10 +28,21 @@ function VisibilityTag({ visibility }: { visibility: RollVisibility }) {
   return <span className="feed-vis-tag">{visibility === 'hidden' ? VISIBILITY.hidden : VISIBILITY.gmPlayer}</span>;
 }
 
-// Ein Würfel; natürliche 20/1 stechen hervor, weil sie eine Bestätigung auslösen.
-function Die({ value, sides }: { value: number; sides: number }) {
+// Ein Würfel; natürliche 20/1 stechen hervor, weil sie eine Bestätigung
+// auslösen. `attr` (nur bei Proben bekannt, siehe attrParts) zeigt zusätzlich,
+// welches Attribut den Würfel gestellt hat — sonst ist bei einer 3-Würfel-
+// Probe reine Ratesache, wessen 1/20 da stehengeblieben ist.
+function Die({ value, sides, attr }: { value: number; sides: number; attr?: AttrRowCode }) {
   const crit = sides === 20 && (value === 20 || value === 1);
-  return <span className={`feed-die${crit ? (value === 20 ? ' feed-die--20' : ' feed-die--1') : ''}`}>{value}</span>;
+  return (
+    <span
+      className={`feed-die${crit ? (value === 20 ? ' feed-die--20' : ' feed-die--1') : ''}`}
+      title={crit && attr ? ATTR_LABELS[attr] : undefined}
+    >
+      {value}
+      {crit && attr && <sub className="feed-die-attr">{attr}</sub>}
+    </span>
+  );
 }
 
 // Bestätigungswürfe: je natürlicher 20/1 ein eigener Wurf, dieselbe ≥10-
@@ -173,7 +185,7 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
       <div className="feed-roll-body">
         <span className="feed-dice">
           {roll.dice.map((d, i) => (
-            <Die key={i} value={d} sides={diceSides[i]} />
+            <Die key={i} value={d} sides={diceSides[i]} attr={isProbe ? roll.attrParts?.[i] : undefined} />
           ))}
         </span>
         <span className="feed-roll-sum">
