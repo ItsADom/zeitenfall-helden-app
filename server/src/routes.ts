@@ -356,10 +356,16 @@ api.get('/groups/mine', requireAuth, (req, res) => {
               c.dice_shortcuts AS charShortcuts, cm.schicksalspunkteAktuell AS spAktuell, cm.schicksalspunkteMax AS spMax
        FROM groups g
        JOIN characters c ON c.group_id = g.id AND c.owner_user_id = ?
+         -- Falls ein Nutzer ausnahmsweise mehrere Charaktere in derselben Gruppe
+         -- hat, würde ohne diese Bedingung die Gruppe mehrfach auftauchen (ein
+         -- Chatraum-Eintrag pro Charakter). Deterministisch auf den mit der
+         -- kleinsten Charakter-ID einschränken, damit jede Gruppe genau einmal
+         -- erscheint.
+         AND c.id = (SELECT MIN(c2.id) FROM characters c2 WHERE c2.group_id = g.id AND c2.owner_user_id = ?)
        LEFT JOIN char_meta cm ON cm.character_id = c.id
        ORDER BY g.name`,
     )
-    .all(user.id) as {
+    .all(user.id, user.id) as {
     id: number;
     name: string;
     charId: number | null;

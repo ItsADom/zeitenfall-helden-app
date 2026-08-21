@@ -4151,6 +4151,7 @@ body.resizing-dice {
 .dice-dock-feed {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 8px 10px;
   min-height: 160px;
 }
@@ -4994,12 +4995,13 @@ tr:hover .probe-roll,
   gap: 1px;
   padding: 4px 2px 5px;
   border-radius: 7px;
+  background: var(--surface-sunken);
 }
 .gm-chip--attr .gm-chip-label {
   font-size: 10px;
 }
 .gm-chip--attr .gm-chip-val {
-  font-size: 15px;
+  font-size: 18px;
 }
 /* Zustandsfärbung der Vital-Chips — dieselben Tokens wie Heldenbrief/Seitenleiste,
    damit „niedrig/kritisch/überladen" überall gleich aussieht. Der linke Streifen

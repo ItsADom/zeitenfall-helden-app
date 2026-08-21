@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { ResourceKey } from '@shared/types';
+import type { AttrRowCode, ResourceKey } from '@shared/types';
+import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
@@ -313,7 +314,11 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
 
               <div className="gm-chips gm-chips--attr">
                 {c.attributes.map((a) => (
-                  <span className="gm-chip gm-chip--attr" key={a.code} title={a.code}>
+                  <span
+                    className="gm-chip gm-chip--attr"
+                    key={a.code}
+                    title={ATTR_LABELS[a.code as AttrRowCode] ?? a.code}
+                  >
                     <span className="gm-chip-label">{a.code}</span>
                     <span className="gm-chip-val">{a.value}</span>
                   </span>
