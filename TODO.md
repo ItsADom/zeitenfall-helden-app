@@ -90,15 +90,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
   (talents, languages, tags/Merkmale, races) — currency's `sort` column
   exists in the schema but isn't exposed in that UI yet, worth wiring in at
   the same time.
-- [ready] **Create equipment directly in the Ausrüstung tab** (user
-  feedback): `Ausruestung.tsx` today has no creation UI at all — an item can
-  only be created via `Inventar.tsx`'s `AddItemDialog` (which already has an
-  "Ausrüstung" mode, `itemDialogs.tsx:25`) and then dragged over in two
-  steps. Add a "+ Gegenstand" trigger in `Ausruestung.tsx` that opens the
-  same dialog with `mode='ausruestung'` and `location: 'bench'` (Nicht
-  getragen), so the new item lands unworn — same place an Inventar-created
-  item ends up after being moved over — and the player still drags it to a
-  body zone themselves. part of the editing-dialog plan.
 - [onHold] **Shapeshifting characters** (design notes at
   `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
   data-model disagreement with the GM, written up there instead of lost):

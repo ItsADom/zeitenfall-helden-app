@@ -9,10 +9,12 @@ import {
   itemsInContainer,
   itemGewicht,
   lastInfo,
+  makeItem,
   zoneView,
 } from '@shared/items';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useReadOnly } from '../components/displayMode';
+import { AddItemDialog } from '../components/itemDialogs';
 import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
@@ -41,6 +43,7 @@ export default function AusruestungTab() {
   const byUid = new Map(items.map((it) => [it.uid, it]));
   const [over, setOver] = useState<string | null>(null);
   const [openUid, setOpenUid] = useState<string | null>(null);
+  const [addItemOpen, setAddItemOpen] = useState(false);
 
   const setItems = (next: Item[]) => update('items', next);
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
@@ -137,6 +140,9 @@ export default function AusruestungTab() {
   const bench = items.filter((it) => it.location === 'bench');
   const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
   const wornNoZone = items.filter((it) => it.location === 'getragen' && !BODY_ZONES.includes(it.zone as never));
+  const catOptions = [...new Set([...(data.itemCategories ?? []), ...items.map((it) => it.kategorie).filter(Boolean)])].sort((a, b) =>
+    a.localeCompare(b, 'de'),
+  );
 
   return (
     <>
@@ -192,6 +198,13 @@ export default function AusruestungTab() {
           {bench.map(chip)}
           {bench.length === 0 && <span className="zone-empty">—</span>}
         </div>
+        {!ro && (
+          <div className="inv-add-trigger">
+            <button className="small" onClick={() => setAddItemOpen(true)}>
+              + Gegenstand
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Behälter (Stauraum): Ablage — hierher gezogen landet der Inhalt im Inventar.
@@ -227,6 +240,14 @@ export default function AusruestungTab() {
           })}
         </div>
       </div>
+
+      <AddItemDialog
+        open={addItemOpen}
+        onClose={() => setAddItemOpen(false)}
+        categories={catOptions}
+        initialMode="ausruestung"
+        onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'bench' })])}
+      />
     </>
   );
 }

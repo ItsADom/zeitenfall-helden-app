@@ -15,14 +15,16 @@ export function AddItemDialog({
   open,
   onClose,
   categories,
+  initialMode = 'allgemein',
   onAdd,
 }: {
   open: boolean;
   onClose: () => void;
   categories: string[];
+  initialMode?: 'allgemein' | 'ausruestung';
   onAdd: (fields: Partial<Item>) => void;
 }) {
-  const [mode, setMode] = useState<'allgemein' | 'ausruestung'>('allgemein');
+  const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
   const [kategorie, setKategorie] = useState('');
   const [anzahl, setAnzahl] = useState(1);
@@ -33,7 +35,7 @@ export function AddItemDialog({
   const [notiz, setNotiz] = useState('');
 
   const reset = () => {
-    setMode('allgemein');
+    setMode(initialMode);
     setName('');
     setKategorie('');
     setAnzahl(1);

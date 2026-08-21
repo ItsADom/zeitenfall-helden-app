@@ -106,6 +106,17 @@ export function makeUid(): string {
   return `it-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+// Neues Item mit allen Standardwerten, überschrieben von `over` — für die
+// Anlegen-Dialoge (Inventar wie Ausrüstung), damit die Feldliste nur an einer
+// Stelle steht.
+export function makeItem(over: Partial<Item>): Item {
+  return {
+    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
+    zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
+    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '', ...over,
+  };
+}
+
 // Zeilengewicht: Stückzahl × Einzelgewicht (kg), OHNE Reduktion.
 export function itemGewicht(item: Pick<Item, 'anzahl' | 'gewicht'>): number {
   return (Number(item.anzahl) || 0) * (Number(item.gewicht) || 0);
