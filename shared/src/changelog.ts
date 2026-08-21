@@ -211,6 +211,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Porträt hochladen: der Bildausschnitt lässt sich jetzt selbst wählen (ziehen + zoomen) statt automatisch auf die Mitte zugeschnitten zu werden. Ein Klick aufs Porträt zeigt es vergrößert.',
       'Im Ausrüstungs-Reiter lässt sich ein Gegenstand jetzt direkt anlegen („+ Gegenstand" unter „Nicht getragen") statt ihn erst im Inventar anzulegen und dann herüberzuziehen.',
       'Ausweichen und Initiative lassen sich jetzt genau wie die Attribute direkt anklicken und würfeln.',
+      'Die Probe einer Fähigkeit kann jetzt AT/PA/BL statt nur Eigenschaften enthalten (z. B. „KK+AT") — beim Würfeln wird dann erst die Waffe (oder „Unbewaffnet") abgefragt, mit der die Fähigkeit eingesetzt wird.',
     ],
     admin: [
       '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',
