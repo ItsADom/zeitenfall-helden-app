@@ -204,12 +204,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-21',
     title: 'Würfel-Feinschliff & Porträts',
     added: [
-      'Der Rassen-Katalog gibt jetzt auch LE/AU/AsE/MR/Artefaktkontrolle vor (nicht nur Geschwindigkeit, Psyche und Resilienz wie bisher) — die Rassen-Auswahl im Heldenbrief rechnet diese fünf Werte automatisch mit ein.',
+      'Der Rassen-Katalog gibt jetzt auch LE/AU/AsE/MR/Artefaktkontrolle vor (nicht nur Geschwindigkeit, Psyche und Resilienz wie bisher) — die Rassen-Auswahl im Heldenbrief rechnet diese fünf Werte automatisch mit ein. Bitte kontrolliert eure Werte, ob sie noch stimmen! Vorher vergebene Rassenboni sind jetzt eventuell doppelt vorhanden.',
       'Chat zeigt bei einer nicht-aufgehobenen 1/20 zusätzlich, welches Attribut sie hat.',
       'Einen Schicksalspunkt auszugeben erfordert nun eine Bestätigung und meldet die Ausgabe als Chat-Zeile.',
       'Gruppen bekommen ein eigenes Porträt, genau wie Charaktere.',
       'Porträt hochladen: der Bildausschnitt lässt sich jetzt selbst wählen (ziehen + zoomen) statt automatisch auf die Mitte zugeschnitten zu werden. Ein Klick aufs Porträt zeigt es vergrößert.',
       'Im Ausrüstungs-Reiter lässt sich ein Gegenstand jetzt direkt anlegen („+ Gegenstand" unter „Nicht getragen") statt ihn erst im Inventar anzulegen und dann herüberzuziehen.',
+      'Ausweichen lässt sich jetzt genau wie die Attribute direkt anklicken und würfeln.',
     ],
     admin: [
       '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',
@@ -227,6 +228,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Vorschlagsliste für Proben (/r) ließ sich über die ersten 8 Treffer hinaus nicht scrollen.',
       'War der Chat-Verlauf ganz nach unten gescrollt, scrollte weiteres Scrollen die Seite dahinter statt einfach am Ende zu bleiben.',
       '„Einstellungen", „Zauber & Fähigkeiten verwalten" und der Wiki-Editor fragen jetzt nach, bevor eine Seite mit ungespeicherten Änderungen verlassen wird — auch bei einem Klick auf einen anderen Menüpunkt oder „Zurück" im Browser, nicht nur beim Schließen des Tabs.',
+      'Ein gewürfeltes Attacke/Parade/Blocken/Fernkampf würfelte gegen eine zu niedrige Zahl, wenn der jeweilige Basiswert einen eigenen Modifikator hatte — der floss auf dem Bogen zwar in die angezeigte Zahl ein, beim eigentlichen Wurf aber nicht.',
     ],
   },
   {

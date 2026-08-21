@@ -323,7 +323,12 @@ export default function HeldenbriefTab() {
                   <td>
                     <NumInput value={baseValues.mods[key]} onChange={(v) => setBvMod(key, v)} />
                   </td>
-                  <td className="computed">{bv[key].ergebnis}</td>
+                  <td className="computed">
+                    {bv[key].ergebnis}
+                    {key === 'ausweichen' && (
+                      <ProbeRollButton source={{ kind: 'baseValue', key: 'ausweichen' }} title={BASE_VALUE_LABELS[key].label} />
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

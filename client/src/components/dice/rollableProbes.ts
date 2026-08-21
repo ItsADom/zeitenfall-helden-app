@@ -8,7 +8,7 @@ export interface RollableProbe {
   label: string;
   n: number;
   probeZahl: number;
-  kind: 'attribute' | 'talent' | 'ability' | 'sprache' | 'weapon';
+  kind: 'attribute' | 'talent' | 'ability' | 'sprache' | 'weapon' | 'baseValue';
 }
 
 export const PROBE_KIND_LABEL: Record<RollableProbe['kind'], string> = {
@@ -17,4 +17,5 @@ export const PROBE_KIND_LABEL: Record<RollableProbe['kind'], string> = {
   ability: 'Zauber/Fähigkeit',
   sprache: 'Sprache',
   weapon: 'Waffe',
+  baseValue: 'Basiswert',
 };

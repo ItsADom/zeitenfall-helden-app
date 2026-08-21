@@ -2,7 +2,7 @@
 // rolls) WebSocket protocol and its REST history endpoint.
 
 import type { DieConfirmation, DiceExpression, PendingConfirmation } from './dice.js';
-import type { AttrRowCode } from './types.js';
+import type { AttrRowCode, BaseValueKey } from './types.js';
 
 export type RollVisibility = 'public' | 'hidden' | 'gm_player';
 
@@ -16,7 +16,10 @@ export type ProbeSource =
   | { kind: 'talent'; talentId: number }
   | { kind: 'ability'; abilityId: number }
   | { kind: 'sprache'; languageId: number; mode: 'sprechen' | 'schreiben' }
-  | { kind: 'weapon'; sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' };
+  | { kind: 'weapon'; sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' }
+  // Basiswert-Probe: ein W20 gegen den Basiswert selbst (bisher nur
+  // Ausweichen — die einzige Verteidigungsprobe ohne eigenen Waffen-Bezug).
+  | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen'> };
 
 export interface ChatFeedEntry {
   id: number;

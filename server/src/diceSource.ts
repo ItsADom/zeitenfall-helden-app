@@ -7,7 +7,8 @@ import {
   ATTR_ROW_CODES,
   ATTR_LABELS,
   attrMax,
-  computeBaseValueBases,
+  BASE_VALUE_LABELS,
+  computeBaseValues,
   erleichterung,
   parseProbeExpr,
   probeExprZahl,
@@ -61,6 +62,9 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
       if (!sectionRowId) return null;
       if (s.probe !== 'at' && s.probe !== 'pa' && s.probe !== 'bl' && s.probe !== 'fk') return null;
       return { kind: 'weapon', sectionRowId, probe: s.probe };
+    }
+    case 'baseValue': {
+      return s.key === 'ausweichen' ? { kind: 'baseValue', key: 'ausweichen' } : null;
     }
     default:
       return null;
@@ -133,17 +137,21 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const talent = db
         .prepare('SELECT at, pa, bl FROM char_talents WHERE character_id = ? AND talent_id = ?')
         .get(characterId, talentId) as { at: number; pa: number; bl: number } | undefined;
-      const bv = computeBaseValueBases(attrs, loadBaseValueInputs(characterId));
+      const bv = computeBaseValues(attrs, loadBaseValueInputs(characterId));
       const label = String(row.typ ?? '');
       if (source.probe === 'fk') {
-        const probeZahl = weaponProbe(Number(row.atMod) || 0, bv.fk, talent?.at ?? 0);
+        const probeZahl = weaponProbe(Number(row.atMod) || 0, bv.fk.ergebnis, talent?.at ?? 0);
         return { n: 1, probeZahl, label: `${label} (FK)` };
       }
       const weaponMod = Number(row[source.probe]) || 0;
-      const baseErgebnis = bv[source.probe];
+      const baseErgebnis = bv[source.probe].ergebnis;
       const talentSplit = talent?.[source.probe] ?? 0;
       const probeZahl = weaponProbe(weaponMod, baseErgebnis, talentSplit);
       return { n: 1, probeZahl, label: `${label} (${source.probe.toUpperCase()})` };
+    }
+    case 'baseValue': {
+      const bv = computeBaseValues(attrs, loadBaseValueInputs(characterId));
+      return { n: 1, probeZahl: bv[source.key].ergebnis, label: BASE_VALUE_LABELS[source.key].label };
     }
     default:
       return null;
@@ -156,7 +164,7 @@ export interface RollableProbe {
   n: number;
   probeZahl: number;
   /** Grobe Einordnung für die Gruppierung in der Auswahlliste. */
-  kind: 'attribute' | 'talent' | 'ability' | 'sprache' | 'weapon';
+  kind: 'attribute' | 'talent' | 'ability' | 'sprache' | 'weapon' | 'baseValue';
 }
 
 /**
@@ -173,6 +181,7 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
   };
 
   for (const attr of ATTR_ROW_CODES) add({ kind: 'attribute', attr }, 'attribute');
+  add({ kind: 'baseValue', key: 'ausweichen' }, 'baseValue');
 
   // Talente/Sprachen aus dem KATALOG (auch ungelernte sind würfelbar, siehe
   // computeProbeForCharacter) — Kampftalente fallen dort mangels Formel raus.
