@@ -4153,6 +4153,14 @@ body.resizing-dice {
   font-weight: 400;
   font-size: 12px;
 }
+.dice-dock-char {
+  font-weight: 400;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
 .dice-dock-feed {
   flex: 1;
   overflow-y: auto;

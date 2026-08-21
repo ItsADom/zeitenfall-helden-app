@@ -395,6 +395,10 @@ export default function DicePanel() {
         }}
       >
         <RoomPicker />
+        {/* Reiner Text, keine eigene Klickfläche — bewusst kein stopPropagation
+            wie beim RoomPicker, damit ein Klick hier ganz normal weiter
+            einklappt. */}
+        {activeRoom?.myCharacterName && <span className="muted dice-dock-char">als {activeRoom.myCharacterName}</span>}
         {groupId !== null && !connected && <span className="muted dice-dock-status">verbinde…</span>}
         {/* Füllt den Rest der Zeile — gehört mit zur Klappfläche. */}
         <span className="dice-dock-head-fill" aria-hidden />
@@ -564,7 +568,7 @@ export default function DicePanel() {
             }
           }}
           disabled={groupId === null}
-          placeholder={activeRoom?.myCharacterName ? `Als ${activeRoom.myCharacterName}… (/r 2w6)` : 'Nachricht… (/r 2w6)'}
+          placeholder="/commands für Befehle"
         />
         <button className="small" onClick={send} disabled={!draft.trim() || groupId === null}>
           Senden

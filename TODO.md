@@ -21,6 +21,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 - do not auto-open chat, just show a notification for new messages, even when rolling yourself
   - maybe make it pulsate on roll-reqeust, with a little sound effect
 - 20+ perk picker
+  - list exists already, need AI-analysis
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
