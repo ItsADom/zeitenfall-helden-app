@@ -18,7 +18,11 @@ import VisibilityPicker from './VisibilityPicker';
 // schnell Vorschläge zu sehen, lang genug, um nicht bei jedem Tastendruck
 // eine Liste aufzuklappen, die eh nur "a" oder "ab" enthält.
 const MIN_SEARCH_LEN = 2;
-const MAX_SUGGESTIONS = 8;
+const MAX_SUGGESTIONS = 30;
+
+// Ring buffer size for the chat-input history (shell-history pattern, see
+// historyRef below).
+const HISTORY_SIZE = 5;
 
 // Größe frei ziehbar (Ecke oben links, siehe startResize) und je Gerät
 // gemerkt — wie CharacterSidebar's Breiten-Ziehgriff, nur an zwei Achsen.
@@ -88,11 +92,19 @@ export default function DicePanel() {
   const h = clampH(height);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastIdRef = useRef<string | null>(null);
-  // Letzter per „/r"/„/roll" abgeschickter Befehl dieser Sitzung — Pfeil-hoch
-  // bei leerem Eingabefeld holt ihn zurück, wie eine Shell-Historie (nur den
-  // letzten, keine ganze Liste; das deckt den eigentlichen Wunsch „nochmal
-  // würfeln, aber mit anderer Sichtbarkeit/Zahl" ab, ohne eigene UI dafür).
-  const lastRollCmdRef = useRef<string | null>(null);
+  // Zuletzt abgeschickte Eingaben dieser Sitzung (Befehl wie Chattext) — ein
+  // Ringpuffer, älteste zuerst. Pfeil-hoch/-runter läuft ihn wie eine
+  // Shell-Historie durch: hoch geht rückwärts, runter wieder nach vorn bis
+  // zum leeren Entwurf. `historyIndex` ist -1, solange nicht navigiert wird;
+  // `draftBeforeHistory` hält den Text, der vor dem ersten Pfeil-hoch im Feld
+  // stand, damit Pfeil-runter dorthin zurückfindet statt ihn zu verlieren.
+  const [history, setHistory] = useState<string[]>([]);
+  const historyIndexRef = useRef(-1);
+  const draftBeforeHistoryRef = useRef('');
+  const pushHistory = (text: string) => {
+    setHistory((h) => [...h, text].slice(-HISTORY_SIZE));
+    historyIndexRef.current = -1;
+  };
 
   // Proben-Vorschläge für "/r <Suchtext>": eigene Liste je Charakter, erst
   // beim ersten Bedarf geladen (wie RequestProbePicker) und danach gecacht.
@@ -103,6 +115,9 @@ export default function DicePanel() {
   // ja womöglich einfach einen längeren Suchtext weiter. Jede echte Änderung
   // am Text hebt die Ausblendung wieder auf.
   const [suggestDismissed, setSuggestDismissed] = useState(false);
+  // Hält den gerade markierten Vorschlag im sichtbaren Bereich der (jetzt
+  // scrollbaren) Liste, wenn per Pfeiltaste weitergeschaltet wird.
+  const activeSuggestRef = useRef<HTMLButtonElement | null>(null);
 
   const rollMatch = /^\/(?:r|roll)\s+(.*)$/i.exec(draft);
   const rollRest = rollMatch ? rollMatch[1] : null;
@@ -122,6 +137,10 @@ export default function DicePanel() {
   const q = searchText.toLowerCase();
   const matches = showSuggestions && probes ? probes.filter((p) => p.label.toLowerCase().includes(q)).slice(0, MAX_SUGGESTIONS) : [];
   const activeHighlight = Math.min(highlight, Math.max(matches.length - 1, 0));
+
+  useEffect(() => {
+    activeSuggestRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [activeHighlight]);
 
   const pickProbe = (p: RollableProbe) => {
     if (groupId === null || charId === null) return;
@@ -220,7 +239,7 @@ export default function DicePanel() {
     if (/^\/master$/i.test(text) || /^\/wild$/i.test(text)) {
       const table = /^\/master$/i.test(text) ? 'master' : 'wild';
       rollExpr(table === 'master' ? '1w6' : '1w6+1w20', visibility, '', table, visibilityTarget ?? undefined);
-      lastRollCmdRef.current = text;
+      pushHistory(text);
       setError('');
       setInfo('');
       setDraft('');
@@ -238,9 +257,10 @@ export default function DicePanel() {
         return;
       }
       rollExpr(expr, visibility, label, undefined, visibilityTarget ?? undefined);
-      lastRollCmdRef.current = text;
+      pushHistory(text);
     } else {
       sendChat(text);
+      pushHistory(text);
     }
     setError('');
     setInfo('');
@@ -334,6 +354,7 @@ export default function DicePanel() {
               matches.map((p, i) => (
                 <button
                   key={`${p.kind}-${p.label}`}
+                  ref={i === activeHighlight ? activeSuggestRef : null}
                   className={`dice-flyout-item${i === activeHighlight ? ' active' : ''}`}
                   role="option"
                   aria-selected={i === activeHighlight}
@@ -380,15 +401,9 @@ export default function DicePanel() {
             setDraft(e.target.value);
             setSuggestDismissed(false);
             setHighlight(0);
+            historyIndexRef.current = -1;
           }}
           onKeyDown={(e) => {
-            // Nur bei leerem Feld — sonst würde Pfeil-hoch mitten im Tippen
-            // den Text unter der Hand austauschen.
-            if (e.key === 'ArrowUp' && draft === '' && lastRollCmdRef.current) {
-              e.preventDefault();
-              setDraft(lastRollCmdRef.current);
-              return;
-            }
             if (showSuggestions && matches.length > 0) {
               if (e.key === 'ArrowDown') {
                 e.preventDefault();
@@ -405,6 +420,27 @@ export default function DicePanel() {
                 pickProbe(matches[activeHighlight]);
                 return;
               }
+            }
+            // Historie: hoch nur, solange nicht schon woanders getippt wird
+            // (leeres Feld ODER schon mitten in der Navigation, sonst würde
+            // Pfeil-hoch mitten im Tippen den Text unter der Hand austauschen).
+            if (e.key === 'ArrowUp' && history.length > 0 && (draft === '' || historyIndexRef.current !== -1)) {
+              e.preventDefault();
+              if (historyIndexRef.current === -1) draftBeforeHistoryRef.current = draft;
+              historyIndexRef.current = historyIndexRef.current === -1 ? history.length - 1 : Math.max(historyIndexRef.current - 1, 0);
+              setDraft(history[historyIndexRef.current]);
+              return;
+            }
+            if (e.key === 'ArrowDown' && historyIndexRef.current !== -1) {
+              e.preventDefault();
+              if (historyIndexRef.current < history.length - 1) {
+                historyIndexRef.current += 1;
+                setDraft(history[historyIndexRef.current]);
+              } else {
+                historyIndexRef.current = -1;
+                setDraft(draftBeforeHistoryRef.current);
+              }
+              return;
             }
             if (e.key === 'Escape' && showSuggestions) {
               e.preventDefault();
