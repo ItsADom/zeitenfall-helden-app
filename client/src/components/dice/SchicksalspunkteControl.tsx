@@ -1,3 +1,4 @@
+import { useHoverFlyout } from '../useHoverFlyout';
 import { useDicePanel } from './DicePanelProvider';
 
 // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die
@@ -13,12 +14,24 @@ import { useDicePanel } from './DicePanelProvider';
 // Spieler klickt hier selbst herunter. Gutschriften/Maximum bleiben
 // Spielleitungssache (Reset auf der Gruppen-Übersicht) — der Server erzwingt
 // das ebenfalls (siehe routes.ts), diese Oberfläche bietet nur „Ausgeben" an.
+//
+// Ein Klick öffnet erst eine Rückfrage (per useHoverFlyout, hier click- statt
+// hover-gesteuert — Sicherung gegen Aus-Versehen-Klicks), erst die Bestätigung
+// darin gibt den Punkt wirklich aus UND meldet es als „/me"-Zeile im Chat, wie
+// eine kleine Spielaktion.
 export default function SchicksalspunkteControl({ aktuell, max }: { aktuell: number; max: number }) {
-  const { setSchicksalspunkte } = useDicePanel();
+  const { setSchicksalspunkte, sendChat } = useDicePanel();
+  const { open, wrapRef, openNow, closeNow } = useHoverFlyout<HTMLSpanElement>();
   if (max <= 0) return null;
 
+  const spend = () => {
+    setSchicksalspunkte(aktuell - 1);
+    sendChat('/me gibt einen Schicksalspunkt aus.');
+    closeNow();
+  };
+
   return (
-    <span className="sp-clovers" title="Schicksalspunkte">
+    <span className={`dice-flyout-wrap sp-clovers${open ? ' open' : ''}`} ref={wrapRef} title="Schicksalspunkte">
       {Array.from({ length: max }, (_, i) => {
         const filled = i < aktuell;
         return (
@@ -27,12 +40,25 @@ export default function SchicksalspunkteControl({ aktuell, max }: { aktuell: num
             className={`sp-clover${filled ? '' : ' sp-clover--spent'}`}
             disabled={!filled}
             title={filled ? 'Schicksalspunkt ausgeben (die Spielleitung muss zustimmen)' : 'Ausgegeben'}
-            onClick={() => setSchicksalspunkte(aktuell - 1)}
+            onClick={filled ? openNow : undefined}
           >
             🍀
           </button>
         );
       })}
+      {open && (
+        <div className="dice-flyout sp-confirm-flyout" role="menu">
+          <p className="sp-confirm-hint">Wirklich einen Schicksalspunkt ausgeben?</p>
+          <div className="sp-confirm-actions">
+            <button className="small" onClick={spend}>
+              Ausgeben
+            </button>
+            <button className="small" onClick={closeNow}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
     </span>
   );
 }

@@ -4282,6 +4282,21 @@ body.resizing-dice {
   filter: grayscale(1);
   cursor: default;
 }
+.sp-confirm-flyout {
+  right: 0;
+  left: auto;
+  min-width: 220px;
+  padding: 10px;
+}
+.sp-confirm-hint {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.sp-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
 
 @media (max-width: 700px) {
   /* Desktop's tight padding assumes a mouse pointer; a thumb needs bigger
