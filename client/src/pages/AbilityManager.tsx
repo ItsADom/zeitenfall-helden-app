@@ -255,7 +255,7 @@ export default function AbilityManagerPage() {
         wird nur der Lernfortschritt geändert. Änderungen sind erst mit „Speichern" verbindlich.
       </p>
 
-      <CollapsiblePanel collapseKey="spellCreationTable" title="Regeltabelle: Zauber erschaffen" rows={SPELL_CREATION_ROWS.length}>
+      <CollapsiblePanel collapseKey="spellCreationTable" standardZu title="Regeltabelle: Zauber erschaffen" rows={SPELL_CREATION_ROWS.length}>
         <p className="muted">
           Wer im Spiel einen neuen Zauber erschafft, bespricht mit der Spielleitung Wirkung und Element, wählt dann
           passend zur Tabelle die Attribute für die Probe (und die Kosten) und probiert den Zauber im Spiel aus.
