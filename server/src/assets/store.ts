@@ -13,7 +13,7 @@ import { wikiSlug } from 'shared';
 import { assetsDb } from './db.js';
 import { bildMasse } from './masse.js';
 
-export type OwnerTyp = 'wiki' | 'character';
+export type OwnerTyp = 'wiki' | 'character' | 'group';
 
 export interface AssetInfo {
   slug: string;

@@ -5,11 +5,12 @@ import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterCard from '../components/CharacterCard';
+import { Portrait } from '../components/Portrait';
 import { useTabsHeight } from '../components/stickyChrome';
 import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
-  group: { id: number; name: string };
+  group: { id: number; name: string; portrait: boolean };
   members: { id: number; username: string; displayName: string }[];
   characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null; portrait: boolean }[];
   tabs: DynTab[];
@@ -111,13 +112,18 @@ export default function GroupPage() {
 
   return (
     <>
-      <h1>Gruppe: {data.group.name}</h1>
-      <p className="muted">Mitglieder: {data.members.map((m) => m.displayName).join(', ') || '—'}</p>
-      {user.isGm && (
-        <p>
-          <Link to={`/gruppe/${groupId}/uebersicht`}>Spielleiter-Übersicht →</Link>
-        </p>
-      )}
+      <div className="group-head">
+        <Portrait kind="group" id={groupId} initialHasImage={data.group.portrait} />
+        <div>
+          <h1>Gruppe: {data.group.name}</h1>
+          <p className="muted">Mitglieder: {data.members.map((m) => m.displayName).join(', ') || '—'}</p>
+          {user.isGm && (
+            <p>
+              <Link to={`/gruppe/${groupId}/uebersicht`}>Spielleiter-Übersicht →</Link>
+            </p>
+          )}
+        </div>
+      </div>
 
       <div className="cardlist">
         {data.characters.map((c) => (

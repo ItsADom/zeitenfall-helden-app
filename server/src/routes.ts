@@ -18,6 +18,12 @@ import type { SessionUser } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { wikiApi } from './wiki/router.js';
 import { loescheAssetsFuer } from './assets/store.js';
+import {
+  hatGruppenPortrait,
+  ladeGruppenPortrait,
+  loescheGruppenPortrait,
+  speichereGruppenPortrait,
+} from './assets/portraits.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { listRollableProbes } from './diceSource.js';
@@ -406,7 +412,12 @@ api.get('/groups/:id', requireAuth, (req, res) => {
   // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
   // die es vor diesem Feature schon gab, ihre Inhalte
   instantiateGroupTabs(groupId);
-  res.json({ group, members, characters, tabs: loadDynTabs(groupId, GROUP_DYN) });
+  res.json({
+    group: { ...group, portrait: hatGruppenPortrait(groupId) },
+    members,
+    characters,
+    tabs: loadDynTabs(groupId, GROUP_DYN),
+  });
 });
 
 // Spielleiter-Übersicht: alle Charaktere der Gruppe mit ihren wichtigsten
@@ -994,6 +1005,42 @@ function editableChar(req: import('express').Request, res: import('express').Res
 // --- Porträt (Bild-Blob) ---
 // Anschauen darf jeder mit Zugriff (auch Gruppenmitglieder in der Zusammenfassung),
 // setzen/löschen nur mit Bearbeitungsrecht.
+// `/full` ist das größere Master-Bild für die Vergrößerungs-Ansicht (siehe
+// assets/portraits.ts) — sonst identisch zur 512px-Anzeigegröße darüber.
+api.get('/characters/:id/portrait/full', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || !characterAccess(req.user!, char)) {
+    res.status(404).end();
+    return;
+  }
+  const p = loadPortrait(char.id, true);
+  if (!p) {
+    res.status(404).end();
+    return;
+  }
+  res.type(p.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(p.data);
+});
+
+api.put(
+  '/characters/:id/portrait/full',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const char = editableChar(req, res);
+    if (!char) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    savePortrait(char.id, mime, buf, true);
+    res.json({ ok: true });
+  },
+);
+
 api.get('/characters/:id/portrait', requireAuth, (req, res) => {
   const char = getChar(Number(req.params.id));
   if (!char || !characterAccess(req.user!, char)) {
@@ -1028,10 +1075,94 @@ api.put(
   },
 );
 
+// Löscht beide Größen (Anzeige + Master) in einem Zug — siehe deletePortrait.
 api.delete('/characters/:id/portrait', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
   deletePortrait(char.id);
+  res.json({ ok: true });
+});
+
+// --- Gruppen-Porträt: dieselbe Anzeige/Master-Aufteilung wie beim Charakter,
+// aber „jedes Gruppenmitglied darf bearbeiten" statt nur der Besitzer (siehe
+// editableGroup weiter unten) — genau wie bei Tabs/Sections der Gruppe.
+function viewableGroup(req: import('express').Request, res: import('express').Response): number | null {
+  const groupId = Number(req.params.id);
+  const user = req.user!;
+  const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+  if (!exists || (!user.isGm && !isGroupMember(user.id, groupId))) {
+    res.status(404).end();
+    return null;
+  }
+  return groupId;
+}
+
+api.get('/groups/:id/portrait/full', requireAuth, (req, res) => {
+  const groupId = viewableGroup(req, res);
+  if (groupId === null) return;
+  const p = ladeGruppenPortrait(groupId, true);
+  if (!p) {
+    res.status(404).end();
+    return;
+  }
+  res.type(p.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(p.data);
+});
+
+api.put(
+  '/groups/:id/portrait/full',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const groupId = editableGroup(req, res);
+    if (!groupId) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    speichereGruppenPortrait(groupId, mime, buf, true);
+    res.json({ ok: true });
+  },
+);
+
+api.get('/groups/:id/portrait', requireAuth, (req, res) => {
+  const groupId = viewableGroup(req, res);
+  if (groupId === null) return;
+  const p = ladeGruppenPortrait(groupId);
+  if (!p) {
+    res.status(404).end();
+    return;
+  }
+  res.type(p.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(p.data);
+});
+
+api.put(
+  '/groups/:id/portrait',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const groupId = editableGroup(req, res);
+    if (!groupId) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    speichereGruppenPortrait(groupId, mime, buf);
+    res.json({ ok: true });
+  },
+);
+
+api.delete('/groups/:id/portrait', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  loescheGruppenPortrait(groupId);
   res.json({ ok: true });
 });
 
@@ -1323,6 +1454,9 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     return;
   }
   db.prepare('DELETE FROM groups WHERE id = ?').run(id);
+  // Gruppenporträt liegt in helden-assets.db — dieselbe Zweite-Datei-Lücke wie
+  // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
+  loescheAssetsFuer('group', id);
   res.json({ ok: true });
 });
 

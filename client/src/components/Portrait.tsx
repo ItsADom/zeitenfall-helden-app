@@ -1,78 +1,64 @@
 import { useRef, useState } from 'react';
+import { CropEditor } from './CropEditor';
 import { useReadOnly } from './displayMode';
 
-// Porträt eines Charakters. Das Bild wird vor dem Hochladen im Browser auf ein
-// quadratisches Format zugeschnitten (mittiger Ausschnitt) und auf eine feste
-// Kantenlänge als JPEG verkleinert — so bleibt die Ablage klein und das Format
-// einheitlich, ohne Server-Bildbibliothek. Übertragen wird der fertige Blob roh.
-const SIZE = 512;
-const QUALITY = 0.85;
-
-// Mittiger quadratischer Ausschnitt, auf SIZE skaliert, als JPEG-Blob.
-function centerCropToJpeg(file: File): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const side = Math.min(img.naturalWidth, img.naturalHeight);
-      if (!side) {
-        reject(new Error('Bild konnte nicht gelesen werden'));
-        return;
-      }
-      const sx = (img.naturalWidth - side) / 2;
-      const sy = (img.naturalHeight - side) / 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = SIZE;
-      canvas.height = SIZE;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas nicht verfügbar'));
-        return;
-      }
-      ctx.drawImage(img, sx, sy, side, side, 0, 0, SIZE, SIZE);
-      canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Bild konnte nicht erzeugt werden'))), 'image/jpeg', QUALITY);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error('Kein gültiges Bild'));
-    };
-    img.src = url;
-  });
-}
-
-export function Portrait({ charId, initialHasImage }: { charId: number; initialHasImage: boolean }) {
+// Porträt eines Charakters oder einer Gruppe. `kind`+`id` statt eines festen
+// Pfads: beide teilen sich dieselbe Auf-/Abbau-Fläche, nur die URL
+// (`/api/characters/:id/portrait` bzw. `/api/groups/:id/portrait`)
+// unterscheidet sich.
+//
+// Der Ausschnitt wird interaktiv gewählt (CropEditor) statt automatisch auf
+// die Mitte zugeschnitten — daraus entstehen ZWEI JPEGs: die 512px-
+// Anzeigegröße hier, plus ein größeres Master-Bild unter `/portrait/full`,
+// das nur die Vergrößerungs-Ansicht (Klick aufs Bild) lädt.
+export function Portrait({
+  kind = 'character',
+  id,
+  initialHasImage,
+}: {
+  kind?: 'character' | 'group';
+  id: number;
+  initialHasImage: boolean;
+}) {
   const readOnly = useReadOnly();
   const [hasImage, setHasImage] = useState(initialHasImage);
   const [version, setVersion] = useState(0); // Cache-Buster nach Änderungen
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [enlarged, setEnlarged] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const src = `/api/characters/${charId}/portrait?v=${version}`;
+  const base = `/api/${kind === 'group' ? 'groups' : 'characters'}/${id}/portrait`;
+  const src = `${base}?v=${version}`;
+  const fullSrc = `${base}/full?v=${version}`;
 
-  const upload = async (file: File) => {
+  const putBlob = async (path: string, blob: Blob) => {
+    const res = await fetch(path, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'image/jpeg' },
+      body: blob,
+      credentials: 'same-origin',
+    });
+    if (!res.ok) {
+      const msg = await res.json().catch(() => ({}));
+      throw new Error((msg as { error?: string }).error ?? 'Hochladen fehlgeschlagen');
+    }
+  };
+
+  const confirmCrop = async (display: Blob, full: Blob) => {
+    setCropFile(null);
     setError('');
     setBusy(true);
     try {
-      const blob = await centerCropToJpeg(file);
-      const res = await fetch(`/api/characters/${charId}/portrait`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'image/jpeg' },
-        body: blob,
-        credentials: 'same-origin',
-      });
-      if (!res.ok) {
-        const msg = await res.json().catch(() => ({}));
-        throw new Error((msg as { error?: string }).error ?? 'Hochladen fehlgeschlagen');
-      }
+      await putBlob(base, display);
+      await putBlob(`${base}/full`, full);
       setHasImage(true);
       setVersion((v) => v + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler');
     } finally {
       setBusy(false);
-      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -80,7 +66,7 @@ export function Portrait({ charId, initialHasImage }: { charId: number; initialH
     setError('');
     setBusy(true);
     try {
-      const res = await fetch(`/api/characters/${charId}/portrait`, { method: 'DELETE', credentials: 'same-origin' });
+      const res = await fetch(base, { method: 'DELETE', credentials: 'same-origin' });
       if (!res.ok) throw new Error('Entfernen fehlgeschlagen');
       setHasImage(false);
       setVersion((v) => v + 1);
@@ -94,7 +80,14 @@ export function Portrait({ charId, initialHasImage }: { charId: number; initialH
   return (
     <div className="portrait">
       {hasImage ? (
-        <img className="portrait-img" src={src} alt="Porträt" />
+        <button
+          type="button"
+          className="portrait-img-btn"
+          onClick={() => setEnlarged(true)}
+          title="Vergrößern"
+        >
+          <img className="portrait-img" src={src} alt="Porträt" />
+        </button>
       ) : (
         <div className="portrait-empty" aria-hidden>
           Kein Bild
@@ -119,10 +112,17 @@ export function Portrait({ charId, initialHasImage }: { charId: number; initialH
         style={{ display: 'none' }}
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) void upload(f);
+          if (f) setCropFile(f);
+          e.target.value = '';
         }}
       />
       {error && <div className="error portrait-error">{error}</div>}
+      {cropFile && <CropEditor file={cropFile} onCancel={() => setCropFile(null)} onConfirm={confirmCrop} />}
+      {enlarged && (
+        <div className="portrait-lightbox" onClick={() => setEnlarged(false)}>
+          <img className="portrait-lightbox-img" src={fullSrc} alt="Porträt (vergrößert)" />
+        </div>
+      )}
     </div>
   );
 }

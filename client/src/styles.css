@@ -886,6 +886,20 @@ tr.subtle-head.clickable:hover td {
   gap: 14px;
   margin-bottom: 24px;
 }
+.group-head {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+.group-head h1 {
+  margin-top: 0;
+}
+@media (max-width: 700px) {
+  .group-head {
+    flex-direction: column;
+  }
+}
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -2682,10 +2696,69 @@ li {
 .portrait-error {
   font-size: 12px;
 }
+.portrait-img-btn {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+.portrait-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: rgba(20, 16, 10, 0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  cursor: zoom-out;
+}
+.portrait-lightbox-img {
+  max-width: min(90vw, 800px);
+  max-height: 85vh;
+  border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+}
 @media (max-width: 700px) {
   .person-layout {
     flex-direction: column;
   }
+}
+
+/* ---------- Bildausschnitt-Editor (CropEditor.tsx) ---------- */
+.crop-hint {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.crop-viewport {
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--input-bg);
+  touch-action: none;
+  cursor: grab;
+}
+.crop-viewport:active {
+  cursor: grabbing;
+}
+.crop-img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  max-width: none;
+  user-select: none;
+}
+.crop-zoom {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+}
+.crop-error {
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 /* ---------- Inventar (Cluster 5) ---------- */

@@ -22,10 +22,20 @@
 // reappear. That is deliberate, and it is the reason `char_portraits` may only
 // be dropped once a release has gone by without anyone needing to roll back.
 import { db } from '../db.js';
-import { einzelAsset, loescheEinzelAsset, setzeEinzelAsset } from './store.js';
+import { einzelAsset, loescheEinzelAsset, setzeEinzelAsset, type OwnerTyp } from './store.js';
 import { assetsDb } from './db.js';
 
+// Zwei Rollen je Porträt: `portrait` ist das kleine Anzeigebild (bisher die
+// einzige Größe — 512px, wie auf dem Bogen/in der Zusammenfassung gezeigt),
+// `portrait-full` ein größeres Master-Bild (bis 1600px lange Kante), das nur
+// die Vergrößerungs-Ansicht lädt. Beide entstehen client-seitig aus derselben
+// Ausschnitt-/Zoom-Wahl (siehe client/src/components/CropEditor.tsx) — es gibt
+// weiterhin keine Server-Bildbibliothek, nur zwei statt einer hochgeladenen
+// Größe. Die Namenskonvention (owner_type + rolle) trägt später genauso für
+// Wiki-Bilder/die geplante erweiterte Bio, ohne dass sich am Schema etwas
+// ändern müsste.
 const ROLLE = 'portrait';
+const ROLLE_FULL = 'portrait-full';
 
 export interface PortraitDaten {
   mime: string;
@@ -43,23 +53,30 @@ export function hatPortrait(charId: number): boolean {
   return !!db.prepare('SELECT 1 FROM char_portraits WHERE character_id = ?').get(charId);
 }
 
-export function ladePortrait(charId: number): PortraitDaten | undefined {
+/** `full`: das große Master-Bild statt der 512px-Anzeigegröße — kennt keine Rückfallebene. */
+export function ladePortrait(charId: number, full = false): PortraitDaten | undefined {
+  if (full) {
+    const asset = einzelAsset('character', charId, ROLLE_FULL);
+    return asset ? { mime: asset.mime, data: asset.data } : undefined;
+  }
   const asset = einzelAsset('character', charId, ROLLE);
   if (asset) return { mime: asset.mime, data: asset.data };
   return ausAltTabelle(charId);
 }
 
-export function speicherePortrait(charId: number, mime: string, data: Buffer): void {
-  const slug = setzeEinzelAsset(ROLLE, {
+export function speicherePortrait(charId: number, mime: string, data: Buffer, full = false): void {
+  const slug = setzeEinzelAsset(full ? ROLLE_FULL : ROLLE, {
     ownerType: 'character',
     ownerId: charId,
     titel: `Porträt ${charId}`,
     mime,
     data,
   });
-  if (slug) return;
+  if (slug || full) return;
   // Bilddatenbank nicht verfügbar: lieber in die alte Tabelle schreiben als den
-  // Upload scheitern lassen. Der nächste Migrationslauf holt sie nach.
+  // Upload scheitern lassen. Der nächste Migrationslauf holt sie nach. Gilt nur
+  // fürs Anzeigebild — das Master-Bild kannte die alte Tabelle nie, ein
+  // fehlendes ist hier ein Verzicht auf die Vergrößerung, kein Datenverlust.
   db.prepare(
     `INSERT INTO char_portraits (character_id, mime, data, updated_at) VALUES (?, ?, ?, datetime('now'))
      ON CONFLICT (character_id) DO UPDATE SET mime = excluded.mime, data = excluded.data, updated_at = excluded.updated_at`,
@@ -68,9 +85,39 @@ export function speicherePortrait(charId: number, mime: string, data: Buffer): v
 
 export function loeschePortrait(charId: number): void {
   loescheEinzelAsset('character', charId, ROLLE);
+  loescheEinzelAsset('character', charId, ROLLE_FULL);
   // Auch aus der Rückfallebene — sonst taucht das alte Bild beim nächsten
   // Laden wieder auf, und „gelöscht" hätte nicht gestimmt.
   db.prepare('DELETE FROM char_portraits WHERE character_id = ?').run(charId);
+}
+
+// --- Gruppen-Porträt: dieselben zwei Rollen, aber ohne Rückfalltabelle — für
+// Gruppen gab es nie eine char_portraits-Altlast, hier zieht direkt
+// helden-assets.db ein.
+const GRUPPE: OwnerTyp = 'group';
+
+export function hatGruppenPortrait(groupId: number): boolean {
+  return !!einzelAsset(GRUPPE, groupId, ROLLE);
+}
+
+export function ladeGruppenPortrait(groupId: number, full = false): PortraitDaten | undefined {
+  const asset = einzelAsset(GRUPPE, groupId, full ? ROLLE_FULL : ROLLE);
+  return asset ? { mime: asset.mime, data: asset.data } : undefined;
+}
+
+export function speichereGruppenPortrait(groupId: number, mime: string, data: Buffer, full = false): void {
+  setzeEinzelAsset(full ? ROLLE_FULL : ROLLE, {
+    ownerType: GRUPPE,
+    ownerId: groupId,
+    titel: `Gruppenporträt ${groupId}`,
+    mime,
+    data,
+  });
+}
+
+export function loescheGruppenPortrait(groupId: number): void {
+  loescheEinzelAsset(GRUPPE, groupId, ROLLE);
+  loescheEinzelAsset(GRUPPE, groupId, ROLLE_FULL);
 }
 
 /**

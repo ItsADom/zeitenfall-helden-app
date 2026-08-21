@@ -201,7 +201,7 @@ export default function HeldenbriefTab() {
       <div className="panel">
         <h3>Person</h3>
         <div className="person-layout">
-          <Portrait charId={charId} initialHasImage={data.portrait} />
+          <Portrait id={charId} initialHasImage={data.portrait} />
           <div className="person-fields">
             {BIO_GROUPS.map((g) => (
               <section className="bio-group" key={g.title}>

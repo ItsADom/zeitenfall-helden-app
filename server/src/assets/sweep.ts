@@ -22,6 +22,7 @@ export function fegeVerwaisteBilder(): void {
   try {
     fegeVerwaisteAssets('wiki', ids('SELECT id FROM wiki_pages'));
     fegeVerwaisteAssets('character', ids('SELECT id FROM characters'));
+    fegeVerwaisteAssets('group', ids('SELECT id FROM groups'));
   } catch (err) {
     console.error('[assets] Aufräumen verwaister Bilder fehlgeschlagen:', err);
   }

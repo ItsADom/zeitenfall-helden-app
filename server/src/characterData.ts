@@ -1446,12 +1446,12 @@ export function hasPortrait(charId: number): boolean {
   return hatPortrait(charId);
 }
 
-export function loadPortrait(charId: number): { mime: string; data: Buffer } | undefined {
-  return ladePortrait(charId);
+export function loadPortrait(charId: number, full = false): { mime: string; data: Buffer } | undefined {
+  return ladePortrait(charId, full);
 }
 
-export function savePortrait(charId: number, mime: string, data: Buffer): void {
-  speicherePortrait(charId, mime, data);
+export function savePortrait(charId: number, mime: string, data: Buffer, full = false): void {
+  speicherePortrait(charId, mime, data, full);
 }
 
 export function deletePortrait(charId: number): void {
