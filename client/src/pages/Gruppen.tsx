@@ -1,5 +1,5 @@
-import { Link } from 'react-router-dom';
 import { useAuth } from '../App';
+import ClickableCard from '../components/ClickableCard';
 import { useOverview } from '../components/overview';
 
 export default function GruppenPage() {
@@ -13,11 +13,9 @@ export default function GruppenPage() {
       <h1>{user.isGm ? 'Alle Gruppen' : 'Meine Gruppen'}</h1>
       <div className="cardlist">
         {data.groups.map((g) => (
-          <div className="card" key={g.id}>
-            <h3>
-              <Link to={`/gruppe/${g.id}`}>{g.name}</Link>
-            </h3>
-          </div>
+          <ClickableCard key={g.id} to={`/gruppe/${g.id}`}>
+            <h3>{g.name}</h3>
+          </ClickableCard>
         ))}
         {data.groups.length === 0 && <p className="muted">Keine Gruppen.</p>}
       </div>

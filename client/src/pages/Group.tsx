@@ -4,6 +4,7 @@ import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
+import CharacterCard from '../components/CharacterCard';
 import { useTabsHeight } from '../components/stickyChrome';
 import ContentTabView from '../tabs/Sektionen';
 
@@ -120,22 +121,18 @@ export default function GroupPage() {
 
       <div className="cardlist">
         {data.characters.map((c) => (
-          <div className="card card--char" key={c.id}>
-            {c.portrait ? (
-              <img className="gm-card-portrait" src={`/api/characters/${c.id}/portrait`} alt="" />
-            ) : (
-              <div className="gm-card-portrait gm-card-portrait--empty" aria-hidden="true" />
-            )}
-            <div className="card--char-ident">
-              <h3>
-                <Link to={`/charakter/${c.id}`}>{c.name}</Link>
-              </h3>
-              <span className="muted">
+          <CharacterCard
+            key={c.id}
+            id={c.id}
+            name={c.name}
+            portrait={c.portrait}
+            subtitle={
+              <>
                 Spieler: {c.ownerName}
                 {c.access === 'edit' ? ' · bearbeitbar' : ''}
-              </span>
-            </div>
-          </div>
+              </>
+            }
+          />
         ))}
         {data.characters.length === 0 && <p className="muted">Keine Charaktere in dieser Gruppe.</p>}
       </div>

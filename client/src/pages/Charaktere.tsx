@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../App';
 import { apiGet, apiPost, apiPut } from '../api';
+import CharacterCard from '../components/CharacterCard';
 import { useOverview, useOverviewRefresh } from '../components/overview';
 
 interface GroupName {
@@ -125,22 +126,22 @@ export default function CharaktereePage() {
           const grouped = c.group_id != null;
           const pending = !grouped && c.requested_group_id != null;
           return (
-            <div className="card" key={c.id}>
-              <h3>
-                <Link to={`/charakter/${c.id}`}>{c.name}</Link>
-              </h3>
-              {grouped ? (
-                <span className="muted">{data.groups.find((g) => g.id === c.group_id)?.name ?? ''}</span>
-              ) : (
-                <span className="muted">
-                  {pending ? `Wartet auf Freigabe: ${groupNameOf(c.requested_group_id)}` : 'Ohne Gruppe'}
-                </span>
-              )}
-              {/* Gruppenlose Charaktere (auch abgelehnte): der Besitzer darf eine
-                  Gruppe erbitten oder die Anfrage zurückziehen. Die eigene Liste
-                  (nicht-Spielleiter) enthält ohnehin nur eigene Charaktere. */}
-              {canCreate && !grouped && (
-                <div style={{ marginTop: 8 }}>
+            <CharacterCard
+              key={c.id}
+              id={c.id}
+              name={c.name}
+              subtitle={
+                grouped
+                  ? data.groups.find((g) => g.id === c.group_id)?.name ?? ''
+                  : pending
+                    ? `Wartet auf Freigabe: ${groupNameOf(c.requested_group_id)}`
+                    : 'Ohne Gruppe'
+              }
+              // Gruppenlose Charaktere (auch abgelehnte): der Besitzer darf eine
+              // Gruppe erbitten oder die Anfrage zurückziehen. Die eigene Liste
+              // (nicht-Spielleiter) enthält ohnehin nur eigene Charaktere.
+              extra={
+                canCreate && !grouped ? (
                   <select
                     value={c.requested_group_id ?? ''}
                     onChange={(e) => void changeRequest(c.id, e.target.value === '' ? null : Number(e.target.value))}
@@ -152,9 +153,9 @@ export default function CharaktereePage() {
                       </option>
                     ))}
                   </select>
-                </div>
-              )}
-            </div>
+                ) : undefined
+              }
+            />
           );
         })}
         {data.characters.length === 0 && (

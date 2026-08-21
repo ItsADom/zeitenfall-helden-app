@@ -898,6 +898,17 @@ tr.subtle-head.clickable:hover td {
   transform: translateY(-2px);
   box-shadow: 0 4px 20px rgba(41, 32, 24, 0.12);
 }
+/* Card is clickable as a whole (not just its inner link) — e.g. Charaktere.tsx,
+   where a nested <select> can't be wrapped in an <a> like the simpler .home-tile
+   cards, so the click handler lives on the div instead. */
+.card--clickable {
+  cursor: pointer;
+}
+/* Card itself is the link now, not an <a> — h3 needs its link color explicitly
+   (Gruppen.tsx's ClickableCard has no inner <a> around the title at all). */
+.card--clickable > h3 {
+  color: var(--accent);
+}
 .card h3 {
   margin-top: 0;
 }
@@ -4002,10 +4013,14 @@ body.resizing-dice {
 }
 .dice-dock-head:hover {
   background: var(--surface-hover);
+  /* Matches .dice-dock's top corners — the head sits flush against them, so an
+     unrounded hover background clips through and squares them off visually. */
+  border-radius: 10px 10px 0 0;
 }
 .dice-dock-head:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
+  border-radius: 10px 10px 0 0;
 }
 /* Der Rest der Zeile ist bewusst leer und dadurch Klappfläche. */
 .dice-dock-head-fill {

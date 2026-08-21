@@ -201,6 +201,14 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-21',
+    title: 'Kleinere Korrekturen',
+    fixed: [
+      'Auf „Charaktere" und der Gruppenseite ließ sich ein Charakter nur über den Namen selbst anklicken — jetzt reicht ein Klick irgendwo auf die Karte.',
+      'Beim Überfahren der Würfel-Chat-Kopfzeile mit der Maus durchbrach die Hervorhebung die abgerundeten Ecken des Chat-Fensters.',
+    ],
+  },
+  {
     date: '2026-08-20',
     version: '0.6.0',
     title: 'Wiki & Würfeln',
