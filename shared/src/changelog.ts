@@ -212,6 +212,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Im Ausrüstungs-Reiter lässt sich ein Gegenstand jetzt direkt anlegen („+ Gegenstand" unter „Nicht getragen") statt ihn erst im Inventar anzulegen und dann herüberzuziehen.',
       'Ausweichen und Initiative lassen sich jetzt genau wie die Attribute direkt anklicken und würfeln.',
       'Die Probe einer Fähigkeit kann jetzt AT/PA/BL statt nur Eigenschaften enthalten (z. B. „KK+AT") — beim Würfeln wird dann erst die Waffe (oder „Unbewaffnet") abgefragt, mit der die Fähigkeit eingesetzt wird.',
+      'Der Chat zeigt beim Verbinden kurz an, wer gerade sonst noch im Raum ist (nur für dich sichtbar) — und meldet es, wenn danach noch jemand dazukommt.',
+      'Gegenstände in Ausrüstung und Inventar lassen sich jetzt duplizieren (⧉) — praktisch für mehrere gleiche Stücke, deren Zustand (z. B. Haltbarkeit) getrennt verfolgt werden soll.',
     ],
     admin: [
       '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',

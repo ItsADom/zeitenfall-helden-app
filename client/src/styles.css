@@ -2824,6 +2824,10 @@ li {
   table-layout: fixed;
   width: 100%;
 }
+.inv-row-actions {
+  display: flex;
+  gap: 4px;
+}
 
 /* Kategorienverwaltung: Chips mit umbenennbarem Namen + Entfernen, plus ein
    Feld zum Anlegen. */
@@ -3089,6 +3093,7 @@ li {
 .chip-editor .chip-notiz {
   flex: 1 1 200px;
 }
+.chip-dup,
 .chip-del {
   align-self: center;
 }

@@ -3,6 +3,7 @@ import type { ContainerArt, Item, ItemLocation, KapazitaetArt } from '@shared/it
 import {
   BODY_ZONES,
   containerFuellungAnzeige,
+  duplicateItem,
   effektiverRs,
   haltbarkeitPct,
   isPairedZone,
@@ -47,6 +48,11 @@ export default function AusruestungTab() {
 
   const setItems = (next: Item[]) => update('items', next);
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+
+  // Direkt neben dem Original einfügen, nicht ans Ende — sonst muss man die
+  // Kopie erst suchen gehen.
+  const duplicateItemAt = (uid: string) =>
+    setItems(items.flatMap((it) => (it.uid === uid ? [it, duplicateItem(it)] : [it])));
 
   const removeItem = (uid: string) =>
     setItems(
@@ -119,6 +125,7 @@ export default function AusruestungTab() {
       open={openUid === it.uid}
       onToggleOpen={() => setOpenUid((u) => (u === it.uid ? null : it.uid))}
       onPatch={(p) => patchItem(it.uid, p)}
+      onDuplicate={() => duplicateItemAt(it.uid)}
       onRemove={() => removeItem(it.uid)}
     >
       {it.istBehaelter && it.containerArt === 'quick' && (
@@ -258,6 +265,7 @@ function ItemChip({
   open,
   onToggleOpen,
   onPatch,
+  onDuplicate,
   onRemove,
   children,
 }: {
@@ -266,6 +274,7 @@ function ItemChip({
   open: boolean;
   onToggleOpen: () => void;
   onPatch: (patch: Partial<Item>) => void;
+  onDuplicate: () => void;
   onRemove: () => void;
   children?: React.ReactNode;
 }) {
@@ -363,6 +372,9 @@ function ItemChip({
             </>
           )}
           <label className="chip-notiz">Notiz<TextInput value={item.notiz} onChange={(v) => onPatch({ notiz: v })} /></label>
+          <button type="button" className="small chip-dup" title="Duplizieren — legt eine exakte Kopie daneben an" onClick={onDuplicate}>
+            ⧉ Duplizieren
+          </button>
           <ConfirmDeleteButton className="small chip-del" title="Gegenstand entfernen" onConfirm={onRemove}>
             🗑 Löschen
           </ConfirmDeleteButton>

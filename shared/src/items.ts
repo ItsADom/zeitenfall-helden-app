@@ -117,6 +117,15 @@ export function makeItem(over: Partial<Item>): Item {
   };
 }
 
+// Exakte Kopie — neue `uid`/`id: 0`, sonst jedes Feld identisch (Name,
+// Haltbarkeit, Notiz, Ort/Zone/Behälter …), direkt neben dem Original in
+// derselben Liste. Für zwei real identische Gegenstände, deren Zustand aber
+// getrennt verfolgt werden soll (z. B. zwei Dolche mit je eigener
+// Haltbarkeit) — anders als `anzahl`, das nur EINEN gemeinsamen Zustand kennt.
+export function duplicateItem(item: Item): Item {
+  return { ...item, id: 0, uid: makeUid() };
+}
+
 // Zeilengewicht: Stückzahl × Einzelgewicht (kg), OHNE Reduktion.
 export function itemGewicht(item: Pick<Item, 'anzahl' | 'gewicht'>): number {
   return (Number(item.anzahl) || 0) * (Number(item.gewicht) || 0);
