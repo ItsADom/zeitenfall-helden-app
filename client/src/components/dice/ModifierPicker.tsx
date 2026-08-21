@@ -18,6 +18,17 @@ export default function ModifierPicker({ value, onChange }: { value: number; onC
     if (!open) setDraft(String(value));
   }, [open, value]);
 
+  // Save on every keystroke, mirroring NumInput's `type()` pattern — `draft`
+  // only holds the in-progress text so an intermediate state like "-" doesn't
+  // get parsed to 0 mid-typing.
+  const type = (raw: string) => {
+    setDraft(raw);
+    if (raw === '' || raw === '-') return;
+    const n = Number(raw);
+    if (!Number.isFinite(n)) return;
+    onChange(Math.trunc(n));
+  };
+
   const commit = () => {
     const n = Math.trunc(Number(draft)) || 0;
     onChange(n);
@@ -43,7 +54,7 @@ export default function ModifierPicker({ value, onChange }: { value: number; onC
               type="number"
               value={draft}
               autoFocus
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => type(e.target.value)}
               onBlur={commit}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {

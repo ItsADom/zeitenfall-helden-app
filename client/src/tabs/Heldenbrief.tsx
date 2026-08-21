@@ -9,7 +9,7 @@ import {
   RESOURCE_LABELS,
 } from '@shared/types';
 import type { AttrRowCode, BaseValueKey, ResourceKey, SpecialResource } from '@shared/types';
-import { Fragment, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import {
   attrPointsActualTotal,
   attrPointsTheoreticalTotal,
@@ -132,19 +132,32 @@ export default function HeldenbriefTab() {
   const [attrWarn, setAttrWarn] = useState('');
   const [attrFieldKey, setAttrFieldKey] = useState(0);
 
+  // `attributes` (render closure) goes stale between two keystrokes fired in
+  // quick succession before React re-renders with the updated prop — both
+  // would compute `delta` against the same pre-update `akt`, letting a
+  // combined increase through that individually stayed in budget. This ref is
+  // updated synchronously inside setAttr itself, so the very next call (even
+  // before a re-render lands) reads the value it just wrote.
+  const attributesRef = useRef(attributes);
+  attributesRef.current = attributes;
+
   const setAttr = (code: AttrRowCode, field: 'akt' | 'mod', v: number) => {
+    const current = attributesRef.current;
     if (field === 'akt') {
-      const delta = v - attributes[code].akt;
-      if (delta > attrUnused) {
+      const unusedNow = attrPointsTheoreticalTotal(attrLevel, attrExtern) - attrPointsActualTotal(current);
+      const delta = v - current[code].akt;
+      if (delta > unusedNow) {
         setAttrWarn(
-          `Keine Attributspunkte mehr übrig (${attrUnused} verfügbar) — weitere Quellen lassen sich in den Einstellungen eintragen.`,
+          `Keine Attributspunkte mehr übrig (${unusedNow} verfügbar) — weitere Quellen lassen sich in den Einstellungen eintragen.`,
         );
         setAttrFieldKey((k) => k + 1); // Feld auf den alten Wert zurücksetzen
         return;
       }
       setAttrWarn('');
     }
-    update('attributes', { ...attributes, [code]: { ...attributes[code], [field]: v } });
+    const next = { ...current, [code]: { ...current[code], [field]: v } };
+    attributesRef.current = next;
+    update('attributes', next);
   };
   const setBvMod = (key: BaseValueKey, v: number) => update('baseValues', { ...baseValues, mods: { ...baseValues.mods, [key]: v } });
   const setResource = (key: ResourceKey, field: string, v: unknown) =>
