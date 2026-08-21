@@ -304,7 +304,6 @@ function roleLabel(u: { isGm: boolean; isAdmin: boolean }): string {
 interface AdminGroup {
   id: number;
   name: string;
-  memberIds: number[];
 }
 interface AdminTempGroup {
   id: number;
@@ -337,114 +336,11 @@ const ADMIN_TABS: { key: AdminTab; label: string }[] = [
   { key: 'kataloge', label: 'Kataloge' },
 ];
 
-// Mitglieder einer Gruppe: bestehende als entfernbare Chips, plus ein
-// „Hinzufügen…"-Feld mit Vorschlägen aus der Spielerliste. Ausgewählte sammeln
-// sich zunächst als vorgemerkte Chips; erst „Hinzufügen" schreibt sie in einem
-// Rutsch in die Gruppe (ein PUT mit der neuen Mitgliederliste).
-function GroupMembersEditor({
-  memberIds,
-  players,
-  onCommit,
-  onRemove,
-}: {
-  memberIds: number[];
-  players: AdminUser[];
-  onCommit: (ids: number[]) => Promise<unknown>;
-  onRemove: (userId: number) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [staged, setStaged] = useState<number[]>([]);
-  const [open, setOpen] = useState(false);
-
-  const byId = (id: number) => players.find((p) => p.id === id);
-  const members = players.filter((u) => memberIds.includes(u.id));
-  const q = query.trim().toLowerCase();
-  const candidates = players.filter(
-    (u) =>
-      !memberIds.includes(u.id) &&
-      !staged.includes(u.id) &&
-      (q === '' || u.displayName.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)),
-  );
-  // Vorgemerkte, die noch nicht Mitglied sind (nach dem Nachladen fallen sie raus).
-  const stagedVisible = staged.filter((id) => !memberIds.includes(id));
-
-  const stage = (id: number) => {
-    setStaged((s) => (s.includes(id) ? s : [...s, id]));
-    setQuery('');
-    setOpen(false);
-  };
-  const commit = async () => {
-    if (stagedVisible.length === 0) return;
-    await onCommit([...memberIds, ...stagedVisible]);
-    setStaged([]);
-  };
-
-  return (
-    <div className="grp-members">
-      <div className="grp-chips">
-        {members.length === 0 && <span className="muted">— keine —</span>}
-        {members.map((u) => (
-          <span className="grp-chip" key={u.id}>
-            {u.displayName}
-            <ConfirmDeleteButton className="grp-chip-x" title="Aus der Gruppe entfernen" onConfirm={() => onRemove(u.id)} />
-          </span>
-        ))}
-      </div>
-      <div className="grp-add">
-        <div className="grp-add-field">
-          <input
-            placeholder="Hinzufügen…"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setOpen(true);
-            }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => window.setTimeout(() => setOpen(false), 120)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && candidates.length) {
-                e.preventDefault();
-                stage(candidates[0].id);
-              } else if (e.key === 'Escape') setOpen(false);
-            }}
-          />
-          {open && candidates.length > 0 && (
-            <div className="grp-suggest">
-              {candidates.slice(0, 8).map((u) => (
-                // onMouseDown statt onClick: feuert vor dem Blur des Feldes.
-                <button key={u.id} className="grp-suggest-item" onMouseDown={(e) => {
-                  e.preventDefault();
-                  stage(u.id);
-                }}>
-                  {u.displayName} <span className="muted">{u.username}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        {stagedVisible.map((id) => {
-          const u = byId(id);
-          return u ? (
-            <span className="grp-chip grp-chip-staged" key={id}>
-              {u.displayName}
-              <button className="grp-chip-x" title="Vormerkung entfernen" onClick={() => setStaged((s) => s.filter((x) => x !== id))}>
-                ✕
-              </button>
-            </span>
-          ) : null;
-        })}
-        {stagedVisible.length > 0 && (
-          <button className="primary small" onClick={commit}>
-            Hinzufügen ({stagedVisible.length})
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Charaktere einer Event-Gruppe: gleiches Muster wie GroupMembersEditor, aber
-// gegen Charaktere statt Nutzer (Event-Mitgliedschaft ist additiv über
+// Charaktere einer Event-Gruppe: gleiches Muster wie früher GroupMembersEditor
+// (feste Gruppen haben seit dem Wegfall von group_members keinen eigenen
+// Mitgliederdialog mehr — wer dazugehört, ergibt sich aus den Charakteren, die
+// auf dem Charaktere-Reiter dieser Gruppe zugeordnet sind), aber gegen
+// Charaktere statt Nutzer (Event-Mitgliedschaft ist additiv über
 // character_id, siehe temp_group_members).
 function CharacterMembersEditor({
   memberIds,
@@ -613,8 +509,6 @@ export default function AdminPage() {
       setFileKey((k) => k + 1);
     });
 
-  // Gruppenmitglieder sind Spieler (der einzelne Spielleiter sieht ohnehin alles).
-  const players = users.filter((u) => !u.isGm);
   // Für die „letzter Admin"-Sperre in der Oberfläche (der Server sichert es zudem ab).
   const adminTotal = users.filter((u) => u.isAdmin).length;
 
@@ -831,7 +725,6 @@ export default function AdminPage() {
           <thead>
             <tr>
               <th>Gruppe</th>
-              <th>Mitglieder</th>
               <th />
             </tr>
           </thead>
@@ -847,14 +740,6 @@ export default function AdminPage() {
                       if (v && v !== g.name) run(() => apiPut(`/api/admin/groups/${g.id}`, { name: v }));
                       else e.target.value = g.name;
                     }}
-                  />
-                </td>
-                <td>
-                  <GroupMembersEditor
-                    memberIds={g.memberIds}
-                    players={players}
-                    onCommit={(ids) => run(() => apiPut(`/api/admin/groups/${g.id}`, { memberIds: ids }))}
-                    onRemove={(uid) => run(() => apiPut(`/api/admin/groups/${g.id}`, { memberIds: g.memberIds.filter((x) => x !== uid) }))}
                   />
                 </td>
                 <td>

@@ -73,11 +73,6 @@ function ensureGroup(name: string): number {
   return id;
 }
 
-// Ordnet einen Spieler einer Gruppe zu (Mitgliedschaft), falls noch nicht geschehen.
-function ensureMembership(groupId: number, userId: number): void {
-  db.prepare('INSERT OR IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)').run(groupId, userId);
-}
-
 // Legt einen schlanken Charakter an (Name/Besitzer/Gruppe + Standardsektionen),
 // falls noch keiner gleichen Namens in derselben Gruppe existiert.
 function ensureCharacter(name: string, ownerUserId: number, groupId: number): void {
@@ -97,9 +92,9 @@ function seedDummy(): void {
   const groupIds = GROUPS.map(ensureGroup);
   const userIds = PLAYERS.map(ensurePlayer);
 
-  // Jeder Spieler gehört genau einer Gruppe (reihum verteilt, ~3 pro Gruppe).
+  // Jeder Spieler gehört genau einer Gruppe (reihum verteilt, ~3 pro Gruppe) —
+  // ergibt sich allein daraus, dass sein Charakter unten in diese Gruppe kommt.
   const groupOfUser = userIds.map((_, i) => groupIds[i % groupIds.length]);
-  userIds.forEach((uid, i) => ensureMembership(groupOfUser[i], uid));
 
   // Charaktere reihum auf die Spieler verteilen; die Gruppe folgt dem Besitzer,
   // damit Gruppen-/Spieler-Gruppierung in der Verwaltung konsistent aussieht.

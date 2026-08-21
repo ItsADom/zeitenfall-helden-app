@@ -51,11 +51,6 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS group_members (
-    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    PRIMARY KEY (group_id, user_id)
-  );
   -- Temporäre/Event-Gruppen: rein additiv zur festen Gruppe (characters.group_id
   -- bleibt unberührt). GM-only end-to-end, keine Spieler-Selbstanmeldung. Löschen
   -- entfernt nur die Zuordnungen (ON DELETE CASCADE) — keine Charakterdaten betroffen.
@@ -933,6 +928,13 @@ if (hasTable('sec_techniken')) {
     }
   }
 }
+
+// Migration: group_members war eine eigene Spieler-Gruppe-Zuordnung aus der
+// Zeit vor der Charakter-Selbst-Anlage/Freigabe, als die Spielleitung jeden
+// Charakter selbst anlegte. Mitgliedschaft ist seither ohnehin nur über
+// characters.group_id sinnvoll (siehe isGroupMember) — die Tabelle war zuletzt
+// nur noch eine zweite, teils veraltete Kopie derselben Information.
+db.exec('DROP TABLE IF EXISTS group_members');
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
 export function initCharacterRows(characterId: number): void {

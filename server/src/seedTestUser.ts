@@ -45,10 +45,6 @@ function ensureGroup(name: string): number {
   return id;
 }
 
-function ensureMembership(groupId: number, userId: number): void {
-  db.prepare('INSERT OR IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)').run(groupId, userId);
-}
-
 // Legt einen Charakter an (oder liefert die vorhandene ID), falls noch keiner
 // gleichen Namens für diesen Besitzer existiert. groupId darf null sein
 // (gruppenloser Charakter).
@@ -241,8 +237,6 @@ function seedTestUser(): void {
   const userId = ensureUser(USERNAME, DISPLAY_NAME);
   const groupAlpha = ensureGroup(GROUP_ALPHA);
   const groupBeta = ensureGroup(GROUP_BETA);
-  ensureMembership(groupAlpha, userId);
-  ensureMembership(groupBeta, userId);
 
   const rich = ensureCharacter('Kyra Vollausstattung', userId, groupAlpha);
   if (rich.created) fillRichCharacter(rich.id);

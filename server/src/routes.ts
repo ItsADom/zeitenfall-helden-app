@@ -119,8 +119,11 @@ function getChar(id: number): CharRow | undefined {
   return db.prepare('SELECT * FROM characters WHERE id = ?').get(id) as CharRow | undefined;
 }
 
+// Mitgliedschaft ist rein abgeleitet: wer einen Charakter in der Gruppe
+// besitzt, ist Mitglied. Es gibt keine eigenständige Spieler-Gruppe-Zuordnung
+// mehr (siehe Migration in db.ts).
 export function isGroupMember(userId: number, groupId: number): boolean {
-  return !!db.prepare('SELECT 1 FROM group_members WHERE group_id = ? AND user_id = ?').get(groupId, userId);
+  return !!db.prepare('SELECT 1 FROM characters WHERE group_id = ? AND owner_user_id = ?').get(groupId, userId);
 }
 
 type Access = 'edit' | 'summary' | null;
@@ -288,7 +291,11 @@ api.get('/overview', requireAuth, (req, res) => {
     : db.prepare('SELECT * FROM characters WHERE owner_user_id = ? ORDER BY name').all(user.id);
   const groups = allScope
     ? db.prepare('SELECT * FROM groups ORDER BY name').all()
-    : db.prepare('SELECT g.* FROM groups g JOIN group_members m ON m.group_id = g.id WHERE m.user_id = ? ORDER BY g.name').all(user.id);
+    : db
+        .prepare(
+          'SELECT DISTINCT g.* FROM groups g JOIN characters c ON c.group_id = g.id WHERE c.owner_user_id = ? ORDER BY g.name',
+        )
+        .all(user.id);
   res.json({ characters, groups });
 });
 
@@ -317,10 +324,10 @@ api.get('/groups/mine', requireAuth, (req, res) => {
     // name, damit die Liste dieselben Namen zeigt wie der Rest des Docks.
     const memberRows = db
       .prepare(
-        `SELECT m.group_id AS groupId, u.id AS userId, COALESCE(NULLIF(c.chat_name, ''), c.name, u.display_name) AS name
-         FROM group_members m
-         JOIN users u ON u.id = m.user_id
-         LEFT JOIN characters c ON c.group_id = m.group_id AND c.owner_user_id = m.user_id
+        `SELECT c.group_id AS groupId, u.id AS userId, COALESCE(NULLIF(c.chat_name, ''), c.name, u.display_name) AS name
+         FROM characters c
+         JOIN users u ON u.id = c.owner_user_id
+         WHERE c.group_id IS NOT NULL
          ORDER BY name`,
       )
       .all() as { groupId: number; userId: number; name: string }[];
@@ -342,10 +349,8 @@ api.get('/groups/mine', requireAuth, (req, res) => {
       `SELECT g.id, g.name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName,
               c.dice_shortcuts AS charShortcuts, cm.schicksalspunkteAktuell AS spAktuell, cm.schicksalspunkteMax AS spMax
        FROM groups g
-       JOIN group_members m ON m.group_id = g.id
-       LEFT JOIN characters c ON c.group_id = g.id AND c.owner_user_id = m.user_id
+       JOIN characters c ON c.group_id = g.id AND c.owner_user_id = ?
        LEFT JOIN char_meta cm ON cm.character_id = c.id
-       WHERE m.user_id = ?
        ORDER BY g.name`,
     )
     .all(user.id) as {
@@ -384,7 +389,8 @@ api.get('/groups/:id', requireAuth, (req, res) => {
   }
   const members = db
     .prepare(
-      `SELECT u.id, u.username, u.display_name AS displayName FROM group_members m JOIN users u ON u.id = m.user_id WHERE m.group_id = ?`,
+      `SELECT DISTINCT u.id, u.username, u.display_name AS displayName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?`,
     )
     .all(groupId);
   const chars = db
@@ -1287,10 +1293,7 @@ api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
 
 api.get('/admin/groups', requireAuth, requireGmOrAdmin, (_req, res) => {
   const groups = db.prepare('SELECT * FROM groups ORDER BY name').all() as { id: number; name: string }[];
-  const members = db.prepare('SELECT group_id, user_id FROM group_members').all() as { group_id: number; user_id: number }[];
-  res.json(
-    groups.map((g) => ({ ...g, memberIds: members.filter((m) => m.group_id === g.id).map((m) => m.user_id) })),
-  );
+  res.json(groups);
 });
 
 api.post('/admin/groups', requireAuth, requireGmOrAdmin, (req, res) => {
@@ -1307,16 +1310,8 @@ api.post('/admin/groups', requireAuth, requireGmOrAdmin, (req, res) => {
 
 api.put('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
-  const { name, memberIds } = (req.body ?? {}) as { name?: string; memberIds?: number[] };
+  const { name } = (req.body ?? {}) as { name?: string };
   if (name) db.prepare('UPDATE groups SET name = ? WHERE id = ?').run(name, id);
-  if (Array.isArray(memberIds)) {
-    const tx = db.transaction(() => {
-      db.prepare('DELETE FROM group_members WHERE group_id = ?').run(id);
-      const stmt = db.prepare('INSERT INTO group_members (group_id, user_id) VALUES (?, ?)');
-      for (const uid of memberIds) stmt.run(id, Number(uid));
-    });
-    tx();
-  }
   res.json({ ok: true });
 });
 
@@ -1620,9 +1615,9 @@ api.get('/admin/requests', requireAuth, requireGmOrAdmin, (_req, res) => {
   res.json({ requests });
 });
 
-// Anfrage annehmen: Charakter der erbetenen Gruppe zuordnen, Anfrage löschen und
-// den Besitzer zugleich als Gruppenmitglied eintragen (INSERT OR IGNORE — doppelt
-// schadet nicht), damit er die Zusammenfassungen der Mitspieler sieht.
+// Anfrage annehmen: Charakter der erbetenen Gruppe zuordnen, Anfrage löschen.
+// Gruppenmitgliedschaft ist rein abgeleitet (isGroupMember), braucht also
+// keinen eigenen Eintrag mehr.
 api.post('/admin/requests/:id/approve', requireAuth, requireGmOrAdmin, (req, res) => {
   const char = getChar(Number(req.params.id));
   if (!char || char.group_id != null || char.requested_group_id == null) {
@@ -1634,11 +1629,7 @@ api.post('/admin/requests/:id/approve', requireAuth, requireGmOrAdmin, (req, res
     res.status(400).json({ error: 'Erbetene Gruppe existiert nicht mehr' });
     return;
   }
-  const apply = db.transaction(() => {
-    db.prepare('UPDATE characters SET group_id = ?, requested_group_id = NULL, requested_at = NULL WHERE id = ?').run(groupId, char.id);
-    db.prepare('INSERT OR IGNORE INTO group_members (group_id, user_id) VALUES (?, ?)').run(groupId, char.owner_user_id);
-  });
-  apply();
+  db.prepare('UPDATE characters SET group_id = ?, requested_group_id = NULL, requested_at = NULL WHERE id = ?').run(groupId, char.id);
   res.json({ ok: true, groupId });
 });
 
