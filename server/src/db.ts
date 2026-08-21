@@ -929,6 +929,17 @@ if (hasTable('sec_techniken')) {
   }
 }
 
+// Migration: group_roll_id an group_feed ergänzen — markiert Einträge, die zu
+// derselben Gruppen-Sammelanfrage gehören (siehe server/src/groupRolls.ts),
+// damit der Client sie im Feed als einen Block darstellen kann. NULL bei
+// jeder bestehenden Zeile ist der richtige Wert (keine davon gehörte je zu
+// einer Sammelanfrage), also braucht es kein Nachziehen wie bei abgeleiteten
+// Spalten.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('group_roll_id')) db.exec('ALTER TABLE group_feed ADD COLUMN group_roll_id TEXT');
+}
+
 // Migration: group_members war eine eigene Spieler-Gruppe-Zuordnung aus der
 // Zeit vor der Charakter-Selbst-Anlage/Freigabe, als die Spielleitung jeden
 // Charakter selbst anlegte. Mitgliedschaft ist seither ohnehin nur über

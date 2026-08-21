@@ -7,6 +7,11 @@ import { REQUEST } from './labels';
 // modalen Dialogs: sie soll auffallen, aber niemanden aus dem Spiel reißen.
 // Beim angefragten Spieler mit Knöpfen, bei der Spielleitung nur als Hinweis,
 // dass die Anfrage noch offen ist.
+// Zweige einer Gruppen-Sammelanfrage (request.groupRequestId gesetzt) landen
+// hier NIE als „nicht mine" — die Spielleitung sieht die ganze Sammelanfrage
+// stattdessen als EINE GroupRequestCard (siehe dort), der Server schickt ihr
+// für diese Zweige kein roll.pending.created. Nur der angefragte Spieler
+// bekommt seine eigene (normale) Karte, exakt wie bei einer Einzelanfrage.
 export default function PendingRequestCard({ request }: { request: PendingRollRequest }) {
   const { user } = useAuth();
   const { acceptRequest, declineRequest, cancelRequest } = useDicePanel();

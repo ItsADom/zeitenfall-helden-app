@@ -29,6 +29,8 @@ export interface ChatFeedEntry {
   authorName: string;
   isMe: boolean;
   text: string;
+  /** Siehe RollFeedEntry.groupRollId. */
+  groupRollId?: string;
 }
 
 export interface ProbeRollPayload {
@@ -99,6 +101,14 @@ export interface RollFeedEntry {
   gmUserId: number | null;
   authorName: string;
   roll: RollPayload;
+  /**
+   * Gesetzt, wenn dieser Eintrag Teil einer aufgelösten Gruppen-Sammelanfrage
+   * ist (siehe GroupRollRequest.id) — mehrere Einträge mit derselben id
+   * gehören zusammen. Rein fürs Feed-Rendering (ein gemeinsamer, farbiger
+   * Rand statt je Eintrag einzeln, siehe FeedEntryView): welcher Wurf
+   * gelungen/misslungen ist, steht ohnehin schon rechts am Eintrag.
+   */
+  groupRollId?: string;
 }
 
 export type FeedEntry = ChatFeedEntry | RollFeedEntry;
@@ -114,6 +124,50 @@ export interface PendingRollRequest {
   targetCharId: number;
   /** Angezeigt bei der Spielleitung, die auf mehrere Antworten warten kann. */
   targetCharName: string;
+  /**
+   * Gesetzt, wenn diese Anfrage EIN Zweig einer Gruppen-Sammelanfrage ist
+   * (siehe `roll.group.request`) — alle Zweige derselben Anfrage teilen diese
+   * id. Annehmen/Ablehnen läuft für den Spieler genauso wie bei einer
+   * einzelnen Anfrage; das Ergebnis wird serverseitig nur zurückgehalten, bis
+   * die ganze Gruppe geantwortet hat (oder die Spielleitung vorzeitig
+   * aufdeckt — siehe `roll.group.reveal`).
+   */
+  groupRequestId?: string;
+  createdAt: number;
+  expiresAt: number;
+}
+
+export interface GroupRollMember {
+  userId: number;
+  charId: number;
+  charName: string;
+  /**
+   * Live-Stand für die Spielleitungs-Karte: `waiting` bis der Zweig
+   * beantwortet ist, dann `rolled`/`passed` — bleibt aber Teil der Liste
+   * (verschwindet NICHT), damit die Spielleitung sieht, wer schon dran war,
+   * statt dass Karten einfach verschwinden. Nur `waiting` bei der Erstellung
+   * (`roll.group.request`); `roll.group.member` aktualisiert den Rest.
+   */
+  status: 'waiting' | 'rolled' | 'passed';
+}
+
+/**
+ * A group-wide roll request — the Spielleitung asked everyone currently
+ * connected to roll the same Probe. Purely informational on the wire (there
+ * is no dedicated "group request" card): each `members` entry additionally
+ * gets its own ordinary `PendingRollRequest` (tagged with this id via
+ * `groupRequestId`), so the existing accept/decline UI needs no changes.
+ * `members` is the roster PendingRequestCard shows to the Spielleitung while
+ * waiting.
+ */
+export interface GroupRollRequest {
+  id: string;
+  groupId: number;
+  source: ProbeSource;
+  label: string;
+  gmUserId: number;
+  gmName: string;
+  members: GroupRollMember[];
   createdAt: number;
   expiresAt: number;
 }
@@ -156,7 +210,18 @@ export type ClientToServerMessage =
   // Nur die Spielleitung, und nur für eine Anfrage, die sie selbst gestellt
   // hat — Gegenstück zu roll.pending.decline (das ist der Spieler-Seite
   // vorbehalten).
-  | { type: 'roll.pending.cancel'; reqId: string; requestId: string };
+  | { type: 'roll.pending.cancel'; reqId: string; requestId: string }
+  // Fragt dieselbe Probe bei JEDEM gerade verbundenen Gruppenmitglied an
+  // (außer der Spielleitung selbst) — server-seitig ein `roll.pending.request`
+  // je Mitglied unter einer gemeinsamen groupRequestId, siehe dort.
+  | { type: 'roll.group.request'; reqId: string; source: ProbeSource }
+  // Deckt eine Gruppen-Sammelanfrage vorzeitig auf: noch offene Zweige werden
+  // verworfen (wie roll.pending.cancel), bereits zurückgehaltene Ergebnisse
+  // sofort veröffentlicht. Nur die anfragende Spielleitung.
+  | { type: 'roll.group.reveal'; reqId: string; groupRequestId: string }
+  // Verwirft die ganze Sammelanfrage — auch bereits zurückgehaltene, aber noch
+  // nicht veröffentlichte Ergebnisse. Nur die anfragende Spielleitung.
+  | { type: 'roll.group.cancel'; reqId: string; groupRequestId: string };
 
 export type ServerToClientMessage =
   | { type: 'feed.append'; entry: FeedEntry }
@@ -167,6 +232,16 @@ export type ServerToClientMessage =
   | { type: 'roll.pending.declined'; requestId: string }
   | { type: 'roll.pending.accepted'; requestId: string }
   | { type: 'roll.pending.cancelled'; requestId: string }
+  // Gruppen-Sammelanfrage, nur an die anfragende Spielleitung: EINE Karte mit
+  // der ganzen Mitgliederliste statt eines Zweigs je `roll.pending.created`.
+  | { type: 'roll.group.created'; request: GroupRollRequest }
+  // Ein Zweig ist beantwortet — die Karte bleibt stehen, nur der Status
+  // dieses Mitglieds ändert sich (siehe GroupRollMember.status).
+  | { type: 'roll.group.member'; requestId: string; charId: number; status: 'rolled' | 'passed' }
+  // Alles ist veröffentlicht (vollständig oder per roll.group.reveal
+  // vorzeitig) — die Karte darf verschwinden.
+  | { type: 'roll.group.revealed'; requestId: string }
+  | { type: 'roll.group.cancelled'; requestId: string }
   // GM-Reset (Einzeln oder „Neuer Spieltag") passiert über REST auf der
   // GM-Übersicht, nicht über dieses Socket — ohne diesen Push bliebe der
   // Klee-Zähler in der Spieler-Session stumpf bis zum nächsten Laden.

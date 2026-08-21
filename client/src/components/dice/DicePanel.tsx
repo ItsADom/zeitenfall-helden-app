@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseDiceExpression } from '@shared/dice';
-import type { RollVisibility } from '@shared/diceProtocol';
+import type { FeedEntry, RollVisibility } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import CommandsDialog from './CommandsDialog';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
 import ModifierPicker from './ModifierPicker';
+import GroupRequestCard from './GroupRequestCard';
 import PendingRequestCard from './PendingRequestCard';
 import { PROBE_KIND_LABEL, type RollableProbe } from './rollableProbes';
 import RoomPicker from './RoomPicker';
@@ -35,6 +36,25 @@ const DEFAULT_H = 420;
 const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)));
 const clampH = (n: number): number => Math.min(MAX_H, Math.max(MIN_H, Math.round(n)));
 
+// Fasst aufeinanderfolgende Feed-Einträge mit derselben groupRollId (siehe
+// shared/src/diceProtocol.ts) zu einem Block zusammen — die aufgelösten
+// Würfe/Pässe EINER Gruppen-Sammelanfrage kommen schon in einem Rutsch vom
+// Server (revealGroupResults in ws.ts), also reicht ein einfacher Lauf ohne
+// erneutes Umsortieren.
+type FeedChunk = { kind: 'single'; entry: FeedEntry } | { kind: 'group'; groupRollId: string; entries: FeedEntry[] };
+
+function chunkFeed(entries: FeedEntry[]): FeedChunk[] {
+  const chunks: FeedChunk[] = [];
+  for (const entry of entries) {
+    const gid = entry.groupRollId;
+    const last = chunks[chunks.length - 1];
+    if (gid && last?.kind === 'group' && last.groupRollId === gid) last.entries.push(entry);
+    else if (gid) chunks.push({ kind: 'group', groupRollId: gid, entries: [entry] });
+    else chunks.push({ kind: 'single', entry });
+  }
+  return chunks;
+}
+
 // "#Titel" hinten an einem Würfelausdruck setzt dessen Anzeigenamen inline,
 // wie ein Würfel-Favorit einen mitbringt — z. B. "5w10+6#Glück". Das "#"
 // gehört nicht zum Ausdruck, muss also vor dem Parsen abgetrennt werden.
@@ -58,6 +78,7 @@ export default function DicePanel() {
     hasMore,
     loadingMore,
     pendingRequests,
+    groupRequests,
     collapsed,
     toggle,
     sendChat,
@@ -160,13 +181,13 @@ export default function DicePanel() {
   // eine Anfrage, die ja gerade gesehen werden will.
   useEffect(() => {
     const last = feed.length > 0 ? feed[feed.length - 1].id : null;
-    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}`;
+    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}|${groupRequests.map((r) => r.id).join(',')}`;
     if (marker !== lastIdRef.current) {
       const el = scrollRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     }
     lastIdRef.current = marker;
-  }, [feed, pendingRequests]);
+  }, [feed, pendingRequests, groupRequests]);
 
   // Verkleinern zieht die Ecke oben links — der Dock bleibt unten/rechts
   // verankert, also wächst der alte scrollTop plötzlich über den neuen
@@ -330,11 +351,24 @@ export default function DicePanel() {
               </button>
             )}
             {feed.length === 0 && <p className="muted dice-dock-empty">Noch nichts los hier.</p>}
-            {feed.map((entry) => (
-              <FeedEntryView key={entry.id} entry={entry} />
-            ))}
+            {chunkFeed(feed).map((chunk) =>
+              chunk.kind === 'group' ? (
+                <div className="feed-group-block" key={`group-${chunk.groupRollId}`}>
+                  {chunk.entries.map((entry) => (
+                    <FeedEntryView key={entry.id} entry={entry} grouped />
+                  ))}
+                </div>
+              ) : (
+                <FeedEntryView key={chunk.entry.id} entry={chunk.entry} />
+              ),
+            )}
             {/* Offene Anfragen unten, direkt über der Eingabe — dort schaut
-                man hin, und sie sind das, was gerade zu tun ist. */}
+                man hin, und sie sind das, was gerade zu tun ist. Eigene
+                Gruppen-Sammelanfragen (nur bei der Spielleitung) je eine
+                Karte, unabhängig von den einzelnen Spieler-Anfragen. */}
+            {groupRequests.map((r) => (
+              <GroupRequestCard key={r.id} request={r} />
+            ))}
             {pendingRequests.map((r) => (
               <PendingRequestCard key={r.id} request={r} />
             ))}

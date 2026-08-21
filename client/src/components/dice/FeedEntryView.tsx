@@ -138,7 +138,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
   );
 }
 
-function RollView({ entry }: { entry: RollFeedEntry }) {
+function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean }) {
   const { user } = useAuth();
   const { diceCode } = useDicePanel();
   const { roll } = entry;
@@ -173,8 +173,16 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
   // (z. B. „1w6+1w20") ist das NICHT für alle Würfel dasselbe.
   const diceSides = isProbe ? roll.dice.map(() => 20) : diceSidesForExpression(roll.expression);
 
+  // Innerhalb eines Gruppenwurf-Blocks (siehe FeedEntryView unten) trägt EIN
+  // neutraler Rand den ganzen Block als Klammer — bewusst nicht eingefärbt,
+  // sonst ließe sich die Klammer selbst leicht mit einer Erfolg/Fehlschlag-
+  // Farbe verwechseln (rot/grün-Themes!). Die Erfolgsfarbe pro Zeile bleibt
+  // trotzdem: sie steckt in derselben feed-roll--{outcome}-Klasse wie sonst
+  // auch (Text UND — von feed-roll--grouped überschrieben — Randfarbe).
+  const outcomeClass = outcome ? `feed-roll--${outcome}` : '';
+  const rollClass = grouped ? `${outcomeClass} feed-roll--grouped`.trim() : outcomeClass;
   return (
-    <div className={`feed-entry feed-roll${outcome ? ` feed-roll--${outcome}` : ''}`}>
+    <div className={`feed-entry feed-roll${rollClass ? ` ${rollClass}` : ''}`}>
       <div className="feed-roll-head">
         <span className="feed-time">{formatTime(entry.createdAt)}</span>
         <strong>{entry.authorName}</strong>
@@ -231,8 +239,8 @@ function RollView({ entry }: { entry: RollFeedEntry }) {
 // Bindestriche getippt wurden, gespeichert wird immer derselbe Marker.
 const DIVIDER_TEXT = /^-{3,}$/;
 
-export default function FeedEntryView({ entry }: { entry: FeedEntry }) {
-  if (entry.kind === 'roll') return <RollView entry={entry} />;
+export default function FeedEntryView({ entry, grouped }: { entry: FeedEntry; grouped?: boolean }) {
+  if (entry.kind === 'roll') return <RollView entry={entry} grouped={grouped} />;
   if (DIVIDER_TEXT.test(entry.text.trim())) {
     return <hr className="feed-divider" />;
   }

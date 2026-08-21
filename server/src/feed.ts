@@ -36,6 +36,7 @@ interface FeedRow {
   is_me: number;
   text: string;
   roll_json: string | null;
+  group_roll_id: string | null;
 }
 
 // Vor der Mehrfach-Würfel-Erweiterung stand `expression` als flaches
@@ -65,6 +66,7 @@ function rowToEntry(row: FeedRow): FeedEntry {
       gmUserId: row.gm_user_id,
       authorName: row.author_name,
       roll,
+      ...(row.group_roll_id ? { groupRollId: row.group_roll_id } : {}),
     };
     return entry;
   }
@@ -79,18 +81,25 @@ function rowToEntry(row: FeedRow): FeedEntry {
     authorName: row.author_name,
     isMe: !!row.is_me,
     text: row.text,
+    ...(row.group_roll_id ? { groupRollId: row.group_roll_id } : {}),
   };
   return entry;
 }
 
-export function insertFeedMessage(groupId: number, author: FeedAuthor, text: string, isMe: boolean): FeedEntry {
+export function insertFeedMessage(
+  groupId: number,
+  author: FeedAuthor,
+  text: string,
+  isMe: boolean,
+  groupRollId?: string,
+): FeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
-      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, is_me, text)
-       VALUES (?, ?, 'message', 'public', ?, ?, NULL, ?, ?, ?)`,
+      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, is_me, text, group_roll_id)
+       VALUES (?, ?, 'message', 'public', ?, ?, NULL, ?, ?, ?, ?)`,
     )
-    .run(groupId, createdAt, author.userId, author.charId, author.name, isMe ? 1 : 0, text);
+    .run(groupId, createdAt, author.userId, author.charId, author.name, isMe ? 1 : 0, text, groupRollId ?? null);
   const entry: ChatFeedEntry = {
     id: Number(info.lastInsertRowid),
     kind: 'message',
@@ -102,6 +111,7 @@ export function insertFeedMessage(groupId: number, author: FeedAuthor, text: str
     authorName: author.name,
     isMe,
     text,
+    ...(groupRollId ? { groupRollId } : {}),
   };
   broadcastToGroup(groupId, entry);
   return entry;
@@ -113,14 +123,15 @@ export function insertFeedRoll(
   gmUserId: number | null,
   visibility: RollVisibility,
   roll: RollPayload,
+  groupRollId?: string,
 ): FeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
-      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json)
-       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id)
+       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(groupId, createdAt, visibility, author.userId, author.charId, gmUserId, author.name, JSON.stringify(roll));
+    .run(groupId, createdAt, visibility, author.userId, author.charId, gmUserId, author.name, JSON.stringify(roll), groupRollId ?? null);
   const entry: RollFeedEntry = {
     id: Number(info.lastInsertRowid),
     kind: 'roll',
@@ -131,6 +142,7 @@ export function insertFeedRoll(
     gmUserId,
     authorName: author.name,
     roll,
+    ...(groupRollId ? { groupRollId } : {}),
   };
   broadcastToGroup(groupId, entry);
   return entry;

@@ -78,4 +78,12 @@ export const REQUEST = {
   /** Bei der Spielleitung, für eine eigene noch offene Anfrage. */
   cancel: 'Zurückziehen',
   cancelHint: 'Zieht die Anfrage zurück, bevor der Spieler reagiert hat',
+  /** Kopf der Gruppen-Sammelanfrage-Karte, bei der Spielleitung. */
+  groupTitle: (label: string): string => `Gruppenprobe: ${label}`,
+  /** Gruppen-Sammelanfrage: deckt sofort auf, was schon da ist, statt weiter zu warten. */
+  groupReveal: 'Jetzt auflösen',
+  groupRevealHint: 'Deckt die Ergebnisse jetzt auf — wer noch nicht geantwortet hat, fällt aus der Anfrage',
+  /** Gruppen-Sammelanfrage: verwirft die ganze Anfrage, auch bereits gewürfelte Ergebnisse. */
+  groupCancel: 'Anfrage verwerfen',
+  groupCancelHint: 'Verwirft die ganze Sammelanfrage — auch schon eingegangene Ergebnisse werden nicht veröffentlicht',
 };

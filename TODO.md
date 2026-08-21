@@ -29,21 +29,14 @@ New raw points still go in the inbox at the bottom of this section.
   separate `characters` row or something lighter, is all still open. Surfaced
   as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
   started, so treat that teaser as aspirational, not a promise of shape.
-- [ready] **Group-wide synchronized roll requests**: results only publish once
-  everyone has rolled or passed. Concept settled — reuses the existing
-  `roll.pending.request`/accept/decline mechanic (`diceProtocol.ts:146-148`),
-  fanned out as one request per group member under a shared group-request id:
-  - Each player's roll resolves immediately server-side on accept (same as
-    today) — it's just withheld from the feed, not delayed, until the whole
-    group has responded.
-  - GM can force-reveal/cancel early if someone stalls (mirrors the existing
-    single-request expiry).
-  - A decline ("pass") shows as an explicit "passed" entry once revealed, not
-    omitted.
-  - "Whole group" means currently **connected** players only — it does not
-    wait for someone who isn't online. Still open: whether the GM can target a
-    subset instead of always the full connected group (default to full group
-    unless that's wanted too).
+- match the Attribute style on gm-overview with the one existing on the chaaracter-sheet sidebar
+- edge-case: IF a user somehow owns mutlipe characters inside a single group, the chat-room selector just shows the same group name multiple times (once per character)
+  - this should not happen on prouction, because the user management is well curated, but we should explore this
+- bug: when the chat is scrolled all the way down,futher scrolling scrolls the page in background instead.
+- possible expansion of group-rolls:
+  - we have a system of cooperation-checks. when 2 (or more) characters try to do something together, their results get checked somewhat as a sum.
+  - Player A and B roll together for "Klettern". Player A's result is 10 above his own target value, Player B is 12 below his own. Player B is now able to balance the roll out, because he is more in plus than Player A is in minus
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 

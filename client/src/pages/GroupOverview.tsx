@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { ResourceKey } from '@shared/types';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { depletionClass, overfilled } from '../components/energie';
+import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
 import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
@@ -196,7 +197,7 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
       <h1>{kind === 'temp' ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
 
       {kind === 'group' && (
-        <p>
+        <div className="gm-overview-actions">
           <button
             className="small"
             title="Setzt die Schicksalspunkte aller Charaktere dieser Gruppe auf ihr jeweiliges Maximum zurück"
@@ -204,7 +205,10 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
           >
             🍀 Neuer Spieltag (Schicksalspunkte zurücksetzen)
           </button>
-        </p>
+          {data.characters.length > 0 && (
+            <RequestGroupProbePicker groupId={groupId} anyCharId={data.characters[0].id} />
+          )}
+        </div>
       )}
 
       <div className="gm-poll">

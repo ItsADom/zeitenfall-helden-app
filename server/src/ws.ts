@@ -4,14 +4,38 @@
 import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
-import type { ClientToServerMessage, ExpressionRollPayload, FeedEntry, ProbeRollPayload, RollVisibility, ServerToClientMessage } from 'shared';
+import type {
+  ClientToServerMessage,
+  ExpressionRollPayload,
+  FeedEntry,
+  GroupRollRequest,
+  ProbeRollPayload,
+  RollVisibility,
+  ServerToClientMessage,
+} from 'shared';
 import type { RolledConfirmation } from 'shared';
 import { MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
-import { createPendingRequest, getPendingRequest, pendingRequestsFor, removePendingRequest } from './pendingRolls.js';
+import {
+  createPendingRequest,
+  getPendingRequest,
+  pendingRequestsFor,
+  removePendingRequest,
+  removePendingRequestsForGroup,
+} from './pendingRolls.js';
+import {
+  cancelGroupRollRequest,
+  createGroupRollRequest,
+  dropGroupMember,
+  forceRevealGroup,
+  getGroupRollRequest,
+  groupRollRequestsFor,
+  holdGroupResult,
+  type HeldResult,
+} from './groupRolls.js';
 import { isGroupMember } from './routes.js';
 import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
 import { createTokenBucket, type TokenBucket } from './rateLimit.js';
@@ -148,6 +172,37 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
     if (char && char.group_id === meta.groupId) return { userId: meta.userId, charId, name: char.chat_name || char.name };
   }
   return { userId: meta.userId, charId: null, name: meta.displayName };
+}
+
+// Veröffentlicht die zurückgehaltenen Ergebnisse einer Gruppen-Sammelanfrage
+// (siehe groupRolls.ts) — jetzt PUBLIC statt 'gm_player' wie bei der
+// einzelnen SL+Spieler-Anfrage: der ganze Witz einer Sammelanfrage ist ja,
+// dass alle Ergebnisse gemeinsam sichtbar werden. Eine „/me"-Kopfzeile
+// bündelt sie im Feed sichtbar unter der angefragten Probe, statt sie
+// unbeschriftet zwischen den Chat-Zeilen stehen zu lassen. `order` bestimmt
+// die Reihenfolge; ein Charakter ohne Eintrag in `held` (vorzeitig
+// aufgedeckt, nie geantwortet) wird stillschweigend übersprungen — bei
+// NIEMANDEM etwas Zurückgehaltenem (reines Verwerfen) bleibt auch die
+// Kopfzeile weg.
+function revealGroupResults(request: GroupRollRequest, order: number[], held: Map<number, HeldResult>): void {
+  if (held.size > 0) {
+    insertFeedMessage(
+      request.groupId,
+      { userId: request.gmUserId, charId: null, name: request.gmName },
+      `fordert eine Gruppenprobe an: ${request.label}`,
+      true,
+    );
+  }
+  for (const charId of order) {
+    const entry = held.get(charId);
+    if (!entry) continue;
+    // groupRollId (request.id) markiert nur die WÜRFE/PÄSSE selbst, nicht die
+    // Kopfzeile — die zieht ihre eigene, unverwechselbare Optik schon aus der
+    // „/me"-Formatierung.
+    if (entry.kind === 'roll') insertFeedRoll(request.groupId, entry.author, null, 'public', entry.roll, request.id);
+    else insertFeedMessage(request.groupId, entry.author, 'hat gepasst.', true, request.id);
+  }
+  sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.group.revealed', requestId: request.id });
 }
 
 function handleMessage(ws: WebSocket, raw: RawData): void {
@@ -370,6 +425,117 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
+    case 'roll.group.request': {
+      if (!meta.isGm) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung kann eine Probe anfordern' });
+        return;
+      }
+      const source = parseProbeSource(msg.source);
+      if (!source) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Probe' });
+        return;
+      }
+      // „Ganze Gruppe" heißt currently CONNECTED, nicht jedes Gruppenmitglied
+      // — wer offline ist, wartet nicht mit auf (siehe TODO-Konzept).
+      const room = rooms.get(meta.groupId);
+      const connectedUserIds = new Set<number>();
+      if (room) {
+        for (const socket of room) {
+          const m = socketMeta.get(socket);
+          if (m && m.userId !== meta.userId) connectedUserIds.add(m.userId);
+        }
+      }
+      if (connectedUserIds.size === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Gerade niemand sonst verbunden' });
+        return;
+      }
+      const chars = db
+        .prepare('SELECT id, name, chat_name, owner_user_id FROM characters WHERE group_id = ?')
+        .all(meta.groupId) as { id: number; name: string; chat_name: string; owner_user_id: number }[];
+      // Wer die Probe gar nicht kennt (z. B. ein Kampftalent ohne Formel für
+      // den falschen Waffentyp), fällt einzeln aus dem Aufgebot, statt die
+      // ganze Sammelanfrage zu blockieren.
+      const members: { userId: number; charId: number; charName: string; label: string }[] = [];
+      for (const c of chars) {
+        if (!connectedUserIds.has(c.owner_user_id)) continue;
+        const computed = computeProbeForCharacter(c.id, source);
+        if (!computed) continue;
+        members.push({ userId: c.owner_user_id, charId: c.id, charName: c.chat_name || c.name, label: computed.label });
+      }
+      if (members.length === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es bei niemandem eine Probe' });
+        return;
+      }
+      const group = createGroupRollRequest({
+        groupId: meta.groupId,
+        source,
+        label: members[0].label,
+        gmUserId: meta.userId,
+        gmName: meta.displayName,
+        members: members.map(({ userId, charId, charName }) => ({ userId, charId, charName })),
+        onExpire: ({ request, order, held }) => revealGroupResults(request, order, held),
+      });
+      // Eine einzelne Karte für die Spielleitung (roll.group.created), mit der
+      // ganzen Mitgliederliste — statt eines eigenen roll.pending.created je
+      // Mitglied, das sonst bei jedem Mitglied einzeln aufgeräumt werden
+      // müsste. Jedes Mitglied bekommt trotzdem sein eigenes GEWÖHNLICHES
+      // roll.pending.created (nur an sich selbst) — die Spieler-Oberfläche
+      // (PendingRequestCard, acceptRequest/declineRequest) braucht dafür keine
+      // Änderung.
+      sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.created', request: group });
+      for (const m of members) {
+        const sub = createPendingRequest({
+          groupId: meta.groupId,
+          source,
+          label: m.label,
+          gmUserId: meta.userId,
+          gmName: meta.displayName,
+          targetUserId: m.userId,
+          targetCharId: m.charId,
+          targetCharName: m.charName,
+          groupRequestId: group.id,
+          onExpire: (expired) => {
+            sendToUserInGroup(expired.groupId, expired.targetUserId, { type: 'roll.pending.expired', requestId: expired.id });
+            const done = dropGroupMember(group.id, expired.targetCharId);
+            if (done) revealGroupResults(group, done.order, done.held);
+          },
+        });
+        sendToUserInGroup(meta.groupId, sub.targetUserId, { type: 'roll.pending.created', request: sub });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.group.reveal': {
+      const request = getGroupRollRequest(msg.groupRequestId);
+      if (!request || request.gmUserId !== meta.userId || request.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
+        return;
+      }
+      const result = forceRevealGroup(msg.groupRequestId);
+      // Noch offene Zweige (niemand hat geantwortet) räumen sich nicht von
+      // selbst weg — ihre eigene PendingRequestCard muss verschwinden.
+      for (const sub of removePendingRequestsForGroup(msg.groupRequestId)) {
+        sendToUserInGroup(sub.groupId, sub.targetUserId, { type: 'roll.pending.cancelled', requestId: sub.id });
+      }
+      if (result) revealGroupResults(request, result.order, result.held);
+      else sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.revealed', requestId: request.id });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.group.cancel': {
+      const request = getGroupRollRequest(msg.groupRequestId);
+      if (!request || request.gmUserId !== meta.userId || request.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
+        return;
+      }
+      cancelGroupRollRequest(msg.groupRequestId);
+      sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.cancelled', requestId: request.id });
+      for (const sub of removePendingRequestsForGroup(msg.groupRequestId)) {
+        sendToUserInGroup(sub.groupId, sub.targetUserId, { type: 'roll.pending.cancelled', requestId: sub.id });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
     case 'roll.pending.accept': {
       const request = getPendingRequest(String(msg.requestId));
       // Annehmen darf nur der angefragte Spieler selbst.
@@ -386,11 +552,15 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       removePendingRequest(request.id);
-      // Beide Seiten sollen genau DIESE Anfrage als erledigt sehen — per id,
-      // nicht per Charakter, sonst würde das Annehmen einer von mehreren
-      // offenen Anfragen an denselben Charakter auch die anderen wegwischen.
-      for (const uid of [request.targetUserId, request.gmUserId]) {
-        sendToUserInGroup(request.groupId, uid, { type: 'roll.pending.accepted', requestId: request.id });
+      // Der Werfer sieht genau DIESE Anfrage als erledigt — per id, nicht per
+      // Charakter, sonst würde das Annehmen einer von mehreren offenen
+      // Anfragen an denselben Charakter auch die anderen wegwischen. Die
+      // Spielleitung NUR bei einer normalen Einzelanfrage — bei einer
+      // Gruppen-Sammelanfrage bleibt ihre EINE Karte stehen und bekommt
+      // stattdessen unten ein roll.group.member („gewürfelt").
+      sendToUserInGroup(request.groupId, request.targetUserId, { type: 'roll.pending.accepted', requestId: request.id });
+      if (!request.groupRequestId) {
+        sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.pending.accepted', requestId: request.id });
       }
       const modifier = clampModifier(msg.modifier);
       const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
@@ -414,7 +584,30 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         narrow: result.narrow,
         criticalSuccess: result.criticalSuccess,
       };
-      insertFeedRoll(meta.groupId, resolveAuthor(meta, request.targetCharId), request.gmUserId, 'gm_player', roll);
+      if (request.groupRequestId) {
+        // Teil einer Gruppen-Sammelanfrage: nicht sofort veröffentlichen,
+        // sondern zurückhalten, bis auch die letzten Mitglieder geantwortet
+        // haben (siehe groupRolls.ts) — dann geht alles gemeinsam raus. Bis
+        // dahin bekommt die Spielleitung nur die Statusmeldung, ihre Karte
+        // bleibt stehen (siehe GroupRollMember.status).
+        const groupReq = getGroupRollRequest(request.groupRequestId);
+        const done = holdGroupResult(request.groupRequestId, request.targetCharId, {
+          kind: 'roll',
+          author: resolveAuthor(meta, request.targetCharId),
+          roll,
+        });
+        if (groupReq) {
+          sendToUserInGroup(meta.groupId, groupReq.gmUserId, {
+            type: 'roll.group.member',
+            requestId: groupReq.id,
+            charId: request.targetCharId,
+            status: 'rolled',
+          });
+        }
+        if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
+      } else {
+        insertFeedRoll(meta.groupId, resolveAuthor(meta, request.targetCharId), request.gmUserId, 'gm_player', roll);
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -424,10 +617,29 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
         return;
       }
-      // Ablehnen schreibt nichts — es gab ja nie einen Datenbank-Eintrag.
+      // Ablehnen schreibt nichts — es gab ja nie einen Datenbank-Eintrag. Bei
+      // einer Gruppen-Sammelanfrage ist das anders: „passt" soll sichtbar
+      // werden, sobald die ganze Gruppe geantwortet hat (siehe unten).
       removePendingRequest(request.id);
-      for (const uid of [request.targetUserId, request.gmUserId]) {
-        sendToUserInGroup(request.groupId, uid, { type: 'roll.pending.declined', requestId: request.id });
+      if (request.groupRequestId) {
+        const groupReq = getGroupRollRequest(request.groupRequestId);
+        const done = holdGroupResult(request.groupRequestId, request.targetCharId, {
+          kind: 'passed',
+          author: resolveAuthor(meta, request.targetCharId),
+        });
+        if (groupReq) {
+          sendToUserInGroup(meta.groupId, groupReq.gmUserId, {
+            type: 'roll.group.member',
+            requestId: groupReq.id,
+            charId: request.targetCharId,
+            status: 'passed',
+          });
+        }
+        if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
+      }
+      sendToUserInGroup(request.groupId, request.targetUserId, { type: 'roll.pending.declined', requestId: request.id });
+      if (!request.groupRequestId) {
+        sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.pending.declined', requestId: request.id });
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -441,8 +653,20 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       removePendingRequest(request.id);
-      for (const uid of [request.targetUserId, request.gmUserId]) {
-        sendToUserInGroup(request.groupId, uid, { type: 'roll.pending.cancelled', requestId: request.id });
+      // Bei einer Gruppen-Sammelanfrage nimmt das Zurückziehen NUR dieses eine
+      // Mitglied aus dem Aufgebot — die übrigen warten weiter (Gegenstück zum
+      // Ablauf-Timeout in roll.group.request, siehe dropGroupMember dort). Kein
+      // eigener UI-Weg mehr dorthin (die Gruppenkarte hat nur noch die zwei
+      // Sammel-Knöpfe), aber die Route bleibt für roll.pending.expired & Co.
+      // korrekt, falls sie je wieder gebraucht wird.
+      if (request.groupRequestId) {
+        const groupReq = getGroupRollRequest(request.groupRequestId);
+        const done = dropGroupMember(request.groupRequestId, request.targetCharId);
+        if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
+      }
+      sendToUserInGroup(request.groupId, request.targetUserId, { type: 'roll.pending.cancelled', requestId: request.id });
+      if (!request.groupRequestId) {
+        sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.pending.cancelled', requestId: request.id });
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -497,9 +721,16 @@ export function attachWsServer(server: http.Server): void {
       room.add(ws);
 
       // Offene Anfragen nachreichen — wer nach dem Anfragen neu lädt oder die
-      // Verbindung verliert, soll die Karte wiedersehen.
+      // Verbindung verliert, soll die Karte wiedersehen. Ein Zweig einer
+      // Gruppen-Sammelanfrage NUR für den angefragten Spieler selbst — die
+      // Spielleitung sieht ihn nicht einzeln, sondern über die EINE
+      // roll.group.created-Karte gleich darunter (siehe groupRollRequestsFor).
       for (const request of pendingRequestsFor(groupId, user.id)) {
+        if (request.groupRequestId && request.targetUserId !== user.id) continue;
         send(ws, { type: 'roll.pending.created', request });
+      }
+      for (const groupRequest of groupRollRequestsFor(groupId, user.id)) {
+        send(ws, { type: 'roll.group.created', request: groupRequest });
       }
 
       let alive = true;

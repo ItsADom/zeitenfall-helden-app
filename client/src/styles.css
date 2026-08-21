@@ -4413,31 +4413,57 @@ body.resizing-dice {
 .feed-roll--success {
   border-left-color: #3f7d3f;
 }
-/* Kritischer Erfolg — Gegenstück zum Patzer, entsprechend deutlich. */
-.feed-roll--critsuccess {
+/* Kritischer Erfolg UND Patzer teilen sich dasselbe Gold — beide sind „ein
+   kritischer Würfel ist stehengeblieben", nur mit entgegengesetztem Ausgang;
+   welcher der beiden es war, sagt der Text („Krit. Erfolg"/„Krit. Fehlschlag")
+   ohnehin schon. Ein waffenscheinlich alarmierendes Rot fürs Patzer-Ende hätte
+   zudem zu nah am neuen Fehlschlag-Rot gelegen. */
+.feed-roll--critsuccess,
+.feed-roll--crit,
+.feed-roll--flagged {
   border-left-color: var(--mastery);
-}
-.feed-roll--critsuccess .feed-roll-outcome {
-  color: var(--mastery);
 }
 /* Knapp gelungen — bestanden, aber am Rand: grün, nur gedämpfter. */
 .feed-roll--narrow {
   border-left-color: #7d9a4a;
 }
-.feed-roll--narrow .feed-roll-outcome {
-  color: #7d9a4a;
-}
+/* Fehlschlag: gedämpftes Rot statt neutralem Text — klar als „nicht bestanden"
+   erkennbar, aber deutlich stiller als das Gold von Krit./Patzer. Aus der
+   eigenen Krit-Farbe des Themas gemischt statt fest verdrahtet, damit jedes
+   Farbthema (rot/wald/königsblau/…) automatisch den passenden Ton bekommt. */
 .feed-roll--fail {
-  border-left-color: var(--muted);
-}
-.feed-roll--crit,
-.feed-roll--flagged {
-  border-left-color: var(--crit-line);
+  border-left-color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
 }
 /* Bestätigung steht noch aus — Ergebnis bewusst noch offen. */
 .feed-roll--open {
   border-left-color: var(--warn-line);
   border-left-style: dashed;
+}
+/* Innerhalb eines Gruppenwurf-Blocks (.feed-group-block) trägt der Block
+   selbst EINEN durchgehenden, bewusst NEUTRALEN Rand als Klammer — eingefärbt
+   ließe er sich zu leicht mit einem der Ausgang-Töne verwechseln. Die
+   einzelne Zeile verliert dafür ihren eigenen Rand (sonst zwei Ränder
+   nebeneinander), behält aber ihre Ausgangsfarbe im Text —
+   `.feed-roll--grouped` muss NACH den Ausgang-Regeln oben stehen, um deren
+   border-left-color zu schlagen (gleiche Spezifität, letzte Regel gewinnt). */
+.feed-roll--grouped {
+  border-left-color: transparent;
+}
+.feed-group-block {
+  /* Dasselbe Neutral, das Fehlschlag früher als reinen Text-Fallback nutzte —
+     bewusst kein Ausgang-Ton, sonst läse sich die Klammer selbst wie ein Status. */
+  border-left: 3px solid var(--text);
+  margin-bottom: 6px;
+}
+.feed-group-block .feed-roll,
+.feed-group-block .feed-msg {
+  margin-bottom: 0;
+}
+.feed-group-block .feed-roll + .feed-roll,
+.feed-group-block .feed-msg + .feed-roll,
+.feed-group-block .feed-roll + .feed-msg,
+.feed-group-block .feed-msg + .feed-msg {
+  border-top: 1px dashed var(--border-soft);
 }
 .feed-pending {
   display: flex;
@@ -4532,8 +4558,15 @@ body.resizing-dice {
 .feed-roll--success .feed-roll-outcome {
   color: #3f7d3f;
 }
+.feed-roll--narrow .feed-roll-outcome {
+  color: #7d9a4a;
+}
+.feed-roll--fail .feed-roll-outcome {
+  color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+}
+.feed-roll--critsuccess .feed-roll-outcome,
 .feed-roll--crit .feed-roll-outcome {
-  color: var(--crit-line);
+  color: var(--mastery);
 }
 .feed-confirms {
   display: flex;
@@ -4684,9 +4717,30 @@ tr:hover .probe-roll,
   gap: 6px;
   margin-top: 6px;
 }
+.feed-request--waiting .feed-request-actions {
+  margin-top: 0;
+}
 .feed-request-note {
   margin-top: 4px;
   font-size: 11px;
+}
+.feed-group-members {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.feed-group-member {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  font-size: 13px;
+}
+.feed-group-member--rolled span:last-child {
+  color: var(--accent);
+}
+.feed-group-member--passed span:last-child {
+  opacity: 0.7;
 }
 
 /* Würfel-Favoriten-Editor (Einstellungen). */
@@ -4970,6 +5024,12 @@ tr:hover .probe-roll,
    Karten heben sich per Akzentrand von den vitalen/Attribut-Chips ab; wer das
    Talent nicht kann, bekommt einen matten „–"-Chip (Antwort „nichts", nicht
    „übersehen"). */
+.gm-overview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
 .gm-poll {
   display: flex;
   flex-wrap: wrap;

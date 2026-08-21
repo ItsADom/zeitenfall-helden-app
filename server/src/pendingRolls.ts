@@ -23,6 +23,8 @@ export function createPendingRequest(input: {
   targetUserId: number;
   targetCharId: number;
   targetCharName: string;
+  /** Gesetzt, wenn dies EIN Zweig einer Gruppen-Sammelanfrage ist — siehe groupRolls.ts. */
+  groupRequestId?: string;
   onExpire: (request: PendingRollRequest) => void;
 }): PendingRollRequest {
   const now = Date.now();
@@ -36,6 +38,7 @@ export function createPendingRequest(input: {
     targetUserId: input.targetUserId,
     targetCharId: input.targetCharId,
     targetCharName: input.targetCharName,
+    ...(input.groupRequestId ? { groupRequestId: input.groupRequestId } : {}),
     createdAt: now,
     expiresAt: now + PENDING_TTL_MS,
   };
@@ -68,4 +71,16 @@ export function removePendingRequest(id: string): boolean {
 /** Offene Anfragen an diesen Spieler — beim Verbinden nachgereicht. */
 export function pendingRequestsFor(groupId: number, userId: number): PendingRollRequest[] {
   return [...pending.values()].filter((r) => r.groupId === groupId && (r.targetUserId === userId || r.gmUserId === userId));
+}
+
+/**
+ * Entfernt alle noch offenen Zweige einer Gruppen-Sammelanfrage (siehe
+ * groupRolls.ts) und gibt sie zurück, damit die Aufruferin jedem Betroffenen
+ * ein `roll.pending.cancelled` schicken kann — für den vorzeitigen Aufdecken/
+ * Verwerfen der ganzen Anfrage.
+ */
+export function removePendingRequestsForGroup(groupRequestId: string): PendingRollRequest[] {
+  const affected = [...pending.values()].filter((r) => r.groupRequestId === groupRequestId);
+  for (const r of affected) removePendingRequest(r.id);
+  return affected;
 }

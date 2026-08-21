@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import type {
   ClientToServerMessage,
   FeedEntry,
+  GroupRollRequest,
   PendingRollRequest,
   ProbeSource,
   RollVisibility,
@@ -92,12 +93,30 @@ interface DicePanelCtxValue {
   confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
   /** Offene „SL + Spieler"-Anfragen, die diesen Nutzer betreffen. */
   pendingRequests: PendingRollRequest[];
+  /**
+   * Eigene, noch offene Gruppen-Sammelanfragen — nur bei der anfragenden
+   * Spielleitung befüllt (siehe roll.group.created). Eine Karte je Anfrage,
+   * mit Live-Status je Mitglied (GroupRollMember.status) statt N Karten, die
+   * beim Antworten verschwinden.
+   */
+  groupRequests: GroupRollRequest[];
   /** Spielleitung fordert eine bestimmte Probe von einem Spieler an. */
   requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => void;
   acceptRequest: (requestId: string) => void;
   declineRequest: (requestId: string) => void;
   /** Spielleitung zieht eine eigene, noch offene Anfrage zurück. */
   cancelRequest: (requestId: string) => void;
+  /**
+   * Spielleitung fordert dieselbe Probe von JEDEM gerade verbundenen
+   * Gruppenmitglied an — ein normales `roll.pending.request` je Mitglied
+   * unter gemeinsamer groupRequestId, Ergebnisse erscheinen erst gemeinsam
+   * im Feed, sobald alle geantwortet haben (siehe server/src/groupRolls.ts).
+   */
+  requestGroupProbe: (groupId: number, source: ProbeSource) => void;
+  /** Deckt eine Sammelanfrage vorzeitig auf — offene Zweige werden verworfen. */
+  revealGroupRequest: (groupRequestId: string) => void;
+  /** Verwirft eine Sammelanfrage komplett, auch bereits zurückgehaltene Ergebnisse. */
+  cancelGroupRequest: (groupRequestId: string) => void;
   /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
   refreshRooms: () => void;
   loadMore: () => void;
@@ -136,10 +155,14 @@ export function useDicePanel(): DicePanelCtxValue {
       rollProbe: () => {},
       confirmDie: () => {},
       pendingRequests: [],
+      groupRequests: [],
       requestProbe: () => {},
       acceptRequest: () => {},
       declineRequest: () => {},
       cancelRequest: () => {},
+      requestGroupProbe: () => {},
+      revealGroupRequest: () => {},
+      cancelGroupRequest: () => {},
       refreshRooms: () => {},
       loadMore: () => {},
       setSchicksalspunkte: () => {},
@@ -160,6 +183,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [modifier, setModifier] = usePersistedState<number>('dice:modifier', 0);
   const [diceCode, setDiceCode] = usePersistedState<'w' | 'd'>('dice:code', 'w');
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
+  const [groupRequests, setGroupRequests] = useState<GroupRollRequest[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -238,6 +262,27 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setPendingRequests((prev) => prev.filter((r) => r.id !== msg.requestId));
         return;
       }
+      if (msg.type === 'roll.group.created') {
+        setGroupRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
+        setCollapsed(false);
+        return;
+      }
+      if (msg.type === 'roll.group.member') {
+        // Karte bleibt stehen — nur der Status DIESES Mitglieds ändert sich,
+        // der Rest der Liste bleibt unangetastet (siehe GroupRollMember.status).
+        setGroupRequests((prev) =>
+          prev.map((r) =>
+            r.id === msg.requestId
+              ? { ...r, members: r.members.map((m) => (m.charId === msg.charId ? { ...m, status: msg.status } : m)) }
+              : r,
+          ),
+        );
+        return;
+      }
+      if (msg.type === 'roll.group.revealed' || msg.type === 'roll.group.cancelled') {
+        setGroupRequests((prev) => prev.filter((r) => r.id !== msg.requestId));
+        return;
+      }
       if (msg.type === 'schicksalspunkte.update') {
         // GM-Reset über die GM-Übersicht (REST, andere Session) — ohne
         // diesen Push bliebe der Klee-Zähler hier stumpf bis zum nächsten
@@ -297,6 +342,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // Raum reicht seine eigenen offenen Anfragen gleich nach dem Verbinden
       // nach (siehe server/src/ws.ts, pendingRequestsFor beim Upgrade).
       setPendingRequests([]);
+      setGroupRequests([]);
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) {
@@ -428,6 +474,34 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const requestGroupProbe = useCallback(
+    (forGroupId: number, source: ProbeSource) => {
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      setCollapsed(false);
+      sendMsg({ type: 'roll.group.request', reqId: crypto.randomUUID(), source });
+    },
+    [myGroups, applyRoom, sendMsg, setCollapsed],
+  );
+
+  const revealGroupRequest = useCallback(
+    (groupRequestId: string) => {
+      setGroupRequests((prev) => prev.filter((r) => r.id !== groupRequestId));
+      sendMsg({ type: 'roll.group.reveal', reqId: crypto.randomUUID(), groupRequestId });
+    },
+    [sendMsg],
+  );
+
+  const cancelGroupRequest = useCallback(
+    (groupRequestId: string) => {
+      setGroupRequests((prev) => prev.filter((r) => r.id !== groupRequestId));
+      sendMsg({ type: 'roll.group.cancel', reqId: crypto.randomUUID(), groupRequestId });
+    },
+    [sendMsg],
+  );
+
   const loadMore = useCallback(() => {
     if (groupId === null || loadingMore || !hasMore || feed.length === 0) return;
     setLoadingMore(true);
@@ -492,10 +566,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         rollProbe,
         confirmDie,
         pendingRequests,
+        groupRequests,
         requestProbe,
         acceptRequest,
         declineRequest,
         cancelRequest,
+        requestGroupProbe,
+        revealGroupRequest,
+        cancelGroupRequest,
         refreshRooms,
         loadMore,
         setSchicksalspunkte,
