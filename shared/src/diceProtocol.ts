@@ -261,5 +261,15 @@ export type ServerToClientMessage =
   // GM-Übersicht, nicht über dieses Socket — ohne diesen Push bliebe der
   // Klee-Zähler in der Spieler-Session stumpf bis zum nächsten Laden.
   | { type: 'schicksalspunkte.update'; charId: number; aktuell: number; max: number }
+  // Nur an die eben verbundene Socket selbst — wer sonst gerade in diesem
+  // Raum verbunden ist, im Moment des Verbindens. Rein lokal/clientseitig zu
+  // zeigen (siehe DicePanelProvider): kein Feed-Eintrag, nicht persistiert,
+  // niemand sonst bekommt diese Nachricht.
+  | { type: 'presence.snapshot'; names: string[] }
+  // An alle SCHON verbundenen Sockets im Raum, wenn ein weiterer Nutzer neu
+  // dazukommt — ausgenommen ein bloßes Reconnect-Aufflackern kurz nach dem
+  // eigenen Verbindungsabbruch (siehe RECONNECT_GRACE_MS in ws.ts). Wie
+  // presence.snapshot rein lokal, kein Feed-Eintrag.
+  | { type: 'presence.joined'; name: string }
   | { type: 'ack'; reqId: string }
   | { type: 'error'; reqId: string; message: string };

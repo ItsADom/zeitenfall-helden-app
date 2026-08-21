@@ -26,6 +26,17 @@ function mergeFeed(existing: FeedEntry[], incoming: FeedEntry[]): FeedEntry[] {
   return [...byId.values()].sort((a, b) => a.id - b.id);
 }
 
+/**
+ * Rein lokale Notiz „wer ist gerade da" — kommt aus presence.snapshot/
+ * presence.joined, ist nie Teil des Feeds (kein `id` aus der DB, keine
+ * Sichtbarkeitsregeln, niemand sonst sieht sie). `key` ist ein Client-Zufall,
+ * nur für React's Listen-Rendering.
+ */
+export interface PresenceNote {
+  key: string;
+  text: string;
+}
+
 export interface DiceGroupOption {
   id: number;
   name: string;
@@ -101,6 +112,13 @@ interface DicePanelCtxValue {
    * beim Antworten verschwinden.
    */
   groupRequests: GroupRollRequest[];
+  /**
+   * Rein lokale „wer ist da"-Notizen für den aktuellen Raum — eine
+   * Momentaufnahme beim Verbinden, danach „X ist beigetreten" bei einer
+   * echten Rückkehr (siehe presence.snapshot/presence.joined im Protokoll).
+   * Leert sich bei jedem Raumwechsel/Reconnect neu.
+   */
+  presenceNotes: PresenceNote[];
   /** Spielleitung fordert eine bestimmte Probe von einem Spieler an. */
   requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => void;
   acceptRequest: (requestId: string) => void;
@@ -157,6 +175,7 @@ export function useDicePanel(): DicePanelCtxValue {
       confirmDie: () => {},
       pendingRequests: [],
       groupRequests: [],
+      presenceNotes: [],
       requestProbe: () => {},
       acceptRequest: () => {},
       declineRequest: () => {},
@@ -185,6 +204,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [diceCode, setDiceCode] = usePersistedState<'w' | 'd'>('dice:code', 'w');
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [groupRequests, setGroupRequests] = useState<GroupRollRequest[]>([]);
+  const [presenceNotes, setPresenceNotes] = useState<PresenceNote[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -216,6 +236,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     bufferingRef.current = true;
     liveBufferRef.current = [];
     intentionalCloseRef.current = false;
+    // Neuer Raum, neue Momentaufnahme — die alte gehörte zum vorherigen Raum.
+    setPresenceNotes([]);
     const ws = new WebSocket(wsUrl(gid));
     wsRef.current = ws;
 
@@ -295,6 +317,15 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
               : g,
           ),
         );
+        return;
+      }
+      if (msg.type === 'presence.snapshot') {
+        const text = msg.names.length === 0 ? 'Gerade niemand sonst hier.' : `Verbunden: ${msg.names.join(', ')}`;
+        setPresenceNotes((prev) => [...prev, { key: crypto.randomUUID(), text }]);
+        return;
+      }
+      if (msg.type === 'presence.joined') {
+        setPresenceNotes((prev) => [...prev, { key: crypto.randomUUID(), text: `${msg.name} ist beigetreten.` }]);
         return;
       }
       if (msg.type === 'error') {
@@ -569,6 +600,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         confirmDie,
         pendingRequests,
         groupRequests,
+        presenceNotes,
         requestProbe,
         acceptRequest,
         declineRequest,

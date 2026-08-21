@@ -4181,6 +4181,14 @@ body.resizing-dice {
   border-top: 1px solid var(--border);
   margin: 10px 0;
 }
+/* Rein lokale „wer ist da"-Notiz (presence.snapshot/presence.joined) — bewusst
+   kleiner/blasser als ein echter Feed-Eintrag, damit sie nicht wie eine
+   Chat-Nachricht aussieht, die auch andere sähen. */
+.dice-presence-note {
+  font-size: 11px;
+  font-style: italic;
+  margin: 2px 0;
+}
 .dice-dock-input {
   position: relative;
   display: flex;

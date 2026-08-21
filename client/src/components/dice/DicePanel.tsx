@@ -79,6 +79,7 @@ export default function DicePanel() {
     loadingMore,
     pendingRequests,
     groupRequests,
+    presenceNotes,
     collapsed,
     toggle,
     sendChat,
@@ -181,13 +182,13 @@ export default function DicePanel() {
   // eine Anfrage, die ja gerade gesehen werden will.
   useEffect(() => {
     const last = feed.length > 0 ? feed[feed.length - 1].id : null;
-    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}|${groupRequests.map((r) => r.id).join(',')}`;
+    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}|${groupRequests.map((r) => r.id).join(',')}|${presenceNotes.map((p) => p.key).join(',')}`;
     if (marker !== lastIdRef.current) {
       const el = scrollRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     }
     lastIdRef.current = marker;
-  }, [feed, pendingRequests, groupRequests]);
+  }, [feed, pendingRequests, groupRequests, presenceNotes]);
 
   // Verkleinern zieht die Ecke oben links — der Dock bleibt unten/rechts
   // verankert, also wächst der alte scrollTop plötzlich über den neuen
@@ -371,6 +372,13 @@ export default function DicePanel() {
             ))}
             {pendingRequests.map((r) => (
               <PendingRequestCard key={r.id} request={r} />
+            ))}
+            {/* Rein lokal — wer gerade sonst noch da ist, siehe presence.snapshot/
+                presence.joined im Protokoll. Kein Feed-Eintrag, niemand sonst sieht das. */}
+            {presenceNotes.map((p) => (
+              <p className="muted dice-presence-note" key={p.key}>
+                {p.text}
+              </p>
             ))}
           </>
         )}

@@ -77,6 +77,18 @@ const RATE_LIMIT_EXEMPT: ReadonlySet<ClientToServerMessage['type']> = new Set();
 const rooms = new Map<number, Set<WebSocket>>();
 const socketMeta = new WeakMap<WebSocket, SocketMeta>();
 
+// Wann ein Nutzer zuletzt aus einem Raum verschwand (seine letzte Socket dort
+// schloss) — Grundlage für die „X ist beigetreten"-Ansage: kommt dieselbe
+// Person innerhalb von RECONNECT_GRACE_MS zurück, war das vermutlich nur ein
+// WLAN-Ruckler/Reconnect, keine echte Rückkehr, und bleibt still. Klein und
+// an distinct (groupId, userId)-Paare gebunden — nie aufgeräumt, derselbe
+// Kompromiss wie bei userRateLimits oben.
+const lastLeftRoom = new Map<string, number>();
+const RECONNECT_GRACE_MS = 60_000;
+function leftKey(groupId: number, userId: number): string {
+  return `${groupId}:${userId}`;
+}
+
 function send(ws: WebSocket, msg: ServerToClientMessage): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
@@ -734,7 +746,30 @@ export function attachWsServer(server: http.Server): void {
         room = new Set();
         rooms.set(groupId, room);
       }
+      // Wer schon im Raum ist, VOR dem Hinzufügen dieser Socket ermitteln —
+      // sonst zählte man sich selbst mit.
+      const othersBefore = new Map<number, string>();
+      for (const socket of room) {
+        const m = socketMeta.get(socket);
+        if (m) othersBefore.set(m.userId, m.displayName);
+      }
       room.add(ws);
+
+      // Nur für diesen einen, gerade verbundenen Nutzer sichtbar — siehe
+      // presence.snapshot im Protokoll.
+      send(ws, { type: 'presence.snapshot', names: [...othersBefore.values()].sort((a, b) => a.localeCompare(b, 'de')) });
+
+      // „X ist beigetreten" an alle SCHON verbundenen — aber nur bei einer
+      // echten Rückkehr, kein bloßes Reconnect-Aufflackern kurz nach dem
+      // eigenen letzten Verbindungsabbruch in diesem Raum (siehe RECONNECT_GRACE_MS).
+      const key = leftKey(groupId, user.id);
+      const leftAt = lastLeftRoom.get(key);
+      if (leftAt === undefined || Date.now() - leftAt >= RECONNECT_GRACE_MS) {
+        for (const socket of room) {
+          if (socket === ws) continue;
+          send(socket, { type: 'presence.joined', name: user.displayName });
+        }
+      }
 
       // Offene Anfragen nachreichen — wer nach dem Anfragen neu lädt oder die
       // Verbindung verliert, soll die Karte wiedersehen. Ein Zweig einer
@@ -765,6 +800,10 @@ export function attachWsServer(server: http.Server): void {
       ws.on('close', () => {
         clearInterval(heartbeat);
         room?.delete(ws);
+        // Nur vermerken, wenn das die LETZTE Socket dieses Nutzers in diesem
+        // Raum war — mehrere Tabs/Geräte zählen als weiter verbunden.
+        const stillHere = room && [...room].some((s) => socketMeta.get(s)?.userId === user.id);
+        if (!stillHere) lastLeftRoom.set(leftKey(groupId, user.id), Date.now());
         if (room && room.size === 0) rooms.delete(groupId);
         socketMeta.delete(ws);
       });
