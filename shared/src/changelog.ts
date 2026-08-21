@@ -214,6 +214,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Probe einer Fähigkeit kann jetzt AT/PA/BL statt nur Attribute enthalten (z. B. „KK+AT") — beim Würfeln wird dann erst die Waffe abgefragt, mit der die Fähigkeit eingesetzt wird.',
       'Der Chat zeigt beim Verbinden kurz an, wer gerade sonst noch im Raum ist (nur für dich sichtbar) — und meldet es, wenn danach noch jemand dazukommt.',
       'Gegenstände in Ausrüstung und Inventar lassen sich jetzt duplizieren (⧉) — praktisch für mehrere gleiche Stücke, deren Zustand (z. B. Haltbarkeit) getrennt verfolgt werden soll.',
+      'Kooperationsprobe: mit „/koop <Name>" im Chat einen offenen Pool für eine gemeinsame Probe vorschlagen (z. B. gemeinsam klettern) — jeder tritt selbst bei, die vorschlagende Person oder die Spielleitung startet den gemeinsamen Wurf. Gezählt wird die Summe aller Zielwerte gegen die Summe aller Würfe; ein bestätigter Patzer lässt sich durch einen bestätigten kritischen Erfolg an anderer Stelle retten.',
     ],
     admin: [
       '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',

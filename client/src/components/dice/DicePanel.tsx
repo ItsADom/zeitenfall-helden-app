@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { parseDiceExpression } from '@shared/dice';
-import type { FeedEntry, RollVisibility } from '@shared/diceProtocol';
+import { computeCoopVerdict, parseDiceExpression } from '@shared/dice';
+import type { FeedEntry, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import CommandsDialog from './CommandsDialog';
+import CoopPoolCard from './CoopPoolCard';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
 import ModifierPicker from './ModifierPicker';
 import GroupRequestCard from './GroupRequestCard';
 import PendingRequestCard from './PendingRequestCard';
+import { COOP } from './labels';
 import { PROBE_KIND_LABEL, type RollableProbe } from './rollableProbes';
 import RoomPicker from './RoomPicker';
 import SchicksalspunkteControl from './SchicksalspunkteControl';
@@ -55,6 +57,32 @@ function chunkFeed(entries: FeedEntry[]): FeedChunk[] {
   return chunks;
 }
 
+// Gepoolte Verdikt-Zeile über den einzelnen Würfen einer aufgelösten
+// Kooperationsprobe (siehe TODO.md-Konzept/computeCoopVerdict) — bewusst
+// live aus den aktuellen Feed-Einträgen berechnet statt server-seitig
+// einmal festgeschrieben: eine noch offene Bestätigung (roll.confirm) patcht
+// ihren Eintrag über feed.update, dieser Block rendert dann automatisch neu
+// und die Zeile zieht ohne eigenes Zutun nach.
+function CoopVerdictLine({ entries }: { entries: FeedEntry[] }) {
+  const rolls = entries
+    .filter((e): e is FeedEntry & { kind: 'roll'; roll: ProbeRollPayload } => e.kind === 'roll' && e.roll.mode === 'probe')
+    .map((e) => e.roll);
+  if (rolls.length === 0) return null;
+  const verdict = computeCoopVerdict(rolls);
+  const text = verdict.provisional
+    ? COOP.verdictProvisional
+    : verdict.unrescuedFailures > 0
+      ? COOP.verdictFailureRescueless
+      : verdict.success
+        ? COOP.verdictSuccess(verdict.rolledSum, verdict.targetSum)
+        : COOP.verdictFailure(verdict.rolledSum, verdict.targetSum);
+  return (
+    <div className={`feed-coop-verdict${verdict.provisional ? ' feed-coop-verdict--provisional' : verdict.success ? ' feed-coop-verdict--success' : ' feed-coop-verdict--failure'}`}>
+      {text}
+    </div>
+  );
+}
+
 // "#Titel" hinten an einem Würfelausdruck setzt dessen Anzeigenamen inline,
 // wie ein Würfel-Favorit einen mitbringt — z. B. "5w10+6#Glück". Das "#"
 // gehört nicht zum Ausdruck, muss also vor dem Parsen abgetrennt werden.
@@ -79,12 +107,14 @@ export default function DicePanel() {
     loadingMore,
     pendingRequests,
     groupRequests,
+    coopPools,
     presenceNotes,
     collapsed,
     toggle,
     sendChat,
     rollExpr,
     rollProbe,
+    proposeCoopPool,
     refreshRooms,
     loadMore,
     modifier,
@@ -144,20 +174,40 @@ export default function DicePanel() {
   const rollMatch = /^\/(?:r|roll)\s+(.*)$/i.exec(draft);
   const rollRest = rollMatch ? rollMatch[1] : null;
   const isValidDice = rollRest !== null && parseDiceExpression(splitInlineTitle(rollRest).expr) !== null;
-  const searchText = rollRest !== null && !isValidDice ? rollRest.trim() : '';
-  const showSuggestions = !suggestDismissed && charId !== null && searchText.length >= MIN_SEARCH_LEN;
+  // „/koop <Suchtext>": Vorschläge wie bei „/r", aber schlägt einen offenen
+  // Kooperationsprobe-Pool vor statt sofort zu würfeln (siehe pickProbe) —
+  // dieselbe Suggestion-Liste, nur ein zweiter Auslöser-Befehl.
+  const koopMatch = /^\/koop\s+(.*)$/i.exec(draft);
+  const koopMode = koopMatch !== null;
+  const searchText = koopMode ? koopMatch[1].trim() : rollRest !== null && !isValidDice ? rollRest.trim() : '';
+  // „/koop" braucht KEINEN eigenen Charakter (die Spielleitung hat nie
+  // einen, Vorschlagen tritt nicht automatisch bei) — irgendein Charakter
+  // der Gruppe reicht für die Vorschlagsliste, siehe DiceGroupOption.anyCharId.
+  // „/r" bleibt an den eigenen Charakter gebunden, da damit tatsächlich
+  // gewürfelt wird.
+  const suggestCharId = koopMode ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
+  const showSuggestions = !suggestDismissed && suggestCharId !== null && searchText.length >= MIN_SEARCH_LEN;
 
   useEffect(() => {
-    if (!showSuggestions || charId === null || probesCharRef.current === charId) return;
-    probesCharRef.current = charId;
+    if (!showSuggestions || suggestCharId === null || probesCharRef.current === suggestCharId) return;
+    probesCharRef.current = suggestCharId;
     setProbes(null);
-    apiGet<RollableProbe[]>(`/api/characters/${charId}/probes`)
+    apiGet<RollableProbe[]>(`/api/characters/${suggestCharId}/probes`)
       .then(setProbes)
       .catch(() => setProbes([]));
-  }, [showSuggestions, charId]);
+  }, [showSuggestions, suggestCharId]);
 
   const q = searchText.toLowerCase();
-  const matches = showSuggestions && probes ? probes.filter((p) => p.label.toLowerCase().includes(q)).slice(0, MAX_SUGGESTIONS) : [];
+  const matches =
+    showSuggestions && probes
+      ? probes
+          // Kooperationsprobe: nur katalogweit gleichbedeutende Proben — wie
+          // RequestGroupProbePicker.tsx begründet, hat ability/weapon keine
+          // gruppenweit vergleichbare Bedeutung.
+          .filter((p) => !koopMode || p.kind === 'attribute' || p.kind === 'talent' || p.kind === 'sprache')
+          .filter((p) => p.label.toLowerCase().includes(q))
+          .slice(0, MAX_SUGGESTIONS)
+      : [];
   const activeHighlight = Math.min(highlight, Math.max(matches.length - 1, 0));
 
   useEffect(() => {
@@ -165,11 +215,15 @@ export default function DicePanel() {
   }, [activeHighlight]);
 
   const pickProbe = (p: RollableProbe) => {
-    if (groupId === null || charId === null) return;
+    if (groupId === null) return;
+    // Würfeln (/r) braucht den eigenen Charakter, Vorschlagen (/koop) nicht
+    // (siehe suggestCharId oben) — die Spielleitung hat charId === null.
+    if (!koopMode && charId === null) return;
     setError('');
     setDraft('');
     setSuggestDismissed(false);
-    rollProbe(groupId, charId, p.source, visibility);
+    if (koopMode) proposeCoopPool(groupId, p.source);
+    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility);
   };
 
   // Ein „SL-Wurf"-Ziel gehört zum vorherigen Raum — dessen Mitglieder gelten
@@ -267,6 +321,15 @@ export default function DicePanel() {
       setDraft('');
       return;
     }
+    // „/koop <Suchtext>": kein Freihand-Fallback wie bei „/r" — ein Treffer
+    // wird immer über die Vorschlagsliste ausgewählt (Klick/Enter, siehe
+    // pickProbe), landet also nie hier. Wer trotzdem „Senden" drückt, hat
+    // noch nichts Passendes ausgewählt.
+    const koop = /^\/koop(?:\s+(.*))?$/i.exec(text);
+    if (koop) {
+      setError(`„${koop[1] ?? ''}" — noch keine Probe aus den Vorschlägen ausgewählt.`);
+      return;
+    }
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       const { expr, label } = splitInlineTitle(roll[1]);
@@ -355,6 +418,7 @@ export default function DicePanel() {
             {chunkFeed(feed).map((chunk) =>
               chunk.kind === 'group' ? (
                 <div className="feed-group-block" key={`group-${chunk.groupRollId}`}>
+                  {chunk.entries[0]?.coop === true && <CoopVerdictLine entries={chunk.entries} />}
                   {chunk.entries.map((entry) => (
                     <FeedEntryView key={entry.id} entry={entry} grouped />
                   ))}
@@ -366,9 +430,14 @@ export default function DicePanel() {
             {/* Offene Anfragen unten, direkt über der Eingabe — dort schaut
                 man hin, und sie sind das, was gerade zu tun ist. Eigene
                 Gruppen-Sammelanfragen (nur bei der Spielleitung) je eine
-                Karte, unabhängig von den einzelnen Spieler-Anfragen. */}
+                Karte, unabhängig von den einzelnen Spieler-Anfragen.
+                Kooperationsprobe-Pools dagegen für JEDEN sichtbar, nicht nur
+                die vorschlagende Person (siehe CoopPoolCard). */}
             {groupRequests.map((r) => (
               <GroupRequestCard key={r.id} request={r} />
+            ))}
+            {coopPools.map((p) => (
+              <CoopPoolCard key={p.id} request={p} />
             ))}
             {pendingRequests.map((r) => (
               <PendingRequestCard key={r.id} request={r} />

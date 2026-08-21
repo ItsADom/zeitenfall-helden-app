@@ -337,6 +337,12 @@ api.get('/groups/mine', requireAuth, (req, res) => {
          ORDER BY name`,
       )
       .all() as { groupId: number; userId: number; name: string }[];
+    // Irgendein Charakter je Gruppe — die Spielleitung hat selbst keinen,
+    // braucht aber trotzdem eine Probenliste für „/koop" (Katalog-Einträge
+    // sind gruppenweit gleich, siehe RequestGroupProbePicker.tsx's anyCharId).
+    const anyCharRows = db
+      .prepare('SELECT group_id AS groupId, MIN(id) AS anyCharId FROM characters WHERE group_id IS NOT NULL GROUP BY group_id')
+      .all() as { groupId: number; anyCharId: number }[];
     res.json(
       groups.map((g) => ({
         ...g,
@@ -345,6 +351,7 @@ api.get('/groups/mine', requireAuth, (req, res) => {
         myDiceShortcuts: '',
         schicksalspunkteAktuell: 0,
         schicksalspunkteMax: 0,
+        anyCharId: anyCharRows.find((r) => r.groupId === g.id)?.anyCharId ?? null,
         members: memberRows.filter((m) => m.groupId === g.id).map(({ userId, name }) => ({ userId, name })),
       })),
     );
@@ -384,6 +391,7 @@ api.get('/groups/mine', requireAuth, (req, res) => {
       myDiceShortcuts: r.charShortcuts ?? '',
       schicksalspunkteAktuell: r.spAktuell ?? 0,
       schicksalspunkteMax: r.spMax ?? 0,
+      anyCharId: r.charId,
       // Nur die Spielleitung wählt ein Gegenüber (siehe oben) — ein Spieler
       // sieht dieses Feld gar nicht erst in seiner Sichtbarkeits-Auswahl.
       members: [] as { userId: number; name: string }[],

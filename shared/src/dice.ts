@@ -261,6 +261,52 @@ export function resolveProbeRoll(
   };
 }
 
+/**
+ * Structural subset of ProbeRollPayload that computeCoopVerdict needs —
+ * defined locally instead of importing from diceProtocol.ts to avoid a
+ * circular import (diceProtocol.ts already imports from this file).
+ */
+export interface CoopRollLike {
+  probeZahl: number;
+  adjustedSum: number;
+  criticalFailure: boolean;
+  criticalSuccess: boolean;
+  resolved: boolean;
+}
+
+export interface CoopVerdict {
+  targetSum: number;
+  rolledSum: number;
+  success: boolean;
+  /** True while any participant's roll still has an unresolved confirmation die. */
+  provisional: boolean;
+  /** Confirmed crit-fails not cancelled by a confirmed crit-success — >0 forces failure regardless of the sums. */
+  unrescuedFailures: number;
+}
+
+/**
+ * Kooperationsprobe verdict (see TODO.md/docs concept): pool every
+ * participant's probeZahl and adjustedSum, "roll low to succeed" on the
+ * totals — same logic as a single Probe, just applied to the pooled
+ * numbers. A confirmed crit-fail auto-fails the whole group unless rescued
+ * 1:1 by a confirmed crit-success elsewhere; a rescue only cancels that
+ * crit-fail's auto-fail, the sum-check still decides afterwards.
+ */
+export function computeCoopVerdict(rolls: CoopRollLike[]): CoopVerdict {
+  const targetSum = rolls.reduce((sum, r) => sum + r.probeZahl, 0);
+  const rolledSum = rolls.reduce((sum, r) => sum + r.adjustedSum, 0);
+  const fails = rolls.filter((r) => r.criticalFailure).length;
+  const successes = rolls.filter((r) => r.criticalSuccess).length;
+  const unrescuedFailures = fails - Math.min(fails, successes);
+  return {
+    targetSum,
+    rolledSum,
+    unrescuedFailures,
+    provisional: rolls.some((r) => !r.resolved),
+    success: unrescuedFailures === 0 && rolledSum <= targetSum,
+  };
+}
+
 /** Ein Würfel-Block innerhalb eines (ggf. gemischten) Ausdrucks, z. B. "2w6". */
 export interface DiceGroup {
   count: number;

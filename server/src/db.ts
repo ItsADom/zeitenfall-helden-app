@@ -943,6 +943,16 @@ if (hasTable('sec_techniken')) {
   if (!cols.has('group_roll_id')) db.exec('ALTER TABLE group_feed ADD COLUMN group_roll_id TEXT');
 }
 
+// Migration: is_coop an group_feed ergänzen — markiert Einträge einer
+// aufgelösten Kooperationsprobe (server/src/coopPools.ts), unterscheidet sie
+// von einer gewöhnlichen Gruppenprobe, die denselben group_roll_id-
+// Mechanismus nutzt. 0 bei jeder bestehenden Zeile ist der richtige Wert
+// (Kooperationsproben gab es vorher nicht), kein Nachziehen nötig.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('is_coop')) db.exec('ALTER TABLE group_feed ADD COLUMN is_coop INTEGER NOT NULL DEFAULT 0');
+}
+
 // Migration: 'raceBase'-Spalte an bestehende char_resources ergänzen —
 // Rassenbonus auf LE/AU/AsE (races_catalog.le/.au/.ae), analog zu
 // baseValues.gsBase/resilienzBase. Wie üblich reicht ALTER TABLE allein nicht:

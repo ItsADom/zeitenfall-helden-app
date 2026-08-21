@@ -22,6 +22,11 @@ const COMMANDS: { syntax: string; description: string }[] = [
     description: 'Würfelt für wilde Magie.',
   },
   {
+    syntax: '/koop <Name>',
+    description:
+      'Schlägt eine Kooperationsprobe vor (nur Eigenschaften, Talente, Sprachen) — ein offener Pool erscheint für die ganze Gruppe, jeder tritt selbst bei. Gewürfelt wird erst, wenn die vorschlagende Person oder die Spielleitung ihn startet.',
+  },
+  {
     syntax: '/line  oder  ---',
     description: 'Zieht eine Trennlinie in den Chat, z. B. als Markierung für Szenenwechsel oder Sessionende.',
   },

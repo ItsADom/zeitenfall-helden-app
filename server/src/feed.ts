@@ -37,6 +37,7 @@ interface FeedRow {
   text: string;
   roll_json: string | null;
   group_roll_id: string | null;
+  is_coop: number;
 }
 
 // Vor der Mehrfach-Würfel-Erweiterung stand `expression` als flaches
@@ -67,6 +68,7 @@ function rowToEntry(row: FeedRow): FeedEntry {
       authorName: row.author_name,
       roll,
       ...(row.group_roll_id ? { groupRollId: row.group_roll_id } : {}),
+      ...(row.is_coop ? { coop: true as const } : {}),
     };
     return entry;
   }
@@ -124,14 +126,27 @@ export function insertFeedRoll(
   visibility: RollVisibility,
   roll: RollPayload,
   groupRollId?: string,
+  /** Nur bei einer aufgelösten Kooperationsprobe gesetzt — siehe coopPools.ts. */
+  coop?: boolean,
 ): FeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
-      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id)
-       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id, is_coop)
+       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(groupId, createdAt, visibility, author.userId, author.charId, gmUserId, author.name, JSON.stringify(roll), groupRollId ?? null);
+    .run(
+      groupId,
+      createdAt,
+      visibility,
+      author.userId,
+      author.charId,
+      gmUserId,
+      author.name,
+      JSON.stringify(roll),
+      groupRollId ?? null,
+      coop ? 1 : 0,
+    );
   const entry: RollFeedEntry = {
     id: Number(info.lastInsertRowid),
     kind: 'roll',
@@ -143,6 +158,7 @@ export function insertFeedRoll(
     authorName: author.name,
     roll,
     ...(groupRollId ? { groupRollId } : {}),
+    ...(coop ? { coop: true as const } : {}),
   };
   broadcastToGroup(groupId, entry);
   return entry;

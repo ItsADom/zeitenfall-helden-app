@@ -9,46 +9,18 @@ live in `README.md` / `DEPLOYMENT.md`.
 
 ## Readiness tags
 
-Each open item is tagged: **[sketch]** = a raw idea + my instructions; needs a
-concept worked out (and sign-off) before building. **[ready]** = concept agreed,
-can go straight to a build plan. Priority is the section (High/Mid/Low);
+Each open item is tagged: **[sketch]** = a raw idea + instructions; needs a
+concept worked out (and sign-off) before building. Do not assume a sketch to be ready, because it looks trivial.
+**[ready]** = concept agreed, can go straight to a build plan. Priority is the section (High/Mid/Low);
 "on hold" / "blocked" notes stay inline and are a separate axis.
 
 ---
 
 ## User feedback
 
-- [sketch] **Kooperationsprobe (cooperation check)** (user feedback; concept
-  pass done, build plan still open): a new, separate group-roll type — the
-  existing plain "Gruppenprobe" (everyone rolls independently, e.g. a
-  simultaneous Wahrnehmung check) stays untouched; a GM explicitly requests a
-  Kooperationsprobe when characters act together (e.g. climbing as a team).
-  **Rule (decided):** sum every participant's `probeZahl` (target) into a
-  total target, sum every participant's `adjustedSum` (actual roll result)
-  into a total roll; the group succeeds if total roll ≤ total target — the
-  same "roll low to succeed" logic as a single probe, just applied to the
-  pooled numbers. A confirmed critical failure on any one participant
-  auto-fails the whole group check regardless of the sums,
-  *unless* rescued by a confirmed critical success elsewhere in the group —
-  rescue is 1:1 (each crit-fail needs its own crit-success to cancel; 2
-  crit-fails with only 1 crit-success still auto-fails). A rescue only
-  cancels that crit-fail's auto-fail — it does **not** guarantee success on
-  its own, the sum-check still decides the outcome afterwards (the rescued
-  participant's bad roll value still counts in the sum).
-  **Visibility (decided):** individual target numbers/margins stay private as
-  today (only the roller + GM see `probeZahl`); the group only ever sees each
-  person's own success/fail plus one final pooled group verdict, not the
-  underlying numbers.
-  **Still open before a build plan:** exact trigger UI (how the GM starts a
-  Kooperationsprobe vs. a plain Gruppenprobe — reuses `roll.group.request`
-  plumbing in `server/src/groupRolls.ts`/`server/src/ws.ts:428`, needs a mode
-  flag), where the pooled-sum + crit-rescue logic runs (likely alongside
-  `revealGroupResults`, `server/src/ws.ts:187`), and how the single combined
-  verdict is rendered in the `feed-group-block` (`DicePanel.tsx:356`, today a
-  purely visual wrapper with no aggregate banner).
-   - idea: make it a "pending-box" like the group-roll sets, but let players that want to cooperate join by themselves
--do not auto-open chat, just show a notification for new messages, even when rolling yourself
+- do not auto-open chat, just show a notification for new messages, even when rolling yourself
   - maybe make it pulsate on roll-reqeust, with a little sound effect
+- 20+ perk picker
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)

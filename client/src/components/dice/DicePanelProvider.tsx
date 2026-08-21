@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import type {
   ClientToServerMessage,
+  CoopPoolRequest,
   FeedEntry,
   GroupRollRequest,
   PendingRollRequest,
@@ -14,6 +15,10 @@ import { usePersistedState } from '../persist';
 const PAGE_SIZE = 30;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
+// Wie lange eine „wer ist da"-Notiz stehen bleibt, bevor sie von selbst
+// verschwindet — sonst häufen sie sich über eine lange Sitzung im Dock an
+// und drücken den eigentlichen Chat immer weiter nach oben aus dem Blick.
+const PRESENCE_NOTE_TTL_MS = 8000;
 
 function wsUrl(groupId: number): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -46,6 +51,13 @@ export interface DiceGroupOption {
   // you happen to be looking at.
   myCharacterId: number | null;
   myCharacterName: string | null;
+  /**
+   * Irgendein Charakter dieser Gruppe — bei der Spielleitung (die selbst
+   * keinen hat) ein beliebiger, bei einem Spieler der eigene. Nur zum Laden
+   * der „/koop"-Probenvorschläge (Katalog-Einträge sind gruppenweit gleich,
+   * siehe RequestGroupProbePicker.tsx's anyCharId), NICHT zum Würfeln.
+   */
+  anyCharId: number | null;
   /** Rohtext der Würfel-Favoriten dieses Charakters (siehe parseDiceShortcuts). */
   myDiceShortcuts: string;
   /** 0/0 für die Spielleitung (kontolos) oder ein gruppenloser Raum ohne eigenen Charakter. */
@@ -113,6 +125,12 @@ interface DicePanelCtxValue {
    */
   groupRequests: GroupRollRequest[];
   /**
+   * Offene Kooperationsprobe-Pools dieser Gruppe — anders als groupRequests
+   * für JEDEN gefüllt, nicht nur die vorschlagende Person (siehe
+   * server/src/coopPools.ts): selbstbedientes Beitreten statt SL-Broadcast.
+   */
+  coopPools: CoopPoolRequest[];
+  /**
    * Rein lokale „wer ist da"-Notizen für den aktuellen Raum — eine
    * Momentaufnahme beim Verbinden, danach „X ist beigetreten" bei einer
    * echten Rückkehr (siehe presence.snapshot/presence.joined im Protokoll).
@@ -136,6 +154,15 @@ interface DicePanelCtxValue {
   revealGroupRequest: (groupRequestId: string) => void;
   /** Verwirft eine Sammelanfrage komplett, auch bereits zurückgehaltene Ergebnisse. */
   cancelGroupRequest: (groupRequestId: string) => void;
+  /** Schlägt einen offenen Kooperationsprobe-Pool vor — jeder darf, nicht nur die Spielleitung. */
+  proposeCoopPool: (groupId: number, source: ProbeSource) => void;
+  /** Tritt einem offenen Pool mit dem eigenen Charakter bei / verlässt ihn wieder. */
+  joinCoopPool: (poolId: string) => void;
+  leaveCoopPool: (poolId: string) => void;
+  /** Schließt den Pool — alle Beigetretenen würfeln jetzt gemeinsam. Nur Vorschlagende/Spielleitung. */
+  startCoopPool: (poolId: string) => void;
+  /** Verwirft den Pool ohne zu würfeln. Nur Vorschlagende/Spielleitung. */
+  cancelCoopPool: (poolId: string) => void;
   /** Reload the room list (names, posting-as character, dice shortcuts) after an edit elsewhere. */
   refreshRooms: () => void;
   loadMore: () => void;
@@ -175,6 +202,7 @@ export function useDicePanel(): DicePanelCtxValue {
       confirmDie: () => {},
       pendingRequests: [],
       groupRequests: [],
+      coopPools: [],
       presenceNotes: [],
       requestProbe: () => {},
       acceptRequest: () => {},
@@ -183,6 +211,11 @@ export function useDicePanel(): DicePanelCtxValue {
       requestGroupProbe: () => {},
       revealGroupRequest: () => {},
       cancelGroupRequest: () => {},
+      proposeCoopPool: () => {},
+      joinCoopPool: () => {},
+      leaveCoopPool: () => {},
+      startCoopPool: () => {},
+      cancelCoopPool: () => {},
       refreshRooms: () => {},
       loadMore: () => {},
       setSchicksalspunkte: () => {},
@@ -204,6 +237,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [diceCode, setDiceCode] = usePersistedState<'w' | 'd'>('dice:code', 'w');
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [groupRequests, setGroupRequests] = useState<GroupRollRequest[]>([]);
+  const [coopPools, setCoopPools] = useState<CoopPoolRequest[]>([]);
   const [presenceNotes, setPresenceNotes] = useState<PresenceNote[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -224,6 +258,16 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     else outboxRef.current.push(msg);
+  }, []);
+
+  // Verschwindet nach PRESENCE_NOTE_TTL_MS von selbst wieder (siehe dort) —
+  // ein Timeout je Notiz statt eines Intervalls, das läuft auch bei einem
+  // Raumwechsel einfach leer (die Notiz ist dann schon aus presenceNotes
+  // verschwunden, das Filtern ist ein No-op).
+  const addPresenceNote = useCallback((text: string) => {
+    const key = crypto.randomUUID();
+    setPresenceNotes((prev) => [...prev, { key, text }]);
+    setTimeout(() => setPresenceNotes((prev) => prev.filter((p) => p.key !== key)), PRESENCE_NOTE_TTL_MS);
   }, []);
 
   useEffect(() => {
@@ -306,6 +350,23 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setGroupRequests((prev) => prev.filter((r) => r.id !== msg.requestId));
         return;
       }
+      if (msg.type === 'roll.coop.created') {
+        // An ALLE in der Gruppe (nicht nur die vorschlagende Person) — Dock
+        // aufklappen, damit ein neuer Pool nicht unbemerkt bleibt.
+        setCoopPools((prev) => [...prev.filter((p) => p.id !== msg.pool.id), msg.pool]);
+        setCollapsed(false);
+        return;
+      }
+      if (msg.type === 'roll.coop.updated') {
+        // Nur der Mitgliederstand ändert sich — kein Grund, einen bewusst
+        // eingeklappten Dock wieder aufzuklappen.
+        setCoopPools((prev) => prev.map((p) => (p.id === msg.pool.id ? msg.pool : p)));
+        return;
+      }
+      if (msg.type === 'roll.coop.closed' || msg.type === 'roll.coop.cancelled') {
+        setCoopPools((prev) => prev.filter((p) => p.id !== msg.poolId));
+        return;
+      }
       if (msg.type === 'schicksalspunkte.update') {
         // GM-Reset über die GM-Übersicht (REST, andere Session) — ohne
         // diesen Push bliebe der Klee-Zähler hier stumpf bis zum nächsten
@@ -321,11 +382,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'presence.snapshot') {
         const text = msg.names.length === 0 ? 'Gerade niemand sonst hier.' : `Verbunden: ${msg.names.join(', ')}`;
-        setPresenceNotes((prev) => [...prev, { key: crypto.randomUUID(), text }]);
+        addPresenceNote(text);
         return;
       }
       if (msg.type === 'presence.joined') {
-        setPresenceNotes((prev) => [...prev, { key: crypto.randomUUID(), text: `${msg.name} ist beigetreten.` }]);
+        addPresenceNote(`${msg.name} ist beigetreten.`);
         return;
       }
       if (msg.type === 'error') {
@@ -375,6 +436,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // nach (siehe server/src/ws.ts, pendingRequestsFor beim Upgrade).
       setPendingRequests([]);
       setGroupRequests([]);
+      setCoopPools([]);
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) {
@@ -535,6 +597,51 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const proposeCoopPool = useCallback(
+    (forGroupId: number, source: ProbeSource) => {
+      // Kein eigener Charakter nötig — die Spielleitung hat nie einen, und
+      // Vorschlagen tritt nicht automatisch bei (siehe roll.coop.propose im
+      // Protokoll).
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      setCollapsed(false);
+      sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source });
+    },
+    [myGroups, applyRoom, sendMsg, setCollapsed],
+  );
+
+  const joinCoopPoolAction = useCallback(
+    (poolId: string) => {
+      if (charId === null) return;
+      sendMsg({ type: 'roll.coop.join', reqId: crypto.randomUUID(), poolId, charId });
+    },
+    [sendMsg, charId],
+  );
+
+  const leaveCoopPoolAction = useCallback(
+    (poolId: string) => {
+      sendMsg({ type: 'roll.coop.leave', reqId: crypto.randomUUID(), poolId });
+    },
+    [sendMsg],
+  );
+
+  const startCoopPool = useCallback(
+    (poolId: string) => {
+      sendMsg({ type: 'roll.coop.start', reqId: crypto.randomUUID(), poolId });
+    },
+    [sendMsg],
+  );
+
+  const cancelCoopPool = useCallback(
+    (poolId: string) => {
+      setCoopPools((prev) => prev.filter((p) => p.id !== poolId));
+      sendMsg({ type: 'roll.coop.cancel', reqId: crypto.randomUUID(), poolId });
+    },
+    [sendMsg],
+  );
+
   const loadMore = useCallback(() => {
     if (groupId === null || loadingMore || !hasMore || feed.length === 0) return;
     setLoadingMore(true);
@@ -600,6 +707,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         confirmDie,
         pendingRequests,
         groupRequests,
+        coopPools,
         presenceNotes,
         requestProbe,
         acceptRequest,
@@ -608,6 +716,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         requestGroupProbe,
         revealGroupRequest,
         cancelGroupRequest,
+        proposeCoopPool,
+        joinCoopPool: joinCoopPoolAction,
+        leaveCoopPool: leaveCoopPoolAction,
+        startCoopPool,
+        cancelCoopPool,
         refreshRooms,
         loadMore,
         setSchicksalspunkte,

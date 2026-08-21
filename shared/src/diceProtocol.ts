@@ -38,6 +38,8 @@ export interface ChatFeedEntry {
   text: string;
   /** Siehe RollFeedEntry.groupRollId. */
   groupRollId?: string;
+  /** Siehe RollFeedEntry.coop. */
+  coop?: true;
 }
 
 export interface ProbeRollPayload {
@@ -116,6 +118,14 @@ export interface RollFeedEntry {
    * gelungen/misslungen ist, steht ohnehin schon rechts am Eintrag.
    */
   groupRollId?: string;
+  /**
+   * Gesetzt auf JEDEM Eintrag einer aufgelösten Kooperationsprobe (siehe
+   * coopPools.ts) — unterscheidet einen Kooperations-Block von einer
+   * gewöhnlichen Gruppenprobe, die denselben groupRollId-Mechanismus nutzt.
+   * DicePanel.tsx rendert bei `coop: true` zusätzlich eine gepoolte
+   * Verdikt-Zeile über den einzelnen Würfen (computeCoopVerdict).
+   */
+  coop?: true;
 }
 
 export type FeedEntry = ChatFeedEntry | RollFeedEntry;
@@ -179,6 +189,32 @@ export interface GroupRollRequest {
   expiresAt: number;
 }
 
+export interface CoopPoolMember {
+  userId: number;
+  charId: number;
+  charName: string;
+}
+
+/**
+ * An open, self-serve Kooperationsprobe pool (see coopPools.ts) — different
+ * shape from GroupRollRequest on purpose: ANY player (GM included) can
+ * propose one, and other members join themselves rather than being pushed a
+ * targeted PendingRollRequest each. Nobody rolls until the proposer or the
+ * GM closes the pool (`roll.coop.start`) — `members` is just "who's in" up
+ * to that point, no per-member roll/pass status to track before then.
+ */
+export interface CoopPoolRequest {
+  id: string;
+  groupId: number;
+  source: ProbeSource;
+  label: string;
+  initiatorUserId: number;
+  initiatorName: string;
+  /** Join order. */
+  members: CoopPoolMember[];
+  createdAt: number;
+}
+
 // Every client→server message carries reqId so the UI can correlate an
 // error reply back to the control that sent it.
 export type ClientToServerMessage =
@@ -236,7 +272,24 @@ export type ClientToServerMessage =
   | { type: 'roll.group.reveal'; reqId: string; groupRequestId: string }
   // Verwirft die ganze Sammelanfrage — auch bereits zurückgehaltene, aber noch
   // nicht veröffentlichte Ergebnisse. Nur die anfragende Spielleitung.
-  | { type: 'roll.group.cancel'; reqId: string; groupRequestId: string };
+  | { type: 'roll.group.cancel'; reqId: string; groupRequestId: string }
+  // Kooperationsprobe: schlägt einen offenen, für alle sichtbaren Pool vor —
+  // Gegenstück zu roll.group.request, aber selbstbedient statt SL-Broadcast,
+  // und JEDER (nicht nur die Spielleitung) darf vorschlagen — auch OHNE
+  // eigenen Charakter (die Spielleitung hat nie einen), da Vorschlagen nicht
+  // automatisch beitritt. Der Server sucht sich fürs Anzeige-Label selbst
+  // irgendeinen Charakter der Gruppe (siehe ws.ts).
+  | { type: 'roll.coop.propose'; reqId: string; source: ProbeSource }
+  // Tritt einem offenen Pool bei / verlässt ihn wieder — jeder für sich
+  // selbst, mit dem eigenen Charakter dieser Gruppe.
+  | { type: 'roll.coop.join'; reqId: string; poolId: string; charId: number }
+  | { type: 'roll.coop.leave'; reqId: string; poolId: string }
+  // Schließt den Pool: alle beigetretenen Mitglieder würfeln jetzt gemeinsam
+  // (siehe ws.ts). Nur die vorschlagende Person oder die Spielleitung.
+  | { type: 'roll.coop.start'; reqId: string; poolId: string }
+  // Verwirft den Pool ohne zu würfeln. Nur die vorschlagende Person oder die
+  // Spielleitung.
+  | { type: 'roll.coop.cancel'; reqId: string; poolId: string };
 
 export type ServerToClientMessage =
   | { type: 'feed.append'; entry: FeedEntry }
@@ -257,6 +310,12 @@ export type ServerToClientMessage =
   // vorzeitig) — die Karte darf verschwinden.
   | { type: 'roll.group.revealed'; requestId: string }
   | { type: 'roll.group.cancelled'; requestId: string }
+  // Kooperationsprobe: an ALLE in der Gruppe (nicht nur eine Seite) — jeder
+  // soll den offenen Pool sehen und beitreten können.
+  | { type: 'roll.coop.created'; pool: CoopPoolRequest }
+  | { type: 'roll.coop.updated'; pool: CoopPoolRequest }
+  | { type: 'roll.coop.closed'; poolId: string }
+  | { type: 'roll.coop.cancelled'; poolId: string }
   // GM-Reset (Einzeln oder „Neuer Spieltag") passiert über REST auf der
   // GM-Übersicht, nicht über dieses Socket — ohne diesen Push bliebe der
   // Klee-Zähler in der Spieler-Session stumpf bis zum nächsten Laden.

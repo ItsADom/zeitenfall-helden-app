@@ -6,6 +6,7 @@ import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type {
   ClientToServerMessage,
+  CoopPoolRequest,
   ExpressionRollPayload,
   FeedEntry,
   GroupRollRequest,
@@ -36,6 +37,14 @@ import {
   holdGroupResult,
   type HeldResult,
 } from './groupRolls.js';
+import {
+  coopPoolsFor,
+  createCoopPool,
+  getCoopPool,
+  joinCoopPool,
+  leaveCoopPool,
+  removeCoopPool,
+} from './coopPools.js';
 import { isGroupMember } from './routes.js';
 import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
 import { createTokenBucket, type TokenBucket } from './rateLimit.js';
@@ -123,6 +132,18 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
 }
 
 /**
+ * An JEDEN in der Gruppe, ungefiltert — anders als broadcast()/broadcastToGroup()
+ * kennt eine Kooperationsprobe-Pool-Nachricht keine Feed-Sichtbarkeitsregeln
+ * (canSeeFeedEntry): der ganze Witz eines offenen, selbstbedienten Pools ist,
+ * dass alle ihn sehen und beitreten können.
+ */
+function broadcastToRoom(groupId: number, msg: ServerToClientMessage): void {
+  const room = rooms.get(groupId);
+  if (!room) return;
+  for (const ws of room) send(ws, msg);
+}
+
+/**
  * Nach einem GM-Reset auf der GM-Übersicht (REST, eigene Session) an den
  * Charakterbesitzer pushen — sonst zeigt dessen Dock den alten Stand, bis
  * er neu lädt (die Klee-Buttons blieben fälschlich deaktiviert).
@@ -184,6 +205,25 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
     if (char && char.group_id === meta.groupId) return { userId: meta.userId, charId, name: char.chat_name || char.name };
   }
   return { userId: meta.userId, charId: null, name: meta.displayName };
+}
+
+/**
+ * Der eigene Charakter des Absenders in DIESER Gruppe — anders als
+ * resolveAuthor() (die bei einem ungültigen charId stillschweigend auf „kein
+ * Charakter" zurückfällt) hier ein hartes null, denn eine Kooperationsprobe
+ * ohne echten Charakter dahinter ergibt keinen Sinn (propose/join).
+ */
+function resolveOwnCharacter(
+  meta: SocketMeta,
+  rawCharId: unknown,
+): { id: number; name: string; chat_name: string } | null {
+  const charId = Number(rawCharId);
+  if (!charId) return null;
+  const char = db
+    .prepare('SELECT id, name, chat_name, group_id FROM characters WHERE id = ? AND owner_user_id = ?')
+    .get(charId, meta.userId) as { id: number; name: string; chat_name: string; group_id: number | null } | undefined;
+  if (!char || char.group_id !== meta.groupId) return null;
+  return char;
 }
 
 // Veröffentlicht die zurückgehaltenen Ergebnisse einer Gruppen-Sammelanfrage
@@ -561,6 +601,162 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       for (const sub of removePendingRequestsForGroup(msg.groupRequestId)) {
         sendToUserInGroup(sub.groupId, sub.targetUserId, { type: 'roll.pending.cancelled', requestId: sub.id });
       }
+      // Ein „Verwerfen" schluckte bisher jede Spur der Anfrage — wer schon
+      // eine wartende Karte sah, sah sie einfach verschwinden. Eine feste
+      // Feed-Zeile macht das für alle sichtbar, statt es stillschweigend
+      // fallenzulassen.
+      insertFeedMessage(
+        meta.groupId,
+        { userId: request.gmUserId, charId: null, name: request.gmName },
+        `verwirft die Gruppenprobe: ${request.label}`,
+        true,
+      );
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.coop.propose': {
+      // Anders als roll.group.request: JEDER darf vorschlagen, nicht nur die
+      // Spielleitung — der Pool ist selbstbedient, siehe coopPools.ts. Da
+      // Vorschlagen NICHT automatisch beitritt, braucht es dafür auch KEINEN
+      // eigenen Charakter (die Spielleitung hat nie einen) — genau wie
+      // RequestGroupProbePicker.tsx die Vorschlagsliste von IRGENDEINEM
+      // Charakter lädt (Katalog-Einträge sind gruppenweit gleich), reicht
+      // hier irgendein Charakter der Gruppe, rein zur Anzeige des Labels.
+      const source = parseProbeSource(msg.source);
+      if (!source) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Probe' });
+        return;
+      }
+      const anyChar = db.prepare('SELECT id FROM characters WHERE group_id = ? ORDER BY id LIMIT 1').get(meta.groupId) as
+        | { id: number }
+        | undefined;
+      if (!anyChar) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Diese Gruppe hat noch keinen Charakter' });
+        return;
+      }
+      // Nur zur Anzeige im Pool — gewürfelt wird erst bei roll.coop.start,
+      // dann pro Mitglied gegen dessen dann aktuelle Werte (siehe dort).
+      const computed = computeProbeForCharacter(anyChar.id, source);
+      if (!computed) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
+        return;
+      }
+      const pool = createCoopPool({
+        groupId: meta.groupId,
+        source,
+        label: computed.label,
+        initiatorUserId: meta.userId,
+        initiatorName: meta.displayName,
+      });
+      broadcastToRoom(meta.groupId, { type: 'roll.coop.created', pool });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.coop.join': {
+      const char = resolveOwnCharacter(meta, msg.charId);
+      if (!char) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
+        return;
+      }
+      const pool = joinCoopPool(msg.poolId, {
+        userId: meta.userId,
+        charId: char.id,
+        charName: char.chat_name || char.name,
+      });
+      if (!pool) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Pool nicht gefunden' });
+        return;
+      }
+      broadcastToRoom(meta.groupId, { type: 'roll.coop.updated', pool });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.coop.leave': {
+      const pool = getCoopPool(msg.poolId);
+      if (!pool || pool.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Pool nicht gefunden' });
+        return;
+      }
+      // Kein charId im Protokoll nötig — welcher Charakter des Absenders
+      // beigetreten ist, steht schon in pool.members.
+      const own = pool.members.find((m) => m.userId === meta.userId);
+      const updated = own ? leaveCoopPool(msg.poolId, own.charId) : pool;
+      if (updated) broadcastToRoom(meta.groupId, { type: 'roll.coop.updated', pool: updated });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.coop.start': {
+      const pool = getCoopPool(msg.poolId);
+      if (!pool || pool.groupId !== meta.groupId || (pool.initiatorUserId !== meta.userId && !meta.isGm)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Pool nicht gefunden' });
+        return;
+      }
+      removeCoopPool(msg.poolId);
+      // Wer die Probe inzwischen gar nicht mehr kennt (Wert geändert/entfernt
+      // seit dem Beitritt), fällt einzeln raus — wie beim Aufgebot einer
+      // Gruppen-Sammelanfrage (roll.group.request), statt den ganzen Pool zu
+      // blockieren.
+      const rolls: { charId: number; author: FeedAuthor; roll: ProbeRollPayload }[] = [];
+      for (const m of pool.members) {
+        const computed = computeProbeForCharacter(m.charId, pool.source);
+        if (!computed) continue;
+        const result = performProbeRoll(computed.n, computed.probeZahl, 0);
+        rolls.push({
+          charId: m.charId,
+          author: { userId: m.userId, charId: m.charId, name: m.charName },
+          roll: {
+            mode: 'probe',
+            source: pool.source,
+            label: computed.label,
+            n: computed.n,
+            probeZahl: computed.probeZahl,
+            modifier: 0,
+            ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
+            dice: result.dice,
+            confirmations: result.confirmations,
+            pending: result.pending,
+            resolved: result.resolved,
+            rawSum: result.rawSum,
+            adjustedSum: result.adjustedSum,
+            criticalFailureCount: result.criticalFailureCount,
+            criticalFailure: result.criticalFailure,
+            success: result.success,
+            narrow: result.narrow,
+            criticalSuccess: result.criticalSuccess,
+          },
+        });
+      }
+      if (rolls.length > 0) {
+        insertFeedMessage(
+          meta.groupId,
+          { userId: pool.initiatorUserId, charId: null, name: pool.initiatorName },
+          `schlägt eine Kooperationsprobe vor: ${pool.label}`,
+          true,
+        );
+        for (const r of rolls) insertFeedRoll(meta.groupId, r.author, null, 'public', r.roll, pool.id, true);
+      }
+      broadcastToRoom(meta.groupId, { type: 'roll.coop.closed', poolId: pool.id });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.coop.cancel': {
+      const pool = getCoopPool(msg.poolId);
+      if (!pool || pool.groupId !== meta.groupId || (pool.initiatorUserId !== meta.userId && !meta.isGm)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Pool nicht gefunden' });
+        return;
+      }
+      removeCoopPool(msg.poolId);
+      broadcastToRoom(meta.groupId, { type: 'roll.coop.cancelled', poolId: pool.id });
+      // Wie beim Verwerfen einer Gruppenprobe: sichtbar machen statt
+      // stillschweigend verschwinden lassen. Der TATSÄCHLICH Klickende steht
+      // im Text — das kann die Spielleitung sein, die den Pool einer anderen
+      // Person verwirft, nicht immer die vorschlagende Person selbst.
+      insertFeedMessage(
+        meta.groupId,
+        { userId: meta.userId, charId: null, name: meta.displayName },
+        `verwirft die Kooperationsprobe: ${pool.label}`,
+        true,
+      );
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -782,6 +978,12 @@ export function attachWsServer(server: http.Server): void {
       }
       for (const groupRequest of groupRollRequestsFor(groupId, user.id)) {
         send(ws, { type: 'roll.group.created', request: groupRequest });
+      }
+      // Kooperationsprobe-Pools sind für ALLE in der Gruppe sichtbar, nicht
+      // nur für die vorschlagende Person — anders als die beiden oben also
+      // ungefiltert an jeden neu Verbundenen.
+      for (const pool of coopPoolsFor(groupId)) {
+        send(ws, { type: 'roll.coop.created', pool });
       }
 
       let alive = true;

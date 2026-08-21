@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeCoopVerdict,
   confirmationsNeeded,
   findCritTriggers,
   parseDiceExpression,
   parseDiceShortcuts,
   resolveExpressionRoll,
   resolveProbeRoll,
+  type CoopRollLike,
 } from '../src/dice.js';
 
 describe('findCritTriggers / confirmationsNeeded', () => {
@@ -510,5 +512,53 @@ describe('parseDiceShortcuts', () => {
       { kind: 'shortcut', label: 'A', expression: 'w6', valid: true },
       { kind: 'shortcut', label: 'B', expression: 'w20', valid: true },
     ]);
+  });
+});
+
+describe('computeCoopVerdict', () => {
+  function roll(partial: Partial<CoopRollLike>): CoopRollLike {
+    return { probeZahl: 10, adjustedSum: 10, criticalFailure: false, criticalSuccess: false, resolved: true, ...partial };
+  }
+
+  it('sums probeZahl/adjustedSum across participants and succeeds when the pooled roll stays under the pooled target', () => {
+    const v = computeCoopVerdict([roll({ probeZahl: 12, adjustedSum: 10 }), roll({ probeZahl: 8, adjustedSum: 9 })]);
+    expect(v).toEqual({ targetSum: 20, rolledSum: 19, success: true, provisional: false, unrescuedFailures: 0 });
+  });
+
+  it('fails when the pooled roll exceeds the pooled target', () => {
+    const v = computeCoopVerdict([roll({ probeZahl: 10, adjustedSum: 15 }), roll({ probeZahl: 10, adjustedSum: 10 })]);
+    expect(v.success).toBe(false);
+    expect(v.rolledSum).toBe(25);
+    expect(v.targetSum).toBe(20);
+  });
+
+  it('a confirmed crit-fail auto-fails the group even with good pooled sums', () => {
+    const v = computeCoopVerdict([roll({ probeZahl: 20, adjustedSum: 1, criticalFailure: true }), roll({})]);
+    expect(v.unrescuedFailures).toBe(1);
+    expect(v.success).toBe(false);
+  });
+
+  it('a crit-success elsewhere rescues a single crit-fail 1:1, sum-check still decides afterwards', () => {
+    const v = computeCoopVerdict([
+      roll({ probeZahl: 10, adjustedSum: 9, criticalFailure: true }),
+      roll({ probeZahl: 10, adjustedSum: 8, criticalSuccess: true }),
+    ]);
+    expect(v.unrescuedFailures).toBe(0);
+    expect(v.success).toBe(true); // 17 <= 20
+  });
+
+  it('two crit-fails need two crit-successes — one rescue still leaves the group failed', () => {
+    const v = computeCoopVerdict([
+      roll({ criticalFailure: true }),
+      roll({ criticalFailure: true }),
+      roll({ criticalSuccess: true }),
+    ]);
+    expect(v.unrescuedFailures).toBe(1);
+    expect(v.success).toBe(false);
+  });
+
+  it('is provisional while any participant still has an unresolved confirmation', () => {
+    const v = computeCoopVerdict([roll({ resolved: true }), roll({ resolved: false })]);
+    expect(v.provisional).toBe(true);
   });
 });

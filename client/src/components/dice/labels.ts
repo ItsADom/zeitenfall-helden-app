@@ -87,3 +87,22 @@ export const REQUEST = {
   groupCancel: 'Anfrage verwerfen',
   groupCancelHint: 'Verwirft die ganze Sammelanfrage — auch schon eingegangene Ergebnisse werden nicht veröffentlicht',
 };
+
+/** Kooperationsprobe-Pool-Karte — für ALLE in der Gruppe sichtbar, nicht nur die Spielleitung. */
+export const COOP = {
+  title: (initiatorName: string, label: string): string => `Kooperationsprobe von ${initiatorName}: ${label}`,
+  join: 'Mitmachen',
+  leave: 'Verlassen',
+  /** Nur bei der vorschlagenden Person oder der Spielleitung. */
+  start: 'Starten',
+  startHint: 'Alle Beigetretenen würfeln jetzt gemeinsam',
+  cancel: 'Verwerfen',
+  cancelHint: 'Verwirft den Pool, ohne dass jemand würfelt',
+  empty: 'Noch niemand dabei.',
+  /** Gepoolte Verdikt-Zeile über den einzelnen Würfen. */
+  verdictProvisional: 'vorläufig …',
+  verdictSuccess: (rolledSum: number, targetSum: number): string => `Erfolg (${rolledSum} ≤ ${targetSum})`,
+  verdictFailure: (rolledSum: number, targetSum: number): string => `Fehlschlag (${rolledSum} > ${targetSum})`,
+  /** Ein bestätigter kritischer Fehlschlag ohne rettenden kritischen Erfolg — entscheidet unabhängig von den Summen. */
+  verdictFailureRescueless: 'Fehlschlag (kritischer Fehlschlag, nicht gerettet)',
+};

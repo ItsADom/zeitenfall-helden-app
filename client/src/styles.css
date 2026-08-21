@@ -4756,6 +4756,33 @@ tr:hover .probe-roll,
 .feed-group-member--passed span:last-child {
   opacity: 0.7;
 }
+/* Kooperationsprobe-Pool: noch niemand beigetreten. */
+.feed-group-empty {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+/* Gepoolte Verdikt-Zeile über den einzelnen Würfen eines Kooperationsprobe-
+   Blocks (siehe CoopVerdictLine in DicePanel.tsx) — dieselben Töne wie
+   .feed-roll--success/--fail, damit sie sich als „derselbe Ausgang, nur
+   gepoolt" liest statt als eigene Farbsprache. */
+.feed-coop-verdict {
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border-bottom: 1px dashed var(--border-soft);
+}
+.feed-coop-verdict--success {
+  color: #3f7d3f;
+}
+.feed-coop-verdict--failure {
+  color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+}
+.feed-coop-verdict--provisional {
+  color: var(--muted);
+  font-weight: 400;
+  font-style: italic;
+}
 
 /* Würfel-Favoriten-Editor (Einstellungen). */
 .dice-shortcuts-input {
