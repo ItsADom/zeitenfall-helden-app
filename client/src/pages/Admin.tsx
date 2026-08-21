@@ -6,6 +6,7 @@ import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { usePersistedState } from '../components/persist';
 import { usePendingRequests } from '../components/requests';
 import { useTabsHeight } from '../components/stickyChrome';
+import { computeGapSort } from '../components/catalogSort';
 
 interface CatalogColumn {
   key: string;
@@ -18,14 +19,19 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' 
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
   const [neu, setNeu] = useState<Record<string, string>>({});
+  // Sortierung des Neuanlage-Formulars: normal 9999 (ans Ende anhängen), nach
+  // "vor/nach diesem Eintrag einfügen" der berechnete Lückenwert.
+  const [neuSort, setNeuSort] = useState(9999);
 
-  const reload = () => {
+  const fetchRows = () =>
     apiGet<{
       talents: Record<string, unknown>[];
       languages: Record<string, unknown>[];
       tags: Record<string, unknown>[];
       races: Record<string, unknown>[];
-    }>('/api/catalogs').then((c) => setRows(c[type]));
+    }>('/api/catalogs').then((c) => c[type]);
+  const reload = () => {
+    fetchRows().then(setRows);
   };
   useEffect(reload, [type]);
 
@@ -34,6 +40,29 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' 
     try {
       await fn();
       reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  };
+
+  // Berechnet den Lückenwert für "vor/nach dieser Zeile einfügen" und trägt
+  // ihn ins Neuanlage-Formular ein. Ist die Lücke erschöpft (computeGapSort
+  // liefert null), erst serverseitig neu durchnummerieren und dann neu rechnen.
+  const insertAt = async (position: 'before' | 'after', rowId: unknown) => {
+    setError('');
+    try {
+      let current = rows;
+      const sortedRows = current as unknown as { sort: number }[];
+      let idx = current.findIndex((r) => r.id === rowId);
+      let val = computeGapSort(sortedRows, idx, position);
+      if (val == null) {
+        await apiPost(`/api/admin/catalogs/${type}/renumber`, {});
+        current = await fetchRows();
+        setRows(current);
+        idx = current.findIndex((r) => r.id === rowId);
+        val = computeGapSort(current as unknown as { sort: number }[], idx, position) ?? 9999;
+      }
+      setNeuSort(val);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Fehler');
     }
@@ -72,7 +101,13 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' 
                     />
                   </td>
                 ))}
-                <td>
+                <td style={{ whiteSpace: 'nowrap' }}>
+                  <button className="small" title="Vor diesem Eintrag einfügen" onClick={() => insertAt('before', r.id)}>
+                    +↑
+                  </button>
+                  <button className="small" title="Nach diesem Eintrag einfügen" onClick={() => insertAt('after', r.id)}>
+                    +↓
+                  </button>
                   <button
                     className="small"
                     title="Eintrag löschen"
@@ -98,13 +133,21 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' 
               onChange={(e) => setNeu({ ...neu, [c.key]: e.target.value })}
             />
           ))}
+        <input
+          type="number"
+          title="Sortierung — automatisch gesetzt durch +↑/+↓, sonst 9999 (ans Ende)"
+          style={{ width: 80 }}
+          value={neuSort}
+          onChange={(e) => setNeuSort(Number(e.target.value) || 0)}
+        />
         <button
           className="primary"
           disabled={!neu.name}
           onClick={() =>
             run(async () => {
-              await apiPost(`/api/admin/catalogs/${type}`, { ...neu, sort: 9999 });
+              await apiPost(`/api/admin/catalogs/${type}`, { ...neu, sort: neuSort });
               setNeu({});
+              setNeuSort(9999);
             })
           }
         >
@@ -138,10 +181,12 @@ function CurrencyCatalogPanel() {
   const [systems, setSystems] = useState<CurrencySystemRow[]>([]);
   const [error, setError] = useState('');
   const [neuSystem, setNeuSystem] = useState('');
-  const [neuDenom, setNeuDenom] = useState<Record<number, { code: string; name: string; faktor: string }>>({});
+  const [neuSystemSort, setNeuSystemSort] = useState(9999);
+  const [neuDenom, setNeuDenom] = useState<Record<number, { code: string; name: string; faktor: string; sort: number }>>({});
 
+  const fetchSystems = () => apiGet<{ currencies: CurrencySystemRow[] }>('/api/catalogs').then((c) => c.currencies);
   const reload = () => {
-    apiGet<{ currencies: CurrencySystemRow[] }>('/api/catalogs').then((c) => setSystems(c.currencies));
+    fetchSystems().then(setSystems);
   };
   useEffect(reload, []);
 
@@ -155,7 +200,52 @@ function CurrencyCatalogPanel() {
     }
   };
 
-  const denomDraft = (systemId: number) => neuDenom[systemId] ?? { code: '', name: '', faktor: '' };
+  const denomDraft = (systemId: number) => neuDenom[systemId] ?? { code: '', name: '', faktor: '', sort: 9999 };
+
+  // Gleiches Lücken-Prinzip wie CatalogPanel.insertAt, nur zweistufig: Systeme
+  // sortieren global, Münzsorten je System (renumber-Fallback läuft dann auch
+  // nur innerhalb des einen Systems, siehe Server-Route).
+  const insertSystemAt = async (position: 'before' | 'after', systemId: number) => {
+    setError('');
+    try {
+      let current = systems;
+      let idx = current.findIndex((s) => s.id === systemId);
+      let val = computeGapSort(current, idx, position);
+      if (val == null) {
+        await apiPost('/api/admin/currency-systems/renumber', {});
+        current = await fetchSystems();
+        setSystems(current);
+        idx = current.findIndex((s) => s.id === systemId);
+        val = computeGapSort(current, idx, position) ?? 9999;
+      }
+      setNeuSystemSort(val);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  };
+
+  const insertDenomAt = async (position: 'before' | 'after', systemId: number, denomId: number) => {
+    setError('');
+    try {
+      let current = systems;
+      let sys = current.find((s) => s.id === systemId);
+      if (!sys) return;
+      let idx = sys.denominations.findIndex((d) => d.id === denomId);
+      let val = computeGapSort(sys.denominations, idx, position);
+      if (val == null) {
+        await apiPost('/api/admin/currency-denominations/renumber', { systemId });
+        current = await fetchSystems();
+        setSystems(current);
+        sys = current.find((s) => s.id === systemId);
+        if (!sys) return;
+        idx = sys.denominations.findIndex((d) => d.id === denomId);
+        val = computeGapSort(sys.denominations, idx, position) ?? 9999;
+      }
+      setNeuDenom({ ...neuDenom, [systemId]: { ...denomDraft(systemId), sort: val } });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Fehler');
+    }
+  };
 
   return (
     <details className="panel">
@@ -175,6 +265,19 @@ function CurrencyCatalogPanel() {
               style={{ flex: 1 }}
               onBlur={(e) => e.target.value !== s.notiz && run(() => apiPut(`/api/admin/currency-systems/${s.id}`, { notiz: e.target.value }))}
             />
+            <input
+              type="number"
+              title="Sortierung"
+              style={{ width: 70 }}
+              defaultValue={s.sort}
+              onBlur={(e) => Number(e.target.value) !== s.sort && run(() => apiPut(`/api/admin/currency-systems/${s.id}`, { sort: e.target.value }))}
+            />
+            <button className="small" title="Vor diesem System einfügen" onClick={() => insertSystemAt('before', s.id)}>
+              +↑
+            </button>
+            <button className="small" title="Nach diesem System einfügen" onClick={() => insertSystemAt('after', s.id)}>
+              +↓
+            </button>
             <button
               className="small"
               title="Währungssystem löschen"
@@ -189,7 +292,8 @@ function CurrencyCatalogPanel() {
                 <th style={{ width: 80 }}>Code</th>
                 <th>Name</th>
                 <th style={{ width: 100 }}>Faktor</th>
-                <th style={{ width: 40 }} />
+                <th style={{ width: 70 }}>Sortierung</th>
+                <th style={{ width: 100 }} />
               </tr>
             </thead>
             <tbody>
@@ -217,6 +321,22 @@ function CurrencyCatalogPanel() {
                     />
                   </td>
                   <td>
+                    <input
+                      type="number"
+                      defaultValue={d.sort}
+                      onBlur={(e) =>
+                        Number(e.target.value) !== d.sort &&
+                        run(() => apiPut(`/api/admin/currency-denominations/${d.id}`, { sort: e.target.value }))
+                      }
+                    />
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="small" title="Vor dieser Münzsorte einfügen" onClick={() => insertDenomAt('before', s.id, d.id)}>
+                      +↑
+                    </button>
+                    <button className="small" title="Nach dieser Münzsorte einfügen" onClick={() => insertDenomAt('after', s.id, d.id)}>
+                      +↓
+                    </button>
                     <button
                       className="small"
                       title="Münzsorte löschen"
@@ -250,13 +370,22 @@ function CurrencyCatalogPanel() {
                   />
                 </td>
                 <td>
+                  <input
+                    type="number"
+                    title="Sortierung — automatisch gesetzt durch +↑/+↓, sonst 9999 (ans Ende)"
+                    style={{ width: 70 }}
+                    value={denomDraft(s.id).sort}
+                    onChange={(e) => setNeuDenom({ ...neuDenom, [s.id]: { ...denomDraft(s.id), sort: Number(e.target.value) || 0 } })}
+                  />
+                </td>
+                <td>
                   <button
                     className="small primary"
                     disabled={!denomDraft(s.id).code || !denomDraft(s.id).name}
                     onClick={() =>
                       run(async () => {
                         await apiPost('/api/admin/currency-denominations', { systemId: s.id, ...denomDraft(s.id) });
-                        setNeuDenom({ ...neuDenom, [s.id]: { code: '', name: '', faktor: '' } });
+                        setNeuDenom({ ...neuDenom, [s.id]: { code: '', name: '', faktor: '', sort: 9999 } });
                       })
                     }
                   >
@@ -271,13 +400,21 @@ function CurrencyCatalogPanel() {
       <h4>Neues Währungssystem</h4>
       <div style={{ display: 'flex', gap: 8 }}>
         <input placeholder="Name (z. B. Aventurisch, Myranor, Titania)" value={neuSystem} onChange={(e) => setNeuSystem(e.target.value)} />
+        <input
+          type="number"
+          title="Sortierung — automatisch gesetzt durch +↑/+↓, sonst 9999 (ans Ende)"
+          style={{ width: 80 }}
+          value={neuSystemSort}
+          onChange={(e) => setNeuSystemSort(Number(e.target.value) || 0)}
+        />
         <button
           className="primary"
           disabled={!neuSystem}
           onClick={() =>
             run(async () => {
-              await apiPost('/api/admin/currency-systems', { name: neuSystem });
+              await apiPost('/api/admin/currency-systems', { name: neuSystem, sort: neuSystemSort });
               setNeuSystem('');
+              setNeuSystemSort(9999);
             })
           }
         >

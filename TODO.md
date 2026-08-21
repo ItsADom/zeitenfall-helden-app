@@ -79,18 +79,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
   separate `characters` row or something lighter, is all still open. Surfaced
   as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
   started, so treat that teaser as aspirational, not a promise of shape.
-- [ready] **Catalog insert helper** (user feedback): the GM catalog admin
-  (`CatalogPanel`, `Admin.tsx:17-116`) orders entries by a plain manual
-  integer `sort` column; new entries are always appended at `sort: 9999`
-  (`Admin.tsx:106`), and inserting one in the middle of the list today means
-  hand-editing every row after it. Decided: keep the editable number, add an
-  "insert before/after this row" action per row that computes the new value
-  without a full manual renumber — a gap/fractional sort scheme so most
-  inserts just land in the gap, falling back to a full renumber only once a
-  gap is exhausted. Applies to the four `CatalogPanel`-based catalogs
-  (talents, languages, tags/Merkmale, races) — currency's `sort` column
-  exists in the schema but isn't exposed in that UI yet, worth wiring in at
-  the same time.
 - [onHold] **Shapeshifting characters** (design notes at
   `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
   data-model disagreement with the GM, written up there instead of lost):

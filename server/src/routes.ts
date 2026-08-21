@@ -1642,6 +1642,25 @@ api.delete('/admin/catalogs/:type/:id', requireAuth, requireGmOrAdmin, (req, res
   res.json({ ok: true });
 });
 
+// Verteilt `sort` in großen, gleichmäßigen Schritten neu (aktuelle Reihenfolge
+// bleibt erhalten). Fallback für "vor/nach diesem Eintrag einfügen" (Admin.tsx),
+// wenn der Lückenwert (Mittelwert zweier Nachbarn) numerisch keine
+// unterscheidbare Zahl mehr zwischen ihnen findet — praktisch nur nach sehr
+// vielen Einfügungen an derselben Stelle.
+api.post('/admin/catalogs/:type/renumber', requireAuth, requireGmOrAdmin, (req, res) => {
+  const def = catalogDef(String(req.params.type));
+  if (!def) {
+    res.status(400).json({ error: 'Unbekannter Katalog' });
+    return;
+  }
+  const rows = db.prepare(`SELECT id FROM ${def.table} ORDER BY sort, id`).all() as { id: number }[];
+  const upd = db.prepare(`UPDATE ${def.table} SET sort = ? WHERE id = ?`);
+  db.transaction(() => {
+    rows.forEach((r, i) => upd.run((i + 1) * 100, r.id));
+  })();
+  res.json({ ok: true });
+});
+
 // Währungs-Katalog (Geld-Umbau): zweistufig (System → Münzsorten), passt nicht
 // in das generische CATALOGS-Muster oben (eine Tabelle, flache Zeilen) — daher
 // eigene Routen. Löschen ist blockiert, solange ein Geldbeutel/eine Münzzeile
@@ -1656,14 +1675,14 @@ function currencySystemsList() {
 }
 
 api.post('/admin/currency-systems', requireAuth, requireGmOrAdmin, (req, res) => {
-  const { name, notiz } = (req.body ?? {}) as { name?: unknown; notiz?: unknown };
+  const { name, notiz, sort } = (req.body ?? {}) as { name?: unknown; notiz?: unknown; sort?: unknown };
   if (!name) {
     res.status(400).json({ error: 'Name erforderlich' });
     return;
   }
   const r = db
-    .prepare('INSERT INTO currency_systems (name, notiz, sort) VALUES (?, ?, 9999)')
-    .run(String(name), String(notiz ?? ''));
+    .prepare('INSERT INTO currency_systems (name, notiz, sort) VALUES (?, ?, ?)')
+    .run(String(name), String(notiz ?? ''), sort === undefined ? 9999 : Number(sort) || 0);
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -1680,6 +1699,17 @@ api.put('/admin/currency-systems/:id', requireAuth, requireGmOrAdmin, (req, res)
   res.json({ ok: true });
 });
 
+// Gleiche Idee wie oben bei den generischen Katalogen, nur für die zwei
+// Währungs-Tabellen (Systeme flach, Münzsorten je System).
+api.post('/admin/currency-systems/renumber', requireAuth, requireGmOrAdmin, (req, res) => {
+  const rows = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id').all() as { id: number }[];
+  const upd = db.prepare('UPDATE currency_systems SET sort = ? WHERE id = ?');
+  db.transaction(() => {
+    rows.forEach((r, i) => upd.run((i + 1) * 100, r.id));
+  })();
+  res.json({ ok: true });
+});
+
 api.delete('/admin/currency-systems/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
   const used = db.prepare('SELECT COUNT(*) AS n FROM char_pouches WHERE system_id = ?').get(id) as { n: number };
@@ -1692,11 +1722,12 @@ api.delete('/admin/currency-systems/:id', requireAuth, requireGmOrAdmin, (req, r
 });
 
 api.post('/admin/currency-denominations', requireAuth, requireGmOrAdmin, (req, res) => {
-  const { systemId, code, name, faktor } = (req.body ?? {}) as {
+  const { systemId, code, name, faktor, sort } = (req.body ?? {}) as {
     systemId?: unknown;
     code?: unknown;
     name?: unknown;
     faktor?: unknown;
+    sort?: unknown;
   };
   const sysId = Number(systemId);
   if (!sysId || !code || !name) {
@@ -1708,8 +1739,8 @@ api.post('/admin/currency-denominations', requireAuth, requireGmOrAdmin, (req, r
     return;
   }
   const r = db
-    .prepare('INSERT INTO currency_denominations (system_id, code, name, faktor, sort) VALUES (?, ?, ?, ?, 9999)')
-    .run(sysId, String(code), String(name), Number(faktor) || 1);
+    .prepare('INSERT INTO currency_denominations (system_id, code, name, faktor, sort) VALUES (?, ?, ?, ?, ?)')
+    .run(sysId, String(code), String(name), Number(faktor) || 1, sort === undefined ? 9999 : Number(sort) || 0);
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -1723,6 +1754,23 @@ api.put('/admin/currency-denominations/:id', requireAuth, requireGmOrAdmin, (req
   }
   const values = cols.map((c) => (c === 'faktor' || c === 'sort' ? Number(body[c]) || 0 : String(body[c] ?? '')));
   db.prepare(`UPDATE currency_denominations SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...values, id);
+  res.json({ ok: true });
+});
+
+// Münzsorten sortieren nur innerhalb ihres eigenen Systems neu — die anderen
+// Systeme sind von einer Lücken-Erschöpfung hier nicht betroffen.
+api.post('/admin/currency-denominations/renumber', requireAuth, requireGmOrAdmin, (req, res) => {
+  const { systemId } = (req.body ?? {}) as { systemId?: unknown };
+  const sysId = Number(systemId);
+  if (!sysId) {
+    res.status(400).json({ error: 'Währungssystem erforderlich' });
+    return;
+  }
+  const rows = db.prepare('SELECT id FROM currency_denominations WHERE system_id = ? ORDER BY sort, id').all(sysId) as { id: number }[];
+  const upd = db.prepare('UPDATE currency_denominations SET sort = ? WHERE id = ?');
+  db.transaction(() => {
+    rows.forEach((r, i) => upd.run((i + 1) * 100, r.id));
+  })();
   res.json({ ok: true });
 });
 
