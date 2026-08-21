@@ -10,6 +10,7 @@ import { usePersistedState } from '../components/persist';
 import { useWikiBarHeight } from '../components/stickyChrome';
 import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import { ExitGuard } from '../components/exitGuard';
 import WikiBilder from './Bilder';
 import WikiDiff from './Diff';
 import WikiMarkup from './Markup';
@@ -104,15 +105,6 @@ export default function WikiEditor() {
   useEffect(() => {
     if (schmutzig) setEntwurf(text);
   }, [schmutzig, text, setEntwurf]);
-
-  // Browsers only honour this for a real navigation away, which is exactly the
-  // case the crash draft cannot cover.
-  useEffect(() => {
-    if (!schmutzig) return;
-    const warnen = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener('beforeunload', warnen);
-    return () => window.removeEventListener('beforeunload', warnen);
-  }, [schmutzig]);
 
   /**
    * `basis` overrides the revision this save claims to build on. Only the
@@ -229,6 +221,7 @@ export default function WikiEditor() {
 
   return (
     <div className="wiki wiki-editor">
+      <ExitGuard dirty={schmutzig} />
       <div className="wiki-editorleiste screen-only" ref={barRef}>
         <div className="wiki-editorleiste-links">
           <div className="wiki-seg">

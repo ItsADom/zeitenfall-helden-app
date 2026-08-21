@@ -9,6 +9,7 @@ import { canStepTab, defaultTabKeys, dynTabId, dynTabKey, isFixedTab, moveTabKey
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import { ExitGuard } from '../components/exitGuard';
 import { useEinstHeadHeight, useEinstNavHeight } from '../components/stickyChrome';
 import { useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
@@ -276,6 +277,7 @@ export default function EinstellungenPage() {
 
   return (
     <>
+      <ExitGuard dirty={dirty} />
       <div className="einst-head" ref={einstHeadRef}>
         <h1>Einstellungen</h1>
         {selId != null && !loading && (

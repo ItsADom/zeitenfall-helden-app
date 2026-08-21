@@ -7,6 +7,7 @@ import { useThemeControls } from '../App';
 import { BackToSheet } from '../components/BackToSheet';
 import { CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import { ExitGuard } from '../components/exitGuard';
 import { Field } from '../components/inputs';
 
 // Regeltabelle fürs Erschaffen neuer Zauber im Spiel: pro Attribut, was es beim
@@ -237,6 +238,7 @@ export default function AbilityManagerPage() {
 
   return (
     <>
+      <ExitGuard dirty={dirty} />
       <div className="werk-head">
         <h1>Zauber &amp; Fähigkeiten verwalten</h1>
         <div className="head-save">
