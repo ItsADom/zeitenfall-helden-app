@@ -28,7 +28,7 @@ import { NeustartOverlay } from './components/NeustartOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
-import { isKnownTheme, useAnimations, useMode, useTheme } from './theme';
+import { isKnownTheme, useAnimations, useDiceIcons, useMode, useTheme } from './theme';
 import type { Mode } from './theme';
 
 interface AuthContextValue {
@@ -49,6 +49,8 @@ export interface ThemeControls {
   setMode: (m: Mode) => void;
   anim: boolean;
   setAnim: (on: boolean) => void;
+  diceIcons: boolean;
+  setDiceIcons: (on: boolean) => void;
   // Farbwelt des gerade geöffneten Charakters. Solange gesetzt (und bekannt),
   // überschreibt sie die persönliche Vorgabe — für Farbe UND Animation. Die
   // Charakterseite setzt sie beim Öffnen und räumt sie beim Verlassen wieder ab.
@@ -75,6 +77,7 @@ export default function App() {
   const [theme, setTheme] = useTheme();
   const [mode, setMode] = useMode();
   const [anim, setAnim] = useAnimations();
+  const [diceIcons, setDiceIcons] = useDiceIcons();
   // Überschreibende Farbwelt eines geöffneten Charakters (null = persönliche
   // Vorgabe). Die angezeigte Farbwelt treibt data-theme UND die Kopf-Animation,
   // damit auf der Charakterseite beides zur Charakter-Farbwelt passt.
@@ -107,7 +110,7 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, refresh }}>
-      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, setOverrideTheme }}>
+      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, diceIcons, setDiceIcons, setOverrideTheme }}>
       <OverviewProvider>
       <RequestsProvider enabled={user.isGm || user.isAdmin}>
       {/* Für alle: das Wiki gehört jedem, und das Abzeichen zählt, was seit dem
