@@ -88,7 +88,8 @@ interface DicePanelCtxValue {
    * (ein Wurf ist eine bewusste Handlung — anders als bloßes Blättern) und
    * klappt den Dock auf, damit Ergebnis und Reaktion sichtbar sind.
    */
-  rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility) => void;
+  /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — wie bei rollExpr. */
+  rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility, targetUserId?: number) => void;
   /** Offenen Bestätigungswurf erledigen — werfen, oder mit skip verwerfen. */
   confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
   /** Offene „SL + Spieler"-Anfragen, die diesen Nutzer betreffen. */
@@ -403,7 +404,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const rollProbe = useCallback(
-    (forGroupId: number, forCharId: number, source: ProbeSource, visibility: RollVisibility) => {
+    (forGroupId: number, forCharId: number, source: ProbeSource, visibility: RollVisibility, targetUserId?: number) => {
       // Ein Wurf vom Bogen gehört in den Raum DIESER Gruppe, als DIESER
       // Charakter — notfalls wird dorthin gewechselt (die Nachricht wartet
       // dann in der Outbox auf die neue Verbindung).
@@ -417,8 +418,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         reqId: crypto.randomUUID(),
         source,
         charId: forCharId,
-        visibility: visibility === 'hidden' ? 'hidden' : 'public',
+        visibility,
         modifier,
+        targetUserId,
       });
       // Gilt nur für DIESEN einen Wurf — mehrere modifizierte Würfe hinter-
       // einander sind selten, ein vergessener Modifikator, der beim nächsten

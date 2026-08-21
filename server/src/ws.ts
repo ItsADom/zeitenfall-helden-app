@@ -314,7 +314,23 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
         return;
       }
-      const visibility = msg.visibility === 'hidden' ? 'hidden' : 'public';
+      let visibility: RollVisibility = 'public';
+      let gmUserId: number | null = null;
+      if (msg.visibility === 'hidden') {
+        visibility = 'hidden';
+      } else if (msg.visibility === 'gm_player') {
+        const counterpart = resolveGmPlayerCounterpart(meta, msg.targetUserId);
+        if (counterpart === null) {
+          send(ws, {
+            type: 'error',
+            reqId: msg.reqId,
+            message: meta.isGm ? 'Unbekanntes Gruppenmitglied' : 'Die Spielleitung ist gerade nicht verbunden',
+          });
+          return;
+        }
+        visibility = 'gm_player';
+        gmUserId = counterpart;
+      }
       const modifier = clampModifier(msg.modifier);
       const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
       const roll: ProbeRollPayload = {
@@ -337,7 +353,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         narrow: result.narrow,
         criticalSuccess: result.criticalSuccess,
       };
-      insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), null, visibility, roll);
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), gmUserId, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

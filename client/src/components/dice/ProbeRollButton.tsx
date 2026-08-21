@@ -1,7 +1,11 @@
 import type { ProbeSource } from '@shared/diceProtocol';
+import { useAuth } from '../../App';
 import { useChar } from '../../pages/Character';
 import { useHoverFlyout } from '../useHoverFlyout';
 import { useDicePanel } from './DicePanelProvider';
+
+const GM_PLAYER_ICON = '🛡';
+const GM_PLAYER_LABEL = 'SL-Wurf';
 
 // Würfel-Knopf neben einer fertigen Probe-Zahl auf dem Bogen. Ein Klick
 // würfelt sofort öffentlich — das ist der Normalfall und soll schnell bleiben;
@@ -17,8 +21,9 @@ import { useDicePanel } from './DicePanelProvider';
 // Bogen ist reine Anzeige und wird nie mitgeschickt.
 export default function ProbeRollButton({ source, title }: { source: ProbeSource; title: string }) {
   const { rollCtx, requestCtx } = useChar();
-  const { rollProbe, requestProbe, modifier } = useDicePanel();
+  const { rollProbe, requestProbe, modifier, myGroups } = useDicePanel();
   const { open, wrapRef, closeNow, hoverProps } = useHoverFlyout<HTMLSpanElement>();
+  const { user } = useAuth();
 
   if (!rollCtx) {
     if (!requestCtx) return null;
@@ -35,10 +40,12 @@ export default function ProbeRollButton({ source, title }: { source: ProbeSource
     );
   }
 
-  const roll = (visibility: 'public' | 'hidden') => {
-    rollProbe(rollCtx.groupId, rollCtx.charId, source, visibility);
+  const roll = (visibility: 'public' | 'hidden' | 'gm_player', targetUserId?: number) => {
+    rollProbe(rollCtx.groupId, rollCtx.charId, source, visibility, targetUserId);
     closeNow();
   };
+
+  const members = myGroups.find((g) => g.id === rollCtx.groupId)?.members ?? [];
 
   // Ein gesetzter Modifikator (Dock, ModifierPicker) gilt auch für diesen
   // Ein-Klick-Weg und wird nach dem Wurf automatisch zurückgesetzt — die Zahl
@@ -66,6 +73,29 @@ export default function ProbeRollButton({ source, title }: { source: ProbeSource
           <button className="dice-flyout-item" role="menuitem" onClick={() => roll('hidden')}>
             🔒 Verborgen
           </button>
+          <hr className="dice-flyout-sep" />
+          {user.isGm ? (
+            <>
+              <p className="dice-flyout-label muted">
+                {GM_PLAYER_ICON} {GM_PLAYER_LABEL}
+              </p>
+              {members.length === 0 && <p className="dice-flyout-empty muted">Keine Mitglieder in dieser Gruppe.</p>}
+              {members.map((m) => (
+                <button key={m.userId} className="dice-flyout-item" role="menuitem" onClick={() => roll('gm_player', m.userId)}>
+                  → {m.name}
+                </button>
+              ))}
+            </>
+          ) : (
+            <button
+              className="dice-flyout-item"
+              role="menuitem"
+              title="Nur du und die Spielleitung sehen den Wurf"
+              onClick={() => roll('gm_player')}
+            >
+              {GM_PLAYER_ICON} {GM_PLAYER_LABEL}
+            </button>
+          )}
         </span>
       )}
     </span>

@@ -207,7 +207,15 @@ export type ClientToServerMessage =
   // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — wirkt auf die
   // geworfene Summe, nicht auf probeZahl (siehe shared/src/dice.ts). Der
   // Server klemmt sie auf einen vernünftigen Bereich, siehe ws.ts.
-  | { type: 'roll.probe'; reqId: string; source: ProbeSource; charId: number; visibility: 'public' | 'hidden'; modifier?: number }
+  | {
+      type: 'roll.probe';
+      reqId: string;
+      source: ProbeSource;
+      charId: number;
+      visibility: RollVisibility;
+      modifier?: number;
+      targetUserId?: number;
+    }
   // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true
   // verwerfen (nicht jeder W20-Wurf kennt Patzer). Nur der Werfer selbst.
   | { type: 'roll.confirm'; reqId: string; entryId: number; dieIndex: number; skip?: boolean }
