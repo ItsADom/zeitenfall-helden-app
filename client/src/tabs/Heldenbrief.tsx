@@ -105,19 +105,30 @@ export default function HeldenbriefTab() {
   // übernommen und danach GESPERRT (siehe die drei Zellen weiter unten), damit
   // sie nur über eine neue Rassen-Wahl ändern; persönliche Anpassung läuft über
   // die jeweils vorhandene Mod./Bonus-Spalte.
+  // MR/Artefaktkontrolle (Basiswerte) und LE/AU/AsE (Energien) sind reine
+  // Rassenboni ohne eigene Anzeige/Eingabe — anders als die drei oben werden
+  // sie IMMER überschrieben (auch mit 0, wenn die neue Rasse keinen Wert
+  // hinterlegt hat), damit ein Rassenwechsel den alten Bonus vollständig
+  // abzieht statt ihn liegen zu lassen.
   const setRace = (race: RaceCatalogRow | null) => {
     update('bio', { ...bio, rasseId: race?.id ?? null, rasse: race?.name ?? '' });
-    // EIN Aufruf für beide Basiswert-Felder: update() spiegelt state-intern
-    // nicht sofort zurück in dieses `baseValues`, also würde ein zweiter
-    // Aufruf mit demselben (veralteten) Objekt die erste Änderung überschreiben.
-    if (race?.gs != null || race?.resilienz != null) {
-      update('baseValues', {
-        ...baseValues,
-        ...(race?.gs != null ? { gsBase: race.gs } : null),
-        ...(race?.resilienz != null ? { resilienzBase: race.resilienz } : null),
-      });
-    }
+    // EIN Aufruf je Sektion: update() spiegelt state-intern nicht sofort in
+    // dieses `baseValues`/`resources` zurück, also würde ein zweiter Aufruf mit
+    // demselben (veralteten) Objekt die erste Änderung überschreiben.
+    update('baseValues', {
+      ...baseValues,
+      ...(race?.gs != null ? { gsBase: race.gs } : null),
+      ...(race?.resilienz != null ? { resilienzBase: race.resilienz } : null),
+      mrBase: race?.mr ?? 0,
+      akBase: race?.ak ?? 0,
+    });
     if (race?.psyche != null) update('meta', { ...meta, psycheBase: race.psyche });
+    update('resources', {
+      ...resources,
+      le: { ...resources.le, raceBase: race?.le ?? 0 },
+      aus: { ...resources.aus, raceBase: race?.au ?? 0 },
+      ase: { ...resources.ase, raceBase: race?.ae ?? 0 },
+    });
   };
 
   const bv = computeBaseValues(attributes, baseValues);

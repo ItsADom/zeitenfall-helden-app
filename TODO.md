@@ -46,6 +46,8 @@ can go straight to a build plan. Priority is the section (High/Mid/Low);
   `revealGroupResults`, `server/src/ws.ts:187`), and how the single combined
   verdict is rendered in the `feed-group-block` (`DicePanel.tsx:356`, today a
   purely visual wrapper with no aggregate banner).
+   - idea: make it a "pending-box" like the group-roll sets, but let players that want to cooperate join by themselves
+- add "SL-Wurf" to the on-sheet rolls
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
@@ -97,17 +99,6 @@ chips. Backend table `char_special_resources`. Open for the full version:
   getragen), so the new item lands unworn — same place an Inventar-created
   item ends up after being moved over — and the player still drags it to a
   body zone themselves. part of the editing-dialog plan.
-- [sketch] **Race catalogue → live calculations (LE/AU/AsE/MR/AK)**: the race
-  catalogue (`races_catalog`, ~66 races from the Rassenbrief) wires Geschwindigkeit
-  (`gsBase`), Psyche (`meta.psycheBase`) and Resilienz (`baseValues.resilienzBase`)
-  live already — picking a race locks those three cells to the race's value
-  (editable again only via a different race pick; personal adjustment stays on the
-  existing Mod./Bonus column). Still store-and-display only for the other five
-  bonuses (LE/AU/AsE/MR/AK): they show as info text under the race picker but are
-  NOT yet added into `computeResource`/`computeBaseValueBases` in
-  `shared/src/rules.ts`. Deliberately deferred to avoid silently shifting every
-  existing character's computed LE/AU/AsE/MR/AK in the same pass as introducing
-  the catalogue.
 - [onHold] **Shapeshifting characters** (design notes at
   `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
   data-model disagreement with the GM, written up there instead of lost):
@@ -479,7 +470,7 @@ chips. Backend table `char_special_resources`. Open for the full version:
 
 - logcally connect weapons and inventory
   - weapons should be real items, too. they just carry some extra information.
-  - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen
+  - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen and vice versa
 
 - FAQ - like a little manual or easy to miss features
 

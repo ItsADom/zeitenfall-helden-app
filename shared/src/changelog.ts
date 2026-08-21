@@ -204,6 +204,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-08-21',
     title: 'Würfel-Feinschliff & Porträts',
     added: [
+      'Der Rassen-Katalog gibt jetzt auch LE/AU/AsE/MR/Artefaktkontrolle vor (nicht nur Geschwindigkeit, Psyche und Resilienz wie bisher) — die Rassen-Auswahl im Heldenbrief rechnet diese fünf Werte automatisch mit ein.',
       'Chat zeigt bei einer nicht-aufgehobenen 1/20 zusätzlich, welches Attribut sie hat.',
       'Einen Schicksalspunkt auszugeben erfordert nun eine Bestätigung und meldet die Ausgabe als Chat-Zeile.',
       'Gruppen bekommen ein eigenes Porträt, genau wie Charaktere.',

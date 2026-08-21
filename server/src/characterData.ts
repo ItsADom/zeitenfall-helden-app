@@ -85,19 +85,23 @@ export function loadBaseValueInputs(charId: number): BaseValueInputs {
   const mods = Object.fromEntries(BASE_VALUE_KEYS.map((k) => [k, 0])) as BaseValueInputs['mods'];
   let gsBase = 0;
   let resilienzBase = 0;
+  let mrBase = 0;
+  let akBase = 0;
   for (const r of rows) {
     if (BASE_VALUE_KEYS.includes(r.key as never)) mods[r.key as keyof typeof mods] = r.mod;
     if (r.key === 'gs') gsBase = r.base;
     if (r.key === 'resilienz') resilienzBase = r.base;
+    if (r.key === 'mr') mrBase = r.base;
+    if (r.key === 'artefaktkontrolle') akBase = r.base;
   }
-  return { mods, gsBase, resilienzBase };
+  return { mods, gsBase, resilienzBase, mrBase, akBase };
 }
 
 export function loadResources(charId: number): Resources {
   const rows = db
-    .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes FROM char_resources WHERE character_id = ?')
+    .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
     .all(charId) as ({ key: string } & Resources['le'])[];
-  const empty = () => ({ permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '' });
+  const empty = () => ({ permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '', raceBase: 0 });
   const out = { le: empty(), aus: empty(), ase: empty() } as Resources;
   for (const r of rows) {
     if (RESOURCE_KEYS.includes(r.key as never)) {
@@ -1507,10 +1511,21 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       return;
     }
     if (section === 'baseValues') {
-      const body = (data ?? {}) as { mods?: Record<string, unknown>; gsBase?: unknown; resilienzBase?: unknown };
+      const body = (data ?? {}) as {
+        mods?: Record<string, unknown>;
+        gsBase?: unknown;
+        resilienzBase?: unknown;
+        mrBase?: unknown;
+        akBase?: unknown;
+      };
       const stmt = db.prepare('UPDATE char_base_values SET mod = ?, base = ? WHERE character_id = ? AND key = ?');
       for (const key of BASE_VALUE_KEYS) {
-        const base = key === 'gs' ? num(body.gsBase) : key === 'resilienz' ? num(body.resilienzBase) : 0;
+        const base =
+          key === 'gs' ? num(body.gsBase)
+          : key === 'resilienz' ? num(body.resilienzBase)
+          : key === 'mr' ? num(body.mrBase)
+          : key === 'artefaktkontrolle' ? num(body.akBase)
+          : 0;
         stmt.run(num(body.mods?.[key]), base, charId, key);
       }
       return;
@@ -1519,7 +1534,7 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
       const attributes = loadAttributes(charId);
       const stmt = db.prepare(
-        'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ? WHERE character_id = ? AND key = ?',
+        'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
       for (const key of RESOURCE_KEYS) {
         const v = body[key];
@@ -1531,6 +1546,10 @@ export function saveSection(charId: number, section: string, data: unknown): voi
           maxPlus: num(v.maxPlus),
           aktuell: num(v.aktuell),
           besonderes: str(v.besonderes),
+          // Nicht vom Client editierbar (kommt aus der Rassen-Auswahl) — trotzdem
+          // aus dem Body übernommen statt verworfen, sonst würde jedes Speichern
+          // den Rassenbonus wieder auf 0 zurücksetzen.
+          raceBase: num(v.raceBase),
         };
         // Aktuell kann nie über dem nutzbaren Maximum liegen. Die Oberfläche
         // kappt bereits beim Eintippen; hier nochmal, weil die API auch ohne
@@ -1544,6 +1563,7 @@ export function saveSection(charId: number, section: string, data: unknown): voi
           input.maxPlus,
           Math.min(input.aktuell, nutzbar),
           input.besonderes,
+          input.raceBase,
           charId,
           key,
         );

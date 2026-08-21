@@ -154,6 +154,9 @@ db.exec(`
     permanent REAL NOT NULL DEFAULT 0, kauf REAL NOT NULL DEFAULT 0,
     kaufMax REAL NOT NULL DEFAULT 0, maxPlus REAL NOT NULL DEFAULT 0,
     aktuell REAL NOT NULL DEFAULT 0, besonderes TEXT NOT NULL DEFAULT '',
+    -- Rassenbonus (races_catalog.le/.au/.ae), additiv zum Formelwert — vorbelegt
+    -- bei Rassen-Auswahl, danach gesperrt (siehe ResourceInput.raceBase).
+    raceBase REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (character_id, key)
   );
 
@@ -938,6 +941,48 @@ if (hasTable('sec_techniken')) {
 {
   const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('group_roll_id')) db.exec('ALTER TABLE group_feed ADD COLUMN group_roll_id TEXT');
+}
+
+// Migration: 'raceBase'-Spalte an bestehende char_resources ergänzen —
+// Rassenbonus auf LE/AU/AsE (races_catalog.le/.au/.ae), analog zu
+// baseValues.gsBase/resilienzBase. Wie üblich reicht ALTER TABLE allein nicht:
+// bestehende Charaktere mit gewählter Rasse müssten sonst bis zur nächsten
+// Rassen-Auswahl bei 0 stehen bleiben.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_resources)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('raceBase')) db.exec('ALTER TABLE char_resources ADD COLUMN raceBase REAL NOT NULL DEFAULT 0');
+}
+
+// Reparatur/Nachziehen (läuft bei JEDEM Start): LE/AU/AsE/MR/Artefaktkontrolle-
+// Rassenboni aus races_catalog in char_resources.raceBase bzw.
+// char_base_values.base (key 'mr'/'artefaktkontrolle') spiegeln. Anders als
+// gs/resilienz/psyche haben diese fünf Werte kein freies Eingabefeld — sie
+// sind IMMER exakt der aktuelle Rassenwert (0 ohne Rasse bzw. wenn die Rasse
+// dafür keinen Wert hinterlegt hat), es gibt also nichts, was ein erneuter
+// Abgleich zerstören könnte. Läuft deshalb unconditional bei jedem Start statt
+// nur einmalig — deckt sowohl den Erst-Rollout als auch einen Rollback/Restore
+// auf eine ältere Datenbank ab (siehe CLAUDE.md, "abgeleitete Spalte").
+{
+  const sync = db.transaction(() => {
+    db.exec(`
+      UPDATE char_resources SET raceBase = COALESCE((
+        SELECT rc.le FROM char_bio b JOIN races_catalog rc ON rc.id = b.rasseId WHERE b.character_id = char_resources.character_id
+      ), 0) WHERE key = 'le';
+      UPDATE char_resources SET raceBase = COALESCE((
+        SELECT rc.au FROM char_bio b JOIN races_catalog rc ON rc.id = b.rasseId WHERE b.character_id = char_resources.character_id
+      ), 0) WHERE key = 'aus';
+      UPDATE char_resources SET raceBase = COALESCE((
+        SELECT rc.ae FROM char_bio b JOIN races_catalog rc ON rc.id = b.rasseId WHERE b.character_id = char_resources.character_id
+      ), 0) WHERE key = 'ase';
+      UPDATE char_base_values SET base = COALESCE((
+        SELECT rc.mr FROM char_bio b JOIN races_catalog rc ON rc.id = b.rasseId WHERE b.character_id = char_base_values.character_id
+      ), 0) WHERE key = 'mr';
+      UPDATE char_base_values SET base = COALESCE((
+        SELECT rc.ak FROM char_bio b JOIN races_catalog rc ON rc.id = b.rasseId WHERE b.character_id = char_base_values.character_id
+      ), 0) WHERE key = 'artefaktkontrolle';
+    `);
+  });
+  sync();
 }
 
 // Migration: group_members war eine eigene Spieler-Gruppe-Zuordnung aus der

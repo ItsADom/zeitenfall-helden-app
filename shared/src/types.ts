@@ -69,6 +69,13 @@ export interface BaseValueInputs {
   // danach über den Mod.-Spalte anpassbar (nicht direkt editierbar, sobald
   // die Rasse einen Wert liefert).
   resilienzBase: number;
+  // Rassenbonus auf MR/Artefaktkontrolle (races_catalog.mr/.ak) — anders als
+  // resilienzBase/gsBase nie freies Eingabefeld: MR und Artefaktkontrolle sind
+  // reine Formelwerte ohne eigene Basis-Zelle, der Rassenbonus fließt still in
+  // die Formel ein (siehe computeBaseValueBases). 0 ohne Rasse bzw. wenn die
+  // Rasse dafür keinen Wert hinterlegt hat.
+  mrBase: number;
+  akBase: number;
 }
 
 // Energien/Ressourcen (LE, AUS, AsE) — echte Vorräte mit Aktuell/Max.
@@ -112,6 +119,11 @@ export interface ResourceInput {
   maxPlus: number;
   aktuell: number;
   besonderes: string;
+  // Rassenbonus (races_catalog.le/.au/.ae) — additiv zum Formelwert, vorbelegt
+  // bei der Rassen-Auswahl und danach gesperrt (analog zu resilienzBase),
+  // NICHT über die Bonus-Spalte editierbar. 0 ohne Rasse bzw. wenn die Rasse
+  // dafür keinen Wert hinterlegt hat.
+  raceBase: number;
 }
 export type Resources = Record<ResourceKey, ResourceInput>;
 

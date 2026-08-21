@@ -30,8 +30,8 @@ export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs
   const wundschwelle = ceil(v('KO') / 2);
 
   // Die MR ist Eingang für Artefaktkontrolle und Resilienz und muss deshalb
-  // zuerst fertig gerechnet sein (Basis + eigener Modifikator).
-  const mr = ceil((v('MU') + v('KL') + v('KO')) / 5);
+  // zuerst fertig gerechnet sein (Basis + Rassenbonus + eigener Modifikator).
+  const mr = ceil((v('MU') + v('KL') + v('KO')) / 5) + (inputs.mrBase ?? 0);
   const mrErgebnis = mr + (inputs.mods.mr ?? 0);
 
   return {
@@ -40,7 +40,7 @@ export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs
     bl: ceil((v('KO') + v('KK') + v('IN')) / 5),
     fk: ceil((v('IN') + v('FF') + v('KK')) / 5),
     ini: ceil((v('MU') + v('MU') + v('IN') + v('GE')) / 5),
-    artefaktkontrolle: v('IN') + mrErgebnis + v('MU'),
+    artefaktkontrolle: v('IN') + mrErgebnis + v('MU') + (inputs.akBase ?? 0),
     todesschwelle: ceil((wundschwelle + v('MU')) / 4),
     wundschwelle,
     ausweichen: ceil((v('GE') + v('GE') + v('IN')) / 3),
@@ -93,7 +93,10 @@ export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey):
 
 export function computeResource(attrs: Attributes, key: ResourceKey, input: ResourceInput): ResourceResult {
   const v = (c: AttrCode) => attrMax(attrs, c);
-  const vor = computeResourceVorergebnis(attrs, key);
+  // Rassenbonus (races_catalog.le/.au/.ae) fließt wie ein Attributbonus direkt
+  // in den Formelwert ein — hebt damit auch die Ausbaugrenze mit an, analog zu
+  // resilienzBase bei den Basiswerten.
+  const vor = computeResourceVorergebnis(attrs, key) + (input.raceBase ?? 0);
   const ergebnis = vor + input.permanent + input.kauf;
   let max: number | null = null;
   switch (key) {
