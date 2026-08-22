@@ -249,10 +249,12 @@ export default function DicePanel() {
   // verankert, also wächst der alte scrollTop plötzlich über den neuen
   // sichtbaren Bereich hinaus und der jüngste Eintrag rutscht aus dem Feld.
   // Bei jeder Höhenänderung wieder ans Ende, genau wie bei neuem Inhalt oben.
+  // Ebenso beim Ausklappen: collapsed rendert den Feed-Div gar nicht erst,
+  // also startet er beim nächsten Mount bei scrollTop 0 (oben) statt unten.
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [h]);
+  }, [h, collapsed]);
 
   if (collapsed) {
     return (
