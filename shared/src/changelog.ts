@@ -204,9 +204,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     added: [
       'Wird die Anwendung gerade aktualisiert, sagt sie das jetzt an und zeigt danach einen Wartebildschirm — die Seite verbindet sich von selbst wieder, sobald der Server zurück ist. Bisher brach die Verbindung dabei kommentarlos ab und man musste selbst neu laden.',
     ],
-    admin: [
-      '(Verwaltung) Neuer Reiter „Wartung" unter Kataloge & Nutzer: eine neue Fassung lässt sich von dort aus einspielen, ohne sich auf den Server zu verbinden. Zweimal zu bestätigen, und der Knopf will zehn Sekunden lang gedrückt gehalten werden.',
-    ],
   },
   {
     date: '2026-08-22',
