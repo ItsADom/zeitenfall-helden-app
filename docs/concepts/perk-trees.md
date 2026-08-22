@@ -98,6 +98,7 @@ Confirmed by the developer: none of these ever enter a calculation.
 | `situativ` | Check modifier bound to a situation ("im Kampf", "bei Initialschlag", "ab der 5. Kampfrunde") | ~18 |
 | `regel` | Boolean rule statement, no number | ~20 |
 | `aktiv` | Active ability with a usage limit (1x täglich, 2x wöchentlich); includes every Heldenkraft | 13 |
+| ↳ | Heldenkraft is a **single pick**, not two: it grants one in-combat *and* one out-of-combat effect together (see conflict section 10). Not yet split out per-Heldenkraft in the catalog below. | |
 | `prozent` | Percentage cost/time/damage modification | 12 |
 | `waffe` | Weapon or damage modification | 9 |
 | `stufenfk` | Named graded ability (Schatzsicht I/II/III); **the master list of what these do is missing** | 10 |
@@ -456,6 +457,14 @@ From the final slide, verbatim:
 - „Vorhersehung: Bauchgefühl (muss distanzieren für int)"
 - „Heldenkraft in zwei Aspekten spalten Kampf/Anders"
 
-The last one matters structurally: if Heldenkräfte split into a combat and a
-non-combat aspect, the 34+ tier gains a second slot per tree and the uniform
-10/5/3/1/1 shape no longer holds.
+**Resolved by the developer:** the last note does *not* mean a Heldenkraft
+becomes two picks. A Heldenkraft is still unlocked with a **single** pick — the
+"split" is that the one unlock grants **two** effects at once, one usable in
+combat and one usable outside combat (e.g. *Heldenseele* could read as "in
+combat: remove all debuffs" / "out of combat: restore 40 Psyche", both from the
+same 1x-täglich unlock). The uniform 10/5/3/1/1 shape is unaffected — this is a
+property of the `aktiv` effect type (an `aktiv` perk carries two effect entries
+instead of one), not an extra tier slot or an extra pool cost. None of the
+Heldenkraft texts above have been rewritten into that two-effect split yet;
+that rewrite still needs the GM to specify which of the two effects applies
+where for each of the eight Heldenkräfte listed in the catalog.
