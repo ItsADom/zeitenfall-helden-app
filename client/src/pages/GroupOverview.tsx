@@ -42,7 +42,7 @@ interface CatalogTalent {
   gruppe: string;
 }
 interface OverviewData {
-  group: { id: number; name: string };
+  group: { id: number; name: string; isTemp: boolean };
   talentCatalog: CatalogTalent[];
   tagCatalog: CharTag[];
   characters: OverviewChar[];
@@ -92,10 +92,10 @@ function GmNoteField({ charId, initial }: { charId: number; initial: string }) {
   );
 }
 
-// kind='temp': Event-Gruppe (temp_group_members, additiv zur festen Gruppe) statt
-// fester Gruppe. Server liefert für beide dasselbe Antwortformat (Feld „group"),
-// nur der Endpunkt und die Umrandungstexte unterscheiden sich.
-export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' | 'temp' }) {
+// Bedient feste UND Event-Gruppen mit derselben Seite — der Server liefert für
+// beide dasselbe Antwortformat inklusive group.isTemp, das entscheidet allein
+// über die abweichenden Texte/Aktionen unten. Kein kind-Prop mehr nötig.
+export default function GroupOverviewPage() {
   const { id } = useParams();
   const groupId = Number(id);
   const [data, setData] = useState<OverviewData | null>(null);
@@ -105,7 +105,7 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
   // erscheinen als Spalte auf jeder Karte. Die Auswahl überlebt Reload/Poll und
   // ist je Gruppe gemerkt (client-seitig — reine Anzeigehilfe, kein Serverstand).
   const [query, setQuery] = useState('');
-  const [pinned, setPinned] = usePersistedState<number[]>(kind === 'temp' ? `gm-poll:temp:${groupId}` : `gm-poll:${groupId}`, []);
+  const [pinned, setPinned] = usePersistedState<number[]>(`gm-poll:${groupId}`, []);
   const pin = (tid: number) => {
     setPinned((p) => (p.includes(tid) ? p : [...p, tid]));
     setQuery('');
@@ -136,14 +136,13 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
   const loadOverview = useCallback(
     (quiet = false) => {
       if (!quiet) setData(null);
-      const path = kind === 'temp' ? `/api/temp-groups/${groupId}/overview` : `/api/groups/${groupId}/overview`;
-      return apiGet<OverviewData>(path)
+      return apiGet<OverviewData>(`/api/groups/${groupId}/overview`)
         .then(setData)
         .catch((e) => {
           if (!quiet) setError(e instanceof Error ? e.message : 'Fehler');
         });
     },
-    [groupId, kind],
+    [groupId],
   );
 
   useEffect(() => {
@@ -193,24 +192,20 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
   return (
     <>
       <p className="muted">
-        {kind === 'temp' ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
+        {data.group.isTemp ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
       </p>
-      <h1>{kind === 'temp' ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
+      <h1>{data.group.isTemp ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
 
-      {kind === 'group' && (
-        <div className="gm-overview-actions">
-          <button
-            className="small"
-            title="Setzt die Schicksalspunkte aller Charaktere dieser Gruppe auf ihr jeweiliges Maximum zurück"
-            onClick={() => void apiPost(`/api/groups/${groupId}/schicksalspunkte/reset`).then(() => loadOverview(true))}
-          >
-            🍀 Neuer Spieltag (Schicksalspunkte zurücksetzen)
-          </button>
-          {data.characters.length > 0 && (
-            <RequestGroupProbePicker groupId={groupId} anyCharId={data.characters[0].id} />
-          )}
-        </div>
-      )}
+      <div className="gm-overview-actions">
+        <button
+          className="small"
+          title="Setzt die Schicksalspunkte aller Charaktere dieser Gruppe auf ihr jeweiliges Maximum zurück"
+          onClick={() => void apiPost(`/api/groups/${groupId}/schicksalspunkte/reset`).then(() => loadOverview(true))}
+        >
+          🍀 Neuer Spieltag (Schicksalspunkte zurücksetzen)
+        </button>
+        {data.characters.length > 0 && <RequestGroupProbePicker groupId={groupId} anyCharId={data.characters[0].id} />}
+      </div>
 
       <div className="gm-poll">
         <div className="gm-poll-search">
@@ -259,7 +254,7 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
       </div>
 
       {data.characters.length === 0 ? (
-        <p className="muted">{kind === 'temp' ? 'Keine Charaktere in dieser Event-Gruppe.' : 'Keine Charaktere in dieser Gruppe.'}</p>
+        <p className="muted">{data.group.isTemp ? 'Keine Charaktere in dieser Event-Gruppe.' : 'Keine Charaktere in dieser Gruppe.'}</p>
       ) : (
         <div className="gm-cards">
           {data.characters.map((c) => (
@@ -389,11 +384,7 @@ export default function GroupOverviewPage({ kind = 'group' }: { kind?: 'group' |
                 })()}
               </div>
 
-              {/* Event-Gruppen haben keinen eigenen Feed (die WS-Route kennt
-                  nur echte Gruppen) — dort gibt es nichts anzufragen. */}
-              {kind !== 'temp' && (
-                <RequestProbePicker groupId={groupId} charId={c.id} targetUserId={c.ownerUserId} charName={c.name} />
-              )}
+              <RequestProbePicker groupId={groupId} charId={c.id} targetUserId={c.ownerUserId} charName={c.name} />
 
               <GmNoteField key={c.id} charId={c.id} initial={c.gmNotiz} />
             </div>

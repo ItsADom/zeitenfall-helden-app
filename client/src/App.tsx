@@ -156,7 +156,7 @@ export default function App() {
           <Route path="/einstellungen" element={<EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/gruppe/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
-          <Route path="/event/:id/uebersicht" element={user.isGm ? <GroupOverviewPage kind="temp" /> : <Navigate to="/charaktere" />} />
+          <Route path="/event/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/charakter/:id/zauber-faehigkeiten" element={<AbilityManagerPage />} />
           {/* Splat-Route: das Wiki bringt seine eigenen Unterrouten mit. Steht
