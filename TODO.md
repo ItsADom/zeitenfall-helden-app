@@ -20,8 +20,21 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 - do not auto-open chat, just show a notification for new messages, even when rolling yourself
   - maybe make it pulsate on roll-reqeust, with a little sound effect
-- 20+ perk picker
-  - list exists already, need AI-analysis
+- [sketch] **20+ perk picker** — source PDF analysed and written up at
+  `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
+  no prerequisite edges, ~160 effects classified into 6 computable and 8
+  display-only categories). Rules confirmed: pool = `attribut − 20`, one point
+  per stage, stage values absolute (not cumulative), base attribute only
+  (never `attrMax`), later columns need points *spent* not merely earned.
+  Half the perks target exactly the `attr | baseValue | resource | talent` union
+  already designed for item bonuses, so this should be built *after*
+  `item-bonus-while-worn.md` and reuse that plumbing rather than grow a second
+  aggregator. Blocked on GM input before a catalog can be seeded: ~7 name
+  conflicts between graphic and description list, a duplicate in the Konstitution
+  tree, ambiguous stage counts, and the missing `stufenfk` master list. Also
+  needs a server-side reveal state — 34+/60 perks are hidden until the GM
+  unveils them, so they must not be sent, same rule as the wiki's ` ```gm `
+  regions. Still unsorted into a priority section.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
