@@ -139,7 +139,7 @@ export const KNOWN_BUGS: KnownBug[] = [
 export const COMING_SOON: string[] = [
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
-  'Ganz frühe Überlegung, noch ohne Konzept: eigene kleine Bögen für Tiere und Begleiter.',
+  'Eigene Bögen für Tiere und Begleiter.',
   'Ein virtueller Spieltisch für Kampf und Erkundung: Karte, Marker und Initiative-Leiste.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
