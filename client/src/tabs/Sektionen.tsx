@@ -682,9 +682,7 @@ function ColumnEditor({
                 <button className="small" disabled={i === cols.length - 1} onClick={() => moveCol(i, 1)} title="nach rechts">
                   →
                 </button>
-                <button className="small" onClick={() => remove(c.key)} title="Spalte entfernen">
-                  ✕
-                </button>
+                <ConfirmDeleteButton title="Spalte entfernen" onConfirm={() => remove(c.key)} />
               </td>
             </tr>
           ))}
