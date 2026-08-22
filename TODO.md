@@ -18,9 +18,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- do not auto-open chat, just show a notification for new messages, even when rolling yourself
-  - maybe make it pulsate on roll-reqeust, with a little sound effect
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -32,9 +29,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   or mount with its own small sheet (attributes, maybe a handful of
   talents/skills). Not concepted at all yet: how much a pet sheet shares with
   a full character sheet, how it's linked to its owner, whether it's a
-  separate `characters` row or something lighter, is all still open. Surfaced
-  as a "Demnächst" teaser (shared/src/changelog.ts) before any concept work
-  started, so treat that teaser as aspirational, not a promise of shape.
+  separate `characters` row or something lighter, is all still open.
+   - topic is related to shapeshifting: a sheet that belongs to a specific character instead of being a standalone character
 - [onHold] **Shapeshifting characters** (design notes at
   `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
   data-model disagreement with the GM, written up there instead of lost):
@@ -93,6 +89,29 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
   showing the same feed twice on the same page would be redundant.
     - as we have a group that is streaming, this topic will need a higher prio. should ship shortly
+- [ready] **Chat dock: notify instead of force-open** (user feedback, concept
+  agreed): today `DicePanelProvider.tsx` calls `setCollapsed(false)` at six
+  sites — three incoming events (`roll.pending.created:346`,
+  `roll.group.created:362`, `roll.coop.created:385`) and three of the
+  player's own actions (`rollProbe:537`, `requestProbe:570`,
+  `requestGroupProbe:607`, `proposeCoopPool:638`) — so the dock yanks itself
+  open even when the player triggered the roll themselves. **Decided:** none
+  of the six force-open anymore; all six instead light up a plain
+  badge/dot on the collapsed `🎲 Chat` tab. The badge clears the moment the
+  dock is opened (no per-room last-seen tracking, unlike the wiki's "N
+  Änderungen" pill — simpler is enough here). **Decided:** the three
+  roll-initiating incoming events (`roll.pending.created`,
+  `roll.group.created`, `roll.coop.created` — anything that asks the group
+  for a roll) additionally pulsate the tab and play a short sound, since
+  those are actionable and easy to miss; the three self-triggered actions
+  stay a plain badge only. **Decided:** a `/mute` chat command toggles the
+  sound on/off, same shape as `/koop` (no argument, flips a persisted
+  boolean, echoes the new state back as an info line) — same purely-client
+  pattern as the existing `/dicecode` command, never sent over the
+  connection. Add it to `CommandsDialog` alongside `/dicecode` for
+  discoverability. **Open before building:** no audio has ever shipped in
+  this app — needs an actual short sound-effect asset (source/license still
+  to be picked, not something to invent unasked).
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
@@ -235,6 +254,50 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      not an attr/baseValue/resource/talent target, so it doesn't share this
      bonus system despite looking similar on the surface. Left as its own
      separate item.
+- [sketch] **Player-set structured bonuses for Vorteile/Nachteile/Titel/
+  Professionsboni** (user feedback): these currently live in plain free-text
+  dynamic-table sections under the locked "Vorteile & Nachteile" tab
+  (`professionBoni`/`vorteile`/`nachteile`/`titel` section IDs,
+  `characterData.ts:250`), and — unlike the 20+ perks — have **no fixed
+  catalog**: a player types whatever advantage/disadvantage/title they want,
+  so a lookup-table approach doesn't apply here. Instead, each row would get
+  an optional structured effect the *player* sets themselves (pick a target
+  from the same `attr | baseValue | resource | talent` union already planned
+  for item bonuses, then type the amount), and the app applies it
+  automatically from then on instead of the player doing the arithmetic by
+  hand. Deliberately sequenced *after* the item-bonus-while-worn entry above:
+  build that first, then generalize its aggregator (`wornBoni` etc. in
+  `shared/src/items.ts`) to accept any bonus source, not just `Item[]`, rather
+  than growing a second parallel plumbing path. Still open: which of the four
+  sections actually get this (all four, or just vorteile/nachteile?), the UI
+  for attaching a structured effect to a free-text dynamic-table row (a
+  per-row dialog like the item one, or a new `DynColumn` type?), and whether a
+  row gets one effect or a repeatable list like items do.
+- [ready] **Graded (fortified) spells/skills** (user feedback, concept
+  agreed): `Ability.stufe` (`shared/src/abilities.ts:30`) already caps at
+  `ABILITY_STUFE_MAX = 10` (`:82`) — reaching that cap is meant to let the
+  player create a fortified version of the same spell/skill, and this can
+  happen twice (three grades total). **Decided:** no automation on granting —
+  the player creates the new `Ability` entry themselves exactly like any
+  other, same as today. **Decided:** a new `derivedFrom` field (an `Ability`
+  `uid` reference, empty by default) drives the grade: unset = grade 1
+  ("Basis"), set = one more than the referenced ability's own grade
+  ("Aufgewertet" = 2, "Potenzial" = 3 — names supplied by the GM). Grade is
+  **display-only**, shown next to the name — it does not feed the
+  Stufe×Komplexität Magiepunkte formula or any other calculation. **Decided:**
+  the picker only offers abilities of the same `magisch` value (spell derives
+  from spell, skill from skill only) — same partition `zauberOf`/
+  `faehigkeitenOf` already use (`abilities.ts:43-48`). **Decided:** the server
+  enforces both the max-grade-3 rule and cycle prevention at save time (reject
+  a `derivedFrom` that would push grade past 3, or that would loop back on
+  itself) — `saveAbilities` (`characterData.ts:1107`) already has the same
+  shape of per-save validation for the one-signatur-spell rule
+  (`signaturVergeben`, `:1111`) and uid dedup (`seenUids`, `:1109`), so this
+  follows the same pattern rather than adding a new validation style. Needs a
+  build pass: `derivedFrom` on the `Ability` type + `char_abilities` column,
+  a grade-computation helper (walk the chain, same file as `spellPunkte`/
+  `istTrivial`), the derive-from picker in `AbilityManager.tsx`, and the
+  grade label next to the ability name.
 - [sketch] **20+ perk picker** — source PDF analysed and written up at
   `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
   no prerequisite edges, ~160 effects classified into 6 computable and 8
@@ -293,19 +356,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   more than Haltbarkeit can today. Needs a concept pass on whether a
   partially-drunk potion has to split off the stack into its own row, or
   charges only make sense while `anzahl === 1`.
-- [sketch] **Dice-dock backlog is unbounded in memory** (user feedback, checked
-  and deprioritized): server-side is already fine — `loadFeedPage`
-  (`server/src/feed.ts:144`) is cursor-paginated against the `(group_id, id)`
-  index (`server/src/db.ts:381`) in bounded batches, cost doesn't grow with
-  total history. `DicePanelProvider`'s `feed` array itself never trims, though
-  — every `loadMore()` page and every live `feed.append` over the websocket
-  just accumulates for as long as the tab stays open (a page reload resets it
-  to the newest 30). Assessed as low risk: a long combat-heavy session
-  realistically produces a few hundred entries, which React/the DOM handle
-  fine in a small side panel — virtualization only starts to matter in the
-  thousands, which needs either an extreme marathon session without reload or
-  deliberate "Ältere Nachrichten laden" spam. Not worth building a cap/
-  virtualization for now; revisit if it's ever actually reported as slow.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -421,7 +471,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Unsorted ideas (treat all as [sketch])
 
-- logcally connect weapons and inventory
+- logically connect weapons and inventory
   - weapons should be real items, too. they just carry some extra information.
   - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen and vice versa
 
