@@ -1,0 +1,89 @@
+#!/bin/bash
+# Runs as root, started by helden-deploy-trigger@<basis>.path once the app leaves
+# a request in /srv/<basis>/deploy/anstoss.json. Consumes the request, runs the
+# deploy, and records the outcome where the app can read it.
+#
+# The app itself gains nothing from this: it may drop a note in a directory it
+# owns, and root decides what that note is worth. NoNewPrivileges stays on, no
+# sudoers entry exists, and the branch is fixed by the unit instance rather than
+# by anything the request could say.
+#
+# Deliberately WITHOUT `set -e`: whatever goes wrong below, this script has to
+# survive long enough to write a final status. A run that dies quietly would
+# strand every waiting browser on the "please hold" screen forever.
+set -uo pipefail
+
+BASIS="${1:?Basisverzeichnis angeben (helden oder helden-dev)}"
+case "$BASIS" in
+  helden)     INSTANZ=prod ;;
+  helden-dev) INSTANZ=dev ;;
+  *) echo "unbekannte Basis: $BASIS (erlaubt: helden, helden-dev)" >&2; exit 2 ;;
+esac
+
+DIR="/srv/$BASIS/deploy"
+ANSTOSS="$DIR/anstoss.json"
+STATUS="$DIR/status.json"
+FEHLER="$DIR/fehler.txt"
+
+[ -d "$DIR" ] || { echo "Steuerverzeichnis fehlt: $DIR" >&2; exit 2; }
+
+# Same shape as melde() in helden-deploy — see the comment there for why it
+# writes through a temporary name.
+melde() {
+  { printf '{"phase":"%s","zeit":%s}\n' "$1" "$(date +%s)" > "$STATUS.neu" &&
+    mv -f "$STATUS.neu" "$STATUS"; } || true
+}
+
+# The error text lives in its own plain file rather than inside the JSON. Hand
+# rolling JSON string escaping in bash is how quoting bugs get shipped; Node
+# reads this file and does the escaping properly on the way out.
+setze_fehler() { printf '%s\n' "$1" > "$FEHLER"; }
+
+# Claim the run BEFORE consuming the request. The app reports "a deploy is in
+# flight" when either the request file exists or the status says so; doing this
+# the other way round leaves a sliver of a second in which neither is true, and
+# a browser polling exactly then would conclude nothing was happening and stop
+# waiting for the restart.
+melde pruefe
+
+# Consume the request. A path unit only re-arms once the watched file is gone,
+# so removing it this early turns any crash below into one failed run instead of
+# an endless restart loop.
+if [ -f "$ANSTOSS" ]; then
+  echo "[$INSTANZ] Deploy angefordert: $(tr -d '\000-\037' < "$ANSTOSS" | head -c 300)"
+  rm -f "$ANSTOSS"
+else
+  echo "[$INSTANZ] Kein Anstoß vorhanden — vermutlich ein Handstart" >&2
+fi
+rm -f "$FEHLER"
+
+# Same lock the nightly chain uses. Colliding with it is not an error worth a
+# failed unit — it just means "not now".
+exec 9>/run/helden-deploy.lock
+if ! flock -n 9; then
+  echo "[$INSTANZ] Es läuft bereits ein Deploy — abgebrochen" >&2
+  setze_fehler "Es läuft bereits ein Deploy (vermutlich der nächtliche Lauf). Bitte in ein paar Minuten erneut versuchen."
+  melde fehlgeschlagen
+  exit 0
+fi
+
+PROTOKOLL=$(mktemp)
+trap 'rm -f "$PROTOKOLL"' EXIT
+
+# helden-deploy writes its own progress phases through HELDEN_DEPLOY_STATUS.
+# What it cannot write is the verdict on its own failure: `set -e` in there
+# means an aborted npm ci exits on the spot. So the last word is ours.
+HELDEN_DEPLOY_STATUS="$STATUS" /usr/local/bin/helden-deploy "$INSTANZ" > "$PROTOKOLL" 2>&1
+RC=$?
+cat "$PROTOKOLL"
+
+if [ "$RC" != 0 ]; then
+  echo "[$INSTANZ] Deploy fehlgeschlagen (Code $RC) — der bisherige Stand läuft weiter" >&2
+  tail -n 20 "$PROTOKOLL" | tr -d '\000' > "$FEHLER"
+  melde fehlgeschlagen
+fi
+
+# Always 0. The failure is recorded where it belongs — in the app and in this
+# journal. Leaving a unit in `systemctl --failed` on top of that adds noise, not
+# information.
+exit 0

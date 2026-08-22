@@ -27,7 +27,8 @@ import {
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { listRollableProbes } from './diceSource.js';
-import { pushSchicksalspunkte } from './ws.js';
+import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
+import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
@@ -86,10 +87,29 @@ import {
 
 export const api = Router();
 
-// Instance access gate — MUST stay the first middleware on the api router. A
-// sub-router mounted above this line (api.use('/wiki', wikiApi), say) would
-// bypass the gate entirely. Without RESTRICT_TO_ROLES this is a no-op, so
-// nothing changes in production.
+// Liveness probe for the waiting screen of an admin-triggered redeploy — the
+// one route deliberately registered ABOVE the instance gate, and the only one.
+// On the dev instance that gate answers 403 to an authenticated player, and
+// this endpoint has to keep working precisely when everything else is
+// uncertain. It therefore carries no authentication and says as little as it
+// possibly can: no commit, no version, no path. The boot id is a random value
+// per process start and identifies nothing but "this is a different process
+// than the one you were talking to".
+//
+// `wartung` is the single bit beyond liveness, and it earns its place: the
+// announcement over the WebSocket necessarily goes out BEFORE anyone knows
+// whether there is anything to deploy, so without it a run that ends in
+// "already up to date" would leave every other browser waiting for a restart
+// that never comes. It discloses nothing an observer could not see anyway by
+// watching the site go briefly unavailable.
+api.get('/health', (_req, res) => {
+  res.json({ ok: true, boot: BOOT_ID, wartung: deployLaeuft() });
+});
+
+// Instance access gate — MUST stay the first middleware on the api router, and
+// nothing but /health may be registered above it. A sub-router mounted above
+// this line (api.use('/wiki', wikiApi), say) would bypass the gate entirely.
+// Without RESTRICT_TO_ROLES this is a no-op, so nothing changes in production.
 api.use(instanceGate);
 
 // Das Wiki bringt seine eigenen Routen, seinen eigenen Zugriffscheck und sein
@@ -1916,4 +1936,53 @@ api.post('/admin/characters/:id/migrate-sections', requireAuth, requireGm, (req,
   }
   const result = migrateCharacterPeriphery(char.id);
   res.json(result);
+});
+
+// ————————————————————————————————————————————————————————————————
+// Maintenance: roll out a new version from the web interface
+// ————————————————————————————————————————————————————————————————
+//
+// requireAdmin, NOT requireGmOrAdmin like nearly every other /admin/ route.
+// Putting a new build on the machine is operations, not game mastering. The
+// note is here because an unexplained deviation gets "unified" sooner or later.
+//
+// What gets deployed appears nowhere below: the branch hangs off the name of
+// the systemd unit on the server (dev → develop, prod → main). These routes can
+// only say "now", never "what".
+
+api.get('/admin/deploy/status', requireAuth, requireAdmin, (_req, res) => {
+  // boot rides along on EVERY answer, not just on /api/health. That way the
+  // waiting browser notices the restart on the new process's first status
+  // reply, without having to observe a connection drop that a fast restart may
+  // never give it a chance to see.
+  res.json({ verfuegbar: deployVerfuegbar(), boot: BOOT_ID, status: leseDeployStatus() });
+});
+
+api.post('/admin/deploy', requireAuth, requireAdmin, (req, res) => {
+  if (!deployVerfuegbar()) {
+    res.status(501).json({ error: 'Auf dieser Instanz ist kein Ausrollen eingerichtet.' });
+    return;
+  }
+  if (deployLaeuft()) {
+    res.status(409).json({ error: 'Es läuft bereits ein Ausrollen. Bitte warte, bis es durch ist.' });
+    return;
+  }
+
+  const user = req.user!;
+  try {
+    stossDeployAn(user);
+  } catch (e) {
+    res.status(500).json({ error: `Der Anstoß ließ sich nicht ablegen: ${e instanceof Error ? e.message : e}` });
+    return;
+  }
+
+  // Audit trail. The request file itself is consumed by helden-deploy-trigger
+  // and gone seconds later — the journal is what remains.
+  console.log(`[deploy] angefordert von ${user.username} (id ${user.id})`);
+  broadcastWartung(user.displayName);
+
+  // 202, not 200: accepted, not done. This response could not report "done"
+  // even in principle — the process writing it gets killed by the very thing it
+  // is starting. The outcome arrives through /admin/deploy/status.
+  res.status(202).json({ boot: BOOT_ID });
 });

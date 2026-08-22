@@ -1,0 +1,88 @@
+#!/bin/bash
+# Roll out the Heldenverwaltung from its git clone.
+# Usage: helden-deploy <prod|dev> [branch]        FORCE=1 rebuilds an unchanged commit
+#
+# Replaces the former /srv/helden/deploy.sh, which only knew the production tree.
+# Everything instance-specific comes from the first argument, so the two instances
+# cannot drift apart in their deploy logic.
+set -euo pipefail
+
+[ "$(id -u)" = 0 ] || { echo "helden-deploy muss als root laufen" >&2; exit 1; }
+
+INSTANCE="${1:?prod oder dev angeben}"
+case "$INSTANCE" in
+  prod) BASE=/srv/helden;     SVCUSER=helden;    UNIT=helden-app.service;     DEFAULT_BRANCH=main ;;
+  dev)  BASE=/srv/helden-dev; SVCUSER=heldendev; UNIT=helden-app-dev.service; DEFAULT_BRANCH=develop ;;
+  *)    echo "unbekannte Instanz: $INSTANCE (erlaubt: prod, dev)" >&2; exit 2 ;;
+esac
+BRANCH="${2:-$DEFAULT_BRANCH}"
+REPO="$BASE/repo"
+
+# Anything owned by the service user runs as that user, with Node 22 on PATH —
+# the system default is Node 18 and engine-strict=true would fail npm ci.
+als_dienst() { sudo -H -u "$SVCUSER" env PATH=/opt/node22/bin:/usr/bin:/bin sh -c "$1"; }
+
+# Progress marker for a deploy the app asked for, so the waiting browser can say
+# more than "please hold". Does nothing at all unless HELDEN_DEPLOY_STATUS points
+# somewhere — the nightly run behaves exactly as it always did.
+#
+# Written via a temporary name and renamed: a rename within one filesystem is
+# atomic, so a reader never catches the file half-written. Failure to write is
+# swallowed on purpose; a missing status must never abort a working deploy.
+melde() {
+  [ -n "${HELDEN_DEPLOY_STATUS:-}" ] || return 0
+  { printf '{"phase":"%s","zeit":%s}\n' "$1" "$(date +%s)" > "$HELDEN_DEPLOY_STATUS.neu" &&
+    mv -f "$HELDEN_DEPLOY_STATUS.neu" "$HELDEN_DEPLOY_STATUS"; } || true
+}
+
+melde pruefe
+echo "→ [$INSTANCE] Stand aus GitHub holen ($BRANCH)"
+als_dienst "git -C $REPO fetch --prune origin"
+
+# Skip the build when the target commit is already live. Both instances build
+# every night now; on most days at least one of them has nothing new.
+ZIEL_SHA=$(als_dienst "git -C $REPO rev-parse --short origin/$BRANCH")
+AKTIV=$(readlink -f "$BASE/app" 2>/dev/null || true)
+if [ "${FORCE:-}" != 1 ] && [ "${AKTIV##*-}" = "$ZIEL_SHA" ]; then
+    echo "✓ [$INSTANCE] unverändert bei $ZIEL_SHA — nichts zu tun (FORCE=1 erzwingt einen Neubau)"
+    melde aktuell
+    exit 0
+fi
+
+als_dienst "git -C $REPO checkout -B $BRANCH origin/$BRANCH"
+
+SHA=$(als_dienst "git -C $REPO rev-parse --short HEAD")
+STAMP="$(date +%Y%m%d-%H%M%S)-$SHA"
+REL="$BASE/releases/$STAMP"
+echo "→ [$INSTANCE] Release $STAMP"
+
+# git archive instead of copying: the release stays free of .git
+als_dienst "mkdir -p $REL && git -C $REPO archive --format=tar HEAD | tar -x -C $REL"
+
+melde baue
+echo "→ [$INSTANCE] Abhängigkeiten und Client-Build"
+als_dienst "cd $REL && npm ci"
+als_dienst "cd $REL && npm run build"
+
+melde starte
+echo "→ [$INSTANCE] Umschalten und Neustart"
+als_dienst "ln -sfn $REL $BASE/app.new"
+als_dienst "mv -Tf $BASE/app.new $BASE/app"
+systemctl restart "$UNIT"
+
+sleep 4
+if systemctl is-active --quiet "$UNIT"; then
+    echo "✓ [$INSTANCE] Läuft: $STAMP"
+    melde fertig
+else
+    echo "✗ [$INSTANCE] Start fehlgeschlagen — Log:"
+    journalctl -u "$UNIT" -n 30 --no-pager
+    exit 1
+fi
+
+echo "→ [$INSTANCE] Alte Stände aufräumen (die letzten 3 bleiben)"
+AKTIV=$(readlink -f "$BASE/app")
+find "$BASE/releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | while read -r alt; do
+    # After a rollback the symlink points at an older release — never delete that one.
+    if [ "$(readlink -f "$alt")" != "$AKTIV" ]; then rm -rf "$alt"; fi
+done

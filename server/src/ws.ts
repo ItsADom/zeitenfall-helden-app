@@ -144,6 +144,23 @@ function broadcastToRoom(groupId: number, msg: ServerToClientMessage): void {
 }
 
 /**
+ * To EVERY room at once — the only message without a group: the instance is
+ * about to restart, which concerns everyone. Deliberately its own function
+ * rather than a special case inside broadcastToRoom(), so that skipping the
+ * room boundary stays visible in the signature.
+ *
+ * Anyone who has never picked a room holds no socket and gets no warning. For
+ * them it stays a few seconds of unavailability — accepted, rather than
+ * building a second notification channel for it.
+ */
+export function broadcastWartung(durch: string): void {
+  const msg: ServerToClientMessage = { type: 'wartung.angekuendigt', durch };
+  for (const room of rooms.values()) {
+    for (const ws of room) send(ws, msg);
+  }
+}
+
+/**
  * Nach einem GM-Reset auf der GM-Übersicht (REST, eigene Session) an den
  * Charakterbesitzer pushen — sonst zeigt dessen Dock den alten Stand, bis
  * er neu lädt (die Klee-Buttons blieben fälschlich deaktiviert).

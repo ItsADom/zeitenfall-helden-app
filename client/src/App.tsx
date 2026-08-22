@@ -23,6 +23,8 @@ import { WikiNewsProvider } from './wiki/news';
 import { OverviewProvider } from './components/overview';
 import { RequestsProvider, PendingBadge } from './components/requests';
 import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProvider';
+import { WartungProvider } from './components/wartung';
+import { NeustartOverlay } from './components/NeustartOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
@@ -111,6 +113,9 @@ export default function App() {
       {/* Für alle: das Wiki gehört jedem, und das Abzeichen zählt, was seit dem
           letzten Blick in die Änderungen dazugekommen ist. */}
       <WikiNewsProvider>
+      {/* Umschließt den DicePanelProvider, damit dessen Socket die Wartungs-
+          Ansage direkt weiterreichen kann. */}
+      <WartungProvider>
       <DicePanelProvider>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true">
@@ -167,7 +172,11 @@ export default function App() {
         </Routes>
       </main>
       <DicePanelDock />
+      {/* Ganz zuletzt und außerhalb von <main>: der Wartebildschirm muss alles
+          überdecken, den Würfel-Dock eingeschlossen. */}
+      <NeustartOverlay />
       </DicePanelProvider>
+      </WartungProvider>
       </WikiNewsProvider>
       </RequestsProvider>
       </OverviewProvider>

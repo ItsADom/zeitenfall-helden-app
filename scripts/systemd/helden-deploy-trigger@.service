@@ -1,0 +1,17 @@
+# Runs the deploy a logged-in admin asked for. Started by the matching .path
+# unit, never enabled on its own.
+[Unit]
+Description=Deploy der Heldenverwaltung auf Anforderung (%i)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/helden-deploy-trigger %i
+
+# npm ci plus a Vite build takes minutes. The default start timeout is 90
+# seconds, which would kill the deploy mid-build and leave a half-installed
+# release behind — this is the one setting that must not be forgotten.
+TimeoutStartSec=1800
+
+# No sandboxing here on purpose: this unit exists precisely to do the
+# privileged work the app must not do. Its whole attack surface is the one
+# argument systemd passes in, and that comes from the unit name, not the app.
