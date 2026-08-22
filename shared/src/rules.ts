@@ -93,21 +93,22 @@ export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey):
 
 export function computeResource(attrs: Attributes, key: ResourceKey, input: ResourceInput): ResourceResult {
   const v = (c: AttrCode) => attrMax(attrs, c);
-  // Rassenbonus (races_catalog.le/.au/.ae) fließt wie ein Attributbonus direkt
-  // in den Formelwert ein — hebt damit auch die Ausbaugrenze mit an, analog zu
-  // resilienzBase bei den Basiswerten.
-  const vor = computeResourceVorergebnis(attrs, key) + (input.raceBase ?? 0);
-  const ergebnis = vor + input.permanent + input.kauf;
+  // Rassenbonus (races_catalog.le/.au/.ae) ist ein normaler Bonus auf Maximum
+  // und Ausbaugrenze, kein Bestandteil des Formelwerts — anders als
+  // resilienzBase bei den Basiswerten fließt er NICHT in vor/Formelwert ein.
+  const vor = computeResourceVorergebnis(attrs, key);
+  const raceBase = input.raceBase ?? 0;
+  const ergebnis = vor + raceBase + input.permanent + input.kauf;
   let max: number | null = null;
   switch (key) {
     case 'le':
-      max = ceil(vor + (v('KK') + v('KO')) / 1.5 + input.kaufMax + input.maxPlus);
+      max = ceil(vor + raceBase + (v('KK') + v('KO')) / 1.5 + input.kaufMax + input.maxPlus);
       break;
     case 'aus':
-      max = vor + (v('KO') + v('GE')) + input.kaufMax + input.maxPlus;
+      max = vor + raceBase + (v('KO') + v('GE')) + input.kaufMax + input.maxPlus;
       break;
     case 'ase':
-      max = vor + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
+      max = vor + raceBase + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
       break;
   }
   const nutzbar = max === null ? ergebnis : Math.min(ergebnis, max);

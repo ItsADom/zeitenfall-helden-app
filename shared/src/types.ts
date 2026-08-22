@@ -108,7 +108,7 @@ export const RESOURCE_COLUMN_LABELS = {
   gekauft: 'Gekauft',
   summe: 'Summe',
   maximum: 'Maximum',
-  ausbaugrenze: 'Ausbaugrenze',
+  ausbaugrenze: 'Ausbaugrenze / Hard-Cap',
   aktuell: 'Aktuell',
 } as const;
 

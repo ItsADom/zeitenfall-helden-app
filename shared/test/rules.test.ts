@@ -77,6 +77,15 @@ describe('Energien', () => {
       expect(r.gekappt).toBe(false);
     });
   });
+
+  describe('Rassenbonus', () => {
+    it('hebt Ergebnis und Ausbaugrenze an, aber nicht den Formelwert (Vorergebnis)', () => {
+      const r = computeResource(raskir, 'ase', { ...raskirResources.ase, raceBase: 10 });
+      expect(r.vorergebnis).toBe(23);
+      expect(r.ergebnis).toBe(37);
+      expect(r.max).toBe(87);
+    });
+  });
 });
 
 describe('Basiswerte', () => {
