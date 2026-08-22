@@ -138,7 +138,7 @@ export function loadLanguages(charId: number): CharLanguage[] {
 
 export function loadSpecialResources(charId: number): SpecialResource[] {
   return db
-    .prepare('SELECT name, max, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
+    .prepare('SELECT catalog_id AS catalogId, name, max, bonus, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
     .all(charId) as SpecialResource[];
 }
 
@@ -1578,16 +1578,27 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       // (Überladung), deshalb hier KEINE Deckelung nach oben.
       const rows = Array.isArray(data) ? (data as Record<string, unknown>[]) : [];
       const next = rows
-        .map((r) => [str(r.name).slice(0, MAX_SPECIAL_RESOURCE_NAME), num(r.max), num(r.aktuell)] as [string, number, number])
-        .filter(([name]) => name.trim() !== '')
+        .map(
+          (r) =>
+            [
+              r.catalogId == null ? null : Number(r.catalogId),
+              str(r.name).slice(0, MAX_SPECIAL_RESOURCE_NAME),
+              num(r.max),
+              num(r.bonus),
+              num(r.aktuell),
+            ] as [number | null, string, number, number, number],
+        )
+        .filter(([, name]) => name.trim() !== '')
         .slice(0, MAX_SPECIAL_RESOURCES);
       const cur = (db
-        .prepare('SELECT name, max, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
+        .prepare('SELECT catalog_id AS catalogId, name, max, bonus, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
         .all(charId) as Record<string, unknown>[])
-        .map((r) => [r.name, r.max, r.aktuell]);
+        .map((r) => [r.catalogId, r.name, r.max, r.bonus, r.aktuell]);
       if (sameRows(cur, next)) return;
       db.prepare('DELETE FROM char_special_resources WHERE character_id = ?').run(charId);
-      const stmt = db.prepare('INSERT INTO char_special_resources (character_id, pos, name, max, aktuell) VALUES (?, ?, ?, ?, ?)');
+      const stmt = db.prepare(
+        'INSERT INTO char_special_resources (character_id, pos, catalog_id, name, max, bonus, aktuell) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      );
       next.forEach((values, i) => stmt.run(charId, i, ...values));
       return;
     }

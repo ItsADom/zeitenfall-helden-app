@@ -127,14 +127,30 @@ export interface ResourceInput {
 }
 export type Resources = Record<ResourceKey, ResourceInput>;
 
-// Spezialenergien (light): frei benennbare Vorräte, die der Spieler selbst
-// anlegt — Karma, Odem, Blutmagie … Bewusst NUR name/max/aktuell, KEINE
-// AP-/Ausbau-Aufteilung wie bei LE/AUS/AsE. Sie leben in einer EIGENEN Tabelle
-// neben den festen Energien, damit die starren Spalten der Resources sie nicht
-// verformen. Reihenfolge folgt der Liste (pos), wie bei Talenten/Sprachen.
+// Spezialenergien: Vorräte neben LE/AUS/AsE, bewusst NUR name/max/aktuell,
+// KEINE AP-/Ausbau-Aufteilung. Sie leben in einer EIGENEN Tabelle neben den
+// festen Energien, damit die starren Spalten der Resources sie nicht verformen.
+// Reihenfolge folgt der Liste (pos), wie bei Talenten/Sprachen.
+//
+// `catalogId` verweist auf special_energies_catalog (GM-Liste aus name +
+// optionaler Formel + Beschreibung, siehe server/data/specialEnergies.json).
+// Hat der Katalog-Eintrag eine Formel, wird das gespeicherte `max` NICHT
+// benutzt — es wird wie LE/AUS/AsE bei jedem Rendern live aus den Attributen/
+// Pools neu berechnet PLUS `bonus` (evaluateEnergyFormula in rules.ts), analog
+// zu Bonus/maxPlus bei LE/AUS/AsE — ein Talent/Gegenstand, der NUR diese eine
+// Energie anhebt, ohne die Formel selbst zu ändern. Hat der Eintrag KEINE
+// Formel (oder `catalogId` ist `null`), bleibt `max` frei vom Spieler
+// editierbar wie bisher und `bonus` ist ungenutzt (0, keine eigene Eingabe —
+// dort deckt das freie `max` denselben Zweck ab). `catalogId: null` deckt
+// außerdem Altbestand aus der Zeit vor dem Katalog ab, dessen Name zu keinem
+// Katalog-Eintrag passte — bewusst NICHT automatisch in den Katalog
+// übernommen (keine GM-Erfindungen durch Spielertext, siehe die
+// Nachzieh-Migration in server/src/seed.ts).
 export interface SpecialResource {
+  catalogId: number | null;
   name: string;
   max: number;
+  bonus: number;
   aktuell: number;
 }
 // Obergrenzen, damit weder die Oberfläche noch die Ablage überläuft.

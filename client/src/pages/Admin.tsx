@@ -15,7 +15,15 @@ interface CatalogColumn {
 }
 
 // Editierbarer Katalog (Talente / Sprachen / Rassen) — speichert je Feld beim Verlassen
-function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' | 'tags' | 'races'; title: string; columns: CatalogColumn[] }) {
+function CatalogPanel({
+  type,
+  title,
+  columns,
+}: {
+  type: 'talents' | 'languages' | 'tags' | 'races' | 'specialEnergies';
+  title: string;
+  columns: CatalogColumn[];
+}) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
   const [neu, setNeu] = useState<Record<string, string>>({});
@@ -29,6 +37,7 @@ function CatalogPanel({ type, title, columns }: { type: 'talents' | 'languages' 
       languages: Record<string, unknown>[];
       tags: Record<string, unknown>[];
       races: Record<string, unknown>[];
+      specialEnergies: Record<string, unknown>[];
     }>('/api/catalogs').then((c) => c[type]);
   const reload = () => {
     fetchRows().then(setRows);
@@ -1191,6 +1200,16 @@ export default function AdminPage() {
           { key: 'psyche', label: 'Psyche', width: 60 },
           { key: 'resilienz', label: 'Resilienz', width: 70 },
           { key: 'notiz', label: 'Notiz', width: 200 },
+          { key: 'sort', label: 'Sortierung', width: 80 },
+        ]}
+      />
+      <CatalogPanel
+        type="specialEnergies"
+        title="Spezialenergien-Katalog"
+        columns={[
+          { key: 'name', label: 'Name', width: 180 },
+          { key: 'formula', label: 'Formel (leer = manuell)', width: 160 },
+          { key: 'beschreibung', label: 'Beschreibung' },
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />

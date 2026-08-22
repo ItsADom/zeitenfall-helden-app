@@ -160,15 +160,21 @@ db.exec(`
     PRIMARY KEY (character_id, key)
   );
 
-  -- Spezialenergien (light): frei benannte Vorräte, die der Spieler selbst
-  -- anlegt. EIGENE Tabelle statt Zusatzspalten in char_resources, damit die
-  -- festen Energien unberührt bleiben. Wie Talente/Sprachen eine Liste (pos).
+  -- Spezialenergien: Vorräte neben LE/AUS/AsE. EIGENE Tabelle statt
+  -- Zusatzspalten in char_resources, damit die festen Energien unberührt
+  -- bleiben. Wie Talente/Sprachen eine Liste (pos). catalog_id verweist auf
+  -- special_energies_catalog (NULL = Altbestand von vor dem Katalog, siehe
+  -- SpecialResource in shared/src/types.ts); hat der Katalog-Eintrag eine
+  -- Formel, ist max hier nur ein ungenutzter Snapshot und bonus fließt additiv
+  -- in das live berechnete Maximum ein (analog zu maxPlus bei LE/AUS/AsE).
   CREATE TABLE IF NOT EXISTS char_special_resources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     pos INTEGER NOT NULL DEFAULT 0,
+    catalog_id INTEGER REFERENCES special_energies_catalog(id) ON DELETE SET NULL,
     name TEXT NOT NULL DEFAULT '',
     max REAL NOT NULL DEFAULT 0,
+    bonus REAL NOT NULL DEFAULT 0,
     aktuell REAL NOT NULL DEFAULT 0
   );
 
@@ -252,6 +258,20 @@ db.exec(`
     talente TEXT NOT NULL DEFAULT '',
     le REAL, au REAL, ae REAL, mr REAL, ak REAL, gs REAL, psyche REAL, resilienz REAL,
     notiz TEXT NOT NULL DEFAULT '',
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Spezialenergien-Katalog (GM-Liste aus dem "20+ Bäume"-Umfeld, s.
+  -- server/data/specialEnergies.json): ersetzt das freie Eintippen im
+  -- Energien-Panel durch eine Auswahl aus vorgegebenen Namen. formula ist
+  -- eine kleine Arithmetik-Formel über Attributen/Pool-Maxima (leer = rein
+  -- manueller Eintrag, Spieler pflegt max/aktuell wie bisher selbst), siehe
+  -- evaluateEnergyFormula in shared/src/rules.ts.
+  CREATE TABLE IF NOT EXISTS special_energies_catalog (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    formula TEXT NOT NULL DEFAULT '',
+    beschreibung TEXT NOT NULL DEFAULT '',
     sort INTEGER NOT NULL DEFAULT 0
   );
 
@@ -658,6 +678,23 @@ db.exec(`
   const cols = new Set((db.prepare('PRAGMA table_info(races_catalog)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('psyche')) db.exec('ALTER TABLE races_catalog ADD COLUMN psyche REAL');
   if (!cols.has('resilienz')) db.exec('ALTER TABLE races_catalog ADD COLUMN resilienz REAL');
+}
+
+// Migration: 'catalog_id'-Spalte an bestehende char_special_resources ergänzen
+// (Bindung an den neuen special_energies_catalog). NULL ist hier absichtlich
+// der richtige Ausgangszustand für jede vorhandene Zeile — sie ist Altbestand,
+// bis eine Namens-Übereinstimmung sie unten (server/src/seed.ts, nach dem
+// Katalog-Seed) verknüpft. Kein Datenverlust: name/max/aktuell bleiben unberührt.
+{
+  const cols = new Set(
+    (db.prepare('PRAGMA table_info(char_special_resources)').all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!cols.has('catalog_id')) {
+    db.exec('ALTER TABLE char_special_resources ADD COLUMN catalog_id INTEGER REFERENCES special_energies_catalog(id) ON DELETE SET NULL');
+  }
+  if (!cols.has('bonus')) {
+    db.exec('ALTER TABLE char_special_resources ADD COLUMN bonus REAL NOT NULL DEFAULT 0');
+  }
 }
 
 // Migration: 'AT-Deckel' (atMax) aus den Nahkampfwaffen entfernt. Bestehende

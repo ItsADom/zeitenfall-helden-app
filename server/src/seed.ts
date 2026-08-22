@@ -148,9 +148,56 @@ export function seed(): void {
       console.warn('server/data/races.json fehlt — Rassen-Katalog leer');
     }
   }
+
+  const specialEnergyCount = (db.prepare('SELECT COUNT(*) AS n FROM special_energies_catalog').get() as { n: number }).n;
+  if (specialEnergyCount === 0) {
+    const file = path.join(dataDir, 'specialEnergies.json');
+    if (fs.existsSync(file)) {
+      const energies = JSON.parse(fs.readFileSync(file, 'utf8')) as {
+        name: string;
+        formula: string;
+        beschreibung: string;
+        sort: number;
+      }[];
+      const stmt = db.prepare('INSERT INTO special_energies_catalog (name, formula, beschreibung, sort) VALUES (?, ?, ?, ?)');
+      const tx = db.transaction(() => {
+        for (const e of energies) stmt.run(e.name, e.formula, e.beschreibung, e.sort);
+      });
+      tx();
+      console.log(`Spezialenergien-Katalog geladen: ${energies.length} Einträge`);
+    } else {
+      console.warn('server/data/specialEnergies.json fehlt — Spezialenergien-Katalog leer');
+    }
+  }
+}
+
+// Verknüpft bestehende char_special_resources-Zeilen (aus der Zeit vor dem
+// Katalog) per Namensabgleich mit einem Katalog-Eintrag, statt sie stumm als
+// Altbestand liegen zu lassen. Läuft bei JEDEM Start (muss nach dem
+// Katalog-Seed oben passieren — deshalb hier, nicht in db.ts) und ist
+// idempotent: nur Zeilen ohne catalog_id werden angefasst, einmal verknüpft
+// bleibt es so. Erzeugt bewusst KEINE neuen Katalog-Einträge für unbekannte
+// Namen — das wäre eine GM-Erfindung durch Spielertext; diese Zeilen bleiben
+// einfach frei bearbeitbarer Altbestand (siehe SpecialResource in
+// shared/src/types.ts).
+function linkSpecialResourcesToCatalog(): void {
+  db.exec(`
+    UPDATE char_special_resources
+    SET catalog_id = (
+      SELECT sec.id FROM special_energies_catalog sec
+      WHERE LOWER(TRIM(sec.name)) = LOWER(TRIM(char_special_resources.name))
+      LIMIT 1
+    )
+    WHERE catalog_id IS NULL
+      AND EXISTS (
+        SELECT 1 FROM special_energies_catalog sec
+        WHERE LOWER(TRIM(sec.name)) = LOWER(TRIM(char_special_resources.name))
+      );
+  `);
 }
 
 seed();
+linkSpecialResourcesToCatalog();
 // Reihenfolge zählt: beide führen denselben Migrationszähler (PRAGMA
 // user_version) weiter, der kleinere Schritt zuerst.
 backfillGroupSessionLog();

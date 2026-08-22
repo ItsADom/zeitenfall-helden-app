@@ -4,6 +4,7 @@ import {
   computeBaseValues,
   computeResource,
   erleichterung,
+  evaluateEnergyFormula,
   levelForAp,
   MAX_LEVEL,
   maximaleLast,
@@ -17,6 +18,7 @@ import {
   weaponProbes,
   wurfweiten,
 } from '../src/rules.js';
+import type { EnergyFormulaVars } from '../src/rules.js';
 import { BASE_VALUE_LABELS, RESOURCE_LABELS } from '../src/types.js';
 import type { AttrCode, Attributes, BaseValueInputs, BaseValueKey, ResourceKey, Resources } from '../src/types.js';
 import reference from './reference.json';
@@ -107,6 +109,38 @@ describe('Psyche', () => {
   it('Maximum ohne Bonus/Rassenwert ist nur der MU-Anteil', () => {
     expect(psycheMax(raskir, 0, 0)).toBe(30);
   });
+});
+
+describe('Spezialenergien-Formeln (special_energies_catalog)', () => {
+  // Raskir: MU 16, KL 12, IN 15, CH 15, FF 16, GE 12, KO 44, KK 26 (reference.json).
+  // Pool-Maxima frei gewählt, um Lp/Adp/Asp/Psyche unabhängig von den echten
+  // Ressourcen-Formeln zu prüfen.
+  const vars: EnergyFormulaVars = { attrs: raskir, leMax: 10, auMax: 20, aseMax: 30, psycheMax: 40 };
+
+  const faelle: [string, number | null][] = [
+    ['(KO+KK)/2', 35], // Gift: (44+26)/2 = 35
+    ['(KO+KK)/4', 18], // Sporen: 70/4 = 17.5 → aufgerundet 18
+    ['(MU+MU+CH)/3', 16], // Wut: 47/3 = 15,66… → aufgerundet 16
+    ['(KO+KO+KK)/3', 38], // Wärme: 114/3 = 38
+    ['(CH+MU+KL)/3', 15], // Fluchkraft: 43/3 = 14,33… → aufgerundet 15
+    ['Psyche*2', 80], // Angst
+    ['Asp/8', 4], // Antimagie: 30/8 = 3,75 → aufgerundet 4
+    ['Lp*2', 20], // Blut
+    ['(ADP+MU+KL)/2', 24], // Chakra: (20+16+12)/2 = 24
+    ['(ASP+MU+CH)/4', 16], // Chi: 61/4 = 15,25 → aufgerundet 16
+    ['(KO+KK+ADP)/3', 30], // Brutmenge/zustand: 90/3 = 30
+    ['', null], // manuelle Katalog-Einträge haben keine Formel
+    ['   ', null],
+    ['FOO', null], // unbekannte Variable
+    ['(KO+', null], // kaputte Klammer
+    ['KO*', null], // fehlender rechter Operand
+  ];
+
+  for (const [formula, erwartet] of faelle) {
+    it(`"${formula || '(leer)'}" → ${erwartet ?? 'null'}`, () => {
+      expect(evaluateEnergyFormula(formula, vars)).toBe(erwartet);
+    });
+  }
 });
 
 describe('Talente', () => {

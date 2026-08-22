@@ -280,8 +280,9 @@ api.get('/catalogs', requireAuth, (_req, res) => {
   const languages = db.prepare('SELECT * FROM languages_catalog ORDER BY sort').all();
   const tags = db.prepare('SELECT * FROM tags_catalog ORDER BY sort').all();
   const races = db.prepare('SELECT * FROM races_catalog ORDER BY sort').all();
+  const specialEnergies = db.prepare('SELECT * FROM special_energies_catalog ORDER BY sort').all();
   const currencies = currencySystemsList();
-  res.json({ talents, languages, tags, races, currencies });
+  res.json({ talents, languages, tags, races, specialEnergies, currencies });
 });
 
 // --- Dashboard / Gruppen ---
@@ -1578,6 +1579,14 @@ const CATALOGS = {
     // Boni/Basiswert sind nullbare Zahlen (leer = „keine Werte-Tabelle in der
     // Quelle"), anders als bei den übrigen Katalogen, die reine Textspalten sind.
     numCols: ['le', 'au', 'ae', 'mr', 'ak', 'gs', 'psyche', 'resilienz'],
+  },
+  specialEnergies: {
+    table: 'special_energies_catalog',
+    refTable: 'char_special_resources',
+    refCol: 'catalog_id',
+    // formula bleibt Text (evaluateEnergyFormula in shared/src/rules.ts parst
+    // sie selbst) — leer = rein manueller Eintrag ohne Formel-Maximum.
+    cols: ['name', 'formula', 'beschreibung', 'sort'],
   },
 } as const;
 

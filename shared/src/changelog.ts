@@ -201,6 +201,14 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-22',
+    title: 'Spezialenergien-Katalog',
+    added: [
+      'Spezialenergien lassen sich jetzt aus einer vom Spielleiter vorgegebenen Liste auswählen (z. B. Wut, Chi, Karma) statt frei eingetippt zu werden. Hat der gewählte Eintrag eine Formel, wird das Maximum automatisch aus euren Attributen berechnet, mit einem persönlichen Bonus obendrauf (z. B. für ein Talent oder einen Gegenstand). Bereits vorhandene, frei benannte Energien bleiben unverändert erhalten.',
+    ],
+    admin: ['(Verwaltung) Neuer Spezialenergien-Katalog zum Bearbeiten (Name, Formel, Beschreibung).'],
+  },
+  {
     date: '2026-08-21',
     version: '0.6.5',
     title: 'Würfel-Feinschliff & Porträts',

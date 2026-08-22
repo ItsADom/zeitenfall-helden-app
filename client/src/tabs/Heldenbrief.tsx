@@ -15,6 +15,7 @@ import {
   attrPointsTheoreticalTotal,
   computeBaseValues,
   computeResource,
+  evaluateEnergyFormula,
   levelForAp,
   nextLevelAp,
   psycheMax,
@@ -173,13 +174,34 @@ export default function HeldenbriefTab() {
   const setBvMod = (key: BaseValueKey, v: number) => update('baseValues', { ...baseValues, mods: { ...baseValues.mods, [key]: v } });
   const setResource = (key: ResourceKey, field: string, v: unknown) =>
     update('resources', { ...resources, [key]: { ...resources[key], [field]: v } });
-  // Spezialenergien: frei benannte Vorräte in einer eigenen Liste. Unveränderlich
-  // aktualisiert, damit React die Zeilen sauber neu zeichnet.
+  // Spezialenergien: Vorräte neben LE/AUS/AsE, ausgewählt aus dem GM-Katalog
+  // (special_energies_catalog). Unveränderlich aktualisiert, damit React die
+  // Zeilen sauber neu zeichnet.
+  const [specialPick, setSpecialPick] = useState('');
   const setSpecial = (next: SpecialResource[]) => update('special', next);
-  const setSpecialField = (i: number, field: keyof SpecialResource, v: unknown) =>
+  const setSpecialField = (i: number, field: 'name' | 'max' | 'bonus' | 'aktuell', v: number | string) =>
     setSpecial(special.map((s, j) => (j === i ? { ...s, [field]: v } : s)));
-  const addSpecial = () => setSpecial([...special, { name: '', max: 0, aktuell: 0 }]);
+  // Ein Katalog-Eintrag höchstens einmal pro Charakter (siehe TODO.md) — schon
+  // gewählte Einträge fallen aus der Auswahlliste.
+  const availableEnergies = catalogs.specialEnergies.filter((e) => !special.some((s) => s.catalogId === e.id));
+  const addSpecialFromCatalog = (catalogId: number) => {
+    const entry = catalogs.specialEnergies.find((e) => e.id === catalogId);
+    if (!entry || special.some((s) => s.catalogId === entry.id)) return;
+    setSpecial([...special, { catalogId: entry.id, name: entry.name, max: 0, bonus: 0, aktuell: 0 }]);
+    setSpecialPick('');
+  };
   const removeSpecial = (i: number) => setSpecial(special.filter((_, j) => j !== i));
+  // Eingaben für Formel-Spezialenergien (evaluateEnergyFormula): Lp/Adp/Asp
+  // sind das NUTZBARE Maximum der festen Energien (an der Ausbaugrenze
+  // gekappt), nicht die rohe Summe — dieselbe Zahl, die in der Energien-Tabelle
+  // oben als „Maximum" steht.
+  const energyFormulaVars = {
+    attrs: attributes,
+    leMax: computeResource(attributes, 'le', resources.le).nutzbar,
+    auMax: computeResource(attributes, 'aus', resources.aus).nutzbar,
+    aseMax: computeResource(attributes, 'ase', resources.ase).nutzbar,
+    psycheMax: psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0),
+  };
   const setBio = (key: string, v: string) => update('bio', { ...bio, [key]: v });
   const setMeta = (key: string, v: number) => update('meta', { ...meta, [key]: v });
 
@@ -471,58 +493,98 @@ export default function HeldenbriefTab() {
         </table>
         </div>
 
-        {/* Spezialenergien (light): eigene, schlanke Tabelle unter denselben
-            Energien — name/max/aktuell, vom Spieler selbst erweiterbar. Bewusst
-            KEINE AP-/Ausbau-Spalten: sie soll nicht wie die feste Tabelle wirken.
+        {/* Spezialenergien: eigene, schlanke Tabelle unter denselben Energien —
+            ausgewählt aus dem GM-Katalog (special_energies_catalog), je Eintrag
+            höchstens einmal pro Charakter. Hat der Katalog-Eintrag eine Formel,
+            wird das Maximum wie bei LE/AUS/AsE live berechnet und ist NICHT
+            editierbar; ohne Formel bleibt es (wie bisher) frei einstellbar.
+            catalogId===null sind Altbestand aus der Zeit vor dem Katalog (siehe
+            SpecialResource in shared/src/types.ts) — Name/Maximum bleiben dort
+            wie gehabt frei editierbar, damit nichts verloren geht. Bewusst KEINE
+            AP-/Ausbau-Spalten: sie soll nicht wie die feste Tabelle wirken.
             Getrennte Ablage, damit deren starre Spalten sie nicht verformen. */}
         <div className="subhead-row">
           <h4>Spezialenergien</h4>
-          {!readOnly && special.length < MAX_SPECIAL_RESOURCES && (
-            <button className="small add-row" onClick={addSpecial}>
-              + Zeile
-            </button>
+          {!readOnly && special.length < MAX_SPECIAL_RESOURCES && availableEnergies.length > 0 && (
+            <>
+              <select value={specialPick} onChange={(e) => setSpecialPick(e.target.value)}>
+                <option value="">Energie wählen …</option>
+                {availableEnergies.map((e) => (
+                  <option key={e.id} value={e.id} title={e.beschreibung}>
+                    {e.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                className="small add-row"
+                disabled={!specialPick}
+                onClick={() => addSpecialFromCatalog(Number(specialPick))}
+              >
+                + Hinzufügen
+              </button>
+            </>
           )}
         </div>
         {special.length === 0 ? (
-          <p className="muted">
-            Eigene Energien (z. B. Karma, Odem, Blutkraft) mit „+ Zeile“ hinzufügen — je Eintrag Name, Maximum und
-            aktueller Wert.
-          </p>
+          <p className="muted">Energien aus dem Katalog des Spielleiters oben hinzufügen (z. B. Karma, Wut, Chi).</p>
         ) : (
           <div className="table-wrap">
             <table className="sheet" style={{ minWidth: 360 }}>
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th style={{ width: 70 }} title="Nur bei Formel-Energien: persönlicher Zuschlag (Talent, Gegenstand …), addiert auf das Formel-Ergebnis">
+                    Bonus
+                  </th>
                   <th style={{ width: 100 }}>Maximum</th>
                   <th style={{ width: 100 }}>Aktuell</th>
                   {!readOnly && <th style={{ width: 40 }} aria-label="Entfernen" />}
                 </tr>
               </thead>
               <tbody>
-                {special.map((s, i) => (
-                  <tr key={i}>
-                    <td>
-                      <TextInput value={s.name} onChange={(v) => setSpecialField(i, 'name', v)} />
-                    </td>
-                    <td>
-                      <NumInput value={s.max} onChange={(v) => setSpecialField(i, 'max', v)} />
-                    </td>
-                    {/* Aktuell darf über dem Maximum stehen (Überladung) — nicht
-                        kappen, nur färben wie bei den festen Energien. */}
-                    <td
-                      className={overfilled(s.aktuell, s.max) ? 'res-over' : undefined}
-                      title={overfilled(s.aktuell, s.max) ? `überladen: ${s.aktuell}/${s.max}` : undefined}
-                    >
-                      <NumInput value={s.aktuell} onChange={(v) => setSpecialField(i, 'aktuell', v)} />
-                    </td>
-                    {!readOnly && (
-                      <td>
-                        <ConfirmDeleteButton title="Energie entfernen" onConfirm={() => removeSpecial(i)} />
+                {special.map((s, i) => {
+                  const catEntry = s.catalogId == null ? null : (catalogs.specialEnergies.find((e) => e.id === s.catalogId) ?? null);
+                  // Formel nur wirksam, wenn der Katalog-Eintrag (noch) existiert
+                  // UND eine Formel trägt — sonst bleibt max frei editierbar, wie
+                  // bei einer rein manuellen Energie oder einer gelöschten Katalog-
+                  // Zuordnung (kein Datenverlust: die Zeile bleibt erhalten). Bonus
+                  // gibt es nur bei Formel-Energien (siehe SpecialResource) — beim
+                  // freien max deckt das Feld selbst denselben Zweck ab.
+                  const formula = catEntry?.formula ?? '';
+                  const formulaMax = formula ? evaluateEnergyFormula(formula, energyFormulaVars) : null;
+                  const computedMax = formulaMax != null ? formulaMax + s.bonus : null;
+                  const max = computedMax ?? s.max;
+                  return (
+                    <tr key={i}>
+                      <td title={s.catalogId == null ? 'Altbestand (frei benannt)' : catEntry?.beschreibung}>
+                        {s.catalogId == null ? <TextInput value={s.name} onChange={(v) => setSpecialField(i, 'name', v)} /> : s.name}
                       </td>
-                    )}
-                  </tr>
-                ))}
+                      <td>
+                        {formulaMax != null ? (
+                          <NumInput value={s.bonus} onChange={(v) => setSpecialField(i, 'bonus', v)} />
+                        ) : (
+                          <span className="cell-value">—</span>
+                        )}
+                      </td>
+                      <td className={computedMax != null ? 'computed' : undefined} title={formula || undefined}>
+                        {computedMax != null ? computedMax : <NumInput value={s.max} onChange={(v) => setSpecialField(i, 'max', v)} />}
+                      </td>
+                      {/* Aktuell darf über dem Maximum stehen (Überladung) — nicht
+                          kappen, nur färben wie bei den festen Energien. */}
+                      <td
+                        className={overfilled(s.aktuell, max) ? 'res-over' : undefined}
+                        title={overfilled(s.aktuell, max) ? `überladen: ${s.aktuell}/${max}` : undefined}
+                      >
+                        <NumInput value={s.aktuell} onChange={(v) => setSpecialField(i, 'aktuell', v)} />
+                      </td>
+                      {!readOnly && (
+                        <td>
+                          <ConfirmDeleteButton title="Energie entfernen" onConfirm={() => removeSpecial(i)} />
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

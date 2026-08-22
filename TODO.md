@@ -26,20 +26,17 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
-### 4. Spezialenergien - full version
+- /koop is missing from /commands. also accept english /coop too
 
-Light version shipped: a separate `special` list (name/max/aktuell) the player
-edits in the Energien panel, mirrored as sidebar quick-edit chips and GM-overview
-chips. Backend table `char_special_resources`. Open for the full version:
+### 4. Spezialenergien - remaining bits
 
-- [sketch] GM-provided ruleset instead of free-form: energies **selectable** by
-  players from a data-list the app/GM supplies (name + attribute formula + bonus),
-  with a place to note the special rules attached to each. `parseProbeExpr` in
-  `shared/src/rules.ts` already evaluates "MU+IN+CH". The Einstellungen page is
-  where these settings dock. Migrate existing free-form `special` rows into it
-  without data loss.
-- [ready] Make ASP itself optional — some characters have none (best done in the
-  same pass).
+GM-provided catalog (name + optional formula + bonus + description) shipped,
+selectable per character, formula-driven max computed live via
+`evaluateEnergyFormula` in `shared/src/rules.ts`. Pre-catalog free-form rows
+that didn't match a catalog entry by name stay as editable legacy rows
+(`catalogId: null`), not auto-migrated into the catalog. Still open:
+
+- [ready] Make ASP itself optional — some characters have none.
 
 ## Mid-Prio
 

@@ -107,10 +107,18 @@ export interface RaceCatalogRow {
   notiz: string;
   sort: number;
 }
+export interface SpecialEnergyCatalogRow {
+  id: number;
+  name: string;
+  formula: string;
+  beschreibung: string;
+  sort: number;
+}
 export interface Catalogs {
   talents: TalentCatalogRow[];
   languages: LanguageCatalogRow[];
   races: RaceCatalogRow[];
+  specialEnergies: SpecialEnergyCatalogRow[];
   currencies: CurrencySystem[];
 }
 
