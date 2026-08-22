@@ -31,6 +31,26 @@
   --over-soft: #dfe9fb;
   --over-line: #2f5db0;
 
+  /* Würfel-Pigmente: je Polyeder ein eigener Ton, damit in „1w6+1w20" sofort
+     sichtbar ist, welcher Wert von welcher Sorte stammt. Wie --crit-line/
+     --over-line/--warn-line/--mastery bewusst EINMAL hier definiert und nur nach
+     MODUS überschrieben, nie je Farbwelt — es sind Sortenkennzeichen, keine
+     Themenfarben.
+     Die Töne sind nicht frei gewählt: Krit, Warnung, Gold, Erfolg und Patzer
+     belegen bereits Rot, Bernstein, Oliv, Grün und Blau. Übrig bleibt der kühle
+     Bogen, und genau dort sitzen diese fünf. Warm heißt damit durchgehend „etwas
+     ist passiert", kühl heißt „welcher Würfel".
+     Gemessen am gerenderten Pixel, nicht am Farbfeld: die viewBox 26×24 skaliert
+     auf 28×26 px, keine Kante trifft das Pixelraster, und die 1-px-Kontur deckt
+     im Mittel nur knapp die Hälfte — jeder Ton kommt halb mit dem Untergrund
+     verrechnet an. Wer nachjustiert, prüft ihn deshalb im Browser. */
+  --die-w4: #29797a;
+  --die-w6: #5394b4;
+  --die-w8: #8c4d67;
+  --die-w10: #69558b;
+  --die-w12: #9b6c9c;
+  /* Kein --die-w20: der W20 behält --border-strong, siehe .feed-die--hexagon. */
+
   /* Weitere Farb-Token (für spätere Themes/Dark Mode zentral schaltbar).
      Alle Werte entsprechen exakt dem bisherigen „Rot/Pergament"-Standard. */
   --on-accent: #ffffff; /* Text/Icon auf dunklen Akzent-Flächen (Kopfleisten-Verlauf) */
@@ -146,6 +166,14 @@
    Akzent. Die Schattenlande stehen bewusst danach und sind dunkel-only. */
 :root[data-mode='dark'] {
   color-scheme: dark;
+  /* Würfel-Pigmente im Dunkeln: heller und etwas stiller, wie --crit-line
+     #9a2f22 → #e0705f. Die Rangfolge der Auffälligkeit bleibt erhalten — auf
+     dunklem Grund trägt Helligkeit den Kontrast, im Hellen die Dunkelheit. */
+  --die-w4: #509595;
+  --die-w6: #5799ba;
+  --die-w8: #d394ac;
+  --die-w10: #b9a7db;
+  --die-w12: #a97baa;
   --bg: #17140f;
   --panel: #221d16;
   --panel-hi: #2a241b;
@@ -235,6 +263,14 @@
    unabhängig von data-mode und steht deshalb nach den Modus-Blöcken. */
 :root[data-theme='nacht'] {
   color-scheme: dark;
+  /* Würfel-Pigmente im Dunkeln: heller und etwas stiller, wie --crit-line
+     #9a2f22 → #e0705f. Die Rangfolge der Auffälligkeit bleibt erhalten — auf
+     dunklem Grund trägt Helligkeit den Kontrast, im Hellen die Dunkelheit. */
+  --die-w4: #509595;
+  --die-w6: #5799ba;
+  --die-w8: #d394ac;
+  --die-w10: #b9a7db;
+  --die-w12: #a97baa;
   --bg: #17140f;
   --panel: #221d16;
   --panel-hi: #2a241b;
@@ -4535,35 +4571,191 @@ body.resizing-dice {
 .feed-dice {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 4px;
+  /* Spaltenabstand knapper als der Zeilenabstand: die Formen bringen ihren
+     eigenen Rand von 1,5 px mit, 4 px wirkten daneben wie 7. */
+  gap: 4px 3px;
 }
+/* Ein Würfel. Form (SVG) und Augenzahl (echter Text) liegen in DERSELBEN
+   Grid-Zelle übereinander — Grid statt position:absolute, damit die Box ihre
+   Größe weiterhin vom SVG bekommt, die Zahl markierbar bleibt und ein zu breiter
+   Wert sichtbar übersteht, statt still abgeschnitten zu werden. */
 .feed-die {
-  display: inline-block;
-  min-width: 22px;
-  text-align: center;
-  padding: 1px 4px;
-  border: 1px solid var(--border-strong);
-  border-radius: 5px;
-  background: var(--computed-bg);
+  display: inline-grid;
+  place-items: center;
+  height: 26px;
+  /* Beides fest statt geerbt: im Feed stünden 13 px, in .feed-pending aber 12 px,
+     und .feed-entry stellte eine 18-px-Zeilenbox gegen die 26 px Höhe. */
+  font-size: 12px;
+  line-height: 1;
   color: var(--computed-text);
-  font-variant-numeric: tabular-nums;
+  /* KEINE tabular-nums: die geben der „1" die Laufweite einer „7", und weil jede
+     Zahl hier ohnehin allein in ihrer eigenen Form steht, richtet sich nichts
+     spaltenweise aus — es kippt nur jede Zahl mit einer 1 optisch aus der Mitte. */
+  font-variant-numeric: normal;
+  /* Konturfarbe an einer Stelle: sie speist die SVG-Kontur UND den Rand des
+     neutralen Kastens, deshalb genügt den Krit-Regeln unten je eine Zeile. */
+  --die-line: var(--border-strong);
+  /* Grundwert der Füllung, je Form überschrieben. Steht neben --die-line, damit
+     Kontur und Körper aus derselben Stelle kommen und nicht auseinanderlaufen. */
+  --die-wash: var(--computed-bg);
+  /* Optischer Versatz der Zahl, je Form überschrieben. Der Grundwert HEBT sie an:
+     zentriert wird die Zeilenbox, die Ziffern sitzen darin aber tiefer, weil die
+     Oberlänge der Schrift ihre Unterlänge übersteigt. Am gerenderten Pixel
+     gemessen, nicht aus Schriftmetrik geschätzt: ohne Korrektur liegt die
+     Ziffernfläche 0,42 px zu tief. */
+  --die-dy: -0.4px;
 }
+.feed-die > * {
+  grid-area: 1 / 1;
+}
+/* Neutraler Kasten für alles ohne eigene Form (w2, w3, w7, w100 …) — als einziger
+   Würfel elastisch, damit auch ein vierstelliges Ergebnis hineinpasst. */
+.feed-die--plain {
+  min-width: 28px;
+  padding: 0 5px;
+  border: 1px solid var(--die-line);
+  border-radius: 5px;
+  background: var(--die-wash);
+}
+/* Die Füllung sitzt am Polygon, nicht am Kasten: läge sie am Kasten, stünde hinter
+   jeder Kontur weiterhin genau das gefüllte Rechteck, das hier verschwinden soll. */
+.feed-die-shape {
+  /* Größer als die viewBox (26×24): das SVG skaliert gleichmäßig mit und füllt
+     die Box aus. Bewusst so und nicht über neu gezeichnete Pfade — die Geometrie
+     bleibt an EINER Stelle, in Die.tsx. */
+  width: 28px;
+  height: 26px;
+  fill: var(--die-wash);
+  stroke: var(--die-line);
+  /* non-scaling-stroke, damit die Kontur trotz der Skalierung oben exakt 1 px
+     bleibt — genau wie der Rand des neutralen Kastens daneben. */
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.feed-die-num {
+  transform: translateY(var(--die-dy));
+}
+/* Dreieck und Fünfeck tragen ihren Schwerpunkt unter der Boxmitte, dort darf die
+   Zahl also tiefer stehen. Das Fünfeck sitzt auf seinem Flächenschwerpunkt; beim
+   Dreieck ist der Wert bewusst nach Augenmaß gesetzt und NICHT der rechnerisch
+   ausgewogene (2,45 px) — der ließ die Ziffer optisch zu tief in der Spitze
+   hängen. Nur die Zahl wandert, die Form bleibt in ihrer Box zentriert, sonst
+   stünde sie schief neben den anderen Würfeln. */
+/* Je Form ihr Pigment. Die Kennung trägt die KONTUR allein; --die-wash ist nur
+   Verstärkung — die gewaschenen Flächen liegen untereinander zu dicht, um für
+   sich zu unterscheiden. Wenn etwas wegfällt, dann die Waschung, nie die Kontur.
+   ACHTUNG, DIE REIHENFOLGE IST DIE GANZE GARANTIE: .feed-die--20 und
+   .feed-die--1 stehen unmittelbar UNTER diesem Block und haben dieselbe
+   Spezifität (je eine Klasse). Bei Gleichstand gewinnt der spätere Block — nur
+   deshalb färbt eine natürliche 20 weiterhin rot. Eine neue Formregel gehört
+   deshalb ÜBER die Krit-Regeln; darunter tötet sie die Krit-Färbung lautlos. */
+.feed-die--triangle {
+  --die-dy: 0.45px;
+  /* Grünspan: der einzige Grünton, bewusst blaustichig statt blattgrün — links
+     neben jedem Wurf trägt .feed-roll--success einen 3 px breiten grünen Rand,
+     und nur dieser Abstand hält den W4 davon ab, sich als „gelungen" zu lesen. */
+  --die-line: var(--die-w4);
+  --die-wash: color-mix(in oklab, var(--die-w4) 12%, var(--computed-bg));
+}
+.feed-die--square {
+  /* Petrolblau, der leiseste Ton: der W6 liegt in fast jedem Wurf, und das
+     abgerundete Quadrat ist ohnehin die eigenständigste Silhouette im Satz. */
+  --die-line: var(--die-w6);
+  --die-wash: color-mix(in oklab, var(--die-w6) 12%, var(--computed-bg));
+}
+.feed-die--rhombus {
+  /* Krapplack, der kräftigste Ton: die Raute ist die einzige Form ganz ohne
+     achsenparallele Kanten und verliert am meisten an die Kantenglättung. */
+  --die-line: var(--die-w8);
+  --die-wash: color-mix(in oklab, var(--die-w8) 12%, var(--computed-bg));
+}
+.feed-die--crystal {
+  /* Amethyst: die Form heißt im Code „crystal" und ist genau ein Prisma. Der
+     dunkle Ton trennt sie zudem vom neutralen W20-Sechseck, dem sie sonst nur
+     um 30° verdreht gleicht — die schwächste Formunterscheidung im Satz. */
+  --die-line: var(--die-w10);
+  --die-wash: color-mix(in oklab, var(--die-w10) 12%, var(--computed-bg));
+}
+.feed-die--pentagon {
+  --die-dy: 0.25px;
+  /* Malve, heller Nachbar des Amethyst: die beiden trennt die Helligkeit, nicht
+     der Farbton — eine 1-px-Kontur überträgt Helligkeit zuverlässig, Buntheit
+     nur halb. */
+  --die-line: var(--die-w12);
+  --die-wash: color-mix(in oklab, var(--die-w12) 12%, var(--computed-bg));
+}
+/* .feed-die--hexagon bekommt BEWUSST keine Regel: nur der W20 kann kritisch
+   werden, und nur ohne Ruhefarbe bedeutet Farbe auf ihm eindeutig Ergebnis statt
+   Sorte. So behält der Krit seinen vollen Sprung, und die häufigste Probe des
+   Spiels (n×W20) bleibt so ruhig wie bisher — dort würde ein Farbton ohnehin
+   nichts unterscheiden, weil alle Würfel dieselbe Sorte sind. */
 .feed-die--20 {
-  border-color: var(--crit-line);
+  --die-line: var(--crit-line);
   color: var(--crit-line);
   font-weight: 700;
 }
 .feed-die--1 {
-  border-color: var(--over-line);
+  --die-line: var(--over-line);
   color: var(--over-line);
   font-weight: 700;
 }
+/* Würfelformen abgeschaltet (Einstellungen → Anzeige): zurück auf den schlichten
+   Kasten. Die SORTENTÖNE werden dafür an der Wurzel neutralisiert, statt hier
+   --die-line zu überschreiben — diese Regel hat drei Selektorteile und schlüge
+   damit die Krit-Regeln oben (je eine Klasse). Eine natürliche 20 verlöre sonst
+   lautlos ihr Rot, und zwar nur für Nutzer mit abgeschalteten Formen. */
+:root[data-dice-icons='off'] {
+  --die-w4: var(--border-strong);
+  --die-w6: var(--border-strong);
+  --die-w8: var(--border-strong);
+  --die-w10: var(--border-strong);
+  --die-w12: var(--border-strong);
+}
+:root[data-dice-icons='off'] .feed-die {
+  /* Derselbe Kasten wie .feed-die--plain. --die-line bleibt unangetastet und
+     trägt deshalb weiterhin Krit-Rot bzw. Patzer-Blau, wo die Klasse sitzt. */
+  --die-wash: var(--computed-bg);
+  --die-dy: -0.4px;
+  min-width: 28px;
+  padding: 0 5px;
+  border: 1px solid var(--die-line);
+  border-radius: 5px;
+  background: var(--die-wash);
+}
+:root[data-dice-icons='off'] .feed-die-shape {
+  display: none;
+}
+/* Das Attributskürzel an einer nicht-aufgehobenen 1/20. Es sitzt in einer ZWEITEN
+   Rasterspalte, nicht im gestapelten Feld 1/1 — dort läge es mitten auf der
+   Augenzahl. Dieselbe Regel trägt beide Darstellungen: mit Formen hängt das
+   Kürzel neben der Silhouette (.feed-die hat dann selbst keinen Rand), ohne Formen
+   steht es INNERHALB des wiederhergestellten Kastens direkt hinter der Zahl —
+   also genau wie vor den Würfelformen.
+   ACHTUNG: Diese Regel MUSS nach `.feed-die > *` stehen (dort wird alles auf Feld
+   1/1 gelegt). Beide haben dieselbe Spezifität (je eine Klasse), bei Gleichstand
+   gewinnt der spätere Block — darüber platziert wäre grid-area hier wirkungslos.
+   `vertical-align: sub` wäre es übrigens auch: als Rasterelement wird das <sub>
+   blockifiziert. Den Tiefgang tragen deshalb align-self und ein Versatz von Hand.
+   BEWUSST center statt end: end nägelt das Kürzel an die Unterkante der Zeile, also
+   an die 26 px Höhe — mit center hängt es an der Augenzahl, die ebenfalls zentriert
+   steht, und beide wandern zusammen, falls die Höhe sich je ändert.
+   Die 4,7 px sind gemessen, nicht geraten: mit ihnen sitzt das Kürzel bei
+   ABGESCHALTETEN Formen exakt dort, wo es vor den Würfelformen saß (2,59 px unter
+   der Unterkante der Zahl, wie es `vertical-align: sub` dort ergab). Wer sie ändert,
+   verschiebt damit auch die Darstellung MIT Formen — beide teilen sich diese Regel.
+   --die-dy kommt oben drauf, damit Kürzel und Zahl denselben Feinversatz tragen
+   statt gegeneinander zu laufen; es ist auf .feed-die immer gesetzt (-0,4 px), sonst
+   wäre das calc() ungültig und der ganze transform fiele lautlos weg. */
 .feed-die-attr {
+  grid-area: 1 / 2;
+  align-self: center;
   margin-left: 2px;
   font-size: 0.65em;
   font-weight: 600;
-  vertical-align: sub;
   opacity: 0.85;
+  transform: translateY(calc(var(--die-dy) + 4.7px));
 }
 .feed-roll-sum {
   font-variant-numeric: tabular-nums;

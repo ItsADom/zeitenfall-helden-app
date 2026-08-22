@@ -1,9 +1,9 @@
 import type { DiceExpression, DieConfirmation, PendingConfirmation } from '@shared/dice';
 import { diceSidesForExpression } from '@shared/dice';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
-import { ATTR_LABELS, type AttrRowCode } from '@shared/types';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
+import Die from './Die';
 // Sämtliche Wortlaute stehen in labels.ts — hier wird nur ausgewählt, welcher.
 import { CONFIRM, OUTCOME, PENDING, VISIBILITY } from './labels';
 
@@ -26,23 +26,6 @@ function exprText(e: DiceExpression, code: 'w' | 'd'): string {
 function VisibilityTag({ visibility }: { visibility: RollVisibility }) {
   if (visibility === 'public') return null;
   return <span className="feed-vis-tag">{visibility === 'hidden' ? VISIBILITY.hidden : VISIBILITY.gmPlayer}</span>;
-}
-
-// Ein Würfel; natürliche 20/1 stechen hervor, weil sie eine Bestätigung
-// auslösen. `attr` (nur bei Proben bekannt, siehe attrParts) zeigt zusätzlich,
-// welches Attribut den Würfel gestellt hat — sonst ist bei einer 3-Würfel-
-// Probe reine Ratesache, wessen 1/20 da stehengeblieben ist.
-function Die({ value, sides, attr }: { value: number; sides: number; attr?: AttrRowCode }) {
-  const crit = sides === 20 && (value === 20 || value === 1);
-  return (
-    <span
-      className={`feed-die${crit ? (value === 20 ? ' feed-die--20' : ' feed-die--1') : ''}`}
-      title={crit && attr ? ATTR_LABELS[attr] : undefined}
-    >
-      {value}
-      {crit && attr && <sub className="feed-die-attr">{attr}</sub>}
-    </span>
-  );
 }
 
 // Bestätigungswürfe: je natürlicher 20/1 ein eigener Wurf, dieselbe ≥10-
@@ -93,7 +76,7 @@ function Confirmations({ confirmations }: { confirmations: DieConfirmation[] }) 
 // Patzer kennen (Glückswurf, Zufallstabelle): der Auslöser wird wirkungslos
 // abgehakt.
 function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pending: PendingConfirmation[]; mine: boolean }) {
-  const { confirmDie } = useDicePanel();
+  const { confirmDie, diceCode } = useDicePanel();
   if (pending.length === 0) return null;
   if (!mine) {
     return <div className="feed-pending muted">{PENDING.waiting(pending.length)}</div>;
@@ -103,9 +86,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
       <div className="feed-pending">
         <span className="feed-pending-row">
           {pending.map((p) => (
-            <span key={p.dieIndex} className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>
-              {p.trigger}
-            </span>
+            <Die key={p.dieIndex} value={p.trigger} sides={20} code={diceCode} />
           ))}
           <button className="small" onClick={() => pending.forEach((p) => confirmDie(entryId, p.dieIndex))}>
             {PENDING.rollAll}
@@ -125,7 +106,7 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
     <div className="feed-pending">
       {pending.map((p) => (
         <span key={p.dieIndex} className="feed-pending-row">
-          <span className={`feed-die feed-die--${p.trigger === 20 ? '20' : '1'}`}>{p.trigger}</span>
+          <Die value={p.trigger} sides={20} code={diceCode} />
           <button className="small" onClick={() => confirmDie(entryId, p.dieIndex)}>
             {PENDING.roll}
           </button>
@@ -193,7 +174,13 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
       <div className="feed-roll-body">
         <span className="feed-dice">
           {roll.dice.map((d, i) => (
-            <Die key={i} value={d} sides={diceSides[i]} attr={isProbe ? roll.attrParts?.[i] : undefined} />
+            <Die
+              key={i}
+              value={d}
+              sides={diceSides[i]}
+              code={diceCode}
+              attr={isProbe ? roll.attrParts?.[i] : undefined}
+            />
           ))}
         </span>
         <span className="feed-roll-sum">
