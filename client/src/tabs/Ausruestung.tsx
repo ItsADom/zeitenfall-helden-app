@@ -28,7 +28,7 @@ import { useChar } from '../pages/Character';
 // Ziehen geht auch im Nur-Lesen-Modus (Umrüsten ist eine schnelle Spielaktion);
 // nur das Anlegen/Bearbeiten der Detailfelder braucht den Bearbeiten-Modus.
 
-const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 3 });
 
 interface DropTarget {
   location: ItemLocation;
