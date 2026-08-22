@@ -176,8 +176,9 @@ export default function DicePanel() {
   const isValidDice = rollRest !== null && parseDiceExpression(splitInlineTitle(rollRest).expr) !== null;
   // „/koop <Suchtext>": Vorschläge wie bei „/r", aber schlägt einen offenen
   // Kooperationsprobe-Pool vor statt sofort zu würfeln (siehe pickProbe) —
-  // dieselbe Suggestion-Liste, nur ein zweiter Auslöser-Befehl.
-  const koopMatch = /^\/koop\s+(.*)$/i.exec(draft);
+  // dieselbe Suggestion-Liste, nur ein zweiter Auslöser-Befehl. „/coop" ist
+  // der englische Alias (gleichbedeutend, nirgends sonst dokumentiert).
+  const koopMatch = /^\/(?:koop|coop)\s+(.*)$/i.exec(draft);
   const koopMode = koopMatch !== null;
   const searchText = koopMode ? koopMatch[1].trim() : rollRest !== null && !isValidDice ? rollRest.trim() : '';
   // „/koop" braucht KEINEN eigenen Charakter (die Spielleitung hat nie
@@ -321,11 +322,11 @@ export default function DicePanel() {
       setDraft('');
       return;
     }
-    // „/koop <Suchtext>": kein Freihand-Fallback wie bei „/r" — ein Treffer
-    // wird immer über die Vorschlagsliste ausgewählt (Klick/Enter, siehe
-    // pickProbe), landet also nie hier. Wer trotzdem „Senden" drückt, hat
-    // noch nichts Passendes ausgewählt.
-    const koop = /^\/koop(?:\s+(.*))?$/i.exec(text);
+    // „/koop <Suchtext>" (oder „/coop", englischer Alias): kein Freihand-
+    // Fallback wie bei „/r" — ein Treffer wird immer über die Vorschlagsliste
+    // ausgewählt (Klick/Enter, siehe pickProbe), landet also nie hier. Wer
+    // trotzdem „Senden" drückt, hat noch nichts Passendes ausgewählt.
+    const koop = /^\/(?:koop|coop)(?:\s+(.*))?$/i.exec(text);
     if (koop) {
       setError(`„${koop[1] ?? ''}" — noch keine Probe aus den Vorschlägen ausgewählt.`);
       return;

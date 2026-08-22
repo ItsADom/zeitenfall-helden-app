@@ -26,18 +26,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
-- /koop is missing from /commands. also accept english /coop too
-
-### 4. Spezialenergien - remaining bits
-
-GM-provided catalog (name + optional formula + bonus + description) shipped,
-selectable per character, formula-driven max computed live via
-`evaluateEnergyFormula` in `shared/src/rules.ts`. Pre-catalog free-form rows
-that didn't match a catalog entry by name stay as editable legacy rows
-(`catalogId: null`), not auto-migrated into the catalog. Still open:
-
-- [ready] Make ASP itself optional — some characters have none.
-
 ## Mid-Prio
 
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal

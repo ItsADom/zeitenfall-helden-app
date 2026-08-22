@@ -207,6 +207,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Spezialenergien lassen sich jetzt aus einer vom Spielleiter vorgegebenen Liste auswählen (z. B. Wut, Chi, Karma) statt frei eingetippt zu werden. Hat der gewählte Eintrag eine Formel, wird das Maximum automatisch aus euren Attributen berechnet, mit einem persönlichen Bonus obendrauf (z. B. für ein Talent oder einen Gegenstand). Bereits vorhandene, frei benannte Energien bleiben unverändert erhalten.',
     ],
     admin: ['(Verwaltung) Neuer Spezialenergien-Katalog zum Bearbeiten (Name, Formel, Beschreibung).'],
+    fixed: ['„/coop" funktioniert jetzt genau wie „/koop" (englischer Alias).'],
   },
   {
     date: '2026-08-21',

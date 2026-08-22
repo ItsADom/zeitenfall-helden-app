@@ -61,6 +61,11 @@ not general DSA5 knowledge.
   uncertainties, propose an approach, and get their feedback before building.
   Only well-specified tasks (clear scope, no open decisions) go straight to
   implementation. When in doubt, ask.
+- **Leave dev servers running after verifying a change.** Don't shut down a
+  server/client preview you started just to tidy up — only stop one when it's
+  actually in the way (e.g. a port conflict, or a throwaway DB that must not
+  linger). The developer wants to poke at the running app themselves after a
+  change lands, so a live preview is more useful left up than torn down.
 
 ## Docs & user-facing text
 
