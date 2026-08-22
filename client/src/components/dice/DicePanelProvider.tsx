@@ -13,6 +13,19 @@ import { apiGet, apiPut } from '../../api';
 import { usePersistedState } from '../persist';
 
 const PAGE_SIZE = 30;
+// Wie viele Einträge ein echter Neuverbindungsaufbau initial lädt — bewusst
+// knapp, der Rest läuft über „Ältere Nachrichten laden" nach. Ein bloßer
+// Reconnect nach einem Netz-Aussetzer lädt stattdessen PAGE_SIZE nach (siehe
+// connect()), damit ein kurzer Verbindungsabbruch nicht sichtbar Einträge
+// aus dem Feed reißt.
+const INITIAL_LOAD_SIZE = 10;
+// Deckel für die im Client gehaltene Live-Liste — ältere Einträge werden
+// beim Eintreffen neuer stillschweigend vorne abgeschnitten (Server bleibt
+// über loadMore() jederzeit erreichbar, das ist reine Anzeige-Hygiene). Ein
+// Klick auf „Ältere Nachrichten laden" hebt den Deckel auf, bis der nächste
+// ECHTE Neuverbindungsaufbau (Raumwechsel/Laden) ihn zurücksetzt — ein
+// bloßer Reconnect nach Netz-Aussetzer tut das nicht (siehe connect()).
+const MAX_LIVE_FEED = 100;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 // Wie lange eine „wer ist da"-Notiz stehen bleibt, bevor sie von selbst
@@ -29,6 +42,13 @@ function mergeFeed(existing: FeedEntry[], incoming: FeedEntry[]): FeedEntry[] {
   const byId = new Map(existing.map((e) => [e.id, e]));
   for (const e of incoming) byId.set(e.id, e);
   return [...byId.values()].sort((a, b) => a.id - b.id);
+}
+
+// `allow`=true (nach loadMore()) lässt den Deckel weg, bis der nächste echte
+// Neuverbindungsaufbau ihn wieder scharf schaltet (siehe MAX_LIVE_FEED).
+function trimFeed(entries: FeedEntry[], allow: boolean): FeedEntry[] {
+  if (allow || entries.length <= MAX_LIVE_FEED) return entries;
+  return entries.slice(entries.length - MAX_LIVE_FEED);
 }
 
 /**
@@ -250,6 +270,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const reconnectDelayRef = useRef(RECONNECT_BASE_MS);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalCloseRef = useRef(false);
+  // Siehe MAX_LIVE_FEED — true nach loadMore(), zurückgesetzt bei jedem
+  // echten Neuverbindungsaufbau (applyRoom), NICHT bei einem bloßen Reconnect.
+  const trimOverrideRef = useRef(false);
   // Nachrichten, die abgeschickt wurden, während die Verbindung (noch) nicht
   // stand — vor allem beim Würfeln vom Bogen, das erst den Raum wechselt.
   const outboxRef = useRef<ClientToServerMessage[]>([]);
@@ -276,7 +299,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const connect = useCallback((gid: number) => {
+  // `fresh`=true nur beim echten Neuverbindungsaufbau (applyRoom) — ein
+  // automatischer Reconnect nach Netz-Aussetzer (onclose unten) ruft mit
+  // false, damit weder der 10er-Anfangsdeckel noch der loadMore()-Override
+  // dabei zurückgesetzt werden.
+  const connect = useCallback((gid: number, fresh: boolean) => {
     bufferingRef.current = true;
     liveBufferRef.current = [];
     intentionalCloseRef.current = false;
@@ -286,10 +313,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     wsRef.current = ws;
 
     ws.onopen = () => {
-      apiGet<{ entries: FeedEntry[]; hasMore: boolean }>(`/api/groups/${gid}/feed?limit=${PAGE_SIZE}`)
+      const limit = fresh ? INITIAL_LOAD_SIZE : PAGE_SIZE;
+      apiGet<{ entries: FeedEntry[]; hasMore: boolean }>(`/api/groups/${gid}/feed?limit=${limit}`)
         .then((page) => {
           if (wsRef.current !== ws) return; // superseded by a newer connection
-          setFeed((prev) => mergeFeed(prev, mergeFeed(page.entries, liveBufferRef.current)));
+          setFeed((prev) => trimFeed(mergeFeed(prev, mergeFeed(page.entries, liveBufferRef.current)), trimOverrideRef.current));
           setHasMore(page.hasMore);
           bufferingRef.current = false;
           liveBufferRef.current = [];
@@ -405,7 +433,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       if (bufferingRef.current) {
         liveBufferRef.current.push(msg.entry);
       } else {
-        setFeed((prev) => mergeFeed(prev, [msg.entry]));
+        setFeed((prev) => trimFeed(mergeFeed(prev, [msg.entry]), trimOverrideRef.current));
       }
     };
     ws.onclose = () => {
@@ -414,7 +442,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       if (intentionalCloseRef.current) return;
       const delay = reconnectDelayRef.current * (0.8 + Math.random() * 0.4);
       reconnectDelayRef.current = Math.min(reconnectDelayRef.current * 2, RECONNECT_MAX_MS);
-      reconnectTimerRef.current = setTimeout(() => connect(gid), delay);
+      reconnectTimerRef.current = setTimeout(() => connect(gid, false), delay);
     };
     ws.onerror = () => {
       ws.close();
@@ -437,13 +465,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setPendingRequests([]);
       setGroupRequests([]);
       setCoopPools([]);
+      trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (wsRef.current) {
         intentionalCloseRef.current = true;
         wsRef.current.close();
       }
-      connect(option.id);
+      connect(option.id, true);
     },
     [connect, setPersistedRoom],
   );
@@ -644,6 +673,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
 
   const loadMore = useCallback(() => {
     if (groupId === null || loadingMore || !hasMore || feed.length === 0) return;
+    // Bewusst angefordert — der 100er-Deckel gilt ab jetzt nicht mehr, bis
+    // der nächste echte Neuverbindungsaufbau ihn zurücksetzt (siehe applyRoom).
+    trimOverrideRef.current = true;
     setLoadingMore(true);
     const before = feed[0].id;
     apiGet<{ entries: FeedEntry[]; hasMore: boolean }>(`/api/groups/${groupId}/feed?before=${before}&limit=${PAGE_SIZE}`)
