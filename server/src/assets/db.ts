@@ -25,7 +25,6 @@ const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 
 export const ASSETS_PFAD = process.env.HELDEN_ASSETS_DB ?? path.join(dir, 'helden-assets.db');
 
 let geoeffnet: DatenbankTyp | null = null;
-let versucht = false;
 
 /**
  * Generic from the start: `owner_type`/`owner_id` mean the expanded bio page's
@@ -58,10 +57,17 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS idx_assets_owner ON assets (owner_type, owner_id, pos);
 `;
 
-/** The image database, or null if it could not be opened. Never throws. */
+/**
+ * The image database, or null if it could not be opened. Never throws.
+ *
+ * Retries the open on every call while it hasn't succeeded yet — a failed
+ * attempt is NOT cached. A transient cause (data dir not yet writable at
+ * boot, a momentary disk issue) would otherwise wedge image uploads for the
+ * rest of the process's life, since nothing else ever calls this again on
+ * its own; only a restart used to clear it.
+ */
 export function assetsDb(): DatenbankTyp | null {
-  if (geoeffnet || versucht) return geoeffnet;
-  versucht = true;
+  if (geoeffnet) return geoeffnet;
   try {
     fs.mkdirSync(path.dirname(ASSETS_PFAD), { recursive: true });
     const datenbank = new Database(ASSETS_PFAD);
