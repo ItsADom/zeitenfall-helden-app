@@ -137,9 +137,7 @@ export const KNOWN_BUGS: KnownBug[] = [
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Sonder-Energien zum Auswählen aus einer vom Spielleiter gepflegten Liste, samt hinterlegter Regeln.',
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
-  'Die Rassen-Boni (Lebensenergie, Ausdauer, Astralenergie, Magieresistenz, Artefaktkontrolle) fließen direkt in die berechneten Werte ein, statt nur als Info zu stehen.',
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
   'Ganz frühe Überlegung, noch ohne Konzept: eigene kleine Bögen für Tiere und Begleiter.',
   'Ein virtueller Spieltisch für Kampf und Erkundung: Karte, Marker und Initiative-Leiste.',
@@ -202,47 +200,51 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-22',
-    title: 'Spezialenergien-Katalog',
-    added: [
-      'Spezialenergien lassen sich jetzt aus einer vom Spielleiter vorgegebenen Liste auswählen (z. B. Wut, Chi, Karma) statt frei eingetippt zu werden. Hat der gewählte Eintrag eine Formel, wird das Maximum automatisch aus euren Attributen berechnet, mit einem persönlichen Bonus obendrauf (z. B. für ein Talent oder einen Gegenstand). Bereits vorhandene, frei benannte Energien bleiben unverändert erhalten.',
-    ],
-    admin: ['(Verwaltung) Neuer Spezialenergien-Katalog zum Bearbeiten (Name, Formel, Beschreibung).'],
-  },
-  {
-    date: '2026-08-21',
-    version: '0.6.5',
-    title: 'Würfel-Feinschliff & Porträts',
-    added: [
-      'Der Rassen-Katalog gibt jetzt auch Boni auf LE/AUS/ASP/MR/Artefaktkontrolle (nicht nur Geschwindigkeit, Psyche und Resilienz wie bisher) — die Rassen-Auswahl im Heldenbrief rechnet diese fünf Werte automatisch mit ein. Bitte kontrolliert eure Werte, ob sie noch stimmen! Vorher vergebene Rassenboni sind jetzt eventuell doppelt vorhanden.',
-      'Der Chat zeigt bei einer nicht-aufgehobenen 1/20 zusätzlich, welches Attribut sie hat.',
-      'Einen Schicksalspunkt auszugeben erfordert nun eine Bestätigung und meldet die Ausgabe als Chat-Zeile.',
-      'Gruppen bekommen ein eigenes Porträt, genau wie Charaktere.',
-      'Porträt hochladen: der Bildausschnitt lässt sich jetzt selbst wählen (ziehen + zoomen) statt automatisch auf die Mitte zugeschnitten zu werden. Ein Klick aufs Porträt zeigt es vergrößert. Bereits vorhandene Porträts haben keine "Vergrößerung" und müssen neu hochgeladen werden, damit das klappt.',
-      'Im Ausrüstungs-Reiter lässt sich ein Gegenstand jetzt direkt anlegen („+ Gegenstand" unter „Nicht getragen") statt ihn erst im Inventar anzulegen und dann herüberzuziehen.',
-      'Ausweichen und Initiative lassen sich jetzt genau wie die Attribute direkt anklicken und würfeln.',
-      'Die Probe einer Fähigkeit kann jetzt AT/PA/BL statt nur Attribute enthalten (z. B. „KK+AT") — beim Würfeln wird dann erst die Waffe abgefragt, mit der die Fähigkeit eingesetzt wird.',
-      'Der Chat zeigt beim Verbinden kurz an, wer gerade sonst noch im Raum ist (nur für dich sichtbar) — und meldet es, wenn danach noch jemand dazukommt.',
-      'Gegenstände in Ausrüstung und Inventar lassen sich jetzt duplizieren (⧉) — praktisch für mehrere gleiche Stücke, deren Zustand (z. B. Haltbarkeit) getrennt verfolgt werden soll.',
-      'Kooperationsprobe: mit „/koop <Name>" (alternativ "/coop") im Chat einen offenen Pool für eine gemeinsame Probe vorschlagen (z. B. gemeinsam klettern) — jeder tritt selbst bei, die vorschlagende Person oder die Spielleitung startet den gemeinsamen Wurf. Gezählt wird die Summe aller Zielwerte gegen die Summe aller Würfe; ein bestätigter kritischer Fehlschlag lässt sich durch einen bestätigten kritischen Erfolg an anderer Stelle retten.',
-    ],
-    admin: [
-      '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',
-      '(Spielleiter) Die Attribut-Kacheln in der Gruppenübersicht sehen jetzt genauso aus wie in der Charakterbogen-Seitenleiste (Hintergrund, Schriftgröße, Tooltip mit vollem Attributnamen).',
-      '(Verwaltung) In den Katalogen (Talente, Sprachen, Merkmale, Rassen, Währungen) lässt sich ein neuer Eintrag jetzt gezielt vor oder nach einer bestehenden Zeile einfügen (+↑/+↓), statt immer ans Ende anzuhängen und danach von Hand umzusortieren.',
-    ],
-    changed: [
-      'Eine 1 zählt jetzt nur noch als kritischer Erfolg, wenn ihre Bestätigung ≥10 zeigt — spiegelt die Regel für die 20 (Krit. Fehlschlag).',
-      'Der Chat-Eingabeverlauf (Pfeil hoch/runter) merkt sich jetzt die letzten fünf gesendeten Zeilen statt nur der letzten, samt Pfeil-runter zurück zum leeren Chat-Input.',
-    ],
-    fixed: [
-      'Auf „Charaktere" und der Gruppenseite ließ sich ein Charakter nur über den Namen selbst anklicken — jetzt reicht ein Klick irgendwo auf die Karte.',
-      'Beim Hovern der Würfel-Chat-Kopfzeile mit der Maus durchbrach die Hervorhebung die abgerundeten Ecken des Chat-Fensters.',
-      'Die Attributspunkte-Grenze im Heldenbrief ließ sich bei sehr schnellem Tippen überschreiten.',
-      'Erleichterung/Erschwerung wurde erst beim Verlassen des Feldes gespeichert, nicht schon beim Tippen.',
-      'Die Vorschlagsliste für Proben (/r) ließ sich über die ersten 8 Treffer hinaus nicht scrollen.',
-      'War der Chat-Verlauf ganz nach unten gescrollt, scrollte weiteres Scrollen die Seite dahinter statt einfach am Ende zu bleiben.',
-      '„Einstellungen", „Zauber & Fähigkeiten verwalten" und der Wiki-Editor fragen jetzt nach, bevor eine Seite mit ungespeicherten Änderungen verlassen wird — auch bei einem Klick auf einen anderen Menüpunkt oder „Zurück" im Browser, nicht nur beim Schließen des Tabs.',
-      'Ein gewürfeltes Attacke/Parade/Blocken/Fernkampf würfelte gegen eine zu niedrige Zahl, wenn der jeweilige Basiswert einen eigenen Modifikator hatte — der floss auf dem Bogen zwar in die angezeigte Zahl ein, beim eigentlichen Wurf aber nicht.',
+    version: '0.7',
+    title: 'Spezialenergien & Würfel-Feinschliff',
+    features: [
+      {
+        title: 'Spezialenergien-Katalog',
+        added: [
+          'Spezialenergien lassen sich jetzt aus einer vom Spielleiter vorgegebenen Liste auswählen (z. B. Wut, Chi, Karma) statt frei eingetippt zu werden. Hat der gewählte Eintrag eine Formel, wird das Maximum automatisch aus euren Attributen berechnet, mit einem persönlichen Bonus obendrauf (z. B. für ein Talent oder einen Gegenstand). Bereits vorhandene, frei benannte Energien bleiben unverändert erhalten.',
+        ],
+        admin: ['(Verwaltung) Neuer Spezialenergien-Katalog zum Bearbeiten (Name, Formel, Beschreibung).'],
+      },
+      {
+        title: 'Würfel-Feinschliff & Porträts',
+        added: [
+          'Der Rassen-Katalog gibt jetzt auch Boni auf LE/AUS/ASP/MR/Artefaktkontrolle (nicht nur Geschwindigkeit, Psyche und Resilienz wie bisher) — die Rassen-Auswahl im Heldenbrief rechnet diese fünf Werte automatisch mit ein. Bitte kontrolliert eure Werte, ob sie noch stimmen! Vorher vergebene Rassenboni sind jetzt eventuell doppelt vorhanden.',
+          'Der Chat zeigt bei einer nicht-aufgehobenen 1/20 zusätzlich, welches Attribut sie hat.',
+          'Einen Schicksalspunkt auszugeben erfordert nun eine Bestätigung und meldet die Ausgabe als Chat-Zeile.',
+          'Gruppen bekommen ein eigenes Porträt, genau wie Charaktere.',
+          'Porträt hochladen: der Bildausschnitt lässt sich jetzt selbst wählen (ziehen + zoomen) statt automatisch auf die Mitte zugeschnitten zu werden. Ein Klick aufs Porträt zeigt es vergrößert. Bereits vorhandene Porträts haben keine "Vergrößerung" und müssen neu hochgeladen werden, damit das klappt.',
+          'Im Ausrüstungs-Reiter lässt sich ein Gegenstand jetzt direkt anlegen („+ Gegenstand" unter „Nicht getragen") statt ihn erst im Inventar anzulegen und dann herüberzuziehen.',
+          'Ausweichen und Initiative lassen sich jetzt genau wie die Attribute direkt anklicken und würfeln.',
+          'Die Probe einer Fähigkeit kann jetzt AT/PA/BL statt nur Attribute enthalten (z. B. „KK+AT") — beim Würfeln wird dann erst die Waffe abgefragt, mit der die Fähigkeit eingesetzt wird.',
+          'Der Chat zeigt beim Verbinden kurz an, wer gerade sonst noch im Raum ist (nur für dich sichtbar) — und meldet es, wenn danach noch jemand dazukommt.',
+          'Gegenstände in Ausrüstung und Inventar lassen sich jetzt duplizieren (⧉) — praktisch für mehrere gleiche Stücke, deren Zustand (z. B. Haltbarkeit) getrennt verfolgt werden soll.',
+          'Kooperationsprobe: mit „/koop <Name>" (alternativ "/coop") im Chat einen offenen Pool für eine gemeinsame Probe vorschlagen (z. B. gemeinsam klettern) — jeder tritt selbst bei, die vorschlagende Person oder die Spielleitung startet den gemeinsamen Wurf. Gezählt wird die Summe aller Zielwerte gegen die Summe aller Würfe; ein bestätigter kritischer Fehlschlag lässt sich durch einen bestätigten kritischen Erfolg an anderer Stelle retten.',
+        ],
+        admin: [
+          '(Spielleiter) Dieselbe Probe von der ganzen (gerade verbundenen) Gruppe auf einmal anfordern — Ergebnisse erscheinen erst gemeinsam im Chat, sobald alle gewürfelt oder gepasst haben. Wer zu lange braucht, lässt sich vorzeitig auflösen.',
+          '(Spielleiter) Die Attribut-Kacheln in der Gruppenübersicht sehen jetzt genauso aus wie in der Charakterbogen-Seitenleiste (Hintergrund, Schriftgröße, Tooltip mit vollem Attributnamen).',
+          '(Verwaltung) In den Katalogen (Talente, Sprachen, Merkmale, Rassen, Währungen) lässt sich ein neuer Eintrag jetzt gezielt vor oder nach einer bestehenden Zeile einfügen (+↑/+↓), statt immer ans Ende anzuhängen und danach von Hand umzusortieren.',
+        ],
+        changed: [
+          'Eine 1 zählt jetzt nur noch als kritischer Erfolg, wenn ihre Bestätigung ≥10 zeigt — spiegelt die Regel für die 20 (Krit. Fehlschlag).',
+          'Der Chat-Eingabeverlauf (Pfeil hoch/runter) merkt sich jetzt die letzten fünf gesendeten Zeilen statt nur der letzten, samt Pfeil-runter zurück zum leeren Chat-Input.',
+        ],
+        fixed: [
+          'Auf „Charaktere" und der Gruppenseite ließ sich ein Charakter nur über den Namen selbst anklicken — jetzt reicht ein Klick irgendwo auf die Karte.',
+          'Beim Hovern der Würfel-Chat-Kopfzeile mit der Maus durchbrach die Hervorhebung die abgerundeten Ecken des Chat-Fensters.',
+          'Die Attributspunkte-Grenze im Heldenbrief ließ sich bei sehr schnellem Tippen überschreiten.',
+          'Erleichterung/Erschwerung wurde erst beim Verlassen des Feldes gespeichert, nicht schon beim Tippen.',
+          'Die Vorschlagsliste für Proben (/r) ließ sich über die ersten 8 Treffer hinaus nicht scrollen.',
+          'War der Chat-Verlauf ganz nach unten gescrollt, scrollte weiteres Scrollen die Seite dahinter statt einfach am Ende zu bleiben.',
+          '„Einstellungen", „Zauber & Fähigkeiten verwalten" und der Wiki-Editor fragen jetzt nach, bevor eine Seite mit ungespeicherten Änderungen verlassen wird — auch bei einem Klick auf einen anderen Menüpunkt oder „Zurück" im Browser, nicht nur beim Schließen des Tabs.',
+          'Ein gewürfeltes Attacke/Parade/Blocken/Fernkampf würfelte gegen eine zu niedrige Zahl, wenn der jeweilige Basiswert einen eigenen Modifikator hatte — der floss auf dem Bogen zwar in die angezeigte Zahl ein, beim eigentlichen Wurf aber nicht.',
+        ],
+      },
     ],
   },
   {
