@@ -1,0 +1,14 @@
+# Watches for a deploy request the Heldenverwaltung left behind.
+# Instance name is the base directory: helden (prod) or helden-dev (dev).
+# Enable with:  systemctl enable --now helden-deploy-trigger@helden.path
+[Unit]
+Description=Auf Deploy-Anforderung der Heldenverwaltung warten (%i)
+
+[Path]
+# PathExists, not PathChanged: the app creates the file once and the service
+# deletes it first thing, so the unit re-arms cleanly for the next request.
+PathExists=/srv/%i/deploy/anstoss.json
+Unit=helden-deploy-trigger@%i.service
+
+[Install]
+WantedBy=multi-user.target

@@ -5423,3 +5423,151 @@ tr:hover .probe-roll,
     display: none;
   }
 }
+
+
+/* ── Wartung: Halteknopf und Neustart-Bildschirm ─────────────────────────── */
+
+/* Halteknopf: die Füllung wächst über --hold-anteil, das die Komponente je
+   Bildschirmaktualisierung setzt. Bewusst kein CSS-Übergang darauf — die
+   Komponente liefert den Fortschritt schon flüssig, und ein Übergang liefe
+   nach dem Loslassen noch weiter, als hielte man den Knopf immer noch. */
+.hold-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  min-width: 22rem;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  /* Ein Halten darf keine Textmarkierung erzeugen — die sähe nach einem
+     versehentlichen Zieh-Vorgang aus und bricht auf Touch das Gedrückthalten. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+.hold-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.hold-button.haltend {
+  border-color: var(--accent-dark);
+}
+.hold-fuellung {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform-origin: left center;
+  transform: scaleX(var(--hold-anteil, 0));
+  background: var(--accent-soft);
+}
+.hold-button.haltend .hold-fuellung {
+  background: var(--accent);
+  opacity: 0.18;
+}
+.hold-text {
+  position: relative;
+}
+.wartung-halten {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+  margin-top: 0.6rem;
+}
+
+/* Ansage für alle, solange der Server noch antwortet: ein Streifen, kein
+   Bildschirm. Während des Bauens läuft die alte Fassung ja weiter, und die
+   Seite vier Minuten lang zuzudecken wäre eine Lüge über das, was passiert. */
+.wartung-banner {
+  position: fixed;
+  left: 50%;
+  bottom: 1rem;
+  transform: translateX(-50%);
+  z-index: 220;
+  max-width: min(42rem, calc(100vw - 2rem));
+  padding: 0.7rem 1.1rem;
+  border: 1px solid var(--warn-line);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* Der Wartebildschirm liegt über ALLEM, auch über .dialog-backdrop (200) und
+   dem Würfel-Dock: was er zeigt, ist gerade das Einzige, was zählt. */
+.wartung-schirm {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(3px);
+}
+.wartung-karte {
+  width: min(34rem, 100%);
+  padding: 1.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.wartung-karte h2 {
+  margin: 0.4rem 0 0.6rem;
+}
+.wartung-karte p {
+  margin: 0.4rem 0;
+  color: var(--muted);
+}
+.wartung-spinner {
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0 auto;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: wartung-dreh 1s linear infinite;
+}
+@keyframes wartung-dreh {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* Wer Bewegung abgestellt hat, bekommt einen ruhenden Ring statt eines
+   Kreisels — die Aussage „es passiert etwas" trägt der Text daneben. */
+@media (prefers-reduced-motion: reduce) {
+  .wartung-spinner {
+    animation: none;
+  }
+}
+.wartung-fehler {
+  max-height: 14rem;
+  overflow: auto;
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.85em;
+}
+.wartung-langsam {
+  margin-top: 0.8rem;
+  font-size: 0.9em;
+}
+.wartung-langsam .link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}

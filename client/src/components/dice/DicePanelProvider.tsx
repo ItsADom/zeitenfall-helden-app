@@ -11,6 +11,7 @@ import type {
 } from '@shared/diceProtocol';
 import { apiGet, apiPut } from '../../api';
 import { usePersistedState } from '../persist';
+import { useWartung } from '../wartung';
 
 const PAGE_SIZE = 30;
 // Wie viele Einträge ein echter Neuverbindungsaufbau initial lädt — bewusst
@@ -263,6 +264,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const { ankuendigungEmpfangen } = useWartung();
+
   const wsRef = useRef<WebSocket | null>(null);
   const groupIdRef = useRef<number | null>(null);
   const bufferingRef = useRef(false);
@@ -415,6 +418,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'presence.joined') {
         addPresenceNote(`${msg.name} ist beigetreten.`);
+        return;
+      }
+      if (msg.type === 'wartung.angekuendigt') {
+        // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
+        // Der Socket ist bloß der Kanal, der ohnehin schon steht.
+        ankuendigungEmpfangen(msg.durch);
         return;
       }
       if (msg.type === 'error') {
