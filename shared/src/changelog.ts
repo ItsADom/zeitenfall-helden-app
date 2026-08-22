@@ -202,6 +202,7 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-21',
+    version: '0.6.5',
     title: 'Würfel-Feinschliff & Porträts',
     added: [
       'Der Rassen-Katalog gibt jetzt auch Boni auf LE/AUS/ASP/MR/Artefaktkontrolle (nicht nur Geschwindigkeit, Psyche und Resilienz wie bisher) — die Rassen-Auswahl im Heldenbrief rechnet diese fünf Werte automatisch mit ein. Bitte kontrolliert eure Werte, ob sie noch stimmen! Vorher vergebene Rassenboni sind jetzt eventuell doppelt vorhanden.',
