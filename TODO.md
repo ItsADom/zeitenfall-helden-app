@@ -20,21 +20,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 - do not auto-open chat, just show a notification for new messages, even when rolling yourself
   - maybe make it pulsate on roll-reqeust, with a little sound effect
-- [sketch] **20+ perk picker** — source PDF analysed and written up at
-  `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
-  no prerequisite edges, ~160 effects classified into 6 computable and 8
-  display-only categories). Rules confirmed: pool = `attribut − 20`, one point
-  per stage, stage values absolute (not cumulative), base attribute only
-  (never `attrMax`), later columns need points *spent* not merely earned.
-  Half the perks target exactly the `attr | baseValue | resource | talent` union
-  already designed for item bonuses, so this should be built *after*
-  `item-bonus-while-worn.md` and reuse that plumbing rather than grow a second
-  aggregator. Blocked on GM input before a catalog can be seeded: ~7 name
-  conflicts between graphic and description list, a duplicate in the Konstitution
-  tree, ambiguous stage counts, and the missing `stufenfk` master list. Also
-  needs a server-side reveal state — 34+/60 perks are hidden until the GM
-  unveils them, so they must not be sent, same rule as the wiki's ` ```gm `
-  regions. Still unsorted into a priority section.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
@@ -265,6 +250,23 @@ chips. Backend table `char_special_resources`. Open for the full version:
      not an attr/baseValue/resource/talent target, so it doesn't share this
      bonus system despite looking similar on the surface. Left as its own
      separate item.
+- [sketch] **20+ perk picker** — source PDF analysed and written up at
+  `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
+  no prerequisite edges, ~160 effects classified into 6 computable and 8
+  display-only categories). Rules confirmed: pool = `attribut − 20`, one point
+  per stage, stage values absolute (not cumulative), base attribute only
+  (never `attrMax`), later columns need points *spent* not merely earned,
+  Heldenkraft perks are a single pick granting one in-combat and one
+  out-of-combat effect (not two picks). Half the perks target exactly the
+  `attr | baseValue | resource | talent` union already designed for item
+  bonuses, so this should be built *after* the item-bonus-while-worn entry
+  below and reuse that plumbing rather than grow a second aggregator. Blocked
+  on GM input before a catalog can be seeded: ~7 name conflicts between graphic
+  and description list, a duplicate in the Konstitution tree, ambiguous stage
+  counts, the missing `stufenfk` master list, and the Kampf/Anders split not
+  yet written per Heldenkraft. Also needs a server-side reveal state — 34+/60
+  perks are hidden until the GM unveils them, so they must not be sent, same
+  rule as the wiki's ` ```gm ` regions.
 - [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
   every system change). Concept to build when it comes off hold:
    - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
