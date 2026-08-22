@@ -22,9 +22,12 @@ The PDF's own three rules, plus what was clarified in the concept session:
 2. **At most two trees are ever live.** A player may have at most two attributes
    above 18 (temporary boni excepted), so at most two trees open.
 3. **Columns are tiers gated by the attribute value**, not by talent values.
-   The PDF says "nach min. HTAW sortiert", but HTAW is loose shorthand: the gate
-   is the attribute itself. Tiers: 20+ (Reguläre), 28+ (Fortgeschrittene),
-   32+ (Meisterliche), 34+ (Heldenhafte), 60 (Halbgöttliche).
+   The PDF says "nach min. HTAW sortiert" — this reads like a talent value at
+   first, but it isn't: the GM's own house terminology calls attributes
+   "Haupttalente" / "HTAW", a naming habit the playerbase itself finds
+   confusing. The gate is the attribute (`akt`), never an actual talent's TaW.
+   Tiers: 20+ (Reguläre), 28+ (Fortgeschrittene), 32+ (Meisterliche),
+   34+ (Heldenhafte), 60 (Halbgöttliche).
 4. **There are no prerequisite edges.** Despite the name "Bäume", the graphics
    contain no connecting lines. It is a tier grid, not a dependency graph. Every
    tree has the identical shape: **10 / 5 / 3 / 1 / 1** perks per tier.
