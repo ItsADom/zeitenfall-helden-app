@@ -33,6 +33,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 - don't show weight directly on equipment chips
    - also keep "RS X" on equipment together, no line break between RS and number
 - idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
+  - images of group members can't be clicked?
 - make wiki-tables sortable
 - special checks like "Erinnern (KK+KK)". not appearing on talent tab, but rollable
 - tracker for training/reading sessions (4 per day, resettable with SP)
@@ -59,6 +60,10 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   - a not actively worn container does not increase Traglast
   - containers will get their own weight value
 - let gm set Erschwerung/Erleichterung on check request
+- check if confirmations that get rolled together always get the same value or just coincidence on last occasions
+  - in general many 1s and 20s. check RNG
+- items in quickslots curently do not contribute their weight
+- equipment item names should break line, not be trimmed
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
