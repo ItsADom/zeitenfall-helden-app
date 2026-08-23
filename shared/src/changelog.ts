@@ -200,6 +200,14 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '',
+    title: 'Neuigkeiten im Wiki',
+    changed: [
+      'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
+      'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
+    ],
+  },
+  {
     date: '2026-08-23',
     version: '0.7.1',
     title: 'Würfel mit eigener Form',
@@ -210,8 +218,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     changed: [
       'Im Würfel-Chat trägt jeder geworfene Würfel jetzt die Form seiner Sorte statt eines einheitlichen Kästchens: W4 als Dreieck, W6 als Quadrat, W8 als Raute, dazu eigene Umrisse für W10, W12 und W20. Bei gemischten Würfen wie „1w6+1w20" sieht man so auf einen Blick, welches Ergebnis von welchem Würfel stammt; wer es genau wissen will, fährt einen Würfel mit der Maus an. Ungewöhnliche Würfel wie W100 behalten das schlichte Kästchen.',
       'Jede Würfelsorte hat zusätzlich ihren eigenen, gedeckten Farbton — W4 grünspan, W6 petrolblau, W8 krapprot, W10 amethyst, W12 malve. Der W20 bleibt bewusst farblos: bei ihm bedeutet Farbe weiterhin ausschließlich ein Ergebnis, nämlich die rote natürliche 20 oder die blaue natürliche 1.',
-      'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
-      'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
     ],
     admin: [
       '(Spielleiter) Eigene Würfel-Favoriten unter Einstellungen → Würfel-Favoriten (SL) — gelten in jedem Chatraum gleich, unabhängig vom gerade gespielten Charakter.',
