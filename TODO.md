@@ -20,17 +20,45 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 - move items between group inventory and player inventory
   - needs a rather big overhaul of group page
+  - move items between group members also
+  - create plan on how to display complete houses as inventory
 - show spell range per mage level on Zauber tab
   - override possible
-- procentual bonus selecotr for energien
+- procentual bonus selector for energien
   - folds into the Filtern task
-  - let players select things like "Max AsE is always +50%"
+  - let players select things like "Max AsE is always +50%", calculated after final sum
 - let admins get a route to inspect characters for debugging
   - important: they should not see every group and have acccess to every chat like GM does and have no edit rights, just inspection.
   - maybe make character list on management page generally clickable, so characters can be directly selected but not available by the usual workflow (e.g. character flyout in banner)
 - don't show weight directly on equipment chips
    - also keep "RS X" on equipment together, no line break between RS and number
 - idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
+- make wiki-tables sortable
+- special checks like "Erinnern (KK+KK)". not appearing on talent tab, but rollable
+- tracker for training/reading sessions (4 per day, resettable with SP)
+- chat font size adjustable by player
+- equipment toggle for "beidseitig" without edit-mode
+- change Erschwerung/Erleichterung in chat dock per scrolling
+  - let the reset button always be visible to avoid flyout reforming layout. just deactivate on 0.
+- allow multiplication for check formulas
+  - also multiple rolls in a single command, like rolling "2w6+8" 3 times
+  - allow Attribut values in chat dicecode
+  - reset warning about not found check when chat input is empty
+- "Übersicht" number field between minus and plus don't use NumInput
+  - quick check if this occurs somewhere else
+- make favorites more customizable.
+  - allow to add text
+  - they should inherit the chosen visibility setting
+- group checks should stay visible while pending
+- quick lookup for GM to see spells and skills without opening character sheet
+  - via button from within GM-overview
+  - opens a dialog/popup with a display-only list
+- weapon damage directly rollable, RD showing with it
+- pre-focus chat input on expanding panel
+- link containers to equipment, so a backpack has to (or can) actually be worn in Ausrüstung
+  - a not actively worn container does not increase Traglast
+  - containers will get their own weight value
+- let gm set Erschwerung/Erleichterung on check request
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
@@ -398,6 +426,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   „Fold ammunition damage into the Fernkampf damage formula" under the Weapon
   tab rework, Mid-Prio) — currently blocking that item.
   This feature will need the players to keep their own list of ammunitions and damage values for them, which then feeds the damage formula. ranged weapons then pick which ammunition is used.
+  Ammunition can have bonus on AT too.
 - [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
   - Andergast as colorless
   - Orkland dark green, Bornland lighter green
