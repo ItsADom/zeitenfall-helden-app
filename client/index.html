@@ -31,6 +31,10 @@
           var a = JSON.parse(localStorage.getItem('theme-anim'));
           d.anim = (typeof a === 'boolean' ? a : !mm('(prefers-reduced-motion: reduce)')) ? 'on' : 'off';
         } catch (e) { d.anim = 'on'; }
+        try {
+          var w = JSON.parse(localStorage.getItem('dice-icons'));
+          d.diceIcons = (typeof w === 'boolean' ? w : true) ? 'on' : 'off';
+        } catch (e) { d.diceIcons = 'on'; }
       })();
     </script>
   </head>

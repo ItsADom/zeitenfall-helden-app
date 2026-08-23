@@ -139,7 +139,7 @@ export const KNOWN_BUGS: KnownBug[] = [
 export const COMING_SOON: string[] = [
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
-  'Ganz frühe Überlegung, noch ohne Konzept: eigene kleine Bögen für Tiere und Begleiter.',
+  'Eigene Bögen für Tiere und Begleiter.',
   'Ein virtueller Spieltisch für Kampf und Erkundung: Karte, Marker und Initiative-Leiste.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -184,6 +184,7 @@ export const COMING_SOON: string[] = [
 // Hinweise:
 //   • Keine Punkte in jeglichen Kategorien außer `added` nötig zu Features, die User sowieso noch nie gesehen haben (wichtig bei generell neuen Features).
 //   • Spieler-Sicht, knapp halten: wenige, aussagekräftige Punkte statt Commit-Log.
+//   • Datum und Version bleiben standardmäßig leer bis zum Release.
 //   • `changes: [...]` (flache Liste ohne Überschriften) gibt es weiterhin, ist
 //     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die vier
 //     Abschnitte oben.
@@ -198,6 +199,21 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '',
+    title: 'Würfel mit eigener Form',
+    added: [
+      'Unter Einstellungen → Anzeige lassen sich die Würfelformen abschalten, wenn du lieber die schlichten Kästchen möchtest. Standardmäßig sind sie an.',
+      'Wird die Anwendung gerade aktualisiert, sagt sie das jetzt an und zeigt danach einen Wartebildschirm — die Seite verbindet sich von selbst wieder, sobald der Server zurück ist. Bisher brach die Verbindung dabei kommentarlos ab und man musste selbst neu laden.',
+    ],
+    changed: [
+      'Im Würfel-Chat trägt jeder geworfene Würfel jetzt die Form seiner Sorte statt eines einheitlichen Kästchens: W4 als Dreieck, W6 als Quadrat, W8 als Raute, dazu eigene Umrisse für W10, W12 und W20. Bei gemischten Würfen wie „1w6+1w20" sieht man so auf einen Blick, welches Ergebnis von welchem Würfel stammt; wer es genau wissen will, fährt einen Würfel mit der Maus an. Ungewöhnliche Würfel wie W100 behalten das schlichte Kästchen.',
+      'Jede Würfelsorte hat zusätzlich ihren eigenen, gedeckten Farbton — W4 grünspan, W6 petrolblau, W8 krapprot, W10 amethyst, W12 malve. Der W20 bleibt bewusst farblos: bei ihm bedeutet Farbe weiterhin ausschließlich ein Ergebnis, nämlich die rote natürliche 20 oder die blaue natürliche 1.',
+    ],
+    admin: [
+      '(Spielleiter) Eigene Würfel-Favoriten unter Einstellungen → Würfel-Favoriten (SL) — gelten in jedem Chatraum gleich, unabhängig vom gerade gespielten Charakter.',
+    ],
+  },
   {
     date: '2026-08-22',
     version: '0.7',

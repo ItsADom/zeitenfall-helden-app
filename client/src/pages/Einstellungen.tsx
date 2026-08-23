@@ -11,7 +11,7 @@ import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { ExitGuard } from '../components/exitGuard';
 import { useEinstHeadHeight, useEinstNavHeight } from '../components/stickyChrome';
-import { useThemeControls } from '../App';
+import { useAuth, useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
 import { THEMES } from '../theme';
 
@@ -47,6 +47,7 @@ let tmpCounter = 0;
 
 export default function EinstellungenPage() {
   const tc = useThemeControls();
+  const { user } = useAuth();
   const einstHeadRef = useEinstHeadHeight();
   const einstNavRef = useEinstNavHeight();
   // Ein Link „Kategorien bearbeiten" aus dem Inventar bringt ?char=<id> und
@@ -84,6 +85,31 @@ export default function EinstellungenPage() {
   // gerade überflogene Schlüssel (für die Einfügemarke).
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [overKey, setOverKey] = useState<string | null>(null);
+
+  // Kontoweite Würfel-Favoriten der Spielleitung (siehe /me/dice-shortcuts) —
+  // eigener, vom Charakter-Speichern-Fluss unabhängiger Lade-/Speicherstand,
+  // da sie an keinen Charakter gebunden sind.
+  const [savedSlShortcuts, setSavedSlShortcuts] = useState('');
+  const [slShortcuts, setSlShortcuts] = useState('');
+  const [slSaving, setSlSaving] = useState(false);
+  const slDirty = slShortcuts !== savedSlShortcuts;
+
+  useEffect(() => {
+    if (!user.isGm) return;
+    apiGet<{ diceShortcuts: string }>('/api/me/dice-shortcuts')
+      .then((d) => {
+        setSavedSlShortcuts(d.diceShortcuts);
+        setSlShortcuts(d.diceShortcuts);
+      })
+      .catch(() => {});
+  }, [user.isGm]);
+
+  const saveSlShortcuts = () => {
+    setSlSaving(true);
+    apiPut<{ diceShortcuts: string }>('/api/me/dice-shortcuts', { text: slShortcuts })
+      .then((d) => setSavedSlShortcuts(d.diceShortcuts))
+      .finally(() => setSlSaving(false));
+  };
 
   useEffect(() => {
     apiGet<{ characters: CharLite[] }>('/api/overview?mine=1')
@@ -261,6 +287,7 @@ export default function EinstellungenPage() {
 
   const navLinks: [string, string][] = [
     ['anzeige', 'Anzeige'],
+    ...(user.isGm ? ([['wuerfel-sl', 'Würfel-Favoriten (SL)']] as [string, string][]) : []),
     ['charakter', 'Charakter'],
     ...(selId != null && !loading
       ? ([
@@ -277,7 +304,7 @@ export default function EinstellungenPage() {
 
   return (
     <>
-      <ExitGuard dirty={dirty} />
+      <ExitGuard dirty={dirty || slDirty} />
       <div className="einst-head" ref={einstHeadRef}>
         <h1>Einstellungen</h1>
         {selId != null && !loading && (
@@ -310,7 +337,53 @@ export default function EinstellungenPage() {
           <span className="set-label">Farbwelt</span>
           <ThemePicker theme={tc.theme} onChange={tc.setTheme} animate={tc.anim} onAnimateChange={tc.setAnim} />
         </div>
+        <div className="set-row">
+          <span className="set-label">Würfelformen im Chat</span>
+          <button
+            type="button"
+            className={`theme-switch${tc.diceIcons ? ' on' : ''}`}
+            role="switch"
+            aria-checked={tc.diceIcons}
+            title={tc.diceIcons ? 'Würfelformen ausschalten' : 'Würfelformen einschalten'}
+            onClick={() => tc.setDiceIcons(!tc.diceIcons)}
+          >
+            <span className="theme-switch-track" aria-hidden>
+              <span className="theme-switch-knob" />
+            </span>
+            <span className="theme-switch-text">{tc.diceIcons ? 'An' : 'Aus'}</span>
+          </button>
+        </div>
+        <p className="muted">
+          Jeder geworfene Würfel erscheint in der Form seiner Sorte (W4 als Dreieck, W6 als Quadrat …) und in ihrem
+          Farbton. Ausgeschaltet steht jeder Wurf wieder im schlichten Kästchen. Rote 20 und blaue 1 bleiben in
+          beiden Fällen erhalten.
+        </p>
       </div>
+
+      {user.isGm && (
+        <div className="panel" id="wuerfel-sl">
+          <h3>Würfel-Favoriten (Spielleitung)</h3>
+          <p className="muted">
+            Eigene Würfe für den Chat, unabhängig von Charakter und Raum — je Zeile <code>Bezeichnung: Ausdruck</code>,
+            z. B. <code>Wildnisschaden: 2w6+5</code>. Eine Zeile aus Strichen (<code>---</code>) trennt Gruppen. Im
+            Chat liegen sie hinter dem 🎲-Knopf, in jedem Raum gleich.
+          </p>
+          <textarea
+            className="dice-shortcuts-input"
+            rows={7}
+            value={slShortcuts}
+            onChange={(e) => setSlShortcuts(e.target.value)}
+            placeholder={'Wildnisschaden: 2w6+5\n---\nInitiative NPC: 1w6+8'}
+          />
+          <ShortcutsPreview raw={slShortcuts} />
+          <div className="set-row">
+            <button className="primary" disabled={!slDirty || slSaving} onClick={saveSlShortcuts}>
+              {slSaving ? 'Speichere…' : 'Speichern'}
+            </button>
+            {slDirty && !slSaving && <span className="muted">Ungespeicherte Änderungen</span>}
+          </div>
+        </div>
+      )}
 
       <div className="panel" id="charakter">
         <h3>Charakter</h3>

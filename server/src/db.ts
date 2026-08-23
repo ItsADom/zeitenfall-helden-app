@@ -47,21 +47,25 @@ db.exec(`
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at INTEGER NOT NULL
   );
+  -- is_temp unterscheidet eine Event-Gruppe von einer festen Gruppe — EINE
+  -- id-Folge statt zweier getrennter Tabellen, damit group_feed (und jede
+  -- künftige Chat/Würfel-Tabelle) mit einer einzigen FK auf groups(id)
+  -- auskommt. created_by/created_at bleiben NULL für feste Gruppen, sind nur
+  -- bei is_temp=1 befüllt.
   CREATE TABLE IF NOT EXISTS groups (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL
+    name TEXT NOT NULL,
+    is_temp INTEGER NOT NULL DEFAULT 0,
+    created_by INTEGER REFERENCES users(id),
+    created_at INTEGER
   );
-  -- Temporäre/Event-Gruppen: rein additiv zur festen Gruppe (characters.group_id
-  -- bleibt unberührt). GM-only end-to-end, keine Spieler-Selbstanmeldung. Löschen
-  -- entfernt nur die Zuordnungen (ON DELETE CASCADE) — keine Charakterdaten betroffen.
-  CREATE TABLE IF NOT EXISTS temp_groups (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL DEFAULT '',
-    created_by INTEGER NOT NULL REFERENCES users(id),
-    created_at INTEGER NOT NULL DEFAULT 0
-  );
+  -- Mitgliedschaft in einer Event-Gruppe: rein additiv zur festen Gruppe
+  -- (characters.group_id bleibt unberührt) — ein Charakter bleibt in seiner
+  -- festen Gruppe UND taucht im Event-Aufgebot auf. GM-only end-to-end, keine
+  -- Spieler-Selbstanmeldung. Löschen der Gruppe entfernt nur die Zuordnungen
+  -- (ON DELETE CASCADE) — keine Charakterdaten betroffen.
   CREATE TABLE IF NOT EXISTS temp_group_members (
-    temp_group_id INTEGER NOT NULL REFERENCES temp_groups(id) ON DELETE CASCADE,
+    temp_group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     PRIMARY KEY (temp_group_id, character_id)
   );
@@ -598,6 +602,16 @@ db.exec(`
   if (!cols.has('chat_name')) db.exec("ALTER TABLE characters ADD COLUMN chat_name TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration: add 'dice_shortcuts' column to users — account-level dice
+// favorites (same "Label: expression" format as characters.dice_shortcuts,
+// see shared/src/dice.ts parseDiceShortcuts), usable across all chat rooms.
+// Mainly for the GM, who has no character of their own to hang per-character
+// shortcuts off of, but not role-restricted at the storage layer.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('dice_shortcuts')) db.exec("ALTER TABLE users ADD COLUMN dice_shortcuts TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: Selbst-Anlage von Charakteren mit ausstehender Gruppen-Freigabe.
 // Zwei Teile: (a) group_id von NOT NULL auf NULLBAR lockern (ein gruppenloser
 // Charakter braucht keine Gruppe), (b) requested_group_id/requested_at ergänzen.
@@ -988,6 +1002,69 @@ if (hasTable('sec_techniken')) {
 {
   const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('is_coop')) db.exec('ALTER TABLE group_feed ADD COLUMN is_coop INTEGER NOT NULL DEFAULT 0');
+}
+
+// Migration: Event-Gruppen (bisher eine eigene temp_groups-Tabelle mit eigener
+// id-Folge) in groups zusammenführen, per is_temp unterschieden — damit
+// group_feed (und jede künftige Chat/Würfel-Tabelle) mit einer einzigen FK auf
+// groups(id) auskommt, statt zwei id-Folgen auseinanderhalten zu müssen, die
+// kollidieren könnten (Gruppe 5 und Event-Gruppe 5 als zwei verschiedene
+// Zeilen). temp_group_members bleibt die additive Mitgliedschaft, nur ihr Ziel
+// wandert von temp_groups(id) auf groups(id). Auf einer frischen Datenbank
+// bringt CREATE TABLE die Spalten schon mit und temp_groups existiert nie —
+// dieser Block läuft dann als reines No-op.
+{
+  const groupCols = new Set((db.prepare('PRAGMA table_info(groups)').all() as { name: string }[]).map((c) => c.name));
+  if (!groupCols.has('is_temp')) {
+    db.exec(`
+      ALTER TABLE groups ADD COLUMN is_temp INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE groups ADD COLUMN created_by INTEGER REFERENCES users(id);
+      ALTER TABLE groups ADD COLUMN created_at INTEGER;
+    `);
+    const tempGroupsExists = !!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'temp_groups'").get();
+    if (tempGroupsExists) {
+      const oldGroups = db.prepare('SELECT id, name, created_by, created_at FROM temp_groups').all() as {
+        id: number;
+        name: string;
+        created_by: number;
+        created_at: number;
+      }[];
+      const idMap = new Map<number, number>();
+      const insertGroup = db.prepare('INSERT INTO groups (name, is_temp, created_by, created_at) VALUES (?, 1, ?, ?)');
+      for (const g of oldGroups) idMap.set(g.id, Number(insertGroup.run(g.name, g.created_by, g.created_at).lastInsertRowid));
+      const oldMembers = db.prepare('SELECT temp_group_id, character_id FROM temp_group_members').all() as {
+        temp_group_id: number;
+        character_id: number;
+      }[];
+      db.pragma('foreign_keys = OFF');
+      const rebuild = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE temp_group_members_new (
+            temp_group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+            PRIMARY KEY (temp_group_id, character_id)
+          );
+        `);
+        const insertMember = db.prepare('INSERT INTO temp_group_members_new (temp_group_id, character_id) VALUES (?, ?)');
+        for (const m of oldMembers) {
+          const newId = idMap.get(m.temp_group_id);
+          if (newId !== undefined) insertMember.run(newId, m.character_id);
+        }
+        db.exec(`
+          DROP TABLE temp_group_members;
+          ALTER TABLE temp_group_members_new RENAME TO temp_group_members;
+          DROP TABLE temp_groups;
+        `);
+      });
+      rebuild();
+      const violations = db.prepare('PRAGMA foreign_key_check').all();
+      db.pragma('foreign_keys = ON');
+      if (violations.length) {
+        throw new Error(`temp_group_members-Neuaufbau ließ FK-Verletzungen zurück: ${JSON.stringify(violations)}`);
+      }
+      console.log(`Migration: ${oldGroups.length} Event-Gruppe(n) in groups zusammengeführt (is_temp)`);
+    }
+  }
 }
 
 // Migration: 'raceBase'-Spalte an bestehende char_resources ergänzen —

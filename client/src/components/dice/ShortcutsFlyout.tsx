@@ -2,17 +2,22 @@ import { Link } from 'react-router-dom';
 import { parseDiceShortcuts } from '@shared/dice';
 import { useHoverFlyout } from '../useHoverFlyout';
 
-// Würfel-Favoriten des Charakters als Knöpfe: ein Klick würfelt sofort und
-// postet ins Feed. Gepflegt werden sie als Klartext in den Einstellungen
-// („Label: Ausdruck" je Zeile) — hier nur gelesen und gerendert.
+// Würfel-Favoriten als Knöpfe: ein Klick würfelt sofort und postet ins Feed.
+// Gepflegt werden sie als Klartext in den Einstellungen („Label: Ausdruck" je
+// Zeile) — hier nur gelesen und gerendert. Bei einem Charakter sind es dessen
+// eigene (charId gesetzt), bei der Spielleitung (charId === null) ihre
+// kontoweiten Favoriten (siehe /me/dice-shortcuts) — daher der eigene
+// `editHref` statt einer festen, an charId hängenden Verlinkung.
 export default function ShortcutsFlyout({
   raw,
   charId,
+  editHref,
   onPick,
   onOpen,
 }: {
   raw: string;
   charId: number | null;
+  editHref?: string;
   onPick: (label: string, expression: string) => void;
   onOpen?: () => void;
 }) {
@@ -30,10 +35,10 @@ export default function ShortcutsFlyout({
           {usable.length === 0 ? (
             <p className="muted dice-flyout-empty">
               Noch keine Favoriten.
-              {charId != null && (
+              {editHref && (
                 <>
                   {' '}
-                  <Link to={`/einstellungen?char=${charId}#wuerfel`} onClick={closeNow}>
+                  <Link to={editHref} onClick={closeNow}>
                     Anlegen
                   </Link>
                 </>

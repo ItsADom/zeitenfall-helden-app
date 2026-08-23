@@ -4,6 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { usePersistedState } from '../components/persist';
+import { WartungPanel } from '../components/WartungPanel';
 import { usePendingRequests } from '../components/requests';
 import { useTabsHeight } from '../components/stickyChrome';
 import { computeGapSort } from '../components/catalogSort';
@@ -474,12 +475,16 @@ const CHAR_GROUP_LABEL: Record<Exclude<CharGroupBy, 'none'>, string> = { gruppe:
 // oder Verwaltungsbereiche dazukommen. Offene Anfragen stecken thematisch bei
 // Gruppen (sie münden in eine Gruppenzuordnung) und zeigen sich dort nur als
 // Abzeichen an der Reiter-Beschriftung, statt einen eigenen Reiter zu belegen.
-type AdminTab = 'benutzer' | 'gruppen' | 'charaktere' | 'kataloge';
-const ADMIN_TABS: { key: AdminTab; label: string }[] = [
+// „Wartung" ist der einzige Reiter, der an der Rolle hängt: Verwaltung ja,
+// Spielleitung nein (siehe requireAdmin an /api/admin/deploy) — daher das
+// Kennzeichen `nurAdmin`, nach dem beim Rendern gefiltert wird.
+type AdminTab = 'benutzer' | 'gruppen' | 'charaktere' | 'kataloge' | 'wartung';
+const ADMIN_TABS: { key: AdminTab; label: string; nurAdmin?: boolean }[] = [
   { key: 'benutzer', label: 'Benutzer' },
   { key: 'gruppen', label: 'Gruppen' },
   { key: 'charaktere', label: 'Charaktere' },
   { key: 'kataloge', label: 'Kataloge' },
+  { key: 'wartung', label: 'Wartung', nurAdmin: true },
 ];
 
 // Charaktere einer Event-Gruppe: gleiches Muster wie früher GroupMembersEditor
@@ -596,6 +601,12 @@ export default function AdminPage() {
   const [tab, setTab] = usePersistedState<AdminTab>('admin:tab', 'benutzer');
   const tabsRef = useTabsHeight();
 
+  // Ein Spielleiter ohne Verwaltungsrolle darf „Wartung" nicht sehen. Der Reiter
+  // steckt aber in localStorage, sobald er einmal gewählt wurde — verliert
+  // jemand die Rolle (oder teilt sich ein Gerät), stünde die Seite sonst leer.
+  const sichtbareTabs = ADMIN_TABS.filter((t) => !t.nurAdmin || me?.isAdmin);
+  const aktiverTab: AdminTab = sichtbareTabs.some((t) => t.key === tab) ? tab : 'benutzer';
+
   const [newUser, setNewUser] = useState({ username: '', password: '', displayName: '', isGm: false, isAdmin: false });
   const [newGroup, setNewGroup] = useState('');
   const [newTempGroup, setNewTempGroup] = useState('');
@@ -691,15 +702,15 @@ export default function AdminPage() {
       {error && <p className="error">{error}</p>}
 
       <div className="tabs" ref={tabsRef}>
-        {ADMIN_TABS.map((t) => (
-          <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+        {sichtbareTabs.map((t) => (
+          <button key={t.key} className={aktiverTab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
             {t.label}
             {t.key === 'gruppen' && requests.length > 0 && <span className="tab-badge">{requests.length}</span>}
           </button>
         ))}
       </div>
 
-      {tab === 'benutzer' && (
+      {aktiverTab === 'benutzer' && (
       <div className="panel">
         <h2>Benutzer</h2>
         <table className="sheet">
@@ -815,7 +826,7 @@ export default function AdminPage() {
       </div>
       )}
 
-      {tab === 'gruppen' && (
+      {aktiverTab === 'gruppen' && (
       <>
       {/* Offene Gruppen-Anfragen selbst angelegter Charaktere. Nur sichtbar,
           solange welche offen sind. Annehmen ordnet den Charakter der erbetenen
@@ -990,7 +1001,7 @@ export default function AdminPage() {
       </>
       )}
 
-      {tab === 'charaktere' && (
+      {aktiverTab === 'charaktere' && (
       <div className="panel">
         <h2>Charaktere</h2>
         <div className="abil-grouprow">
@@ -1144,7 +1155,7 @@ export default function AdminPage() {
       </div>
       )}
 
-      {tab === 'kataloge' && (
+      {aktiverTab === 'kataloge' && (
       <>
       <p className="muted">
         Änderungen wirken für alle Charaktere. Einträge, die von Charakteren verwendet werden, lassen sich nicht löschen.
@@ -1217,6 +1228,8 @@ export default function AdminPage() {
       </div>
       </>
       )}
+
+      {aktiverTab === 'wartung' && <WartungPanel />}
     </>
   );
 }

@@ -330,5 +330,11 @@ export type ServerToClientMessage =
   // eigenen Verbindungsabbruch (siehe RECONNECT_GRACE_MS in ws.ts). Wie
   // presence.snapshot rein lokal, kein Feed-Eintrag.
   | { type: 'presence.joined'; name: string }
+  // The one message that goes to EVERY room rather than one: an admin has
+  // triggered a redeploy, so this instance will restart shortly. Receiving it
+  // is what licenses a client to show the waiting screen when the connection
+  // later drops — the dock reconnects after any blip on its own, so a dropped
+  // socket alone would pop the screen up on every Wi-Fi hiccup.
+  | { type: 'wartung.angekuendigt'; durch: string }
   | { type: 'ack'; reqId: string }
   | { type: 'error'; reqId: string; message: string };

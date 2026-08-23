@@ -28,6 +28,7 @@ export interface BaseValueResult {
 export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs): Record<BaseValueKey, number> {
   const v = (c: AttrCode) => attrMax(attrs, c);
   const wundschwelle = ceil(v('KO') / 2);
+  const wundschwelleErgebnis = wundschwelle + (inputs.mods.wundschwelle ?? 0);
 
   // Die MR ist Eingang für Artefaktkontrolle und Resilienz und muss deshalb
   // zuerst fertig gerechnet sein (Basis + Rassenbonus + eigener Modifikator).
@@ -41,7 +42,7 @@ export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs
     fk: ceil((v('IN') + v('FF') + v('KK')) / 5),
     ini: ceil((v('MU') + v('MU') + v('IN') + v('GE')) / 5),
     artefaktkontrolle: v('IN') + mrErgebnis + v('MU') + (inputs.akBase ?? 0),
-    todesschwelle: ceil((wundschwelle + v('MU')) / 4),
+    todesschwelle: ceil((wundschwelleErgebnis + v('MU')) / 4),
     wundschwelle,
     ausweichen: ceil((v('GE') + v('GE') + v('IN')) / 3),
     resilienz: ceil((v('MU') + v('MU') + mrErgebnis) / 5) + (inputs.resilienzBase ?? 0),

@@ -45,7 +45,7 @@ import {
   leaveCoopPool,
   removeCoopPool,
 } from './coopPools.js';
-import { isGroupMember } from './routes.js';
+import { isRoomMember } from './routes.js';
 import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
 import { createTokenBucket, type TokenBucket } from './rateLimit.js';
 
@@ -144,6 +144,23 @@ function broadcastToRoom(groupId: number, msg: ServerToClientMessage): void {
 }
 
 /**
+ * To EVERY room at once — the only message without a group: the instance is
+ * about to restart, which concerns everyone. Deliberately its own function
+ * rather than a special case inside broadcastToRoom(), so that skipping the
+ * room boundary stays visible in the signature.
+ *
+ * Anyone who has never picked a room holds no socket and gets no warning. For
+ * them it stays a few seconds of unavailability — accepted, rather than
+ * building a second notification channel for it.
+ */
+export function broadcastWartung(durch: string): void {
+  const msg: ServerToClientMessage = { type: 'wartung.angekuendigt', durch };
+  for (const room of rooms.values()) {
+    for (const ws of room) send(ws, msg);
+  }
+}
+
+/**
  * Nach einem GM-Reset auf der GM-Übersicht (REST, eigene Session) an den
  * Charakterbesitzer pushen — sonst zeigt dessen Dock den alten Stand, bis
  * er neu lädt (die Klee-Buttons blieben fälschlich deaktiviert).
@@ -184,7 +201,7 @@ function clampModifier(raw: unknown): number {
 function resolveGmPlayerCounterpart(meta: SocketMeta, rawTargetUserId: unknown): number | null {
   if (meta.isGm) {
     const targetUserId = Number(rawTargetUserId);
-    if (!targetUserId || !isGroupMember(targetUserId, meta.groupId)) return null;
+    if (!targetUserId || !isRoomMember(targetUserId, meta.groupId)) return null;
     return targetUserId;
   }
   const room = rooms.get(meta.groupId);
@@ -196,13 +213,27 @@ function resolveGmPlayerCounterpart(meta: SocketMeta, rawTargetUserId: unknown):
   return null;
 }
 
+/**
+ * Ob dieser Charakter zu diesem Raum gehört — fest über characters.group_id
+ * ODER additiv über temp_group_members (Event-Gruppe). Die beiden schließen
+ * sich in der Praxis gegenseitig aus (ein group_id zeigt nie auf eine Event-
+ * Gruppe, kein Charakter landet je additiv in seiner eigenen festen Gruppe),
+ * ein simples ODER reicht also, ohne wissen zu müssen, welche Art Raum das ist.
+ */
+function charBelongsToRoom(charId: number, groupId: number): boolean {
+  return (
+    !!db.prepare('SELECT 1 FROM characters WHERE id = ? AND group_id = ?').get(charId, groupId) ||
+    !!db.prepare('SELECT 1 FROM temp_group_members WHERE character_id = ? AND temp_group_id = ?').get(charId, groupId)
+  );
+}
+
 function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
   const charId = rawCharId != null ? Number(rawCharId) : null;
   if (charId != null) {
-    const char = db
-      .prepare('SELECT name, chat_name, group_id FROM characters WHERE id = ? AND owner_user_id = ?')
-      .get(charId, meta.userId) as { name: string; chat_name: string; group_id: number | null } | undefined;
-    if (char && char.group_id === meta.groupId) return { userId: meta.userId, charId, name: char.chat_name || char.name };
+    const char = db.prepare('SELECT name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
+      | { name: string; chat_name: string }
+      | undefined;
+    if (char && charBelongsToRoom(charId, meta.groupId)) return { userId: meta.userId, charId, name: char.chat_name || char.name };
   }
   return { userId: meta.userId, charId: null, name: meta.displayName };
 }
@@ -219,10 +250,10 @@ function resolveOwnCharacter(
 ): { id: number; name: string; chat_name: string } | null {
   const charId = Number(rawCharId);
   if (!charId) return null;
-  const char = db
-    .prepare('SELECT id, name, chat_name, group_id FROM characters WHERE id = ? AND owner_user_id = ?')
-    .get(charId, meta.userId) as { id: number; name: string; chat_name: string; group_id: number | null } | undefined;
-  if (!char || char.group_id !== meta.groupId) return null;
+  const char = db.prepare('SELECT id, name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
+    | { id: number; name: string; chat_name: string }
+    | undefined;
+  if (!char || !charBelongsToRoom(charId, meta.groupId)) return null;
   return char;
 }
 
@@ -352,10 +383,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // Nur eigene Charaktere, und nur in der Gruppe dieses Feeds — sonst
       // könnte man über eine fremde Gruppe hinweg würfeln lassen.
       const charId = Number(msg.charId);
-      const char = db
-        .prepare('SELECT id, name, chat_name, group_id FROM characters WHERE id = ? AND owner_user_id = ?')
-        .get(charId, meta.userId) as { id: number; name: string; chat_name: string; group_id: number | null } | undefined;
-      if (!char || char.group_id !== meta.groupId) {
+      const char = db.prepare('SELECT id, name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
+        | { id: number; name: string; chat_name: string }
+        | undefined;
+      if (!char || !charBelongsToRoom(char.id, meta.groupId)) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
         return;
       }
@@ -454,12 +485,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       const targetCharId = Number(msg.targetCharId);
-      const char = db
-        .prepare('SELECT id, name, chat_name, owner_user_id, group_id FROM characters WHERE id = ?')
-        .get(targetCharId) as
-        | { id: number; name: string; chat_name: string; owner_user_id: number; group_id: number | null }
+      const char = db.prepare('SELECT id, name, chat_name, owner_user_id FROM characters WHERE id = ?').get(targetCharId) as
+        | { id: number; name: string; chat_name: string; owner_user_id: number }
         | undefined;
-      if (!char || char.group_id !== meta.groupId || char.owner_user_id !== Number(msg.targetUserId)) {
+      if (!char || !charBelongsToRoom(char.id, meta.groupId) || char.owner_user_id !== Number(msg.targetUserId)) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
         return;
       }
@@ -517,9 +546,18 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Gerade niemand sonst verbunden' });
         return;
       }
+      // UNION statt eines einzelnen WHERE: characters.group_id (feste Gruppe)
+      // und temp_group_members (additive Event-Gruppen-Mitgliedschaft) sind
+      // exklusiv — dieselbe Abfrage bedient beide, ohne wissen zu müssen,
+      // welche Art Raum das ist (siehe charBelongsToRoom).
       const chars = db
-        .prepare('SELECT id, name, chat_name, owner_user_id FROM characters WHERE group_id = ?')
-        .all(meta.groupId) as { id: number; name: string; chat_name: string; owner_user_id: number }[];
+        .prepare(
+          `SELECT id, name, chat_name, owner_user_id FROM characters WHERE group_id = ?
+           UNION
+           SELECT c.id, c.name, c.chat_name, c.owner_user_id FROM characters c
+           JOIN temp_group_members tgm ON tgm.character_id = c.id WHERE tgm.temp_group_id = ?`,
+        )
+        .all(meta.groupId, meta.groupId) as { id: number; name: string; chat_name: string; owner_user_id: number }[];
       // Wer die Probe gar nicht kennt (z. B. ein Kampftalent ohne Formel für
       // den falschen Waffentyp), fällt einzeln aus dem Aufgebot, statt die
       // ganze Sammelanfrage zu blockieren.
@@ -627,9 +665,15 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Probe' });
         return;
       }
-      const anyChar = db.prepare('SELECT id FROM characters WHERE group_id = ? ORDER BY id LIMIT 1').get(meta.groupId) as
-        | { id: number }
-        | undefined;
+      const anyChar = db
+        .prepare(
+          `SELECT id FROM (
+             SELECT id FROM characters WHERE group_id = ?
+             UNION
+             SELECT c.id FROM characters c JOIN temp_group_members tgm ON tgm.character_id = c.id WHERE tgm.temp_group_id = ?
+           ) ORDER BY id LIMIT 1`,
+        )
+        .get(meta.groupId, meta.groupId) as { id: number } | undefined;
       if (!anyChar) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Diese Gruppe hat noch keinen Charakter' });
         return;
@@ -929,7 +973,7 @@ export function attachWsServer(server: http.Server): void {
       return;
     }
     const groupExists = !!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
-    if (!groupExists || (!user.isGm && !isGroupMember(user.id, groupId))) {
+    if (!groupExists || (!user.isGm && !isRoomMember(user.id, groupId))) {
       socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
       socket.destroy();
       return;

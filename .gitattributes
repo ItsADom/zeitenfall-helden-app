@@ -1,0 +1,4 @@
+# Server-side operational files are checked out on Linux and executed there.
+# This machine has core.autocrlf=true, which would rewrite them to CRLF on the
+# next checkout — and a shell script with CRLF dies as "bad interpreter: ^M".
+scripts/** text eol=lf

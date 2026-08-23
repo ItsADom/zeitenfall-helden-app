@@ -27,13 +27,13 @@ import {
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { listRollableProbes } from './diceSource.js';
-import { pushSchicksalspunkte } from './ws.js';
+import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
+import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
 import {
   MAX_TABLE_COLUMNS,
   MAX_TABLE_KEY,
   addCharTag,
   buildGroupOverview,
-  buildTempGroupOverview,
   buildSummary,
   removeCharTag,
   setGmNotiz,
@@ -86,10 +86,29 @@ import {
 
 export const api = Router();
 
-// Instance access gate — MUST stay the first middleware on the api router. A
-// sub-router mounted above this line (api.use('/wiki', wikiApi), say) would
-// bypass the gate entirely. Without RESTRICT_TO_ROLES this is a no-op, so
-// nothing changes in production.
+// Liveness probe for the waiting screen of an admin-triggered redeploy — the
+// one route deliberately registered ABOVE the instance gate, and the only one.
+// On the dev instance that gate answers 403 to an authenticated player, and
+// this endpoint has to keep working precisely when everything else is
+// uncertain. It therefore carries no authentication and says as little as it
+// possibly can: no commit, no version, no path. The boot id is a random value
+// per process start and identifies nothing but "this is a different process
+// than the one you were talking to".
+//
+// `wartung` is the single bit beyond liveness, and it earns its place: the
+// announcement over the WebSocket necessarily goes out BEFORE anyone knows
+// whether there is anything to deploy, so without it a run that ends in
+// "already up to date" would leave every other browser waiting for a restart
+// that never comes. It discloses nothing an observer could not see anyway by
+// watching the site go briefly unavailable.
+api.get('/health', (_req, res) => {
+  res.json({ ok: true, boot: BOOT_ID, wartung: deployLaeuft() });
+});
+
+// Instance access gate — MUST stay the first middleware on the api router, and
+// nothing but /health may be registered above it. A sub-router mounted above
+// this line (api.use('/wiki', wikiApi), say) would bypass the gate entirely.
+// Without RESTRICT_TO_ROLES this is a no-op, so nothing changes in production.
 api.use(instanceGate);
 
 // Das Wiki bringt seine eigenen Routen, seinen eigenen Zugriffscheck und sein
@@ -130,6 +149,21 @@ function getChar(id: number): CharRow | undefined {
 // mehr (siehe Migration in db.ts).
 export function isGroupMember(userId: number, groupId: number): boolean {
   return !!db.prepare('SELECT 1 FROM characters WHERE group_id = ? AND owner_user_id = ?').get(groupId, userId);
+}
+
+/** Additive Mitgliedschaft einer Event-Gruppe (temp_group_members) statt der festen characters.group_id. */
+export function isTempGroupMember(userId: number, groupId: number): boolean {
+  return !!db
+    .prepare(
+      `SELECT 1 FROM temp_group_members tgm JOIN characters c ON c.id = tgm.character_id
+       WHERE tgm.temp_group_id = ? AND c.owner_user_id = ?`,
+    )
+    .get(groupId, userId);
+}
+
+/** Mitglied dieser Gruppe, egal ob fest oder additiv über eine Event-Gruppe. */
+export function isRoomMember(userId: number, groupId: number): boolean {
+  return isGroupMember(userId, groupId) || isTempGroupMember(userId, groupId);
 }
 
 type Access = 'edit' | 'summary' | null;
@@ -249,6 +283,23 @@ api.get('/me', requireAuth, (req, res) => {
   res.json(userInfo(req.user!));
 });
 
+// Konto-weite Würfel-Favoriten ("Label: Ausdruck" pro Zeile, gleiches Format
+// wie characters.dice_shortcuts) — gelten in jedem Chatraum, unabhängig vom
+// dort gespielten Charakter. Vor allem für die Spielleitung gedacht, die
+// keinen eigenen Charakter hat, an dem die Favoriten sonst hängen könnten.
+api.get('/me/dice-shortcuts', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT dice_shortcuts AS diceShortcuts FROM users WHERE id = ?').get(req.user!.id) as
+    | { diceShortcuts: string }
+    | undefined;
+  res.json({ diceShortcuts: row?.diceShortcuts ?? '' });
+});
+
+api.put('/me/dice-shortcuts', requireAuth, (req, res) => {
+  const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
+  db.prepare('UPDATE users SET dice_shortcuts = ? WHERE id = ?').run(text, req.user!.id);
+  res.json({ diceShortcuts: text });
+});
+
 api.put('/me/password', requireAuth, (req, res) => {
   const { password } = (req.body ?? {}) as { password?: string };
   if (!password || password.length < 6) {
@@ -296,8 +347,11 @@ api.get('/overview', requireAuth, (req, res) => {
   const characters = allScope
     ? db.prepare('SELECT * FROM characters ORDER BY name').all()
     : db.prepare('SELECT * FROM characters WHERE owner_user_id = ? ORDER BY name').all(user.id);
+  // is_temp = 0: diese Übersicht ist die feste Gruppenverwaltung — Event-
+  // Gruppen haben ihre eigene Verwaltung (/admin/temp-groups) und würden hier
+  // nur als scheinbar leere/verwaiste Gruppe auftauchen.
   const groups = allScope
-    ? db.prepare('SELECT * FROM groups ORDER BY name').all()
+    ? db.prepare('SELECT * FROM groups WHERE is_temp = 0 ORDER BY name').all()
     : db
         .prepare(
           'SELECT DISTINCT g.* FROM groups g JOIN characters c ON c.group_id = g.id WHERE c.owner_user_id = ? ORDER BY g.name',
@@ -309,8 +363,9 @@ api.get('/overview', requireAuth, (req, res) => {
 // Alle Gruppennamen — damit ein Spieler bei der Selbst-Anlage eines Charakters
 // eine beliebige bestehende Gruppe erbitten kann (die Freigabe ist die
 // eigentliche Hürde, nicht die Sichtbarkeit der Namen). Bewusst nur id + name.
+// is_temp = 0: eine Event-Gruppe ist keine gültige permanente Gruppe.
 api.get('/groups/names', requireAuth, (_req, res) => {
-  res.json(db.prepare('SELECT id, name FROM groups ORDER BY name').all());
+  res.json(db.prepare('SELECT id, name FROM groups WHERE is_temp = 0 ORDER BY name').all());
 });
 
 // Nur die eigenen Gruppen (Mitgliedschaft, GM sieht alle) — für den
@@ -325,16 +380,23 @@ api.get('/groups/mine', requireAuth, (req, res) => {
   // gerade betrachtete Seite) — nie ein Konto-Name, außer für die Spielleitung,
   // die grundsätzlich ohne Charakterbezug chattet.
   if (user.isGm) {
+    // Feste und Event-Gruppen leben in derselben Tabelle (is_temp) — diese
+    // Abfrage listet also automatisch beide, ohne sie unterscheiden zu müssen.
     const groups = db.prepare('SELECT id, name FROM groups ORDER BY name').all() as { id: number; name: string }[];
     // Für „SL-Wurf": wen die Spielleitung im Sichtbarkeits-Menü als Gegenüber
     // wählen kann. Charaktername (Chat-Anzeigename bevorzugt) statt Konto-
-    // name, damit die Liste dieselben Namen zeigt wie der Rest des Docks.
+    // name, damit die Liste dieselben Namen zeigt wie der Rest des Docks. UNION
+    // aus fester (group_id) und additiver (temp_group_members) Mitgliedschaft,
+    // siehe charBelongsToRoom in ws.ts für dieselbe Überlegung.
     const memberRows = db
       .prepare(
         `SELECT c.group_id AS groupId, u.id AS userId, COALESCE(NULLIF(c.chat_name, ''), c.name, u.display_name) AS name
-         FROM characters c
+         FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id IS NOT NULL
+         UNION
+         SELECT tgm.temp_group_id AS groupId, u.id AS userId, COALESCE(NULLIF(c.chat_name, ''), c.name, u.display_name) AS name
+         FROM temp_group_members tgm
+         JOIN characters c ON c.id = tgm.character_id
          JOIN users u ON u.id = c.owner_user_id
-         WHERE c.group_id IS NOT NULL
          ORDER BY name`,
       )
       .all() as { groupId: number; userId: number; name: string }[];
@@ -342,14 +404,28 @@ api.get('/groups/mine', requireAuth, (req, res) => {
     // braucht aber trotzdem eine Probenliste für „/koop" (Katalog-Einträge
     // sind gruppenweit gleich, siehe RequestGroupProbePicker.tsx's anyCharId).
     const anyCharRows = db
-      .prepare('SELECT group_id AS groupId, MIN(id) AS anyCharId FROM characters WHERE group_id IS NOT NULL GROUP BY group_id')
+      .prepare(
+        `SELECT groupId, MIN(charId) AS anyCharId FROM (
+           SELECT group_id AS groupId, id AS charId FROM characters WHERE group_id IS NOT NULL
+           UNION ALL
+           SELECT temp_group_id AS groupId, character_id AS charId FROM temp_group_members
+         ) GROUP BY groupId`,
+      )
       .all() as { groupId: number; anyCharId: number }[];
+    // Eigene, kontoweite Würfel-Favoriten der Spielleitung (siehe
+    // /me/dice-shortcuts) — gelten in jedem Raum gleich, da die Spielleitung
+    // selbst keinen Charakter hat, an dem raumbezogene Favoriten hängen könnten.
+    const gmShortcuts = (
+      db.prepare('SELECT dice_shortcuts AS diceShortcuts FROM users WHERE id = ?').get(user.id) as
+        | { diceShortcuts: string }
+        | undefined
+    )?.diceShortcuts ?? '';
     res.json(
       groups.map((g) => ({
         ...g,
         myCharacterId: null,
         myCharacterName: null,
-        myDiceShortcuts: '',
+        myDiceShortcuts: gmShortcuts,
         schicksalspunkteAktuell: 0,
         schicksalspunkteMax: 0,
         anyCharId: anyCharRows.find((r) => r.groupId === g.id)?.anyCharId ?? null,
@@ -358,9 +434,12 @@ api.get('/groups/mine', requireAuth, (req, res) => {
     );
     return;
   }
+  // UNION aus fester Gruppe (group_id) und additiver Event-Gruppen-
+  // Mitgliedschaft (temp_group_members) — ein Spieler bleibt in seiner festen
+  // Gruppe UND sieht die Event-Gruppen, in denen sein Charakter mitläuft.
   const rows = db
     .prepare(
-      `SELECT g.id, g.name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName,
+      `SELECT g.id, g.name AS name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName,
               c.dice_shortcuts AS charShortcuts, cm.schicksalspunkteAktuell AS spAktuell, cm.schicksalspunkteMax AS spMax
        FROM groups g
        JOIN characters c ON c.group_id = g.id AND c.owner_user_id = ?
@@ -371,9 +450,21 @@ api.get('/groups/mine', requireAuth, (req, res) => {
          -- erscheint.
          AND c.id = (SELECT MIN(c2.id) FROM characters c2 WHERE c2.group_id = g.id AND c2.owner_user_id = ?)
        LEFT JOIN char_meta cm ON cm.character_id = c.id
-       ORDER BY g.name`,
+       UNION
+       SELECT g.id, g.name AS name, c.id AS charId, c.name AS charName, c.chat_name AS charChatName,
+              c.dice_shortcuts AS charShortcuts, cm.schicksalspunkteAktuell AS spAktuell, cm.schicksalspunkteMax AS spMax
+       FROM groups g
+       JOIN temp_group_members tgm ON tgm.temp_group_id = g.id
+       JOIN characters c ON c.id = tgm.character_id AND c.owner_user_id = ?
+         AND c.id = (
+           SELECT MIN(c2.id) FROM characters c2
+           JOIN temp_group_members tgm2 ON tgm2.character_id = c2.id
+           WHERE tgm2.temp_group_id = g.id AND c2.owner_user_id = ?
+         )
+       LEFT JOIN char_meta cm ON cm.character_id = c.id
+       ORDER BY name`,
     )
-    .all(user.id, user.id) as {
+    .all(user.id, user.id, user.id, user.id) as {
     id: number;
     name: string;
     charId: number | null;
@@ -437,14 +528,24 @@ api.get('/groups/:id', requireAuth, (req, res) => {
 
 // Spielleiter-Übersicht: alle Charaktere der Gruppe mit ihren wichtigsten
 // Kennwerten für die chip-basierte Kartenansicht. Nur Spielleiter (requireGm).
+// Bedient feste UND Event-Gruppen gleichermaßen (is_temp unterscheidet sie
+// nur noch per Datenbankzeile, nicht mehr per Route) — buildGroupOverview
+// findet die zugehörigen Charaktere für beide gleich.
 api.get('/groups/:id/overview', requireAuth, requireGm, (req, res) => {
   const groupId = Number(req.params.id);
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId) as { id: number; name: string } | undefined;
+  const group = db.prepare('SELECT id, name, is_temp AS isTemp FROM groups WHERE id = ?').get(groupId) as
+    | { id: number; name: string; isTemp: number }
+    | undefined;
   if (!group) {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
-  res.json({ group, talentCatalog: talentCatalogList(), tagCatalog: tagCatalogList(), characters: buildGroupOverview(groupId) });
+  res.json({
+    group: { id: group.id, name: group.name, isTemp: !!group.isTemp },
+    talentCatalog: talentCatalogList(),
+    tagCatalog: tagCatalogList(),
+    characters: buildGroupOverview(groupId),
+  });
 });
 
 // Merkmal einem Charakter zuweisen/entziehen und die GM-Notiz setzen — bewusst
@@ -507,19 +608,32 @@ api.put('/characters/:id/schicksalspunkte', requireAuth, (req, res) => {
 
 // GM-Sammel-Reset für eine ganze Gruppe („Neuer Spieltag") — setzt jeden
 // Charakter der Gruppe auf sein eigenes Maximum zurück.
+// Wie buildGroupOverview: UNION aus fester Mitgliedschaft (group_id) und
+// additiver Event-Gruppen-Mitgliedschaft (temp_group_members), damit „Neuer
+// Spieltag" auch auf einer Event-Gruppe alle Beteiligten trifft statt
+// stillschweigend niemanden zu finden.
 api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res) => {
   const groupId = Number(req.params.id);
   const affected = db
     .prepare(
       `SELECT c.id AS charId, c.owner_user_id AS ownerUserId, m.schicksalspunkteMax AS max
-       FROM characters c JOIN char_meta m ON m.character_id = c.id
-       WHERE c.group_id = ?`,
+       FROM characters c JOIN char_meta m ON m.character_id = c.id WHERE c.group_id = ?
+       UNION
+       SELECT c.id AS charId, c.owner_user_id AS ownerUserId, m.schicksalspunkteMax AS max
+       FROM characters c
+       JOIN char_meta m ON m.character_id = c.id
+       JOIN temp_group_members tgm ON tgm.character_id = c.id
+       WHERE tgm.temp_group_id = ?`,
     )
-    .all(groupId) as { charId: number; ownerUserId: number; max: number }[];
+    .all(groupId, groupId) as { charId: number; ownerUserId: number; max: number }[];
   db.prepare(
     `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax
-     WHERE character_id IN (SELECT id FROM characters WHERE group_id = ?)`,
-  ).run(groupId);
+     WHERE character_id IN (
+       SELECT id FROM characters WHERE group_id = ?
+       UNION
+       SELECT character_id FROM temp_group_members WHERE temp_group_id = ?
+     )`,
+  ).run(groupId, groupId);
   // Reset passiert per REST in der GM-Session — die betroffenen Spieler
   // sitzen in ihrer eigenen Session und würden es sonst erst beim nächsten
   // Laden der Räume sehen (Dock-Buttons blieben bis dahin fälschlich aus).
@@ -563,10 +677,19 @@ function editableGroup(req: import('express').Request, res: import('express').Re
 
 // History page for the docked chat/roll panel — filtered through the SAME
 // canSeeFeedEntry predicate used for live broadcast (server/src/ws.ts), so a
-// hidden or GM+player roll can't leak into a page scrolled back into.
+// hidden or GM+player roll can't leak into a page scrolled back into. Bewusst
+// eigene Prüfung statt editableGroup (die ist auch für group_tabs/-sections
+// zuständig, die Event-Gruppen nicht bekommen) — isRoomMember statt
+// isGroupMember, damit additiv verbundene Event-Gruppen-Mitglieder auch die
+// Feed-Historie laden können.
 api.get('/groups/:id/feed', requireAuth, (req, res) => {
-  const groupId = editableGroup(req, res);
-  if (!groupId) return;
+  const groupId = Number(req.params.id);
+  const user = req.user!;
+  const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+  if (!exists || (!user.isGm && !isRoomMember(user.id, groupId))) {
+    res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    return;
+  }
   const before = req.query.before != null ? Number(req.query.before) : null;
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
   const { entries, hasMore } = loadFeedPage(groupId, { userId: req.user!.id }, before, limit);
@@ -708,9 +831,9 @@ api.get('/characters/:id', requireAuth, (req, res) => {
   // Bogen sichtbar (Besitzer wie Spielleitung), nicht nur die Spielleitung.
   const tempGroups = db
     .prepare(
-      `SELECT tg.id, tg.name FROM temp_groups tg
-       JOIN temp_group_members m ON m.temp_group_id = tg.id
-       WHERE m.character_id = ? ORDER BY tg.name`,
+      `SELECT g.id, g.name FROM groups g
+       JOIN temp_group_members m ON m.temp_group_id = g.id
+       WHERE m.character_id = ? ORDER BY g.name`,
     )
     .all(char.id) as { id: number; name: string }[];
   const info = {
@@ -848,7 +971,7 @@ api.post('/characters', requireAuth, (req, res) => {
   let requestedGroupId: number | null = null;
   if (body.requestedGroupId != null && body.requestedGroupId !== '') {
     requestedGroupId = Number(body.requestedGroupId);
-    if (!Number.isInteger(requestedGroupId) || !db.prepare('SELECT 1 FROM groups WHERE id = ?').get(requestedGroupId)) {
+    if (!Number.isInteger(requestedGroupId) || !db.prepare('SELECT 1 FROM groups WHERE id = ? AND is_temp = 0').get(requestedGroupId)) {
       res.status(400).json({ error: 'Gruppe unbekannt' });
       return;
     }
@@ -880,7 +1003,7 @@ api.put('/characters/:id/request', requireAuth, (req, res) => {
   let requestedGroupId: number | null = null;
   if (raw != null && raw !== '') {
     requestedGroupId = Number(raw);
-    if (!Number.isInteger(requestedGroupId) || !db.prepare('SELECT 1 FROM groups WHERE id = ?').get(requestedGroupId)) {
+    if (!Number.isInteger(requestedGroupId) || !db.prepare('SELECT 1 FROM groups WHERE id = ? AND is_temp = 0').get(requestedGroupId)) {
       res.status(400).json({ error: 'Gruppe unbekannt' });
       return;
     }
@@ -1437,8 +1560,9 @@ api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+// is_temp = 0: Event-Gruppen haben ihre eigene Verwaltung (/admin/temp-groups).
 api.get('/admin/groups', requireAuth, requireGmOrAdmin, (_req, res) => {
-  const groups = db.prepare('SELECT * FROM groups ORDER BY name').all() as { id: number; name: string }[];
+  const groups = db.prepare('SELECT * FROM groups WHERE is_temp = 0 ORDER BY name').all() as { id: number; name: string }[];
   res.json(groups);
 });
 
@@ -1457,7 +1581,7 @@ api.post('/admin/groups', requireAuth, requireGmOrAdmin, (req, res) => {
 api.put('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
   const { name } = (req.body ?? {}) as { name?: string };
-  if (name) db.prepare('UPDATE groups SET name = ? WHERE id = ?').run(name, id);
+  if (name) db.prepare('UPDATE groups SET name = ? WHERE id = ? AND is_temp = 0').run(name, id);
   res.json({ ok: true });
 });
 
@@ -1468,7 +1592,7 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     res.status(400).json({ error: 'Gruppe enthält noch Charaktere' });
     return;
   }
-  db.prepare('DELETE FROM groups WHERE id = ?').run(id);
+  db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 0').run(id);
   // Gruppenporträt liegt in helden-assets.db — dieselbe Zweite-Datei-Lücke wie
   // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
   loescheAssetsFuer('group', id);
@@ -1482,7 +1606,9 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
 // characters.group_id.
 
 api.get('/admin/temp-groups', requireAuth, requireGm, (_req, res) => {
-  const groups = db.prepare('SELECT id, name, created_by AS createdBy, created_at AS createdAt FROM temp_groups ORDER BY created_at DESC').all() as {
+  const groups = db
+    .prepare('SELECT id, name, created_by AS createdBy, created_at AS createdAt FROM groups WHERE is_temp = 1 ORDER BY created_at DESC')
+    .all() as {
     id: number;
     name: string;
     createdBy: number;
@@ -1506,16 +1632,14 @@ api.post('/admin/temp-groups', requireAuth, requireGm, (req, res) => {
     res.status(400).json({ error: 'Name erforderlich' });
     return;
   }
-  const r = db
-    .prepare('INSERT INTO temp_groups (name, created_by, created_at) VALUES (?, ?, ?)')
-    .run(name, req.user!.id, Date.now());
+  const r = db.prepare('INSERT INTO groups (name, is_temp, created_by, created_at) VALUES (?, 1, ?, ?)').run(name, req.user!.id, Date.now());
   res.json({ id: Number(r.lastInsertRowid) });
 });
 
 api.put('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
   const id = Number(req.params.id);
   const { name, memberCharacterIds } = (req.body ?? {}) as { name?: string; memberCharacterIds?: number[] };
-  if (name) db.prepare('UPDATE temp_groups SET name = ? WHERE id = ?').run(name, id);
+  if (name) db.prepare("UPDATE groups SET name = ? WHERE id = ? AND is_temp = 1").run(name, id);
   if (Array.isArray(memberCharacterIds)) {
     const tx = db.transaction(() => {
       db.prepare('DELETE FROM temp_group_members WHERE temp_group_id = ?').run(id);
@@ -1528,24 +1652,16 @@ api.put('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
 });
 
 // Löschen ist immer erlaubt (anders als feste Gruppen): die Zuordnung ist
-// additiv, ON DELETE CASCADE räumt nur temp_group_members auf — keine
-// Charakterdaten betroffen, daher kein „enthält noch Charaktere"-Schutz nötig.
+// additiv, ON DELETE CASCADE räumt temp_group_members UND group_feed auf
+// (beide haben eine echte FK auf groups(id)) — keine Charakterdaten
+// betroffen, daher kein „enthält noch Charaktere"-Schutz nötig.
 api.delete('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
-  db.prepare('DELETE FROM temp_groups WHERE id = ?').run(Number(req.params.id));
+  db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 1').run(Number(req.params.id));
   res.json({ ok: true });
 });
 
-api.get('/temp-groups/:id/overview', requireAuth, requireGm, (req, res) => {
-  const id = Number(req.params.id);
-  const group = db.prepare('SELECT id, name FROM temp_groups WHERE id = ?').get(id) as { id: number; name: string } | undefined;
-  if (!group) {
-    res.status(404).json({ error: 'Event-Gruppe nicht gefunden' });
-    return;
-  }
-  // Gleiches Antwortformat wie /groups/:id/overview (Feld „group") — so kann
-  // die Client-Übersichtsseite für beide Gruppentypen wiederverwendet werden.
-  res.json({ group, talentCatalog: talentCatalogList(), tagCatalog: tagCatalogList(), characters: buildTempGroupOverview(id) });
-});
+// Eigene GM-Übersicht der Event-Gruppe gibt es nicht mehr getrennt — /groups/:id/overview
+// bedient inzwischen beide Gruppenarten, siehe dort.
 
 // --- Kataloge bearbeiten (nur Spielleiter) ---
 
@@ -1830,7 +1946,7 @@ api.post('/admin/requests/:id/approve', requireAuth, requireGmOrAdmin, (req, res
     return;
   }
   const groupId = char.requested_group_id;
-  if (!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) {
+  if (!db.prepare('SELECT 1 FROM groups WHERE id = ? AND is_temp = 0').get(groupId)) {
     res.status(400).json({ error: 'Erbetene Gruppe existiert nicht mehr' });
     return;
   }
@@ -1888,7 +2004,7 @@ api.post('/admin/characters/import', requireAuth, requireGmOrAdmin, (req, res) =
     return;
   }
   const owner = db.prepare('SELECT 1 FROM users WHERE id = ?').get(Number(ownerUserId));
-  const group = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(Number(groupId));
+  const group = db.prepare('SELECT 1 FROM groups WHERE id = ? AND is_temp = 0').get(Number(groupId));
   if (!owner || !group) {
     res.status(400).json({ error: 'Besitzer oder Gruppe unbekannt' });
     return;
@@ -1916,4 +2032,53 @@ api.post('/admin/characters/:id/migrate-sections', requireAuth, requireGm, (req,
   }
   const result = migrateCharacterPeriphery(char.id);
   res.json(result);
+});
+
+// ————————————————————————————————————————————————————————————————
+// Maintenance: roll out a new version from the web interface
+// ————————————————————————————————————————————————————————————————
+//
+// requireAdmin, NOT requireGmOrAdmin like nearly every other /admin/ route.
+// Putting a new build on the machine is operations, not game mastering. The
+// note is here because an unexplained deviation gets "unified" sooner or later.
+//
+// What gets deployed appears nowhere below: the branch hangs off the name of
+// the systemd unit on the server (dev → develop, prod → main). These routes can
+// only say "now", never "what".
+
+api.get('/admin/deploy/status', requireAuth, requireAdmin, (_req, res) => {
+  // boot rides along on EVERY answer, not just on /api/health. That way the
+  // waiting browser notices the restart on the new process's first status
+  // reply, without having to observe a connection drop that a fast restart may
+  // never give it a chance to see.
+  res.json({ verfuegbar: deployVerfuegbar(), boot: BOOT_ID, status: leseDeployStatus() });
+});
+
+api.post('/admin/deploy', requireAuth, requireAdmin, (req, res) => {
+  if (!deployVerfuegbar()) {
+    res.status(501).json({ error: 'Auf dieser Instanz ist kein Ausrollen eingerichtet.' });
+    return;
+  }
+  if (deployLaeuft()) {
+    res.status(409).json({ error: 'Es läuft bereits ein Ausrollen. Bitte warte, bis es durch ist.' });
+    return;
+  }
+
+  const user = req.user!;
+  try {
+    stossDeployAn(user);
+  } catch (e) {
+    res.status(500).json({ error: `Der Anstoß ließ sich nicht ablegen: ${e instanceof Error ? e.message : e}` });
+    return;
+  }
+
+  // Audit trail. The request file itself is consumed by helden-deploy-trigger
+  // and gone seconds later — the journal is what remains.
+  console.log(`[deploy] angefordert von ${user.username} (id ${user.id})`);
+  broadcastWartung(user.displayName);
+
+  // 202, not 200: accepted, not done. This response could not report "done"
+  // even in principle — the process writing it gets killed by the very thing it
+  // is starting. The outcome arrives through /admin/deploy/status.
+  res.status(202).json({ boot: BOOT_ID });
 });

@@ -1852,29 +1852,27 @@ export function buildSummary(charId: number) {
 // die chip-basierte Kartenansicht. Anders als buildSummary ignoriert das die
 // Sichtbarkeits-Einstellungen — der Spielleiter sieht immer alles (die Route
 // dahinter ist requireGm). Der Client besitzt Kurz-Labels und Färbung.
+// Ein Charakter gehört zu dieser Gruppe entweder fest (characters.group_id,
+// exklusiv) oder additiv über eine Event-Gruppen-Mitgliedschaft
+// (temp_group_members) — dieselbe Übersicht bedient deshalb beide
+// Gruppenarten mit EINER Abfrage: für eine feste Gruppe trägt kein Charakter
+// je einen temp_group_members-Eintrag mit dieser id, für eine Event-Gruppe
+// zeigt umgekehrt kein group_id je auf sie. Die UNION ist also nie doppelt
+// befüllt, ohne dass hier bekannt sein muss, welche Art von Gruppe das ist.
 export function buildGroupOverview(groupId: number) {
   const chars = db
     .prepare(
-      `SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
-       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ? ORDER BY c.name`,
-    )
-    .all(groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
-  return overviewForChars(chars);
-}
-
-// Dieselbe Übersicht für eine temporäre/Event-Gruppe — additiv über
-// temp_group_members statt der festen characters.group_id, sonst identische
-// Aggregation (siehe buildGroupOverview).
-export function buildTempGroupOverview(tempGroupId: number) {
-  const chars = db
-    .prepare(
-      `SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
+      `SELECT c.id, c.name AS name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?
+       UNION
+       SELECT c.id, c.name AS name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
        FROM characters c
        JOIN users u ON u.id = c.owner_user_id
        JOIN temp_group_members tgm ON tgm.character_id = c.id
-       WHERE tgm.temp_group_id = ? ORDER BY c.name`,
+       WHERE tgm.temp_group_id = ?
+       ORDER BY name`,
     )
-    .all(tempGroupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
+    .all(groupId, groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
   return overviewForChars(chars);
 }
 
