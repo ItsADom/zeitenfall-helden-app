@@ -35,6 +35,33 @@ const MAX_LIVE_FEED = 100;
 // ein Reiter, der nach zwanzig Minuten immer noch zuckt, ist genau der Grund,
 // aus dem Leute Benachrichtigungen dauerhaft abschalten.
 const PULS_MS = 8000;
+// Anfragen, für die in DIESEM Tab schon geläutet hat. In sessionStorage, nicht
+// bloß in einem Ref: der Server reicht offene Anfragen bei jedem Verbinden noch
+// einmal nach (ws.ts, „Offene Anfragen nachreichen"), und ein Neuladen der
+// Seite baut ein Ref frisch auf — es hätte also erneut geläutet für etwas, das
+// man vor dem Neuladen schon gehört hat. sessionStorage endet mit dem Tab, was
+// genau die richtige Lebensdauer ist.
+const ANGEKUENDIGT_KEY = 'chat:angekuendigt';
+// Deckel, damit der Eintrag über eine lange Sitzung nicht unbegrenzt wächst.
+// Anfragen laufen ohnehin ab; die jüngsten paar Dutzend reichen völlig.
+const ANGEKUENDIGT_MAX = 80;
+
+function ladeAngekuendigt(): string[] {
+  try {
+    const roh = JSON.parse(sessionStorage.getItem(ANGEKUENDIGT_KEY) ?? '[]') as unknown;
+    return Array.isArray(roh) ? roh.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function merkeAngekuendigt(ids: Set<string>): void {
+  try {
+    sessionStorage.setItem(ANGEKUENDIGT_KEY, JSON.stringify([...ids].slice(-ANGEKUENDIGT_MAX)));
+  } catch {
+    // Merken ist optional — schlimmstenfalls läutet es nach einem Neuladen einmal mehr.
+  }
+}
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 // Wie lange eine „wer ist da"-Notiz stehen bleibt, bevor sie von selbst
@@ -322,6 +349,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const tonRef = useRef<TonWahl>(alsTonWahl(tonRoh, true));
   const lautstaerkeRef = useRef(lautstaerke);
   const meineUserIdRef = useRef<number | null>(null);
+  // Siehe ANGEKUENDIGT_KEY: verhindert, dass ein Raumwechsel, ein
+  // Verbindungsabriss oder ein Neuladen für dieselbe Anfrage noch einmal läutet.
+  const angekuendigtRef = useRef<Set<string>>(new Set(ladeAngekuendigt()));
   const bufferingRef = useRef(false);
   const liveBufferRef = useRef<FeedEntry[]>([]);
   const reconnectDelayRef = useRef(RECONNECT_BASE_MS);
@@ -367,14 +397,23 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
    * Zusätzlich Puls und Klang: etwas WILL beantwortet werden (Proben-, Gruppen-
    * oder Kooperationsanfrage).
    *
-   * Der Ton kommt auch, wenn der Dock offen, das Fenster aber nicht im Blick
-   * ist — ein offener Dock im Hintergrund-Tab wird genauso übersehen wie ein
-   * eingeklappter. Der Punkt dagegen ergibt nur am eingeklappten Reiter Sinn.
+   * Der Klang kommt IMMER, auch bei offenem Dock im Vordergrund: eine Anfrage
+   * an den Tisch ist eine Aufforderung, keine Randnotiz — sie soll auch dann
+   * ankommen, wenn man gerade woanders im Chat liest. Der Puls dagegen sitzt am
+   * eingeklappten Reiter und ergibt nur dort Sinn.
+   *
+   * Zwei Fälle bleiben stumm (Punkt gibt es trotzdem):
+   *   `vonMir`  — man hat selbst geklickt und weiß es. Die Gruppenanfrage geht
+   *               an die anfragende Spielleitung zurück (ws.ts), der
+   *               Kooperations-Pool sogar an den ganzen Raum inklusive der
+   *               vorschlagenden Person; ohne das läutete der eigene Klick.
+   *   bekannt   — dieselbe Anfrage wurde beim Verbinden nur nachgereicht.
    */
-  const meldeDringend = useCallback(() => {
+  const meldeDringend = useCallback((id: string, vonMir: boolean) => {
     melde();
-    const unsichtbar = collapsedRef.current || document.hidden || !document.hasFocus();
-    if (!unsichtbar) return;
+    if (vonMir || angekuendigtRef.current.has(id)) return;
+    angekuendigtRef.current.add(id);
+    merkeAngekuendigt(angekuendigtRef.current);
     if (collapsedRef.current) {
       setPulsiert(true);
       if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
@@ -479,7 +518,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         // Eine Anfrage will beantwortet werden — aber NICHT, indem der Dock
         // sich über den Bogen schiebt, in dem gerade jemand liest.
         setPendingRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        meldeDringend();
+        meldeDringend(msg.request.id, msg.request.gmUserId === meineUserIdRef.current);
         return;
       }
       if (
@@ -495,7 +534,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'roll.group.created') {
         setGroupRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        meldeDringend();
+        meldeDringend(msg.request.id, msg.request.gmUserId === meineUserIdRef.current);
         return;
       }
       if (msg.type === 'roll.group.member') {
@@ -518,7 +557,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         // An ALLE in der Gruppe (nicht nur die vorschlagende Person) — damit ein
         // neuer Pool nicht unbemerkt bleibt.
         setCoopPools((prev) => [...prev.filter((p) => p.id !== msg.pool.id), msg.pool]);
-        meldeDringend();
+        meldeDringend(msg.pool.id, msg.pool.initiatorUserId === meineUserIdRef.current);
         return;
       }
       if (msg.type === 'roll.coop.updated') {
