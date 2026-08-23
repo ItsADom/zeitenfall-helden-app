@@ -184,6 +184,7 @@ export const COMING_SOON: string[] = [
 // Hinweise:
 //   • Keine Punkte in jeglichen Kategorien außer `added` nötig zu Features, die User sowieso noch nie gesehen haben (wichtig bei generell neuen Features).
 //   • Spieler-Sicht, knapp halten: wenige, aussagekräftige Punkte statt Commit-Log.
+//   • Datum und Version bleiben standardmäßig leer bis zum Release.
 //   • `changes: [...]` (flache Liste ohne Überschriften) gibt es weiterhin, ist
 //     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die vier
 //     Abschnitte oben.
@@ -199,7 +200,7 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-08-22',
+    date: '',
     title: 'Würfel mit eigener Form',
     added: [
       'Unter Einstellungen → Anzeige lassen sich die Würfelformen abschalten, wenn du lieber die schlichten Kästchen möchtest. Standardmäßig sind sie an.',
