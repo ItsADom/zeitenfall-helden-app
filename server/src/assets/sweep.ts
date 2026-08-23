@@ -23,6 +23,8 @@ export function fegeVerwaisteBilder(): void {
     fegeVerwaisteAssets('wiki', ids('SELECT id FROM wiki_pages'));
     fegeVerwaisteAssets('character', ids('SELECT id FROM characters'));
     fegeVerwaisteAssets('group', ids('SELECT id FROM groups'));
+    // Nutzer besitzen kein Bild, aber ihren eigenen Benachrichtigungston.
+    fegeVerwaisteAssets('user', ids('SELECT id FROM users'));
   } catch (err) {
     console.error('[assets] Aufräumen verwaister Bilder fehlgeschlagen:', err);
   }

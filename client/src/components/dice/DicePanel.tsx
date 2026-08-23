@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { computeCoopVerdict, parseDiceExpression } from '@shared/dice';
 import type { FeedEntry, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
+import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
+import { entsperreAudio } from './audioContext';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import CommandsDialog from './CommandsDialog';
@@ -112,6 +114,11 @@ export default function DicePanel() {
     presenceNotes,
     collapsed,
     toggle,
+    ungelesen,
+    pulsiert,
+    ton,
+    setTon,
+    tonZuletzt,
     sendChat,
     rollExpr,
     rollProbe,
@@ -260,8 +267,18 @@ export default function DicePanel() {
 
   if (collapsed) {
     return (
-      <button className="dice-dock-tab screen-only" onClick={toggle} title="Chat & Würfel öffnen">
+      <button
+        className={`dice-dock-tab screen-only${pulsiert ? ' puls' : ''}`}
+        // Der Klick ist zugleich die Nutzergeste, die den AudioContext
+        // freischaltet — siehe audioContext.ts.
+        onClick={() => {
+          entsperreAudio();
+          toggle();
+        }}
+        title={ungelesen ? 'Neues im Chat — öffnen' : 'Chat & Würfel öffnen'}
+      >
         🎲 Chat
+        {ungelesen && <span className="dice-dock-neu" title="Neues im Chat" aria-hidden />}
         {groupId !== null && !connected && <span className="dice-dock-offline" title="Verbindung wird aufgebaut…" aria-hidden />}
       </button>
     );
@@ -311,6 +328,22 @@ export default function DicePanel() {
         setDraft('');
         return;
       }
+      setError('');
+      setDraft('');
+      return;
+    }
+    // „/mute": schaltet den Benachrichtigungsklang aus und wieder an. Wie
+    // „/dicecode" eine rein persönliche Sache — es geht nichts über die
+    // Verbindung, niemand sonst merkt davon etwas.
+    if (/^\/mute$/i.test(text)) {
+      const zurueck: TonWahl = tonZuletzt === 'aus' ? CHIME_STANDARD : tonZuletzt;
+      const neu: TonWahl = ton === 'aus' ? zurueck : 'aus';
+      setTon(neu);
+      setInfo(
+        neu === 'aus'
+          ? 'Benachrichtigungston aus. Der Chat-Reiter blinkt weiterhin.'
+          : `Benachrichtigungston an: „${tonName(neu)}".`,
+      );
       setError('');
       setDraft('');
       return;

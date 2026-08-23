@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
@@ -6,7 +6,13 @@ import { parseDiceShortcuts } from '@shared/dice';
 import type { ExternalAttrPoint } from '@shared/types';
 import { MAX_EXTERNAL_ATTR_POINTS, MAX_EXTERNAL_ATTR_POINT_NAME, VISIBILITY_LABELS, VISIBILITY_SECTIONS } from '@shared/types';
 import { canStepTab, defaultTabKeys, dynTabId, dynTabKey, isFixedTab, moveTabKey, orderTabKeys, stepTabKey } from '@shared/tabOrder';
+import { CHIMES, MAX_CHIME_SEKUNDEN, type TonWahl } from '@shared/chimes';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
+import { useDicePanel } from '../components/dice/DicePanelProvider';
+import { chimesVorbereiten } from '../components/dice/chimes';
+import { audioMoeglich, entsperreAudio } from '../components/dice/audioContext';
+import { KlangFehler, kodiereKlang } from '../components/dice/wavEncode';
+import { dauerAusBytes, eigenenKlangSetzen, eigenenKlangVergessen, vorhoeren } from '../components/dice/ton';
 import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { ExitGuard } from '../components/exitGuard';
@@ -287,6 +293,7 @@ export default function EinstellungenPage() {
 
   const navLinks: [string, string][] = [
     ['anzeige', 'Anzeige'],
+    ['ton', 'Benachrichtigungston'],
     ...(user.isGm ? ([['wuerfel-sl', 'Würfel-Favoriten (SL)']] as [string, string][]) : []),
     ['charakter', 'Charakter'],
     ...(selId != null && !loading
@@ -359,6 +366,8 @@ export default function EinstellungenPage() {
           beiden Fällen erhalten.
         </p>
       </div>
+
+      <TonPanel />
 
       {user.isGm && (
         <div className="panel" id="wuerfel-sl">
@@ -606,6 +615,182 @@ export default function EinstellungenPage() {
       )}
       {loading && <p className="muted">Lade…</p>}
     </>
+  );
+}
+
+// Benachrichtigungston: Auswahl, Lautstärke und der eigene Klang.
+//
+// Auswahl und Lautstärke liegen in localStorage (siehe DicePanelProvider) —
+// welcher Klang und wie laut hängt am Ohr vor dem Gerät, nicht am Konto. Die
+// hochgeladene DATEI dagegen liegt am Konto, damit niemand sie auf dem Handy
+// noch einmal heraussuchen muss.
+function TonPanel() {
+  const { ton, setTon, lautstaerke, setLautstaerke } = useDicePanel();
+  const [eigenBytes, setEigenBytes] = useState<number | null>(null);
+  const [tonMsg, setTonMsg] = useState('');
+  const [tonFehler, setTonFehler] = useState('');
+  const [laedt, setLaedt] = useState(false);
+  const dateiRef = useRef<HTMLInputElement>(null);
+  const moeglich = audioMoeglich();
+
+  useEffect(() => {
+    if (!moeglich) return;
+    // Die fünf im Hintergrund vorbauen, damit „Vorhören" sofort antwortet.
+    chimesVorbereiten();
+    apiGet<{ vorhanden: boolean; bytes: number }>('/api/me/chime/info')
+      .then((d) => setEigenBytes(d.vorhanden ? d.bytes : null))
+      .catch(() => setEigenBytes(null));
+  }, [moeglich]);
+
+  const hoeren = (wahl: TonWahl = ton) => {
+    entsperreAudio(); // ein Klick ist der einzige verlässliche Moment dafür
+    if (wahl !== 'aus') vorhoeren(wahl, lautstaerke);
+  };
+
+  const waehle = (wahl: TonWahl) => {
+    setTon(wahl);
+    setTonMsg('');
+    setTonFehler('');
+    hoeren(wahl);
+  };
+
+  const hochladen = async (datei: File) => {
+    setLaedt(true);
+    setTonMsg('');
+    setTonFehler('');
+    try {
+      const { wav, sekunden, gekuerzt } = await kodiereKlang(datei);
+      const res = await fetch('/api/me/chime', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'audio/wav' },
+        body: wav,
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const koerper = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new KlangFehler(koerper?.error ?? 'Der Klang konnte nicht gespeichert werden.');
+      }
+      eigenenKlangSetzen(wav);
+      setEigenBytes(wav.byteLength);
+      setTon('eigen');
+      // Ein stilles Kürzen wäre die unangenehme Überraschung: der Klang klingt
+      // dann anders als die Vorlage, ohne dass jemand weiß, warum.
+      setTonMsg(
+        gekuerzt
+          ? `Übernommen — auf die ersten ${MAX_CHIME_SEKUNDEN} Sekunden gekürzt.`
+          : `Übernommen (${sekunden.toFixed(1).replace('.', ',')} s).`,
+      );
+    } catch (e) {
+      setTonFehler(e instanceof KlangFehler ? e.message : 'Der Klang konnte nicht verarbeitet werden.');
+    } finally {
+      setLaedt(false);
+    }
+  };
+
+  const loeschen = async () => {
+    try {
+      await apiDelete('/api/me/chime');
+    } catch {
+      // Weg ist weg — die Anzeige unten stimmt danach ohnehin wieder.
+    }
+    eigenenKlangVergessen();
+    setEigenBytes(null);
+    // Sonst bliebe „Eigener Klang" ausgewählt und der Chat wäre stumm, ohne
+    // dass man es der Auswahl ansieht.
+    if (ton === 'eigen') setTon(CHIMES[0].id);
+    setTonMsg('Eigener Klang entfernt.');
+    setTonFehler('');
+  };
+
+  if (!moeglich) {
+    return (
+      <div className="panel" id="ton">
+        <h3>Benachrichtigungston</h3>
+        <p className="muted">Dieser Browser kann keine Klänge abspielen.</p>
+      </div>
+    );
+  }
+
+  const prozent = Math.round(lautstaerke * 100);
+
+  return (
+    <div className="panel" id="ton">
+      <h3>Benachrichtigungston</h3>
+      <p className="muted">
+        Klingt, wenn die Spielleitung eine Probe anfragt, eine Gruppenprobe stellt oder eine Kooperationsprobe
+        vorschlägt — und nur dann, wenn du den Chat gerade nicht siehst. Eigene Würfe und gewöhnlicher Chat bleiben
+        still und setzen bloß einen Punkt an den Chat-Reiter. Gilt für diesen Browser; im Chat schaltet{' '}
+        <code>/mute</code> den Ton schnell aus und wieder an.
+      </p>
+
+      <div className="set-row">
+        <span className="set-label">Klang</span>
+        <select value={ton} onChange={(e) => waehle(e.target.value as TonWahl)}>
+          <option value="aus">Aus</option>
+          {CHIMES.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label} — {c.beschreibung}
+            </option>
+          ))}
+          {eigenBytes !== null && <option value="eigen">Eigener Klang</option>}
+        </select>
+        <button type="button" className="small" disabled={ton === 'aus'} onClick={() => hoeren()}>
+          ▶ Vorhören
+        </button>
+      </div>
+
+      <div className="set-row">
+        <span className="set-label">Lautstärke</span>
+        <input
+          type="range"
+          className="ton-regler"
+          min={0}
+          max={100}
+          step={5}
+          value={prozent}
+          disabled={ton === 'aus'}
+          onChange={(e) => setLautstaerke(Number(e.target.value) / 100)}
+          /* Erst beim Loslassen vorspielen — sonst läuten beim Ziehen zwanzig
+             Glocken übereinander. */
+          onPointerUp={() => hoeren()}
+          onKeyUp={() => hoeren()}
+        />
+        <span className="muted">{prozent} %</span>
+      </div>
+
+      <div className="set-row">
+        <span className="set-label">Eigener Klang</span>
+        {eigenBytes !== null ? (
+          <span className="muted">
+            {dauerAusBytes(eigenBytes).toFixed(1).replace('.', ',')} s · {Math.round(eigenBytes / 1024)} KB
+          </span>
+        ) : (
+          <span className="muted">keiner hinterlegt</span>
+        )}
+        <button type="button" className="small" disabled={laedt} onClick={() => dateiRef.current?.click()}>
+          {laedt ? 'Verarbeite…' : eigenBytes !== null ? 'Ersetzen…' : 'Datei wählen…'}
+        </button>
+        {eigenBytes !== null && <ConfirmDeleteButton title="Eigenen Klang entfernen" onConfirm={loeschen} />}
+        <input
+          ref={dateiRef}
+          type="file"
+          accept="audio/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void hochladen(f);
+            e.target.value = '';
+          }}
+        />
+      </div>
+      <p className="muted">
+        MP3, OGG, WAV oder M4A. Die Datei wird im Browser auf höchstens {MAX_CHIME_SEKUNDEN} Sekunden gekürzt, auf
+        Mono gerechnet und auf eine einheitliche Lautstärke gebracht — hochgeladen wird nur dieses Ergebnis, nie die
+        Vorlage. Er hängt an deinem Konto und gilt damit auch auf anderen Geräten.
+      </p>
+      {tonMsg && <p className="savestate">{tonMsg}</p>}
+      {tonFehler && <p className="error">{tonFehler}</p>}
+    </div>
   );
 }
 
