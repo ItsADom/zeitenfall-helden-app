@@ -602,6 +602,16 @@ db.exec(`
   if (!cols.has('chat_name')) db.exec("ALTER TABLE characters ADD COLUMN chat_name TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration: add 'dice_shortcuts' column to users — account-level dice
+// favorites (same "Label: expression" format as characters.dice_shortcuts,
+// see shared/src/dice.ts parseDiceShortcuts), usable across all chat rooms.
+// Mainly for the GM, who has no character of their own to hang per-character
+// shortcuts off of, but not role-restricted at the storage layer.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(users)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('dice_shortcuts')) db.exec("ALTER TABLE users ADD COLUMN dice_shortcuts TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: Selbst-Anlage von Charakteren mit ausstehender Gruppen-Freigabe.
 // Zwei Teile: (a) group_id von NOT NULL auf NULLBAR lockern (ein gruppenloser
 // Charakter braucht keine Gruppe), (b) requested_group_id/requested_at ergänzen.

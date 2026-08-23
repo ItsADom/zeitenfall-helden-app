@@ -210,6 +210,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Im Würfel-Chat trägt jeder geworfene Würfel jetzt die Form seiner Sorte statt eines einheitlichen Kästchens: W4 als Dreieck, W6 als Quadrat, W8 als Raute, dazu eigene Umrisse für W10, W12 und W20. Bei gemischten Würfen wie „1w6+1w20" sieht man so auf einen Blick, welches Ergebnis von welchem Würfel stammt; wer es genau wissen will, fährt einen Würfel mit der Maus an. Ungewöhnliche Würfel wie W100 behalten das schlichte Kästchen.',
       'Jede Würfelsorte hat zusätzlich ihren eigenen, gedeckten Farbton — W4 grünspan, W6 petrolblau, W8 krapprot, W10 amethyst, W12 malve. Der W20 bleibt bewusst farblos: bei ihm bedeutet Farbe weiterhin ausschließlich ein Ergebnis, nämlich die rote natürliche 20 oder die blaue natürliche 1.',
     ],
+    admin: [
+      '(Spielleiter) Eigene Würfel-Favoriten unter Einstellungen → Würfel-Favoriten (SL) — gelten in jedem Chatraum gleich, unabhängig vom gerade gespielten Charakter.',
+    ],
   },
   {
     date: '2026-08-22',

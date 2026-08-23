@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { computeCoopVerdict, parseDiceExpression } from '@shared/dice';
 import type { FeedEntry, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
+import { useAuth } from '../../App';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import CommandsDialog from './CommandsDialog';
@@ -123,6 +124,7 @@ export default function DicePanel() {
     setDiceCode,
     serverError,
   } = useDicePanel();
+  const { user } = useAuth();
   const activeRoom = myGroups.find((g) => g.id === groupId);
   const [draft, setDraft] = useState('');
   // Gilt für den nächsten Wurf (Favorit wie Freihand) — nicht für den Chat,
@@ -491,6 +493,7 @@ export default function DicePanel() {
         <ShortcutsFlyout
           raw={activeRoom?.myDiceShortcuts ?? ''}
           charId={charId}
+          editHref={charId != null ? `/einstellungen?char=${charId}#wuerfel` : user.isGm ? '/einstellungen#wuerfel-sl' : undefined}
           onOpen={refreshRooms}
           onPick={(label, expression) => {
             if (groupId === null) return;

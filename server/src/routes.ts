@@ -283,6 +283,23 @@ api.get('/me', requireAuth, (req, res) => {
   res.json(userInfo(req.user!));
 });
 
+// Konto-weite Würfel-Favoriten ("Label: Ausdruck" pro Zeile, gleiches Format
+// wie characters.dice_shortcuts) — gelten in jedem Chatraum, unabhängig vom
+// dort gespielten Charakter. Vor allem für die Spielleitung gedacht, die
+// keinen eigenen Charakter hat, an dem die Favoriten sonst hängen könnten.
+api.get('/me/dice-shortcuts', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT dice_shortcuts AS diceShortcuts FROM users WHERE id = ?').get(req.user!.id) as
+    | { diceShortcuts: string }
+    | undefined;
+  res.json({ diceShortcuts: row?.diceShortcuts ?? '' });
+});
+
+api.put('/me/dice-shortcuts', requireAuth, (req, res) => {
+  const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
+  db.prepare('UPDATE users SET dice_shortcuts = ? WHERE id = ?').run(text, req.user!.id);
+  res.json({ diceShortcuts: text });
+});
+
 api.put('/me/password', requireAuth, (req, res) => {
   const { password } = (req.body ?? {}) as { password?: string };
   if (!password || password.length < 6) {
@@ -395,12 +412,20 @@ api.get('/groups/mine', requireAuth, (req, res) => {
          ) GROUP BY groupId`,
       )
       .all() as { groupId: number; anyCharId: number }[];
+    // Eigene, kontoweite Würfel-Favoriten der Spielleitung (siehe
+    // /me/dice-shortcuts) — gelten in jedem Raum gleich, da die Spielleitung
+    // selbst keinen Charakter hat, an dem raumbezogene Favoriten hängen könnten.
+    const gmShortcuts = (
+      db.prepare('SELECT dice_shortcuts AS diceShortcuts FROM users WHERE id = ?').get(user.id) as
+        | { diceShortcuts: string }
+        | undefined
+    )?.diceShortcuts ?? '';
     res.json(
       groups.map((g) => ({
         ...g,
         myCharacterId: null,
         myCharacterName: null,
-        myDiceShortcuts: '',
+        myDiceShortcuts: gmShortcuts,
         schicksalspunkteAktuell: 0,
         schicksalspunkteMax: 0,
         anyCharId: anyCharRows.find((r) => r.groupId === g.id)?.anyCharId ?? null,
