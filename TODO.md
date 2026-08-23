@@ -136,29 +136,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
   showing the same feed twice on the same page would be redundant.
     - as we have a group that is streaming, this topic will need a higher prio. should ship shortly
-- [ready] **Chat dock: notify instead of force-open** (user feedback, concept
-  agreed): today `DicePanelProvider.tsx` calls `setCollapsed(false)` at six
-  sites — three incoming events (`roll.pending.created:346`,
-  `roll.group.created:362`, `roll.coop.created:385`) and three of the
-  player's own actions (`rollProbe:537`, `requestProbe:570`,
-  `requestGroupProbe:607`, `proposeCoopPool:638`) — so the dock yanks itself
-  open even when the player triggered the roll themselves. **Decided:** none
-  of the six force-open anymore; all six instead light up a plain
-  badge/dot on the collapsed `🎲 Chat` tab. The badge clears the moment the
-  dock is opened (no per-room last-seen tracking, unlike the wiki's "N
-  Änderungen" pill — simpler is enough here). **Decided:** the three
-  roll-initiating incoming events (`roll.pending.created`,
-  `roll.group.created`, `roll.coop.created` — anything that asks the group
-  for a roll) additionally pulsate the tab and play a short sound, since
-  those are actionable and easy to miss; the three self-triggered actions
-  stay a plain badge only. **Decided:** a `/mute` chat command toggles the
-  sound on/off, same shape as `/koop` (no argument, flips a persisted
-  boolean, echoes the new state back as an info line) — same purely-client
-  pattern as the existing `/dicecode` command, never sent over the
-  connection. Add it to `CommandsDialog` alongside `/dicecode` for
-  discoverability. **Open before building:** no audio has ever shipped in
-  this app — needs an actual short sound-effect asset (source/license still
-  to be picked, not something to invent unasked).
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe

@@ -9,9 +9,12 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
+import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
+import { useAuth } from '../../App';
 import { usePersistedState } from '../persist';
 import { useWartung } from '../wartung';
+import { spieleTon } from './ton';
 
 const PAGE_SIZE = 30;
 // Wie viele Einträge ein echter Neuverbindungsaufbau initial lädt — bewusst
@@ -27,6 +30,11 @@ const INITIAL_LOAD_SIZE = 10;
 // ECHTE Neuverbindungsaufbau (Raumwechsel/Laden) ihn zurücksetzt — ein
 // bloßer Reconnect nach Netz-Aussetzer tut das nicht (siehe connect()).
 const MAX_LIVE_FEED = 100;
+// Wie lange der Chat-Reiter nach einer Anfrage pulsiert. Danach bleibt der
+// stille Punkt stehen: „hier ist etwas" muss bleiben, „schau JETZT hin" nicht —
+// ein Reiter, der nach zwanzig Minuten immer noch zuckt, ist genau der Grund,
+// aus dem Leute Benachrichtigungen dauerhaft abschalten.
+const PULS_MS = 8000;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 // Wie lange eine „wer ist da"-Notiz stehen bleibt, bevor sie von selbst
@@ -103,6 +111,17 @@ interface DicePanelCtxValue {
   loadingMore: boolean;
   collapsed: boolean;
   toggle: () => void;
+  /** Ungesehenes im Chat, seit der Dock zuletzt offen war — der Punkt am eingeklappten Reiter. */
+  ungelesen: boolean;
+  /** Zusätzlich zum Punkt: eine Anfrage will beantwortet werden. Verfällt nach PULS_MS von selbst. */
+  pulsiert: boolean;
+  /** Benachrichtigungsklang (`/mute`, Einstellungen) — rein client-seitig, wie diceCode. */
+  ton: TonWahl;
+  setTon: (t: TonWahl) => void;
+  /** Zuletzt gewählter Klang ungleich „aus" — damit `/mute` zurückschalten kann. */
+  tonZuletzt: TonWahl;
+  lautstaerke: number;
+  setLautstaerke: (v: number) => void;
   hidden: boolean;
   setHidden: (h: boolean) => void;
   /** Letzte Ablehnung vom Server (Ratenlimit, falsche Gruppe, abgelaufene Anfrage, …) — verschwindet von selbst. */
@@ -214,6 +233,13 @@ export function useDicePanel(): DicePanelCtxValue {
       loadingMore: false,
       collapsed: true,
       toggle: () => {},
+      ungelesen: false,
+      pulsiert: false,
+      ton: CHIME_STANDARD,
+      setTon: () => {},
+      tonZuletzt: CHIME_STANDARD,
+      lautstaerke: 0.6,
+      setLautstaerke: () => {},
       hidden: false,
       setHidden: () => {},
       serverError: null,
@@ -258,9 +284,22 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [collapsed, setCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
+  // Bewusst NICHT persistiert: es gibt kein „zuletzt gesehen"-Datum, gegen das
+  // sich ein nach dem Neuladen wieder auftauchender Punkt begründen ließe. Ein
+  // frischer Start beginnt sauber.
+  const [ungelesen, setUngelesen] = useState(false);
+  const [pulsiert, setPulsiert] = useState(false);
+  const pulsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hidden, setHidden] = useState(false);
   const [modifier, setModifier] = usePersistedState<number>('dice:modifier', 0);
   const [diceCode, setDiceCode] = usePersistedState<'w' | 'd'>('dice:code', 'w');
+  // Wie diceCode eine reine Anzeige-/Geräte-Vorliebe: WELCHER Klang und wie laut
+  // hängt am Ohr vor dem Rechner (Kopfhörer am Tisch vs. Handy quer im Raum),
+  // nicht am Konto. Die hochgeladene DATEI liegt dagegen am Konto, damit sie
+  // niemand zweimal hochladen muss.
+  const [tonRoh, setTonRoh] = usePersistedState<TonWahl>('chat:ton', CHIME_STANDARD);
+  const [tonZuletzt, setTonZuletzt] = usePersistedState<TonWahl>('chat:ton-zuletzt', CHIME_STANDARD);
+  const [lautstaerke, setLautstaerke] = usePersistedState<number>('chat:ton-vol', 0.6);
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [groupRequests, setGroupRequests] = useState<GroupRollRequest[]>([]);
   const [coopPools, setCoopPools] = useState<CoopPoolRequest[]>([]);
@@ -270,9 +309,19 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
+  const { user } = useAuth();
 
   const wsRef = useRef<WebSocket | null>(null);
   const groupIdRef = useRef<number | null>(null);
+  // WARUM Refs: connect() ist useCallback(…, []), seine ws.onmessage-Closure
+  // entsteht also GENAU EINMAL und sähe sonst für immer die Werte des ersten
+  // Renders. Ohne das wäre `collapsed` dort dauerhaft true und der Klang
+  // erklänge auch bei weit offenem Dock. groupIdRef daneben gibt es aus
+  // demselben Grund.
+  const collapsedRef = useRef(collapsed);
+  const tonRef = useRef<TonWahl>(alsTonWahl(tonRoh, true));
+  const lautstaerkeRef = useRef(lautstaerke);
+  const meineUserIdRef = useRef<number | null>(null);
   const bufferingRef = useRef(false);
   const liveBufferRef = useRef<FeedEntry[]>([]);
   const reconnectDelayRef = useRef(RECONNECT_BASE_MS);
@@ -284,6 +333,84 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   // Nachrichten, die abgeschickt wurden, während die Verbindung (noch) nicht
   // stand — vor allem beim Würfeln vom Bogen, das erst den Raum wechselt.
   const outboxRef = useRef<ClientToServerMessage[]>([]);
+
+  // Gegen Müll in localStorage. „eigen" bleibt hier absichtlich gültig: ob die
+  // Datei wirklich existiert, weiß nur die Einstellungen-Seite, und die setzt
+  // die Auswahl beim Löschen selbst zurück.
+  const ton = alsTonWahl(tonRoh, true);
+
+  // Im Effekt statt beim Rendern: ein Ref während des Renderns zu beschreiben
+  // ist genau das, was React abrät, und der Gewinn wäre hier ohnehin keiner.
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+    tonRef.current = ton;
+    lautstaerkeRef.current = lautstaerke;
+    meineUserIdRef.current = user?.id ?? null;
+  }, [collapsed, ton, lautstaerke, user?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
+    };
+  }, []);
+
+  /**
+   * Der Punkt am eingeklappten Reiter. Nichts weiter — kein Ton, kein Puls.
+   * Für alles, was man später nachlesen kann: eigene Würfe, fremder Chat.
+   */
+  const melde = useCallback(() => {
+    if (!collapsedRef.current) return;
+    setUngelesen(true);
+  }, []);
+
+  /**
+   * Zusätzlich Puls und Klang: etwas WILL beantwortet werden (Proben-, Gruppen-
+   * oder Kooperationsanfrage).
+   *
+   * Der Ton kommt auch, wenn der Dock offen, das Fenster aber nicht im Blick
+   * ist — ein offener Dock im Hintergrund-Tab wird genauso übersehen wie ein
+   * eingeklappter. Der Punkt dagegen ergibt nur am eingeklappten Reiter Sinn.
+   */
+  const meldeDringend = useCallback(() => {
+    melde();
+    const unsichtbar = collapsedRef.current || document.hidden || !document.hasFocus();
+    if (!unsichtbar) return;
+    if (collapsedRef.current) {
+      setPulsiert(true);
+      if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
+      pulsTimerRef.current = setTimeout(() => setPulsiert(false), PULS_MS);
+    }
+    spieleTon(tonRef.current, lautstaerkeRef.current);
+  }, [melde]);
+
+  /**
+   * Auf- und Zuklappen — und der einzige Weg, auf dem der Dock noch aufgeht
+   * (die sieben `setCollapsed(false)`-Stellen sind ersatzlos entfallen).
+   *
+   * Das Aufräumen steht deshalb hier und nicht in einem Effekt: es gibt nichts
+   * abzugleichen, nur ein „gesehen". Und ausdrücklich NICHT im State-Updater —
+   * React ruft den im StrictMode doppelt auf, Seiteneffekte gehören da nicht hin.
+   */
+  const toggle = useCallback(() => {
+    if (collapsed) {
+      setUngelesen(false);
+      setPulsiert(false);
+      if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
+    }
+    setCollapsed((v) => !v);
+  }, [collapsed, setCollapsed]);
+
+  /**
+   * Auswahl des Benachrichtigungsklangs. Merkt sich jede Wahl außer „aus"
+   * getrennt mit, damit `/mute` weiß, wohin es zurückschalten soll.
+   */
+  const setTon = useCallback(
+    (t: TonWahl) => {
+      if (t !== 'aus') setTonZuletzt(t);
+      setTonRoh(t);
+    },
+    [setTonRoh, setTonZuletzt],
+  );
 
   const sendMsg = useCallback((msg: ClientToServerMessage) => {
     const ws = wsRef.current;
@@ -349,9 +476,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (msg.type === 'roll.pending.created') {
-        // Eine Anfrage will gesehen werden — Dock aufklappen.
+        // Eine Anfrage will beantwortet werden — aber NICHT, indem der Dock
+        // sich über den Bogen schiebt, in dem gerade jemand liest.
         setPendingRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        setCollapsed(false);
+        meldeDringend();
         return;
       }
       if (
@@ -367,7 +495,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'roll.group.created') {
         setGroupRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        setCollapsed(false);
+        meldeDringend();
         return;
       }
       if (msg.type === 'roll.group.member') {
@@ -387,10 +515,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (msg.type === 'roll.coop.created') {
-        // An ALLE in der Gruppe (nicht nur die vorschlagende Person) — Dock
-        // aufklappen, damit ein neuer Pool nicht unbemerkt bleibt.
+        // An ALLE in der Gruppe (nicht nur die vorschlagende Person) — damit ein
+        // neuer Pool nicht unbemerkt bleibt.
         setCoopPools((prev) => [...prev.filter((p) => p.id !== msg.pool.id), msg.pool]);
-        setCollapsed(false);
+        meldeDringend();
         return;
       }
       if (msg.type === 'roll.coop.updated') {
@@ -444,6 +572,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // append und update laufen beide durch mergeFeed (dedupliziert nach id),
       // ein Update ersetzt den vorhandenen Eintrag also einfach.
       if (msg.type !== 'feed.append' && msg.type !== 'feed.update') return;
+      // Nur bei NEUEN Einträgen und nur von anderen: ein Update ist die
+      // Änderung an etwas, das schon dasteht, und der eigene Beitrag ist keine
+      // Neuigkeit. Rein der Punkt — Chat allein soll nie läuten.
+      //
+      // Gemessen an authorUserId, nicht an `isMe`: das Feld trägt nur
+      // ChatFeedEntry, ein RollFeedEntry hat es nicht (siehe diceProtocol.ts).
+      if (msg.type === 'feed.append' && msg.entry.authorUserId !== meineUserIdRef.current) melde();
       if (bufferingRef.current) {
         liveBufferRef.current.push(msg.entry);
       } else {
@@ -548,7 +683,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false); // Ergebnis soll man auch sehen
+      melde(); // das Ergebnis soll man finden — aber selbst hinsehen dürfen
       sendMsg({
         type: 'roll.probe',
         reqId: crypto.randomUUID(),
@@ -563,7 +698,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // Klick unbemerkt weiterwirkt, wäre schlimmer als ihn neu einzutippen.
       if (modifier !== 0) setModifier(0);
     },
-    [myGroups, applyRoom, sendMsg, modifier, setModifier],
+    [myGroups, applyRoom, sendMsg, modifier, setModifier, melde],
   );
 
   const confirmDie = useCallback(
@@ -581,10 +716,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false);
+      melde();
       sendMsg({ type: 'roll.pending.request', reqId: crypto.randomUUID(), source, targetUserId, targetCharId });
     },
-    [myGroups, applyRoom, sendMsg, setCollapsed],
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const acceptRequest = useCallback(
@@ -618,10 +753,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false);
+      melde();
       sendMsg({ type: 'roll.group.request', reqId: crypto.randomUUID(), source });
     },
-    [myGroups, applyRoom, sendMsg, setCollapsed],
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const revealGroupRequest = useCallback(
@@ -649,10 +784,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false);
+      melde();
       sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source });
     },
-    [myGroups, applyRoom, sendMsg, setCollapsed],
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const joinCoopPoolAction = useCallback(
@@ -738,7 +873,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         hasMore,
         loadingMore,
         collapsed,
-        toggle: () => setCollapsed((v) => !v),
+        toggle,
+        ungelesen,
+        pulsiert,
+        ton,
+        setTon,
+        tonZuletzt,
+        lautstaerke,
+        setLautstaerke,
         hidden,
         setHidden,
         serverError,

@@ -13,7 +13,10 @@ import { wikiSlug } from 'shared';
 import { assetsDb } from './db.js';
 import { bildMasse } from './masse.js';
 
-export type OwnerTyp = 'wiki' | 'character' | 'group';
+// 'user' ist der einzige Besitzer, der kein Bild hält: dort hängt der eigene
+// Benachrichtigungston (rolle 'chime', siehe assets/chimes.ts). Das Schema
+// ändert sich dafür nicht — owner_type ist ein freies TEXT-Feld.
+export type OwnerTyp = 'wiki' | 'character' | 'group' | 'user';
 
 export interface AssetInfo {
   slug: string;
@@ -161,6 +164,28 @@ export function einzelAsset(ownerType: OwnerTyp, ownerId: number, rolle: string)
     )
     .get(ownerType, ownerId, rolle) as (Omit<AssetDaten, 'gmOnly'> & { gmOnly: number }) | undefined;
   return row ? { ...row, gmOnly: !!row.gmOnly } : null;
+}
+
+/**
+ * Wie `einzelAsset`, aber ohne den BLOB — für Aufrufer, die nur wissen müssen,
+ * DASS etwas da ist und wie groß es ist. Den ganzen Klang (oder ein ganzes
+ * Porträt) aus der Datenbank zu holen, um seine Länge zu melden, wäre die
+ * teure Art, dieselbe Zahl zu bekommen.
+ */
+export function einzelAssetInfo(
+  ownerType: OwnerTyp,
+  ownerId: number,
+  rolle: string,
+): { bytes: number; mime: string } | null {
+  const db = assetsDb();
+  if (!db) return null;
+  const row = db
+    .prepare(
+      `SELECT bytes, mime FROM assets WHERE owner_type = ? AND owner_id = ? AND rolle = ?
+         ORDER BY id DESC LIMIT 1`,
+    )
+    .get(ownerType, ownerId, rolle) as { bytes: number; mime: string } | undefined;
+  return row ?? null;
 }
 
 export function loescheEinzelAsset(ownerType: OwnerTyp, ownerId: number, rolle: string): number {

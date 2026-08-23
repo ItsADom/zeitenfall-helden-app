@@ -3450,6 +3450,18 @@ li {
   font-weight: 600;
   min-width: auto;
 }
+/* Lautstärkeregler: der Browser-Standard ist auf einer Flex-Zeile entweder
+   winzig oder greift sich die ganze Breite. accent-color färbt ihn in die
+   Farbwelt, ohne dass er dafür nachgebaut werden müsste. */
+.ton-regler {
+  flex: 0 1 220px;
+  min-width: 140px;
+  accent-color: var(--accent);
+}
+.ton-regler:disabled {
+  accent-color: var(--accent-disabled);
+  cursor: not-allowed;
+}
 .cat-editor {
   display: flex;
   flex-direction: column;
@@ -4062,6 +4074,66 @@ li {
   border-radius: 50%;
   background: var(--warn-line);
   margin-left: 6px;
+}
+/* „Neues im Chat" — dieselbe Form und Stelle wie der Offline-Punkt daneben,
+   damit der Reiter keine zweite Bildsprache lernt. --on-accent statt eines
+   eigenen Tons: der Punkt sitzt auf der Akzentfläche und muss nur DORT
+   auffallen, und dieses Paar ist in jeder Farbwelt als lesbar definiert. */
+.dice-dock-neu {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--on-accent);
+  margin-left: 6px;
+}
+
+/* Der Puls: etwas WILL beantwortet werden (Proben-/Gruppen-/Koop-Anfrage).
+   Läuft PULS_MS lang (siehe DicePanelProvider.tsx), danach bleibt allein der
+   Punkt stehen.
+
+   Warum Füllung TAUSCHEN statt eine Signalfarbe einzuführen: --accent und
+   --on-accent-fill sind in JEDEM Block als lesbares Paar definiert — in
+   :root, im gemeinsamen Dunkelblock und in den dunkel-only Schattenlanden,
+   die ihren eigenen Wert mitbringen. Der Kontrast entsteht damit qua
+   Konstruktion, und eine siebte Farbwelt erbt ihn, ohne ein neues Token
+   definieren zu müssen. Der Hof aus --accent legt Bewegung gegen den
+   Seitenhintergrund darüber, weil eine reine Farbumkehr am Rand des Blicks
+   leicht übersehen wird. */
+@keyframes dockPuls {
+  0%,
+  100% {
+    background: var(--accent);
+    color: var(--on-accent);
+    box-shadow: var(--shadow);
+  }
+  50% {
+    background: var(--on-accent-fill);
+    color: var(--accent);
+    box-shadow: var(--shadow), 0 0 0 7px color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+}
+.dice-dock-tab.puls {
+  animation: dockPuls 1.1s ease-in-out 6;
+}
+.dice-dock-tab.puls .dice-dock-neu {
+  /* Mitgehen statt gegen die getauschte Fläche zu verschwinden. */
+  background: currentColor;
+}
+/* Bewegung abbestellt: der Reiter steht still im getauschten, kontraststarken
+   Zustand — die Aussage bleibt, nur das Zucken fällt weg. Punkt und Klang
+   bleiben unberührt. Bewusst NICHT an data-anim gehängt: das schaltet laut
+   seiner eigenen Beschreibung die KOPFLEISTEN-Animation, und wer die abstellt,
+   wollte keine Benachrichtigung verlieren. */
+@media (prefers-reduced-motion: reduce) {
+  .dice-dock-tab.puls {
+    animation: none;
+    background: var(--on-accent-fill);
+    color: var(--accent);
+  }
+  .dice-dock-tab.puls .dice-dock-neu {
+    background: currentColor;
+  }
 }
 .dice-dock {
   position: fixed;

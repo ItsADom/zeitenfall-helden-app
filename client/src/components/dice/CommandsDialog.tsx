@@ -14,6 +14,11 @@ const COMMANDS: { syntax: string; description: string }[] = [
       'Legt fest, ob Würfelausdrücke im Chat als „w" oder „d" angezeigt werden (z. B. „2w6" vs. „2d6") — beide Buchstaben bleiben als Eingabe immer gültig.',
   },
   {
+    syntax: '/mute',
+    description:
+      'Schaltet den Benachrichtigungsklang aus und wieder an — der Klang selbst und seine Lautstärke stehen in den Einstellungen. Der Chat-Reiter blinkt auch stummgeschaltet weiter, es geht also nichts verloren.',
+  },
+  {
     syntax: '/master',
     description: 'Würfelt den Master-Würfel.',
   },

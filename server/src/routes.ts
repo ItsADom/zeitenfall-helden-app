@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
 import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
 import type { UserInfo } from 'shared';
+import { MAX_CHIME_BYTES, istWavKopf } from 'shared';
 import { instanceGate, mayEnter } from './accessGate.js';
 import {
   createSession,
@@ -24,6 +25,7 @@ import {
   loescheGruppenPortrait,
   speichereGruppenPortrait,
 } from './assets/portraits.js';
+import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chimes.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { listRollableProbes } from './diceSource.js';
@@ -298,6 +300,66 @@ api.put('/me/dice-shortcuts', requireAuth, (req, res) => {
   const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
   db.prepare('UPDATE users SET dice_shortcuts = ? WHERE id = ?').run(text, req.user!.id);
   res.json({ diceShortcuts: text });
+});
+
+// --- Eigener Benachrichtigungston (WAV-Blob) ---
+// Immer nur das EIGENE Konto: die Route trägt keine Nutzer-Id, also gibt es
+// nichts, womit man den Ton eines anderen anfragen könnte.
+//
+// Die Bytes kommen fertig normalisiert aus dem Browser (mono, 16 Bit,
+// höchstens MAX_CHIME_SEKUNDEN — siehe client/src/components/dice/wavEncode.ts).
+// Der Server dekodiert nichts; er prüft nur, dass es wirklich das Format ist,
+// das wir selbst erzeugen, und liefert es genau als solches wieder aus.
+
+api.get('/me/chime/info', requireAuth, (req, res) => {
+  // Eigene JSON-Route statt eines HEAD auf /me/chime: die Mehrheit hat keinen
+  // eigenen Ton, und ein 404 bei jedem Seitenaufbau wäre nur Rauschen in der
+  // Konsole.
+  res.json(chimeInfo(req.user!.id));
+});
+
+api.get('/me/chime', requireAuth, (req, res) => {
+  const ton = ladeChime(req.user!.id);
+  if (!ton) {
+    res.status(404).end();
+    return;
+  }
+  res.type(ton.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  // Wir haben diese Bytes zwar selbst erzeugt, aber sie sind trotzdem durch
+  // fremde Hände gegangen — der Browser soll den Typ nicht neu erraten dürfen.
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.send(ton.data);
+});
+
+api.put(
+  '/me/chime',
+  requireAuth,
+  express.raw({ type: 'audio/wav', limit: MAX_CHIME_BYTES }),
+  (req, res) => {
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Klang empfangen' });
+      return;
+    }
+    // Die Längenbegrenzung kann nur der Browser prüfen (dort liegt der Decoder).
+    // Das Format kann der Server prüfen, und tut es: gespeichert wird nur, was
+    // als RIFF/WAVE erkennbar ist.
+    if (!istWavKopf(buf)) {
+      res.status(400).json({ error: 'Nur WAV-Daten aus der App werden angenommen.' });
+      return;
+    }
+    if (!speichereChime(req.user!.id, buf)) {
+      res.status(503).json({ error: 'Die Klangdatenbank ist gerade nicht verfügbar.' });
+      return;
+    }
+    res.json({ ok: true, bytes: buf.length });
+  },
+);
+
+api.delete('/me/chime', requireAuth, (req, res) => {
+  loescheChime(req.user!.id);
+  res.json({ ok: true });
 });
 
 api.put('/me/password', requireAuth, (req, res) => {
@@ -1557,6 +1619,11 @@ api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
     return;
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  // SQLite kennt kein CASCADE über Datenbankgrenzen: der eigene
+  // Benachrichtigungston liegt in helden-assets.db und muss hier von Hand
+  // mitgelöscht werden. Der wöchentliche Kehrbesen (assets/sweep.ts) ist das
+  // Netz darunter, nicht der Mechanismus.
+  loescheAssetsFuer('user', id);
   res.json({ ok: true });
 });
 
