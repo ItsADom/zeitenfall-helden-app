@@ -129,7 +129,7 @@ export interface WikiKategorieAnsicht {
   /** The description page, if one exists — an ordinary page in every respect. */
   seite: WikiSeiteVoll | null;
   unterkategorien: WikiKategorie[];
-  seiten: { slug: string; titel: string; auszug: string }[];
+  seiten: { slug: string; titel: string; auszug: string; neu?: boolean }[];
   /** Categories the description page itself carries — the way back up. */
   eltern: string[];
 }

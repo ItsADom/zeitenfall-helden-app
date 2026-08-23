@@ -221,6 +221,18 @@
   flex-wrap: wrap;
   margin-bottom: 14px;
 }
+/* „Alle gelesen" steht zwischen einem umrandeten Suchfeld und den umrandeten
+   Kategorie-Pillen. Als blanker `.small`-Geisterknopf läse es sich dort wie eine
+   Beschriftung, deshalb bekommt es einen sichtbaren Rand — aber bewusst den
+   neutralen und nicht den Akzent: es ist keine Kategorie und soll auch nicht
+   wie eine aussehen. Der Hover von `.small` färbt es beim Anfahren ohnehin ein. */
+.wiki-filter .wiki-alles-gelesen {
+  border-color: var(--border);
+}
+.wiki-filter .wiki-alles-gelesen:hover {
+  border-color: var(--accent);
+}
+
 /* `.talent-search` bringt selbst `margin: 0 0 14px` mit (für den Alleinstand
    auf der Talente-Seite) — hier sorgt `.wiki-filter` schon für den Abstand
    darunter, und der einseitige Rand hätte sonst die Randbox verschoben und
@@ -275,6 +287,21 @@
    gleiche Spezifität, also gewinnt die spätere Regel. */
 .wiki-marke-neu {
   background: var(--over-line);
+}
+/* Ungelesene Karte: derselbe „Streifen plus Tönung"-Mechanismus wie die
+   Zehrungs- und Überladungszellen im Bogen (styles.css), mit denselben zwei
+   Tokens — die sind genau einmal hell und einmal dunkel definiert und gelten
+   quer über alle Farbwelten.
+
+   Der Eigenschatten der Karte muss in BEIDEN Regeln mitlaufen: `.card` setzt
+   `box-shadow`, `.card:hover` überschreibt es vollständig. Ohne die zweite
+   Regel verschwände der Streifen genau dann, wenn man die Karte anfährt. */
+.wiki-karte-neu {
+  background: var(--over-soft);
+  box-shadow: inset 3px 0 0 var(--over-line), var(--shadow);
+}
+.wiki-karte-neu:hover {
+  box-shadow: inset 3px 0 0 var(--over-line), 0 4px 20px rgba(41, 32, 24, 0.12);
 }
 
 /* --- Gelesener Inhalt --- */

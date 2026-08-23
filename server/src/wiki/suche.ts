@@ -20,6 +20,7 @@
 import { ftsAnfrage, parseWiki, teileTitel, wikiTagKey } from 'shared';
 import type { WikiKategorie, WikiKategorieAnsicht, WikiTreffer } from 'shared';
 import { db } from '../db.js';
+import { neueSeiten } from './neuigkeiten.js';
 import { HAT_FTS } from './schema.js';
 import { kategorieSeite, ladeSeite, schreibeIndex } from './seiten.js';
 import type { WikiLeser } from './zugriff.js';
@@ -147,10 +148,15 @@ export function kategorien(user: WikiLeser): WikiKategorie[] {
   return [...nachKey.values()].sort((a, b) => a.tag.localeCompare(b.tag, 'de'));
 }
 
-/** The ordinary pages in one category, matched on the folded key („NPCs" = „npcs"). */
-export function seitenInKategorie(user: WikiLeser, tag: string): { slug: string; titel: string; auszug: string }[] {
+/**
+ * The ordinary pages in one category, matched on the folded key („NPCs" = „npcs").
+ *
+ * Trägt dieselbe „neu"-Marke wie die Übersicht: es ist dieselbe Kartenliste, und
+ * ohne die Marke sähe dieselbe Seite hier gelesen und dort ungelesen aus.
+ */
+export function seitenInKategorie(user: WikiLeser, tag: string): WikiKategorieAnsicht['seiten'] {
   const filter = sichtbarkeitsFilter(user);
-  return db
+  const rows = db
     .prepare(
       `SELECT p.slug AS slug, p.titel AS titel, p.auszug AS auszug
          FROM wiki_page_tags t JOIN wiki_pages p ON p.id = t.page_id
@@ -159,6 +165,8 @@ export function seitenInKategorie(user: WikiLeser, tag: string): { slug: string;
         ORDER BY p.titel COLLATE NOCASE`,
     )
     .all(wikiTagKey(tag), ...filter.args) as { slug: string; titel: string; auszug: string }[];
+  const neu = neueSeiten(user);
+  return rows.map((r) => ({ ...r, neu: neu.has(r.slug) }));
 }
 
 /**
