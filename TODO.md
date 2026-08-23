@@ -18,6 +18,20 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
+- move items between group inventory and player inventory
+  - needs a rather big overhaul of group page
+- show spell range per mage level on Zauber tab
+  - override possible
+- procentual bonus selecotr for energien
+  - folds into the Filtern task
+  - let players select things like "Max AsE is always +50%"
+- let admins get a route to inspect characters for debugging
+  - important: they should not see every group and have acccess to every chat like GM does and have no edit rights, just inspection.
+  - maybe make character list on management page generally clickable, so characters can be directly selected but not available by the usual workflow (e.g. character flyout in banner)
+- don't show weight directly on equipment chips
+   - also keep "RS X" on equipment together, no line break between RS and number
+- idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -472,8 +486,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 ## Unsorted ideas (treat all as [sketch])
 
 - logically connect weapons and inventory
-  - weapons should be real items, too. they just carry some extra information.
+  - weapons should be real items, too, but they carry some extra information
   - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen and vice versa
+  - this lets the player carry the ewapon on Ausrüstung as a real entry, not a separate and unconnected copy
 
 - FAQ - like a little manual or easy to miss features
 
@@ -515,26 +530,3 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      one Vorlage silently stales fifty pages' index entries (Wikipedia runs a job
      queue for exactly this) — and every NSC page would match „Rüstungsschutz"
      because the boilerplate says so.
-
-- **wiki: Beobachtungsliste — decided AGAINST for now.** A per-page watchlist
-  duplicates what the „N Änderungen seit deinem letzten Besuch" badge already
-  does for a group this size. Revisit only if notifications land; that sketch is
-  its proper home.
-
-- **Discord feedback → TODO scan** (concept agreed; needs bot setup before build)
-   - A local CLI script (like the changelog test flags) reads the feedback
-     **forum channel** via a real Discord **Bot** (not the existing webhook —
-     webhooks can't read). Needs a bot token + channel ID as env vars, the
-     **Message Content Intent** enabled, and View Channel + Read Message History
-     on the channel.
-   - Per forum post: pull the **starter message only** + a reply count (threads
-     get chatty; the starter is the actual feedback).
-   - A per-thread **watermark** state file (gitignored, `thread_id → last-seen
-     msg id`) so re-runs only surface new posts; abbruchsicher like the changelog
-     mirror.
-   - Writes into a **fenced, marked section** of TODO.md
-     (`<!-- DISCORD-FEEDBACK:START/END -->`), each item carrying its thread/msg
-     id in an HTML comment so re-scans never duplicate and items can be safely
-     deleted once promoted. Raw passthrough — **no LLM in the script** (no added
-     cost); refinement into real tasks happens in a normal coding session.
-

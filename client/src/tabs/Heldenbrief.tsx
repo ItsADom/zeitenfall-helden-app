@@ -282,8 +282,8 @@ export default function HeldenbriefTab() {
               <tr>
                 <th>Attribut</th>
                 <th style={{ width: 70 }}>Basis</th>
-                <th style={{ width: 70 }}>Bonus</th>
-                <th style={{ width: 70 }}>Max</th>
+                <th style={{ width: 70 }}>Mod.</th>
+                <th style={{ width: 70 }}>Ergebnis</th>
               </tr>
             </thead>
             <tbody>

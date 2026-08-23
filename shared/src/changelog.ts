@@ -184,6 +184,7 @@ export const COMING_SOON: string[] = [
 // Hinweise:
 //   • Keine Punkte in jeglichen Kategorien außer `added` nötig zu Features, die User sowieso noch nie gesehen haben (wichtig bei generell neuen Features).
 //   • Spieler-Sicht, knapp halten: wenige, aussagekräftige Punkte statt Commit-Log.
+//   • Datum und Version bleiben standardmäßig leer bis zum Release.
 //   • `changes: [...]` (flache Liste ohne Überschriften) gibt es weiterhin, ist
 //     aber nur für die Bestandseinträge gedacht — neue Einträge nutzen die vier
 //     Abschnitte oben.
@@ -199,7 +200,8 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-08-22',
+    date: '2026-08-23',
+    version: '0.7.1',
     title: 'Würfel mit eigener Form',
     added: [
       'Unter Einstellungen → Anzeige lassen sich die Würfelformen abschalten, wenn du lieber die schlichten Kästchen möchtest. Standardmäßig sind sie an.',
@@ -210,6 +212,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Jede Würfelsorte hat zusätzlich ihren eigenen, gedeckten Farbton — W4 grünspan, W6 petrolblau, W8 krapprot, W10 amethyst, W12 malve. Der W20 bleibt bewusst farblos: bei ihm bedeutet Farbe weiterhin ausschließlich ein Ergebnis, nämlich die rote natürliche 20 oder die blaue natürliche 1.',
       'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
       'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
+    ],
+    admin: [
+      '(Spielleiter) Eigene Würfel-Favoriten unter Einstellungen → Würfel-Favoriten (SL) — gelten in jedem Chatraum gleich, unabhängig vom gerade gespielten Charakter.',
     ],
   },
   {

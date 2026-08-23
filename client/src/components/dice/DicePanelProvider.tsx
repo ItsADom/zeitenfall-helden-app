@@ -79,7 +79,12 @@ export interface DiceGroupOption {
    * siehe RequestGroupProbePicker.tsx's anyCharId), NICHT zum Würfeln.
    */
   anyCharId: number | null;
-  /** Rohtext der Würfel-Favoriten dieses Charakters (siehe parseDiceShortcuts). */
+  /**
+   * Rohtext der Würfel-Favoriten (siehe parseDiceShortcuts) — bei einem
+   * Spieler die des Charakters dieser Gruppe, bei der Spielleitung ihre
+   * eigenen kontoweiten Favoriten (gleich in jedem Raum, siehe
+   * /me/dice-shortcuts).
+   */
   myDiceShortcuts: string;
   /** 0/0 für die Spielleitung (kontolos) oder ein gruppenloser Raum ohne eigenen Charakter. */
   schicksalspunkteAktuell: number;

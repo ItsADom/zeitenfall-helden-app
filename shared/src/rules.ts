@@ -28,6 +28,7 @@ export interface BaseValueResult {
 export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs): Record<BaseValueKey, number> {
   const v = (c: AttrCode) => attrMax(attrs, c);
   const wundschwelle = ceil(v('KO') / 2);
+  const wundschwelleErgebnis = wundschwelle + (inputs.mods.wundschwelle ?? 0);
 
   // Die MR ist Eingang für Artefaktkontrolle und Resilienz und muss deshalb
   // zuerst fertig gerechnet sein (Basis + Rassenbonus + eigener Modifikator).
@@ -41,7 +42,7 @@ export function computeBaseValueBases(attrs: Attributes, inputs: BaseValueInputs
     fk: ceil((v('IN') + v('FF') + v('KK')) / 5),
     ini: ceil((v('MU') + v('MU') + v('IN') + v('GE')) / 5),
     artefaktkontrolle: v('IN') + mrErgebnis + v('MU') + (inputs.akBase ?? 0),
-    todesschwelle: ceil((wundschwelle + v('MU')) / 4),
+    todesschwelle: ceil((wundschwelleErgebnis + v('MU')) / 4),
     wundschwelle,
     ausweichen: ceil((v('GE') + v('GE') + v('IN')) / 3),
     resilienz: ceil((v('MU') + v('MU') + mrErgebnis) / 5) + (inputs.resilienzBase ?? 0),
@@ -93,21 +94,22 @@ export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey):
 
 export function computeResource(attrs: Attributes, key: ResourceKey, input: ResourceInput): ResourceResult {
   const v = (c: AttrCode) => attrMax(attrs, c);
-  // Rassenbonus (races_catalog.le/.au/.ae) fließt wie ein Attributbonus direkt
-  // in den Formelwert ein — hebt damit auch die Ausbaugrenze mit an, analog zu
-  // resilienzBase bei den Basiswerten.
-  const vor = computeResourceVorergebnis(attrs, key) + (input.raceBase ?? 0);
-  const ergebnis = vor + input.permanent + input.kauf;
+  // Rassenbonus (races_catalog.le/.au/.ae) ist ein normaler Bonus auf Maximum
+  // und Ausbaugrenze, kein Bestandteil des Formelwerts — anders als
+  // resilienzBase bei den Basiswerten fließt er NICHT in vor/Formelwert ein.
+  const vor = computeResourceVorergebnis(attrs, key);
+  const raceBase = input.raceBase ?? 0;
+  const ergebnis = vor + raceBase + input.permanent + input.kauf;
   let max: number | null = null;
   switch (key) {
     case 'le':
-      max = ceil(vor + (v('KK') + v('KO')) / 1.5 + input.kaufMax + input.maxPlus);
+      max = ceil(vor + raceBase + (v('KK') + v('KO')) / 1.5 + input.kaufMax + input.maxPlus);
       break;
     case 'aus':
-      max = vor + (v('KO') + v('GE')) + input.kaufMax + input.maxPlus;
+      max = vor + raceBase + (v('KO') + v('GE')) + input.kaufMax + input.maxPlus;
       break;
     case 'ase':
-      max = vor + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
+      max = vor + raceBase + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
       break;
   }
   const nutzbar = max === null ? ergebnis : Math.min(ergebnis, max);
