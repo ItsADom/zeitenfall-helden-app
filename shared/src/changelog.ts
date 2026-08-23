@@ -200,7 +200,8 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '',
+    date: '2026-08-23',
+    version: '0.7.1',
     title: 'Würfel mit eigener Form',
     added: [
       'Unter Einstellungen → Anzeige lassen sich die Würfelformen abschalten, wenn du lieber die schlichten Kästchen möchtest. Standardmäßig sind sie an.',
