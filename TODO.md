@@ -30,7 +30,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   - maybe make character list on management page generally clickable, so characters can be directly selected but not available by the usual workflow (e.g. character flyout in banner)
 - don't show weight directly on equipment chips
    - also keep "RS X" on equipment together, no line break between RS and number
-- idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge. 
+- idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
