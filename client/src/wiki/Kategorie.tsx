@@ -133,8 +133,17 @@ export default function WikiKategorie() {
           <h2>Seiten</h2>
           <div className="cardlist">
             {daten.seiten.map((s) => (
-              <Link className="card wiki-karte" key={s.slug} to={`/wiki/${s.slug}`}>
-                <h3>{s.titel}</h3>
+              <Link
+                className={`card wiki-karte${s.neu ? ' wiki-karte-neu' : ''}`}
+                key={s.slug}
+                to={`/wiki/${s.slug}`}
+              >
+                <h3>
+                  {s.titel}
+                  {/* Dieselbe Marke wie auf der Übersicht — es ist dieselbe
+                      Kartenliste, nur nach Kategorie geschnitten. */}
+                  {s.neu && <span className="wiki-marke wiki-marke-neu">neu</span>}
+                </h3>
                 {s.auszug ? (
                   <CollapsedText className="muted" text={s.auszug} />
                 ) : (

@@ -140,3 +140,6 @@ export const neuIndizieren = () => apiPost<{ seiten: number }>('/api/wiki/neu-in
 
 export const ladeAenderungsFilter = () =>
   apiGet<{ autoren: string[]; seiten: { slug: string; titel: string }[] }>('/api/wiki/aenderungen/filter');
+
+/** „Alle gelesen" — räumt jede „neu"-Marke weg, nicht nur die Zahl. */
+export const markiereAlleGelesen = () => apiPost<{ gesehenRev: number }>('/api/wiki/alle-gelesen');
