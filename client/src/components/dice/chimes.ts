@@ -141,38 +141,46 @@ const REZEPTE: Record<ChimeId, Rezept> = {
  * inharmonic clang of a bell — and it plays a real motif rather than a two-note
  * chord.
  *
- * The factors are JUSTLY tuned, not equal-tempered: 2.5 is the pure major third
- * above the octave. Against whole-number partials an equal-tempered 2.5198 would
- * audibly beat.
+ * The factors are JUSTLY tuned, not equal-tempered: 1.25 is the pure major third
+ * and 1.5 the pure fifth. Against whole-number partials the equal-tempered
+ * 1.2599 would audibly beat.
  *
  * Deliberately NOT a ChimeId. shared/src/chimes.ts's CHIMES array is rendered
  * directly as the notification-sound picker, and a 2.8-second brass call has no
  * business in that dropdown or in the „/mute" cycle.
  */
 const WICHTIG_REZEPT: Rezept = {
-  grundton: 233.08, // B♭3 — a wind-band key, low enough for bright overtones
-  dauer: 2.8,
-  anstieg: 0.028,
-  anschlag: { pegel: 0.1, abfall: 0.03, mitte: 1800, guete: 2 },
+  grundton: 174.61, // F3 — a horn's register, not a piccolo trumpet's
+  dauer: 3.1,
+  anstieg: 0.034,
+  anschlag: { pegel: 0.08, abfall: 0.035, mitte: 1100, guete: 2 },
+  // Weighted toward the FUNDAMENTAL, unlike the bells above. Perceived pitch
+  // follows the strongest partials, not the nominal one: with the octave twice
+  // as loud as the root — which is how this was first written — the call read an
+  // octave higher than the notes say it is, and sounded shrill with it.
   teiltoene: [
-    { verhaeltnis: 1, pegel: 0.55, abfall: 0.9 },
-    { verhaeltnis: 2, pegel: 1.0, abfall: 0.8 },
-    { verhaeltnis: 3, pegel: 0.62, abfall: 0.7 },
-    { verhaeltnis: 4, pegel: 0.4, abfall: 0.6 },
-    { verhaeltnis: 5, pegel: 0.22, abfall: 0.5 },
-    { verhaeltnis: 6, pegel: 0.13, abfall: 0.42 },
-    { verhaeltnis: 8, pegel: 0.07, abfall: 0.35 },
+    { verhaeltnis: 1, pegel: 1.0, abfall: 1.1 },
+    { verhaeltnis: 2, pegel: 0.62, abfall: 0.95 },
+    { verhaeltnis: 3, pegel: 0.34, abfall: 0.8 },
+    { verhaeltnis: 4, pegel: 0.19, abfall: 0.66 },
+    { verhaeltnis: 5, pegel: 0.1, abfall: 0.55 },
+    { verhaeltnis: 6, pegel: 0.06, abfall: 0.46 },
+    { verhaeltnis: 8, pegel: 0.03, abfall: 0.38 },
   ],
+  // The same motif an octave down: the call, the third, the fifth, the arrival.
+  // Doubled at the octave BELOW the arrival rather than above it, which is where
+  // a brass section puts its weight.
   folge: [
-    { ab: 0.0, faktor: 2.0, pegel: 0.85 }, // B♭4 — the call
-    { ab: 0.18, faktor: 2.0, pegel: 0.8 },
-    { ab: 0.36, faktor: 2.5, pegel: 0.9 }, // D5  — the third
-    { ab: 0.6, faktor: 3.0, pegel: 0.95 }, // F5  — the fifth
-    { ab: 0.84, faktor: 2.5, pegel: 0.75 },
-    { ab: 1.02, faktor: 3.0, pegel: 0.85 },
-    { ab: 1.26, faktor: 4.0, pegel: 1.0 }, // B♭5 — the arrival, held
-    { ab: 1.26, faktor: 3.0, pegel: 0.55 }, // lower voices, for weight
-    { ab: 1.26, faktor: 2.0, pegel: 0.45 },
+    { ab: 0.0, faktor: 1.0, pegel: 0.85 }, // F3 — the call
+    { ab: 0.18, faktor: 1.0, pegel: 0.8 },
+    { ab: 0.36, faktor: 1.25, pegel: 0.9 }, // A3 — the third
+    { ab: 0.6, faktor: 1.5, pegel: 0.95 }, // C4 — the fifth
+    { ab: 0.84, faktor: 1.25, pegel: 0.75 },
+    { ab: 1.02, faktor: 1.5, pegel: 0.85 },
+    { ab: 1.26, faktor: 2.0, pegel: 1.0 }, // F4 — the arrival, held
+    { ab: 1.26, faktor: 1.5, pegel: 0.6 }, // lower voices, for weight
+    { ab: 1.26, faktor: 1.0, pegel: 0.7 },
+    { ab: 1.26, faktor: 0.5, pegel: 0.5 }, // F2 — the floor under it all
   ],
 };
 
@@ -290,8 +298,9 @@ export function wichtigPuffer(): Promise<AudioBuffer> {
  * Render it ahead of time — an announcement should not wait on its own sound.
  *
  * Worth doing for EVERYONE in a room, not just whoever types „/i": players never
- * type it, and 63 oscillators over 2.8 s take tens of milliseconds to render,
- * which would otherwise be a visibly late entry against a 450 ms fanfare phase.
+ * type it, and seventy oscillators over 3.1 s take tens of milliseconds to
+ * render. The call is the first thing that happens and the beat everything else
+ * is timed against, so a late entry would shift the whole announcement.
  */
 export function wichtigVorbereiten(): void {
   void wichtigPuffer().catch(() => {});

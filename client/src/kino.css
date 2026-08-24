@@ -21,8 +21,16 @@
      frame makes the compositor re-blur continuously, which is a real cost on
      integrated graphics. */
   background: color-mix(in srgb, var(--bg) 18%, #000);
-  opacity: 0.94;
-  transition: opacity 400ms ease;
+  /* Invisible until the fanfare has called. The three opening beats are
+     deliberately sequential (see PHASES), so for the first seconds this element
+     exists without being seen — and must therefore also not be FELT: an
+     invisible sheet over the whole page that swallows clicks would let someone
+     dismiss a performance they cannot see yet. */
+  opacity: 0;
+  pointer-events: none;
+  /* Durations come from the component, which owns the timeline — see the two
+     custom properties it sets. The fallbacks keep the rule sane on its own. */
+  transition: opacity var(--kino-auf, 700ms) ease;
   cursor: pointer;
   /* The overlay itself never scrolls, and a touch drag on it must not pan the
      page underneath. No body scroll lock: that shifts the layout by the
@@ -31,10 +39,17 @@
   touch-action: none;
 }
 
-/* The closing stretch — see ABBLEND_MS in WichtigerWurfOverlay.tsx, which must
-   match the transition above. */
+/* The screen going dark, at PHASES.dim. */
+.dice-kino--an {
+  opacity: 0.94;
+  pointer-events: auto;
+}
+
+/* The closing stretch. Listed AFTER --an on purpose: both classes are present
+   during the last beat and this one has to win. */
 .dice-kino--aus {
   opacity: 0;
+  transition-duration: var(--kino-zu, 400ms);
 }
 
 /* A surviving natural 20. The die itself goes red in the scene; this is the

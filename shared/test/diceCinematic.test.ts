@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   applyQuat,
   buildFlights,
+  CAMERA_DIR,
+  CAMERA_TILT,
+  CAMERA_UP,
   CINEMATIC_TOTAL_MS,
   DIE_EXTENT,
   dot,
@@ -11,6 +14,7 @@ import {
   hasSurvivingCrit,
   layoutFor,
   SPACING_FACTOR,
+  ENTRY_FADE_MS,
   MAX_EFFECT_BURSTS,
   mulberry32,
   normalize,
@@ -23,6 +27,7 @@ import {
   SAFE_HALF_WIDTH,
   SAFETY_TIMEOUT_MS,
   slerp,
+  stagePoint,
   VIEW_HEIGHT,
   suckEnd,
   suckStart,
@@ -232,13 +237,19 @@ describe('the phase table', () => {
     expect(PHASES.suck.end).toBe(PHASES.reveal.start);
   });
 
-  it('opens with the fanfare and starts dimming before anything moves', () => {
+  it('plays its three opening beats one after another, not on top of each other', () => {
+    // The complaint that produced this test: the horns, the blackout and the
+    // dice all arrived in the same instant, so none of them read as announcing
+    // the next. Each beat now finishes before the following one starts.
     expect(PHASES.fanfare.start).toBe(0);
-    // The dim overlaps the fanfare deliberately.
-    expect(PHASES.dim.start).toBeLessThan(PHASES.fanfare.end);
-    // Nothing moves until the dim is well under way — that gap is what hides
-    // WebGL context creation.
-    expect(PHASES.throw.start).toBeGreaterThan(PHASES.dim.start + 300);
+    expect(PHASES.dim.start).toBeGreaterThanOrEqual(PHASES.fanfare.end);
+    expect(PHASES.throw.start).toBeGreaterThanOrEqual(PHASES.dim.end);
+    // The fanfare needs long enough to actually say something — its motif
+    // arrives a good second in (see WICHTIG_REZEPT).
+    expect(PHASES.fanfare.end - PHASES.fanfare.start).toBeGreaterThan(1300);
+    // …and the gap before anything moves still covers WebGL context creation,
+    // which was the old reason for the overlap and survives the reordering.
+    expect(PHASES.throw.start).toBeGreaterThan(500);
   });
 
   it('every phase has positive length and they are in order', () => {
@@ -417,6 +428,52 @@ describe('layoutFor', () => {
   });
 });
 
+describe('the camera, and the plane the gathered dice lie in', () => {
+  it('looks down at the table steeply enough that the rolled face is the visible one', () => {
+    // THE BUG THIS PINS DOWN. A die at rest lies with the rolled face pointing
+    // straight up. At the 12° tilt this shipped with, dot([0,1,0], CAMERA_DIR)
+    // was 0.21 — the rolled face was seen almost exactly edge-on, and the
+    // numbers a player actually read were the SIDE faces. The picture disagreed
+    // with the roll, which is the one thing a dice animation may never do.
+    const obenZurKamera = dot([0, 1, 0], CAMERA_DIR);
+    expect(obenZurKamera).toBeGreaterThan(0.7);
+    // Not straight down either: at 90° the throw would have no depth to travel
+    // through and the dice would read as sliding around a flat map.
+    expect(CAMERA_TILT).toBeLessThan(Math.PI / 2 - 0.15);
+  });
+
+  it('keeps CAMERA_UP a genuine basis with CAMERA_DIR', () => {
+    expect(Math.hypot(...CAMERA_DIR)).toBeCloseTo(1, 12);
+    expect(Math.hypot(...CAMERA_UP)).toBeCloseTo(1, 12);
+    expect(dot(CAMERA_DIR, CAMERA_UP)).toBeCloseTo(0, 12);
+  });
+
+  it('places a frame point at exactly the height it asks for, and no closer to the camera', () => {
+    for (const [x, y] of [
+      [0, 0],
+      [1.7, -2.4],
+      [-3.1, 4.05],
+    ]) {
+      const p = stagePoint(x, y);
+      expect(p[0]).toBe(x);
+      // "y up as seen" has to mean that literally, or a layout checked against
+      // a phone's aspect ratio would be checking the wrong number.
+      expect(dot(p, CAMERA_UP)).toBeCloseTo(y, 12);
+      // On the plane THROUGH the origin: every gathered die keeps the same
+      // distance from the camera, so none of them is quietly larger.
+      expect(dot(p, CAMERA_DIR)).toBeCloseTo(0, 12);
+    }
+  });
+
+  it('gathers every die onto that plane, whatever the count', () => {
+    for (const n of [1, 3, 7, 20]) {
+      for (const f of buildFlights(99, Array(n).fill(20), Array(n).fill(11))) {
+        expect(Math.abs(dot(f.gather, CAMERA_DIR))).toBeLessThan(1e-12);
+      }
+    }
+  });
+});
+
 describe('buildFlights', () => {
   const sides = [20, 20, 6, 10];
   const values = [1, 20, 4, 7];
@@ -529,6 +586,21 @@ describe('poseAt', () => {
     }
   });
 
+  it('keeps a die off the stage until it is thrown, then fades it in', () => {
+    // A die's entry point is a fixed world position and the screen is not: sized
+    // to sit off-view on a phone, it lands well inside the frame on a wide
+    // monitor. Without the fade the dice would hang there, motionless and
+    // visible, through the whole fanfare.
+    const c = ctx(true);
+    const los = PHASES.throw.start + flight.throwDelay;
+    expect(poseAt(flight, c, 0).opacity).toBe(0);
+    expect(poseAt(flight, c, los).opacity).toBe(0);
+    expect(poseAt(flight, c, los + ENTRY_FADE_MS / 2).opacity).toBeCloseTo(0.5, 9);
+    expect(poseAt(flight, c, los + ENTRY_FADE_MS).opacity).toBe(1);
+    // …and it is long over by the time anyone is reading the die.
+    expect(poseAt(flight, c, PHASES.land.end).opacity).toBe(1);
+  });
+
   it('is still fully opaque when the pull-away begins, so dice travel rather than dissolve', () => {
     const c = ctx(true);
     expect(poseAt(flight, c, suckStart(true) + flight.suckDelay).opacity).toBe(1);
@@ -568,9 +640,10 @@ describe('poseAt', () => {
     // a 30 Hz machine and a 144 Hz machine agree.
     const c = ctx(true);
     const forwards = [];
-    for (let t = 0; t <= 7300; t += 100) forwards.push(poseAt(flight, c, t));
+    const ende = totalDuration(true);
+    for (let t = 0; t <= ende; t += 100) forwards.push(poseAt(flight, c, t));
     const backwards = [];
-    for (let t = 7300; t >= 0; t -= 100) backwards.push(poseAt(flight, c, t));
+    for (let t = ende; t >= 0; t -= 100) backwards.push(poseAt(flight, c, t));
     expect(forwards).toEqual([...backwards].reverse());
   });
 });

@@ -633,6 +633,20 @@ expression roll with a performance in front of it.
   hand-built and its kite faces are planar at exactly one band-to-apex ratio,
   with a winding that must be right or its ten faces collapse into five against
   their own antipodes.
+- **The camera angle is a correctness constraint, not a look.** A die at rest
+  lies with the rolled face pointing straight up — that is what "the die shows a
+  7" physically means — so a camera anywhere near level with the table sees that
+  face edge-on and the numbers a player actually reads are the SIDE faces. This
+  shipped at 12° and did exactly that: the roll was right and the picture
+  disagreed with it. `CAMERA_TILT` therefore lives in `shared` beside the
+  layout, at 64°, and the gathered dice are laid out on the plane perpendicular
+  to it (`stagePoint`) so the grid is not squashed by the tilt.
+- **The three opening beats are sequential on purpose.** Fanfare, then blackout,
+  then dice — each finishing before the next begins. They used to overlap, which
+  collapsed the announcement into one instant in which nothing read as causing
+  anything else. The consequence is that for the first beat and a half the
+  overlay is present but invisible, so it must also be intangible: it takes no
+  clicks and answers no Escape until the screen has gone dark.
 - **Cancelled crits get no effect**, because `findCritTriggers` has already
   declared them meaningless and the feed row says „· aufgehoben" underneath. The
   filter lives in `shared` (`effectTriggers`) and is tested, because it encodes a

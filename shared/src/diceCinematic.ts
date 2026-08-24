@@ -217,30 +217,40 @@ export function phaseProgress(t: number, start: number, end: number): number {
  * Every millisecond of the performance in one place, so pacing is tuned in one
  * file rather than hunted across a renderer.
  *
- * Two overlaps are deliberate. `dim` starts while the fanfare is still opening,
- * so the screen is already darkening as the horns arrive. And nothing MOVES
- * until t = 700: that gap is what hides the 30–80 ms of WebGL context creation,
- * which makes the ordering load-bearing rather than decorative.
+ * THE THREE OPENING BEATS ARE SEQUENTIAL, AND THAT IS THE POINT. The fanfare
+ * calls into a page that still looks perfectly normal; only when the call has
+ * arrived does the screen go dark; only when it is dark do the dice come in.
+ * Overlapping them — which is what this table used to do — collapses the whole
+ * announcement into one confused instant where the horns, the blackout and the
+ * dice all land together and none of them reads as causing the next.
+ *
+ * The fanfare's tail rings on underneath the dim rather than being waited out:
+ * its motif arrives at 1.26 s and then rings for the better part of two seconds
+ * more, and two seconds of nothing is dead air, not suspense.
+ *
+ * The long gap before anything MOVES is also what hides the 30-80 ms of WebGL
+ * context creation, which makes the ordering load-bearing rather than
+ * decorative.
  */
 export const PHASES = {
-  /** The fanfare opens. The page still looks normal. */
-  fanfare: { start: 0, end: 450 },
-  /** The dim fades up — a CSS transition, not a rendered frame. */
-  dim: { start: 250, end: 850 },
+  /** The fanfare calls. The page still looks completely normal. */
+  fanfare: { start: 0, end: 1700 },
+  /** The screen goes dark — a CSS transition, not a rendered frame. */
+  dim: { start: 1700, end: 2400 },
   /** Dice fly in from outside the view. */
-  throw: { start: 700, end: 1900 },
+  throw: { start: 2400, end: 3600 },
   /** They settle. The resting orientation is reached EXACTLY at land.end. */
-  land: { start: 1900, end: 2600 },
+  land: { start: 3600, end: 4300 },
   /** Nothing moves — the beat in which the table reads the dice. */
-  hold: { start: 2600, end: 3200 },
+  hold: { start: 4300, end: 4900 },
   /** To the centre, result face turned to the camera, scaled up. */
-  gather: { start: 3200, end: 4200 },
+  gather: { start: 4900, end: 5900 },
   /** Crit effect. Without a crit this collapses — see effectEnd(). */
-  effect: { start: 4200, end: 6200 },
+  effect: { start: 5900, end: 7900 },
   /** Toward the chat dock, shrinking and fading. */
-  suck: { start: 6200, end: 6900 },
+  suck: { start: 7900, end: 8600 },
   /** The dim falls. The entry is appended at reveal.start, so the eye lands on it. */
-  reveal: { start: 6900, end: 7300 },
+  reveal: { start: 8600, end: 9000 },
 } as const;
 
 export type PhaseName = keyof typeof PHASES;
@@ -279,10 +289,16 @@ export const CINEMATIC_TOTAL_MS = totalDuration(true);
  * three.js chunk is even requested, so a 404, a refused WebGL context or a throw
  * inside the renderer still ends with the roll in the chat.
  */
-export const SAFETY_TIMEOUT_MS = 12_000;
+export const SAFETY_TIMEOUT_MS = 14_000;
 
-/** prefers-reduced-motion: how long the static result card stands. */
-export const REDUCED_HOLD_MS = 2600;
+/**
+ * prefers-reduced-motion: how long the static result card stands.
+ *
+ * Long enough for the fanfare to finish. The card is the whole performance for
+ * this viewer, so cutting it off mid-call would announce the roll and then
+ * interrupt itself.
+ */
+export const REDUCED_HOLD_MS = 3400;
 
 /**
  * At most this many bursts, however many crits a roll produced — „/i 20w20" is
@@ -293,12 +309,64 @@ export const MAX_EFFECT_BURSTS = 6;
 /** Milliseconds between two bursts, so three crits read as a sequence, not a mush. */
 export const EFFECT_STAGGER_MS = 180;
 
+/**
+ * How long a die takes to fade in as it is thrown.
+ *
+ * Needed because a die's entry point is a fixed world position and the screen is
+ * not: sized so it is off-view on a phone, it sits well INSIDE the frame on a
+ * wide monitor. Without this the dice would be parked in mid-air, visible and
+ * motionless, for the whole fanfare — and then snap into motion. A short fade at
+ * the moment the throw begins reads as arrival at any aspect ratio, which no
+ * fixed entry position can manage.
+ */
+export const ENTRY_FADE_MS = 140;
+
 // ---------------------------------------------------------------------------
 // Layout
 // ---------------------------------------------------------------------------
 
 /** World units spanned by the canvas HEIGHT, at every aspect ratio. See rule 3. */
 export const VIEW_HEIGHT = 10;
+
+/**
+ * How far the camera is tipped down toward the table, in radians.
+ *
+ * Lives here rather than in the renderer because TWO things depend on it and
+ * they must not drift apart: where the stage puts its camera, and where the
+ * gathered dice have to be so that they face it squarely.
+ *
+ * WHY IT IS THIS STEEP. A die at rest lies on the table with the rolled face
+ * pointing straight up — that is what "the die shows a 7" physically means. At
+ * the 12° this started out with, the camera was practically level with the
+ * table, so that face was seen edge-on and the numbers a viewer actually read
+ * were the SIDE faces. The roll was correct and the picture disagreed with it,
+ * which is the one thing a dice animation may never do. Looking down at the
+ * table is not a stylistic preference here; it is the only angle from which the
+ * rolled face is the visible one.
+ */
+export const CAMERA_TILT = (64 * Math.PI) / 180;
+
+/** Unit vector from the middle of the table toward the camera. */
+export const CAMERA_DIR: Vec3 = [0, Math.sin(CAMERA_TILT), Math.cos(CAMERA_TILT)];
+
+/**
+ * The camera's own up axis. With CAMERA_DIR it spans the plane the gathered
+ * dice lie in — which is why the tilt cannot be a private constant of the
+ * renderer.
+ */
+export const CAMERA_UP: Vec3 = [0, Math.cos(CAMERA_TILT), -Math.sin(CAMERA_TILT)];
+
+/**
+ * A point of the gather FRAME, in world units.
+ *
+ * The frame is the plane through the origin perpendicular to the view, so
+ * (x, y) means exactly "x to the right and y up, as seen" — no foreshortening,
+ * whatever the tilt. Laying the gathered grid out on the ground plane instead
+ * would squash it by cos(CAMERA_TILT) the moment the camera stopped being level.
+ */
+export function stagePoint(x: number, y: number): Vec3 {
+  return [x, y * CAMERA_UP[1], y * CAMERA_UP[2]];
+}
 
 /**
  * The narrowest aspect ratio the layout is sized for.
@@ -411,9 +479,14 @@ function centredOffset(index: number, count: number, cols: number, step: number)
 }
 
 export interface LayoutSlot {
-  /** Where this die comes to rest on the table. */
+  /** Where this die comes to rest on the table, in world units. */
   rest: Vec3;
-  /** Where it is held up to be read. */
+  /**
+   * Where it is held up to be read, in GATHER-FRAME units: x to the right and
+   * y up as seen, z unused. buildFlights turns that into a world position with
+   * stagePoint(); keeping the grid in frame units is what lets the layout be
+   * checked against a phone's aspect ratio without the camera in the way.
+   */
   gather: Vec3;
 }
 
@@ -463,7 +536,7 @@ export interface DieFlight {
   entry: Vec3;
   /** Where it lands, jitter already applied. */
   rest: Vec3;
-  /** Where it is held up. */
+  /** Where it is held up — a WORLD position on the plane facing the camera. */
   gather: Vec3;
   restScale: number;
   gatherScale: number;
@@ -522,7 +595,7 @@ export function buildFlights(seed: number, sides: readonly number[], values: rea
       value: values[i],
       entry,
       rest: [slot.rest[0] + jitterX, slot.rest[1], slot.rest[2] + jitterZ],
-      gather: slot.gather,
+      gather: stagePoint(slot.gather[0], slot.gather[1]),
       restScale,
       gatherScale,
       // normalize() returns [0,0,0] for a zero vector; falling back to a fixed
@@ -571,6 +644,7 @@ export interface DiePose {
  */
 export function poseAt(flight: DieFlight, ctx: FlightContext, t: number): DiePose {
   const landEnd = PHASES.land.end;
+  const throwStart = PHASES.throw.start + flight.throwDelay;
   const gStart = PHASES.gather.start + flight.gatherDelay;
   const sStart = suckStart(ctx.hasCrit) + flight.suckDelay;
   const sEnd = suckEnd(ctx.hasCrit);
@@ -581,7 +655,7 @@ export function poseAt(flight: DieFlight, ctx: FlightContext, t: number): DiePos
   // reaches zero, the resting orientation is hit EXACTLY rather than
   // approximately — that is the property that makes the rolled number reliably
   // the one facing up.
-  const spinU = phaseProgress(t, PHASES.throw.start + flight.throwDelay, landEnd);
+  const spinU = phaseProgress(t, throwStart, landEnd);
   const theta = -flight.turns * 2 * Math.PI * (1 - easeOutQuint(spinU));
   let quat: Quat = multiplyQuat(quatFromAxisAngle(flight.tumbleAxis, theta), ctx.rest);
 
@@ -614,7 +688,7 @@ export function poseAt(flight: DieFlight, ctx: FlightContext, t: number): DiePos
     const height = flight.bounce * Math.abs(Math.sin(Math.PI * 2 * u)) * (1 - u) ** 2;
     pos = [flight.rest[0], flight.rest[1] + height, flight.rest[2]];
   } else {
-    const u = phaseProgress(t, PHASES.throw.start + flight.throwDelay, PHASES.throw.end);
+    const u = phaseProgress(t, throwStart, PHASES.throw.end);
     const flat = easeOutCubic(u);
     const fall = easeInQuad(u);
     pos = [
@@ -624,9 +698,14 @@ export function poseAt(flight: DieFlight, ctx: FlightContext, t: number): DiePos
     ];
   }
 
-  // Fade only over the last stretch of the pull-away: fading from the start
-  // would make the dice look like they dissolve rather than travel.
-  const opacity = t < sStart ? 1 : 1 - clamp01((phaseProgress(t, sStart, sEnd) - 0.6) / 0.4);
+  // Two fades, and nothing in between: in as the die is thrown, out over the
+  // last stretch of the pull-away. Fading out from the start of the pull would
+  // make the dice look like they dissolve rather than travel; not fading IN
+  // would leave them parked in the air through the fanfare (see ENTRY_FADE_MS).
+  const opacity =
+    t < sStart
+      ? phaseProgress(t, throwStart, throwStart + ENTRY_FADE_MS)
+      : 1 - clamp01((phaseProgress(t, sStart, sEnd) - 0.6) / 0.4);
 
   return { pos, quat, scale, opacity };
 }

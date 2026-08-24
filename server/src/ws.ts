@@ -114,7 +114,12 @@ function leftKey(groupId: number, userId: number): string {
 // that; it is not a guard against nonsense, and five performances a second
 // would be a strobe light. Small and bounded by the number of groups, never
 // cleaned up — the same compromise as rooms and userRateLimits.
-const IMPORTANT_COOLDOWN_MS = 10_000;
+//
+// It has to clear a whole performance, not merely be "a while": the client that
+// is slowest to finish is the one bounded by SAFETY_TIMEOUT_MS (14 s), and a
+// second announcement arriving before that would cut the first one short on
+// exactly the screen that was already struggling with it.
+const IMPORTANT_COOLDOWN_MS = 15_000;
 const lastImportantRoll = new Map<number, number>();
 
 function grosserWurfErlaubt(groupId: number): boolean {

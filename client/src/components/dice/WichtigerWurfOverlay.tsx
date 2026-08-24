@@ -1,10 +1,6 @@
 // „Der große Wurf" (/i): the full-screen announcement every connected screen in
 // the room shows before the roll reaches the chat.
 //
-// PLACEHOLDER STAGE. The dimming, the timing and the one-way exit below are
-// final; the 3D dice, the fanfare and the crit effects arrive in later phases
-// and replace only what is marked.
-//
 // Two structural properties are the whole reason this component is shaped the
 // way it is, and neither should be simplified away:
 //
@@ -18,7 +14,7 @@
 //
 // Mounted at App.tsx level, outside <main>, and keyed by `lauf` so a second
 // announcement remounts rather than reconciles — see KinoLauf.
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   PHASES,
   REDUCED_HOLD_MS,
@@ -102,6 +98,10 @@ function Vorstellung({
 }) {
   const { entry } = auftrag;
   const [abblenden, setAbblenden] = useState(false);
+  // The dim is a beat of its own, not the backdrop the overlay arrives with: it
+  // comes up only once the fanfare has called (PHASES.dim). Reduced motion is
+  // the exception — there is no sequence to stage there, just the card.
+  const [sichtbar, setSichtbar] = useState(bevorzugtRuhe);
   const [ohneBuehne, setOhneBuehne] = useState(false);
   const [patzer, setPatzer] = useState(false);
   // Read once, at mount: whether this viewer gets the animation at all. Needed
@@ -148,10 +148,11 @@ function Vorstellung({
     }
 
     // --- the stage --------------------------------------------------------
-    // Loaded only now, and only if there is something to look at. The dim is
-    // already fading and nothing MOVES until t = 700 ms, which is exactly what
-    // hides the 30-80 ms of WebGL context creation — that ordering is
-    // load-bearing rather than decorative (see PHASES).
+    // Loaded only now, and only if there is something to look at. The fanfare
+    // has the screen for the first beat and a half and nothing MOVES until the
+    // dim has finished, which is what hides the 30-80 ms of WebGL context
+    // creation — that ordering is load-bearing rather than decorative (see
+    // PHASES).
     let buehne: { render(t: number): void; dispose(): void } | null = null;
     let raf = 0;
     const beginn = performance.now();
@@ -233,6 +234,18 @@ function Vorstellung({
     // roll in the chat.
     zeitgeber.push(setTimeout(beenden, SAFETY_TIMEOUT_MS));
     zeitgeber.push(setTimeout(beenden, dauer));
+    // Until the screen is dark there is nothing to skip and nothing to see, so
+    // the overlay neither takes clicks (CSS) nor answers Escape (below). The
+    // page still belongs to whoever is using it.
+    let dimAn = ruhe || unbeachtet;
+    if (!dimAn) {
+      zeitgeber.push(
+        setTimeout(() => {
+          dimAn = true;
+          setSichtbar(true);
+        }, PHASES.dim.start),
+      );
+    }
     // The dim lifts over the closing stretch, so the page is back before the
     // roll drops into the chat rather than both happening at once.
     const abblendenAb = Math.max(0, dauer - ABBLEND_MS);
@@ -242,7 +255,7 @@ function Vorstellung({
     // stop. Without capture it collides with the dock input's own Escape
     // handler, which dismisses the suggestion list.
     const aufTaste = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
+      if (e.key !== 'Escape' || !dimAn) return;
       e.stopPropagation();
       e.preventDefault();
       beenden();
@@ -273,7 +286,18 @@ function Vorstellung({
 
   return (
     <div
-      className={`dice-kino screen-only${abblenden ? ' dice-kino--aus' : ''}${patzer ? ' dice-kino--patzer' : ''}`}
+      className={`dice-kino screen-only${sichtbar ? ' dice-kino--an' : ''}${abblenden ? ' dice-kino--aus' : ''}${
+        patzer ? ' dice-kino--patzer' : ''
+      }`}
+      // The two fade durations, handed to the stylesheet rather than duplicated
+      // in it: the timeline is owned by PHASES, and a hard-coded millisecond in
+      // a CSS rule is exactly the copy that goes stale when the pacing is tuned.
+      style={
+        {
+          '--kino-auf': `${PHASES.dim.end - PHASES.dim.start}ms`,
+          '--kino-zu': `${ABBLEND_MS}ms`,
+        } as CSSProperties
+      }
       role="alertdialog"
       aria-live="polite"
       aria-label={WICHTIG.overlayLabel(entry.authorName)}

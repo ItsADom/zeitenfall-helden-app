@@ -27,6 +27,7 @@ import {
   WebGLRenderer,
 } from 'three';
 import {
+  CAMERA_DIR,
   DIE_EXTENT,
   PHASES,
   effectTriggers,
@@ -34,7 +35,6 @@ import {
   VIEW_HEIGHT,
   buildFlights,
   faceTargetQuaternion,
-  normalize,
   phaseProgress,
   poseAt,
   type DieFlight,
@@ -47,8 +47,6 @@ import { beschriftungFuer, atlasFuer } from './faces';
 import { faceIndexFor, solidFor } from './geometry';
 
 const FOV = 38;
-/** How far the camera is tipped down toward the table. */
-const NEIGUNG = (12 * Math.PI) / 180;
 /** Shadows cost more than they are worth on a phone. */
 const SCHATTEN_AB_BREITE = 700;
 
@@ -96,8 +94,11 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
   // Fixed vertical fit: VIEW_HEIGHT world units always span the canvas height,
   // whatever the aspect ratio. Aspect only ever adds or removes empty margin at
   // the sides — it never moves a die. See rule 3 in diceCinematic.ts.
+  // The tilt itself is shared, not local: the gathered dice are laid out on the
+  // plane perpendicular to exactly this direction (see stagePoint), so the two
+  // must not be able to drift apart.
   const abstand = VIEW_HEIGHT / 2 / Math.tan((FOV * Math.PI) / 360);
-  camera.position.set(0, Math.sin(NEIGUNG) * abstand, Math.cos(NEIGUNG) * abstand);
+  camera.position.set(CAMERA_DIR[0] * abstand, CAMERA_DIR[1] * abstand, CAMERA_DIR[2] * abstand);
   camera.lookAt(0, 0, 0);
 
   scene.add(new AmbientLight(0xffffff, 0.62));
@@ -136,14 +137,21 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
     k.updateProjectionMatrix();
   }
 
-  // The dice rest ON the table rather than half inside it.
-  boden.position.y = TABLE_Y - (flights[0]?.restScale ?? 1) * 0.92;
+  // Where the shadows land.
+  //
+  // Normalising every solid to a CIRCUMRADIUS of 1 means their INRADII differ —
+  // 0.58 for a cube or an octahedron, 0.79 for a d12 or d20 — so no single plane
+  // sits exactly under all of them. It is set to the smallest of those on
+  // purpose: this plane draws nothing but shadows, so a die reaching a little
+  // THROUGH it is invisible and reads as contact, whereas a plane hung below
+  // everything leaves each die floating above its own shadow. Level with the
+  // table that was unnoticeable; looking down at it, it would not be.
+  boden.position.y = TABLE_Y - (flights[0]?.restScale ?? 1) * 0.58;
 
   const gruppe = new Group();
   scene.add(gruppe);
 
-  const kameraRichtung = new Vector3().copy(camera.position).normalize();
-  const zurKamera: Vec3 = normalize([kameraRichtung.x, kameraRichtung.y, kameraRichtung.z]);
+  const zurKamera: Vec3 = CAMERA_DIR;
 
   interface Aufbau {
     flight: DieFlight;
