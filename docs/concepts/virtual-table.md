@@ -1,29 +1,49 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Status: revisited 2026-08-24, ready to build from
+> ## Status: building on `feature/virtual-table`, off `develop`
 >
-> The revisit demanded by the previous version of this file has happened. Its
-> checklist is worked off and the results are folded into the body below rather
-> than left as an appendix.
+> **2026-08-24, second revisit — the room-identity phase is gone.** This plan's
+> original "decision that grows the scope" assumed Event-Gruppen lived in a
+> separate `temp_groups` table with their own id space, which would have forced
+> a `group_feed` rebuild and a generalised `RoomKind`/`RoomKey` layer before any
+> board code could be written. That assumption is now false: commit `be5a995`
+> ("Event-Gruppen get full chat/dice-dock parity with real groups") merged event
+> groups into the real `groups` table behind an `is_temp` flag, *before* this plan
+> was first written against a branch that had it merged but not yet accounted
+> for. Checked directly against `server/src/db.ts`:
+> - `groups` carries `is_temp INTEGER NOT NULL DEFAULT 0`; an event group is a row
+>   in the same table, same autoincrement id space, as a permanent group.
+> - `group_feed.group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE`
+>   already covers both kinds. **No rebuild, no `room_kind` column, nothing to
+>   migrate** — chat and dice already work identically for event groups.
+> - The WS room map, `SocketMeta.groupId`, and the three roll registries
+>   (`coopPools`, `pendingRolls`, `groupRolls`) are all already keyed by this one
+>   shared id space. Nothing to generalise there either.
+> - Membership resolution already handles both: `isGroupMember` (exclusive,
+>   permanent) and `isTempGroupMember` (additive, via `temp_group_members`) are
+>   OR'd into `isRoomMember` / `charBelongsToRoom`, reused identically by REST
+>   (`routes.ts`) and WS (`ws.ts`).
 >
-> **What the revisit found:**
-> - `feature/dice-rolls-chat` and `feature/wiki` are both merged into `develop`
->   **and released** (`0.6.0 „Wiki & Würfeln"`, then `0.7`, `0.7.1`). The ordering
->   condition — the VTT comes after dice/chat — is satisfied.
-> - Because chat is **live in production**, the `group_feed` question is settled in
->   the harder direction: real chat history exists, so Phase 1 needs the table
->   **rebuild**, not the "just edit the `CREATE TABLE`" shortcut. That choice is no
->   longer open.
-> - Phase 1 is **larger than the previous version assumed**. Dice/chat has since
->   grown coop pools, group rolls and pending rolls — three in-memory registries
->   keyed by a numeric group id that this plan never mentioned. See "Room identity".
-> - `broadcastToRoom` **already exists** in `server/src/ws.ts` with a *different*
->   meaning. The generalised builder-based broadcast needs another name.
-> - `docs/concepts/VTT-concept.md` was a stale, shorter copy of this file and has
->   been deleted; `TODO.md` now points here only.
+> **What is real and still needs building:** there is no player-facing route for
+> an event group today — only the GM's `/event/:id/uebersicht` and the shared dice
+> dock. Permanent groups have `/gruppe/:id` (`Group.tsx`); event groups have no
+> equivalent page at all. That gap is now folded into Phase 1 directly, sized
+> correctly: a route and an entry point, not a data-model migration.
 >
-> **New scope agreed at the revisit** (2026-08-24): textured tiles with autotiled
-> transitions, and placeable images on the table. Both are described below.
+> Everything else below — the texture and autotiling work, the images-on-the-table
+> design, fog of war, tokens, initiative — was written independently of the room
+> question and is unaffected. Superseded text from the 2026-08-24 first revisit
+> (the room-identity data model, the `group_feed` rebuild, `shared/src/room.ts`)
+> has been removed rather than kept as a crossed-out appendix, to avoid the exact
+> staleness trap this plan was warned about twice already.
+>
+> **Prior revisit (2026-08-24, first pass), still valid:** `feature/dice-rolls-chat`
+> and `feature/wiki` are merged into `develop` **and released** (`0.6.0`, `0.7`,
+> `0.7.1`). `docs/concepts/VTT-concept.md` was a stale duplicate and has been
+> deleted; `TODO.md` points here only. New scope agreed at that revisit: textured
+> tiles with autotiled transitions, and placeable images on the table — both
+> described below, and since prototyped with real CC0 textures
+> (`docs/concepts/virtual-table-mockup/Texturen.html`).
 
 ## Visual reference (early, not final)
 
@@ -96,85 +116,46 @@ priority of this work.
 | Statuses | **Fixed built-in set, emoji** for now — but the model must leave room for **token-covering images later** (e.g. a blood splatter over a dead enemy), which is a different kind of thing than a corner badge. |
 | Measure shapes | **Ruler, circle, cone and rectangle.** The **cone may be visual-only** if cell-accurate coverage on a square grid proves fiddly. |
 
-### The decision that grows the scope
+### Event-Gruppen: already solved, mostly
 
-"Event-Gruppen should of course have their own chat and table rooms" reaches back
-into the **already-shipped, already-released** chat feature. Room identity *is* a
-permanent group id, and the revisit found it in more places than the first draft
-listed:
+"Event-Gruppen should of course have their own chat and table rooms" sounds like
+it reaches into the chat feature's foundations, and the first pass of this plan
+treated it that way — a `RoomKind`/`RoomKey` layer, a `group_feed` rebuild, three
+registries switched from a numeric id to a token. **None of that is needed.**
+`groups.is_temp` already makes an event group a normal row in the normal table,
+so `group_id` — everywhere it already appears, unchanged — addresses both kinds.
+Chat and dice already work for Event-Gruppen today, in production.
 
-- the WS path (`/ws/groups/:id`), the `rooms` map key ([ws.ts:86](server/src/ws.ts:86)),
-  `SocketMeta.groupId`
-- `group_feed.group_id` — a real FK, `NOT NULL` ([db.ts:391](server/src/db.ts:391))
-- `GET /api/groups/mine`
-- **three in-memory registries the first draft missed**, each keyed by a numeric
-  group id and each needing the room token instead:
-  [`coopPools.ts:41`](server/src/coopPools.ts:41),
-  [`pendingRolls.ts:72`](server/src/pendingRolls.ts:72),
-  [`groupRolls.ts:79`](server/src/groupRolls.ts:79)
-- the client: `DicePanelProvider.tsx` (22 references), `DicePanel.tsx` (13), and
-  `RoomPicker.tsx`, which already *calls* the concept „Raum" while resolving
-  `myGroups.find(g => g.id === groupId)`
+**What's actually missing is a player entry point.** `Group.tsx` gives permanent
+groups a room page at `/gruppe/:id`; there is no `/event/:id` equivalent, so a
+player in an event group can reach chat only through the floating dock's room
+picker, never a page. Since the virtual table is exactly the kind of full-page
+surface that page would anchor, building it is folded into this plan's first
+phase rather than kept as a separate ticket — a player needs somewhere to land
+before there's a board for them to look at.
 
-Raw counts to size the phase: `routes.ts` 149 `groupId`/`group_id` hits, `ws.ts`
-95, `db.ts` 30, `feed.ts` 16.
-
-Event groups also have a different membership shape — `temp_group_members` holds
-**character** ids, not user ids, so "is this user in this room" must be derived
-through character ownership.
-
-So the work starts with a **room-identity phase** that generalises the existing
-chat from "group id" to "room = (kind, id)". It is independently valuable (event
-groups get chat and dice) and independently committable — and it is the single
-riskiest phase, because it edits shipped, released code.
+Membership for both kinds is already unified and reusable as-is: `isGroupMember`
+(exclusive, via `characters.group_id`) and `isTempGroupMember` (additive, via
+`temp_group_members`, joined through character ownership since that table holds
+character ids, not user ids) are OR'd into `isRoomMember` /
+`charBelongsToRoom`, used identically by REST (`routes.ts:150-168`) and WS
+(`ws.ts:204,218-226`). The board's access checks reuse this directly; nothing new
+is required at the membership layer.
 
 ---
 
 ## Data model
 
-### Room identity — `shared/src/room.ts` (new)
-
-```ts
-export type RoomKind = 'group' | 'event';
-export interface RoomKey { kind: RoomKind; id: number }
-export function roomToken(key: RoomKey): string;      // "group:12" — map keys, localStorage
-export function parseRoomToken(raw: string): RoomKey | null;
-```
-
-The in-memory registries above switch from `number` to that token string. They
-are plain `Map`s, so this is mechanical — but it is three files nobody would find
-by grepping for the WS path.
-
-### `group_feed` — rebuild (no longer optional)
-
-Chat is released, so real history exists and the table must be rebuilt rather
-than redefined. Uses the repo's established pattern, the `characters` rebuild at
-[db.ts:586](server/src/db.ts:586), inside a transaction, verified afterwards with
-`PRAGMA foreign_key_check`:
-
-```sql
-room_kind     TEXT NOT NULL DEFAULT 'group',           -- 'group' | 'event'
-group_id      INTEGER REFERENCES groups(id) ON DELETE CASCADE,       -- now nullable
-temp_group_id INTEGER REFERENCES temp_groups(id) ON DELETE CASCADE,  -- new
--- exactly one of the two is set; everything else unchanged
-CREATE INDEX idx_group_feed_room ON group_feed(room_kind, group_id, temp_group_id, id);
-```
-
-Two nullable FK columns rather than one generic `room_id` **keeps `ON DELETE
-CASCADE` working for both kinds** — a generic id column would have to drop the
-FKs and rely on manual cleanup, which is exactly the kind of silent-orphan risk
-CLAUDE.md's data-loss rule exists to avoid. Existing rows migrate to
-`room_kind='group'` with `group_id` untouched: no row is rewritten in content.
-Check row counts before and after.
-
 ### Board tables — `server/src/db.ts`
+
+`group_id` is enough — no `room_kind`, no second FK, no rebuild of anything. An
+event group is a `groups` row like any other, so `ON DELETE CASCADE` on this one
+column already covers a deleted event group cleanly.
 
 ```sql
 CREATE TABLE IF NOT EXISTS boards (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  room_kind TEXT NOT NULL,
-  group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
-  temp_group_id INTEGER REFERENCES temp_groups(id) ON DELETE CASCADE,
+  group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
   cols INTEGER NOT NULL DEFAULT 40,
   rows INTEGER NOT NULL DEFAULT 30,
   tiles_json TEXT NOT NULL DEFAULT '{}',  -- sparse painted cells, see "Tile values"
@@ -361,14 +342,30 @@ with `url(#tex-gras)`. Node count is therefore O(distinct materials), not
 O(painted cells) — which is the same argument that chose SVG over canvas in the
 first place. Flat-colour cells work identically with a plain fill.
 
-### Repetition
+### Repetition — anchored to the board, not the cell
 
-The same tile repeated over 30 cells reads as wallpaper. Fix, at zero storage
-cost: hash `(x, y, board.seed)` → one of **four pre-rotated patterns** of the same
-texture. A square lattice rotated by 90° about a lattice point maps onto itself,
-so all four variants stay perfectly grid-aligned, and the cells of one material
-split into at most four paths instead of one. Deterministic from data every
-client already has, so nothing extra is broadcast.
+The first prototype pass tried per-cell rotation: hash `(x, y, board.seed)` to one
+of four 90°-rotated copies of the texture. **The prototype showed this was wrong**
+— a seamless texture is already continuous across a cell border, and rotating
+individual cells *breaks* that continuity instead of hiding the repeat: grain,
+brick courses and blade direction all turn at every rotated boundary, and the
+result reads as patchwork rather than terrain. Measured as colour discontinuity at
+a cell border vs. inside a cell (1.0 = invisible): rotated floorboards measured
+1.56, the same board with rotation off measured 0.94.
+
+**Fix that was kept:** the pattern is anchored to **board coordinates**, not cell
+coordinates — one image spans several cells (`felder`, default 3 in the
+prototype) rather than one. Continuity holds everywhere and the repeat period
+grows with the span, at zero storage cost either way. It is also the physically
+correct model: the source photographs are 2–4 m of ground, and a cell is one
+Schritt, so a multi-cell span is closer to true scale than a per-cell tile ever
+was. A coarse, board-wide `feTurbulence` shading layer (unrelated to the cell
+grid, blended `multiply`) further breaks up whatever regularity is left, without
+touching the texture itself.
+
+Per-cell rotation is not deleted from the prototype — it stays as the labelled,
+switched-off comparison (`Drehung je Zelle`), because it is the concrete argument
+for why the anchored approach is the one to build.
 
 ### Autotiling without edge art
 
@@ -489,8 +486,10 @@ connections whose ordering could not be reasoned about.
 
 Concretely, in `server/src/ws.ts`:
 
-1. The upgrade regex becomes `^/ws/rooms/(group|event)/(\d+)$`; `rooms` is keyed
-   by `roomToken(key)` instead of a raw number; `SocketMeta` carries `RoomKey`.
+1. **No path or key change needed.** The upgrade path stays `/ws/groups/:id`, the
+   `rooms` map stays keyed by the plain numeric id, `SocketMeta.groupId` is
+   untouched — an event group is already just a `groups.id` like any other. Board
+   messages ride the same socket and the same room membership as chat.
 2. **The existing `broadcast()` is typed to `FeedEntry` and hard-wired to
    `canSeeFeedEntry`.** It gains a builder-based sibling:
    `broadcastBuilt(key, build: (viewer: SocketMeta) => ServerToClientMessage | null)`
@@ -554,21 +553,21 @@ fix `DicePanelProvider` already uses for the feed (`liveBufferRef` + merge).
 
 | File | Responsibility |
 |---|---|
-| `server/src/rooms.ts` (new) | `roomExists`, `canJoinRoom(user, key)` (group: `isGm \|\| isGroupMember`; event: `isGm \|\| owns a character in the temp group`), `charForRoom(userId, key)`. The one place room membership is decided, for both REST and WS. |
-| `server/src/board.ts` (new) | Load/mutate board state, `emitBoardChange()` per-viewer redaction, the debounced position writer, and the asset cleanup calls on every delete path. |
-| `server/src/boardAccess.ts` (new) | The one place board rights are decided: `canPaint`, `canLabel`, `canEditTokens`, `canMoveToken`, `canEditImages`, each reading the board's `perm_*` setting (`'gm'` ⇒ `viewer.isGm`, `'all'` ⇒ any room member). `canEditFog` is hard-coded to `viewer.isGm` — deliberately not a setting, since a player able to lift fog defeats the point. There is no `canSeeFog`: the mask is public, only its *contents* are redacted. `owner_user_id` on the token is recorded but unused in v1; it is what a future "own token only" mode would read. |
-| `server/src/ws.ts` | Room-key generalisation, the broadcast rename above, and the new `board.*` cases in the existing `switch`. |
-| `server/src/feed.ts` | Room-key generalisation only; `canSeeFeedEntry` untouched. |
-| `server/src/coopPools.ts`, `pendingRolls.ts`, `groupRolls.ts` | Registry keys go from `number` to the room token. Mechanical, easy to miss. |
+| `server/src/board.ts` (new) | Load/mutate board state, `emitBoardChange()` per-viewer redaction, the debounced position writer, and the asset cleanup calls on every delete path. Membership itself is not reimplemented here — it calls the existing `isRoomMember`/`charBelongsToRoom`. |
+| `server/src/boardAccess.ts` (new) | The one place board rights are decided: `canPaint`, `canLabel`, `canEditTokens`, `canMoveToken`, `canEditImages`, each reading the board's `perm_*` setting (`'gm'` ⇒ `viewer.isGm`, `'all'` ⇒ any room member, via `isRoomMember`). `canEditFog` is hard-coded to `viewer.isGm` — deliberately not a setting, since a player able to lift fog defeats the point. There is no `canSeeFog`: the mask is public, only its *contents* are redacted. `owner_user_id` on the token is recorded but unused in v1; it is what a future "own token only" mode would read. |
+| `server/src/ws.ts` | The broadcast rename above, and the new `board.*` cases in the existing `switch`. No path or key changes — see "Realtime design". |
+| `server/src/feed.ts` | Untouched. |
 
-REST (in `server/src/routes.ts`, guards composed as the file already does):
+REST (in `server/src/routes.ts`, guards composed as the file already does — the
+existing `isRoomMember`/`isGm` checks, not a new membership layer):
 
 ```
-GET  /api/rooms/mine                      -- replaces /groups/mine; groups + event groups
-GET  /api/rooms/:kind/:id/board           -- full snapshot, already redacted for the viewer
-GET  /api/rooms/:kind/:id/feed            -- replaces /groups/:id/feed
-POST /api/rooms/:kind/:id/board/images    -- upload, guarded by perm_images
+GET  /api/groups/:id/board                -- full snapshot, already redacted for the viewer
+POST /api/groups/:id/board/images         -- upload, guarded by perm_images
 ```
+
+`/groups/mine` and `/groups/:id/feed` already serve both group kinds and need no
+change.
 
 Everything else mutating goes over WS, so there is one ordering domain and one
 place that broadcasts. The image upload is REST because it carries bytes.
@@ -588,11 +587,6 @@ place that broadcasts. The image upload is REST because it carries bytes.
   highlighting. **The cone is deliberately excluded**: per the developer it may
   stay *visual only*, drawn as a true geometric wedge without cell-accurate
   coverage.
-- **`cellSetOutline(cells)`** — marching squares over a sparse cell set, returning
-  merged outline rings for the autotile layer. New with the texture decision, and
-  the piece most worth testing: islands, holes, diagonal-touch ambiguity, and the
-  outset/rounding parameters.
-- `tileVariant(x, y, seed)` — the deterministic 0–3 rotation pick.
 - `initiativeOrder(entries)` — value descending, stable tiebreak.
 - `canAdvanceRound(entries)` — every entry `done`.
 - `advanceRound(state)` — bumps the round, clears `done`, ticks every active
@@ -600,15 +594,20 @@ place that broadcasts. The image upload is REST because it carries bytes.
 - `deathCountdown(lp, todesschwelle, current)` — the state machine: `lp <= 0` and
   no counter ⇒ start at `todesschwelle`; `lp > 0` ⇒ clear; otherwise unchanged.
 
+**No autotile function lives here.** The prototype found the SVG mask pipeline
+(blur → threshold → union, per material, keyed by its `kante`) does the whole job
+declaratively — no outline math, no per-cell variant to precompute. That work is
+all in the client's SVG generation, not in shared pure logic; see "Autotiling
+without edge art" above.
+
 `shared/src/boardTiles.ts`, `shared/src/boardStatus.ts` — the frozen catalogues.
 Data, not logic, so they need no tests beyond key uniqueness.
 
 `shared/test/board.test.ts` — Chebyshev distance (symmetry, pure diagonal costing
 the same as pure straight, the case that would fail under Euclidean), sparse
 encode round-trip, tile-value parsing, `shapeCells` for circle and rectangle,
-`cellSetOutline` for the shapes above, `tileVariant` determinism, initiative ties,
-round advance blocked until all done, countdown start/tick/clear/death, and
-`size>1` cell coverage.
+initiative ties, round advance blocked until all done, countdown
+start/tick/clear/death, and `size>1` cell coverage.
 
 Initiative rolling itself stays server-side (`server/src/dice.ts` `rollDie(6)` +
 `computeBaseValues(...).ini.ergebnis`), matching the standing rule that the
@@ -743,18 +742,21 @@ columns, so the map keeps the full width.
 ## Phases
 
 Each is independently committable and ends in something demoable. Risk is
-front-loaded: the two phases that touch existing, released code come first.
+front-loaded: the phase that touches existing, released code comes first.
 
-0. **Branch** `feature/virtual-table` off `develop`. This is large and touches
-   released code — CLAUDE.md's "isolate risky/large work" exception applies.
-1. **Room identity.** `shared/src/room.ts`, `server/src/rooms.ts`, the `group_feed`
-   rebuild, the WS path/key generalisation, the three in-memory registries,
-   `/api/rooms/mine` and `/rooms/:kind/:id/feed`, client room state, and the
-   `broadcastToRoom` rename. **Ships: Event-Gruppen get chat and dice.** No map yet.
+0. **Branch** `feature/virtual-table` off `develop` — done. This is large and
+   touches released code — CLAUDE.md's "isolate risky/large work" exception
+   applies.
+1. **Event-Gruppen get a player page.** `/event/:id`, the `Group.tsx`-shaped
+   counterpart to the existing permanent-group room page, reusing
+   `isRoomMember`/`charBelongsToRoom` as-is. This is the one real gap the second
+   revisit found — everything else about room identity was already solved by
+   `be5a995`. Small and low-risk; it touches one new route, not shipped
+   internals. **Ships: event-group players have somewhere to land.** No map yet.
 2. **`CharSheetProvider` extraction.** Pure refactor, verified against the
    untouched character sheet. No new UI at all.
-3. **Shared board math + schema.** `shared/src/board.ts` (including
-   `cellSetOutline`) + tests, board tables, snapshot endpoint. Inert — no
+3. **Shared board math + schema.** `shared/src/board.ts` + tests, board tables
+   (`group_id` only, no room-kind columns), snapshot endpoint. Inert — no
    user-facing change.
 4. **Page shell.** Route, full-bleed layout, empty grid, pan/zoom, the fixed chat
    column, the quick panel. No tokens, no painting.
@@ -762,11 +764,14 @@ front-loaded: the two phases that touch existing, released code come first.
    `boardAccess.ts` with the `perm_*` checks plus the GM settings panel. Character
    tokens pull name and portrait; markers are ad hoc.
 6. **Tile painting, flat colour, and the texture catalogue.** Painting, delta
-   writes, the picker, the bundled CC0 set (reviewed by the developer), pattern
-   rendering and the deterministic rotation variants. **Hard edges at this point.**
-7. **Autotiling.** `cellSetOutline` wired to layered rendering with priority,
-   outset and rounded joins; then the turbulence mask behind a flag. Ends with a
-   measured perf check on a dense 100×100 board in both colour modes.
+   writes, the picker. The texture set itself, the per-material `kante`, the
+   board-anchored pattern span and the coarse shading layer are already prototyped
+   and reviewed (`docs/concepts/virtual-table-mockup/Texturen.html`) — this phase
+   wires the reviewed rendering into the real page rather than designing it fresh.
+7. **Autotiling.** The mask pipeline (blur → optional turbulence → hard threshold
+   → union with the source cells) from the prototype, per material `kante`. Ends
+   with a measured perf check on a dense 100×100 board in both colour modes —
+   the prototype's numbers are from small boards.
 8. **Labels and measurement shapes** (persistent and movable). Cone ships
    visual-only unless cell coverage falls out easily.
 9. **Images on the table.** `board_images`, upload with `OwnerTyp 'board'`, the
@@ -796,10 +801,10 @@ front-loaded: the two phases that touch existing, released code come first.
   `npm run seed:dummy` for load. **Never reset `helden.db`** — it holds the
   persistent test accounts.
 - Per phase:
-  - **1** — post in an Event-Gruppe as a player, confirm a non-member sees nothing;
-    check `group_feed` row counts before and after the rebuild, and run
-    `PRAGMA foreign_key_check`. Exercise a coop pool and a pending roll in **both**
-    room kinds — those registries are the part most likely to be missed.
+  - **1** — as a player in an event group, reach `/event/:id` and see chat/dice
+    work exactly as on a permanent group's `/gruppe/:id`; confirm a non-member
+    (not in `temp_group_members`, not the GM) is redirected. This is verifying an
+    already-shared code path in a new place, not new membership logic.
   - **2** — the sheet must behave identically: autosave, roll buttons, print,
     "Ansehen als".
   - **4** — pan/zoom in two browsers, confirm the dock is hidden and the column
@@ -823,8 +828,8 @@ front-loaded: the two phases that touch existing, released code come first.
     GM's hidden tiles are still there afterwards.
   - **11** — round advance blocked until every box is ticked; drop a character to
     0 LP and watch the countdown tick and clear on healing.
-- Clean up test artefacts afterwards (feed rows, temp group memberships, boards,
-  uploaded images) — they are visible to real players otherwise.
+- Clean up test artefacts afterwards (boards, uploaded images, any test event
+  group) — they are visible to real players otherwise.
 - Leave the dev servers running when done.
 
 ---
