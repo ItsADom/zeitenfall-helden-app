@@ -490,6 +490,93 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''
   );
+
+  -- Virtueller Tisch (siehe docs/concepts/virtual-table.md). Ein Brett pro
+  -- Raum — group_id reicht, ohne room_kind: eine Event-Gruppe ist seit
+  -- be5a995 eine ganz normale Zeile in groups, im selben Id-Raum, also deckt
+  -- ein einziges ON DELETE CASCADE beide Gruppenarten sauber ab.
+  CREATE TABLE IF NOT EXISTS boards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    cols INTEGER NOT NULL DEFAULT 40,
+    rows INTEGER NOT NULL DEFAULT 30,
+    tiles_json TEXT NOT NULL DEFAULT '{}', -- sparse bemalte Felder, siehe parseTileValue (shared/src/board.ts)
+    fog_json TEXT NOT NULL DEFAULT '[]',   -- sparse VERBORGENE Felder (leer = nichts verborgen)
+    seed INTEGER NOT NULL DEFAULT 0,       -- Wiedergabe-Saat: Texturvariation + Kantenrauschen
+    -- GM-einstellbare Nutzungsrechte, 'gm' | 'all'. Messen ist immer 'all',
+    -- Nebel immer 'gm' — beides bekommt bewusst keine Spalte, das ist keine
+    -- Einstellung.
+    perm_tiles TEXT NOT NULL DEFAULT 'gm',
+    perm_labels TEXT NOT NULL DEFAULT 'gm',
+    perm_tokens TEXT NOT NULL DEFAULT 'gm',
+    perm_images TEXT NOT NULL DEFAULT 'gm',
+    perm_move TEXT NOT NULL DEFAULT 'all',
+    round INTEGER NOT NULL DEFAULT 0,
+    turn_index INTEGER NOT NULL DEFAULT 0,
+    rev INTEGER NOT NULL DEFAULT 0,        -- monoton; Clients erkennen Lücken und laden neu
+    updated_at INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_boards_group_id ON boards(group_id);
+
+  CREATE TABLE IF NOT EXISTS board_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,                    -- 'character' | 'marker'
+    character_id INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+    owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL DEFAULT '',
+    x REAL NOT NULL DEFAULT 0,
+    y REAL NOT NULL DEFAULT 0,
+    size INTEGER NOT NULL DEFAULT 1,       -- Felder in der Kante
+    hidden INTEGER NOT NULL DEFAULT 0,     -- nur für die Spielleitung sichtbar
+    statuses TEXT NOT NULL DEFAULT '[]',   -- Eck-Marken: Array von Status-Schlüsseln
+    cover TEXT NOT NULL DEFAULT '',        -- Ganzfeld-Überlagerung, immer nur eine ('' = keine)
+    cover_asset TEXT,                      -- reserviert: hochgeladene Overlay-Grafik, in v1 immer NULL
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_tokens_board_id ON board_tokens(board_id);
+
+  CREATE TABLE IF NOT EXISTS board_overlays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,                    -- 'label' | 'measure'
+    data_json TEXT NOT NULL DEFAULT '{}',  -- Text/Anker, oder Form+Ursprung+Radius
+    hidden INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_overlays_board_id ON board_overlays(board_id);
+
+  -- Bilder auf dem Tisch: Objekt (interaktiv) oder Hintergrund (gesperrt,
+  -- unter den Feldern). Behält immer seine eigene Fläche — nie über das
+  -- ganze Brett gestreckt. Liegt in helden-assets.db; siehe loescheAssetsFuer
+  -- in jedem Löschpfad, der eine Bild-Zeile mitreißt (Bild, Brett, Raum).
+  CREATE TABLE IF NOT EXISTS board_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    asset_slug TEXT NOT NULL,
+    modus TEXT NOT NULL DEFAULT 'objekt',  -- 'objekt' | 'hintergrund' (= gesperrt, nicht interaktiv)
+    x REAL NOT NULL DEFAULT 0,             -- Brettkoordinaten in FELDERN, obere linke Ecke
+    y REAL NOT NULL DEFAULT 0,
+    w REAL NOT NULL DEFAULT 1,
+    h REAL NOT NULL DEFAULT 1,
+    rotation REAL NOT NULL DEFAULT 0,      -- Grad
+    opacity REAL NOT NULL DEFAULT 1,
+    z INTEGER NOT NULL DEFAULT 0,
+    hidden INTEGER NOT NULL DEFAULT 0      -- nur Spielleitung: Spielern ganz vorenthalten
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_images_board_id ON board_images(board_id);
+
+  CREATE TABLE IF NOT EXISTS board_initiative (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    token_id INTEGER NOT NULL REFERENCES board_tokens(id) ON DELETE CASCADE,
+    value INTEGER NOT NULL DEFAULT 0,
+    rolled INTEGER NOT NULL DEFAULT 0,     -- 1 = von Spielerhand gewürfelt, 0 = von der SL eingetragen
+    done INTEGER NOT NULL DEFAULT 0,
+    death_countdown INTEGER                -- NULL = stirbt nicht; sonst verbleibende Runden
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_initiative_board_id ON board_initiative(board_id);
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).

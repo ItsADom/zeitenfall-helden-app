@@ -20,3 +20,6 @@ export * from './wikiNamensraum.js';
 export * from './dice.js';
 export * from './diceProtocol.js';
 export * from './chimes.js';
+export * from './board.js';
+export * from './boardTiles.js';
+export * from './boardStatus.js';
