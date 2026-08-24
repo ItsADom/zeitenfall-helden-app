@@ -1,5 +1,58 @@
 # Virtual table (VTT) — implementation plan
 
+> ## Progress (2026-08-24, end of session): Phases 1–3 done, Phase 4 designed but not coded
+>
+> **Committed on `feature/virtual-table`:** Phase 1 (Event-Gruppen player page),
+> Phase 2 (`CharSheetProvider` extraction, verified live), Phase 3 (shared board
+> math + the five board tables + the inert snapshot endpoint, verified live). All
+> typecheck clean, `npm test -w shared` green (406 tests). See each phase's own
+> commit message for what was verified and how.
+>
+> **Phase 4 (page shell) has NOT been started as real code.** What exists instead
+> is a static, interactive mockup —
+> `docs/concepts/virtual-table-mockup/Tisch.html` (built from `tisch-vorlage.html`
+> by `tisch-bauen.mjs`, which also embeds the real texture set; re-run it after
+> editing the template) — with a GM/Spieler view toggle and a light/dark toggle,
+> used to settle the quick-panel design before writing the real page. Serve it
+> with the `vtt-mockup` entry in `.claude/launch.json` (`npx serve` on port 8420,
+> gitignored so it won't appear after a fresh clone — recreate the entry if
+> needed) rather than opening it via `file://`, which the preview tooling only
+> renders as a static snapshot (JS runs, but screenshots go stale).
+>
+> **Settled for the real Phase 4 build**, checked against the actual components
+> rather than guessed:
+> - **Player's quick panel is the real `CharacterSidebar.tsx`**, extended with two
+>   new sections it doesn't have today: **Kampf** (one-tap AT/PA/BL/FK + Ausweichen
+>   roll chips) and **Zustände** (active status badges spelled out, not just the
+>   map token's tiny icon). Its existing Pools/Attribute/Geld/Notiz stay — dropping
+>   Notiz for the VTT context, if wanted, is a still-open call, not decided.
+> - **GM's quick panel is a new, narrower rendering of `GroupOverview.tsx`'s
+>   per-character card**, reusing its real data/components rather than inventing
+>   parallel UI. Confirmed in scope: name+owner, **all vitals** (`vitals[]` already
+>   includes LE/AUS/ASP/Psyche/every Spezialenergie the character uses/
+>   Schicksalspunkte — nothing extra to compute), Wund/Tod threshold chips, tag
+>   chips, the GM-only note (`GmNoteField`, reused as-is), `RequestProbePicker`.
+>   Confirmed OUT of scope: portrait, Stufe, the SP-reset button, attribute chips,
+>   pinned-talent chips — stay on the real overview page. There is no "SL-Wurf"
+>   button — that was a mockup invention; the one real request affordance is
+>   `RequestProbePicker`.
+> - **Todesschwelle countdown moved off the sidebar entirely** — it's a small
+>   badge floating above the dying token on the map itself (GM always; the owning
+>   player too, once fog/redaction exists — not independently demoable with one
+>   identity in the static mockup, but same `owner_user_id` check used everywhere
+>   else).
+> - **Both side columns (quick panel, chat) stay width-draggable** — same
+>   `side-resize`/`side-expand` idiom `CharacterSidebar`/`DicePanel` already use —
+>   specifically so a GM whose roster card runs long can drag the panel wider
+>   rather than the card getting cramped. Chip rows (vitals, tags) wrap onto new
+>   lines; the panel scrolls vertically only, never sideways.
+>
+> **Next action, if you're picking this up fresh:** build the real
+> `client/src/pages/VirtualTable.tsx` (routes `/gruppe/:id/tisch`,
+> `/event/:id/tisch`), the layout shell per the CSS/layout section below, and wire
+> in `CharacterSidebar`/a new compact `GroupOverview`-derived component per the
+> settled scope above. No tokens, no painting yet — that's Phases 5–6.
+
 > ## Status: building on `feature/virtual-table`, off `develop`
 >
 > **2026-08-24, second revisit — the room-identity phase is gone.** This plan's
