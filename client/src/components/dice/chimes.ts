@@ -31,6 +31,15 @@ interface Anschlag {
   guete: number;
 }
 
+/** Ein Ton innerhalb einer Folge — dieselben Größen, die `schlage` ohnehin nimmt. */
+interface Schlag {
+  /** Sekunden ab Beginn. */
+  ab: number;
+  /** Vielfaches des Grundtons: 1 = Grundton, 1.5 = Quinte, 2 = Oktave. */
+  faktor: number;
+  pegel: number;
+}
+
 interface Rezept {
   grundton: number;
   teiltoene: Teilton[];
@@ -39,6 +48,20 @@ interface Rezept {
   zweiter?: { verzoegerung: number; faktor: number; pegel: number };
   /** Geräuschanteil des Anschlags: das Holzige bzw. der Klöppel auf der Glocke. */
   anschlag?: Anschlag;
+  /**
+   * Mehr als zwei Schläge: eine ganze Tonfolge statt eines Zweiklangs.
+   *
+   * Replaces `zweiter` without removing it — `zweiter` is exactly the short
+   * form of a two-note sequence, and the five existing recipes keep using it.
+   * Migrating them would be churn that risks audibly changing five sounds
+   * people have already chosen.
+   */
+  folge?: Schlag[];
+  /**
+   * Anschwellzeit in Sekunden. Eine Glocke schlägt sofort an, ein Blechbläser
+   * schwillt an. Ohne diesen Wert bleibt es beim harten Einsatz von bisher.
+   */
+  anstieg?: number;
 }
 
 // Bewusst fünf verschiedene FAMILIEN, nicht fünf Glocken in fünf Tonhöhen:
@@ -110,6 +133,49 @@ const REZEPTE: Record<ChimeId, Rezept> = {
   },
 };
 
+/**
+ * „Großer Wurf" (/i): ein heraldischer Blechbläser-Ruf, keine Glocke.
+ *
+ * Two things set it apart from the five notification chimes. Its partials are
+ * WHOLE-NUMBER multiples and roll off slowly — that is a brass spectrum, not the
+ * inharmonic clang of a bell — and it plays a real motif rather than a two-note
+ * chord.
+ *
+ * The factors are JUSTLY tuned, not equal-tempered: 2.5 is the pure major third
+ * above the octave. Against whole-number partials an equal-tempered 2.5198 would
+ * audibly beat.
+ *
+ * Deliberately NOT a ChimeId. shared/src/chimes.ts's CHIMES array is rendered
+ * directly as the notification-sound picker, and a 2.8-second brass call has no
+ * business in that dropdown or in the „/mute" cycle.
+ */
+const WICHTIG_REZEPT: Rezept = {
+  grundton: 233.08, // B♭3 — a wind-band key, low enough for bright overtones
+  dauer: 2.8,
+  anstieg: 0.028,
+  anschlag: { pegel: 0.1, abfall: 0.03, mitte: 1800, guete: 2 },
+  teiltoene: [
+    { verhaeltnis: 1, pegel: 0.55, abfall: 0.9 },
+    { verhaeltnis: 2, pegel: 1.0, abfall: 0.8 },
+    { verhaeltnis: 3, pegel: 0.62, abfall: 0.7 },
+    { verhaeltnis: 4, pegel: 0.4, abfall: 0.6 },
+    { verhaeltnis: 5, pegel: 0.22, abfall: 0.5 },
+    { verhaeltnis: 6, pegel: 0.13, abfall: 0.42 },
+    { verhaeltnis: 8, pegel: 0.07, abfall: 0.35 },
+  ],
+  folge: [
+    { ab: 0.0, faktor: 2.0, pegel: 0.85 }, // B♭4 — the call
+    { ab: 0.18, faktor: 2.0, pegel: 0.8 },
+    { ab: 0.36, faktor: 2.5, pegel: 0.9 }, // D5  — the third
+    { ab: 0.6, faktor: 3.0, pegel: 0.95 }, // F5  — the fifth
+    { ab: 0.84, faktor: 2.5, pegel: 0.75 },
+    { ab: 1.02, faktor: 3.0, pegel: 0.85 },
+    { ab: 1.26, faktor: 4.0, pegel: 1.0 }, // B♭5 — the arrival, held
+    { ab: 1.26, faktor: 3.0, pegel: 0.55 }, // lower voices, for weight
+    { ab: 1.26, faktor: 2.0, pegel: 0.45 },
+  ],
+};
+
 /** Weißes Rauschen als Puffer — Vorlage für den Anschlag. */
 function rauschPuffer(ctx: BaseAudioContext, sekunden: number): AudioBuffer {
   const puffer = ctx.createBuffer(1, Math.max(1, Math.ceil(sekunden * ctx.sampleRate)), ctx.sampleRate);
@@ -126,8 +192,14 @@ function schlage(ctx: BaseAudioContext, rezept: Rezept, ab: number, faktor: numb
     const huelle = ctx.createGain();
     // setTargetAtTime fällt exponentiell wie ein ausschwingender Körper; die
     // Zeitkonstante ist ein Drittel der gewünschten Abklingzeit (rund -60 dB).
-    huelle.gain.setValueAtTime(t.pegel * pegel, ab);
-    huelle.gain.setTargetAtTime(0, ab, t.abfall / 3);
+    if (rezept.anstieg) {
+      huelle.gain.setValueAtTime(0, ab);
+      huelle.gain.linearRampToValueAtTime(t.pegel * pegel, ab + rezept.anstieg);
+      huelle.gain.setTargetAtTime(0, ab + rezept.anstieg, t.abfall / 3);
+    } else {
+      huelle.gain.setValueAtTime(t.pegel * pegel, ab);
+      huelle.gain.setTargetAtTime(0, ab, t.abfall / 3);
+    }
     osz.connect(huelle).connect(ctx.destination);
     osz.start(ab);
     osz.stop(ab + rezept.dauer);
@@ -139,10 +211,16 @@ async function baueRezept(rezept: Rezept): Promise<AudioBuffer> {
   const rahmen = Math.ceil(rezept.dauer * CHIME_SAMPLE_RATE);
   const ctx = new OfflineAudioContext(1, rahmen, CHIME_SAMPLE_RATE);
 
-  schlage(ctx, rezept, 0, 1, 1);
-  if (rezept.zweiter) {
-    schlage(ctx, rezept, rezept.zweiter.verzoegerung, rezept.zweiter.faktor, rezept.zweiter.pegel);
-  }
+  // `zweiter` is just a two-note `folge`, so both go through one loop.
+  //
+  // Known quirk, deliberately left alone: schlage() stops each oscillator at
+  // `ab + rezept.dauer`, so a note starting late nominally stops past the end of
+  // the buffer. OfflineAudioContext simply stops rendering there.
+  const folge: Schlag[] = rezept.folge ?? [
+    { ab: 0, faktor: 1, pegel: 1 },
+    ...(rezept.zweiter ? [{ ab: rezept.zweiter.verzoegerung, faktor: rezept.zweiter.faktor, pegel: rezept.zweiter.pegel }] : []),
+  ];
+  for (const s of folge) schlage(ctx, rezept, s.ab, s.faktor, s.pegel);
 
   if (rezept.anschlag) {
     const a = rezept.anschlag;
@@ -191,15 +269,43 @@ export function chimesVorbereiten(): void {
   for (const id of Object.keys(REZEPTE) as ChimeId[]) void chimePuffer(id).catch(() => {});
 }
 
+// Same memoisation as the chimes above, but a single slot: the fanfare is not
+// selectable, so it needs no id. chimesVorbereiten() iterates REZEPTE and is
+// therefore untouched by it.
+let wichtigGebaut: AudioBuffer | null = null;
+let wichtigImBau: Promise<AudioBuffer> | null = null;
+
+export function wichtigPuffer(): Promise<AudioBuffer> {
+  if (wichtigGebaut) return Promise.resolve(wichtigGebaut);
+  if (wichtigImBau) return wichtigImBau;
+  wichtigImBau = baueRezept(WICHTIG_REZEPT).then((b) => {
+    wichtigGebaut = b;
+    wichtigImBau = null;
+    return b;
+  });
+  return wichtigImBau;
+}
+
+/**
+ * Render it ahead of time — an announcement should not wait on its own sound.
+ *
+ * Worth doing for EVERYONE in a room, not just whoever types „/i": players never
+ * type it, and 63 oscillators over 2.8 s take tens of milliseconds to render,
+ * which would otherwise be a visibly late entry against a 450 ms fanfare phase.
+ */
+export function wichtigVorbereiten(): void {
+  void wichtigPuffer().catch(() => {});
+}
+
 /**
  * Spielt einen fertigen Puffer.
  *
  * `lautstaerke` ist 0…1 und wird quadriert: ein linearer Regler fühlt sich
  * falsch an, weil Lautheit nicht linear an der Amplitude hängt.
  */
-export function spielePuffer(puffer: AudioBuffer, lautstaerke: number): void {
+export function spielePuffer(puffer: AudioBuffer, lautstaerke: number): AudioBufferSourceNode | null {
   const ctx = audioKontext();
-  if (!ctx) return;
+  if (!ctx) return null;
   try {
     const quelle = ctx.createBufferSource();
     quelle.buffer = puffer;
@@ -207,8 +313,12 @@ export function spielePuffer(puffer: AudioBuffer, lautstaerke: number): void {
     gain.gain.value = Math.max(0, Math.min(1, lautstaerke)) ** 2;
     quelle.connect(gain).connect(ctx.destination);
     quelle.start();
+    // Returned so a skipped cinematic can cut its fanfare short. Every existing
+    // caller ignores it.
+    return quelle;
   } catch {
     // Ein stummer Hinweis ist kein Grund, irgendetwas anderes scheitern zu
     // lassen — Punkt und Puls am Reiter tragen die Nachricht ohnehin.
+    return null;
   }
 }

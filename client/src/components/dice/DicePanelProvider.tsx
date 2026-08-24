@@ -16,6 +16,7 @@ import { useAuth } from '../../App';
 import { usePersistedState } from '../persist';
 import { useWartung } from '../wartung';
 import { spieleTon } from './ton';
+import { wichtigVorbereiten } from './chimes';
 
 const PAGE_SIZE = 30;
 // Wie viele Einträge ein echter Neuverbindungsaufbau initial lädt — bewusst
@@ -584,6 +585,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
           bufferingRef.current = false;
           liveBufferRef.current = [];
           setConnected(true);
+      // Render the fanfare while the room is quiet. Worth doing for EVERYONE,
+      // not just whoever types „/i": players never type it, and a buffer that
+      // is not ready yet would make the announcement start visibly late.
+      // Idle-time work, so it never competes with the history fetch below.
+      const vorbereiten = () => wichtigVorbereiten();
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(vorbereiten);
+      else setTimeout(vorbereiten, 2000);
           reconnectDelayRef.current = RECONNECT_BASE_MS;
           // Was während des Verbindungsaufbaus aufgelaufen ist, jetzt abschicken.
           const queued = outboxRef.current;

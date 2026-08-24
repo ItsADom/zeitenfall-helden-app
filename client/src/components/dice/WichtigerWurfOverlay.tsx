@@ -21,6 +21,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { REDUCED_HOLD_MS, SAFETY_TIMEOUT_MS, totalDuration, hasSurvivingCrit } from '@shared/diceCinematic';
 import { diceSidesForExpression } from '@shared/dice';
+import { spielePuffer, wichtigPuffer } from './chimes';
 import { useDicePanel } from './DicePanelProvider';
 import { WICHTIG } from './labels';
 
@@ -36,17 +37,31 @@ function bevorzugtRuhe(): boolean {
 }
 
 export default function WichtigerWurfOverlay() {
-  const { kino, kinoBeenden } = useDicePanel();
+  const { kino, kinoBeenden, ton, lautstaerke } = useDicePanel();
   if (!kino) return null;
-  return <Vorstellung key={kino.lauf} auftrag={kino.auftrag} beendenAn={kinoBeenden} />;
+  return (
+    <Vorstellung
+      key={kino.lauf}
+      auftrag={kino.auftrag}
+      beendenAn={kinoBeenden}
+      // „/mute" means mute: someone who switched the chat sound off does not
+      // want a fanfare either. They still get the whole visual performance.
+      stumm={ton === 'aus' || lautstaerke <= 0}
+      lautstaerke={lautstaerke}
+    />
+  );
 }
 
 function Vorstellung({
   auftrag,
   beendenAn,
+  stumm,
+  lautstaerke,
 }: {
   auftrag: import('@shared/diceProtocol').KinoAuftrag;
   beendenAn: (entryId: number) => void;
+  stumm: boolean;
+  lautstaerke: number;
 }) {
   const { entry } = auftrag;
   const [abblenden, setAbblenden] = useState(false);
@@ -68,11 +83,38 @@ function Vorstellung({
     const unbeachtet = typeof document !== 'undefined' && document.hidden;
     const dauer = unbeachtet ? 0 : ruhe ? REDUCED_HOLD_MS : totalDuration(mitKrit);
 
+    // Played straight from the buffer rather than through spieleTon(): that
+    // picks the player's CHOSEN chime, and its SPERRE_MS lock is shared with
+    // notifications, so a „/i" fired shortly after a request chime would be
+    // silent. Bypassing both is deliberate.
+    //
+    // The visuals never wait for the audio. If the buffer is not rendered yet
+    // the fanfare simply starts a few milliseconds late.
+    let fanfare: AudioBufferSourceNode | null = null;
+    let abgebrochen = false;
+    if (!stumm && !unbeachtet) {
+      void wichtigPuffer()
+        .then((puffer) => {
+          if (abgebrochen || fertigRef.current) return;
+          fanfare = spielePuffer(puffer, lautstaerke);
+        })
+        .catch(() => {
+          // A silent announcement is still an announcement.
+        });
+    }
+
     const zeitgeber: ReturnType<typeof setTimeout>[] = [];
     const beenden = () => {
       if (fertigRef.current) return; // timeout, click and natural end must not overtake each other
       fertigRef.current = true;
       for (const t of zeitgeber) clearTimeout(t);
+      // A skip cuts the fanfare short too — it would otherwise keep playing
+      // over a page that has already moved on.
+      try {
+        fanfare?.stop();
+      } catch {
+        // Already finished; nothing to stop.
+      }
       // Appending the entry clears `kino`, which unmounts this component in the
       // same tick. Any fading therefore has to have happened ALREADY — see the
       // reveal timer below — and a skip is deliberately abrupt: someone who
@@ -102,13 +144,21 @@ function Vorstellung({
     };
     document.addEventListener('keydown', aufTaste, true);
     return () => {
+      abgebrochen = true;
       document.removeEventListener('keydown', aufTaste, true);
       for (const t of zeitgeber) clearTimeout(t);
+      // StrictMode runs this between the two development mounts; without it the
+      // fanfare would play twice, a beat apart.
+      try {
+        fanfare?.stop();
+      } catch {
+        // Already finished.
+      }
       // Deliberately NOT calling beenden() here. In StrictMode this cleanup runs
       // between the two development mounts; ending the performance would make it
       // finish before it began. The safety timeout covers a real unmount.
     };
-  }, [entry]);
+  }, [entry, stumm, lautstaerke]);
 
   return (
     <div
