@@ -166,7 +166,7 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
     const w = opts.wuerfel[i];
     const solid = solidFor(w.sides);
     const flaechen = solid.faceNormals.length;
-    const k = faceIndexFor(w.sides, w.value, flaechen);
+    const k = faceIndexFor(solid, w.sides, w.value);
     const normale = solid.faceNormals[k] ?? ([0, 1, 0] as Vec3);
     const hoch = solid.faceUps[k] ?? ([0, 0, 1] as Vec3);
 
@@ -174,7 +174,7 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
       map: atlasFuer({
         sides: w.sides,
         flaechen,
-        beschriftung: beschriftungFuer(w.sides, w.value, flaechen),
+        beschriftung: beschriftungFuer(solid, w.sides, w.value),
         koerper: w.koerper,
         tinte: w.tinte,
       }),

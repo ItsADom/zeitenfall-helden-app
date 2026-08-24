@@ -8,7 +8,7 @@
 // One canvas per die type, laid out as a grid of cells; face k is drawn into
 // cell k and the geometry's UVs address it (see geometry.ts).
 import { CanvasTexture, SRGBColorSpace, type Texture } from 'three';
-import { atlasRaster } from './geometry';
+import { atlasRaster, type Solid } from './geometry';
 import { tinteFuer } from './kontrast';
 
 // Re-exported so the stage keeps one import site; the implementation lives in
@@ -86,8 +86,15 @@ export function atlasFuer(wunsch: AtlasWunsch): Texture {
   return textur;
 }
 
-/** Labels for a die: 1…N, or the rolled value on every face of a fallback box. */
-export function beschriftungFuer(sides: number, value: number, flaechen: number): string[] {
-  if (flaechen !== sides) return Array.from({ length: flaechen }, () => String(value));
-  return Array.from({ length: flaechen }, (_, i) => String(i + 1));
+/**
+ * What is printed on each face, in face order.
+ *
+ * Straight from the solid's own numbering, which pairs opposite faces to sum to
+ * sides + 1 — NOT k+1, which is the order the faces happen to be stored in. A
+ * die outside the six real shapes is a box carrying the rolled value on every
+ * face; it is a prop, and it says so by having no other numbers at all.
+ */
+export function beschriftungFuer(solid: Solid, sides: number, value: number): string[] {
+  if (solid.faceNumbers.length !== sides) return solid.faceNumbers.map(() => String(value));
+  return solid.faceNumbers.map((n) => String(n));
 }

@@ -43,6 +43,12 @@ export interface Solid {
    * precisely a 9.
    */
   faceUps: Vec3[];
+  /**
+   * The number PRINTED on each face, opposite faces summing to sides + 1 — the
+   * rule every real die of these shapes follows. Not simply k+1: see the
+   * numbering step in solidFor.
+   */
+  faceNumbers: number[];
 }
 
 /**
@@ -184,6 +190,53 @@ export function solidFor(sides: number): Solid {
     console.warn(`[kino] W${sides}: ${flaechen.length} Flächen statt ${erwartet}`);
   }
 
+  // --- number the faces the way a real die is numbered -----------------------
+  // Opposite faces sum to sides + 1: 7 on a d6, 21 on a d20. That is the one
+  // rule every real die of these shapes follows, and it is visible — a third of
+  // the faces are on screen at once, so a d12 with 2 opposite 12 reads as a prop.
+  //
+  // Done EXPLICITLY, rather than by numbering faces in the order they were
+  // sorted into. That order happens to produce the right pairing when the sort
+  // is a clean reversal under negation, which it is in exact arithmetic — and
+  // is not, in floats: two normals whose x should be identical differ in the
+  // last bit, the tie-break goes the other way, and the d10 and d12 came out
+  // with opposite pairs summing to 10, 11 AND 12. Deriving the pairing from the
+  // geometry cannot drift like that.
+  const gegenueber = flaechen.map((f) => flaechen.findIndex((o) => o.normal.dot(f.normal) < -0.999));
+  const nummern = new Array<number>(flaechen.length).fill(0);
+  let naechste = 1;
+  for (let k = 0; k < flaechen.length; k++) {
+    if (nummern[k] !== 0) continue;
+    nummern[k] = naechste;
+    // A tetrahedron has no opposite faces at all — every face touches every
+    // other — so its four simply count up.
+    if (gegenueber[k] >= 0) nummern[gegenueber[k]] = flaechen.length + 1 - naechste;
+    naechste++;
+  }
+
+  // A real d6 is also CHIRAL, and the pairing above does not fix which mirror
+  // image you get. Western dice are right-handed: with the 1, the 2 and the 3
+  // around one corner, they read counter-clockwise seen from outside it. Ours
+  // came out the other way — the Japanese arrangement, which does exist and is
+  // not what anybody at this table owns.
+  //
+  // Swapping ONE opposite pair mirrors the whole die, and it cannot disturb the
+  // sums: 2 and 5 simply change places, and both still face a 5 and a 2.
+  //
+  // Deliberately not generalised past the cube. The 1-2-3 corner is a fact about
+  // d6s; d20s and d10s are sold in both handednesses with no convention to
+  // honour, so a "rule" applied to them would be one this file invented.
+  if (flaechen.length === 6) {
+    const flaecheMit = (n: number): Vector3 => flaechen[nummern.indexOf(n)].normal;
+    const gegenUhrzeigersinn = flaecheMit(1).dot(new Vector3().crossVectors(flaecheMit(2), flaecheMit(3))) > 0;
+    if (!gegenUhrzeigersinn) {
+      const zwei = nummern.indexOf(2);
+      const fuenf = nummern.indexOf(5);
+      nummern[zwei] = 5;
+      nummern[fuenf] = 2;
+    }
+  }
+
   // --- normalise size ------------------------------------------------------
   // Every die is scaled to a circumradius of 1, so DIE_EXTENT in the shared
   // layout means the same thing for all of them.
@@ -240,6 +293,16 @@ export function solidFor(sides: number): Solid {
     }
     ecken.sort((a, b) => (winkel.get(a) ?? 0) - (winkel.get(b) ?? 0));
 
+    // --- is this face regular? -----------------------------------------------
+    // Every solid here has regular faces except the d10, whose kites are not.
+    // The distinction matters below, because "rest on an edge" is the right
+    // rule for a regular face and the wrong one for a kite.
+    const kantenlaengen = ecken.map((v, i) => v.distanceTo(ecken[(i + 1) % ecken.length]));
+    const radien = ecken.map((v) => v.distanceTo(mitte));
+    const regelmaessig =
+      Math.max(...kantenlaengen) - Math.min(...kantenlaengen) < 1e-6 &&
+      Math.max(...radien) - Math.min(...radien) < 1e-6;
+
     // --- which way is UP for the number on this face --------------------------
     // From the middle of one EDGE toward the centre, so that edge ends up at the
     // bottom and the number's baseline runs parallel to it. That is how a real
@@ -258,30 +321,39 @@ export function solidFor(sides: number): Solid {
     // or two clients letter their dice differently. Hence the lexicographically
     // smallest midpoint: no dependence on vertex order, iteration order or
     // anything else that a three.js version could quietly change.
-    const mittelpunkt = new Vector3();
-    let beste: Vector3 | null = null;
-    let besteRichtung: Vector3 | null = null;
-    for (let i = 0; i < ecken.length; i++) {
-      const a = ecken[i];
-      const b = ecken[(i + 1) % ecken.length];
-      mittelpunkt.addVectors(a, b).multiplyScalar(0.5);
-      if (
-        beste === null ||
-        mittelpunkt.x < beste.x - 1e-9 ||
-        (Math.abs(mittelpunkt.x - beste.x) < 1e-9 &&
-          (mittelpunkt.y < beste.y - 1e-9 ||
-            (Math.abs(mittelpunkt.y - beste.y) < 1e-9 && mittelpunkt.z < beste.z - 1e-9)))
-      ) {
-        beste = mittelpunkt.clone();
-        besteRichtung = new Vector3().subVectors(b, a).normalize();
+    const kandidat = regelmaessig ? null : spiegelachse(ecken, mitte, flaeche.normal);
+    if (kandidat) {
+      // An IRREGULAR face — in practice the d10's kite. It has exactly one axis
+      // of symmetry and it runs corner to corner, so there is no edge to stand
+      // the number on: laying it along an edge instead put every numeral 66° off
+      // the kite it was printed on, which is what a d10 reading sideways looks
+      // like. Up the axis, sharp end first, is how a real d10 carries its digits.
+      achseV.copy(kandidat);
+    } else {
+      const mittelpunkt = new Vector3();
+      let beste: Vector3 | null = null;
+      let besteRichtung: Vector3 | null = null;
+      for (let i = 0; i < ecken.length; i++) {
+        const a = ecken[i];
+        const b = ecken[(i + 1) % ecken.length];
+        mittelpunkt.addVectors(a, b).multiplyScalar(0.5);
+        if (
+          beste === null ||
+          mittelpunkt.x < beste.x - 1e-9 ||
+          (Math.abs(mittelpunkt.x - beste.x) < 1e-9 &&
+            (mittelpunkt.y < beste.y - 1e-9 ||
+              (Math.abs(mittelpunkt.y - beste.y) < 1e-9 && mittelpunkt.z < beste.z - 1e-9)))
+        ) {
+          beste = mittelpunkt.clone();
+          besteRichtung = new Vector3().subVectors(b, a).normalize();
+        }
       }
+      // Perpendicular to the edge, not merely "toward the centre". Those
+      // coincide on a regular polygon and would not on anything else.
+      achseV.subVectors(mitte, beste ?? mitte);
+      if (besteRichtung) achseV.addScaledVector(besteRichtung, -achseV.dot(besteRichtung));
+      achseV.normalize();
     }
-    // Perpendicular to the edge, not merely "toward the centre". Those coincide
-    // on a regular polygon and do NOT on the d10's kites, where the centre is
-    // off to one side: aiming straight at it tilted every number by 7°.
-    achseV.subVectors(mitte, beste ?? mitte);
-    if (besteRichtung) achseV.addScaledVector(besteRichtung, -achseV.dot(besteRichtung));
-    achseV.normalize();
     // Right-handed with the outward normal, matching orthoFrame() in
     // diceCinematic.ts: right x up = out. Get this backwards and every number is
     // mirrored.
@@ -320,19 +392,60 @@ export function solidFor(sides: number): Solid {
     geometry,
     faceNormals: flaechen.map((f) => [f.normal.x, f.normal.y, f.normal.z] as Vec3),
     faceUps: hoch,
+    faceNumbers: nummern,
   };
   zwischenspeicher.set(sides, solid);
   return solid;
 }
 
 /**
- * Which face carries `value` on a die of `sides`.
+ * The face's own axis of symmetry, sharp end up — or null if it has none.
  *
- * Face k shows k+1. A die outside the six real shapes is a box with the rolled
+ * A face is symmetric about the line through its centre and a corner when
+ * reflecting its corners in that line maps the set back onto itself. A kite has
+ * exactly two such corners (the ends of one axis); of those the SHARPER one goes
+ * up, which is the way a d10 is read — tip toward the pole, digits across the
+ * wide part below it.
+ *
+ * Only ever consulted for irregular faces. A regular polygon has an axis through
+ * every corner, and choosing among them by angle would be a coin toss between
+ * identical options.
+ */
+function spiegelachse(ecken: Vector3[], mitte: Vector3, normal: Vector3): Vector3 | null {
+  const quer = new Vector3();
+  const abstand = new Vector3();
+  const gespiegelt = new Vector3();
+  const a = new Vector3();
+  const b = new Vector3();
+  let beste: { richtung: Vector3; winkel: number } | null = null;
+
+  for (let i = 0; i < ecken.length; i++) {
+    const richtung = new Vector3().subVectors(ecken[i], mitte).normalize();
+    quer.crossVectors(richtung, normal);
+    const symmetrisch = ecken.every((v) => {
+      abstand.subVectors(v, mitte);
+      gespiegelt.copy(abstand).addScaledVector(quer, -2 * abstand.dot(quer)).add(mitte);
+      return ecken.some((w) => w.distanceToSquared(gespiegelt) < 1e-8);
+    });
+    if (!symmetrisch) continue;
+    a.subVectors(ecken[(i - 1 + ecken.length) % ecken.length], ecken[i]).normalize();
+    b.subVectors(ecken[(i + 1) % ecken.length], ecken[i]).normalize();
+    const winkel = Math.acos(Math.max(-1, Math.min(1, a.dot(b))));
+    if (!beste || winkel < beste.winkel - 1e-9) beste = { richtung, winkel };
+  }
+  return beste?.richtung ?? null;
+}
+
+/**
+ * Which face of `solid` carries `value` on a die of `sides`.
+ *
+ * A lookup rather than `value - 1`: faces are numbered so that opposite ones sum
+ * to sides + 1 (see solidFor), which is emphatically not the order they are
+ * stored in. A die outside the six real shapes is a box carrying the rolled
  * number on every face, so any of them will do.
  */
-export function faceIndexFor(sides: number, value: number, faceCount: number): number {
-  if (faceCount !== sides) return 0;
-  const i = value - 1;
-  return i >= 0 && i < faceCount ? i : 0;
+export function faceIndexFor(solid: Solid, sides: number, value: number): number {
+  if (solid.faceNumbers.length !== sides) return 0;
+  const i = solid.faceNumbers.indexOf(value);
+  return i >= 0 ? i : 0;
 }

@@ -125,26 +125,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - Still open: where the bio markdown source is stored (new column/table) and
      the exact link/entry point from the sheet. The library question is settled
      — there is no library, and the existing renderer is the answer.
-- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
-  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
-  player requests, roll log, explicit room switching) shipped on
-  `feature/dice-rolls-chat`; the rules/mechanics are documented in
-  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
-  docked-only panel would collide with a possible future virtual-table
-  feature, planned in `docs/concepts/virtual-table.md` (revisited 2026-08-24
-  and ready to build from). Not a rework: any page can call
-  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
-  full-page chat view is additive — reuses `FeedEntryView` for individual
-  messages/rolls, no duplicate connection. **Settled:** that dedicated page
-  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
-  showing the same feed twice on the same page would be redundant. **Also
-  settled:** the great-roll overlay (`WichtigerWurfOverlay`) is mounted globally
-  in `App.tsx` and covers whatever page is open, so a dedicated chat page must
-  not try to own or duplicate it — it already works there. The overlay pulls its
-  dice toward `.dice-dock`/`.dice-dock-tab` and falls back to the bottom-right
-  corner when neither is on screen, which is exactly the case a dock-less chat
-  page would create.
-    - as we have a group that is streaming, this topic will need a higher prio. should ship shortly
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
@@ -389,6 +369,25 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   more than Haltbarkeit can today. Needs a concept pass on whether a
   partially-drunk potion has to split off the stack into its own row, or
   charges only make sense while `anzahl === 1`.
+- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
+  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
+  player requests, roll log, explicit room switching) shipped on
+  `feature/dice-rolls-chat`; the rules/mechanics are documented in
+  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
+  docked-only panel would collide with a possible future virtual-table
+  feature, planned in `docs/concepts/virtual-table.md` (revisited 2026-08-24
+  and ready to build from). Not a rework: any page can call
+  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
+  full-page chat view is additive — reuses `FeedEntryView` for individual
+  messages/rolls, no duplicate connection. **Settled:** that dedicated page
+  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
+  showing the same feed twice on the same page would be redundant. **Also
+  settled:** the great-roll overlay (`WichtigerWurfOverlay`) is mounted globally
+  in `App.tsx` and covers whatever page is open, so a dedicated chat page must
+  not try to own or duplicate it — it already works there. The overlay pulls its
+  dice toward `.dice-dock`/`.dice-dock-tab` and falls back to the bottom-right
+  corner when neither is on screen, which is exactly the case a dock-less chat
+  page would create.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both

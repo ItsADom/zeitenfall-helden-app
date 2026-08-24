@@ -641,6 +641,27 @@ expression roll with a performance in front of it.
   disagreed with it. `CAMERA_TILT` therefore lives in `shared` beside the
   layout, at 64°, and the gathered dice are laid out on the plane perpendicular
   to it (`stagePoint`) so the grid is not squashed by the tilt.
+- **The dice are numbered like real dice, and that is derived, not assumed.**
+  Opposite faces sum to `sides + 1` — 7 on a d6, 21 on a d20 — worked out from
+  the geometry by pairing each face with its antipode. Numbering faces in stored
+  order looks equivalent and is not: it gives the right pairing only if the sort
+  is a clean reversal under negation, which holds in exact arithmetic and fails
+  in floats, and the d10 and d12 shipped with opposite pairs summing to 10, 11
+  AND 12. The cube is additionally chiral and gets the Western arrangement
+  (1-2-3 counter-clockwise about their corner); one opposite pair is swapped to
+  mirror it, which cannot disturb the sums. Not generalised past the cube — d20s
+  and d10s are sold in both handednesses, so a rule there would be invented
+  rather than honoured. A tetrahedron has no opposite faces at all and simply
+  counts up.
+- **The d4 is deliberately not a real d4.** A real one carries three numbers per
+  face, rests on a face and is read at the apex or along the bottom edge. Ours
+  puts one number per face and turns that face up like every other die, so it
+  balances on a point. It is legible and consistent with the rest; it is not
+  what a d4 looks like. Flagged here so the next person knows it was a choice.
+- **The d10 shows 1-10, not the 0-9 a real one does.** A real d10 reads 0 for
+  ten and its opposite faces sum to 9. This app's dice are 1..N throughout, so a
+  face reading 0 would be the animation contradicting the roll in the chat
+  beneath it. Opposite faces therefore sum to 11.
 - **A face's UV basis comes from the face, never from a world axis.** The first
   version built it from whichever coordinate axis the normal leaned on least,
   which knows nothing about the face's shape — so a number landed at whatever
@@ -654,7 +675,11 @@ expression roll with a performance in front of it.
   merely "toward the centre", because those coincide only on a regular polygon:
   on the d10's kites the centre is off to one side and aiming at it tilted every
   number by 7°. Which edge is free, but it must be the same free choice on every
-  machine, hence the lexicographically smallest midpoint.
+  machine, hence the lexicographically smallest midpoint. **An IRREGULAR face
+  takes the other branch entirely**: a kite's symmetry axis runs corner to
+  corner, so there is no edge to stand a number on, and standing it on one
+  anyway put every d10 numeral 66° off its own face. It goes up the axis, sharp
+  end first, which is how a real d10 carries its digits.
 - **The gather squares the numbers up; the table beat does not.** A die on the
   table lands however it lands, random roll and all. Held up to be read it is
   turned BOTH ways — face to the viewer and number the right way up — because
