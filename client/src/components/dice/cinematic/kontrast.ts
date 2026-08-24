@@ -32,20 +32,35 @@ export function kanaele(farbe: string): [number, number, number] {
   return [d[0], d[1], d[2]];
 }
 
-/**
- * Ink that stays readable on `hintergrund`, decided by luminance rather than by
- * a table.
- *
- * Six colour worlds × light/dark × six die pigments is seventy-two
- * combinations, and nobody is going to audit those by eye. Computing the
- * contrast is right by construction and survives a seventh theme.
- */
-export function tinteFuer(hintergrund: string, hell: string, dunkel: string): string {
-  const [r, g, b] = kanaele(hintergrund);
+/** Relative luminance, per the WCAG definition. */
+function leuchtdichte(farbe: string): number {
+  const [r, g, b] = kanaele(farbe);
   const lin = (v: number): number => {
     const s = v / 255;
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
   };
-  const leuchtdichte = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
-  return leuchtdichte > 0.45 ? dunkel : hell;
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+/** Contrast ratio between two colours, 1:1 … 21:1. */
+export function kontrast(a: string, b: string): number {
+  const [hoch, tief] = [leuchtdichte(a), leuchtdichte(b)].sort((p, q) => q - p);
+  return (hoch + 0.05) / (tief + 0.05);
+}
+
+/**
+ * The more readable of two inks on `hintergrund`.
+ *
+ * Decided by MEASURING both, not by a luminance threshold. A threshold looks
+ * equivalent and is not: it has to guess where "light" begins, and every guess
+ * is wrong for some pigment. At 0.45 the dark-mode pastels — a #b9a7db d10, for
+ * instance — sat just under the line and were given light ink, at 1.97:1.
+ * Comparing the two candidates cannot be wrong that way, and it needs no
+ * constant to keep tuned.
+ *
+ * Six colour worlds × light/dark × six die pigments is seventy-two
+ * combinations; nobody is going to audit those by eye.
+ */
+export function tinteFuer(hintergrund: string, hell: string, dunkel: string): string {
+  return kontrast(hintergrund, hell) >= kontrast(hintergrund, dunkel) ? hell : dunkel;
 }

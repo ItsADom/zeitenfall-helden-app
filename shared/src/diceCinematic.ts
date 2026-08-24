@@ -301,11 +301,18 @@ export const EFFECT_STAGGER_MS = 180;
 export const VIEW_HEIGHT = 10;
 
 /**
- * The narrowest aspect we lay out for (9:16 portrait). Half the usable width is
- * then VIEW_HEIGHT / 2 * 9 / 16 = 2.8125, so everything must fit inside ±2.8125 —
- * which is why LAYOUT_WIDTH is 5.2 and not a number chosen on a desktop.
+ * The narrowest aspect ratio the layout is sized for.
+ *
+ * NOT 9:16. That is the shape phones stopped being years ago: a 390×844 screen
+ * is 0.462, and laying out against 0.5625 put twenty dice a good way past both
+ * edges — which is exactly what it did.
+ *
+ * 0.42 covers the narrowest handsets actually sold, the 21:9 Sony Xperia line
+ * at roughly 360×840, and costs a desktop nothing but a little more empty
+ * margin at the sides — which is precisely what rule 3 says that margin is for.
+ * The test names real devices, so this constant cannot drift back.
  */
-export const NARROWEST_ASPECT = 9 / 16;
+export const NARROWEST_ASPECT = 0.42;
 export const LAYOUT_WIDTH = 5.2;
 export const LAYOUT_DEPTH = 3.2;
 

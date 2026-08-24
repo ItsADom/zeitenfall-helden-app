@@ -44,6 +44,19 @@ import { WICHTIG } from './labels';
  * colour precisely so that a red 20 and a blue 1 read unambiguously (see the
  * token block in styles.css).
  */
+/**
+ * The two inks a die face can be printed in.
+ *
+ * FIXED, not read from --panel/--text. Those are SURFACE tokens: in dark mode
+ * --panel is itself dark, so asking for "the light one" returned near-black and
+ * put black numbers on the near-black d20 — 1.65:1, unreadable, in five of the
+ * six colour worlds. A die is its own object sitting on a dark dim, not part of
+ * the page surface, so its ink does not follow the theme. Both values are taken
+ * from the app's own light palette so they still belong to it.
+ */
+const TINTE_HELL = '#f6f3ec';
+const TINTE_DUNKEL = '#292018';
+
 function koerperFarbe(stil: CSSStyleDeclaration, sides: number): string {
   const eigen = stil.getPropertyValue(`--die-w${sides}`).trim();
   return eigen || stil.getPropertyValue('--border-strong').trim() || '#8a8a8a';
@@ -91,6 +104,10 @@ function Vorstellung({
   const [abblenden, setAbblenden] = useState(false);
   const [ohneBuehne, setOhneBuehne] = useState(false);
   const [patzer, setPatzer] = useState(false);
+  // Read once, at mount: whether this viewer gets the animation at all. Needed
+  // during RENDER, not just in the effect, because it decides whether there is
+  // a canvas to build a stage on in the first place.
+  const [ruhe] = useState(bevorzugtRuhe);
   const leinwandRef = useRef<HTMLCanvasElement | null>(null);
   const fertigRef = useRef(false);
   const beendenAnRef = useRef(beendenAn);
@@ -103,7 +120,6 @@ function Vorstellung({
     const roll = entry.roll;
     const sides = roll.mode === 'expr' ? diceSidesForExpression(roll.expression) : 20;
     const mitKrit = hasSurvivingCrit(roll.dice, sides);
-    const ruhe = bevorzugtRuhe();
     // A tab nobody is looking at gets no performance: rAF is throttled to
     // nothing there anyway, and a fanfare firing into a background tab is a
     // jump-scare when its owner comes back.
@@ -147,8 +163,6 @@ function Vorstellung({
           if (abgebrochen || fertigRef.current || !leinwand) return;
 
           const stil = getComputedStyle(document.documentElement);
-          const tinteHell = stil.getPropertyValue('--panel').trim() || '#ffffff';
-          const tinteDunkel = stil.getPropertyValue('--text').trim() || '#222222';
           const seiten = roll.mode === 'expr' ? diceSidesForExpression(roll.expression) : roll.dice.map(() => 20);
 
           buehne = createStage(leinwand, {
@@ -164,7 +178,7 @@ function Vorstellung({
             },
             wuerfel: roll.dice.map((wert, i) => {
               const koerper = koerperFarbe(stil, seiten[i] ?? 20);
-              return { sides: seiten[i] ?? 20, value: wert, koerper, tinte: tinteFuer(koerper, tinteHell, tinteDunkel) };
+              return { sides: seiten[i] ?? 20, value: wert, koerper, tinte: tinteFuer(koerper, TINTE_HELL, TINTE_DUNKEL) };
             }),
           });
 
@@ -265,8 +279,11 @@ function Vorstellung({
       aria-label={WICHTIG.overlayLabel(entry.authorName)}
       onClick={() => beendenRef.current()}
     >
-      <canvas className="dice-kino-buehne" ref={leinwandRef} aria-hidden />
-      {ohneBuehne && <ErgebnisKarte entry={entry} />}
+      {/* No canvas at all for a viewer who asked for less motion — there is
+          nothing to build a stage on, and the card below carries the news
+          instead. */}
+      {!ruhe && <canvas className="dice-kino-buehne" ref={leinwandRef} aria-hidden />}
+      {(ruhe || ohneBuehne) && <ErgebnisKarte entry={entry} />}
       <p className="dice-kino-hinweis">{WICHTIG.ueberspringen}</p>
     </div>
   );

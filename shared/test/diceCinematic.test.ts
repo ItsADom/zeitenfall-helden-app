@@ -302,6 +302,38 @@ describe('layoutFor', () => {
     }
   });
 
+  it('fits the real phones people hold, not a 16:9 one', () => {
+    // The check above uses SAFE_HALF_WIDTH, so it only proves the layout fits
+    // whatever aspect that constant assumes — it cannot notice the constant
+    // itself being wrong. This one names actual viewports.
+    //
+    // 9:16 was wrong and clipped twenty dice off both edges of a 390x844
+    // screen. Every entry here is width/height of a device in portrait.
+    const geraete: [string, number, number][] = [
+      ['iPhone SE', 375, 667],
+      ['iPhone 14 Pro', 393, 852],
+      ['Pixel 7', 412, 915],
+      ['Galaxy S22 Ultra', 384, 854],
+      ['Sony Xperia 1 (21:9)', 360, 840],
+    ];
+    for (const [name, breite, hoehe] of geraete) {
+      const halbeBreite = (VIEW_HEIGHT / 2) * (breite / hoehe);
+      for (let n = 1; n <= 20; n++) {
+        const { slots, restScale, gatherScale } = layoutFor(n);
+        for (const slot of slots) {
+          expect(
+            Math.abs(slot.rest[0]) + restScale * DIE_EXTENT,
+            `${name} (${breite}x${hoehe}), ${n} dice, at rest`,
+          ).toBeLessThanOrEqual(halbeBreite);
+          expect(
+            Math.abs(slot.gather[0]) + gatherScale * DIE_EXTENT,
+            `${name} (${breite}x${hoehe}), ${n} dice, gathered`,
+          ).toBeLessThanOrEqual(halbeBreite);
+        }
+      }
+    }
+  });
+
   it('centres the arrangement on the origin', () => {
     for (const n of [1, 2, 3, 5, 9, 20]) {
       const { slots } = layoutFor(n);
@@ -318,8 +350,10 @@ describe('layoutFor', () => {
       const { restScale, gatherScale } = layoutFor(n);
       expect(gatherScale).toBeGreaterThanOrEqual(restScale);
     }
+    // A single die genuinely grows: resting is capped at life size, gathered is
+    // not. Larger pools are width-bound in both layouts and come out equal,
+    // which is the honest outcome rather than something to fake.
     expect(layoutFor(1).gatherScale).toBeGreaterThan(layoutFor(1).restScale);
-    expect(layoutFor(3).gatherScale).toBeGreaterThan(layoutFor(3).restScale);
   });
 
   it('keeps the gathered dice inside the view vertically as well', () => {
