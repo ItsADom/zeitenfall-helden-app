@@ -20,3 +20,4 @@ export * from './wikiNamensraum.js';
 export * from './dice.js';
 export * from './diceProtocol.js';
 export * from './chimes.js';
+export * from './diceCinematic.js';
