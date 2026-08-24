@@ -19,7 +19,14 @@
 // Mounted at App.tsx level, outside <main>, and keyed by `lauf` so a second
 // announcement remounts rather than reconciles — see KinoLauf.
 import { useEffect, useRef, useState } from 'react';
-import { REDUCED_HOLD_MS, SAFETY_TIMEOUT_MS, totalDuration, hasSurvivingCrit } from '@shared/diceCinematic';
+import {
+  PHASES,
+  REDUCED_HOLD_MS,
+  SAFETY_TIMEOUT_MS,
+  effectTriggers,
+  hasSurvivingCrit,
+  totalDuration,
+} from '@shared/diceCinematic';
 import { diceSidesForExpression } from '@shared/dice';
 import { spielePuffer, wichtigPuffer } from './chimes';
 import { preloadCinematic } from './cinematic/preload';
@@ -83,6 +90,7 @@ function Vorstellung({
   const { entry } = auftrag;
   const [abblenden, setAbblenden] = useState(false);
   const [ohneBuehne, setOhneBuehne] = useState(false);
+  const [patzer, setPatzer] = useState(false);
   const leinwandRef = useRef<HTMLCanvasElement | null>(null);
   const fertigRef = useRef(false);
   const beendenAnRef = useRef(beendenAn);
@@ -110,6 +118,7 @@ function Vorstellung({
     // The visuals never wait for the audio. If the buffer is not rendered yet
     // the fanfare simply starts a few milliseconds late.
     let fanfare: AudioBufferSourceNode | null = null;
+    let zeitgeberPatzer: ReturnType<typeof setTimeout> | null = null;
     let abgebrochen = false;
     if (!stumm && !unbeachtet) {
       void wichtigPuffer()
@@ -146,6 +155,13 @@ function Vorstellung({
             seed: auftrag.seed,
             hasCrit: mitKrit,
             saugZielPx: dockPunkt(),
+            // The same tokens the feed uses for a crit, so the burst and the
+            // chat entry two seconds later are recognisably the same event.
+            effektFarben: {
+              gold: stil.getPropertyValue('--mastery').trim() || '#c8871a',
+              glueck: stil.getPropertyValue('--over-line').trim() || '#2f5db0',
+              patzer: stil.getPropertyValue('--crit-line').trim() || '#9a2f22',
+            },
             wuerfel: roll.dice.map((wert, i) => {
               const koerper = koerperFarbe(stil, seiten[i] ?? 20);
               return { sides: seiten[i] ?? 20, value: wert, koerper, tinte: tinteFuer(koerper, tinteHell, tinteDunkel) };
@@ -167,12 +183,20 @@ function Vorstellung({
         });
     }
 
+    // A surviving natural 20 also darkens the whole screen. That belongs in CSS
+    // rather than in the scene: it colours everything, it is one fixed div, and
+    // its reduced-motion override then sits right next to it in the stylesheet.
+    if (!ruhe && !unbeachtet && effectTriggers(roll.dice, sides).some((a) => a.trigger === 20)) {
+      zeitgeberPatzer = setTimeout(() => setPatzer(true), PHASES.effect.start);
+    }
+
     const zeitgeber: ReturnType<typeof setTimeout>[] = [];
     const beenden = () => {
       if (fertigRef.current) return; // timeout, click and natural end must not overtake each other
       fertigRef.current = true;
       for (const t of zeitgeber) clearTimeout(t);
       if (raf) cancelAnimationFrame(raf);
+      if (zeitgeberPatzer) clearTimeout(zeitgeberPatzer);
       buehne?.dispose();
       buehne = null;
       // A skip cuts the fanfare short too — it would otherwise keep playing
@@ -235,7 +259,7 @@ function Vorstellung({
 
   return (
     <div
-      className={`dice-kino screen-only${abblenden ? ' dice-kino--aus' : ''}`}
+      className={`dice-kino screen-only${abblenden ? ' dice-kino--aus' : ''}${patzer ? ' dice-kino--patzer' : ''}`}
       role="alertdialog"
       aria-live="polite"
       aria-label={WICHTIG.overlayLabel(entry.authorName)}

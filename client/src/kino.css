@@ -37,6 +37,45 @@
   opacity: 0;
 }
 
+/* A surviving natural 20. The die itself goes red in the scene; this is the
+   part WebGL cannot do — the whole screen leaning into the fumble.
+
+   Two beats rather than one: a single dip reads as a rendering glitch, two read
+   as intent. Uses --crit-line, the same token .feed-die--20 uses, so the screen
+   and the chat entry that follows it agree. */
+@keyframes kinoPatzer {
+  0% {
+    background: color-mix(in srgb, var(--bg) 18%, #000);
+  }
+  18% {
+    background: color-mix(in srgb, var(--crit-line) 26%, #000);
+  }
+  42% {
+    background: color-mix(in srgb, var(--bg) 18%, #000);
+  }
+  60% {
+    background: color-mix(in srgb, var(--crit-line) 18%, #000);
+  }
+  100% {
+    background: color-mix(in srgb, var(--bg) 18%, #000);
+  }
+}
+
+.dice-kino--patzer {
+  animation: kinoPatzer 1700ms ease-in-out 1;
+}
+
+/* Paired with its keyframes, as every animation in this app is. The class is
+   already withheld from a reduced-motion viewer (they get the still card
+   instead), so this is belt to that pair of braces — and it keeps the rule
+   true for anyone who adds a code path later. */
+@media (prefers-reduced-motion: reduce) {
+  .dice-kino--patzer {
+    animation: none;
+    background: color-mix(in srgb, var(--crit-line) 20%, #000);
+  }
+}
+
 /* The WebGL canvas. Sized by CSS and read back by the stage, so the renderer
    never has to guess at a layout it does not own. */
 .dice-kino-buehne {

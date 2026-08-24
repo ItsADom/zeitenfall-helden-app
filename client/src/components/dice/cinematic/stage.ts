@@ -29,6 +29,7 @@ import {
 import {
   DIE_EXTENT,
   PHASES,
+  effectTriggers,
   TABLE_Y,
   VIEW_HEIGHT,
   buildFlights,
@@ -40,6 +41,8 @@ import {
   type FlightContext,
   type Vec3,
 } from '@shared/diceCinematic';
+import type { CritTrigger } from '@shared/dice';
+import { createEffects, type EffektFarben, type Effekte } from './effects';
 import { beschriftungFuer, atlasFuer } from './faces';
 import { faceIndexFor, solidFor } from './geometry';
 
@@ -62,6 +65,8 @@ export interface StageOptions {
   seed: number;
   wuerfel: StageWuerfel[];
   hasCrit: boolean;
+  /** Colours for the crit effects, resolved from the app's own tokens. */
+  effektFarben: EffektFarben;
   /**
    * Where the dice are pulled at the end, in VIEWPORT PIXELS — the chat dock.
    *
@@ -214,6 +219,23 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
   const beobachter = new ResizeObserver(passeAn);
   beobachter.observe(canvas);
 
+  // Which dice earned an effect. Cancelled crits are already filtered out in
+  // shared, because that is a rules decision rather than a visual one.
+  const seitenAlle = opts.wuerfel.map((w) => w.sides);
+  const ausloeser: CritTrigger[] = effectTriggers(
+    opts.wuerfel.map((w) => w.value),
+    seitenAlle,
+  );
+  const gatherOrte = new Map<number, Vec3>();
+  for (const a of aufbauten) gatherOrte.set(a.flight.index, a.flight.gather);
+  const effekte: Effekte = createEffects(gruppe, {
+    seed: opts.seed,
+    triggers: ausloeser,
+    positionen: gatherOrte,
+    farben: opts.effektFarben,
+    zurKamera: camera.quaternion.clone(),
+  });
+
   const pos = new Vector3();
   const quat = new Quaternion();
 
@@ -232,14 +254,21 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
         a.mesh.quaternion.copy(quat);
         a.mesh.scale.setScalar(pose.scale);
         a.stoff.opacity = pose.opacity;
+        const glut = effekte.glut(a.flight.index, t);
+        if (glut) {
+          a.stoff.emissive.copy(glut.farbe);
+          a.stoff.emissiveIntensity = glut.staerke;
+        }
         // A die scaled to nothing still costs a draw call.
         a.mesh.visible = pose.scale > 0.001 && pose.opacity > 0.01;
       }
+      effekte.update(t);
       renderer.render(scene, camera);
     },
 
     dispose(): void {
       beobachter.disconnect();
+      effekte.dispose();
       for (const a of aufbauten) {
         gruppe.remove(a.mesh);
         // The GEOMETRY is module-scope cached and shared by every die of its
