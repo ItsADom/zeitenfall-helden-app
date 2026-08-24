@@ -207,27 +207,85 @@ export function solidFor(sides: number): Solid {
   const p = new Vector3();
 
   flaechen.forEach((flaeche, k) => {
-    // Centre of the face, from its own triangles.
-    mitte.set(0, 0, 0);
-    let n = 0;
+    // --- the face's own corners ---------------------------------------------
+    // Deduplicated, because a face is a fan of triangles that shares vertices,
+    // and averaging the raw list weights the shared ones twice or three times:
+    // a pentagon's "centre" then sits 4% of its radius toward the fan's hub.
+    const ecken: Vector3[] = [];
     for (const t of flaeche.dreiecke) {
       for (let e = 0; e < 3; e++) {
         p.fromBufferAttribute(pos, t * 3 + e);
-        mitte.add(p);
-        n++;
+        if (!ecken.some((q) => q.distanceToSquared(p) < 1e-10)) ecken.push(p.clone());
       }
     }
-    mitte.divideScalar(n);
+    mitte.set(0, 0, 0);
+    for (const ecke of ecken) mitte.add(ecke);
+    mitte.divideScalar(Math.max(1, ecken.length));
 
-    // A 2D basis lying in the face, so the cell can be addressed as a flat
-    // square regardless of how the face is oriented in space.
-    achseU.set(0, 0, 0);
+    // --- put them in boundary order ------------------------------------------
+    // A throwaway basis, only to sort the corners by angle around the centre.
+    // Every face here is a convex polygon, so angular order IS boundary order,
+    // and consecutive pairs are therefore its edges — the fan's inner diagonals
+    // are not.
     const nx = Math.abs(flaeche.normal.x);
     const ny = Math.abs(flaeche.normal.y);
     const nz = Math.abs(flaeche.normal.z);
     const hilfs = nx <= ny && nx <= nz ? new Vector3(1, 0, 0) : ny <= nz ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1);
     achseU.crossVectors(flaeche.normal, hilfs).normalize();
     achseV.crossVectors(flaeche.normal, achseU).normalize();
+    const winkel = new Map<Vector3, number>();
+    for (const ecke of ecken) {
+      const d = ecke.clone().sub(mitte);
+      winkel.set(ecke, Math.atan2(d.dot(achseV), d.dot(achseU)));
+    }
+    ecken.sort((a, b) => (winkel.get(a) ?? 0) - (winkel.get(b) ?? 0));
+
+    // --- which way is UP for the number on this face --------------------------
+    // From the middle of one EDGE toward the centre, so that edge ends up at the
+    // bottom and the number's baseline runs parallel to it. That is how a real
+    // die is printed, and it is the whole reason this basis may not come from a
+    // world axis: `hilfs` above knows nothing about the face's shape, so the
+    // number landed at whatever angle the arithmetic produced — on a d20's
+    // triangles, consistently about 90° out from any edge.
+    //
+    // Works for every shape here rather than just triangles: put an edge at the
+    // bottom and a triangle stands on its base, a square sits square, a
+    // pentagon rests on a side. Aiming at a VERTEX instead would do the same for
+    // the odd-sided faces and stand the d6 on its corner.
+    //
+    // WHICH edge is a free choice — the three of a triangle are 120° apart and
+    // all of them look right — but it must be the SAME free choice everywhere,
+    // or two clients letter their dice differently. Hence the lexicographically
+    // smallest midpoint: no dependence on vertex order, iteration order or
+    // anything else that a three.js version could quietly change.
+    const mittelpunkt = new Vector3();
+    let beste: Vector3 | null = null;
+    let besteRichtung: Vector3 | null = null;
+    for (let i = 0; i < ecken.length; i++) {
+      const a = ecken[i];
+      const b = ecken[(i + 1) % ecken.length];
+      mittelpunkt.addVectors(a, b).multiplyScalar(0.5);
+      if (
+        beste === null ||
+        mittelpunkt.x < beste.x - 1e-9 ||
+        (Math.abs(mittelpunkt.x - beste.x) < 1e-9 &&
+          (mittelpunkt.y < beste.y - 1e-9 ||
+            (Math.abs(mittelpunkt.y - beste.y) < 1e-9 && mittelpunkt.z < beste.z - 1e-9)))
+      ) {
+        beste = mittelpunkt.clone();
+        besteRichtung = new Vector3().subVectors(b, a).normalize();
+      }
+    }
+    // Perpendicular to the edge, not merely "toward the centre". Those coincide
+    // on a regular polygon and do NOT on the d10's kites, where the centre is
+    // off to one side: aiming straight at it tilted every number by 7°.
+    achseV.subVectors(mitte, beste ?? mitte);
+    if (besteRichtung) achseV.addScaledVector(besteRichtung, -achseV.dot(besteRichtung));
+    achseV.normalize();
+    // Right-handed with the outward normal, matching orthoFrame() in
+    // diceCinematic.ts: right x up = out. Get this backwards and every number is
+    // mirrored.
+    achseU.crossVectors(achseV, flaeche.normal).normalize();
     // Copied out, not referenced: both axes are scratch vectors reused by every
     // face of the loop.
     hoch.push([achseV.x, achseV.y, achseV.z]);

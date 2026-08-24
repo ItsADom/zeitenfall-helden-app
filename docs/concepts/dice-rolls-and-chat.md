@@ -641,6 +641,20 @@ expression roll with a performance in front of it.
   disagreed with it. `CAMERA_TILT` therefore lives in `shared` beside the
   layout, at 64°, and the gathered dice are laid out on the plane perpendicular
   to it (`stagePoint`) so the grid is not squashed by the tilt.
+- **A face's UV basis comes from the face, never from a world axis.** The first
+  version built it from whichever coordinate axis the normal leaned on least,
+  which knows nothing about the face's shape — so a number landed at whatever
+  angle the arithmetic produced, on a d20 consistently about 90° out from any
+  edge. It is now taken from one EDGE of the face: perpendicular to it, pointing
+  toward the centre, so that edge ends up at the bottom and the number's
+  baseline runs parallel to it, exactly as a die is printed. One rule covers
+  every shape — a triangle stands on its base, a square sits square, a pentagon
+  rests on a side. (Aiming at a vertex instead would work for the odd-sided
+  faces and stand the d6 on its corner.) Perpendicular to the edge rather than
+  merely "toward the centre", because those coincide only on a regular polygon:
+  on the d10's kites the centre is off to one side and aiming at it tilted every
+  number by 7°. Which edge is free, but it must be the same free choice on every
+  machine, hence the lexicographically smallest midpoint.
 - **The gather squares the numbers up; the table beat does not.** A die on the
   table lands however it lands, random roll and all. Held up to be read it is
   turned BOTH ways — face to the viewer and number the right way up — because
