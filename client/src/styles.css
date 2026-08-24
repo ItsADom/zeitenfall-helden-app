@@ -3062,6 +3062,7 @@ li {
   color: var(--accent);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .chip-haltbarkeit {
   color: var(--muted);
@@ -4648,6 +4649,7 @@ body.resizing-dice {
   border: 1px solid var(--warn-line);
   border-radius: 4px;
   padding: 0 4px;
+  white-space: nowrap;
 }
 .feed-roll-body {
   display: flex;

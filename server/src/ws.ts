@@ -249,6 +249,34 @@ function resolveGmPlayerCounterpart(meta: SocketMeta, rawTargetUserId: unknown):
 }
 
 /**
+ * Shared visibility/gmUserId resolution for the VisibilityPicker's three
+ * states — used identically by chat.send, roll.expr and roll.probe so the
+ * three message types can't drift apart (this used to be duplicated inline
+ * per case, which is how chat.send ended up not having it at all). Sends the
+ * error itself and returns null on an unresolvable 'gm_player' counterpart.
+ */
+function resolveMessageVisibility(
+  ws: WebSocket,
+  meta: SocketMeta,
+  msg: { reqId: string; visibility?: unknown; targetUserId?: unknown },
+): { visibility: RollVisibility; gmUserId: number | null } | null {
+  if (msg.visibility === 'hidden') return { visibility: 'hidden', gmUserId: null };
+  if (msg.visibility === 'gm_player') {
+    const counterpart = resolveGmPlayerCounterpart(meta, msg.targetUserId);
+    if (counterpart === null) {
+      send(ws, {
+        type: 'error',
+        reqId: msg.reqId,
+        message: meta.isGm ? 'Unbekanntes Gruppenmitglied' : 'Die Spielleitung ist gerade nicht verbunden',
+      });
+      return null;
+    }
+    return { visibility: 'gm_player', gmUserId: counterpart };
+  }
+  return { visibility: 'public', gmUserId: null };
+}
+
+/**
  * Ob dieser Charakter zu diesem Raum gehört — fest über characters.group_id
  * ODER additiv über temp_group_members (Event-Gruppe). Die beiden schließen
  * sich in der Praxis gegenseitig aus (ein group_id zeigt nie auf eine Event-
@@ -346,9 +374,19 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Leere Nachricht' });
         return;
       }
+      const resolvedVisibility = resolveMessageVisibility(ws, meta, msg);
+      if (!resolvedVisibility) return;
       // Posting as a character shows ITS name (e.g. "/me baut eine Sandburg"
       // -> "Raskir baut eine Sandburg"), not the account's display name.
-      insertFeedMessage(meta.groupId, resolveAuthor(meta, msg.charId), text, !!msg.isMe);
+      insertFeedMessage(
+        meta.groupId,
+        resolveAuthor(meta, msg.charId),
+        text,
+        !!msg.isMe,
+        undefined,
+        resolvedVisibility.visibility,
+        resolvedVisibility.gmUserId,
+      );
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -387,20 +425,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // An announcement to the whole table with a hidden result behind it makes
       // no sense, so „/i" overrides the VisibilityPicker. The dock says so once,
       // rather than letting the setting quietly do nothing (see DicePanel.tsx).
-      if (!important && msg.visibility === 'hidden') {
-        visibility = 'hidden';
-      } else if (!important && msg.visibility === 'gm_player') {
-        const counterpart = resolveGmPlayerCounterpart(meta, msg.targetUserId);
-        if (counterpart === null) {
-          send(ws, {
-            type: 'error',
-            reqId: msg.reqId,
-            message: meta.isGm ? 'Unbekanntes Gruppenmitglied' : 'Die Spielleitung ist gerade nicht verbunden',
-          });
-          return;
-        }
-        visibility = 'gm_player';
-        gmUserId = counterpart;
+      if (!important) {
+        const resolved = resolveMessageVisibility(ws, meta, msg);
+        if (!resolved) return;
+        visibility = resolved.visibility;
+        gmUserId = resolved.gmUserId;
       }
       const result = performExpressionRoll(expression);
       // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
@@ -462,23 +491,9 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
         return;
       }
-      let visibility: RollVisibility = 'public';
-      let gmUserId: number | null = null;
-      if (msg.visibility === 'hidden') {
-        visibility = 'hidden';
-      } else if (msg.visibility === 'gm_player') {
-        const counterpart = resolveGmPlayerCounterpart(meta, msg.targetUserId);
-        if (counterpart === null) {
-          send(ws, {
-            type: 'error',
-            reqId: msg.reqId,
-            message: meta.isGm ? 'Unbekanntes Gruppenmitglied' : 'Die Spielleitung ist gerade nicht verbunden',
-          });
-          return;
-        }
-        visibility = 'gm_player';
-        gmUserId = counterpart;
-      }
+      const resolved = resolveMessageVisibility(ws, meta, msg);
+      if (!resolved) return;
+      const { visibility, gmUserId } = resolved;
       const modifier = clampModifier(msg.modifier);
       const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
       const roll: ProbeRollPayload = {

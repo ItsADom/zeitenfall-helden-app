@@ -242,7 +242,8 @@ export default function FeedEntryView({ entry, grouped }: { entry: FeedEntry; gr
         <span className="feed-text">
           <strong>{entry.authorName}:</strong> {entry.text}
         </span>
-      )}
+      )}{' '}
+      <VisibilityTag visibility={entry.visibility} />
     </div>
   );
 }

@@ -156,6 +156,7 @@ export default function DicePanel() {
   const w = clampW(width);
   const h = clampH(height);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const lastIdRef = useRef<string | null>(null);
   // Zuletzt abgeschickte Eingaben dieser Sitzung (Befehl wie Chattext) — ein
   // Ringpuffer, älteste zuerst. Pfeil-hoch/-runter läuft ihn wie eine
@@ -268,6 +269,11 @@ export default function DicePanel() {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [h, collapsed]);
+
+  // Beim Ausklappen soll man sofort tippen können, ohne erst hinzuklicken.
+  useEffect(() => {
+    if (!collapsed) inputRef.current?.focus();
+  }, [collapsed]);
 
   if (collapsed) {
     return (
@@ -414,7 +420,7 @@ export default function DicePanel() {
       rollExpr(expr, visibility, label, undefined, visibilityTarget ?? undefined);
       pushHistory(text);
     } else {
-      sendChat(text);
+      sendChat(text, visibility, visibilityTarget ?? undefined);
       pushHistory(text);
     }
     setError('');
@@ -582,6 +588,7 @@ export default function DicePanel() {
           />
         )}
         <input
+          ref={inputRef}
           value={draft}
           onChange={(e) => {
             setDraft(e.target.value);

@@ -244,7 +244,18 @@ export interface CoopPoolRequest {
 // Every client→server message carries reqId so the UI can correlate an
 // error reply back to the control that sent it.
 export type ClientToServerMessage =
-  | { type: 'chat.send'; reqId: string; text: string; isMe: boolean; charId: number | null }
+  // visibility/targetUserId: same VisibilityPicker the dock uses for rolls —
+  // an ordinary chat line defaulted to 'public' regardless of the picker
+  // (see ws.ts); now it carries the same setting a roll would.
+  | {
+      type: 'chat.send';
+      reqId: string;
+      text: string;
+      isMe: boolean;
+      charId: number | null;
+      visibility?: RollVisibility;
+      targetUserId?: number;
+    }
   // `table`: „/master"/„/wild" — der Server würfelt die dazu passenden
   // Würfel und den Ergebnistext selbst (siehe ws.ts), `expression`/`label`
   // werden dann ignoriert. Nie vom Client übernommen, aus demselben Grund

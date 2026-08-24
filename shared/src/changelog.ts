@@ -206,12 +206,16 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Ein Benachrichtigungston für den Chat, einzustellen unter Einstellungen → Benachrichtigungston: fünf Klänge zur Auswahl (Tempelglocke, Silberglöckchen, Kristall, Holzgong, Fanfare), dazu ein Lautstärkeregler. Wer lieber etwas Eigenes hört, lädt eine eigene Tondatei hoch — sie wird auf fünf Sekunden gekürzt und gilt dann auf allen euren Geräten. Im Chat schaltet „/mute" den Ton schnell aus und wieder an.',
     ],
     changed: [
-      'Der Würfel-Chat reißt sich nicht mehr selbst auf. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',
+      'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',
       'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
       'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
+      'Der Würfel-Chat springt beim Ausklappen direkt ins Eingabefeld — Tippen geht ohne vorheriges Anklicken los.',
     ],
     fixed: [
-      'Lange Dialogfenster wurden auf niedrigen Bildschirmen unten abgeschnitten — bei der Befehlsübersicht („/commands") fehlte je nach Fenstergröße die halbe Liste. Dialoge rollen jetzt, Titelzeile und Knöpfe bleiben dabei stehen.',
+      'Lange Dialogfenster wurden auf niedrigen Bildschirmen unten abgeschnitten — bei der Befehlsübersicht („/commands") fehlte je nach Fenstergröße die halbe Liste. Dialoge scrollen jetzt.',
+      'Die Würfel-Favoriten ignorierten die im Chat-Dock eingestellte Erleichterung/Erschwernis — sie wirkt jetzt wie bei jedem anderen Wurf.',
+      'Die Sichtbarkeitseinstellung (Öffentlich/Verborgen/SL+Spieler) galt bisher nur für Würfe, nicht für normale Chat-Nachrichten — sie gilt jetzt für beides, verborgene Nachrichten tragen dafür jetzt auch eine Markierung.',
+      'Gegenstände in Schnellzugriff-Fächern (Gürtel, Bandelier) zählten nicht zur Traglast. Sie zählen jetzt mit ihrem vollen Gewicht und werden — wie der Behälter selbst — halbiert, solange er getragen wird.',
     ],
   },
   {

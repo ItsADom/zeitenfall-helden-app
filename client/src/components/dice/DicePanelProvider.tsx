@@ -185,7 +185,8 @@ interface DicePanelCtxValue {
   setDiceCode: (c: 'w' | 'd') => void;
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
-  sendChat: (raw: string) => void;
+  /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — siehe chat.send im Protokoll. */
+  sendChat: (raw: string, visibility?: RollVisibility, targetUserId?: number) => void;
   /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — siehe roll.expr im Protokoll. */
   rollExpr: (
     expression: string,
@@ -800,20 +801,35 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendChat = useCallback(
-    (raw: string) => {
+    (raw: string, visibility?: RollVisibility, targetUserId?: number) => {
       const isMe = raw.startsWith('/me ');
       const text = isMe ? raw.slice(4).trim() : raw.trim();
       if (!text) return;
-      sendMsg({ type: 'chat.send', reqId: crypto.randomUUID(), text, isMe, charId });
+      sendMsg({ type: 'chat.send', reqId: crypto.randomUUID(), text, isMe, charId, visibility, targetUserId });
     },
     [charId, sendMsg],
   );
 
   const rollExpr = useCallback(
     (expression: string, visibility: RollVisibility, label = '', table?: 'master' | 'wild', targetUserId?: number) => {
-      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId, table, targetUserId });
+      // Situative Erschwernis/Erleichterung gilt für den nächsten Wurf, Bogen
+      // wie Chat (siehe ModifierPicker) — freie Ausdrücke (getippt oder aus
+      // den Würfel-Favoriten) sind da keine Ausnahme. Tabellenwürfe (/master,
+      // /wild) sind ein Lookup, kein Ergebnis mit Summe, und bleiben außen vor.
+      const finalExpression = !table && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
+      sendMsg({
+        type: 'roll.expr',
+        reqId: crypto.randomUUID(),
+        label,
+        expression: finalExpression,
+        visibility,
+        charId,
+        table,
+        targetUserId,
+      });
+      if (!table && modifier !== 0) setModifier(0);
     },
-    [charId, sendMsg],
+    [charId, sendMsg, modifier, setModifier],
   );
 
   const rollWichtig = useCallback(

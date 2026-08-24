@@ -94,22 +94,24 @@ export function insertFeedMessage(
   text: string,
   isMe: boolean,
   groupRollId?: string,
+  visibility: RollVisibility = 'public',
+  gmUserId: number | null = null,
 ): FeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
       `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, is_me, text, group_roll_id)
-       VALUES (?, ?, 'message', 'public', ?, ?, NULL, ?, ?, ?, ?)`,
+       VALUES (?, ?, 'message', ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(groupId, createdAt, author.userId, author.charId, author.name, isMe ? 1 : 0, text, groupRollId ?? null);
+    .run(groupId, createdAt, visibility, author.userId, author.charId, gmUserId, author.name, isMe ? 1 : 0, text, groupRollId ?? null);
   const entry: ChatFeedEntry = {
     id: Number(info.lastInsertRowid),
     kind: 'message',
     createdAt,
-    visibility: 'public',
+    visibility,
     authorUserId: author.userId,
     authorCharId: author.charId,
-    gmUserId: null,
+    gmUserId,
     authorName: author.name,
     isMe,
     text,

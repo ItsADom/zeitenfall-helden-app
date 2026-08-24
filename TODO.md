@@ -31,7 +31,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   - important: they should not see every group and have acccess to every chat like GM does and have no edit rights, just inspection.
   - maybe make character list on management page generally clickable, so characters can be directly selected but not available by the usual workflow (e.g. character flyout in banner)
 - don't show weight directly on equipment chips
-   - also keep "RS X" on equipment together, no line break between RS and number
 - idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
   - images of group members can't be clicked?
 - make wiki-tables sortable
@@ -41,6 +40,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 - equipment toggle for "beidseitig" without edit-mode
 - change Erschwerung/Erleichterung in chat dock per scrolling
   - let the reset button always be visible to avoid flyout reforming layout. just deactivate on 0.
+  - also avoid scrolling the chat in background with it
 - allow multiplication for check formulas
   - also multiple rolls in a single command, like rolling "2w6+8" 3 times
   - allow Attribut values in chat dicecode
@@ -55,17 +55,13 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   - via button from within GM-overview
   - opens a dialog/popup with a display-only list
 - weapon damage directly rollable, RD showing with it
-- pre-focus chat input on expanding panel
 - link containers to equipment, so a backpack has to (or can) actually be worn in Ausrüstung
   - a not actively worn container does not increase Traglast
   - containers will get their own weight value
 - let gm set Erschwerung/Erleichterung on check request
 - check if confirmations that get rolled together always get the same value or just coincidence on last occasions
   - in general many 1s and 20s. check RNG
-- items in quickslots curently do not contribute their weight
 - equipment item names should break line, not be trimmed
-- favorites do not respect set Erschwerung/Erleichterung
-- visibility settings should also count for all chat messages
 - chat does not work reliable when a single user has it open on multiple browser-tabs
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
