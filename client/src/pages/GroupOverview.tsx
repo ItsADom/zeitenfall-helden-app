@@ -192,7 +192,13 @@ export default function GroupOverviewPage() {
   return (
     <>
       <p className="muted">
-        {data.group.isTemp ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
+        {data.group.isTemp ? (
+          <>
+            <Link to={`/event/${groupId}`}>← Zum Event</Link> · <Link to="/verwaltung">Zur Verwaltung</Link>
+          </>
+        ) : (
+          <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>
+        )}
       </p>
       <h1>{data.group.isTemp ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
 

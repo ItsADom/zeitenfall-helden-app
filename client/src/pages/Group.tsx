@@ -10,7 +10,7 @@ import { useTabsHeight } from '../components/stickyChrome';
 import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
-  group: { id: number; name: string; portrait: boolean };
+  group: { id: number; name: string; portrait: boolean; isTemp: boolean };
   members: { id: number; username: string; displayName: string }[];
   characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null; portrait: boolean }[];
   tabs: DynTab[];
@@ -115,11 +115,11 @@ export default function GroupPage() {
       <div className="group-head">
         <Portrait kind="group" id={groupId} initialHasImage={data.group.portrait} />
         <div>
-          <h1>Gruppe: {data.group.name}</h1>
+          <h1>{data.group.isTemp ? 'Event' : 'Gruppe'}: {data.group.name}</h1>
           <p className="muted">Mitglieder: {data.members.map((m) => m.displayName).join(', ') || '—'}</p>
           {user.isGm && (
             <p>
-              <Link to={`/gruppe/${groupId}/uebersicht`}>Spielleiter-Übersicht →</Link>
+              <Link to={`/${data.group.isTemp ? 'event' : 'gruppe'}/${groupId}/uebersicht`}>Spielleiter-Übersicht →</Link>
             </p>
           )}
         </div>
@@ -140,43 +140,53 @@ export default function GroupPage() {
             }
           />
         ))}
-        {data.characters.length === 0 && <p className="muted">Keine Charaktere in dieser Gruppe.</p>}
+        {data.characters.length === 0 && (
+          <p className="muted">Keine Charaktere in dieser {data.group.isTemp ? 'Event-Gruppe' : 'Gruppe'}.</p>
+        )}
       </div>
 
-      <h2>Gemeinsames</h2>
-      <div className="tabs" ref={tabsRef}>
-        {tabs.map((t) => (
-          <button key={t.id} className={t.id === activeTab ? 'active' : ''} onClick={() => setActiveTab(t.id)}>
-            {t.name}
-          </button>
-        ))}
-        <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
-          + Tab
-        </button>
-      </div>
+      {/* Event-Gruppen bekommen bewusst keine gemeinsamen Inhalte — siehe
+          editableGroup in server/src/routes.ts. Ohne diesen Block bleibt
+          --tabs-h für die Event-Seite unmessbar; das ist hier richtig, nicht
+          nur ein Fallback, weil gar keine Reiterleiste gerendert wird. */}
+      {!data.group.isTemp && (
+        <>
+          <h2>Gemeinsames</h2>
+          <div className="tabs" ref={tabsRef}>
+            {tabs.map((t) => (
+              <button key={t.id} className={t.id === activeTab ? 'active' : ''} onClick={() => setActiveTab(t.id)}>
+                {t.name}
+              </button>
+            ))}
+            <button className="small" onClick={addTab} title="Neuen Tab anlegen" style={{ alignSelf: 'center' }}>
+              + Tab
+            </button>
+          </div>
 
-      {current ? (
-        <ContentTabView
-          key={`${current.id}:${reloadTick}`}
-          basePath={basePath}
-          tab={current}
-          attributes={NO_ATTRIBUTES}
-          isFirst={tabs.indexOf(current) === 0}
-          isLast={tabs.indexOf(current) === tabs.length - 1}
-          showVisibility={false}
-          allowProbe={false}
-          onDirtyChange={(d) => {
-            dynDirty.current = d;
-          }}
-          onSectionsChange={(secs) =>
-            setTabs((t) => t.map((x) => (x.id === current.id ? { ...x, sections: secs } : x)))
-          }
-          onRenameTab={(name) => renameTab(current.id, name)}
-          onDeleteTab={() => deleteTab(current.id)}
-          onMoveTab={(dir) => moveTab(tabs.indexOf(current), dir)}
-        />
-      ) : (
-        <p className="muted">Noch keine Tabs. Lege einen an, um gemeinsame Inhalte zu sammeln.</p>
+          {current ? (
+            <ContentTabView
+              key={`${current.id}:${reloadTick}`}
+              basePath={basePath}
+              tab={current}
+              attributes={NO_ATTRIBUTES}
+              isFirst={tabs.indexOf(current) === 0}
+              isLast={tabs.indexOf(current) === tabs.length - 1}
+              showVisibility={false}
+              allowProbe={false}
+              onDirtyChange={(d) => {
+                dynDirty.current = d;
+              }}
+              onSectionsChange={(secs) =>
+                setTabs((t) => t.map((x) => (x.id === current.id ? { ...x, sections: secs } : x)))
+              }
+              onRenameTab={(name) => renameTab(current.id, name)}
+              onDeleteTab={() => deleteTab(current.id)}
+              onMoveTab={(dir) => moveTab(tabs.indexOf(current), dir)}
+            />
+          ) : (
+            <p className="muted">Noch keine Tabs. Lege einen an, um gemeinsame Inhalte zu sammeln.</p>
+          )}
+        </>
       )}
     </>
   );

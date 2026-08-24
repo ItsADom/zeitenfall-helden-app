@@ -553,38 +553,61 @@ api.get('/groups/mine', requireAuth, (req, res) => {
   );
 });
 
+// Bedient feste UND Event-Gruppen (isRoomMember statt isGroupMember, dieselbe
+// UNION aus fester und additiver Mitgliedschaft wie beim Schicksalspunkte-Reset
+// oben). „Gemeinsame Inhalte" (Tabs/Sektionen) bekommen Event-Gruppen bewusst
+// NICHT — siehe Kommentar bei editableGroup weiter unten —, deshalb bleiben
+// die Tabs für is_temp-Gruppen leer statt nachgezogen zu werden.
 api.get('/groups/:id', requireAuth, (req, res) => {
   const groupId = Number(req.params.id);
   const user = req.user!;
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId) as { id: number; name: string } | undefined;
-  if (!group || (!user.isGm && !isGroupMember(user.id, groupId))) {
+  const group = db.prepare('SELECT *, is_temp AS isTemp FROM groups WHERE id = ?').get(groupId) as
+    | { id: number; name: string; isTemp: number }
+    | undefined;
+  if (!group || (!user.isGm && !isRoomMember(user.id, groupId))) {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
   const members = db
     .prepare(
       `SELECT DISTINCT u.id, u.username, u.display_name AS displayName
-       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?`,
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?
+       UNION
+       SELECT DISTINCT u.id, u.username, u.display_name AS displayName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id
+       JOIN temp_group_members tgm ON tgm.character_id = c.id WHERE tgm.temp_group_id = ?`,
     )
-    .all(groupId);
+    .all(groupId, groupId);
   const chars = db
     .prepare(
       `SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
-       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ? ORDER BY c.name`,
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?
+       UNION
+       SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id
+       JOIN temp_group_members tgm ON tgm.character_id = c.id WHERE tgm.temp_group_id = ?
+       ORDER BY name`,
     )
-    .all(groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
+    .all(groupId, groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
   const characters = chars.map((c) => {
-    const access = characterAccess(user, getChar(c.id)!);
+    // Wer in dieser Auflistung steht, ist Mitglied dieses Raums (fest oder
+    // additiv über die Event-Gruppe) — also mindestens „summary" füreinander,
+    // auch wenn characterAccess (rein permanente Gruppe) allein null ergäbe.
+    const access = characterAccess(user, getChar(c.id)!) ?? (user.isGm || isRoomMember(user.id, groupId) ? 'summary' : null);
     return { ...c, access, portrait: hasPortrait(c.id) };
   });
-  // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
-  // die es vor diesem Feature schon gab, ihre Inhalte
-  instantiateGroupTabs(groupId);
+  let tabs: ReturnType<typeof loadDynTabs> = [];
+  if (!group.isTemp) {
+    // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
+    // die es vor diesem Feature schon gab, ihre Inhalte
+    instantiateGroupTabs(groupId);
+    tabs = loadDynTabs(groupId, GROUP_DYN);
+  }
   res.json({
-    group: { ...group, portrait: hatGruppenPortrait(groupId) },
+    group: { ...group, isTemp: !!group.isTemp, portrait: hatGruppenPortrait(groupId) },
     members,
     characters,
-    tabs: loadDynTabs(groupId, GROUP_DYN),
+    tabs,
   });
 });
 

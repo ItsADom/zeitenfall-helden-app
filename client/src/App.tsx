@@ -164,6 +164,11 @@ export default function App() {
           <Route path="/einstellungen" element={<EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/gruppe/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
+          {/* Event-Gruppen bekamen bislang keine eigene Spielerseite — nur die
+              GM-Übersicht und den Chat-Dock-Raumwähler. GroupPage bedient beide
+              Gruppenarten schon serverseitig (group.isTemp), also reicht die
+              zweite Route auf dieselbe Komponente. */}
+          <Route path="/event/:id" element={<GroupPage />} />
           <Route path="/event/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/charakter/:id/zauber-faehigkeiten" element={<AbilityManagerPage />} />
