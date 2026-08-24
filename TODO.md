@@ -492,15 +492,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   `.wpn-card` / `Ausruestung.tsx`'s `.item-chip` styling used elsewhere. Needs
   a concept pass: restyle as themed table variant, or restructure as cards
   (one per attribute row)?
-- [ready] **New-tab category picker** (concept agreed — convenience seeding only):
-  right now creating a tab (character sheet via Einstellungen `addTab`, and group
-  tabs via the group page's `+ Tab` button) just gives an empty "Neuer Tab" with
-  no content. Offer the same table/notepad choice that already exists one level
-  down for sections (`Sektionen.tsx` `addSection('table' | 'notes')`) at tab-
-  creation time instead: "Tabelle" / "Notizfeld" / "Leer" pre-seeds the new tab
-  with one starter section of that type (or none). Purely a convenience default —
-  the tab behaves like any other afterward, sections of either type can still be
-  freely added/removed. Applies to both character tabs and group tabs.
 
 ## Unsorted ideas (treat all as [sketch])
 
