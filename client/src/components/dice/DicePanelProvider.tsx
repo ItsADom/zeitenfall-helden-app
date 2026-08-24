@@ -4,6 +4,7 @@ import type {
   CoopPoolRequest,
   FeedEntry,
   GroupRollRequest,
+  KinoAuftrag,
   PendingRollRequest,
   ProbeSource,
   RollVisibility,
@@ -96,6 +97,20 @@ function trimFeed(entries: FeedEntry[], allow: boolean): FeedEntry[] {
 export interface PresenceNote {
   key: string;
   text: string;
+}
+
+/**
+ * A „großer Wurf" currently being announced.
+ *
+ * Purely local, exactly like PresenceNote: it comes off the socket, is never
+ * part of the feed and is never persisted. `lauf` counts performances and is
+ * used as the overlay's React key, so a second announcement REMOUNTS it rather
+ * than reconciling one mid-animation — the same reason App.tsx keys BannerFx.
+ * That guarantees the WebGL context of the old run is torn down.
+ */
+export interface KinoLauf {
+  auftrag: KinoAuftrag;
+  lauf: number;
 }
 
 export interface DiceGroupOption {
@@ -244,6 +259,24 @@ interface DicePanelCtxValue {
    * `max` weglassen, um nur `aktuell` zu setzen.
    */
   setSchicksalspunkte: (aktuell: number, max?: number) => void;
+  /**
+   * „/i": wie rollExpr, aber als Ansage an den ganzen Tisch.
+   *
+   * Its own method rather than a sixth argument to rollExpr: the invariants
+   * (always public, never a table, never a counterpart) then live in ONE place
+   * instead of at every call site, and rollExpr's three existing callers stay
+   * untouched. The context already prefers narrow, purpose-named methods —
+   * requestGroupProbe, proposeCoopPool, startCoopPool.
+   */
+  rollWichtig: (expression: string, label?: string) => void;
+  /** Runs while a „großer Wurf" is being shown. Null the rest of the time. */
+  kino: KinoLauf | null;
+  /**
+   * Called by the overlay when its performance is over — normally, skipped,
+   * timed out or after an error. Appends the held-back entry to the feed.
+   * Idempotent: whichever of those happens first wins, the rest are no-ops.
+   */
+  kinoBeenden: (entryId: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -298,6 +331,9 @@ export function useDicePanel(): DicePanelCtxValue {
       refreshRooms: () => {},
       loadMore: () => {},
       setSchicksalspunkte: () => {},
+      rollWichtig: () => {},
+      kino: null,
+      kinoBeenden: () => {},
     }
   );
 }
@@ -331,6 +367,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [groupRequests, setGroupRequests] = useState<GroupRollRequest[]>([]);
   const [coopPools, setCoopPools] = useState<CoopPoolRequest[]>([]);
   const [presenceNotes, setPresenceNotes] = useState<PresenceNote[]>([]);
+  const [kino, setKino] = useState<KinoLauf | null>(null);
+  // Read from ws.onmessage and from kinoBeenden, both of which may only touch
+  // refs and setters (see the ref rationale below), so the running performance
+  // is tracked in a ref alongside the state.
+  const kinoRef = useRef<KinoLauf | null>(null);
+  const kinoLaufRef = useRef(0);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -421,6 +463,52 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     }
     spieleTon(tonRef.current, lautstaerkeRef.current);
   }, [melde]);
+
+  /**
+   * Appends an entry that was held back for a cinematic.
+   *
+   * Deliberately NOT a blind merge. While the performance was running, a
+   * feed.update for this very id may already have arrived: someone who
+   * reconnected mid-cinematic has the entry from the history and can have
+   * thrown its confirmation already. mergeFeed replaces by id, so appending our
+   * older copy on top would silently undo the newer one.
+   */
+  const haengeEintragAn = useCallback((entry: FeedEntry) => {
+    setFeed((prev) => (prev.some((e) => e.id === entry.id) ? prev : trimFeed(mergeFeed(prev, [entry]), trimOverrideRef.current)));
+  }, []);
+
+  /**
+   * A „großer Wurf" has been announced. Called from ws.onmessage, so it may
+   * touch only setters and refs.
+   */
+  const starteKino = useCallback(
+    (auftrag: KinoAuftrag) => {
+      // A second announcement while one is still running: end the running one
+      // at once (its entry goes into the feed) and start the new one. The
+      // server's per-group cooldown makes this practically impossible — this is
+      // the belt to that pair of braces.
+      const laufend = kinoRef.current;
+      if (laufend) haengeEintragAn(laufend.auftrag.entry);
+      kinoLaufRef.current += 1;
+      const lauf: KinoLauf = { auftrag, lauf: kinoLaufRef.current };
+      kinoRef.current = lauf;
+      setKino(lauf);
+    },
+    [haengeEintragAn],
+  );
+
+  const kinoBeenden = useCallback(
+    (entryId: number) => {
+      const laufend = kinoRef.current;
+      // Guarded by id: a late call from a performance that has already been
+      // superseded must not clear the new one.
+      if (!laufend || laufend.auftrag.entry.id !== entryId) return;
+      kinoRef.current = null;
+      haengeEintragAn(laufend.auftrag.entry);
+      setKino(null);
+    },
+    [haengeEintragAn],
+  );
 
   /**
    * Auf- und Zuklappen — und der einzige Weg, auf dem der Dock noch aufgeht
@@ -592,6 +680,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         addPresenceNote(`${msg.name} ist beigetreten.`);
         return;
       }
+      if (msg.type === 'roll.important') {
+        // The entry deliberately does NOT go into the feed here — the overlay
+        // hands it back through kinoBeenden when its performance is over. See
+        // KinoAuftrag.entry.
+        starteKino(msg);
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -709,6 +804,23 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const rollExpr = useCallback(
     (expression: string, visibility: RollVisibility, label = '', table?: 'master' | 'wild', targetUserId?: number) => {
       sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId, table, targetUserId });
+    },
+    [charId, sendMsg],
+  );
+
+  const rollWichtig = useCallback(
+    (expression: string, label = '') => {
+      // No visibility, no table, no counterpart: „/i" is always a public
+      // announcement, and the server enforces that regardless (see ws.ts).
+      sendMsg({
+        type: 'roll.expr',
+        reqId: crypto.randomUUID(),
+        label,
+        expression,
+        visibility: 'public',
+        charId,
+        important: true,
+      });
     },
     [charId, sendMsg],
   );
@@ -951,6 +1063,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         refreshRooms,
         loadMore,
         setSchicksalspunkte,
+        rollWichtig,
+        kino,
+        kinoBeenden,
       }}
     >
       {children}

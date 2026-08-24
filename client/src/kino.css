@@ -1,0 +1,93 @@
+/* „Der große Wurf" (/i) — the full-screen announcement overlay.
+ *
+ * Its own stylesheet rather than more lines in styles.css (5837), following the
+ * precedent set by wiki.css: every rule is prefixed `.dice-kino` and uses only
+ * the existing colour tokens, so nothing here can leak into the rest of the app.
+ */
+
+.dice-kino {
+  position: fixed;
+  inset: 0;
+  /* Above the dock (150) AND above .dialog-backdrop (200): a great roll is an
+     event for the whole table that nobody opened themselves, so it covers an
+     open dialog too. Below .wartung-schirm (300): a restart beats any
+     performance. */
+  z-index: 250;
+  display: grid;
+  place-items: center;
+  /* Dark in BOTH light and dark mode — a dim that is not dark is not a dim, and
+     every die pigment is designed to sit on dark ground here. Deliberately no
+     backdrop-filter: blurring behind a transparent canvas that repaints every
+     frame makes the compositor re-blur continuously, which is a real cost on
+     integrated graphics. */
+  background: color-mix(in srgb, var(--bg) 18%, #000);
+  opacity: 0.94;
+  transition: opacity 400ms ease;
+  cursor: pointer;
+  /* The overlay itself never scrolls, and a touch drag on it must not pan the
+     page underneath. No body scroll lock: that shifts the layout by the
+     scrollbar width, and Dialog.tsx deliberately has none either. */
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* The closing stretch — see ABBLEND_MS in WichtigerWurfOverlay.tsx, which must
+   match the transition above. */
+.dice-kino--aus {
+  opacity: 0;
+}
+
+.dice-kino-buehne {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+/* PLACEHOLDER — replaced by the 3D canvas. */
+.dice-kino-platzhalter {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 12vw, 6rem);
+  letter-spacing: 0.2em;
+  color: var(--panel);
+  opacity: 0.35;
+  margin: 0;
+}
+
+.dice-kino-hinweis {
+  position: absolute;
+  bottom: 1.4rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--panel);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+/* Reduced motion removes the MOTION, never the information: the announcement
+   still happens and the result still arrives, it simply does not move. */
+@media (prefers-reduced-motion: reduce) {
+  .dice-kino {
+    transition: none;
+  }
+}
+
+/* The „nur Spielleitung" marker in the /commands overview. Listed rather than
+   hidden — see the reasoning in CommandsDialog.tsx. */
+.cmd-nur-sl {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-head);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  vertical-align: 0.1em;
+}

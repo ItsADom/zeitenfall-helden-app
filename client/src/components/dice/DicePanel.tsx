@@ -13,7 +13,7 @@ import FeedEntryView from './FeedEntryView';
 import ModifierPicker from './ModifierPicker';
 import GroupRequestCard from './GroupRequestCard';
 import PendingRequestCard from './PendingRequestCard';
-import { COOP } from './labels';
+import { COOP, WICHTIG } from './labels';
 import { PROBE_KIND_LABEL, type RollableProbe } from './rollableProbes';
 import RoomPicker from './RoomPicker';
 import SchicksalspunkteControl from './SchicksalspunkteControl';
@@ -121,6 +121,7 @@ export default function DicePanel() {
     tonZuletzt,
     sendChat,
     rollExpr,
+    rollWichtig,
     rollProbe,
     proposeCoopPool,
     refreshRooms,
@@ -147,6 +148,9 @@ export default function DicePanel() {
   // also eigene, neutral eingefärbte Zeile statt der Fehlerbox.
   const [info, setInfo] = useState('');
   const [commandsOpen, setCommandsOpen] = useState(false);
+  // The note that „/i" overrides the visibility picker is shown exactly once
+  // per device. On every roll it would be noise.
+  const [wichtigHinweisGesehen, setWichtigHinweisGesehen] = usePersistedState<boolean>('dice:i-hinweis', false);
   const [width, setWidth] = usePersistedState<number>('dice:w', DEFAULT_W);
   const [height, setHeight] = usePersistedState<number>('dice:h', DEFAULT_H);
   const w = clampW(width);
@@ -366,6 +370,34 @@ export default function DicePanel() {
     const koop = /^\/(?:koop|coop)(?:\s+(.*))?$/i.exec(text);
     if (koop) {
       setError(`„${koop[1] ?? ''}" — noch keine Probe aus den Vorschlägen ausgewählt.`);
+      return;
+    }
+    // „/i <Ausdruck>" (bzw. „/important"): wie „/r", aber der Wurf wird am
+    // ganzen Tisch angesagt — Fanfare, Verdunklung, fallende Würfel, und erst
+    // danach der Eintrag im Chat. Steht VOR dem „/r"-Zweig, weil „erster Treffer
+    // gewinnt" der dokumentierte Vertrag dieser Funktion ist und ein Leser
+    // Würfelbefehle hier beieinander erwartet.
+    //
+    // Die Prüfung auf isGm erspart nur den Weg zum Server; verbindlich ist die
+    // dortige (siehe ws.ts). Bewusst KEIN stiller Rückfall auf „/r": das würfe
+    // etwas, das niemand angefordert hat.
+    const wichtig = /^\/(?:i|important)\s+(.+)$/i.exec(text);
+    if (wichtig) {
+      if (!user.isGm) {
+        setError(WICHTIG.nurSl);
+        return;
+      }
+      const { expr, label } = splitInlineTitle(wichtig[1]);
+      if (!parseDiceExpression(expr)) {
+        setError(WICHTIG.keinAusdruck(wichtig[1]));
+        return;
+      }
+      rollWichtig(expr, label);
+      pushHistory(text);
+      setError('');
+      setInfo(wichtigHinweisGesehen ? '' : WICHTIG.hinweisSichtbarkeit);
+      setWichtigHinweisGesehen(true);
+      setDraft('');
       return;
     }
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);

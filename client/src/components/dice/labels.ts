@@ -106,3 +106,29 @@ export const COOP = {
   /** Ein bestätigter kritischer Fehlschlag ohne rettenden kritischen Erfolg — entscheidet unabhängig von den Summen. */
   verdictFailureRescueless: 'Fehlschlag (kritischer Fehlschlag, nicht gerettet)',
 };
+
+/**
+ * „/i" — der große Wurf: die Ansage an den ganzen Tisch.
+ *
+ * Wie alles andere hier reiner Text. WANN eine Vorstellung läuft und was in ihr
+ * passiert, entscheidet shared/src/diceCinematic.ts.
+ */
+export const WICHTIG = {
+  /**
+   * Einmaliger Hinweis beim ersten „/i" — danach nie wieder. Die Spielleitung
+   * soll einmal erfahren, dass der Sichtbarkeits-Schalter hier übergangen wird,
+   * statt sich später zu wundern, warum er nichts bewirkt hat.
+   */
+  hinweisSichtbarkeit:
+    'Ein großer Wurf ist immer öffentlich — „Verdeckt" und „SL+Spieler" gelten dafür nicht. Alle am Tisch sehen die Würfel fallen.',
+  /** Ein Spieler hat „/i" versucht. Der Server lehnt es ohnehin ab; das hier erspart nur den Weg dorthin. */
+  nurSl: '„/i" ist der Spielleitung vorbehalten.',
+  /** Kein gültiger Würfelausdruck hinter „/i". */
+  keinAusdruck: (eingabe: string): string => `„${eingabe}" ist kein gültiger Würfelausdruck (z. B. 2w6+5).`,
+  /** Beschriftung des Overlays für Vorleseprogramme — es zeigt selbst keinen Text. */
+  overlayLabel: (name: string): string => `Großer Wurf von ${name}`,
+  /** Kleiner Hinweis in der Ecke, sobald die Würfel liegen. */
+  ueberspringen: 'Esc oder Klick überspringt',
+  /** prefers-reduced-motion: Kopfzeile der Ergebniskarte statt der Animation. */
+  karteTitel: 'Großer Wurf',
+};

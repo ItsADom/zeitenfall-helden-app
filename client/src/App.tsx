@@ -25,6 +25,7 @@ import { RequestsProvider, PendingBadge } from './components/requests';
 import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProvider';
 import { WartungProvider } from './components/wartung';
 import { NeustartOverlay } from './components/NeustartOverlay';
+import WichtigerWurfOverlay from './components/dice/WichtigerWurfOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
@@ -175,6 +176,9 @@ export default function App() {
         </Routes>
       </main>
       <DicePanelDock />
+      {/* Over the dock (which it ends by flying into), but under the restart
+          screen: a redeploy beats any performance. */}
+      <WichtigerWurfOverlay />
       {/* Ganz zuletzt und außerhalb von <main>: der Wartebildschirm muss alles
           überdecken, den Würfel-Dock eingeschlossen. */}
       <NeustartOverlay />
