@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Texturen &amp; Übergänge — Virtueller Tisch</title>
+<style>
+  * { box-sizing: border-box; }
+  /* Palette: die echten :root-Werte der App (hell) plus die Karten-Token aus
+     dem bestehenden Mockup. Die Texturen selbst folgen dem Farbmodus NICHT —
+     das ist die im Plan festgehaltene Entscheidung: nur das Drumherum wird
+     eingefärbt, die Karte bleibt Karte. */
+  :root {
+    --bg: #f6f3ec; --panel: #ffffff; --panel-hi: #fffdf8;
+    --border: #e4ddce; --border-strong: #d3c9b4;
+    --text: #292018; --muted: #8a7d68;
+    --accent: #8b2635; --accent-dark: #6f1d2a; --accent-soft: #faf1ee;
+    --on-accent: #ffffff;
+    --shadow: 0 1px 2px rgba(41,32,24,.06), 0 4px 16px rgba(41,32,24,.05);
+    --radius: 10px; --radius-panel: 8px;
+    --map-outer: #efe6d1; --map-line: rgba(41,32,24,.16);
+  }
+  :root[data-theme="dark"] {
+    --bg: #17140f; --panel: #221d16; --panel-hi: #2a241b;
+    --border: #3a3226; --border-strong: #4a4030;
+    --text: #ece3d2; --muted: #a99e86;
+    --accent: #d06a48; --accent-dark: #e0855f; --accent-soft: #35221a;
+    --on-accent: #ffffff;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
+    --map-outer: #1d1913; --map-line: rgba(236,227,210,.16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17140f; --panel: #221d16; --panel-hi: #2a241b;
+      --border: #3a3226; --border-strong: #4a4030;
+      --text: #ece3d2; --muted: #a99e86;
+      --accent: #d06a48; --accent-dark: #e0855f; --accent-soft: #35221a;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
+      --map-outer: #1d1913; --map-line: rgba(236,227,210,.16);
+    }
+  }
+
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 80px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: .2px; }
+  h2 { font-size: 18px; margin: 38px 0 6px; }
+  h2 .num {
+    display: inline-block; min-width: 26px; color: var(--accent); font-weight: 700;
+  }
+  p.lead { color: var(--muted); margin: 0 0 18px; max-width: 74ch; }
+  p.note { color: var(--muted); font-size: 13.5px; margin: 8px 0 0; max-width: 78ch; }
+  code { font: 12.5px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace;
+         background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+
+  .bar {
+    position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap;
+    gap: 8px 18px; align-items: center; margin: 18px 0 6px;
+    padding: 10px 14px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  .bar .grp { display: flex; gap: 6px; align-items: center; }
+  .bar .lbl { color: var(--muted); font-size: 13px; margin-right: 2px; }
+  button {
+    font: inherit; font-size: 13.5px; padding: 5px 11px; cursor: pointer;
+    color: var(--text); background: var(--panel-hi);
+    border: 1px solid var(--border-strong); border-radius: 7px;
+  }
+  button:hover { border-color: var(--accent); }
+  button[aria-pressed="true"] {
+    background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+  }
+
+  .palette { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 12px; }
+  .mat {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius-panel); overflow: hidden; box-shadow: var(--shadow);
+  }
+  .mat svg { display: block; width: 100%; height: auto; }
+  .mat .meta { padding: 7px 9px 8px; }
+  .mat .name { font-weight: 600; font-size: 13.5px; }
+  .mat .sub { color: var(--muted); font-size: 11.5px; display: flex; justify-content: space-between; }
+
+  .pairs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius-panel); box-shadow: var(--shadow); padding: 11px 12px 12px;
+  }
+  .card h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+  .card h3 span { color: var(--muted); font-weight: 400; }
+  .card svg, .scene svg { display: block; width: 100%; height: auto;
+    border-radius: 6px; background: var(--map-outer); }
+  .scene { margin-top: 6px; }
+
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .modes figure { margin: 0; }
+  .modes figcaption { color: var(--muted); font-size: 12px; margin-top: 5px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Texturen &amp; Übergänge</h1>
+  <p class="lead">
+    Prototyp zum Texturbeschluss aus <code>docs/concepts/virtual-table.md</code>.
+    Die Bilder hier sind <strong>Platzhalter, im Browser erzeugt</strong> — sie zeigen
+    Auflösung, Priorität und Verhalten der Materialien, nicht die endgültige Optik.
+    Die Kanten dagegen sind <strong>echt</strong>: sie laufen durch genau die
+    SVG-Masken- und Filterkette, die der Plan vorschlägt.
+  </p>
+
+  <div class="bar">
+    <span class="grp"><span class="lbl">Kanten</span>
+      <button data-mode="hart">Hart</button>
+      <button data-mode="weich">Weich</button>
+      <button data-mode="natuerlich">Natürlich</button>
+    </span>
+    <span class="grp"><span class="lbl">Raster</span>
+      <button id="btn-grid">Zeigen</button>
+    </span>
+    <span class="grp"><span class="lbl">Variation</span>
+      <button id="btn-var">Drehungen</button>
+    </span>
+    <span class="grp">
+      <button id="btn-seed">Neuer Seed</button>
+      <button id="btn-theme">Dunkel / Hell</button>
+    </span>
+  </div>
+
+  <h2><span class="num">1</span> Die Materialien</h2>
+  <p class="lead">
+    Fünfzehn Vorschläge, je mit Gruppe (für den Picker) und <code>prio</code>
+    (wer beim Übergang über wen läuft — hoch überdeckt niedrig).
+  </p>
+  <div class="palette" id="palette"></div>
+
+  <h2><span class="num">2</span> Zwei Materialien aneinander</h2>
+  <p class="lead">
+    Jede Karte zeigt dasselbe gemalte Feld dreimal: hart am Raster, weich
+    ausgestellt, und mit Rauschkante. Nichts davon ist gezeichnete Übergangs­grafik —
+    es entsteht aus der Geometrie, deshalb funktioniert <em>jede</em> Paarung.
+  </p>
+  <div class="pairs" id="pairs"></div>
+
+  <h2><span class="num">3</span> Eine ganze Szene</h2>
+  <p class="lead">
+    Sechs Materialien auf einmal: Wasser läuft in Sand, Sand in Gras, Moos wächst
+    in Flecken, ein gemauerter Raum mit Steinboden steht darauf, Fels bricht durch.
+  </p>
+  <div class="scene card"><div id="scene"></div></div>
+  <p class="note">
+    Der Bruch, den man hier sehen kann: Texturen folgen den sechs Farbwelten der App
+    nicht. Umschalten auf Dunkel färbt nur das Drumherum — die Karte bleibt gleich.
+    Das ist so entschieden, aber es ist der Punkt, den man einmal angesehen haben will.
+  </p>
+
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * 1. Kachelbares Rauschen
+ * ------------------------------------------------------------------ */
+function rng(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const lattices = new Map();
+function lattice(period, seed) {
+  const k = period + ':' + seed;
+  let g = lattices.get(k);
+  if (!g) {
+    g = new Float32Array(period * period);
+    const r = rng(seed * 2654435761 + period * 40503);
+    for (let i = 0; i < g.length; i++) g[i] = r();
+    lattices.set(k, g);
+  }
+  return g;
+}
+const smooth = (t) => t * t * (3 - 2 * t);
+function noise2(g, p, x, y) {
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const at = (a, b) => g[(((b % p) + p) % p) * p + (((a % p) + p) % p)];
+  const a = at(x0, y0), b = at(x0 + 1, y0), c = at(x0, y0 + 1), d = at(x0 + 1, y0 + 1);
+  const u = smooth(fx), v = smooth(fy);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+/** fBm über eine Fläche der Kantenlänge `size`, exakt kachelbar. */
+function fbm(size, period, octaves, seed) {
+  const gs = [];
+  for (let o = 0; o < octaves; o++) gs.push([period << o, lattice(period << o, seed + o * 77)]);
+  return (x, y) => {
+    let s = 0, amp = 1, tot = 0;
+    for (const [p, g] of gs) { s += amp * noise2(g, p, (x / size) * p, (y / size) * p); tot += amp; amp *= 0.5; }
+    return s / tot;
+  };
+}
+const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
+const mix = (c1, c2, t) => { t = clamp(t); return [
+  c1[0] + (c2[0] - c1[0]) * t, c1[1] + (c2[1] - c1[1]) * t, c1[2] + (c2[2] - c1[2]) * t]; };
+const TAU = Math.PI * 2;
+
+/* ------------------------------------------------------------------ *
+ * 2. Materialien — Platzhalter-Generatoren, 128px, nahtlos
+ * ------------------------------------------------------------------ */
+const SIZE = 128;
+function paint(seed, fn) {
+  const c = document.createElement('canvas'); c.width = c.height = SIZE;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(SIZE, SIZE), d = img.data;
+  for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) {
+    const o = (y * SIZE + x) * 4, col = fn(x, y);
+    d[o] = col[0]; d[o + 1] = col[1]; d[o + 2] = col[2]; d[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL('image/png');
+}
+const ridge = (v) => 1 - Math.abs(v * 2 - 1);
+
+const MATS = [
+  { key: 'wasser-tief', label: 'Wasser (tief)', gruppe: 'Wasser', prio: 10, gen: (s) => {
+      const n = fbm(SIZE, 6, 4, s), m = fbm(SIZE, 3, 2, s + 9);
+      return paint(s, (x, y) => {
+        const w = Math.sin((x / SIZE) * TAU * 3 + m(x, y) * 5) * 0.5 + 0.5;
+        return mix([18, 42, 74], [40, 82, 124], n(x, y) * 0.7 + w * 0.3);
+      }); } },
+  { key: 'wasser-seicht', label: 'Wasser (seicht)', gruppe: 'Wasser', prio: 12, gen: (s) => {
+      const n = fbm(SIZE, 8, 4, s), m = fbm(SIZE, 4, 2, s + 5);
+      return paint(s, (x, y) => {
+        const w = Math.sin((y / SIZE) * TAU * 4 + m(x, y) * 6) * 0.5 + 0.5;
+        return mix([58, 116, 140], [122, 176, 186], n(x, y) * 0.6 + w * 0.4);
+      }); } },
+  { key: 'lava', label: 'Lava', gruppe: 'Gefahr', prio: 14, gen: (s) => {
+      const n = fbm(SIZE, 5, 4, s), f = fbm(SIZE, 10, 3, s + 2);
+      return paint(s, (x, y) => {
+        const cr = ridge(n(x, y));
+        if (cr > 0.82) return mix([214, 96, 24], [252, 216, 120], (cr - 0.82) / 0.18);
+        return mix([28, 20, 18], [62, 44, 38], f(x, y));
+      }); } },
+  { key: 'sand', label: 'Sand', gruppe: 'Boden', prio: 20, gen: (s) => {
+      const n = fbm(SIZE, 16, 3, s), m = fbm(SIZE, 5, 2, s + 4);
+      return paint(s, (x, y) => {
+        const rip = Math.sin((y / SIZE) * TAU * 6 + m(x, y) * 7) * 0.5 + 0.5;
+        return mix([196, 172, 122], [228, 210, 168], n(x, y) * 0.55 + rip * 0.45);
+      }); } },
+  { key: 'erde', label: 'Erde', gruppe: 'Boden', prio: 25, gen: (s) => {
+      const n = fbm(SIZE, 7, 4, s), k = fbm(SIZE, 24, 2, s + 6);
+      return paint(s, (x, y) => {
+        const base = mix([72, 52, 34], [116, 88, 58], n(x, y));
+        return k(x, y) > 0.76 ? mix(base, [46, 34, 24], 0.7) : base;
+      }); } },
+  { key: 'gras', label: 'Gras', gruppe: 'Boden', prio: 30, gen: (s) => {
+      const n = fbm(SIZE, 9, 4, s), bl = fbm(SIZE, 32, 2, s + 3);
+      return paint(s, (x, y) => {
+        const base = mix([66, 96, 42], [128, 158, 74], n(x, y) * 1.15 - 0.07);
+        return mix(base, [150, 176, 88], (bl(x, y) - 0.6) * 1.4);
+      }); } },
+  { key: 'moos', label: 'Moos', gruppe: 'Boden', prio: 35, gen: (s) => {
+      const n = fbm(SIZE, 12, 4, s), c = fbm(SIZE, 6, 3, s + 8);
+      return paint(s, (x, y) => {
+        const clump = clamp((c(x, y) - 0.42) * 3);
+        return mix(mix([40, 62, 34], [62, 88, 44], n(x, y)), [92, 126, 56], clump * n(x, y));
+      }); } },
+  { key: 'schnee', label: 'Schnee', gruppe: 'Boden', prio: 40, gen: (s) => {
+      const n = fbm(SIZE, 8, 4, s), sp = fbm(SIZE, 40, 1, s + 11);
+      return paint(s, (x, y) => {
+        const base = mix([206, 214, 228], [246, 249, 253], n(x, y));
+        return sp(x, y) > 0.88 ? [255, 255, 255] : base;
+      }); } },
+  { key: 'teppich', label: 'Teppich', gruppe: 'Innenraum', prio: 45, gen: (s) => {
+      const n = fbm(SIZE, 32, 2, s);
+      return paint(s, (x, y) => {
+        const weave = ((x >> 2) + (y >> 2)) % 2 ? 0.14 : 0;
+        return mix([104, 34, 40], [142, 58, 62], n(x, y) * 0.7 + weave);
+      }); } },
+  { key: 'holzdielen', label: 'Holzdielen', gruppe: 'Innenraum', prio: 50, gen: (s) => {
+      const g = fbm(SIZE, 24, 3, s), ph = SIZE / 4;
+      return paint(s, (x, y) => {
+        const row = Math.floor(y / ph), inGap = (y % ph) < 1.6;
+        const grain = g(x * 0.25 + row * 40, y * 2);
+        const tone = 0.34 + ((row * 37) % 5) * 0.07;
+        const base = mix([104, 72, 42], [158, 118, 72], grain * 0.7 + tone * 0.5);
+        return inGap ? mix(base, [52, 36, 22], 0.75) : base;
+      }); } },
+  { key: 'bretter', label: 'Bretter', gruppe: 'Innenraum', prio: 52, gen: (s) => {
+      const g = fbm(SIZE, 20, 3, s), pw = SIZE / 4;
+      return paint(s, (x, y) => {
+        const col = Math.floor(x / pw), inGap = (x % pw) < 1.6;
+        const grain = g(x * 2, y * 0.25 + col * 40);
+        const base = mix([96, 84, 66], [146, 132, 108], grain * 0.8 + ((col * 29) % 4) * 0.05);
+        return inGap ? mix(base, [48, 42, 34], 0.7) : base;
+      }); } },
+  { key: 'steinboden', label: 'Steinboden', gruppe: 'Innenraum', prio: 60, gen: (s) => {
+      const n = fbm(SIZE, 14, 3, s), sz = SIZE / 2;
+      return paint(s, (x, y) => {
+        const cx = Math.floor(x / sz), cy = Math.floor(y / sz);
+        const gap = (x % sz) < 2 || (y % sz) < 2;
+        const tone = ((cx * 7 + cy * 13) % 5) * 0.06;
+        const base = mix([124, 118, 104], [172, 166, 150], n(x, y) * 0.8 + tone);
+        return gap ? mix(base, [78, 74, 66], 0.8) : base;
+      }); } },
+  { key: 'fliesen', label: 'Fliesen', gruppe: 'Innenraum', prio: 62, gen: (s) => {
+      const n = fbm(SIZE, 28, 2, s), sz = SIZE / 4;
+      return paint(s, (x, y) => {
+        const cx = Math.floor(x / sz), cy = Math.floor(y / sz);
+        const gap = (x % sz) < 1.6 || (y % sz) < 1.6;
+        const base = mix([188, 182, 168], [220, 215, 202], n(x, y) * 0.6 + ((cx + cy) % 2) * 0.25);
+        return gap ? mix(base, [138, 130, 116], 0.85) : base;
+      }); } },
+  { key: 'ziegel', label: 'Ziegel', gruppe: 'Wand', prio: 65, gen: (s) => {
+      const n = fbm(SIZE, 24, 2, s), bh = SIZE / 4, bw = SIZE / 2;
+      return paint(s, (x, y) => {
+        const row = Math.floor(y / bh), off = (row % 2) * (bw / 2);
+        const bx = (x + off) % bw, col = Math.floor((x + off) / bw);
+        const gap = bx < 2.2 || (y % bh) < 2.2;
+        const tone = ((row * 11 + col * 17) % 6) * 0.06;
+        const base = mix([126, 62, 46], [172, 96, 70], n(x, y) * 0.65 + tone);
+        return gap ? mix(base, [186, 178, 160], 0.75) : base;
+      }); } },
+  { key: 'fels', label: 'Fels', gruppe: 'Wand', prio: 70, gen: (s) => {
+      const n = fbm(SIZE, 6, 5, s), d = fbm(SIZE, 16, 3, s + 7);
+      return paint(s, (x, y) => {
+        const r = ridge(n(x, y));
+        const base = mix([88, 84, 78], [154, 148, 138], d(x, y) * 0.55 + r * 0.6);
+        return r > 0.9 ? mix(base, [54, 50, 46], (r - 0.9) * 8) : base;
+      }); } },
+];
+const BY_KEY = Object.fromEntries(MATS.map((m) => [m.key, m]));
+
+/* ------------------------------------------------------------------ *
+ * 3. Zustand + Texturcache
+ * ------------------------------------------------------------------ */
+const state = { mode: 'natuerlich', grid: false, variation: true, seed: 7 };
+let texCache = new Map();
+function tex(key) {
+  const k = key + ':' + state.seed;
+  if (!texCache.has(k)) texCache.set(k, BY_KEY[key].gen(state.seed + key.length * 13));
+  return texCache.get(k);
+}
+
+/* ------------------------------------------------------------------ *
+ * 4. Der Kern: eine Karte als SVG
+ *
+ * Pro Material EINE Maske aus seinen Zellen. Der Übergang entsteht in der
+ * Maske, nicht in der Grafik:
+ *   weich       = Weichzeichnen + harte Alpha-Schwelle  -> ausgestellt, rund
+ *   natuerlich  = dazwischen eine Verschiebung per Turbulenz -> Rauschkante
+ * Gezeichnet wird nach prio von unten nach oben, damit das höherwertige
+ * Material über das niedrigere läuft.
+ * ------------------------------------------------------------------ */
+let uid = 0;
+function boardSvg(cols, rows, layers) {
+  const id = 'b' + (uid++);
+  const used = Object.keys(layers).filter((k) => layers[k].size)
+    .sort((a, b) => BY_KEY[a].prio - BY_KEY[b].prio);
+  const defs = [], body = [];
+
+  for (const key of used) {
+    const href = tex(key);
+    // Vier um 90° gedrehte Fassungen derselben Textur. Ein Quadratgitter, um
+    // einen Zellmittelpunkt gedreht, fällt auf sich selbst zurück — die
+    // Kacheln bleiben also exakt im Raster.
+    const rots = state.variation ? [0, 1, 2, 3] : [0];
+    for (const r of rots) {
+      defs.push(`<pattern id="${id}-p-${key}-${r}" width="1" height="1"
+        patternUnits="userSpaceOnUse" patternTransform="rotate(${r * 90} .5 .5)">
+        <image href="${href}" x="0" y="0" width="1" height="1"
+               preserveAspectRatio="none"/></pattern>`);
+    }
+
+    if (state.mode !== 'hart') {
+      const blur = 0.19;               // Weichzeichnung in Zellen
+      const thr = state.mode === 'natuerlich' ? 5.2 : 5.4;  // Schwelle -> Ausstellung
+      const disp = state.mode === 'natuerlich'
+        ? `<feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3"
+             seed="${(state.seed * 31 + key.length * 7) % 100}" result="n"/>
+           <feDisplacementMap in="b" in2="n" scale="0.34"
+             xChannelSelector="R" yChannelSelector="G" result="b"/>` : '';
+      defs.push(`<filter id="${id}-f-${key}" x="-25%" y="-25%" width="150%" height="150%"
+          color-interpolation-filters="sRGB">
+          <feGaussianBlur stdDeviation="${blur}" result="b"/>
+          ${disp}
+          <feComponentTransfer in="b">
+            <feFuncA type="linear" slope="12" intercept="-${thr}"/>
+          </feComponentTransfer>
+        </filter>`);
+    }
+
+    const cellPath = (cells) => [...cells]
+      .map((c) => { const [x, y] = c.split(',');
+        return `M${x} ${y}h1v1h-1Z`; }).join('');
+    const filt = state.mode === 'hart' ? '' : ` filter="url(#${id}-f-${key})"`;
+    defs.push(`<mask id="${id}-m-${key}" maskUnits="userSpaceOnUse"
+        x="-1" y="-1" width="${cols + 2}" height="${rows + 2}" style="mask-type:alpha">
+        <g${filt}><path d="${cellPath(layers[key])}" fill="#fff"/></g></mask>`);
+
+    // Grundfüllung in Variante 0 (deckt auch den ausgestellten Rand ab),
+    // darüber nur die Zellen der Varianten 1–3.
+    let fill = `<rect x="-1" y="-1" width="${cols + 2}" height="${rows + 2}"
+        fill="url(#${id}-p-${key}-0)"/>`;
+    if (state.variation) {
+      for (let r = 1; r < 4; r++) {
+        const sub = [...layers[key]].filter((c) => {
+          const [x, y] = c.split(',').map(Number);
+          return variant(x, y) === r;
+        });
+        if (sub.length) fill += `<path d="${cellPath(sub)}" fill="url(#${id}-p-${key}-${r})"/>`;
+      }
+    }
+    body.push(`<g mask="url(#${id}-m-${key})">${fill}</g>`);
+  }
+
+  const grid = state.grid
+    ? `<path d="${gridPath(cols, rows)}" stroke="var(--map-line)" stroke-width="0.02" fill="none"/>`
+    : '';
+  return `<svg viewBox="0 0 ${cols} ${rows}" xmlns="http://www.w3.org/2000/svg"
+    shape-rendering="geometricPrecision"><defs>${defs.join('')}</defs>${body.join('')}${grid}</svg>`;
+}
+function gridPath(cols, rows) {
+  let d = '';
+  for (let x = 0; x <= cols; x++) d += `M${x} 0V${rows}`;
+  for (let y = 0; y <= rows; y++) d += `M0 ${y}H${cols}`;
+  return d;
+}
+/** Deterministische Drehung pro Zelle — kostet kein Byte Speicher. */
+function variant(x, y) {
+  let h = (x * 374761393 + y * 668265263 + state.seed * 2246822519) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return (h ^ (h >>> 16)) & 3;
+}
+
+/* ------------------------------------------------------------------ *
+ * 5. Inhalte
+ * ------------------------------------------------------------------ */
+function renderPalette() {
+  document.getElementById('palette').innerHTML = MATS.map((m) => {
+    const layers = {}; layers[m.key] = new Set(['0,0', '1,0', '2,0', '0,1', '1,1', '2,1', '0,2', '1,2', '2,2']);
+    return `<div class="mat">${boardSvg(3, 3, layers)}
+      <div class="meta"><div class="name">${m.label}</div>
+      <div class="sub"><span>${m.gruppe}</span><span>prio ${m.prio}</span></div></div></div>`;
+  }).join('');
+}
+
+/** Unregelmäßiger Fleck aus Zellrauschen — steht für „von Hand gemalt". */
+function blob(cols, rows, seed, thresh) {
+  const g = lattice(8, seed), set = new Set();
+  for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) {
+    const v = noise2(g, 8, x / 3.1 + 0.5, y / 2.6 + 0.5);
+    if (v > thresh) set.add(x + ',' + y);
+  }
+  return set;
+}
+const PAIRS = [
+  ['wasser-seicht', 'sand'], ['sand', 'gras'], ['gras', 'moos'],
+  ['erde', 'steinboden'], ['steinboden', 'ziegel'], ['schnee', 'fels'],
+  ['wasser-tief', 'wasser-seicht'], ['lava', 'fels'], ['holzdielen', 'teppich'],
+];
+function renderPairs() {
+  const C = 12, R = 7, modes = [['hart', 'Hart'], ['weich', 'Weich'], ['natuerlich', 'Natürlich']];
+  const keep = state.mode;
+  document.getElementById('pairs').innerHTML = PAIRS.map(([lo, hi], i) => {
+    const top = blob(C, R, 40 + i * 9 + state.seed, 0.52);
+    const bottom = new Set();
+    for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) bottom.add(x + ',' + y);
+    const figs = modes.map(([m, lbl]) => {
+      state.mode = m;
+      const svg = boardSvg(C, R, { [lo]: bottom, [hi]: top });
+      return `<figure>${svg}<figcaption>${lbl}</figcaption></figure>`;
+    }).join('');
+    state.mode = keep;
+    return `<div class="card"><h3>${BY_KEY[hi].label} <span>auf</span> ${BY_KEY[lo].label}</h3>
+      <div class="modes">${figs}</div></div>`;
+  }).join('');
+}
+
+function renderScene() {
+  const C = 30, R = 17, L = {};
+  const add = (k, x, y) => { (L[k] ||= new Set()).add(x + ',' + y); };
+  const h = lattice(8, 100 + state.seed), m = lattice(8, 200 + state.seed);
+  for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) {
+    const v = noise2(h, 8, x / 7 + 0.3, y / 5 + 0.3) * 0.75
+            + noise2(m, 8, x / 2.5, y / 2.5) * 0.25;
+    let k = 'gras';
+    if (v < 0.34) k = 'wasser-tief';
+    else if (v < 0.42) k = 'wasser-seicht';
+    else if (v < 0.50) k = 'sand';
+    else if (v < 0.58) k = 'erde';
+    else if (v > 0.74) k = 'fels';
+    add(k, x, y);
+    if (k === 'gras' && noise2(m, 8, x / 1.8 + 3, y / 1.8 + 3) > 0.62) { L['gras'].delete(x + ',' + y); add('moos', x, y); }
+  }
+  // Ein gemauerter Raum: Ziegelring, Steinboden innen, Dielen als Anbau.
+  const bx = 18, by = 3, bw = 9, bh = 7;
+  for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) {
+    for (const k of Object.keys(L)) L[k].delete(x + ',' + y);
+    const wall = x === bx || y === by || x === bx + bw - 1 || y === by + bh - 1;
+    add(wall ? 'ziegel' : 'steinboden', x, y);
+  }
+  for (let y = by + 2; y < by + 5; y++) for (let x = bx - 3; x < bx; x++) {
+    for (const k of Object.keys(L)) L[k].delete(x + ',' + y);
+    add('holzdielen', x, y);
+  }
+  document.getElementById('scene').innerHTML = boardSvg(C, R, L);
+}
+
+function renderAll() { renderPalette(); renderPairs(); renderScene(); syncButtons(); }
+function syncButtons() {
+  document.querySelectorAll('[data-mode]').forEach((b) =>
+    b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode)));
+  document.getElementById('btn-grid').setAttribute('aria-pressed', String(state.grid));
+  document.getElementById('btn-var').setAttribute('aria-pressed', String(state.variation));
+}
+document.querySelectorAll('[data-mode]').forEach((b) =>
+  b.addEventListener('click', () => { state.mode = b.dataset.mode; renderAll(); }));
+document.getElementById('btn-grid').addEventListener('click', () => { state.grid = !state.grid; renderAll(); });
+document.getElementById('btn-var').addEventListener('click', () => { state.variation = !state.variation; renderAll(); });
+document.getElementById('btn-seed').addEventListener('click', () => {
+  state.seed = (state.seed * 7 + 13) % 997; texCache = new Map(); renderAll();
+});
+document.getElementById('btn-theme').addEventListener('click', () => {
+  const cur = document.documentElement.dataset.theme;
+  const dark = cur ? cur === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.dataset.theme = dark ? 'light' : 'dark';
+});
+renderAll();
+</script>
+</body>
+</html>
