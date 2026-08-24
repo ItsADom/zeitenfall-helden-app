@@ -277,10 +277,19 @@ export interface TileMaterial {
   key: string;       // 'gras' — what gets stored, never the filename
   label: string;     // „Gras" — UI, German
   gruppe: string;    // „Boden" | „Wasser" | „Wand" … — picker grouping
-  datei: string;     // 'gras.webp' under client/public/tiles/
+  datei?: string;    // 'gras.jpg' under client/public/tiles/; absent = generated
   prio: number;      // autotile layering, see below
+  kante: 'hart' | 'natuerlich';   // how this material meets its neighbours
 }
 ```
+
+**`kante` belongs to the material, not to the board.** A brick wall has straight
+lines; grass does not. So the edge treatment is a property each material carries,
+not a global switch — anything built or laid (Ziegel, Fliesen, Steinboden,
+Holzdielen, Bretter, Teppich) meets its neighbours on the grid, and only grown or
+poured material (Gras, Moos, Erde, Sand, Schnee, Fels, Wasser, Lava) is allowed to
+fray. Getting this wrong is immediately visible: a masonry wall with a noisy
+outline reads as broken, not as natural.
 
 **The files are static assets under `client/public/tiles/`, not
 `helden-assets.db`.** That is a deliberate simplification with a concrete payoff:
@@ -288,15 +297,24 @@ the built-in set never participates in the cross-database delete problem, so no
 board-delete path has to remember it. Only *uploaded* images do — and those are
 the `board_images` table, which does have to remember it.
 
-Budget: ~12–20 seamless textures at ~128 px webp, roughly 10–15 KB each, ≈300 KB
-for the whole set, and only the materials actually painted on a board get
-fetched. Sourcing is CC0 (ambientCG / Poly Haven); the licence and origin of each
-file gets recorded in a `client/public/tiles/QUELLEN.md` so provenance is not
-folklore. **The developer reviews the set before it lands.**
+**The set exists** — it is not a proposal any more. Thirteen CC0 textures were
+pulled from Poly Haven and ambientCG, downscaled to **256×256 JPEG (q82)** with
+wrap-around edge sampling so tileability survives the resize, and committed at
+**184 KB for the whole set**. Origin and asset id per file are recorded in
+`client/public/tiles/QUELLEN.md`. Only the materials actually painted on a board
+get fetched.
 
-Starting proposal, to be reviewed: Gras, Erde, Sand, Fels, Steinboden, Fliesen,
-Holzdielen, Bretter, Ziegel, Wasser seicht, Wasser tief, Schnee, Lava, Teppich,
-Moos.
+| | |
+|---|---|
+| Poly Haven | Sand, Erde, Gras, Waldboden, Schnee, Fels, Steinboden, Fliesen, Ziegel, Holzdielen, Bretter, Teppich |
+| ambientCG | Lava |
+| generated | Wasser tief, Wasser seicht |
+
+**Water is deliberately generated, not photographed.** The CC0 libraries have no
+usable top-down water surface — searching them for "water" returns ice and
+surface stains — and a photograph of still water tiles visibly badly, because
+repetition is most obvious on a featureless surface. The generated ripple is
+seamless by construction and costs no file.
 
 ### Statuses vs covers — two different things
 
@@ -360,29 +378,52 @@ transitions come from **geometry** instead:
 
 1. Every material carries a **`prio`** (Wasser < Sand < Erde < Gras < Moos <
    Stein …). Layers render bottom-up by priority.
-2. A material's cells merge into one **outline path**, and the higher-priority
-   material is drawn **outset by ~0.15 cell into its lower-priority neighbours**,
-   with rounded joins. Outer corners, inner corners, single-cell islands and
-   diagonal touches all fall out of the geometry — **every pair of materials works
-   without anyone drawing anything.**
-3. The remaining straightness is broken by an `feTurbulence` + `feDisplacementMap`
-   filter applied to the layer's **mask**, seeded from `boards.seed` so every
-   client draws the identical boundary.
+2. Each material's cells become **one mask**, and the transition is produced *in
+   the mask* rather than in the artwork: blur the cell shape, then threshold the
+   alpha hard. That single step outsets the region by a fraction of a cell and
+   rounds its corners. Outer corners, inner corners, single-cell islands and
+   diagonal touches all fall out of it — **every pair of materials works without
+   anyone drawing anything.**
+3. For a material whose `kante` is `natuerlich`, an `feTurbulence` +
+   `feDisplacementMap` sits between blur and threshold, seeded from `boards.seed`
+   so every client draws the identical boundary. A `hart` material skips the
+   filter entirely and renders pixel-identical to a plain grid edge.
+4. **The processed mask is then unioned with the original cells**
+   (`feComposite operator="over"` against `SourceGraphic`). Without this the
+   displacement pulls the mask inward in places, and where two neighbouring
+   materials both retreat from their shared border the page background shows
+   through as a hairline gap. With it the edge can only ever move *outward*, so
+   every painted cell is guaranteed covered by at least its own material.
+
+**This replaces the marching-squares `cellSetOutline`.** The prototype was built
+to test the outline-path approach and found the mask does the same job with no
+path math at all — which removes the most test-heavy function from the shared
+workspace. `cellSetOutline` is dropped from `shared/src/board.ts` below.
+
+Measured in the prototype (`docs/concepts/virtual-table-mockup/Texturen.html`),
+rasterised and pixel-sampled rather than eyeballed:
+
+| | result |
+|---|---|
+| `hart` material vs. a plain grid edge | **0.00 px deviation** — dead straight |
+| `natuerlich` material | **+2.5 % area**, growing outward only |
+| background bleed-through, all combinations | **0 pixels** (159 without the union) |
 
 **Risk, stated up front:** a displacement filter over a 100×100 board may be too
-slow, especially while dragging. The rounded-outset step (2) already looks far
-better than a hard edge and is cheap, so step 3 stays behind a flag that can be
-turned off per client, and **this is not "done" until it has been measured in a
-browser on a large, densely painted board** — light *and* dark mode, per the
-standing rule.
+slow, especially while dragging. Step 2 alone already looks far better than a hard
+edge and is cheap, so step 3 stays behind a flag that can be turned off per
+client, and **this is not "done" until it has been measured in a browser on a
+large, densely painted board.** The fray amplitude is one constant
+(`feDisplacementMap scale`) if it wants to be stronger or calmer.
 
-### Theming
+### Theming — the map is exempt
 
-Textures are photographic; they do not follow the app's six colour worlds, and
-they should not be filtered to try. Only the **chrome** is themed — grid lines,
-fog, labels, selection, range highlight, the tool palette. The map reads as a map
-inside a themed shell. This is a deliberate visual break and worth a look before
-the phase is called finished.
+Textures do not follow the app's six colour worlds, and nothing tries to make them.
+**Settled with the developer: the colour mode is irrelevant to the tiles.** Only
+the *chrome* is themed — grid lines, fog, labels, selection, range highlight, the
+tool palette. The map reads as a map inside a themed shell, and the light/dark
+check that every other visual change owes applies to the chrome, not to the
+terrain.
 
 ---
 
