@@ -1,38 +1,29 @@
 # Virtual table (VTT) — implementation plan
 
-> ## ⚠ This plan is NOT ready to build from
+> ## Status: revisited 2026-08-24, ready to build from
 >
-> It was written against `feature/dice-rolls-chat` while **two** feature branches
-> were still unmerged, and it only accounts for one of them. It **must be revisited
-> once `develop` is up to date**, and that revisit happens *before* the first line
-> of code, not during.
+> The revisit demanded by the previous version of this file has happened. Its
+> checklist is worked off and the results are folded into the body below rather
+> than left as an appendix.
 >
-> The virtual table merges **after** dice/chat — that ordering is settled.
+> **What the revisit found:**
+> - `feature/dice-rolls-chat` and `feature/wiki` are both merged into `develop`
+>   **and released** (`0.6.0 „Wiki & Würfeln"`, then `0.7`, `0.7.1`). The ordering
+>   condition — the VTT comes after dice/chat — is satisfied.
+> - Because chat is **live in production**, the `group_feed` question is settled in
+>   the harder direction: real chat history exists, so Phase 1 needs the table
+>   **rebuild**, not the "just edit the `CREATE TABLE`" shortcut. That choice is no
+>   longer open.
+> - Phase 1 is **larger than the previous version assumed**. Dice/chat has since
+>   grown coop pools, group rolls and pending rolls — three in-memory registries
+>   keyed by a numeric group id that this plan never mentioned. See "Room identity".
+> - `broadcastToRoom` **already exists** in `server/src/ws.ts` with a *different*
+>   meaning. The generalised builder-based broadcast needs another name.
+> - `docs/concepts/VTT-concept.md` was a stale, shorter copy of this file and has
+>   been deleted; `TODO.md` now points here only.
 >
-> **Unmerged at time of writing (2026-08-19):**
-> `feature/dice-rolls-chat` (33 commits ahead of `develop`) — this plan is built on
-> it and its facts were verified against it. `feature/wiki` (20 ahead) — **this plan
-> does NOT account for it**, and it carries constraints that change parts of the
-> design; see "What `feature/wiki` changes" below.
->
-> **Revisit checklist:**
-> 1. Re-read `server/src/ws.ts`, `server/src/feed.ts` and
->    `client/src/components/dice/DicePanelProvider.tsx` against this plan's
->    "verified facts" — all of it was read off a branch that has since merged and
->    may have been amended on the way in.
-> 2. Re-read the merged `CLAUDE.md`. It is the union of both branches' versions and
->    is longer than either; the wiki branch alone added 63 lines of constraints.
-> 3. Work through "What `feature/wiki` changes" and fold each item into the body of
->    this plan properly, rather than leaving it as an appendix.
-> 4. Decide the `group_feed` question (rebuild vs. plain `CREATE TABLE`) on the
->    facts at that time — it turns on whether dice/chat has been *released*, not
->    merely merged.
-> 5. Check whether `TODO.md`'s virtual-table sketch (`TODO.md:225-254` on the dice
->    branch) has been pruned or moved on, and whether dice/chat got a version.
-> 6. Confirm the settled decisions below still reflect what you want.
->
-> Treat unchecked items as blockers. A plan this size that silently goes stale is
-> worse than no plan, because it reads as authoritative.
+> **New scope agreed at the revisit** (2026-08-24): textured tiles with autotiled
+> transitions, and placeable images on the table. Both are described below.
 
 ## Visual reference (early, not final)
 
@@ -46,7 +37,8 @@ panel from the edit-rights decision.
 **It is a rough layout pass, not a design to build from.** Colors, spacing,
 iconography and the map's decorative tokens (tile/fog hues) are first guesses —
 matched to the app's real light/dark palette (see below) but not reviewed as a
-design. Expect this to change before Phase 4.
+design. It also predates the texture decision, so its flat-colour tiles no longer
+represent the intended look. Expect this to change.
 
 - Source: `docs/concepts/virtual-table-mockup/` (`Main.dc.html`,
   `PlayerView.dc.html`, `canvas.json`) — plain HTML/CSS, readable without
@@ -60,29 +52,37 @@ design. Expect this to change before Phase 4.
 
 ## Context
 
-The app manages characters for a house DSA-inspired pen-&-paper system. The
-`feature/dice-rolls-chat` branch just added its first real-time surface: a
-per-group WebSocket feed carrying chat and server-authoritative dice rolls,
-rendered in a floating dock.
+The app manages characters for a house pen-&-paper system. Dice and chat shipped
+a per-room WebSocket feed carrying chat and server-authoritative rolls, rendered
+in a floating dock.
 
 This feature extends that into a **virtual table** — a shared, live battle map
 per play group. It is the app's first spatial, continuously-updating shared
 surface, and the first that must filter *map* state per viewer (fog of war).
 
-The ground was prepared: `TODO.md:228-236` records that the docked panel was
-built so any page can call `useDicePanel()` and reuse the same connection and
-`FeedEntryView`, and `DicePanelProvider` already carries `hidden`/`setHidden`
-specifically so a dedicated page can suppress the dock. The chat half of this
-feature is therefore additive, not a rework.
+The ground was prepared: the docked panel was built so any page can call
+`useDicePanel()` and reuse the same connection and `FeedEntryView`, and
+`DicePanelProvider` already carries `hidden`/`setHidden` specifically so a
+dedicated page can suppress the dock. The chat half of this feature is therefore
+additive, not a rework.
+
+`TODO.md` notes that a group is streaming their sessions, which raises the
+priority of this work.
 
 ## Decisions settled with the developer
 
 | Question | Decision |
 |---|---|
-| Map source | **Tile painting** (GM colors cells). No image upload in v1, but the model leaves room for a backdrop later without a migration. |
+| Map source | **Tile painting** with **textures**, plus **placeable images**. See both sections below. |
+| Tile fills | **Texture *or* flat colour per cell.** Flat colour stays — blocking out a room quickly shouldn't require choosing art. |
+| Texture source | **A bundled CC0 set** shipped as static files (ambientCG / Poly Haven style), reviewed by the developer before it lands. Not uploads, not `helden-assets.db`. |
+| Texture transitions | **Full autotiling** — materials blend at their borders instead of meeting at a hard grid edge. Achieved through geometry, not authored edge art; see "Autotiling". |
+| Images on the table | **In scope.** Place a picture, move/scale/rotate it; optionally set it to **Hintergrund**, which makes it non-interactive (locked, below the tokens). Aimed at maps built in dedicated mapping tools and at player homes. |
+| Background ≠ backdrop | A „Hintergrund" image is **not stretched across the board**. It keeps its own footprint and is simply non-interactive by the usual means. The old reserved single `bg_image_id` column is therefore **dropped** in favour of a real image table. |
+| Fog over images | **Cosmetic only.** An image blob cannot be redacted per cell without decoding it, and the server has no image library by design. The strict no-leak guarantee covers **tiles and tokens**; images are shipped whole. Accepted knowingly — these images are player homes and prepared maps, not the hidden half of a dungeon. |
 | Grid | **Square**, 1 cell = **1 Schritt**. |
 | Boards | **One board per room** (no multiple scenes). |
-| Fog of war | **In scope.** Hidden state must never reach a player's client. |
+| Fog of war | **In scope.** Hidden tile and token state must never reach a player's client. |
 | Monster tokens | **Pure markers** — name + color/icon + status icons. No HP, no stats, no bestiary. |
 | Initiative | Players **roll their own**: `Initiative-Basis + 1W6`, server-rolled. |
 | Monsters in initiative | GM **adds a monster token to the initiative table and sets its value manually**. |
@@ -99,16 +99,34 @@ feature is therefore additive, not a rework.
 ### The decision that grows the scope
 
 "Event-Gruppen should of course have their own chat and table rooms" reaches back
-into the **already-shipped** chat feature. Today room identity *is* a permanent
-group id, in four places: the WS path (`/ws/groups/:id`), the room map key,
-`group_feed.group_id` (a real FK, `NOT NULL`), and `GET /api/groups/mine`. Event
-groups also have a different membership shape — `temp_group_members` holds
+into the **already-shipped, already-released** chat feature. Room identity *is* a
+permanent group id, and the revisit found it in more places than the first draft
+listed:
+
+- the WS path (`/ws/groups/:id`), the `rooms` map key ([ws.ts:86](server/src/ws.ts:86)),
+  `SocketMeta.groupId`
+- `group_feed.group_id` — a real FK, `NOT NULL` ([db.ts:391](server/src/db.ts:391))
+- `GET /api/groups/mine`
+- **three in-memory registries the first draft missed**, each keyed by a numeric
+  group id and each needing the room token instead:
+  [`coopPools.ts:41`](server/src/coopPools.ts:41),
+  [`pendingRolls.ts:72`](server/src/pendingRolls.ts:72),
+  [`groupRolls.ts:79`](server/src/groupRolls.ts:79)
+- the client: `DicePanelProvider.tsx` (22 references), `DicePanel.tsx` (13), and
+  `RoomPicker.tsx`, which already *calls* the concept „Raum" while resolving
+  `myGroups.find(g => g.id === groupId)`
+
+Raw counts to size the phase: `routes.ts` 149 `groupId`/`group_id` hits, `ws.ts`
+95, `db.ts` 30, `feed.ts` 16.
+
+Event groups also have a different membership shape — `temp_group_members` holds
 **character** ids, not user ids, so "is this user in this room" must be derived
 through character ownership.
 
 So the work starts with a **room-identity phase** that generalises the existing
 chat from "group id" to "room = (kind, id)". It is independently valuable (event
-groups get chat and dice) and independently committable.
+groups get chat and dice) and independently committable — and it is the single
+riskiest phase, because it edits shipped, released code.
 
 ---
 
@@ -123,24 +141,16 @@ export function roomToken(key: RoomKey): string;      // "group:12" — map keys
 export function parseRoomToken(raw: string): RoomKey | null;
 ```
 
-### `group_feed` — rebuild, or just change the schema
+The in-memory registries above switch from `number` to that token string. They
+are plain `Map`s, so this is mechanical — but it is three files nobody would find
+by grepping for the WS path.
 
-`group_id` is `NOT NULL` with an FK to `groups`, so an event room can't reuse it.
-**Which route to take depends on whether dice/chat has been *released to
-production* by the time this work starts** — not on whether it has been merged:
+### `group_feed` — rebuild (no longer optional)
 
-- **If the VTT lands before dice/chat is deployed**, production has no `group_feed`
-  table at all yet, and the only databases carrying one are dev machines holding
-  test data that gets wiped anyway. Then the honest move is to **edit the
-  `CREATE TABLE` in `db.ts` directly** and write no migration. Nothing to preserve,
-  no rebuild, no risk.
-- **If dice/chat is live first** (the likely case, given no implementation is
-  planned soon), real chat history exists and the table needs the rebuild below.
-
-Write the rebuild only in the second case — carrying a migration for a state no
-database was ever in is its own kind of debt. Rebuild uses the repo's established
-pattern, the `characters` rebuild at [db.ts:586](server/src/db.ts:586), inside a
-transaction, verified afterwards with `PRAGMA foreign_key_check`:
+Chat is released, so real history exists and the table must be rebuilt rather
+than redefined. Uses the repo's established pattern, the `characters` rebuild at
+[db.ts:586](server/src/db.ts:586), inside a transaction, verified afterwards with
+`PRAGMA foreign_key_check`:
 
 ```sql
 room_kind     TEXT NOT NULL DEFAULT 'group',           -- 'group' | 'event'
@@ -155,6 +165,7 @@ CASCADE` working for both kinds** — a generic id column would have to drop the
 FKs and rely on manual cleanup, which is exactly the kind of silent-orphan risk
 CLAUDE.md's data-loss rule exists to avoid. Existing rows migrate to
 `room_kind='group'` with `group_id` untouched: no row is rewritten in content.
+Check row counts before and after.
 
 ### Board tables — `server/src/db.ts`
 
@@ -166,14 +177,15 @@ CREATE TABLE IF NOT EXISTS boards (
   temp_group_id INTEGER REFERENCES temp_groups(id) ON DELETE CASCADE,
   cols INTEGER NOT NULL DEFAULT 40,
   rows INTEGER NOT NULL DEFAULT 30,
-  bg_image_id INTEGER,                    -- reserved for the later backdrop, always NULL in v1
-  tiles_json TEXT NOT NULL DEFAULT '{}',  -- sparse painted cells
+  tiles_json TEXT NOT NULL DEFAULT '{}',  -- sparse painted cells, see "Tile values"
   fog_json  TEXT NOT NULL DEFAULT '[]',   -- sparse HIDDEN cells (empty = nothing hidden)
+  seed INTEGER NOT NULL DEFAULT 0,        -- per-board render seed: texture variation + edge noise
   -- GM-configurable usage rights, 'gm' | 'all'. Measuring is always 'all' and
   -- fog is always 'gm', so neither gets a column — they are not negotiable.
   perm_tiles  TEXT NOT NULL DEFAULT 'gm',
   perm_labels TEXT NOT NULL DEFAULT 'gm',
   perm_tokens TEXT NOT NULL DEFAULT 'gm',   -- create/delete tokens
+  perm_images TEXT NOT NULL DEFAULT 'gm',   -- place/move/delete images
   perm_move   TEXT NOT NULL DEFAULT 'all',  -- move tokens; 'all' = the settled default
   round INTEGER NOT NULL DEFAULT 0,
   turn_index INTEGER NOT NULL DEFAULT 0,
@@ -196,7 +208,7 @@ CREATE TABLE IF NOT EXISTS board_tokens (
   hidden INTEGER NOT NULL DEFAULT 0,      -- GM-only token
   statuses TEXT NOT NULL DEFAULT '[]',    -- corner badges: array of status keys
   cover TEXT NOT NULL DEFAULT '',         -- full-token overlay, one at a time ('' = none)
-  cover_image_id INTEGER,                 -- reserved: uploaded cover art, always NULL in v1
+  cover_asset TEXT,                       -- reserved: uploaded cover art (asset slug), NULL in v1
   sort INTEGER NOT NULL DEFAULT 0
 );
 
@@ -206,6 +218,21 @@ CREATE TABLE IF NOT EXISTS board_overlays (
   kind TEXT NOT NULL,                     -- 'label' | 'measure'
   data_json TEXT NOT NULL DEFAULT '{}',   -- text/anchor, or shape+origin+radius
   hidden INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS board_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  asset_slug TEXT NOT NULL,               -- lives in helden-assets.db, owner ('board', board_id)
+  modus TEXT NOT NULL DEFAULT 'objekt',   -- 'objekt' | 'hintergrund' (= locked, non-interactive)
+  x REAL NOT NULL DEFAULT 0,              -- board coordinates, in CELLS, top-left
+  y REAL NOT NULL DEFAULT 0,
+  w REAL NOT NULL DEFAULT 1,              -- footprint in cells — never "the whole board"
+  h REAL NOT NULL DEFAULT 1,
+  rotation REAL NOT NULL DEFAULT 0,       -- degrees
+  opacity REAL NOT NULL DEFAULT 1,
+  z INTEGER NOT NULL DEFAULT 0,
+  hidden INTEGER NOT NULL DEFAULT 0       -- GM-only: withheld from players entirely
 );
 
 CREATE TABLE IF NOT EXISTS board_initiative (
@@ -219,6 +246,58 @@ CREATE TABLE IF NOT EXISTS board_initiative (
 );
 ```
 
+### Tile values — one tagged string per cell
+
+`tiles_json` maps a cell key to a **tagged string**, so a cell is exactly one
+thing and the parser is one function:
+
+| Value | Meaning |
+|---|---|
+| `#8b2635` | flat colour |
+| `t:gras` | a built-in texture, key from the catalogue |
+| `a:<slug>` | reserved — a GM-uploaded texture, not built in v1 |
+
+`parseTileValue()` lives in `shared/src/board.ts` next to the cell-key helpers.
+No migration cost exists for any of this: no board has ever been created.
+
+Tiles and fog are JSON columns following the `group_feed.roll_json` precedent
+(complex sub-object, type lives in `shared/`). Sizing check: a 40×30 board is
+1200 cells; a fully painted `{"12,7":"t:gras", …}` is ~20 KB, and real boards are
+sparse. Cap board size at 100×100 so the worst case stays bounded. Tokens,
+overlays, images and initiative get real tables because they are individually
+updated, need FKs, and are few.
+
+### The texture catalogue — `shared/src/boardTiles.ts`
+
+A frozen list, same shape and same reasoning as the status catalogue: swapping
+artwork later is a rendering change, not a migration.
+
+```ts
+export interface TileMaterial {
+  key: string;       // 'gras' — what gets stored, never the filename
+  label: string;     // „Gras" — UI, German
+  gruppe: string;    // „Boden" | „Wasser" | „Wand" … — picker grouping
+  datei: string;     // 'gras.webp' under client/public/tiles/
+  prio: number;      // autotile layering, see below
+}
+```
+
+**The files are static assets under `client/public/tiles/`, not
+`helden-assets.db`.** That is a deliberate simplification with a concrete payoff:
+the built-in set never participates in the cross-database delete problem, so no
+board-delete path has to remember it. Only *uploaded* images do — and those are
+the `board_images` table, which does have to remember it.
+
+Budget: ~12–20 seamless textures at ~128 px webp, roughly 10–15 KB each, ≈300 KB
+for the whole set, and only the materials actually painted on a board get
+fetched. Sourcing is CC0 (ambientCG / Poly Haven); the licence and origin of each
+file gets recorded in a `client/public/tiles/QUELLEN.md` so provenance is not
+folklore. **The developer reviews the set before it lands.**
+
+Starting proposal, to be reviewed: Gras, Erde, Sand, Fels, Steinboden, Fliesen,
+Holzdielen, Bretter, Ziegel, Wasser seicht, Wasser tief, Schnee, Lava, Teppich,
+Moos.
+
 ### Statuses vs covers — two different things
 
 The developer wants emoji badges now and **token-covering images later** ("some
@@ -231,29 +310,133 @@ share a slot:
   rewriting stored data.
 - **A cover** (`cover`) is at most one, drawn *over* the whole token: dead,
   unconscious. In v1 it renders from a built-in set (a blood splatter can be
-  inline SVG, in keeping with the app's existing inline-SVG use). `cover_image_id`
-  is reserved so an uploaded image can take over later — the same BLOB-in-SQLite
-  route portraits already use — without touching the token rows.
+  inline SVG, in keeping with the app's existing inline-SVG use). `cover_asset`
+  is reserved so an uploaded image can take over later without touching the token
+  rows.
 
-The catalogue itself lives in `shared/src/boardStatus.ts` as a plain frozen list
-(`{ key, label, emoji }`), which is what makes "swap emoji for artwork later" a
-rendering change rather than a migration.
-
-Tiles and fog are JSON columns following the `group_feed.roll_json` precedent
-(complex sub-object, type lives in `shared/`). Sizing check: a 40×30 board is
-1200 cells; a fully painted `{"12,7":"#8b2635", …}` is ~20 KB, and real boards
-are sparse. Cap board size at 100×100 so the worst case stays bounded. Tokens,
-overlays and initiative get real tables because they are individually updated,
-need FKs, and are few.
+The catalogue lives in `shared/src/boardStatus.ts` as a plain frozen list
+(`{ key, label, emoji }`).
 
 ### Persisted vs ephemeral
 
 | State | Where | Why |
 |---|---|---|
-| Board, tiles, fog, tokens, overlays, initiative, round | SQLite | Survives a session; the whole point of prep. |
-| **In-flight drag positions** | Broadcast only, **never** a DB write per event | better-sqlite3 is synchronous and single-writer; a write per pointermove would block the event loop. Server re-broadcasts immediately, debounces the DB write ~150 ms per token, and force-flushes on `token.drop`. |
+| Board, tiles, fog, tokens, overlays, images, initiative, round | SQLite | Survives a session; the whole point of prep. |
+| **In-flight drag positions** (tokens *and* images) | Broadcast only, **never** a DB write per event | better-sqlite3 is synchronous and single-writer; a write per pointermove would block the event loop. Server re-broadcasts immediately, debounces the DB write ~150 ms per object, and force-flushes on drop. |
 | Per-user camera (pan/zoom) | Client `localStorage` | Purely personal; no reason to involve the server. |
 | "Center all on my view" | One-shot broadcast | An event, not state. |
+| Autotile geometry, texture variation | Derived on the client from `tiles_json` + `boards.seed` | Never stored, never sent. Same input ⇒ same picture on every client. |
+
+---
+
+## Textures and autotiling
+
+The point of textures is that a painted map should read as terrain, not as a
+spreadsheet with coloured cells. Two things stand between a seamless texture and
+that: visible repetition, and hard grid-aligned borders between materials.
+
+### Rendering
+
+One `<pattern patternUnits="userSpaceOnUse" width="1" height="1">` per **used**
+material in `<defs>`; the cells of a material merge into a single `<path>` filled
+with `url(#tex-gras)`. Node count is therefore O(distinct materials), not
+O(painted cells) — which is the same argument that chose SVG over canvas in the
+first place. Flat-colour cells work identically with a plain fill.
+
+### Repetition
+
+The same tile repeated over 30 cells reads as wallpaper. Fix, at zero storage
+cost: hash `(x, y, board.seed)` → one of **four pre-rotated patterns** of the same
+texture. A square lattice rotated by 90° about a lattice point maps onto itself,
+so all four variants stay perfectly grid-aligned, and the cells of one material
+split into at most four paths instead of one. Deterministic from data every
+client already has, so nothing extra is broadcast.
+
+### Autotiling without edge art
+
+Classic 47-tile bitmasking needs an authored transition sheet per material — or
+per material *pair* — and CC0 seamless textures do not come with those. So the
+transitions come from **geometry** instead:
+
+1. Every material carries a **`prio`** (Wasser < Sand < Erde < Gras < Moos <
+   Stein …). Layers render bottom-up by priority.
+2. A material's cells merge into one **outline path**, and the higher-priority
+   material is drawn **outset by ~0.15 cell into its lower-priority neighbours**,
+   with rounded joins. Outer corners, inner corners, single-cell islands and
+   diagonal touches all fall out of the geometry — **every pair of materials works
+   without anyone drawing anything.**
+3. The remaining straightness is broken by an `feTurbulence` + `feDisplacementMap`
+   filter applied to the layer's **mask**, seeded from `boards.seed` so every
+   client draws the identical boundary.
+
+**Risk, stated up front:** a displacement filter over a 100×100 board may be too
+slow, especially while dragging. The rounded-outset step (2) already looks far
+better than a hard edge and is cheap, so step 3 stays behind a flag that can be
+turned off per client, and **this is not "done" until it has been measured in a
+browser on a large, densely painted board** — light *and* dark mode, per the
+standing rule.
+
+### Theming
+
+Textures are photographic; they do not follow the app's six colour worlds, and
+they should not be filtered to try. Only the **chrome** is themed — grid lines,
+fog, labels, selection, range highlight, the tool palette. The map reads as a map
+inside a themed shell. This is a deliberate visual break and worth a look before
+the phase is called finished.
+
+---
+
+## Images on the table
+
+Two modes, one table:
+
+- **`objekt`** — a prop on the map: drag, scale, rotate, z-order. Sits above the
+  tiles and below the tokens.
+- **`hintergrund`** — the same picture, made non-interactive: locked position, no
+  hit-testing, drawn below the tile layer. **It keeps its own footprint; it is not
+  stretched across the board.** This is what a group's home built in a mapping
+  tool becomes.
+
+**Grid alignment** is computed, not eyeballed. `masse.ts` already reads the real
+pixel dimensions server-side at upload without decoding the image, and mapping
+tools export at a known pixel-per-cell. So the placement dialog offers „Pixel pro
+Feld" and derives `w`/`h` in cells from that; free-scaling with a snap-to-grid
+toggle stays available for everything else.
+
+**Assets.** `OwnerTyp` in `server/src/assets/store.ts` gains `'board'`, and the
+images live in `helden-assets.db` like every other blob. **SQLite has no
+cross-database CASCADE**, so per CLAUDE.md:
+
+- deleting a board calls `loescheAssetsFuer('board', boardId)` by hand;
+- deleting one image calls `loescheAsset(slug)` by hand;
+- `fegeVerwaisteAssets('board', lebendeBoardIds)` joins the weekly sweeper in
+  `assets/sweep.ts` — as the safety net for what gets missed, never as the
+  mechanism.
+
+Deleting a *room* deletes its board by FK cascade **inside `helden.db` only**, so
+the room-delete path is a third place that must call the asset cleanup. That is
+the single easiest thing to get wrong in this feature after fog.
+
+**Rights** follow the same shape as everything else: `perm_images`, default „nur
+Spielleitung", enforced server-side in `boardAccess.ts`.
+
+### Fog over images is cosmetic — stated plainly
+
+The fog guarantee — *hidden state never reaches a player's client* — holds for
+**tiles and tokens**, which are per-cell and can be withheld. An image is a
+single blob spanning many cells and cannot be cut without decoding it, and the
+server has no image library **by design**: `masse.ts` reads only headers ("nur
+die Kopfdaten werden gelesen, nie das Bild dekodiert"). Adding one to slice
+images into fog-sized chunks would buy a native dependency and chunk-boundary
+artefacts for a case the developer explicitly called unimportant — these images
+are player homes and prepared maps.
+
+So: **an image under fog is drawn under the fog, but its bytes are in the
+player's payload.** The one all-or-nothing escape hatch is `board_images.hidden`,
+which withholds the image from players entirely — that is the mechanism for a
+prepared map section the GM wants to reveal later. The GM's image dialog says so
+in as many words, because a GM who *believes* fog hides an image would be wrong
+in a way that only shows up in someone's network tab.
 
 ---
 
@@ -267,24 +450,29 @@ Concretely, in `server/src/ws.ts`:
 
 1. The upgrade regex becomes `^/ws/rooms/(group|event)/(\d+)$`; `rooms` is keyed
    by `roomToken(key)` instead of a raw number; `SocketMeta` carries `RoomKey`.
-2. **`broadcast()` is currently typed to `FeedEntry` and hard-wired to
-   `canSeeFeedEntry`.** Generalise it to
-   `broadcastToRoom(key, build: (viewer: SocketMeta) => ServerToClientMessage | null)`
+2. **The existing `broadcast()` is typed to `FeedEntry` and hard-wired to
+   `canSeeFeedEntry`.** It gains a builder-based sibling:
+   `broadcastBuilt(key, build: (viewer: SocketMeta) => ServerToClientMessage | null)`
    — returning `null` means "this viewer gets nothing". The feed keeps its exact
    current behaviour by passing a builder that consults `canSeeFeedEntry`; board
-   messages pass one that consults the fog/hidden redaction. This preserves the
-   "one visibility predicate, no `isGm` bypass" property of the feed while giving
-   the board its own, different rule.
+   messages pass one that consults the fog/hidden redaction.
+   **Naming, and it matters:** `broadcastToRoom` is *already taken* at
+   [ws.ts:140](server/src/ws.ts:140) and means "unfiltered, to everyone in the
+   group". Two different visibility semantics under one name is precisely how a
+   fog leak gets written by accident, so the new function does not take that name
+   — and the old one is worth renaming to `broadcastUngefiltert` while touching
+   the file anyway.
 3. New message types on the existing unions in `shared/src/diceProtocol.ts` (or a
    sibling `boardProtocol.ts` re-exported from the same barrel, to keep the dice
    file focused): `board.move`, `board.token.*`, `board.tiles`, `board.fog`,
-   `board.overlay.*`, `board.initiative.*`, `board.round.*`, `board.view.center`.
-   Every client→server message keeps the existing `reqId` + `ack`/`error` shape.
+   `board.overlay.*`, `board.image.*`, `board.initiative.*`, `board.round.*`,
+   `board.view.center`. Every client→server message keeps the existing `reqId` +
+   `ack`/`error` shape.
 
-**Fog of war is the hard part, and it is structural.** The guarantee is "a player's
-client never receives hidden state", so redaction cannot live in the renderer. All
-board mutations funnel through one `emitBoardChange()` in `server/src/board.ts`
-which computes a *per-viewer* payload:
+**Fog of war is the hard part, and it is structural.** The guarantee is "a
+player's client never receives hidden tile or token state", so redaction cannot
+live in the renderer. All board mutations funnel through one `emitBoardChange()`
+in `server/src/board.ts` which computes a *per-viewer* payload:
 
 - **the `fog` set itself is public** — players receive which cells are fogged and
   render them opaque, so the unexplored area reads as unexplored instead of as
@@ -292,27 +480,32 @@ which computes a *per-viewer* payload:
   underneath while seeing exactly what is withheld. Only the GM may *change* it;
 - cells listed in `fog` are omitted from a player's tile payload entirely;
 - tokens with `hidden=1`, or standing on a fogged cell, are omitted for players;
+- images with `hidden=1` are omitted for players; images merely *under* fog are
+  not (see above);
 - consequently, moving a token into fog sends players a `board.token.remove` while
   the GM gets a `board.token.update`. Revealing fog sends players the newly
   visible tiles *and* tokens.
 
-That asymmetry is the price of the guarantee, and it is why fog gets its own
-phase rather than being sprinkled through earlier ones.
+There is an exact precedent in this codebase and it should be read before
+`emitBoardChange()` is written: the wiki's GM-only regions are stripped
+server-side (`verbergeGmBloecke`) on the reasoning that a client which merely
+declined to render them would still have shipped the text.
 
-**Tile and fog writes are deltas, never full-map replaces.** A player whose
-`perm_tiles` is `'all'` holds a tile map with the fogged cells stripped out, so
-accepting a whole-map save from them would erase everything the GM painted under
-fog. The client sends only the cells it actually touched. See item 3 under "What
-`feature/wiki` changes" — this is the same trap the wiki branch already hit once.
+**Tile and fog writes are deltas, never full-map replaces.** This is the inverse
+lesson from the same wiki work — *never send a redacted version and then accept it
+back as a write*. A player whose `perm_tiles` is `'all'` holds a tile map with the
+fogged cells stripped out, so accepting a whole-map save from them would erase
+everything the GM painted under fog: the no-data-loss rule, applied to somebody
+else's map. The client sends only the cells it actually touched. **Not optional.**
 
-**Drag conflicts and resync.** Token moves are last-write-wins — with a handful of
-players around one table, locking is ceremony nobody needs; the loser sees the
-token snap, which is self-correcting. Client throttles pointermove broadcasts to
-~20/s and renders its own drag optimistically, ignoring echoes of its own moves
-while a drag is active. Every board message carries the board's `rev`; a client
-that sees a gap refetches the full snapshot. On reconnect the client fetches the
-snapshot and buffers live pushes until it lands — the same race fix
-`DicePanelProvider` already uses for the feed (`liveBufferRef` + merge).
+**Drag conflicts and resync.** Token and image moves are last-write-wins — with a
+handful of players around one table, locking is ceremony nobody needs; the loser
+sees the object snap, which is self-correcting. Client throttles pointermove
+broadcasts to ~20/s and renders its own drag optimistically, ignoring echoes of
+its own moves while a drag is active. Every board message carries the board's
+`rev`; a client that sees a gap refetches the full snapshot. On reconnect the
+client fetches the snapshot and buffers live pushes until it lands — the same race
+fix `DicePanelProvider` already uses for the feed (`liveBufferRef` + merge).
 
 ---
 
@@ -321,10 +514,11 @@ snapshot and buffers live pushes until it lands — the same race fix
 | File | Responsibility |
 |---|---|
 | `server/src/rooms.ts` (new) | `roomExists`, `canJoinRoom(user, key)` (group: `isGm \|\| isGroupMember`; event: `isGm \|\| owns a character in the temp group`), `charForRoom(userId, key)`. The one place room membership is decided, for both REST and WS. |
-| `server/src/board.ts` (new) | Load/mutate board state, `emitBoardChange()` per-viewer redaction, the debounced position writer. |
-| `server/src/boardAccess.ts` (new) | The one place board rights are decided: `canPaint`, `canLabel`, `canEditTokens`, `canMoveToken`, each reading the board's `perm_*` setting (`'gm'` ⇒ `viewer.isGm`, `'all'` ⇒ any room member). `canEditFog` is hard-coded to `viewer.isGm` — deliberately not a setting, since a player able to lift fog defeats the point. There is no `canSeeFog`: the mask is public, only its *contents* are redacted. `owner_user_id` on the token is recorded but unused in v1; it is what a future "own token only" mode would read. |
-| `server/src/ws.ts` | Room-key generalisation + the new `board.*` cases in the existing `switch`. |
+| `server/src/board.ts` (new) | Load/mutate board state, `emitBoardChange()` per-viewer redaction, the debounced position writer, and the asset cleanup calls on every delete path. |
+| `server/src/boardAccess.ts` (new) | The one place board rights are decided: `canPaint`, `canLabel`, `canEditTokens`, `canMoveToken`, `canEditImages`, each reading the board's `perm_*` setting (`'gm'` ⇒ `viewer.isGm`, `'all'` ⇒ any room member). `canEditFog` is hard-coded to `viewer.isGm` — deliberately not a setting, since a player able to lift fog defeats the point. There is no `canSeeFog`: the mask is public, only its *contents* are redacted. `owner_user_id` on the token is recorded but unused in v1; it is what a future "own token only" mode would read. |
+| `server/src/ws.ts` | Room-key generalisation, the broadcast rename above, and the new `board.*` cases in the existing `switch`. |
 | `server/src/feed.ts` | Room-key generalisation only; `canSeeFeedEntry` untouched. |
+| `server/src/coopPools.ts`, `pendingRolls.ts`, `groupRolls.ts` | Registry keys go from `number` to the room token. Mechanical, easy to miss. |
 
 REST (in `server/src/routes.ts`, guards composed as the file already does):
 
@@ -332,10 +526,11 @@ REST (in `server/src/routes.ts`, guards composed as the file already does):
 GET  /api/rooms/mine                      -- replaces /groups/mine; groups + event groups
 GET  /api/rooms/:kind/:id/board           -- full snapshot, already redacted for the viewer
 GET  /api/rooms/:kind/:id/feed            -- replaces /groups/:id/feed
+POST /api/rooms/:kind/:id/board/images    -- upload, guarded by perm_images
 ```
 
-Everything mutating goes over WS, so there is one ordering domain and one place
-that broadcasts.
+Everything else mutating goes over WS, so there is one ordering domain and one
+place that broadcasts. The image upload is REST because it carries bytes.
 
 ---
 
@@ -344,14 +539,19 @@ that broadcasts.
 `shared/src/board.ts` — no I/O, following the `shared/src/dice.ts` precedent:
 
 - `cellKey(x,y)` / `parseCellKey`, `encodeCellSet` / `decodeCellSet` (sparse).
+- `parseTileValue(raw)` — `#rrggbb` | `t:<key>` | `a:<slug>`, tolerant of junk.
 - `gridDistance(a, b)` — **Chebyshev**: `max(|dx|, |dy|)`, so a diagonal step costs
   1 Schritt and a movement range renders as a square. Settled.
 - `tokenCells(token)` for `size > 1`.
 - `shapeCells(shape)` — which cells a circle / rectangle covers, for range
   highlighting. **The cone is deliberately excluded**: per the developer it may
   stay *visual only*, drawn as a true geometric wedge without cell-accurate
-  coverage. If cell coverage for cones is wanted later it is an addition here,
-  not a redesign.
+  coverage.
+- **`cellSetOutline(cells)`** — marching squares over a sparse cell set, returning
+  merged outline rings for the autotile layer. New with the texture decision, and
+  the piece most worth testing: islands, holes, diagonal-touch ambiguity, and the
+  outset/rounding parameters.
+- `tileVariant(x, y, seed)` — the deterministic 0–3 rotation pick.
 - `initiativeOrder(entries)` — value descending, stable tiebreak.
 - `canAdvanceRound(entries)` — every entry `done`.
 - `advanceRound(state)` — bumps the round, clears `done`, ticks every active
@@ -359,14 +559,15 @@ that broadcasts.
 - `deathCountdown(lp, todesschwelle, current)` — the state machine: `lp <= 0` and
   no counter ⇒ start at `todesschwelle`; `lp > 0` ⇒ clear; otherwise unchanged.
 
-`shared/src/boardStatus.ts` — the frozen badge/cover catalogue described above.
-Data, not logic, so it needs no tests of its own beyond key uniqueness.
+`shared/src/boardTiles.ts`, `shared/src/boardStatus.ts` — the frozen catalogues.
+Data, not logic, so they need no tests beyond key uniqueness.
 
 `shared/test/board.test.ts` — Chebyshev distance (symmetry, pure diagonal costing
 the same as pure straight, the case that would fail under Euclidean), sparse
-encode round-trip, `shapeCells` for circle and rectangle, initiative ties, round
-advance blocked until all done, countdown start/tick/clear/death, and `size>1`
-cell coverage.
+encode round-trip, tile-value parsing, `shapeCells` for circle and rectangle,
+`cellSetOutline` for the shapes above, `tileVariant` determinism, initiative ties,
+round advance blocked until all done, countdown start/tick/clear/death, and
+`size>1` cell coverage.
 
 Initiative rolling itself stays server-side (`server/src/dice.ts` `rollDie(6)` +
 `computeBaseValues(...).ini.ergebnis`), matching the standing rule that the
@@ -376,19 +577,24 @@ client never supplies a number.
 
 ## Client architecture
 
-**New page** `client/src/pages/VirtualTable.tsx`, routes added to
-[App.tsx:139-156](client/src/App.tsx:139): `/gruppe/:id/tisch` and
-`/event/:id/tisch`. Entry points: a link on `Group.tsx` beside the existing
-"Spielleiter-Übersicht →" ([Group.tsx:110](client/src/pages/Group.tsx:110)), one
-on `GroupOverview.tsx`, and one from the event-group list in Verwaltung.
+**New page** `client/src/pages/VirtualTable.tsx`, routes added to `App.tsx`:
+`/gruppe/:id/tisch` and `/event/:id/tisch`. Entry points: a link on `Group.tsx`
+beside the existing "Spielleiter-Übersicht →", one on `GroupOverview.tsx`, and one
+from the event-group list in Verwaltung.
 
 **Render the map as SVG, not canvas.** Tokens need portraits (`<image>`), status
 badges, text labels, and hit-testing for drag — all free in SVG through ordinary
-DOM events and React's declarative rendering. Canvas would mean hand-rolling
-hit-testing, image loading and a redraw loop for a board that changes on events,
-not on frames. `BannerFx.tsx` is canvas because it animates continuously; this
-does not. Painted cells are sparse, so only painted cells become elements — the
-grid lines are a CSS background on the viewport, not thousands of nodes.
+DOM events and React's declarative rendering. Textures are `<pattern>` fills and
+the autotile blend is a mask plus filter, which are likewise native. Canvas would
+mean hand-rolling hit-testing, image loading and a redraw loop for a board that
+changes on events, not on frames. `BannerFx.tsx` is canvas because it animates
+continuously; this does not.
+
+**Layer order**, bottom to top: Hintergrund-Bilder → tile layers (by material
+`prio`, each with its blend mask) → grid lines → Objekt-Bilder (by `z`) →
+labels and measurements → tokens with badges and covers → fog → interaction
+chrome (selection, range highlight, drag ghost). Grid lines are a CSS background
+on the viewport, not thousands of nodes.
 
 **Pan/zoom** via the `<svg>` `viewBox` (crisper than a CSS transform, and keeps
 board coordinates as the only coordinate system). Panning uses the repo's pointer
@@ -396,15 +602,25 @@ idiom — `onPointerDown` → `pointermove`/`pointerup` on `window` → a class 
 `document.body` — the same shape as `CharacterSidebar.startResize`. No HTML5
 drag-and-drop anywhere, consistent with the rest of the app.
 
-**Tool palette.** One mode selector over the map — pan (default), paint, fog,
-measure (ruler / circle / cone / rectangle), label, token. Each tool the viewer
-lacks rights for is simply absent, and the server re-checks anyway; the palette is
-convenience, never the enforcement. Measure is always present for everyone.
+**Board state is fetched keyed by room, and this is the bug the wiki page view
+shipped twice.** Async state read during render must carry the identity of what it
+describes; clearing it in an effect is too late, because the render that read it
+has already returned. So the board response and the room key it answers live in
+**one** state object, derived during render
+(`geladen?.schluessel === schluessel ? geladen : null`), and every fetch keyed on a
+route parameter gets a `let aktuell = true` guard whose cleanup drops the answer.
+The reconnect-snapshot flow is the same shape.
 
-**Board settings** (GM only): a small panel for board size, and the four
-`perm_*` toggles as plain „Spielleitung / Alle" selects, so the GM can open map
-editing to a trusted group and keep it closed for another. Fog is not in this
-panel — it has no toggle by design.
+**Tool palette.** One mode selector over the map — pan (default), paint, fog,
+measure (ruler / circle / cone / rectangle), label, token, image. Each tool the
+viewer lacks rights for is simply absent, and the server re-checks anyway; the
+palette is convenience, never the enforcement. Measure is always present for
+everyone. The paint tool opens a picker grouped by `gruppe` showing texture
+swatches and the flat-colour row, with brush size and a rectangle fill.
+
+**Board settings** (GM only): board size and the five `perm_*` toggles as plain
+„Spielleitung / Alle" selects. Fog is not in this panel — it has no toggle by
+design.
 
 **"Center all on my view"** broadcasts `board.view.center {x, y, zoom}`; receivers
 ease their `viewBox` to it. Available to everyone, not just the GM — it is a small
@@ -413,25 +629,24 @@ table and socially self-regulating.
 **Chat column**: the page calls `setHidden(true)` on mount / `false` on unmount so
 the floating dock does not double up (exactly what that flag was added for), and
 `selectRoom({kind, id})` so the feed matches the board. The column reuses
-`useDicePanel()` and `FeedEntryView`; the feed+input body of
-`DicePanel.tsx` is extracted into a shared `FeedColumn` component used by both the
-dock and the page, so there is one chat UI rather than two that drift.
+`useDicePanel()` and `FeedEntryView`; the feed+input body of `DicePanel.tsx` is
+extracted into a shared `FeedColumn` component used by both the dock and the page,
+so there is one chat UI rather than two that drift.
 
 ---
 
 ## The `CharacterSidebar` reuse problem
 
-This is the largest refactor risk, so it gets its own early phase.
+This is the largest refactor risk after room identity, so it gets its own early
+phase.
 
-`CharacterSidebar` imports `useChar` from `pages/Character`, and every subcomponent
-uses it. `CharCtx` lives inside `pages/Character.tsx` (702 lines) together with the
-loader and the debounced autosave.
+`CharacterSidebar` imports `useChar` from `pages/Character`, and every
+subcomponent uses it. `CharCtx` lives inside `pages/Character.tsx` together with
+the loader and the debounced autosave.
 
 The context value is actually small and self-contained —
-`{ charId, data, catalogs, update, rollCtx, requestCtx }`
-([Character.tsx:133-151](client/src/pages/Character.tsx:133)) — and the autosave is
-a tidy unit: a `dirty` Set, a 1500 ms timer, and a `flush()` that PUTs per section
-([Character.tsx:293-354](client/src/pages/Character.tsx:293)).
+`{ charId, data, catalogs, update, rollCtx, requestCtx }` — and the autosave is a
+tidy unit: a `dirty` Set, a 1500 ms timer, and a `flush()` that PUTs per section.
 
 **Extract them into `client/src/components/charSheet.tsx`**, exporting
 `<CharSheetProvider charId>` and `useChar()`. It owns loading, catalogs, `update`,
@@ -442,8 +657,9 @@ preview, the edit toggle, name editing, table widths, scroll memory, and the
 sticky-height refs. Those are page concerns, not sheet-data concerns.
 
 `Character.tsx` re-exports `useChar` so the dozen importing files need no churn.
-The VTT's quick panel then mounts `<CharSheetProvider charId={myCharId}><CharacterSidebar/></CharSheetProvider>`
-— always the viewer's own character, so always `access === 'edit'` and none of the
+The VTT's quick panel then mounts
+`<CharSheetProvider charId={myCharId}><CharacterSidebar/></CharSheetProvider>` —
+always the viewer's own character, so always `access === 'edit'` and none of the
 `?asUser=`/summary complexity comes along.
 
 *Rejected alternative:* building a slimmed-down VTT-only panel. It would duplicate
@@ -456,6 +672,7 @@ places to keep in sync with the sheet, for a panel meant to be the same panel.
 
 One new section in `client/src/styles.css`, tokens only (`--panel`, `--border`,
 `--accent`, …) so all six colour worlds and dark mode work without extra rules.
+The map surface itself is the documented exception — see "Theming" above.
 
 Page shell: a flex row of `quick panel | map | chat`, both side columns collapsible
 and width-draggable, reusing the `.side-resize` / `.side-expand` idiom and
@@ -470,6 +687,13 @@ reading the measured variable rather than a hard-coded number, per CLAUDE.md.
 a `viewBox` change, not scrolling. So `main { overflow-x: clip }` and the
 sticky-`thead` rule are untouched.
 
+**A sticky VTT toolbar is not done when its own rule is written.** Every `calc()`
+for something sticking below it needs the new term, including rules shared with
+pages that never render the toolbar (`.talent-search`, `.table-wrap table.sheet
+thead`). Adding the term there is safe because an unset variable falls back to
+`0px`. Related: `--tabs-h` also falls back to `0px` and every `.tabs` bar is
+measured — the VTT page has no tab bar and must not inherit a guessed offset.
+
 Small screens: below ~900 px the side columns become overlay drawers instead of
 columns, so the map keeps the full width.
 
@@ -478,141 +702,91 @@ columns, so the map keeps the full width.
 ## Phases
 
 Each is independently committable and ends in something demoable. Risk is
-front-loaded: the two phases that touch existing, shipped code come first.
+front-loaded: the two phases that touch existing, released code come first.
 
-0. **Branch** `feature/virtual-table` off `develop`, after dice/chat has been
-   merged there. This is large and touches shipped code — CLAUDE.md's "isolate
-   risky/large work" exception applies.
+0. **Branch** `feature/virtual-table` off `develop`. This is large and touches
+   released code — CLAUDE.md's "isolate risky/large work" exception applies.
 1. **Room identity.** `shared/src/room.ts`, `server/src/rooms.ts`, the `group_feed`
-   schema change (rebuild *or* a plain `CREATE TABLE` edit — see above), the WS
-   path/key generalisation, `/api/rooms/mine` and `/rooms/:kind/:id/feed`,
-   client room state. **Ships: Event-Gruppen get chat and dice.** No map yet.
+   rebuild, the WS path/key generalisation, the three in-memory registries,
+   `/api/rooms/mine` and `/rooms/:kind/:id/feed`, client room state, and the
+   `broadcastToRoom` rename. **Ships: Event-Gruppen get chat and dice.** No map yet.
 2. **`CharSheetProvider` extraction.** Pure refactor, verified against the
    untouched character sheet. No new UI at all.
-3. **Shared board math + schema.** `shared/src/board.ts` + tests, board tables,
-   snapshot endpoint. Inert — no user-facing change.
+3. **Shared board math + schema.** `shared/src/board.ts` (including
+   `cellSetOutline`) + tests, board tables, snapshot endpoint. Inert — no
+   user-facing change.
 4. **Page shell.** Route, full-bleed layout, empty grid, pan/zoom, the fixed chat
    column, the quick panel. No tokens, no painting.
 5. **Tokens.** Create/move/delete, status badges and covers, live sync, and
    `boardAccess.ts` with the `perm_*` checks plus the GM settings panel. Character
    tokens pull name and portrait; markers are ad hoc.
-6. **Tile painting, labels, measurement shapes** (persistent and movable). Cone
-   ships visual-only unless cell coverage falls out easily.
-7. **Fog of war.** Per-viewer redaction through `emitBoardChange()`.
-8. **Initiative and rounds.** Player-rolled `Basis + 1W6`, GM-typed monster values,
-   the "done" checkbox gating round advance, the Todesschwelle countdown.
-9. **"Center all on my view"** and polish.
-10. **Changelog + TODO.** Fold the player-facing notes into the newest unversioned
-    changelog entry and prune the virtual-table sketch from `TODO.md:225-254`.
-    Mark GM-only bits with „(Spielleiter)". **No version number** — that is the
-    developer's call.
+6. **Tile painting, flat colour, and the texture catalogue.** Painting, delta
+   writes, the picker, the bundled CC0 set (reviewed by the developer), pattern
+   rendering and the deterministic rotation variants. **Hard edges at this point.**
+7. **Autotiling.** `cellSetOutline` wired to layered rendering with priority,
+   outset and rounded joins; then the turbulence mask behind a flag. Ends with a
+   measured perf check on a dense 100×100 board in both colour modes.
+8. **Labels and measurement shapes** (persistent and movable). Cone ships
+   visual-only unless cell coverage falls out easily.
+9. **Images on the table.** `board_images`, upload with `OwnerTyp 'board'`, the
+   „Pixel pro Feld" alignment dialog, object vs Hintergrund, `perm_images`, and —
+   in the same commit, not a follow-up — every asset cleanup path plus the sweeper
+   entry.
+10. **Fog of war.** Per-viewer redaction through `emitBoardChange()`, and the
+    explicit „Bilder sind für Spieler ladbar" note in the GM's image dialog.
+11. **Initiative and rounds.** Player-rolled `Basis + 1W6`, GM-typed monster
+    values, the "done" checkbox gating round advance, the Todesschwelle countdown.
+12. **"Center all on my view"** and polish.
+13. **Changelog + TODO.** Fold the player-facing notes into the newest unversioned
+    changelog entry and prune the virtual-table sketch from `TODO.md`. Mark GM-only
+    bits with „(Spielleiter)". **No version number** — that is the developer's call,
+    though a feature this size is a `0.X.0` recommendation.
 
 ---
 
 ## Verification
 
-- `npm test -w shared` after phases 1, 3 and 8 — the pure logic lives there and is
-  the only workspace with a runner.
+- `npm test -w shared` after phases 1, 3, 7 and 11 — the pure logic lives there and
+  is the only workspace with a runner.
 - Browser verification needs **two logged-in users at once**, and `localhost` and
   `[::1]` are separate cookie jars — so GM at `http://localhost:5173`, player at
   `http://[::1]:5173`, one role per origin. Seeds: `npm run seed` (GM
   `spielleiter`/`spielleiter`), `npm run seed:testuser` (`testspieler`/`test1234`),
-  `npm run seed:dummy` for load.
-- Per phase: **1** — post in an Event-Gruppe as a player, confirm a non-member sees
-  nothing; if the rebuild route was taken, check `group_feed` row counts before and
-  after. **2** — the sheet must behave identically:
-  autosave, roll buttons, print, "Ansehen als". **4** — pan/zoom in two browsers,
-  confirm the dock is hidden and the column chat still works. **5** — drag in one
-  browser, watch it move in the other; check the server does not write per
-  pointermove (log or count); flip each `perm_*` to `gm` and confirm the player's
-  tool disappears **and** that a hand-sent WS message is still rejected — the
-  palette is not the enforcement. **7** — the decisive test: as a player, inspect the
-  WebSocket frames and the snapshot response and confirm the fog mask *does* arrive
-  while **no tile colour or token under it arrives at all** — not merely that they
-  are not drawn. Move a GM token under fog and confirm the player's payload loses
-  it. Then the data-loss half: with `perm_tiles` set to „Alle", have the player
-  paint a cell next to a fogged region and confirm the GM's hidden tiles are still
-  there afterwards. **8** — round advance
-  blocked until every box is ticked; drop a character to 0 LP and watch the
-  countdown tick and clear on healing.
-- Clean up test artefacts afterwards (feed rows, temp group memberships, boards) —
-  they are visible to real players otherwise.
+  `npm run seed:dummy` for load. **Never reset `helden.db`** — it holds the
+  persistent test accounts.
+- Per phase:
+  - **1** — post in an Event-Gruppe as a player, confirm a non-member sees nothing;
+    check `group_feed` row counts before and after the rebuild, and run
+    `PRAGMA foreign_key_check`. Exercise a coop pool and a pending roll in **both**
+    room kinds — those registries are the part most likely to be missed.
+  - **2** — the sheet must behave identically: autosave, roll buttons, print,
+    "Ansehen als".
+  - **4** — pan/zoom in two browsers, confirm the dock is hidden and the column
+    chat still works.
+  - **5** — drag in one browser, watch it move in the other; check the server does
+    not write per pointermove (log or count); flip each `perm_*` to `gm` and
+    confirm the player's tool disappears **and** that a hand-sent WS message is
+    still rejected — the palette is not the enforcement.
+  - **6/7** — a dense 100×100 board, both colour modes: frame timing while panning
+    and while painting, with the turbulence flag on and off. Confirm two clients
+    render identical boundaries from the same `seed`.
+  - **9** — upload an image, delete it, confirm the row in `helden-assets.db` is
+    gone; then delete the whole board and confirm the same; then delete the *room*
+    and confirm it again — that is the path most likely to leak blobs.
+  - **10** — the decisive test: as a player, inspect the WebSocket frames and the
+    snapshot response and confirm the fog mask *does* arrive while **no tile colour
+    or token under it arrives at all** — not merely that they are not drawn. Move a
+    GM token under fog and confirm the player's payload loses it. Confirm a
+    `hidden=1` image never arrives. Then the data-loss half: with `perm_tiles` set
+    to „Alle", have the player paint a cell next to a fogged region and confirm the
+    GM's hidden tiles are still there afterwards.
+  - **11** — round advance blocked until every box is ticked; drop a character to
+    0 LP and watch the countdown tick and clear on healing.
+- Clean up test artefacts afterwards (feed rows, temp group memberships, boards,
+  uploaded images) — they are visible to real players otherwise.
+- Leave the dev servers running when done.
 
 ---
-
-## What `feature/wiki` changes
-
-Written after the fact, when switching branches revealed a second unmerged line of
-work. **These are not folded into the body above** — doing that properly is part of
-the revisit, because by then both branches will have merged and `CLAUDE.md` will be
-their union.
-
-1. **Images go in `helden-assets.db`, not `helden.db`.** The wiki branch split
-   image blobs into a second database. So the reserved `bg_image_id` and
-   `cover_image_id` point *there*, not at a new BLOB table beside `boards`. The
-   consequence is sharper than it sounds: **SQLite has no cross-database CASCADE**,
-   so deleting a board or a token must call `loescheAssetsFuer()` by hand. The
-   weekly sweeper in `server/src/assets/sweep.ts` is a safety net for what gets
-   missed, not the mechanism. Any VTT delete path is a new place to get this wrong.
-
-2. **Fog of war has an exact precedent — use it.** The wiki's ` ```gm ` regions are
-   stripped *server-side* before the response, on the reasoning that a client which
-   merely declined to render them would still have shipped the text. That is the
-   same principle this plan applies to fogged tiles and tokens, already proven in
-   this codebase. Read `verbergeGmBloecke` before writing `emitBoardChange()`.
-
-3. **…and the counterpart is a real hole in this plan.** The wiki branch also
-   learned the inverse: *never send a redacted version and then accept it back as a
-   write*. A player editing a page gets `[[gm:n]]` markers where GM regions stand,
-   so their save restores the original — otherwise an ordinary edit silently
-   deletes the GM's notes.
-   **The same trap exists here and this plan walks straight into it.** With
-   `perm_tiles = 'all'`, a player paints tiles while their client holds a tile map
-   with the fogged cells *removed*. A save that ships the whole map would erase
-   every tile the GM had painted under fog — the no-data-loss rule, applied to
-   somebody else's map.
-   **Fix, and it is not optional: every tile and fog write is a delta** — only the
-   cells the author actually touched — never a full-map replace. Noted in the
-   realtime section too.
-
-4. **A sticky VTT toolbar is not done when its own rule is written.** Every
-   `calc()` for something sticking below it needs the new term, including rules
-   shared with pages that never render the toolbar. Adding the term is safe because
-   an unset variable falls back to `0px`. Related: `--tabs-h` falls back to `0px`
-   and every `.tabs` bar is measured — the VTT page has no tab bar and must not
-   inherit a guessed offset.
-
-5. **The board fetch is exactly the bug the wiki page view shipped twice.** Async
-   state read during render must carry the identity of what it describes; clearing
-   it in an effect is too late, because the render that read it has already
-   returned. So the board response and the room key it answers live in **one** state
-   object, derived during render (`geladen?.schluessel === schluessel ? geladen :
-   null`), and every fetch keyed on a route parameter gets a `let aktuell = true`
-   guard whose cleanup drops the answer. This plan's room-keyed board load and
-   reconnect-snapshot flow are the same shape.
-
-6. **Derived columns.** `boards` is a new table, so its `perm_*` defaults are
-   correct from the start. But if any derived column is later added to an *existing*
-   table, `ALTER TABLE` fills it with the DEFAULT rather than the right answer, and
-   it needs a boot-time re-derive — a `user_version` step would not catch a rollback
-   or an old-backup restore.
-
-## Status of this plan
-
-**Planning only — no implementation is scheduled**, and the gap before building is
-open-ended. See the revisit checklist at the top of this file: it is a precondition,
-not a suggestion.
-
-Ordering is settled: `feature/dice-rolls-chat` merges into `develop` first, this
-work then cuts `feature/virtual-table` off `develop`, and the virtual table merges
-after dice/chat.
-
-## Still open
-
-- **Which status keys.** Settled as "fine for now" — vergiftet, betäubt, liegend,
-  brennend, blind, stumm, gelähmt, gesegnet, unsichtbar, plus the covers *tot* and
-  *bewusstlos*. It is one frozen array, so additions are a later pass if they turn
-  out to be needed.
 
 ## Cautions carried into the build
 
@@ -620,6 +794,25 @@ after dice/chat.
   hidden thing isn't drawn" but "the hidden thing is not in the payload". A
   visual-only check is a failed check — the more so now that players legitimately
   receive the fog mask, which makes a leak of its *contents* easier to overlook.
-- **Reserved, not designed for:** `bg_image_id` (map backdrop), `cover_image_id`
-  (token cover art), `owner_user_id` (a future "own token only" mode). Everything
-  else under "more will follow" is genuinely unplanned.
+- **Images are the phase most likely to orphan blobs.** Three delete paths (image,
+  board, room), no cross-database CASCADE, and a sweeper that must stay a net.
+- **Autotiling is the phase most likely to be slow.** Ship the cheap half first and
+  measure before adding the filter.
+- **A derived column added by `ALTER TABLE` is filled with its DEFAULT, not with
+  the right answer.** All the tables here are new, so their defaults are correct
+  from the start — but if a derived column is ever added to one of them later, it
+  needs a boot-time re-derive next to `indexNachziehen()`. A `user_version` step
+  would catch neither a rollback nor a restore from an older backup.
+- **Reserved, not designed for:** `cover_asset` (token cover art), `a:<slug>` tile
+  values (GM-uploaded textures), `owner_user_id` (a future "own token only" mode).
+  Everything else is genuinely unplanned.
+
+## Still open
+
+- **Which status keys.** Settled as "fine for now" — vergiftet, betäubt, liegend,
+  brennend, blind, stumm, gelähmt, gesegnet, unsichtbar, plus the covers *tot* and
+  *bewusstlos*. One frozen array, so additions are a later pass.
+- **Which textures.** The starting list above is a proposal; the developer reviews
+  the actual files before Phase 6 lands.
+- **The autotile outset distance and rounding radius** are visual constants to be
+  tuned against the real texture set, not decided on paper.

@@ -131,8 +131,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   `feature/dice-rolls-chat`; the rules/mechanics are documented in
   `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
   docked-only panel would collide with a possible future virtual-table
-  feature, now sketched out in `docs/concepts/VTT-concept.md` and
-  `docs/concepts/virtual-table.md`. Not a rework: any page can call
+  feature, planned in `docs/concepts/virtual-table.md` (revisited 2026-08-24
+  and ready to build from). Not a rework: any page can call
   `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
   full-page chat view is additive — reuses `FeedEntryView` for individual
   messages/rolls, no duplicate connection. **Settled:** that dedicated page
