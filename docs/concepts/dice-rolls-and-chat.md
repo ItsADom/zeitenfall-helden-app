@@ -585,6 +585,59 @@ pending-request flow rather than rolling immediately.
    needs its own shape); move the feature out of the changelog's
    `COMING_SOON` into a real entry; z-index/mobile polish on the fixed dock.
 
+## Later addition: „der große Wurf" (`/i`)
+
+Built on top of everything above, after the fact. Only the parts that are not
+obvious from the code are recorded here; the rules of the mechanic are
+unchanged, because it does not have any of its own — it is the ordinary
+expression roll with a performance in front of it.
+
+- **`/i <Ausdruck>` / `/important <Ausdruck>`** is the Spielleitung's version of
+  `/r`. Gated server-side in `ws.ts` (`roll.expr` + `important`), like every
+  other GM-only message; the client check is only there to save a round trip.
+  Always `visibility: 'public'` — an announcement to the whole table with a
+  hidden result behind it makes no sense, so the picker is overridden and the
+  dock says so once.
+- **The entry is persisted but NOT broadcast.** It travels inside the transient
+  `roll.important` message and each client appends it itself when *its own*
+  cinematic ends. That is what lets one player skip the animation without
+  affecting anybody else's timing, and it is why `writeFeedRoll` exists next to
+  `insertFeedRoll` in `feed.ts`. Anyone who reconnects mid-performance picks the
+  entry up through the ordinary history endpoint — the reconnect path is the
+  safety net for a cinematic that never finishes.
+- **The append is deliberately not a blind merge.** While a performance runs, a
+  `feed.update` for that same id can already have arrived (someone who
+  reconnected has the entry and can have thrown its confirmation). `mergeFeed`
+  replaces by id, so appending the older copy on top would silently undo the
+  newer one. See `haengeEintragAn` in `DicePanelProvider`.
+- **Nothing new is stored.** No `important` column: a stored flag would replay
+  the performance on every page load, and nothing ever needs to ask after the
+  fact whether a roll was announced. The seed is meaningless outside the seconds
+  it drives. The whole feature is additive on the wire and additive in the
+  client — no migration at all.
+- **Determinism** lives in `shared/src/diceCinematic.ts`, whose header states
+  the three rules that hold it together (integer-only PRNG, closed-form
+  functions of elapsed time, world units rather than pixels). What is
+  deliberately *not* synchronised is the wall-clock start: the requirement is
+  that everyone sees the same animation, not that they see it in the same
+  millisecond.
+- **three.js is lazy, and that has to be defended.** Only `preload.ts` and the
+  overlay's effect may reference `cinematic/stage`, and only through `import()`.
+  A static import of anything that transitively imports three moves ~132 KB
+  gzipped into the chunk every page load fetches, and nothing fails to warn you
+  — it happened once already, via a colour helper. That is why `kontrast.ts`
+  exists separately from `faces.ts`.
+- **Face recovery** groups triangles by ANGULAR similarity of their normals, not
+  by rounding a normal into a map key: the latter splits components that land on
+  a rounding boundary and yields 17 faces for a dodecahedron. The d10 is
+  hand-built and its kite faces are planar at exactly one band-to-apex ratio,
+  with a winding that must be right or its ten faces collapse into five against
+  their own antipodes.
+- **Cancelled crits get no effect**, because `findCritTriggers` has already
+  declared them meaningless and the feed row says „· aufgehoben" underneath. The
+  filter lives in `shared` (`effectTriggers`) and is tested, because it encodes a
+  rules decision rather than a taste one.
+
 ## Open items
 
 None remaining — the items originally flagged here (Group.tsx "posting as"

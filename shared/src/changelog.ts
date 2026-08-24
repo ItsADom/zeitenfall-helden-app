@@ -203,12 +203,16 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '',
     title: 'Neuigkeiten im Wiki',
     added: [
+      'Der große Wurf. Wenn die Spielleitung einen Wurf ansagt, hören alle am Tisch eine Fanfare, der Bildschirm verdunkelt sich, und die Würfel fallen für einen Moment groß und dreidimensional über der ganzen Seite — bei allen dieselben, mit denselben Bahnen. Sie sammeln sich in der Mitte, damit ihr sie in Ruhe ablesen könnt, und werden dann in den Chat gezogen, wo der Wurf ganz normal stehen bleibt. Eine stehengebliebene natürliche 1 zerspringt dabei in ein Feuerwerk, eine stehengebliebene 20 lässt den Bildschirm dunkelrot aufleuchten. Wer gerade keine Zeit für die Vorstellung hat, drückt Esc oder klickt — das überspringt sie nur bei euch selbst, alle anderen sehen sie weiter, und das Ergebnis steht danach so oder so im Chat.',
       'Ein Benachrichtigungston für den Chat, einzustellen unter Einstellungen → Benachrichtigungston: fünf Klänge zur Auswahl (Tempelglocke, Silberglöckchen, Kristall, Holzgong, Fanfare), dazu ein Lautstärkeregler. Wer lieber etwas Eigenes hört, lädt eine eigene Tondatei hoch — sie wird auf fünf Sekunden gekürzt und gilt dann auf allen euren Geräten. Im Chat schaltet „/mute" den Ton schnell aus und wieder an.',
     ],
     changed: [
       'Der Würfel-Chat reißt sich nicht mehr selbst auf. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',
       'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
       'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
+    ],
+    admin: [
+      '(Spielleiter) „/i 2w20" — oder ausgeschrieben „/important" — sagt einen großen Wurf an: wie „/r", aber der Wurf wird erst am ganzen Tisch inszeniert und landet danach im Chat. Ein Titel geht wie gewohnt mit „#" dazu („/i 3w20#Der Sprung über die Schlucht"). Ein großer Wurf ist immer öffentlich, „Verdeckt" und „SL+Spieler" gelten dafür nicht, und zwischen zwei Ansagen liegen zehn Sekunden, damit aus einer Inszenierung kein Flackern wird. Der Befehl steht auch in der Übersicht unter „/commands".',
     ],
   },
   {

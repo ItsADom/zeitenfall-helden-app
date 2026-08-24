@@ -137,7 +137,13 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   full-page chat view is additive — reuses `FeedEntryView` for individual
   messages/rolls, no duplicate connection. **Settled:** that dedicated page
   does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
-  showing the same feed twice on the same page would be redundant.
+  showing the same feed twice on the same page would be redundant. **Also
+  settled:** the great-roll overlay (`WichtigerWurfOverlay`) is mounted globally
+  in `App.tsx` and covers whatever page is open, so a dedicated chat page must
+  not try to own or duplicate it — it already works there. The overlay pulls its
+  dice toward `.dice-dock`/`.dice-dock-tab` and falls back to the bottom-right
+  corner when neither is on screen, which is exactly the case a dock-less chat
+  page would create.
     - as we have a group that is streaming, this topic will need a higher prio. should ship shortly
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
