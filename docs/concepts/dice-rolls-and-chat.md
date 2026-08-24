@@ -641,6 +641,15 @@ expression roll with a performance in front of it.
   disagreed with it. `CAMERA_TILT` therefore lives in `shared` beside the
   layout, at 64°, and the gathered dice are laid out on the plane perpendicular
   to it (`stagePoint`) so the grid is not squashed by the tilt.
+- **The gather squares the numbers up; the table beat does not.** A die on the
+  table lands however it lands, random roll and all. Held up to be read it is
+  turned BOTH ways — face to the viewer and number the right way up — because
+  `quaternionFromTo` only aims an axis and leaves the roll to the shortest arc,
+  which is upside down half the time. On a d20 that is not merely untidy: an
+  inverted 6 with its underline above it is exactly a 9, and that was reported
+  from play. `uprightFaceQuaternion` pins both axes, which is why `Solid` has to
+  carry `faceUps` — the direction a number is printed in is not recoverable from
+  outside `geometry.ts`, since the UV basis is chosen per face.
 - **The three opening beats are sequential on purpose.** Fanfare, then blackout,
   then dice — each finishing before the next begins. They used to overlap, which
   collapsed the announcement into one instant in which nothing read as causing

@@ -32,6 +32,17 @@ export interface Solid {
   geometry: BufferGeometry;
   /** Outward unit normal per face, in the deterministic face order. */
   faceNormals: Vec3[];
+  /**
+   * Which way is UP on each face's printed number — the in-plane axis the atlas
+   * cell's own vertical maps to.
+   *
+   * Exported because it is not recoverable from the outside: the UV basis below
+   * is chosen per face and lands wherever it lands. Without it the stage can aim
+   * a face at the viewer but has no idea whether the number on it is the right
+   * way round, and on a d20 an upside-down 6 with its underline above it is
+   * precisely a 9.
+   */
+  faceUps: Vec3[];
 }
 
 /**
@@ -189,6 +200,7 @@ export function solidFor(sides: number): Solid {
   // --- one atlas cell per face ---------------------------------------------
   const { spalten, zeilen } = atlasRaster(flaechen.length);
   const uv = new Float32Array(pos.count * 2);
+  const hoch: Vec3[] = [];
   const mitte = new Vector3();
   const achseU = new Vector3();
   const achseV = new Vector3();
@@ -216,6 +228,9 @@ export function solidFor(sides: number): Solid {
     const hilfs = nx <= ny && nx <= nz ? new Vector3(1, 0, 0) : ny <= nz ? new Vector3(0, 1, 0) : new Vector3(0, 0, 1);
     achseU.crossVectors(flaeche.normal, hilfs).normalize();
     achseV.crossVectors(flaeche.normal, achseU).normalize();
+    // Copied out, not referenced: both axes are scratch vectors reused by every
+    // face of the loop.
+    hoch.push([achseV.x, achseV.y, achseV.z]);
 
     let radius = 0;
     for (const t of flaeche.dreiecke) {
@@ -246,6 +261,7 @@ export function solidFor(sides: number): Solid {
   const solid: Solid = {
     geometry,
     faceNormals: flaechen.map((f) => [f.normal.x, f.normal.y, f.normal.z] as Vec3),
+    faceUps: hoch,
   };
   zwischenspeicher.set(sides, solid);
   return solid;

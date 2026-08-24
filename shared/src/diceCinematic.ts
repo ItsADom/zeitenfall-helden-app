@@ -169,6 +169,84 @@ export function faceTargetQuaternion(faceNormal: Vec3, target: Vec3, spin: numbe
   return multiplyQuat(quatFromAxisAngle(target, spin), quaternionFromTo(faceNormal, target));
 }
 
+/**
+ * The orientation that presents a face to the viewer THE RIGHT WAY UP.
+ *
+ * faceTargetQuaternion above only aims a face; the roll it ends up with is
+ * whatever the shortest arc happened to give, which for a printed number means
+ * "any angle at all, upside down half the time". That is right for a die
+ * landing on a table and wrong for one held up to be read — and on a d20 it is
+ * worse than untidy, because an inverted 6 with its underline above it is
+ * exactly a 9.
+ *
+ * So both axes are pinned: the face's outward normal onto `targetOut`, and the
+ * direction the number is printed "up" in onto `targetUp`. Two matched
+ * orthonormal frames determine the rotation completely — no shortest-arc
+ * ambiguity is left for it to get wrong.
+ *
+ * `roll` then tips it back by a few degrees so twenty dice do not read as a
+ * printed table. Applied about `targetOut`, so it costs legibility nothing.
+ */
+export function uprightFaceQuaternion(
+  faceNormal: Vec3,
+  faceUp: Vec3,
+  targetOut: Vec3,
+  targetUp: Vec3,
+  roll: number,
+): Quat {
+  const [qr, qu, qn] = orthoFrame(targetOut, targetUp);
+  const [er, eu, en] = orthoFrame(faceNormal, faceUp);
+  // R = F · Eᵀ — the rotation taking each source axis onto its counterpart.
+  const r = (i: number, j: number): number => qr[i] * er[j] + qu[i] * eu[j] + qn[i] * en[j];
+  return multiplyQuat(quatFromAxisAngle(targetOut, roll), quatFromMatrix(r));
+}
+
+/**
+ * A right-handed frame [right, up, out] from an outward direction and a rough
+ * up.
+ *
+ * `up` is only required to POINT roughly the right way: the component along
+ * `out` is projected away, so a caller may hand in an axis that is merely close
+ * to perpendicular without the frame quietly ceasing to be orthonormal.
+ *
+ * The handedness matches the atlas basis in geometry.ts (right × up = out), and
+ * it has to: that is the frame the numbers are painted in.
+ */
+function orthoFrame(out: Vec3, up: Vec3): [Vec3, Vec3, Vec3] {
+  const n = normalize(out);
+  const d = dot(up, n);
+  let u = normalize([up[0] - n[0] * d, up[1] - n[1] * d, up[2] - n[2] * d]);
+  // Degenerate input (up parallel to out): any perpendicular will do, and
+  // producing one beats returning a frame full of NaN.
+  if (u[0] === 0 && u[1] === 0 && u[2] === 0) u = anyPerpendicular(n);
+  return [normalize(cross(u, n)), u, n];
+}
+
+/**
+ * Quaternion from a rotation matrix, given as an (i, j) accessor.
+ *
+ * Shepperd's method: pick the largest of the four possible denominators rather
+ * than always dividing by the trace term, which loses precision — and at a
+ * 180° turn divides by zero.
+ */
+function quatFromMatrix(m: (i: number, j: number) => number): Quat {
+  const spur = m(0, 0) + m(1, 1) + m(2, 2);
+  if (spur > 0) {
+    const s = Math.sqrt(spur + 1) * 2;
+    return normalizeQuat([(m(2, 1) - m(1, 2)) / s, (m(0, 2) - m(2, 0)) / s, (m(1, 0) - m(0, 1)) / s, 0.25 * s]);
+  }
+  if (m(0, 0) > m(1, 1) && m(0, 0) > m(2, 2)) {
+    const s = Math.sqrt(1 + m(0, 0) - m(1, 1) - m(2, 2)) * 2;
+    return normalizeQuat([0.25 * s, (m(0, 1) + m(1, 0)) / s, (m(0, 2) + m(2, 0)) / s, (m(2, 1) - m(1, 2)) / s]);
+  }
+  if (m(1, 1) > m(2, 2)) {
+    const s = Math.sqrt(1 + m(1, 1) - m(0, 0) - m(2, 2)) * 2;
+    return normalizeQuat([(m(0, 1) + m(1, 0)) / s, 0.25 * s, (m(1, 2) + m(2, 1)) / s, (m(0, 2) - m(2, 0)) / s]);
+  }
+  const s = Math.sqrt(1 + m(2, 2) - m(0, 0) - m(1, 1)) * 2;
+  return normalizeQuat([(m(0, 2) + m(2, 0)) / s, (m(1, 2) + m(2, 1)) / s, 0.25 * s, (m(1, 0) - m(0, 1)) / s]);
+}
+
 /** Shortest-arc spherical interpolation. Flips a sign rather than take the long way round. */
 export function slerp(a: Quat, b: Quat, u: number): Quat {
   let [bx, by, bz, bw] = b;
@@ -550,7 +628,11 @@ export interface DieFlight {
   bounce: number;
   /** Rotation about the up axis at rest — so the numbers do not all align. */
   restSpin: number;
-  /** Rotation about the camera axis once gathered. */
+  /**
+   * Small tilt about the camera axis once gathered — a few degrees, so a row of
+   * held-up dice does not read as a printed table. Deliberately tiny: the whole
+   * point of that beat is that the numbers can be READ.
+   */
   gatherSpin: number;
   /** Milliseconds this die lags the others: throw, gather and suck each get one. */
   throwDelay: number;
@@ -606,7 +688,7 @@ export function buildFlights(seed: number, sides: readonly number[], values: rea
       arc: between(rnd, 0.6, 1.6),
       bounce: between(rnd, 0.25, 0.6),
       restSpin: between(rnd, 0, Math.PI * 2),
-      gatherSpin: between(rnd, -0.22, 0.22),
+      gatherSpin: between(rnd, -0.1, 0.1),
       throwDelay: between(rnd, 0, MAX_THROW_DELAY),
       gatherDelay: between(rnd, 0, MAX_GATHER_DELAY),
       suckDelay: between(rnd, 0, MAX_SUCK_DELAY),

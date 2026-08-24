@@ -28,6 +28,7 @@ import {
 } from 'three';
 import {
   CAMERA_DIR,
+  CAMERA_UP,
   DIE_EXTENT,
   PHASES,
   effectTriggers,
@@ -36,6 +37,7 @@ import {
   buildFlights,
   faceTargetQuaternion,
   phaseProgress,
+  uprightFaceQuaternion,
   poseAt,
   type DieFlight,
   type FlightContext,
@@ -166,6 +168,7 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
     const flaechen = solid.faceNormals.length;
     const k = faceIndexFor(w.sides, w.value, flaechen);
     const normale = solid.faceNormals[k] ?? ([0, 1, 0] as Vec3);
+    const hoch = solid.faceUps[k] ?? ([0, 0, 1] as Vec3);
 
     const stoff = new MeshStandardMaterial({
       map: atlasFuer({
@@ -188,10 +191,15 @@ export function createStage(canvas: HTMLCanvasElement, opts: StageOptions): Stag
       mesh,
       stoff,
       ctx: {
-        // Resting: the rolled face up. Gathered: the same face turned to the
-        // camera, which is the pose the table actually reads.
+        // Resting: the rolled face up, at a random roll — a die lands however it
+        // lands, and squaring it up on the table would look staged.
+        //
+        // Gathered: the same face turned to the camera AND the right way up,
+        // because that beat exists to be read. Squaring it up is the whole
+        // difference between the two poses, so the turn toward the viewer also
+        // rights the number.
         rest: faceTargetQuaternion(normale, [0, 1, 0], flight.restSpin),
-        gather: faceTargetQuaternion(normale, zurKamera, flight.gatherSpin),
+        gather: uprightFaceQuaternion(normale, hoch, zurKamera, CAMERA_UP, flight.gatherSpin),
         suckTarget: [0, 0, 0],
         hasCrit: opts.hasCrit,
       },

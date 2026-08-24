@@ -6,6 +6,7 @@ import {
   CAMERA_TILT,
   CAMERA_UP,
   CINEMATIC_TOTAL_MS,
+  cross,
   DIE_EXTENT,
   dot,
   effectEnd,
@@ -28,6 +29,7 @@ import {
   SAFETY_TIMEOUT_MS,
   slerp,
   stagePoint,
+  uprightFaceQuaternion,
   VIEW_HEIGHT,
   suckEnd,
   suckStart,
@@ -200,6 +202,77 @@ describe('faceTargetQuaternion', () => {
     closeVec(applyQuat(b, n), [0, 1, 0]);
     // ...different orientation.
     expect(Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3])).toBeLessThan(0.99);
+  });
+});
+
+describe('uprightFaceQuaternion', () => {
+  const OBEN: Vec3 = [0, 1, 0];
+  const ZUR_KAMERA: Vec3 = normalize([0, 0.9, 0.44]);
+  const KAMERA_OBEN: Vec3 = normalize([0, 0.44, -0.9]);
+
+  // Face normals and a printed-up axis for each, exactly as geometry.ts derives
+  // them: up = normal x (normal x helper). Reproduced rather than imported,
+  // because `shared` must not depend on three.
+  const gedrucktesOben = (n: Vec3): Vec3 => {
+    const ax = Math.abs(n[0]);
+    const ay = Math.abs(n[1]);
+    const az = Math.abs(n[2]);
+    const hilfs: Vec3 = ax <= ay && ax <= az ? [1, 0, 0] : ay <= az ? [0, 1, 0] : [0, 0, 1];
+    return normalize(cross(n, normalize(cross(n, hilfs))));
+  };
+
+  const PROBEN: Vec3[] = [
+    [0, 1, 0],
+    [0, 0, 1],
+    [1, 0, 0],
+    [0, -1, 0],
+    normalize([0.577, 0.577, 0.577]),
+    normalize([-0.3, 0.9, -0.31]),
+    normalize([0.19, -0.79, 0.58]),
+  ];
+
+  it('puts the face where it was asked AND the number the right way up', () => {
+    for (const n of PROBEN) {
+      const hoch = gedrucktesOben(n);
+      const q = uprightFaceQuaternion(n, hoch, ZUR_KAMERA, KAMERA_OBEN, 0);
+      closeVec(applyQuat(q, n), ZUR_KAMERA, 1e-9);
+      // The half of this that faceTargetQuaternion cannot promise: an upside
+      // down 6 on a d20 is a 9, underline and all.
+      closeVec(applyQuat(q, hoch), KAMERA_OBEN, 1e-9);
+    }
+  });
+
+  it('is a unit quaternion for every face, including the antipodal one', () => {
+    for (const n of PROBEN) {
+      const q = uprightFaceQuaternion(n, gedrucktesOben(n), OBEN, [0, 0, -1], 0);
+      expect(Math.abs(Math.hypot(...q) - 1)).toBeLessThan(1e-9);
+      for (const v of q) expect(Number.isFinite(v)).toBe(true);
+    }
+  });
+
+  it('tilts by exactly the roll it is given, about the viewing axis', () => {
+    const n = PROBEN[4];
+    const hoch = gedrucktesOben(n);
+    const gerade = uprightFaceQuaternion(n, hoch, ZUR_KAMERA, KAMERA_OBEN, 0);
+    const schief = uprightFaceQuaternion(n, hoch, ZUR_KAMERA, KAMERA_OBEN, 0.1);
+    // The face still points at the viewer — a roll about the viewing axis is
+    // free, which is why the tilt is applied there and not anywhere else.
+    closeVec(applyQuat(schief, n), ZUR_KAMERA, 1e-9);
+    const a = applyQuat(gerade, hoch);
+    const b = applyQuat(schief, hoch);
+    expect(Math.acos(Math.min(1, dot(a, b)))).toBeCloseTo(0.1, 9);
+  });
+
+  it('survives an "up" that is not perpendicular, and one that is useless', () => {
+    const n: Vec3 = [0, 0, 1];
+    // Sloppy: mostly up, but leaning out of the face's plane.
+    const q = uprightFaceQuaternion(n, [0, 0.94, 0.34], ZUR_KAMERA, KAMERA_OBEN, 0);
+    closeVec(applyQuat(q, n), ZUR_KAMERA, 1e-9);
+    // Degenerate: parallel to the normal, so it says nothing about "up" at all.
+    // Any perpendicular is then a defensible answer; NaN is not.
+    const entartet = uprightFaceQuaternion(n, n, ZUR_KAMERA, KAMERA_OBEN, 0);
+    closeVec(applyQuat(entartet, n), ZUR_KAMERA, 1e-9);
+    for (const v of entartet) expect(Number.isFinite(v)).toBe(true);
   });
 });
 
