@@ -717,10 +717,10 @@ function TonPanel() {
     <div className="panel" id="ton">
       <h3>Benachrichtigungston</h3>
       <p className="muted">
-        Klingt, wenn die Spielleitung eine Probe anfragt, eine Gruppenprobe stellt oder eine Kooperationsprobe
-        vorschlägt — und nur dann, wenn du den Chat gerade nicht siehst. Eigene Würfe und gewöhnlicher Chat bleiben
-        still und setzen bloß einen Punkt an den Chat-Reiter. Gilt für diesen Browser; im Chat schaltet{' '}
-        <code>/mute</code> den Ton schnell aus und wieder an.
+        Klingt, sobald jemand eine Probe von dir erbittet, eine Gruppenprobe stellt oder eine Kooperationsprobe
+        vorschlägt — auch dann, wenn der Chat offen vor dir liegt. Was du selbst ausgelöst hast, bleibt still, und
+        gewöhnlicher Chat ebenso: beides setzt bloß einen Punkt an den Chat-Reiter. Gilt für diesen Browser; im Chat
+        schaltet <code>/mute</code> den Ton schnell aus und wieder an.
       </p>
 
       <div className="set-row">
