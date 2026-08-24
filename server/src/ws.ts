@@ -18,7 +18,7 @@ import type { RolledConfirmation } from 'shared';
 import { MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
-import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
+import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import {
   createPendingRequest,
@@ -46,7 +46,15 @@ import {
   removeCoopPool,
 } from './coopPools.js';
 import { isRoomMember } from './routes.js';
-import { canSeeFeedEntry, insertFeedMessage, insertFeedRoll, loadFeedEntry, updateFeedRoll, type FeedAuthor } from './feed.js';
+import {
+  canSeeFeedEntry,
+  insertFeedMessage,
+  insertFeedRoll,
+  loadFeedEntry,
+  updateFeedRoll,
+  writeFeedRoll,
+  type FeedAuthor,
+} from './feed.js';
 import { createTokenBucket, type TokenBucket } from './rateLimit.js';
 
 interface SocketMeta {
@@ -98,6 +106,22 @@ function leftKey(groupId: number, userId: number): string {
   return `${groupId}:${userId}`;
 }
 
+// When a „großer Wurf" („/i") was last announced in a group.
+//
+// The cooldown is per GROUP, not per user: the limit being expressed is "one
+// cinematic per screen", and every Spielleiter of a group shares those screens.
+// The token bucket above is the guard against flooding and is sufficient for
+// that; it is not a guard against nonsense, and five performances a second
+// would be a strobe light. Small and bounded by the number of groups, never
+// cleaned up — the same compromise as rooms and userRateLimits.
+const IMPORTANT_COOLDOWN_MS = 10_000;
+const lastImportantRoll = new Map<number, number>();
+
+function grosserWurfErlaubt(groupId: number): boolean {
+  const zuletzt = lastImportantRoll.get(groupId);
+  return zuletzt === undefined || Date.now() - zuletzt >= IMPORTANT_COOLDOWN_MS;
+}
+
 function send(ws: WebSocket, msg: ServerToClientMessage): void {
   if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
 }
@@ -136,6 +160,12 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
  * kennt eine Kooperationsprobe-Pool-Nachricht keine Feed-Sichtbarkeitsregeln
  * (canSeeFeedEntry): der ganze Witz eines offenen, selbstbedienten Pools ist,
  * dass alle ihn sehen und beitreten können.
+ *
+ * The „großer Wurf" (roll.important) takes the same route, and it is safe for
+ * the same reason: its entry always carries visibility 'public' (see
+ * roll.expr.important), so canSeeFeedEntry would be a no-op there anyway.
+ * Should „/i" ever gain a non-public variant, this sentence is the tripwire —
+ * the roll would then have to go through broadcast() instead.
  */
 function broadcastToRoom(groupId: number, msg: ServerToClientMessage): void {
   const room = rooms.get(groupId);
@@ -331,11 +361,30 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
         return;
       }
+      // „/i": announced to the whole table before it reaches the chat. The
+      // client hides the command from players, but that is a courtesy — this is
+      // the check that actually holds, exactly like roll.pending.request below.
+      const important = msg.important === true;
+      if (important && !meta.isGm) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung kann einen großen Wurf ansagen' });
+        return;
+      }
+      if (important && !grosserWurfErlaubt(meta.groupId)) {
+        // Rejected rather than queued: the roll has not happened yet, so nothing
+        // is lost or hidden, and the dock's input history puts it one arrow key
+        // away. A queued roll would sit in memory with its result already
+        // decided, which is the worst of both.
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Der große Wurf läuft noch — einen Moment.' });
+        return;
+      }
       let visibility: RollVisibility = 'public';
       let gmUserId: number | null = null;
-      if (msg.visibility === 'hidden') {
+      // An announcement to the whole table with a hidden result behind it makes
+      // no sense, so „/i" overrides the VisibilityPicker. The dock says so once,
+      // rather than letting the setting quietly do nothing (see DicePanel.tsx).
+      if (!important && msg.visibility === 'hidden') {
         visibility = 'hidden';
-      } else if (msg.visibility === 'gm_player') {
+      } else if (!important && msg.visibility === 'gm_player') {
         const counterpart = resolveGmPlayerCounterpart(meta, msg.targetUserId);
         if (counterpart === null) {
           send(ws, {
@@ -370,7 +419,18 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         flagged: result.flagged,
         ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
       };
-      insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), gmUserId, visibility, roll);
+      if (important) {
+        // Persisted like any other roll, but NOT broadcast: the entry rides
+        // along inside roll.important and each client appends it itself once
+        // its own performance is done. Whoever reconnects meanwhile picks it up
+        // through the ordinary history endpoint — the cinematic is a live
+        // event, never a property of the entry.
+        const entry = writeFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), null, 'public', roll);
+        lastImportantRoll.set(meta.groupId, Date.now());
+        broadcastToRoom(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
+      } else {
+        insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), gmUserId, visibility, roll);
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

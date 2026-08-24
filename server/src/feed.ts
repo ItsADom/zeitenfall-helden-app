@@ -119,7 +119,15 @@ export function insertFeedMessage(
   return entry;
 }
 
-export function insertFeedRoll(
+/**
+ * Persists a roll WITHOUT broadcasting it.
+ *
+ * For the one case where the entry does not reach its readers through
+ * feed.append: for a „großer Wurf" („/i") it travels inside roll.important and
+ * each client appends it only once its own cinematic has finished (see ws.ts).
+ * insertFeedRoll below is the ordinary path and the one to reach for.
+ */
+export function writeFeedRoll(
   groupId: number,
   author: FeedAuthor,
   gmUserId: number | null,
@@ -128,7 +136,7 @@ export function insertFeedRoll(
   groupRollId?: string,
   /** Nur bei einer aufgelösten Kooperationsprobe gesetzt — siehe coopPools.ts. */
   coop?: boolean,
-): FeedEntry {
+): RollFeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
@@ -160,6 +168,19 @@ export function insertFeedRoll(
     ...(groupRollId ? { groupRollId } : {}),
     ...(coop ? { coop: true as const } : {}),
   };
+  return entry;
+}
+
+export function insertFeedRoll(
+  groupId: number,
+  author: FeedAuthor,
+  gmUserId: number | null,
+  visibility: RollVisibility,
+  roll: RollPayload,
+  groupRollId?: string,
+  coop?: boolean,
+): RollFeedEntry {
+  const entry = writeFeedRoll(groupId, author, gmUserId, visibility, roll, groupRollId, coop);
   broadcastToGroup(groupId, entry);
   return entry;
 }

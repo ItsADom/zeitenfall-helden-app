@@ -130,6 +130,32 @@ export interface RollFeedEntry {
 
 export type FeedEntry = ChatFeedEntry | RollFeedEntry;
 
+/**
+ * Everything a client needs for ONE performance of the „großer Wurf" (see
+ * roll.expr.important and shared/src/diceCinematic.ts).
+ */
+export interface KinoAuftrag {
+  /**
+   * Drives the whole animation. The same number on every screen, therefore the
+   * same performance everywhere — flight paths, tumble axes, spark directions.
+   * Never the RESULT: the server rolls that exactly as it always does (see
+   * server/src/dice.ts).
+   */
+  seed: number;
+  /**
+   * The finished, already-persisted entry.
+   *
+   * It travels HERE rather than arriving via `feed.append`, because it may only
+   * surface in the chat AFTER the performance — every client appends it itself
+   * once its own cinematic is done (skipped, timed out, or run to the end). It
+   * therefore also carries everything the overlay shows: two sources for text
+   * that appears twice on screen seconds apart would drift sooner or later.
+   *
+   * Always `visibility: 'public'` — see roll.expr.important.
+   */
+  entry: RollFeedEntry;
+}
+
 export interface PendingRollRequest {
   id: string;
   groupId: number;
@@ -238,6 +264,16 @@ export type ClientToServerMessage =
       charId: number | null;
       table?: 'master' | 'wild';
       targetUserId?: number;
+      /**
+       * „/i" — the roll is announced to the whole table (fanfare, dimmed
+       * screen, falling dice) before it appears in the chat. Spielleitung only;
+       * the server rejects it otherwise.
+       *
+       * Forces `visibility: 'public'` and ignores `targetUserId` — an
+       * announcement to everyone with a hidden result behind it would make no
+       * sense. Never combined with `table`.
+       */
+      important?: true;
     }
   // modifier: situative Erleichterung(-)/Erschwernis(+) der Spielleitung, vom
   // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — wirkt auf die
@@ -330,6 +366,18 @@ export type ServerToClientMessage =
   // eigenen Verbindungsabbruch (siehe RECONNECT_GRACE_MS in ws.ts). Wie
   // presence.snapshot rein lokal, kein Feed-Eintrag.
   | { type: 'presence.joined'; name: string }
+  // A „großer Wurf" („/i") has been announced: to EVERYONE in the room,
+  // unfiltered.
+  //
+  // Like presence.snapshot and wartung.angekuendigt, a pure LIVE event — not
+  // persisted, never replayed. Whoever connects afterwards sees the roll in the
+  // history like any other, but no cinematic. That split between "live" and
+  // "history" is exactly why this is its own message rather than a field on the
+  // entry: a stored flag would replay the performance on every page load.
+  //
+  // The entry rides along here instead of via feed.append — see
+  // KinoAuftrag.entry.
+  | ({ type: 'roll.important' } & KinoAuftrag)
   // The one message that goes to EVERY room rather than one: an admin has
   // triggered a redeploy, so this instance will restart shortly. Receiving it
   // is what licenses a client to show the waiting screen when the connection
