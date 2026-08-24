@@ -22,8 +22,25 @@ import { useEffect, useRef, useState } from 'react';
 import { REDUCED_HOLD_MS, SAFETY_TIMEOUT_MS, totalDuration, hasSurvivingCrit } from '@shared/diceCinematic';
 import { diceSidesForExpression } from '@shared/dice';
 import { spielePuffer, wichtigPuffer } from './chimes';
+import { preloadCinematic } from './cinematic/preload';
+// From kontrast.ts, NOT faces.ts: faces.ts imports three, and a static import
+// of it here would put the whole renderer in the main bundle (see preload.ts).
+import { tinteFuer } from './cinematic/kontrast';
 import { useDicePanel } from './DicePanelProvider';
 import { WICHTIG } from './labels';
+
+/**
+ * The die pigments the feed already uses, so a die looks the same tumbling
+ * across the screen as it does in the chat entry two seconds later.
+ *
+ * The d20 deliberately has no pigment of its own — it keeps the neutral border
+ * colour precisely so that a red 20 and a blue 1 read unambiguously (see the
+ * token block in styles.css).
+ */
+function koerperFarbe(stil: CSSStyleDeclaration, sides: number): string {
+  const eigen = stil.getPropertyValue(`--die-w${sides}`).trim();
+  return eigen || stil.getPropertyValue('--border-strong').trim() || '#8a8a8a';
+}
 
 /**
  * How long the dim takes to lift at the end. Must match the CSS transition on
@@ -65,6 +82,8 @@ function Vorstellung({
 }) {
   const { entry } = auftrag;
   const [abblenden, setAbblenden] = useState(false);
+  const [ohneBuehne, setOhneBuehne] = useState(false);
+  const leinwandRef = useRef<HTMLCanvasElement | null>(null);
   const fertigRef = useRef(false);
   const beendenAnRef = useRef(beendenAn);
   beendenAnRef.current = beendenAn;
@@ -103,11 +122,59 @@ function Vorstellung({
         });
     }
 
+    // --- the stage --------------------------------------------------------
+    // Loaded only now, and only if there is something to look at. The dim is
+    // already fading and nothing MOVES until t = 700 ms, which is exactly what
+    // hides the 30-80 ms of WebGL context creation — that ordering is
+    // load-bearing rather than decorative (see PHASES).
+    let buehne: { render(t: number): void; dispose(): void } | null = null;
+    let raf = 0;
+    const beginn = performance.now();
+
+    if (!ruhe && !unbeachtet) {
+      void preloadCinematic()
+        .then(({ createStage }) => {
+          const leinwand = leinwandRef.current;
+          if (abgebrochen || fertigRef.current || !leinwand) return;
+
+          const stil = getComputedStyle(document.documentElement);
+          const tinteHell = stil.getPropertyValue('--panel').trim() || '#ffffff';
+          const tinteDunkel = stil.getPropertyValue('--text').trim() || '#222222';
+          const seiten = roll.mode === 'expr' ? diceSidesForExpression(roll.expression) : roll.dice.map(() => 20);
+
+          buehne = createStage(leinwand, {
+            seed: auftrag.seed,
+            hasCrit: mitKrit,
+            saugZielPx: dockPunkt(),
+            wuerfel: roll.dice.map((wert, i) => {
+              const koerper = koerperFarbe(stil, seiten[i] ?? 20);
+              return { sides: seiten[i] ?? 20, value: wert, koerper, tinte: tinteFuer(koerper, tinteHell, tinteDunkel) };
+            }),
+          });
+
+          const zeichne = () => {
+            if (fertigRef.current || !buehne) return;
+            buehne.render(performance.now() - beginn);
+            raf = requestAnimationFrame(zeichne);
+          };
+          raf = requestAnimationFrame(zeichne);
+        })
+        .catch(() => {
+          // A missing chunk (most likely a stale hash after a redeploy, since
+          // tabs survive deploys by design) or a refused WebGL context. The
+          // announcement still happens, just as the still card.
+          if (!abgebrochen) setOhneBuehne(true);
+        });
+    }
+
     const zeitgeber: ReturnType<typeof setTimeout>[] = [];
     const beenden = () => {
       if (fertigRef.current) return; // timeout, click and natural end must not overtake each other
       fertigRef.current = true;
       for (const t of zeitgeber) clearTimeout(t);
+      if (raf) cancelAnimationFrame(raf);
+      buehne?.dispose();
+      buehne = null;
       // A skip cuts the fanfare short too — it would otherwise keep playing
       // over a page that has already moved on.
       try {
@@ -147,6 +214,12 @@ function Vorstellung({
       abgebrochen = true;
       document.removeEventListener('keydown', aufTaste, true);
       for (const t of zeitgeber) clearTimeout(t);
+      // StrictMode runs this between the two development mounts: without a full
+      // teardown here the first mount's WebGL context would leak, and Chrome
+      // allows only a handful before it starts dropping them.
+      if (raf) cancelAnimationFrame(raf);
+      buehne?.dispose();
+      buehne = null;
       // StrictMode runs this between the two development mounts; without it the
       // fanfare would play twice, a beat apart.
       try {
@@ -168,11 +241,51 @@ function Vorstellung({
       aria-label={WICHTIG.overlayLabel(entry.authorName)}
       onClick={() => beendenRef.current()}
     >
-      {/* PLACEHOLDER — the 3D stage replaces this element, not the wrapper. */}
-      <div className="dice-kino-buehne">
-        <p className="dice-kino-platzhalter">KINO</p>
-      </div>
+      <canvas className="dice-kino-buehne" ref={leinwandRef} aria-hidden />
+      {ohneBuehne && <ErgebnisKarte entry={entry} />}
       <p className="dice-kino-hinweis">{WICHTIG.ueberspringen}</p>
+    </div>
+  );
+}
+
+/**
+ * Where the dice are pulled at the end: the chat dock, wherever this viewer
+ * keeps it.
+ *
+ * One selector covers both of its states — `.dice-dock` when open and
+ * `.dice-dock-tab` when collapsed are mutually exclusive, and both are
+ * position: fixed, so their viewport rect needs no scroll compensation. If the
+ * dock is hidden entirely the stage falls back to the bottom-right corner.
+ */
+function dockPunkt(): { x: number; y: number } | null {
+  const el = document.querySelector('.dice-dock, .dice-dock-tab');
+  if (!el) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+}
+
+/**
+ * The still card: what a reduced-motion viewer sees, and the fallback when the
+ * stage cannot be built at all.
+ *
+ * Reduced motion removes the MOTION, never the INFORMATION — the whole point of
+ * „/i" is that this roll gets announced, so it still is. This is a third branch,
+ * not the skip path.
+ */
+function ErgebnisKarte({ entry }: { entry: import('@shared/diceProtocol').RollFeedEntry }) {
+  const roll = entry.roll;
+  return (
+    <div className="dice-kino-karte">
+      <h2>{WICHTIG.karteTitel}</h2>
+      <p className="dice-kino-karte-wer">{entry.authorName}</p>
+      <p className="dice-kino-karte-wuerfel">
+        {roll.dice.map((w, i) => (
+          <span className="dice-kino-karte-zahl" key={i}>
+            {w}
+          </span>
+        ))}
+      </p>
+      <p className="dice-kino-karte-summe">= {roll.adjustedSum}</p>
     </div>
   );
 }

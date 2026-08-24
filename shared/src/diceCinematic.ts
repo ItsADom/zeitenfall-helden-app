@@ -310,14 +310,33 @@ export const LAYOUT_WIDTH = 5.2;
 export const LAYOUT_DEPTH = 3.2;
 
 /**
- * How far a die of scale 1 reaches from its own centre. The tallest solid we
- * build is the d10 trapezohedron at apex height 1.2, so 1.25 covers every die
- * with a little air.
+ * Height of the table the dice land on, in world units.
+ *
+ * Below the centre of the view, so the throw reads as dice falling onto a
+ * surface rather than hovering mid-screen — and so the gather afterwards is a
+ * genuine lift toward the viewer rather than a sideways shuffle.
  */
-export const DIE_EXTENT = 1.25;
+export const TABLE_Y = -2.3;
 
-/** Centre-to-centre spacing, as a multiple of a die's own width. */
-export const SPACING_FACTOR = 1.45;
+/**
+ * How far a die of scale 1 reaches from its own centre.
+ *
+ * Every solid is normalised to a CIRCUMRADIUS of 1 when it is built (see
+ * geometry.ts), so the true reach is 1.0 and this is that plus a little air.
+ * Getting this wrong is not a cosmetic matter: it feeds both the spacing below
+ * and the portrait-safe fit, so an over-large value silently packs the dice
+ * closer together than their own diameter and they interpenetrate.
+ */
+export const DIE_EXTENT = 1.05;
+
+/**
+ * Centre-to-centre spacing, as a multiple of DIE_EXTENT.
+ *
+ * Above 2 by design: two dice of radius r need more than 2r between their
+ * centres to stay clear of each other, and a little daylight on top of that
+ * reads as a thrown handful rather than a stack.
+ */
+export const SPACING_FACTOR = 2.0;
 
 /** Leave a little of the safe box unused rather than filling it exactly. */
 const SAFE_FRACTION = 0.92;
@@ -411,7 +430,7 @@ export function layoutFor(count: number): { slots: LayoutSlot[]; restScale: numb
     const row = Math.floor(i / restGrid.cols);
     const gRow = Math.floor(i / gatherGrid.cols);
     slots.push({
-      rest: [centredOffset(i, n, restGrid.cols, step), 0, (row - (restGrid.rows - 1) / 2) * step],
+      rest: [centredOffset(i, n, restGrid.cols, step), TABLE_Y, (row - (restGrid.rows - 1) / 2) * step],
       gather: [centredOffset(i, n, gatherGrid.cols, gStep), ((gatherGrid.rows - 1) / 2 - gRow) * gStep, 0],
     });
   }

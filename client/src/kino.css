@@ -37,21 +37,66 @@
   opacity: 0;
 }
 
+/* The WebGL canvas. Sized by CSS and read back by the stage, so the renderer
+   never has to guess at a layout it does not own. */
 .dice-kino-buehne {
-  display: grid;
-  place-items: center;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
+  display: block;
 }
 
-/* PLACEHOLDER — replaced by the 3D canvas. */
-.dice-kino-platzhalter {
+/* The still card: reduced motion, and the fallback when the stage cannot be
+   built (a stale chunk after a redeploy is the realistic case). Borrows the
+   waiting screen's visual language deliberately — it is the same kind of
+   object. */
+.dice-kino-karte {
+  position: relative;
+  max-width: min(28rem, 88vw);
+  padding: 1.4rem 1.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.dice-kino-karte h2 {
+  margin: 0 0 0.2rem;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: clamp(2rem, 12vw, 6rem);
-  letter-spacing: 0.2em;
-  color: var(--panel);
-  opacity: 0.35;
+  font-size: 1.15rem;
+}
+
+.dice-kino-karte-wer {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.dice-kino-karte-wuerfel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  margin: 0 0 0.7rem;
+}
+
+.dice-kino-karte-zahl {
+  min-width: 2rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--surface-head);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+}
+
+.dice-kino-karte-summe {
   margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .dice-kino-hinweis {
