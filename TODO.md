@@ -64,6 +64,9 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   - in general many 1s and 20s. check RNG
 - items in quickslots curently do not contribute their weight
 - equipment item names should break line, not be trimmed
+- favorites do not respect set Erschwerung/Erleichterung
+- visibility settings should also count for all chat messages
+- chat does not work reliable when a single user has it open on multiple browser-tabs
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
