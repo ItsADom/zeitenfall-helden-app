@@ -61,8 +61,23 @@
 > trick as a token's name label. Verified live end-to-end against the
 > shared dev board: create, debounced text edit round-tripping over WS,
 > drag-and-drop with the position persisting past the optimistic-state
-> window, delete. tsc clean, 406/406 shared tests pass. Measure shapes and
-> token-radius rings are the next two slices, not started.
+> window, delete. tsc clean, 406/406 shared tests pass.
+>
+> **Phase 8, slice 2/3: token radius rings** — a `radius` REAL column on
+> `board_tokens` (Schritt, 0 = no ring), migrated in alongside `size`/
+> `hidden`/etc. through the existing `updateToken`/`board.token.update`
+> plumbing rather than a new message type — same reasoning as labels'
+> single `update` message, one more field is cheaper than a parallel path.
+> Renders as a translucent circle (`fillOpacity 0.12`, token colour, plus a
+> faint stroke) INSIDE the token's own `<g>`, before its main circle so the
+> token stays on top and `pointerEvents="none"` so the (much bigger) ring
+> never steals a click/drag meant for the token — and for free, it moves
+> with the token during a drag with zero extra code, since it shares the
+> same transform. `TokenEditor` gets a "Radius (Schritt)" number field next
+> to Größe. Verified live: set to 6 Schritt, ring persisted through the WS
+> round-trip (not just local optimistic state), set back to 0, ring
+> disappeared cleanly. tsc clean, 406/406 shared tests pass. Measure shapes
+> (ruler/circle/cone/rectangle) are the last slice, not started.
 >
 > ## Progress (2026-08-25, end of session): Phases 1–5 done — superseded above
 >

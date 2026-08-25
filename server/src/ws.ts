@@ -137,6 +137,7 @@ function toWireToken(row: BoardTokenRow): BoardToken {
     x: row.x,
     y: row.y,
     size: row.size,
+    radius: row.radius,
     hidden: row.hidden,
     statuses: row.statuses,
     cover: row.cover,
@@ -1076,6 +1077,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // die Spielleitung, aber gerade dieses eine Feld nicht.
       if (typeof p.hidden === 'boolean' && meta.isGm) patch.hidden = p.hidden;
       if (typeof p.size === 'number') patch.size = Math.min(6, Math.max(1, Math.round(p.size)));
+      if (typeof p.radius === 'number' && Number.isFinite(p.radius)) patch.radius = Math.min(50, Math.max(0, p.radius));
       // Nie unbekannte Schlüssel übernehmen — ein veralteter Client oder ein
       // manuell gebasteltes Nachricht könnte sonst Katalog-fremde Werte
       // einschleusen, die BOARD_STATUS_BY_KEY/BOARD_COVER_BY_KEY nie kennen.

@@ -61,6 +61,8 @@ export interface BoardTokenRow {
   x: number;
   y: number;
   size: number;
+  /** Range ring around the token, in Schritt — 0 = none. See the column comment in db.ts. */
+  radius: number;
   hidden: boolean;
   statuses: string[];
   cover: string;
@@ -71,7 +73,7 @@ export interface BoardTokenRow {
 }
 
 const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, owner_user_id AS ownerUserId,
-  name, color, icon, x, y, size, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
+  name, color, icon, x, y, size, radius, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
 
 function toToken(
   r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait'> & { hidden: number; statuses: string },
@@ -133,6 +135,7 @@ export interface TokenPatch {
   statuses?: string[];
   cover?: string;
   size?: number;
+  radius?: number;
 }
 
 /** Everything about a token except its position — see moveToken below for that. */
@@ -141,8 +144,18 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
   if (!existing) return undefined;
   const next = { ...existing, ...patch };
   db.prepare(
-    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ? WHERE id = ?`,
-  ).run(next.name, next.color, next.icon, next.hidden ? 1 : 0, JSON.stringify(next.statuses), next.cover, next.size, tokenId);
+    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ? WHERE id = ?`,
+  ).run(
+    next.name,
+    next.color,
+    next.icon,
+    next.hidden ? 1 : 0,
+    JSON.stringify(next.statuses),
+    next.cover,
+    next.size,
+    next.radius,
+    tokenId,
+  );
   bumpRev(existing.boardId);
   return getToken(tokenId);
 }

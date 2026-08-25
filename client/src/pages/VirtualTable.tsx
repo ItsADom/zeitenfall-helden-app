@@ -190,6 +190,20 @@ function TokenEditor({
               />
             </label>
           </div>
+          <div className="vtt-token-editor-row">
+            <label>
+              Radius (Schritt){' '}
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={token.radius}
+                onChange={(e) => updateToken(token.id, { radius: Math.min(50, Math.max(0, Number(e.target.value) || 0)) })}
+                style={{ width: 52 }}
+                title="Reichweiten-Ring um die Marke — 0 = kein Ring. Für Zauber-AOE, Fackel-/Sichtweite."
+              />
+            </label>
+          </div>
           {isGm && (
             <label className="vtt-token-editor-row">
               <input type="checkbox" checked={token.hidden} onChange={(e) => updateToken(token.id, { hidden: e.target.checked })} />
@@ -1119,6 +1133,15 @@ function MapCanvas({
                   style={{ cursor: 'pointer' }}
                   opacity={t.hidden ? 0.55 : 1}
                 >
+                  {/* Reichweiten-Ring: VOR dem Marken-Kreis, damit dieser sichtbar
+                      obendrauf bleibt. Bewegt sich mit, weil er im selben
+                      transform-<g> sitzt wie die Marke selbst — kein eigener
+                      Zustand nötig. pointerEvents="none", sonst würde ein Klick
+                      irgendwo im (viel größeren) Ring statt auf der Marke selbst
+                      landen. */}
+                  {t.radius > 0 && (
+                    <circle r={t.radius * CELL_PX} fill={t.color || DEFAULT_TOKEN_COLOR} fillOpacity={0.12} stroke={t.color || DEFAULT_TOKEN_COLOR} strokeOpacity={0.5} strokeWidth={1.5} pointerEvents="none" />
+                  )}
                   <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
                   <text textAnchor="middle" dominantBaseline="central" fontSize={r * 0.7} fontWeight={700} fill="#fff">
                     {t.icon || initials(t.name)}

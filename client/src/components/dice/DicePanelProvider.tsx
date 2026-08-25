@@ -251,7 +251,10 @@ interface DicePanelCtxValue {
     y: number;
     size?: number;
   }) => void;
-  updateToken: (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>) => void;
+  updateToken: (
+    tokenId: number,
+    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius'>>,
+  ) => void;
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
   deleteToken: (tokenId: number) => void;
@@ -1018,7 +1021,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateTokenAction = useCallback(
-    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>) => {
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius'>>) => {
       sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
     },
     [sendMsg],

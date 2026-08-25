@@ -66,6 +66,8 @@ export interface BoardToken {
   x: number;
   y: number;
   size: number;
+  /** Range ring around the token, in Schritt — 0 = none. AOE/torch/vision, moves with the token. */
+  radius: number;
   /** GM-only token — Phase 5 does NOT redact this over the wire yet (see ws.ts); that structural piece lands with fog (Phase 10). */
   hidden: boolean;
   /** Corner badges — keys into BOARD_STATUSES, never the emoji itself. */
@@ -99,7 +101,7 @@ export type BoardClientMessage =
       type: 'board.token.update';
       reqId: string;
       tokenId: number;
-      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>;
+      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius'>>;
     }
   // One message per drag, sent on release — the client renders the whole
   // drag locally and never broadcasts a live position (settled with the
