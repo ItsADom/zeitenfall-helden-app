@@ -972,16 +972,18 @@ front-loaded: the phase that touches existing, released code comes first.
    with a measured perf check on a dense 100×100 board in both colour modes —
    the prototype's numbers are from small boards.
 8. **Labels and measurement shapes** (persistent and movable). Cone ships
-   visual-only unless cell coverage falls out easily.
+   visual-only unless cell coverage falls out easily. Includes setting radiuses to token
+   for showing AOEs like spells or simply torch/vision range.
 9. **Images on the table.** `board_images`, upload with `OwnerTyp 'board'`, the
    „Pixel pro Feld" alignment dialog, object vs Hintergrund, `perm_images`, and —
    in the same commit, not a follow-up — every asset cleanup path plus the sweeper
    entry.
 10. **Fog of war.** Per-viewer redaction through `emitBoardChange()`, and the
-    explicit „Bilder sind für Spieler ladbar" note in the GM's image dialog.
-11. **Initiative and rounds.** Player-rolled `Basis + 1W6`, GM-typed monster
-    values, the "done" checkbox gating round advance, the Todesschwelle countdown.
-12. **"Center all on my view"** and polish.
+    explicit „Bilder sind für Spieler sichtbar" note in the GM's image dialog.
+11. **Initiative and rounds.** Player-rolled `Basis + 1W6`, GM-set initative-base for monsters
+    , the "done" checkbox gating round advance, the Todesschwelle countdown. Reroll Initiative on every round.
+12. **"Center all on my view"** and polish. Just a single re-pan with feedback, no interlocking with GMs pan movements.
+    display as fast movement, not just a "blink"
 13. **Changelog + TODO.** Fold the player-facing notes into the newest unversioned
     changelog entry and prune the virtual-table sketch from `TODO.md`. Mark GM-only
     bits with „(Spielleiter)". **No version number** — that is the developer's call,
