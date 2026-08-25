@@ -9,7 +9,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import type { BoardSettings, BoardToken } from '@shared/boardProtocol';
+import type { BoardOverlay, BoardSettings, BoardToken } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -231,8 +231,16 @@ interface DicePanelCtxValue {
   boardTiles: Record<string, string>;
   /** cellKey -> #rrggbb(aa) tint, GM-only layer ABOVE boardTiles — see paintHighlights below. */
   boardHighlights: Record<string, string>;
-  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights einmalig. */
-  hydrateBoard: (board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>, highlights: Record<string, string>) => void;
+  /** Persistent, movable labels (board_overlays, kind 'label') — perm_labels-gated, see canLabel below. */
+  boardOverlays: BoardOverlay[];
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays einmalig. */
+  hydrateBoard: (
+    board: BoardSettings,
+    tokens: BoardToken[],
+    tiles: Record<string, string>,
+    highlights: Record<string, string>,
+    overlays: BoardOverlay[],
+  ) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
     characterId?: number;
@@ -252,6 +260,10 @@ interface DicePanelCtxValue {
   paintTiles: (cells: Record<string, string>) => void;
   /** Same shape as paintTiles, but for the GM-only highlight/tint layer — never touches boardTiles. */
   paintHighlights: (cells: Record<string, string>) => void;
+  createOverlay: (kind: 'label', data: BoardOverlay['data']) => void;
+  /** One message carries both a drag's dropped position and a text edit — see the protocol comment. */
+  updateOverlay: (overlayId: number, patch: Partial<BoardOverlay['data']>) => void;
+  deleteOverlay: (overlayId: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -310,6 +322,7 @@ export function useDicePanel(): DicePanelCtxValue {
       boardSettings: null,
       boardTiles: {},
       boardHighlights: {},
+      boardOverlays: [],
       hydrateBoard: () => {},
       createToken: () => {},
       updateToken: () => {},
@@ -318,6 +331,9 @@ export function useDicePanel(): DicePanelCtxValue {
       updateBoardSettings: () => {},
       paintTiles: () => {},
       paintHighlights: () => {},
+      createOverlay: () => {},
+      updateOverlay: () => {},
+      deleteOverlay: () => {},
     }
   );
 }
@@ -357,6 +373,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardSettings, setBoardSettings] = useState<BoardSettings | null>(null);
   const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
   const [boardHighlights, setBoardHighlights] = useState<Record<string, string>>({});
+  const [boardOverlays, setBoardOverlays] = useState<BoardOverlay[]>([]);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -645,6 +662,18 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
+      if (msg.type === 'board.overlay.created') {
+        setBoardOverlays((prev) => [...prev, msg.overlay]);
+        return;
+      }
+      if (msg.type === 'board.overlay.updated') {
+        setBoardOverlays((prev) => prev.map((o) => (o.id === msg.overlay.id ? msg.overlay : o)));
+        return;
+      }
+      if (msg.type === 'board.overlay.deleted') {
+        setBoardOverlays((prev) => prev.filter((o) => o.id !== msg.overlayId));
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -712,6 +741,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardSettings(null);
       setBoardTiles({});
       setBoardHighlights({});
+      setBoardOverlays([]);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -960,12 +990,16 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
-  const hydrateBoard = useCallback((board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>, highlights: Record<string, string>) => {
-    setBoardSettings(board);
-    setBoardTokens(tokens);
-    setBoardTiles(tiles);
-    setBoardHighlights(highlights);
-  }, []);
+  const hydrateBoard = useCallback(
+    (board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>, highlights: Record<string, string>, overlays: BoardOverlay[]) => {
+      setBoardSettings(board);
+      setBoardTokens(tokens);
+      setBoardTiles(tiles);
+      setBoardHighlights(highlights);
+      setBoardOverlays(overlays);
+    },
+    [],
+  );
 
   const createToken = useCallback(
     (input: {
@@ -1025,6 +1059,27 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const createOverlayAction = useCallback(
+    (kind: 'label', data: BoardOverlay['data']) => {
+      sendMsg({ type: 'board.overlay.create', reqId: crypto.randomUUID(), kind, data });
+    },
+    [sendMsg],
+  );
+
+  const updateOverlayAction = useCallback(
+    (overlayId: number, patch: Partial<BoardOverlay['data']>) => {
+      sendMsg({ type: 'board.overlay.update', reqId: crypto.randomUUID(), overlayId, patch });
+    },
+    [sendMsg],
+  );
+
+  const deleteOverlayAction = useCallback(
+    (overlayId: number) => {
+      sendMsg({ type: 'board.overlay.delete', reqId: crypto.randomUUID(), overlayId });
+    },
+    [sendMsg],
+  );
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -1079,6 +1134,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardSettings,
         boardTiles,
         boardHighlights,
+        boardOverlays,
         hydrateBoard,
         createToken,
         updateToken: updateTokenAction,
@@ -1087,6 +1143,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         updateBoardSettings: updateBoardSettingsAction,
         paintTiles: paintTilesAction,
         paintHighlights: paintHighlightsAction,
+        createOverlay: createOverlayAction,
+        updateOverlay: updateOverlayAction,
+        deleteOverlay: deleteOverlayAction,
       }}
     >
       {children}

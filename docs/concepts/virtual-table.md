@@ -1,6 +1,6 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Progress (2026-08-25, later session): Phases 1–7 done
+> ## Progress (2026-08-25, later session): Phases 1–7 done, Phase 8 sliced — labels done
 >
 > **Committed on `feature/virtual-table`, on top of the Phase 1–5 note below:**
 > Phase 6 (tile painting — flat colour, texture catalogue, delta writes, the
@@ -36,6 +36,33 @@
 > no stutter. Verified visually too (frayed natural edges, straight hard
 > edges, no seams) at 100 % and 300 % zoom. Torn down immediately after
 > (throwaway group, cascaded delete) — not left in the dev DB.
+>
+> **Phase 8, sliced with the developer: labels first** — Phase 8 as written
+> bundles three different things (labels, four measure shapes, per-token
+> radius rings) with no prototype to port from this time, so it got split
+> and confirmed before building rather than attempted in one pass. **Labels
+> — what got built:** `board_overlays` (already existed since Phase 3,
+> unused until now) gets its first real `kind`: persistent, movable text
+> labels, `data_json` = `{x, y, text}`. New CRUD on `server/src/board.ts`
+> (`createOverlay`/`updateOverlay`/`deleteOverlay`/`getOverlay`, the last
+> three generic over `kind` so the measure-shape slice can reuse them
+> unchanged), three new WS messages (`board.overlay.create/update/delete`,
+> one `update` for both a drag's dropped position and a text edit — labels
+> have a single permission, `perm_labels`/`canLabel`, unlike tokens' move/
+> edit split, so there's no reason for two message types). Client: a
+> "🏷 Beschriftung" toolbar tool (perm_labels-gated, click places a new
+> label immediately, tool stays armed for several in a row), a floating
+> editor panel (debounced text field + delete, same shape as `TokenEditor`),
+> and the same offset-preserving direct-DOM-transform drag as a token
+> (`overlayDragRef`, one `updateOverlay` call on release) — reused
+> deliberately rather than re-solving the drag-lag class of bug this
+> session already paid down for tokens. Rendered between the highlight
+> layer and tokens (per the plan's layer order) with the same halo-stroke
+> trick as a token's name label. Verified live end-to-end against the
+> shared dev board: create, debounced text edit round-tripping over WS,
+> drag-and-drop with the position persisting past the optimistic-state
+> window, delete. tsc clean, 406/406 shared tests pass. Measure shapes and
+> token-radius rings are the next two slices, not started.
 >
 > ## Progress (2026-08-25, end of session): Phases 1–5 done — superseded above
 >

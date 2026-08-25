@@ -31,6 +31,27 @@ export interface BoardSettings {
   rev: number;
 }
 
+/** A persistent, movable text label anchored to a board position — see board_overlays.kind. */
+export interface LabelOverlayData {
+  x: number;
+  y: number;
+  text: string;
+}
+
+/**
+ * board_overlays row, kind narrowed to 'label' — `kind: 'measure'` (ruler/
+ * circle/cone/rectangle) is reserved for the next slice of this phase and
+ * intentionally not typed here yet, same as `a:<slug>` tile values are
+ * reserved-but-untyped until GM-uploaded textures exist.
+ */
+export interface BoardOverlay {
+  id: number;
+  boardId: number;
+  kind: 'label';
+  data: LabelOverlayData;
+  hidden: boolean;
+}
+
 export type TokenKind = 'character' | 'marker';
 
 export interface BoardToken {
@@ -104,7 +125,14 @@ export type BoardClientMessage =
   // (highlights_json) — a GM-only overlay ABOVE the tile, kept as a separate
   // key so erasing a highlight never touches the tile underneath. Only ever
   // colour values ('' or #rrggbb(aa)), never a texture/asset tag.
-  | { type: 'board.highlights.paint'; reqId: string; cells: Record<string, string> };
+  | { type: 'board.highlights.paint'; reqId: string; cells: Record<string, string> }
+  | { type: 'board.overlay.create'; reqId: string; kind: 'label'; data: LabelOverlayData }
+  // One message carries both a drag's dropped-at position AND a text edit —
+  // labels have a single permission (perm_labels), unlike tokens' move/edit
+  // split, so there is no reason for two message types. Same "render the
+  // drag locally, sync once on release" shape as a token move.
+  | { type: 'board.overlay.update'; reqId: string; overlayId: number; patch: Partial<LabelOverlayData> }
+  | { type: 'board.overlay.delete'; reqId: string; overlayId: number };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
@@ -112,4 +140,7 @@ export type BoardServerMessage =
   | { type: 'board.token.deleted'; tokenId: number }
   | { type: 'board.settings.updated'; board: BoardSettings }
   | { type: 'board.tiles.painted'; cells: Record<string, string> }
-  | { type: 'board.highlights.painted'; cells: Record<string, string> };
+  | { type: 'board.highlights.painted'; cells: Record<string, string> }
+  | { type: 'board.overlay.created'; overlay: BoardOverlay }
+  | { type: 'board.overlay.updated'; overlay: BoardOverlay }
+  | { type: 'board.overlay.deleted'; overlayId: number };

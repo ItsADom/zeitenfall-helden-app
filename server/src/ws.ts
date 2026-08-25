@@ -5,6 +5,7 @@ import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type {
+  BoardOverlay,
   BoardToken,
   ClientToServerMessage,
   CoopPoolRequest,
@@ -24,19 +25,25 @@ import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import {
   canEditTokens as boardCanEditTokens,
   canHighlightTiles as boardCanHighlightTiles,
+  canLabel as boardCanLabel,
   canMoveToken as boardCanMoveToken,
   canPaint as boardCanPaint,
 } from './boardAccess.js';
 import {
+  type BoardOverlayRow,
   type BoardTokenRow,
+  createOverlay as createBoardOverlay,
   createToken as createBoardToken,
+  deleteOverlay as deleteBoardOverlay,
   deleteToken as deleteBoardToken,
   getOrCreateBoard,
+  getOverlay as getBoardOverlay,
   getToken as getBoardToken,
   moveToken as moveBoardToken,
   paintHighlights as paintBoardHighlights,
   paintTiles as paintBoardTiles,
   updateBoardSettings,
+  updateOverlay as updateBoardOverlay,
   updateToken as updateBoardToken,
 } from './board.js';
 import {
@@ -136,6 +143,13 @@ function toWireToken(row: BoardTokenRow): BoardToken {
     portrait: row.portrait,
     sort: row.sort,
   };
+}
+
+// `data` is trusted here — it only ever reaches board_overlays through
+// createBoardOverlay/updateBoardOverlay above, both of which already build
+// it from validated x/y/text, never from an unchecked client payload.
+function toWireOverlay(row: BoardOverlayRow): BoardOverlay {
+  return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as BoardOverlay['data'], hidden: row.hidden };
 }
 
 function send(ws: WebSocket, msg: ServerToClientMessage): void {
@@ -1212,6 +1226,71 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       }
       paintBoardHighlights(board.id, cells);
       broadcastToRoom(meta.groupId, { type: 'board.highlights.painted', cells });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.overlay.create': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanLabel(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen anzulegen' });
+        return;
+      }
+      // Der Wire-Typ kennt heute nur 'label', aber msg kam als beliebiges JSON
+      // herein — ein handgebasteltes Paket könnte trotzdem etwas anderes
+      // schicken, deshalb zur Laufzeit prüfen statt dem Typsystem zu trauen.
+      if ((msg.kind as string) !== 'label') {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Beschriftungsart' });
+        return;
+      }
+      const x = Number(msg.data?.x);
+      const y = Number(msg.data?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > board.cols || y > board.rows) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
+        return;
+      }
+      const text = String(msg.data?.text ?? '').slice(0, 80);
+      const overlay = createBoardOverlay(board.id, 'label', { x, y, text });
+      broadcastToRoom(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.overlay.update': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanLabel(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen zu bearbeiten' });
+        return;
+      }
+      const existing = getBoardOverlay(Number(msg.overlayId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Beschriftung nicht gefunden' });
+        return;
+      }
+      const p = msg.patch ?? {};
+      const patch: Record<string, unknown> = {};
+      if (typeof p.x === 'number' && Number.isFinite(p.x)) patch.x = Math.min(board.cols, Math.max(0, p.x));
+      if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = Math.min(board.rows, Math.max(0, p.y));
+      if (typeof p.text === 'string') patch.text = p.text.slice(0, 80);
+      const updated = updateBoardOverlay(existing.id, patch);
+      if (updated) broadcastToRoom(meta.groupId, { type: 'board.overlay.updated', overlay: toWireOverlay(updated) });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.overlay.delete': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanLabel(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen zu löschen' });
+        return;
+      }
+      const existing = getBoardOverlay(Number(msg.overlayId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Beschriftung nicht gefunden' });
+        return;
+      }
+      deleteBoardOverlay(existing.id);
+      broadcastToRoom(meta.groupId, { type: 'board.overlay.deleted', overlayId: existing.id });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

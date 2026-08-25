@@ -242,6 +242,40 @@ function loadOverlays(boardId: number): BoardOverlayRow[] {
   return rows.map((r) => ({ id: r.id, boardId: r.boardId, kind: r.kind, data: JSON.parse(r.dataJson || '{}'), hidden: !!r.hidden }));
 }
 
+export function getOverlay(overlayId: number): BoardOverlayRow | undefined {
+  const row = db
+    .prepare(`SELECT id, board_id AS boardId, kind, data_json AS dataJson, hidden FROM board_overlays WHERE id = ?`)
+    .get(overlayId) as { id: number; boardId: number; kind: string; dataJson: string; hidden: number } | undefined;
+  return row && { id: row.id, boardId: row.boardId, kind: row.kind, data: JSON.parse(row.dataJson || '{}'), hidden: !!row.hidden };
+}
+
+/** `data` is stored as-is — the caller (ws.ts) already validated its shape for `kind`. */
+export function createOverlay(boardId: number, kind: string, data: unknown): BoardOverlayRow {
+  const info = db
+    .prepare(`INSERT INTO board_overlays (board_id, kind, data_json) VALUES (?, ?, ?)`)
+    .run(boardId, kind, JSON.stringify(data));
+  bumpRev(boardId);
+  return getOverlay(info.lastInsertRowid as number)!;
+}
+
+/** Shallow-merges `patch` into the stored data — same shape as updateToken's patch. */
+export function updateOverlay(overlayId: number, patch: Record<string, unknown>): BoardOverlayRow | undefined {
+  const existing = getOverlay(overlayId);
+  if (!existing) return undefined;
+  const nextData = { ...(existing.data as Record<string, unknown>), ...patch };
+  db.prepare(`UPDATE board_overlays SET data_json = ? WHERE id = ?`).run(JSON.stringify(nextData), overlayId);
+  bumpRev(existing.boardId);
+  return getOverlay(overlayId);
+}
+
+export function deleteOverlay(overlayId: number): BoardOverlayRow | undefined {
+  const existing = getOverlay(overlayId);
+  if (!existing) return undefined;
+  db.prepare('DELETE FROM board_overlays WHERE id = ?').run(overlayId);
+  bumpRev(existing.boardId);
+  return existing;
+}
+
 export interface BoardImageRow {
   id: number;
   boardId: number;

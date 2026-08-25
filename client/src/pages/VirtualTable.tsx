@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { BoardSettings, BoardToken } from '@shared/boardProtocol';
+import type { BoardOverlay, BoardSettings, BoardToken } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { cellKey, parseTileValue } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
@@ -26,6 +26,7 @@ interface GroupMeta {
 interface BoardSnapshotResponse {
   board: BoardSettings & { tilesJson: string; highlightsJson: string };
   tokens: BoardToken[];
+  overlays: BoardOverlay[];
 }
 
 // Wie viele Zellen EIN Texturbild abdeckt — an den Brettkoordinaten verankert,
@@ -252,10 +253,12 @@ function MapCanvas({
   tokens,
   tiles,
   highlights,
+  overlays,
   canCreateTokens,
   canEditToken,
   canMoveToken: canMoveTokenFn,
   canPaint,
+  canLabel,
   isGm,
 }: {
   groupId: number;
@@ -264,21 +267,26 @@ function MapCanvas({
   tiles: Record<string, string>;
   /** cellKey -> #rrggbb(aa) tint, GM-only layer above `tiles` — see paintHighlights. */
   highlights: Record<string, string>;
+  /** Persistent, movable text labels (board_overlays, kind 'label') — perm_labels-gated. */
+  overlays: BoardOverlay[];
   /** Placing a brand-new marker has no owner yet to check against — board-wide only. */
   canCreateTokens: boolean;
   canEditToken: (t: BoardToken) => boolean;
   canMoveToken: (t: BoardToken) => boolean;
   canPaint: boolean;
+  canLabel: boolean;
   isGm: boolean;
 }) {
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
-  const { createToken, moveToken, deleteToken, paintTiles, paintHighlights } = useDicePanel();
+  const { createToken, moveToken, deleteToken, paintTiles, paintHighlights, createOverlay, updateOverlay, deleteOverlay } = useDicePanel();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<number | null>(null);
+  const [overlayDragPos, setOverlayDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
   // Rechtsklick auf eine Marke — Bildschirmkoordinaten (nicht Brett-Zelle),
   // damit das Menü als normales HTML-Overlay position: fixed neben dem
   // Zeiger sitzt, unabhängig von Kamera/Zoom. Inhalt bewusst noch offen
@@ -288,8 +296,11 @@ function MapCanvas({
   // Kamera. 'paint': derselbe Zeiger bemalt stattdessen Zellen — siehe
   // startPaint/onPaintPointerMove unten. 'highlight': dieselbe Mechanik, aber
   // auf der separaten Einfärbe-Ebene (highlights_json) statt tiles_json — GM-
-  // only, siehe boardAccess.canHighlightTiles.
-  const [tool, setTool] = useState<'select' | 'paint' | 'highlight'>('select');
+  // only, siehe boardAccess.canHighlightTiles. 'label': ein Klick auf leere
+  // Fläche legt eine neue Beschriftung dort an (siehe onWrapPointerDown), das
+  // Werkzeug wechselt danach NICHT automatisch zurück — mehrere Beschriftungen
+  // hintereinander sind der häufigere Fall als eine einzelne.
+  const [tool, setTool] = useState<'select' | 'paint' | 'highlight' | 'label'>('select');
   const [pickerOpen, setPickerOpen] = useState(false);
   // Pipette: der nächste Klick aufs Brett übernimmt die Farbe der getroffenen
   // Zelle statt zu malen/einzufärben, dann schaltet sich das Werkzeug selbst
@@ -331,6 +342,20 @@ function MapCanvas({
     moved: number;
   } | null>(null);
   const paintDragRef = useRef<{ layer: 'tile' | 'highlight'; value: string; touched: Record<string, string> } | null>(null);
+  // Dieselbe Versatz-erhaltende Zug-Mechanik wie bei einer Marke (siehe
+  // tokenDragRef/onTokenPointerMove) — direktes transform-Schreiben ohne
+  // React dazwischen, EINE Netz-Nachricht erst beim Loslassen.
+  const overlayDragRef = useRef<{
+    id: number;
+    el: SVGGElement;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+    moved: number;
+  } | null>(null);
 
   const viewW = totalW / camera.zoom;
   const viewH = totalH / camera.zoom;
@@ -530,6 +555,14 @@ function MapCanvas({
       startPaint(e, 'highlight');
       return;
     }
+    if (tool === 'label' && canLabel) {
+      const wrap = wrapRef.current;
+      const cell = wrap ? cellAt(e, wrap) : null;
+      // Zellmitte statt Zellecke — eine Beschriftung ist ein Punkt, kein
+      // Feld, „Klick auf dieses Feld" soll dort auch mittig landen.
+      if (cell) createOverlay('label', { x: cell.x + 0.5, y: cell.y + 0.5, text: 'Text' });
+      return;
+    }
     onPointerDown(e);
   };
   const onWrapPointerMove = (e: React.PointerEvent) => {
@@ -625,6 +658,56 @@ function MapCanvas({
     setTimeout(() => setDragPos((prev) => (prev?.id === drag.id ? null : prev)), 200);
   };
 
+  const startOverlayDrag = (e: React.PointerEvent, overlay: BoardOverlay) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    if (!canLabel) {
+      setSelectedOverlayId(overlay.id);
+      return;
+    }
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    overlayDragRef.current = {
+      id: overlay.id,
+      el: e.currentTarget as SVGGElement,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: overlay.data.x,
+      startY: overlay.data.y,
+      lastX: overlay.data.x,
+      lastY: overlay.data.y,
+      moved: 0,
+    };
+  };
+  // Gleiches Muster wie onTokenPointerMove — direktes transform-Schreiben,
+  // kein setState während des Zugs (siehe dortiger Kommentar). Kein `size`,
+  // deshalb kein Abzug bei der Begrenzung.
+  const onOverlayPointerMove = (e: React.PointerEvent) => {
+    const drag = overlayDragRef.current;
+    const wrap = wrapRef.current;
+    if (!drag || !wrap) return;
+    const scale = boardScale(wrap) / CELL_PX;
+    const dxClient = e.clientX - drag.startClientX;
+    const dyClient = e.clientY - drag.startClientY;
+    drag.moved = Math.max(drag.moved, Math.abs(dxClient) + Math.abs(dyClient));
+    const x = Math.min(cols, Math.max(0, drag.startX + dxClient * scale));
+    const y = Math.min(rows, Math.max(0, drag.startY + dyClient * scale));
+    drag.lastX = x;
+    drag.lastY = y;
+    drag.el.setAttribute('transform', `translate(${x * CELL_PX}, ${y * CELL_PX})`);
+  };
+  const onOverlayPointerUp = () => {
+    const drag = overlayDragRef.current;
+    overlayDragRef.current = null;
+    if (!drag) return;
+    if (drag.moved < CLICK_THRESHOLD_PX) {
+      setSelectedOverlayId(drag.id);
+      return;
+    }
+    setOverlayDragPos({ id: drag.id, x: drag.lastX, y: drag.lastY });
+    updateOverlay(drag.id, { x: drag.lastX, y: drag.lastY });
+    setTimeout(() => setOverlayDragPos((prev) => (prev?.id === drag.id ? null : prev)), 200);
+  };
+
   const placeMarker = () => {
     // camera/viewW sind Board-Pixel (CELL_PX-skaliert) — durch CELL_PX
     // geteilt ergibt das die Zellen-Koordinate, in der token.x/y stehen.
@@ -634,6 +717,7 @@ function MapCanvas({
   };
 
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
+  const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId) ?? null;
 
   // Eigener lokaler Entwurf während eines Strichs überlagert den Server-Stand
   // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`/`highlights`.
@@ -771,6 +855,15 @@ function MapCanvas({
               </button>
             )}
           </>
+        )}
+        {canLabel && (
+          <button
+            className={`small${tool === 'label' ? ' active' : ''}`}
+            onClick={() => setTool((v) => (v === 'label' ? 'select' : 'label'))}
+            title="Beschriftung setzen — Klick aufs Brett legt eine neue an, mehrere hintereinander möglich"
+          >
+            🏷 Beschriftung
+          </button>
         )}
         <span className="muted">
           {cols} × {rows} Felder
@@ -965,6 +1058,39 @@ function MapCanvas({
             <path key={fill} d={segs.join('')} fill={fill} />
           ))}
 
+          {/* Beschriftungen: UNTER den Marken (siehe Ebenenreihenfolge im
+              Plan) — eine Marke auf einer beschrifteten Stelle soll die
+              Beschriftung überdecken, nicht umgekehrt. Selber Halo-Trick wie
+              beim Marken-Namen (Konturstrich statt Hintergrund-Box), damit es
+              über jeder Kachel/Textur lesbar bleibt. */}
+          {overlays.map((o) => {
+            const pos = overlayDragPos?.id === o.id ? overlayDragPos : o.data;
+            return (
+              <g
+                key={o.id}
+                transform={`translate(${pos.x * CELL_PX}, ${pos.y * CELL_PX})`}
+                onPointerDown={(e) => startOverlayDrag(e, o)}
+                onPointerMove={onOverlayPointerMove}
+                onPointerUp={onOverlayPointerUp}
+                onPointerCancel={onOverlayPointerUp}
+                style={{ cursor: canLabel ? 'grab' : 'pointer' }}
+              >
+                <text
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={16}
+                  fontWeight={700}
+                  fill="var(--text)"
+                  stroke="var(--panel)"
+                  strokeWidth={4}
+                  paintOrder="stroke"
+                >
+                  {o.data.text}
+                </text>
+              </g>
+            );
+          })}
+
           {tokens
             .filter((t) => !t.hidden || isGm)
             .map((t) => {
@@ -1029,6 +1155,18 @@ function MapCanvas({
           onClose={() => setContextMenu(null)}
         />
       )}
+      {selectedOverlay && (
+        <LabelEditor
+          overlay={selectedOverlay}
+          canEdit={canLabel}
+          onChange={(patch) => updateOverlay(selectedOverlay.id, patch)}
+          onDelete={() => {
+            deleteOverlay(selectedOverlay.id);
+            setSelectedOverlayId(null);
+          }}
+          onClose={() => setSelectedOverlayId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1073,6 +1211,66 @@ function TokenContextMenu({
         )}
       </div>
     </>
+  );
+}
+
+function LabelEditor({
+  overlay,
+  canEdit,
+  onChange,
+  onDelete,
+  onClose,
+}: {
+  overlay: BoardOverlay;
+  canEdit: boolean;
+  onChange: (patch: Partial<BoardOverlay['data']>) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const [text, setText] = useState(overlay.data.text);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Gleiches Muster wie TokenEditor: beim Wechsel der ausgewählten
+  // Beschriftung den Entwurf neu aus dem Server-Stand ziehen, aber nicht bei
+  // jeder Änderung — sonst würde eine fremde Live-Bearbeitung das eigene
+  // Tippen überschreiben.
+  useEffect(() => {
+    setText(overlay.data.text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay.id]);
+
+  useEffect(() => () => clearTimeout(timerRef.current ?? undefined), []);
+
+  return (
+    <div className="vtt-token-editor">
+      <div className="vtt-token-editor-head">
+        {canEdit ? (
+          <input
+            className="vtt-token-editor-name"
+            value={text}
+            onChange={(e) => {
+              const v = e.target.value.slice(0, 80);
+              setText(v);
+              clearTimeout(timerRef.current ?? undefined);
+              timerRef.current = setTimeout(() => onChange({ text: v }), FIELD_DEBOUNCE_MS);
+            }}
+            maxLength={80}
+          />
+        ) : (
+          <strong>{overlay.data.text}</strong>
+        )}
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      {canEdit && (
+        <div className="vtt-token-editor-row">
+          <button className="small" onClick={onDelete}>
+            Löschen
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1301,7 +1499,8 @@ export default function VirtualTable() {
   const { id } = useParams();
   const groupId = Number(id);
   const { user } = useAuth();
-  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, boardHighlights, hydrateBoard } = useDicePanel();
+  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, boardHighlights, boardOverlays, hydrateBoard } =
+    useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
   const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat');
@@ -1314,7 +1513,13 @@ export default function VirtualTable() {
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     apiGet<BoardSnapshotResponse>(`/api/groups/${groupId}/board`)
       .then((snap) =>
-        hydrateBoard(snap.board, snap.tokens, JSON.parse(snap.board.tilesJson || '{}'), JSON.parse(snap.board.highlightsJson || '{}')),
+        hydrateBoard(
+          snap.board,
+          snap.tokens,
+          JSON.parse(snap.board.tilesJson || '{}'),
+          JSON.parse(snap.board.highlightsJson || '{}'),
+          snap.overlays,
+        ),
       )
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     // hydrateBoard ist stabil (useCallback ohne Abhängigkeiten in DicePanelProvider) — nicht in die Dep-Liste, sonst liefe der Fetch bei jeder Board-Änderung erneut.
@@ -1360,6 +1565,7 @@ export default function VirtualTable() {
   const canEditToken = (t: BoardToken) => user.isGm || boardSettings.permTokens === 'all' || t.ownerUserId === user.id;
   const canMoveToken = (t: BoardToken) => user.isGm || boardSettings.permMove === 'all' || t.ownerUserId === user.id;
   const canPaint = user.isGm || boardSettings.permTiles === 'all';
+  const canLabel = user.isGm || boardSettings.permLabels === 'all';
 
   return (
     <div className="vtt-page">
@@ -1384,10 +1590,12 @@ export default function VirtualTable() {
           tokens={boardTokens}
           tiles={boardTiles}
           highlights={boardHighlights}
+          overlays={boardOverlays}
           canCreateTokens={canCreateTokens}
           canEditToken={canEditToken}
           canMoveToken={canMoveToken}
           canPaint={canPaint}
+          canLabel={canLabel}
           isGm={user.isGm}
         />
 
