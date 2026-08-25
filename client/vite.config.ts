@@ -10,9 +10,10 @@ export default defineConfig({
     },
   },
   server: {
-    // 5173 bleibt der Normalfall; PORT erlaubt eine zweite Instanz daneben,
+    // 5180 bleibt der Normalfall (5173 ist auf dieser Maschine für einen
+    // anderen Prozess reserviert); PORT erlaubt eine zweite Instanz daneben,
     // ohne dass sich beide um den Port streiten.
-    port: Number(process.env.PORT) || 5173,
+    port: Number(process.env.PORT) || 5180,
     proxy: {
       '/api': 'http://localhost:3001',
       '/ws': { target: 'ws://localhost:3001', ws: true },
