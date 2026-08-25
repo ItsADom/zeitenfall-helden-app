@@ -274,11 +274,16 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
-  const { createToken, moveToken, paintTiles, paintHighlights } = useDicePanel();
+  const { createToken, moveToken, deleteToken, paintTiles, paintHighlights } = useDicePanel();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
+  // Rechtsklick auf eine Marke — Bildschirmkoordinaten (nicht Brett-Zelle),
+  // damit das Menü als normales HTML-Overlay position: fixed neben dem
+  // Zeiger sitzt, unabhängig von Kamera/Zoom. Inhalt bewusst noch offen
+  // (siehe TokenContextMenu) — hier steht erstmal nur das Gerüst.
+  const [contextMenu, setContextMenu] = useState<{ token: BoardToken; x: number; y: number } | null>(null);
   // 'select': normales Verschieben/Anwählen von Marken + Verschieben der
   // Kamera. 'paint': derselbe Zeiger bemalt stattdessen Zellen — siehe
   // startPaint/onPaintPointerMove unten. 'highlight': dieselbe Mechanik, aber
@@ -531,6 +536,11 @@ function MapCanvas({
 
   const startTokenDrag = (e: React.PointerEvent, token: BoardToken) => {
     e.stopPropagation();
+    // Rechtsklick verschiebt/wählt nicht — der öffnet stattdessen das
+    // Kontextmenü (siehe onContextMenu am selben <g> unten). stopPropagation
+    // oben bleibt trotzdem nötig, sonst startete der Wrap darunter sein
+    // eigenes Rechtsklick-Kamera-Ziehen (onWrapPointerDown).
+    if (e.button !== 0) return;
     if (!canMoveTokenFn(token)) {
       setSelectedTokenId(token.id);
       return;
@@ -836,6 +846,11 @@ function MapCanvas({
                   onPointerMove={onTokenPointerMove}
                   onPointerUp={onTokenPointerUp}
                   onPointerCancel={onTokenPointerUp}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setContextMenu({ token: t, x: e.clientX, y: e.clientY });
+                  }}
                   style={{ cursor: canMoveTokenFn(t) ? 'grab' : 'pointer' }}
                   opacity={t.hidden ? 0.55 : 1}
                 >
@@ -864,7 +879,66 @@ function MapCanvas({
       {selectedToken && (
         <TokenEditor token={selectedToken} canEdit={canEditToken(selectedToken)} isGm={isGm} onClose={() => setSelectedTokenId(null)} />
       )}
+      {contextMenu && (
+        <TokenContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          canEdit={canEditToken(contextMenu.token)}
+          onEdit={() => {
+            setSelectedTokenId(contextMenu.token.id);
+            setContextMenu(null);
+          }}
+          onDelete={() => {
+            deleteToken(contextMenu.token.id);
+            setContextMenu(null);
+          }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// Gerüst für ein Rechtsklick-Menü auf einer Marke — der Inhalt ist bewusst
+// noch nicht entschieden (siehe Konzeptgespräch: z. B. „Zu Kampf hinzufügen"
+// für Monster braucht erst die Initiative aus Phase 11). Vorbelegt mit den
+// beiden Aktionen, die es heute schon per Klick auf die Marke gibt —
+// zukünftige Einträge kommen einfach als weitere <button> in dieselbe Liste.
+function TokenContextMenu({
+  x,
+  y,
+  canEdit,
+  onEdit,
+  onDelete,
+  onClose,
+}: {
+  x: number;
+  y: number;
+  canEdit: boolean;
+  onEdit: () => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <>
+      <div className="vtt-context-menu-backdrop" onPointerDown={onClose} onContextMenu={(e) => e.preventDefault()} />
+      <div className="vtt-context-menu" style={{ left: x, top: y }} onPointerDown={(e) => e.stopPropagation()}>
+        <button onClick={onEdit}>Bearbeiten</button>
+        {canEdit && (
+          <button onClick={onDelete} className="vtt-context-menu-danger">
+            Löschen
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 

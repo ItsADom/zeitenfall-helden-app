@@ -6104,6 +6104,37 @@ tr:hover .probe-roll,
   border-color: var(--accent);
   color: var(--accent-dark);
 }
+.vtt-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+.vtt-context-menu {
+  position: fixed;
+  z-index: 21;
+  min-width: 160px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vtt-context-menu button {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.vtt-context-menu button:hover {
+  background: var(--surface-sunken);
+}
+.vtt-context-menu-danger {
+  color: var(--danger, #c33);
+}
 .vtt-tile-picker {
   position: absolute;
   left: 12px;
