@@ -310,7 +310,7 @@ function MapCanvas({
   const [pendingPaint, setPendingPaint] = useState<Record<string, string> | null>(null);
   const [pendingHighlight, setPendingHighlight] = useState<Record<string, string> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number } | null>(null);
+  const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number; moved: number } | null>(null);
   const tokenDragRef = useRef<{
     id: number;
     el: SVGGElement;
@@ -385,18 +385,24 @@ function MapCanvas({
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { startClientX: e.clientX, startClientY: e.clientY, startX: camera.x, startY: camera.y };
+    dragRef.current = { startClientX: e.clientX, startClientY: e.clientY, startX: camera.x, startY: camera.y, moved: 0 };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     const wrap = wrapRef.current;
     if (!drag || !wrap) return;
+    drag.moved = Math.max(drag.moved, Math.abs(e.clientX - drag.startClientX) + Math.abs(e.clientY - drag.startClientY));
     const scale = boardScale(wrap);
     const dx = (e.clientX - drag.startClientX) * scale;
     const dy = (e.clientY - drag.startClientY) * scale;
     setCamera(clampCamera(drag.startX - dx, drag.startY - dy, camera.zoom));
   };
   const onPointerUp = () => {
+    // Ein Klick auf leere Fläche (kein Ziehen — dieselbe Schwelle wie beim
+    // Marken-Klick, siehe CLICK_THRESHOLD_PX) schließt eine offene Marken-
+    // Bearbeitung. Ein Klick AUF einer Marke kommt hier nie an: startTokenDrag
+    // ruft stopPropagation, dragRef.current bleibt dann null.
+    if (dragRef.current && dragRef.current.moved < CLICK_THRESHOLD_PX) setSelectedTokenId(null);
     dragRef.current = null;
   };
   const onWheel = (e: React.WheelEvent) => {
