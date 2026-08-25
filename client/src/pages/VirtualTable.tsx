@@ -636,11 +636,16 @@ function MapCanvas({
     const cx = (x + drag.size / 2) * CELL_PX;
     const cy = (y + drag.size / 2) * CELL_PX;
     drag.el.setAttribute('transform', `translate(${cx}, ${cy})`);
+    // Erst ab der Klick-Schwelle: darunter ist es (noch) ein Klick, kein Zug
+    // — der Zeiger soll bis dahin der normale Finger bleiben, nicht schon bei
+    // der kleinsten Bewegung auf die Verschiebe-Pfeile springen.
+    if (drag.moved >= CLICK_THRESHOLD_PX) drag.el.style.cursor = 'move';
   };
   const onTokenPointerUp = () => {
     const drag = tokenDragRef.current;
     tokenDragRef.current = null;
     if (!drag) return;
+    drag.el.style.cursor = '';
     if (drag.moved < CLICK_THRESHOLD_PX) {
       setSelectedTokenId(drag.id);
       return;
@@ -1111,7 +1116,7 @@ function MapCanvas({
                     e.stopPropagation();
                     setContextMenu({ token: t, x: e.clientX, y: e.clientY });
                   }}
-                  style={{ cursor: canMoveTokenFn(t) ? 'grab' : 'pointer' }}
+                  style={{ cursor: 'pointer' }}
                   opacity={t.hidden ? 0.55 : 1}
                 >
                   <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
