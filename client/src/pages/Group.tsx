@@ -117,6 +117,9 @@ export default function GroupPage() {
         <div>
           <h1>{data.group.isTemp ? 'Event' : 'Gruppe'}: {data.group.name}</h1>
           <p className="muted">Mitglieder: {data.members.map((m) => m.displayName).join(', ') || '—'}</p>
+          <p>
+            <Link to={`/${data.group.isTemp ? 'event' : 'gruppe'}/${groupId}/tisch`}>Virtueller Tisch →</Link>
+          </p>
           {user.isGm && (
             <p>
               <Link to={`/${data.group.isTemp ? 'event' : 'gruppe'}/${groupId}/uebersicht`}>Spielleiter-Übersicht →</Link>

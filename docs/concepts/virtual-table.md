@@ -1,15 +1,69 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Progress (2026-08-24, end of session): Phases 1–3 done, Phase 4 designed but not coded
+> ## Progress (2026-08-25, end of session): Phases 1–4 done
 >
 > **Committed on `feature/virtual-table`:** Phase 1 (Event-Gruppen player page),
 > Phase 2 (`CharSheetProvider` extraction, verified live), Phase 3 (shared board
-> math + the five board tables + the inert snapshot endpoint, verified live). All
+> math + the five board tables + the inert snapshot endpoint, verified live),
+> Phase 4 (page shell, verified live as both GM and player, light and dark). All
 > typecheck clean, `npm test -w shared` green (406 tests). See each phase's own
 > commit message for what was verified and how.
 >
-> **Phase 4 (page shell) has NOT been started as real code.** What exists instead
-> is a static, interactive mockup —
+> **Phase 4 scope, decided with the developer:** shell only — the route, layout,
+> pan/zoom map placeholder, and both side columns, reusing `CharacterSidebar`
+> exactly as it stands today. The two settled sidebar extensions (Kampf combat
+> chips, Zustände status list) are deferred to Phase 5, alongside tokens — Zustände
+> has no data to show before then, and splitting Kampf out on its own wasn't worth
+> a second round trip through this file.
+>
+> **What got built:**
+> - `client/src/pages/VirtualTable.tsx` — the page, routed at `/gruppe/:id/tisch`
+>   and `/event/:id/tisch` (`App.tsx`, one element for both like `GroupPage`).
+>   Fetches the group (`GET /groups/:id`) and board (`GET /groups/:id/board`) for
+>   name/isTemp and cols/rows, forces the dice room via `selectRoom` + hides the
+>   floating dock (`setHidden`), and renders quick panel · map · chat as a
+>   full-bleed flex row (`.vtt-page`, negative-margin bridge over `main`'s padding,
+>   same technique the sticky bars use).
+> - **Map**: an inert empty grid — one `<svg>` with a `<pattern>`-filled rect
+>   (O(1) nodes, matches "render the map as SVG" from the Client architecture
+>   section below), `viewBox` pan/zoom, camera `{x,y,zoom}` in `localStorage`
+>   keyed per board. No tiles, no tokens — that starts in Phase 6.
+> - **Quick panel**: GM gets `VttRoster.tsx` (new) — the same overview data as
+>   `GroupOverview.tsx`, folded into a narrow column: name+owner, vitals, Wund/Tod,
+>   tags (read-only here), the GM note, „Probe anfordern". Portrait/Stufe/SP-reset/
+>   attribute chips/pinned talents stay on the full overview page. Player gets
+>   `CharSheetProvider` + `CharacterSidebar`, unmodified. `gmRoster.tsx` (new)
+>   holds `VITAL_LABELS`/`vitalClass`/`GmNoteField`, shared by both pages now
+>   instead of duplicated.
+> - **Chat column**: `DicePanel.tsx`'s feed+input body is extracted into
+>   `FeedColumn.tsx` (new) — the floating dock is now just chrome (resize, head,
+>   collapse) around it, and the VTT page embeds the identical component fixed in
+>   its own column. `FeedColumnHandle.scrollToBottom()` (via `forwardRef`) replaces
+>   the dock's old direct `scrollRef` access for its resize-triggered rescroll.
+> - Entry links added: `Group.tsx`, `GroupOverview.tsx`, and the event-group list
+>   in `Admin.tsx`.
+>
+> **Verified live** (`npm run dev:server`/`dev:client`, `spielleiter`/`spielleiter`
+> and `testspieler`/`test1234`, group 11 "Seed-Testgruppe Alpha"): GM view shows
+> both roster cards with live vitals and working „Probe anfordern"; player view
+> shows the real sidebar for their own character (Kyra Vollausstattung) with
+> working pool steppers and attribute rolls; chat feed and input work identically
+> to the floating dock; zoom in/out/reset all move the SVG `viewBox` correctly and
+> persist; both side columns collapse/expand and resize independently; light and
+> dark mode both resolve sane colours (checked the grid pattern's fill/stroke and
+> the map column background directly via computed styles). Left the dev servers
+> running per CLAUDE.md.
+>
+> **Next action, if you're picking this up fresh:** Phase 5 — tokens. Create/move/
+> delete, status badges and covers, live sync over the socket, `boardAccess.ts`
+> with the `perm_*` checks and the GM settings panel, and — per the deferral above —
+> this is also when `CharacterSidebar`'s Kampf and Zustände sections make sense to
+> add, since Zustände finally has token status data to render.
+
+> ## Progress (2026-08-24, end of session): Phases 1–3 done, Phase 4 designed but not coded — superseded above, kept for the design-settling record
+>
+> **Phase 4 (page shell) had NOT been started as real code at this point.** What
+> exists instead is a static, interactive mockup —
 > `docs/concepts/virtual-table-mockup/Tisch.html` (built from `tisch-vorlage.html`
 > by `tisch-bauen.mjs`, which also embeds the real texture set; re-run it after
 > editing the template) — with a GM/Spieler view toggle and a light/dark toggle,

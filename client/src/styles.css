@@ -5835,3 +5835,98 @@ tr:hover .probe-roll,
   cursor: pointer;
   font: inherit;
 }
+
+/* ---------- Virtueller Tisch (VTT), Phase 4: Seitenrahmen ----------
+   docs/concepts/virtual-table.md. Tokens only — die sechs Farbwelten und der
+   Dunkelmodus greifen ohne eigene Regeln. Full-bleed innerhalb von main
+   (padding: 20px var(--pad-x) 60px, siehe dort) über negative Ränder, dieselbe
+   Brücke, die die klebenden Leisten schon benutzen. Beide Seitenspalten sind
+   `.char-sidebar` (Schnellübersicht UND Chat, siehe VirtualTable.tsx/
+   VttRoster.tsx) — unverändert wiederverwendet, damit sie überall in der App
+   gleich aussehen und sich gleich ziehen/einklappen lassen. */
+.vtt-page {
+  margin: -20px calc(-1 * var(--pad-x)) -60px;
+  padding: 0 var(--pad-x);
+  height: calc(100dvh - var(--topbar-h, 47px));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.vtt-crumb {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 10px 0;
+}
+.vtt-room-name {
+  margin: 0;
+  font-size: 18px;
+}
+.vtt-cols {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+.vtt-map-col {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.vtt-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.vtt-toolbar-spacer {
+  flex: 1;
+}
+.vtt-map-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.vtt-map-wrap:active {
+  cursor: grabbing;
+}
+.vtt-map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+/* Der Rumpf der Chat-Spalte tritt an die Stelle von `.side-scroll` — der
+   Feed braucht eine BEGRENZTE Höhe (flex:1 auf `.dice-dock-feed`, siehe
+   FeedColumn.tsx), keine eigene max-height-Berechnung. */
+.vtt-chat-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Schmale Schirme: beide Seitenspalten rutschen unter die Karte statt daneben
+   zu stehen — dieselbe Auflösung wie der Charakterbogen bei 1100px, nur für
+   die Spalten-Reihenfolge dieser Seite. */
+@media (max-width: 900px) {
+  .vtt-cols {
+    flex-direction: column;
+  }
+  .vtt-map-col {
+    flex: 1 1 320px;
+  }
+}
