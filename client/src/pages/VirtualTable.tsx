@@ -399,6 +399,13 @@ function MapCanvas({
         <button className="small" onClick={() => zoomBy(1 / 1.15)} title="Verkleinern">
           −
         </button>
+        {/* Bei MIN_ZOOM ist das ganze Brett schon sichtbar — dann gibt es
+            nirgendwohin mehr zu verschieben, auch wenn das Ziehen selbst
+            einwandfrei funktioniert. Ohne diese Anzeige liest sich das leicht
+            als kaputtes Verschieben statt als "schon ganz herausgezoomt". */}
+        <span className="muted vtt-zoom-level" title="Aktueller Zoomstand">
+          {Math.round(camera.zoom * 100)} %
+        </span>
         <button className="small" onClick={() => zoomBy(1.15)} title="Vergrößern">
           +
         </button>

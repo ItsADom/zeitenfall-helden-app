@@ -5910,6 +5910,13 @@ tr:hover .probe-roll,
 .vtt-toolbar-spacer {
   flex: 1;
 }
+.vtt-zoom-level {
+  display: inline-block;
+  min-width: 3.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
 .vtt-map-wrap {
   flex: 1;
   min-height: 0;
