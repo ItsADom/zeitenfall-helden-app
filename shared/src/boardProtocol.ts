@@ -19,6 +19,8 @@ export interface BoardSettings {
   groupId: number;
   cols: number;
   rows: number;
+  /** Deterministic autotile noise seed (feTurbulence) — same input, same picture on every client. Never changes after creation. */
+  seed: number;
   permTiles: BoardPerm;
   permLabels: BoardPerm;
   permTokens: BoardPerm;

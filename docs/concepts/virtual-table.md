@@ -1,6 +1,43 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Progress (2026-08-25, end of session): Phases 1–5 done
+> ## Progress (2026-08-25, later session): Phases 1–7 done
+>
+> **Committed on `feature/virtual-table`, on top of the Phase 1–5 note below:**
+> Phase 6 (tile painting — flat colour, texture catalogue, delta writes, the
+> picker), a GM-only highlight/tint layer added mid-session (`highlights_json`,
+> a separate sparse cellKey→#rrggbb(aa) map above `tiles_json` so tinting never
+> touches the actual tile — see its own commit and the Phase 6 amendment
+> below), a token right-click context-menu shell (content deliberately not
+> decided — infra only), a deselect-on-empty-click fix, and Phase 7
+> (autotiling — the mask/blur/turbulence pipeline, ported from
+> `virtual-table-mockup/Texturen.html`). All typecheck clean, `npm test
+> -w shared` green (406 tests). See each commit message for specifics.
+>
+> **Phase 7 — what got built:** per-material `<mask>` (blur `stdDeviation
+> 0.19` → hard alpha threshold via `feComponentTransfer`) for every painted
+> texture, `feTurbulence` + `feDisplacementMap` added for `kante: 'natuerlich'`
+> materials only, unioned back with `feComposite operator="over"` against the
+> source cells so an edge can only move outward, never leave a gap. Rendered
+> inside a `<g transform="scale(CELL_PX)">` so the ported filter constants
+> stay exactly as calibrated in the prototype's own 1-unit-per-cell space,
+> without touching the rest of the page's board-pixel coordinate system
+> (camera/zoom/tokens/cellAt all untouched). Flat-colour tiles and the
+> highlight layer are unaffected — only texture cells go through the mask
+> pipeline. Added a client-only "Rauschkante" toggle (persisted, not a board
+> setting — the plan's stated performance escape hatch) that drops just the
+> turbulence/displacement step, keeping the cheap blur+threshold outset.
+>
+> **Perf check (the plan's explicit gate before this counts as done):**
+> seeded a throwaway 100×100 board, every one of its 10 000 cells painted,
+> six materials scattered in small speckled fragments (adversarial — far more
+> disjoint regions and shared perimeter than a real GM would ever paint) —
+> then measured actual pointermove-to-frame latency during a simulated
+> camera-pan drag with Rauschkante on: ~16–17 ms/frame, i.e. a stable 60 fps,
+> no stutter. Verified visually too (frayed natural edges, straight hard
+> edges, no seams) at 100 % and 300 % zoom. Torn down immediately after
+> (throwaway group, cascaded delete) — not left in the dev DB.
+>
+> ## Progress (2026-08-25, end of session): Phases 1–5 done — superseded above
 >
 > **Committed on `feature/virtual-table`:** Phase 1 (Event-Gruppen player page),
 > Phase 2 (`CharSheetProvider` extraction, verified live), Phase 3 (shared board

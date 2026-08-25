@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { BoardSettings, BoardToken } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { cellKey, parseTileValue } from '@shared/board';
-import { TILE_MATERIALS } from '@shared/boardTiles';
+import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
 import { CharSheetProvider } from '../components/charSheet';
@@ -309,6 +309,13 @@ function MapCanvas({
   // eine pro Ebene, damit ein Strich auf der einen die andere nicht überlagert.
   const [pendingPaint, setPendingPaint] = useState<Record<string, string> | null>(null);
   const [pendingHighlight, setPendingHighlight] = useState<Record<string, string> | null>(null);
+  // Eigene, clientseitige Einstellung (keine Board-Einstellung — jeder sieht
+  // sie unabhängig) — Fluchtluke für den teuersten Teil des Autotile-Filters
+  // (feTurbulence + feDisplacementMap je Material), falls das auf einer
+  // großen, dicht bemalten Karte zu langsam wird. Aus lässt die billige Hälfte
+  // (Weichzeichnen + Schwelle, ausgestellt+rund) unangetastet — nur die
+  // Rauschkante selbst schaltet ab. Siehe "Risk, stated up front" im Plan.
+  const [rauschkante, setRauschkante] = usePersistedState<boolean>('vtt-rauschkante', true);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number; moved: number } | null>(null);
   const tokenDragRef = useRef<{
@@ -632,26 +639,42 @@ function MapCanvas({
   // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`/`highlights`.
   const paintedTiles = pendingPaint ? { ...tiles, ...pendingPaint } : tiles;
   const paintedHighlights = pendingHighlight ? { ...highlights, ...pendingHighlight } : highlights;
-  // Nach Füllung gruppiert (Farbe direkt, Textur als url(#…)) statt ein
-  // <rect> je Zelle: EIN <path> pro Material reicht für die noch harten
-  // Kanten dieser Phase (weiche Übergänge sind Phase 7) und hält die
-  // Knotenzahl bei großflächig bemalten Bereichen klein.
-  const fillGroups = new Map<string, string[]>();
-  const usedTextureKeys = new Set<string>();
+  // Farbe direkt als Pfad (unverändert) — Textur bekommt seit Phase 7 eine
+  // eigene, nach Material gruppierte Maske statt eines einfachen Pfads, siehe
+  // materialCells/usedMaterialKeys unten und "Autotiling ohne Kantenkunst" im
+  // Plan. EIN <path> pro Farbe hält die Knotenzahl bei großflächig bemalten
+  // Bereichen klein.
+  const colorFillGroups = new Map<string, string[]>();
+  // Zellschlüssel ("x,y", roh) je Material — die Masken-/Filter-Ebene rechnet
+  // komplett in Zell-Einheiten (siehe die skalierte <g> unten), nicht in
+  // Brett-Pixeln wie der Rest der Karte.
+  const materialCells = new Map<string, Set<string>>();
   for (const [key, value] of Object.entries(paintedTiles)) {
     const parsed = parseTileValue(value);
     if (!parsed) continue;
-    const fill = parsed.kind === 'color' ? parsed.hex : parsed.kind === 'texture' ? `url(#tile-tex-${parsed.key})` : null;
-    if (!fill) continue;
-    if (parsed.kind === 'texture') usedTextureKeys.add(parsed.key);
-    const [xs, ys] = key.split(',');
-    const x = Number(xs) * CELL_PX;
-    const y = Number(ys) * CELL_PX;
-    const seg = `M${x} ${y}h${CELL_PX}v${CELL_PX}h${-CELL_PX}Z`;
-    const list = fillGroups.get(fill);
-    if (list) list.push(seg);
-    else fillGroups.set(fill, [seg]);
+    if (parsed.kind === 'color') {
+      const [xs, ys] = key.split(',');
+      const x = Number(xs) * CELL_PX;
+      const y = Number(ys) * CELL_PX;
+      const seg = `M${x} ${y}h${CELL_PX}v${CELL_PX}h${-CELL_PX}Z`;
+      const list = colorFillGroups.get(parsed.hex);
+      if (list) list.push(seg);
+      else colorFillGroups.set(parsed.hex, [seg]);
+    } else if (parsed.kind === 'texture') {
+      let set = materialCells.get(parsed.key);
+      if (!set) {
+        set = new Set();
+        materialCells.set(parsed.key, set);
+      }
+      set.add(key);
+    }
   }
+  // Von niedrig nach hoch gerendert — höhere Priorität überdeckt die
+  // Übergangszone dort, wo zwei Materialien aufeinandertreffen (siehe
+  // TILE_MATERIAL_BY_KEY.prio und "Autotiling ohne Kantenkunst" im Plan).
+  const usedMaterialKeys = [...materialCells.keys()].sort(
+    (a, b) => (TILE_MATERIAL_BY_KEY[a]?.prio ?? 0) - (TILE_MATERIAL_BY_KEY[b]?.prio ?? 0),
+  );
   // Gleiche Gruppierung für die Einfärbe-Ebene — nur Farbwerte, kein
   // Texturfall, sonst dieselbe Form. Eigene Map, weil sie in einer eigenen
   // <g> ÜBER fillGroups/Gitterlinien gerendert wird (siehe unten).
@@ -667,7 +690,6 @@ function MapCanvas({
     if (list) list.push(seg);
     else highlightGroups.set(parsed.hex, [seg]);
   }
-  const texSpanPx = TEX_SPAN_CELLS * CELL_PX;
 
   return (
     <div className="vtt-map-col">
@@ -775,6 +797,16 @@ function MapCanvas({
             Karten-Rechte
           </button>
         )}
+        {/* Rein clientseitig, keine Board-Einstellung — jede Ansicht sieht ihre
+            eigene Wahl. Fluchtluke für den teuersten Teil des Autotile-Filters,
+            falls das auf einer großen, dicht bemalten Karte zu langsam wird. */}
+        <button
+          className={`small${rauschkante ? ' active' : ''}`}
+          onClick={() => setRauschkante((v) => !v)}
+          title="Ausgefranste Kanten an Material-Übergängen (kostet Leistung auf großen, dicht bemalten Karten — bei Bedarf abschalten)"
+        >
+          🌫 Rauschkante
+        </button>
       </div>
       {isGm && settingsOpen && <BoardSettingsPopover board={board} onClose={() => setSettingsOpen(false)} />}
       {tool === 'paint' && pickerOpen && (
@@ -806,20 +838,116 @@ function MapCanvas({
         onContextMenu={(e) => e.preventDefault()}
         style={{ cursor: pipetteArmed ? 'copy' : tool === 'paint' || tool === 'highlight' ? 'crosshair' : undefined }}
       >
-        <svg viewBox={`${camera.x} ${camera.y} ${viewW} ${viewH}`} className="vtt-map-svg">
+        <svg viewBox={`${camera.x} ${camera.y} ${viewW} ${viewH}`} className="vtt-map-svg" shapeRendering="geometricPrecision">
           <defs>
             <pattern id="vtt-grid" width={CELL_PX} height={CELL_PX} patternUnits="userSpaceOnUse">
               <rect width={CELL_PX} height={CELL_PX} fill="var(--map-outer, var(--surface-sunken))" />
             </pattern>
-            {[...usedTextureKeys].map((key) => (
-              <pattern key={key} id={`tile-tex-${key}`} width={texSpanPx} height={texSpanPx} patternUnits="userSpaceOnUse">
-                <image href={textureHref(key)} width={texSpanPx} height={texSpanPx} preserveAspectRatio="none" />
+            {/* Texturen hängen an Zell-Einheiten, nicht Brett-Pixeln — sie
+                werden nur innerhalb der skalierten <g> unten referenziert
+                (patternUnits="userSpaceOnUse" wertet im Koordinatensystem der
+                VERWENDUNG aus, nicht der Definition), wo 1 Einheit = 1 Zelle
+                gilt. */}
+            {usedMaterialKeys.map((key) => (
+              <pattern key={key} id={`tile-tex-${key}`} width={TEX_SPAN_CELLS} height={TEX_SPAN_CELLS} patternUnits="userSpaceOnUse">
+                <image href={textureHref(key)} width={TEX_SPAN_CELLS} height={TEX_SPAN_CELLS} preserveAspectRatio="none" />
               </pattern>
             ))}
+            {/* Je Material eine Maske: Weichzeichnen + harte Alpha-Schwelle
+                stellt die Zellform aus und rundet ihre Ecken — daraus fallen
+                Außen-/Innenecken, Einzelfeld-Inseln und Diagonalberührungen
+                von selbst, ohne dass irgendwer Kantenkunst zeichnet (siehe
+                "Autotiling ohne Kantenkunst" im Plan). `kante: 'hart'`
+                überspringt den Filter komplett und rendert pixelgleich zur
+                reinen Gitterkante. Bei `natuerlich` sitzt zusätzlich eine
+                Turbulenz+Verschiebung dazwischen — abschaltbar über
+                `rauschkante` (siehe dortiger Kommentar), dann bleibt nur die
+                billige Weichzeichnen+Schwelle-Ausstellung. Am Ende wird die
+                bearbeitete Maske mit den Original-Zellen VEREINIGT
+                (feComposite operator="over"), sonst könnte die Verschiebung
+                die Maske stellenweise nach innen ziehen und der Hintergrund
+                bliebe als Lücke sichtbar, wo zwei Materialien sich beide
+                zurückziehen — mit der Vereinigung wandert die Kante nur nach
+                außen, nie nach innen. */}
+            {usedMaterialKeys.map((key) => {
+              const kante = TILE_MATERIAL_BY_KEY[key]?.kante ?? 'hart';
+              const natuerlich = kante === 'natuerlich' && rauschkante;
+              return (
+                kante !== 'hart' && (
+                  <filter
+                    key={key}
+                    id={`tile-filter-${key}`}
+                    x="-25%"
+                    y="-25%"
+                    width="150%"
+                    height="150%"
+                    colorInterpolationFilters="sRGB"
+                  >
+                    <feGaussianBlur in="SourceGraphic" stdDeviation="0.19" result="b" />
+                    {natuerlich && (
+                      <>
+                        <feTurbulence
+                          type="fractalNoise"
+                          baseFrequency="0.9"
+                          numOctaves={3}
+                          seed={(board.seed * 31 + key.length * 7) % 100}
+                          result="n"
+                        />
+                        <feDisplacementMap in="b" in2="n" scale="0.34" xChannelSelector="R" yChannelSelector="G" result="b" />
+                      </>
+                    )}
+                    <feComponentTransfer in="b" result="gewachsen">
+                      <feFuncA type="linear" slope={12} intercept={-5.2} />
+                    </feComponentTransfer>
+                    <feComposite in="gewachsen" in2="SourceGraphic" operator="over" />
+                  </filter>
+                )
+              );
+            })}
+            {usedMaterialKeys.map((key) => {
+              const kante = TILE_MATERIAL_BY_KEY[key]?.kante ?? 'hart';
+              const cellPath = [...(materialCells.get(key) ?? [])]
+                .map((c) => {
+                  const [x, y] = c.split(',');
+                  return `M${x} ${y}h1v1h-1Z`;
+                })
+                .join('');
+              return (
+                <mask key={key} id={`tile-mask-${key}`} maskUnits="userSpaceOnUse" x={-1} y={-1} width={cols + 2} height={rows + 2} style={{ maskType: 'alpha' }}>
+                  <g filter={kante === 'hart' ? undefined : `url(#tile-filter-${key})`}>
+                    <path d={cellPath} fill="#fff" />
+                  </g>
+                </mask>
+              );
+            })}
+            {/* Grobe, brettweite Rauschwolke (multiply-Verblendung) — hat mit
+                den Zellen nichts zu tun und bricht deshalb genau das, was von
+                der Musterwiederholung übrig bleibt: den Eindruck
+                gleichmäßiger Helligkeit über die Fläche. */}
+            <filter id="tile-wolke" x="0" y="0" width="100%" height="100%" colorInterpolationFilters="sRGB">
+              <feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves={4} seed={board.seed % 100} />
+              <feColorMatrix type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  .8 .8 .8 0 -.35" />
+            </filter>
           </defs>
           <rect x={0} y={0} width={totalW} height={totalH} fill="url(#vtt-grid)" />
 
-          {[...fillGroups].map(([fill, segs]) => (
+          {/* Zell-Einheiten-Raum: 1 lokale Einheit wird zu CELL_PX Brett-
+              Pixeln — genau das Koordinatensystem, in dem der Prototyp
+              (Texturen.html) seine Filter-Konstanten kalibriert hat, ohne sie
+              umrechnen zu müssen. Kamera/Zoom/Marken bleiben unangetastet in
+              Brett-Pixeln, außerhalb dieser <g>. */}
+          <g transform={`scale(${CELL_PX})`}>
+            {usedMaterialKeys.map((key) => (
+              <g key={key} mask={`url(#tile-mask-${key})`}>
+                <rect x={-1} y={-1} width={cols + 2} height={rows + 2} fill={`url(#tile-tex-${key})`} />
+              </g>
+            ))}
+            {usedMaterialKeys.length > 0 && (
+              <rect x={0} y={0} width={cols} height={rows} filter="url(#tile-wolke)" style={{ mixBlendMode: 'multiply' }} opacity={0.55} />
+            )}
+          </g>
+
+          {[...colorFillGroups].map(([fill, segs]) => (
             <path key={fill} d={segs.join('')} fill={fill} />
           ))}
 

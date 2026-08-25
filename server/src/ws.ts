@@ -1137,6 +1137,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           groupId: updated.groupId,
           cols: updated.cols,
           rows: updated.rows,
+          seed: updated.seed,
           permTiles: updated.permTiles as 'gm' | 'all',
           permLabels: updated.permLabels as 'gm' | 'all',
           permTokens: updated.permTokens as 'gm' | 'all',
