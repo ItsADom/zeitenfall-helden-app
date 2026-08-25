@@ -51,6 +51,15 @@ function initials(name: string): string {
 
 const DEFAULT_TOKEN_COLOR = '#8b6a4a';
 
+// Wie lange ein Text-/Farbfeld nach der letzten Änderung wartet, bevor es
+// tatsächlich sendet — wie GmNoteField (gmRoster.tsx). NICHT nur Kosmetik:
+// ein natives <input type="color"> feuert onChange bei JEDEM Zwischenschritt
+// des Ziehens im Farbwähler, also ohne Drosselung ein board.token.update je
+// Pixel Mausbewegung — das reißt die Ratenbegrenzung in ws.ts auf (die für
+// board.token.move eine Ausnahme kennt, für gewöhnliche Bearbeitungen aber
+// bewusst nicht, siehe dort) und der Chat zeigt „Zu viele Anfragen".
+const FIELD_DEBOUNCE_MS = 350;
+
 function TokenEditor({
   token,
   canEdit,
@@ -63,6 +72,35 @@ function TokenEditor({
   onClose: () => void;
 }) {
   const { updateToken, deleteToken } = useDicePanel();
+  const [name, setName] = useState(token.name);
+  const [icon, setIcon] = useState(token.icon);
+  const [color, setColor] = useState(token.color || DEFAULT_TOKEN_COLOR);
+  const timers = useRef<Partial<Record<'name' | 'icon' | 'color', ReturnType<typeof setTimeout>>>>({});
+
+  // Beim Wechsel der ausgewählten Marke den Entwurf neu aus dem Server-Stand
+  // ziehen — sonst zeigten die Felder noch die vorherige Marke. Bewusst NICHT
+  // bei jeder token-Änderung: sonst würde eine fremde Live-Bearbeitung mitten
+  // im eigenen Tippen den Entwurf überschreiben (gleiche Begründung wie bei
+  // GmNoteField's `initial`).
+  useEffect(() => {
+    setName(token.name);
+    setIcon(token.icon);
+    setColor(token.color || DEFAULT_TOKEN_COLOR);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token.id]);
+
+  useEffect(
+    () => () => {
+      for (const t of Object.values(timers.current)) clearTimeout(t);
+    },
+    [],
+  );
+
+  const scheduleUpdate = (key: 'name' | 'icon' | 'color', value: string) => {
+    clearTimeout(timers.current[key]);
+    timers.current[key] = setTimeout(() => updateToken(token.id, { [key]: value }), FIELD_DEBOUNCE_MS);
+  };
+
   const toggleStatus = (key: string) => {
     const has = token.statuses.includes(key);
     updateToken(token.id, { statuses: has ? token.statuses.filter((s) => s !== key) : [...token.statuses, key] });
@@ -74,8 +112,11 @@ function TokenEditor({
         {canEdit ? (
           <input
             className="vtt-token-editor-name"
-            value={token.name}
-            onChange={(e) => updateToken(token.id, { name: e.target.value })}
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              scheduleUpdate('name', e.target.value);
+            }}
             maxLength={60}
           />
         ) : (
@@ -92,8 +133,12 @@ function TokenEditor({
             <label>
               Icon{' '}
               <input
-                value={token.icon}
-                onChange={(e) => updateToken(token.id, { icon: e.target.value.slice(0, 2) })}
+                value={icon}
+                onChange={(e) => {
+                  const v = e.target.value.slice(0, 2);
+                  setIcon(v);
+                  scheduleUpdate('icon', v);
+                }}
                 maxLength={2}
                 style={{ width: 40 }}
                 placeholder="🗿"
@@ -101,7 +146,14 @@ function TokenEditor({
             </label>
             <label>
               Farbe{' '}
-              <input type="color" value={token.color || DEFAULT_TOKEN_COLOR} onChange={(e) => updateToken(token.id, { color: e.target.value })} />
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => {
+                  setColor(e.target.value);
+                  scheduleUpdate('color', e.target.value);
+                }}
+              />
             </label>
             <label>
               Größe{' '}
