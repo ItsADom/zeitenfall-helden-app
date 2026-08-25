@@ -5,6 +5,7 @@ import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
+import { useHoverFlyout } from '../useHoverFlyout';
 import CommandsDialog from './CommandsDialog';
 import CoopPoolCard from './CoopPoolCard';
 import { useDicePanel } from './DicePanelProvider';
@@ -125,6 +126,13 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const [highlight, setHighlight] = useState(0);
   const [suggestDismissed, setSuggestDismissed] = useState(false);
   const activeSuggestRef = useRef<HTMLButtonElement | null>(null);
+  // Unterhalb einer bestimmten Eingabezeilen-Breite (siehe die @container-
+  // Regel bei .dice-dock-tools in styles.css) passen Kurzbefehle/Sichtbarkeit/
+  // Modifikator/Schicksalspunkte nicht mehr bequem neben das Eingabefeld —
+  // besonders mit dem zusätzlichen Klee-Knopf eines Spielers. Ab dann klappt
+  // dieselbe Werkzeuggruppe hinter EINEM Knopf auf, zweiachsig als Raster
+  // statt einer weiteren Reihe einzelner Knöpfe.
+  const toolsFlyout = useHoverFlyout<HTMLDivElement>();
 
   useImperativeHandle(ref, () => ({
     scrollToBottom: () => {
@@ -273,6 +281,39 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     setDraft('');
   };
 
+  // Einmal aufgebaut, zweimal verwendet (siehe .dice-dock-tools/-compact unten):
+  // dieselben vier Steuerelemente, einmal als Inline-Reihe, einmal als Inhalt
+  // des zweiachsigen Flyouts — welche Fassung sichtbar ist, entscheidet allein
+  // die @container-Regel, nicht React. Eine unsichtbare zweite Instanz ist
+  // unschädlich, jede Steuerung bringt ihr eigenes Auf-/Zuklapp-Verhalten mit.
+  const tools = (
+    <>
+      <ShortcutsFlyout
+        raw={activeRoom?.myDiceShortcuts ?? ''}
+        charId={charId}
+        editHref={charId != null ? `/einstellungen?char=${charId}#wuerfel` : user.isGm ? '/einstellungen#wuerfel-sl' : undefined}
+        onOpen={refreshRooms}
+        onPick={(label, expression) => {
+          if (groupId === null) return;
+          setError('');
+          rollExpr(expression, visibility, label, undefined, visibilityTarget ?? undefined);
+        }}
+      />
+      <VisibilityPicker
+        value={visibility}
+        targetUserId={visibilityTarget}
+        onChange={(v, targetUserId) => {
+          setVisibility(v);
+          setVisibilityTarget(v === 'gm_player' ? (targetUserId ?? null) : null);
+        }}
+      />
+      <ModifierPicker value={modifier} onChange={setModifier} />
+      {charId !== null && (
+        <SchicksalspunkteControl aktuell={activeRoom?.schicksalspunkteAktuell ?? 0} max={activeRoom?.schicksalspunkteMax ?? 0} />
+      )}
+    </>
+  );
+
   return (
     <>
       <div className="dice-dock-feed" ref={scrollRef}>
@@ -346,32 +387,24 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
             )}
           </div>
         )}
-        <ShortcutsFlyout
-          raw={activeRoom?.myDiceShortcuts ?? ''}
-          charId={charId}
-          editHref={charId != null ? `/einstellungen?char=${charId}#wuerfel` : user.isGm ? '/einstellungen#wuerfel-sl' : undefined}
-          onOpen={refreshRooms}
-          onPick={(label, expression) => {
-            if (groupId === null) return;
-            setError('');
-            rollExpr(expression, visibility, label, undefined, visibilityTarget ?? undefined);
-          }}
-        />
-        <VisibilityPicker
-          value={visibility}
-          targetUserId={visibilityTarget}
-          onChange={(v, targetUserId) => {
-            setVisibility(v);
-            setVisibilityTarget(v === 'gm_player' ? (targetUserId ?? null) : null);
-          }}
-        />
-        <ModifierPicker value={modifier} onChange={setModifier} />
-        {charId !== null && (
-          <SchicksalspunkteControl
-            aktuell={activeRoom?.schicksalspunkteAktuell ?? 0}
-            max={activeRoom?.schicksalspunkteMax ?? 0}
-          />
-        )}
+        <div className="dice-dock-tools--inline">{tools}</div>
+        <div className="dice-dock-tools-compact" ref={toolsFlyout.wrapRef}>
+          <button
+            type="button"
+            className="dice-icon-btn"
+            title="Werkzeuge"
+            aria-haspopup="true"
+            aria-expanded={toolsFlyout.open}
+            onClick={() => (toolsFlyout.open ? toolsFlyout.closeNow() : toolsFlyout.openNow())}
+          >
+            ⋯
+          </button>
+          {toolsFlyout.open && (
+            <div className="dice-dock-tools-flyout" role="menu">
+              {tools}
+            </div>
+          )}
+        </div>
         <input
           value={draft}
           onChange={(e) => {

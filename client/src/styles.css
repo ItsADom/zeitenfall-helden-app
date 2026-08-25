@@ -4334,6 +4334,47 @@ body.resizing-dice {
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
+  /* Erlaubt die @container-Regel unten — die Werkzeuge (Kurzbefehle/
+     Sichtbarkeit/Modifikator/Schicksalspunkte) klappen zusammen, sobald DIESE
+     Zeile eng wird, unabhängig vom Fenster: der schwebende Dock UND die
+     Chat-Spalte des virtuellen Tisches nutzen dieselbe Komponente, aber sind
+     unterschiedlich breit. */
+  container-type: inline-size;
+  container-name: dice-input;
+}
+.dice-dock-tools--inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dice-dock-tools-compact {
+  position: relative;
+  display: none;
+}
+.dice-dock-tools-flyout {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 6px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+/* Unter dieser Breite passen die vier Werkzeuge (im schlimmsten Fall inklusive
+   Schicksalspunkte-Zähler eines Spielers) nicht mehr bequem neben Eingabefeld
+   und Senden-Knopf — dahinter hinter EINEM Knopf verstecken statt zu quetschen. */
+@container dice-input (max-width: 320px) {
+  .dice-dock-tools--inline {
+    display: none;
+  }
+  .dice-dock-tools-compact {
+    display: flex;
+  }
 }
 /* Proben-Vorschläge für "/r <Suchtext>" — klappt wie die Favoriten-/Sichtbar-
    keits-Flyouts nach OBEN auf, aber über die ganze Eingabezeile statt an
