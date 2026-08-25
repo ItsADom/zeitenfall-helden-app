@@ -16,7 +16,7 @@ import type {
   ServerToClientMessage,
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
-import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
+import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, parseCellKey, parseDiceExpression, parseTileValue, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
@@ -24,6 +24,7 @@ import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import {
   canEditTokens as boardCanEditTokens,
   canMoveToken as boardCanMoveToken,
+  canPaint as boardCanPaint,
 } from './boardAccess.js';
 import {
   type BoardTokenRow,
@@ -32,6 +33,7 @@ import {
   getOrCreateBoard,
   getToken as getBoardToken,
   moveToken as moveBoardToken,
+  paintTiles as paintBoardTiles,
   updateBoardSettings,
   updateToken as updateBoardToken,
 } from './board.js';
@@ -1143,6 +1145,40 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           rev: updated.rev,
         },
       });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.tiles.paint': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanPaint(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Kacheln zu bemalen' });
+        return;
+      }
+      const raw = msg.cells ?? {};
+      // Nie unbekannten Kram übernehmen: eine ungültige Zellen-Adresse, eine
+      // Zelle außerhalb des Bretts, oder ein Wert, den parseTileValue nicht
+      // kennt (außer der leere String, das ist Radieren) — still übersprungen
+      // statt die ganze Nachricht abzulehnen, wie parseTileValue selbst schon
+      // tolerant gegenüber Ausreißern ist. 10000 = das größte je erlaubte
+      // Brett (100×100), als reine Notbremse gegen eine erfundene Nachricht.
+      const cells: Record<string, string> = {};
+      let n = 0;
+      for (const [key, value] of Object.entries(raw)) {
+        if (n >= 10000) break;
+        if (typeof value !== 'string') continue;
+        const cell = parseCellKey(key);
+        if (!cell || cell.x < 0 || cell.y < 0 || cell.x >= board.cols || cell.y >= board.rows) continue;
+        if (value !== '' && !parseTileValue(value)) continue;
+        cells[key] = value;
+        n++;
+      }
+      if (n === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine gültigen Zellen' });
+        return;
+      }
+      paintBoardTiles(board.id, cells);
+      broadcastToRoom(meta.groupId, { type: 'board.tiles.painted', cells });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

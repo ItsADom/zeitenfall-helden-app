@@ -227,8 +227,10 @@ interface DicePanelCtxValue {
   // hydrateBoard(); von da an halten die WS-Deltas unten ihn aktuell.
   boardTokens: BoardToken[];
   boardSettings: BoardSettings | null;
-  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings einmalig. */
-  hydrateBoard: (board: BoardSettings, tokens: BoardToken[]) => void;
+  /** cellKey (shared/src/board.ts) -> tagged tile value (parseTileValue) — sparse, unpainted cells simply absent. */
+  boardTiles: Record<string, string>;
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles einmalig. */
+  hydrateBoard: (board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
     characterId?: number;
@@ -240,10 +242,12 @@ interface DicePanelCtxValue {
     size?: number;
   }) => void;
   updateToken: (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>) => void;
-  /** `final: true` beim Loslassen — dazwischen die gedrosselten Live-Positionen während des Ziehens. */
+  /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
   deleteToken: (tokenId: number) => void;
   updateBoardSettings: (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => void;
+  /** value '' erases that cell. Sent once per stroke/fill, same "render locally, sync on release" shape as a token drag. */
+  paintTiles: (cells: Record<string, string>) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -300,12 +304,14 @@ export function useDicePanel(): DicePanelCtxValue {
       setSchicksalspunkte: () => {},
       boardTokens: [],
       boardSettings: null,
+      boardTiles: {},
       hydrateBoard: () => {},
       createToken: () => {},
       updateToken: () => {},
       moveToken: () => {},
       deleteToken: () => {},
       updateBoardSettings: () => {},
+      paintTiles: () => {},
     }
   );
 }
@@ -343,6 +349,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [serverError, setServerError] = useState<string | null>(null);
   const [boardTokens, setBoardTokens] = useState<BoardToken[]>([]);
   const [boardSettings, setBoardSettings] = useState<BoardSettings | null>(null);
+  const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -609,6 +616,17 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setBoardSettings(msg.board);
         return;
       }
+      if (msg.type === 'board.tiles.painted') {
+        setBoardTiles((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(msg.cells)) {
+            if (value === '') delete next[key];
+            else next[key] = value;
+          }
+          return next;
+        });
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -674,6 +692,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // eigenes GET .../board neu auf und hydriert erneut (siehe hydrateBoard).
       setBoardTokens([]);
       setBoardSettings(null);
+      setBoardTiles({});
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -922,9 +941,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
-  const hydrateBoard = useCallback((board: BoardSettings, tokens: BoardToken[]) => {
+  const hydrateBoard = useCallback((board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>) => {
     setBoardSettings(board);
     setBoardTokens(tokens);
+    setBoardTiles(tiles);
   }, []);
 
   const createToken = useCallback(
@@ -967,6 +987,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const updateBoardSettingsAction = useCallback(
     (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => {
       sendMsg({ type: 'board.settings.update', reqId: crypto.randomUUID(), patch });
+    },
+    [sendMsg],
+  );
+
+  const paintTilesAction = useCallback(
+    (cells: Record<string, string>) => {
+      sendMsg({ type: 'board.tiles.paint', reqId: crypto.randomUUID(), cells });
     },
     [sendMsg],
   );
@@ -1023,12 +1050,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setSchicksalspunkte,
         boardTokens,
         boardSettings,
+        boardTiles,
         hydrateBoard,
         createToken,
         updateToken: updateTokenAction,
         moveToken: moveTokenAction,
         deleteToken: deleteTokenAction,
         updateBoardSettings: updateBoardSettingsAction,
+        paintTiles: paintTilesAction,
       }}
     >
       {children}

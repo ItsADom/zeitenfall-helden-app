@@ -1,8 +1,9 @@
-// Wire types for the virtual table's token traffic — rides the SAME socket
-// as diceProtocol.ts (see "Realtime design" in docs/concepts/virtual-table.md,
-// "extend the existing socket, don't add a second one"). Kept in its own file
-// so the dice protocol stays focused; re-exported from the shared barrel and
-// folded into ClientToServerMessage/ServerToClientMessage in diceProtocol.ts.
+// Wire types for the virtual table's token/tile traffic — rides the SAME
+// socket as diceProtocol.ts (see "Realtime design" in docs/concepts/
+// virtual-table.md, "extend the existing socket, don't add a second one").
+// Kept in its own file so the dice protocol stays focused; re-exported from
+// the shared barrel and folded into ClientToServerMessage/ServerToClientMessage
+// in diceProtocol.ts.
 
 export type BoardPerm = 'gm' | 'all';
 
@@ -77,9 +78,9 @@ export type BoardClientMessage =
       tokenId: number;
       patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>;
     }
-  // `final: true` on pointerup — the server writes immediately instead of
-  // waiting out its debounce (see board.ts's moveDebounce). Every message in
-  // between is a live, throttled (~20/s client-side) broadcast-only position.
+  // One message per drag, sent on release — the client renders the whole
+  // drag locally and never broadcasts a live position (settled with the
+  // developer: nobody needs to watch a token travel, only where it lands).
   | { type: 'board.token.move'; reqId: string; tokenId: number; x: number; y: number; final?: boolean }
   | { type: 'board.token.delete'; reqId: string; tokenId: number }
   // GM only. Fog/measuring aren't here — fog has no toggle by design, measuring is always 'all'.
@@ -87,14 +88,20 @@ export type BoardClientMessage =
       type: 'board.settings.update';
       reqId: string;
       patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>;
-    };
+    }
+  // Painting a stroke/brush/rectangle — client accumulates cells locally
+  // (same "one message on release" shape as a token drag, see above) and
+  // sends only the cells it actually touched, never a whole-map replace (see
+  // "Tile and fog writes are deltas" in the plan — a player's tile map has
+  // fogged cells already stripped once fog exists, so a whole-map save from
+  // them would erase what's hidden underneath). Each value is a tagged
+  // string per parseTileValue in shared/src/board.ts; '' erases that cell
+  // back to unpainted.
+  | { type: 'board.tiles.paint'; reqId: string; cells: Record<string, string> };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
-  // Also used for a live drag broadcast — the server re-broadcasts every
-  // board.token.move immediately regardless of its own write debounce (see
-  // "Drag conflicts and resync" in the plan), so a receiver treats every
-  // board.token.updated the same whether it came from a drag or a real edit.
   | { type: 'board.token.updated'; token: BoardToken }
   | { type: 'board.token.deleted'; tokenId: number }
-  | { type: 'board.settings.updated'; board: BoardSettings };
+  | { type: 'board.settings.updated'; board: BoardSettings }
+  | { type: 'board.tiles.painted'; cells: Record<string, string> };

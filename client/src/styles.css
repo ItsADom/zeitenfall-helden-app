@@ -6091,3 +6091,72 @@ tr:hover .probe-roll,
   color: #fff;
   font-weight: 700;
 }
+
+/* ---------- VTT Phase 6: Bemalen ---------- */
+/* Aktiver Werkzeug-Knopf in der Kartenleiste (bislang nur „Bemalen") — gleiche
+   Optik wie der aktive Zustand im Karten-Rechte-Umschalter oben. */
+.vtt-toolbar button.small.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.vtt-tile-picker {
+  position: absolute;
+  left: 12px;
+  top: 52px;
+  z-index: 6;
+  width: 280px;
+  max-height: calc(100% - 64px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vtt-tile-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vtt-tile-picker-opacity {
+  flex: 1;
+  min-width: 0;
+}
+.vtt-tile-picker-opacity-pct {
+  width: 40px;
+  text-align: right;
+  font-size: 12px;
+}
+.vtt-tile-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vtt-tile-picker-groupname {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.vtt-tile-picker-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.vtt-tile-swatch {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  padding: 0;
+}
+.vtt-tile-swatch.active {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}

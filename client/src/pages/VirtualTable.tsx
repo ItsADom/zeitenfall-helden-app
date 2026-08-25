@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { BoardSettings, BoardToken } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
+import { cellKey, parseTileValue } from '@shared/board';
+import { TILE_MATERIALS } from '@shared/boardTiles';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
 import { CharSheetProvider } from '../components/charSheet';
@@ -11,17 +13,41 @@ import { useDicePanel } from '../components/dice/DicePanelProvider';
 import FeedColumn from '../components/dice/FeedColumn';
 import { usePersistedState } from '../components/persist';
 import VttRoster from '../components/VttRoster';
+import { generatedWaterTexture } from '../components/vttWater';
 
 // Phase 4 (docs/concepts/virtual-table.md): der Seitenrahmen. Phase 5 fügt
-// Token hinzu — anlegen/verschieben/löschen, Status-Marken und Cover, GM-
-// Rechte-Panel. Noch kein Bemalen/Nebel/Bilder/Initiative, das kommt später.
+// Token hinzu. Phase 6 fügt Bemalen hinzu — Farbe/Textur, Radierer, Delta-
+// Schreiben. Noch kein Autotiling (weiche Übergänge kommen erst mit Phase 7),
+// noch kein Nebel/Bilder/Initiative.
 
 interface GroupMeta {
   group: { id: number; name: string; isTemp: boolean };
 }
 interface BoardSnapshotResponse {
-  board: BoardSettings;
+  board: BoardSettings & { tilesJson: string };
   tokens: BoardToken[];
+}
+
+// Wie viele Zellen EIN Texturbild abdeckt — an den Brettkoordinaten verankert,
+// nicht an der Zelle, damit eine nahtlose Textur über Zellgrenzen hinweg
+// durchgehend bleibt (siehe "Repetition — anchored to the board, not the
+// cell" im Plan). Maßstäblich auch richtig: die Vorlagen sind Aufnahmen von
+// 2–4 m Boden, ein Feld ist ein Schritt.
+const TEX_SPAN_CELLS = 3;
+
+function textureHref(key: string): string {
+  const mat = TILE_MATERIALS.find((m) => m.key === key);
+  if (mat?.datei) return `/tiles/${mat.datei}`;
+  return generatedWaterTexture(key === 'wasser-tief' ? 'wasser-tief' : 'wasser-seicht');
+}
+
+// Eine Zeile je Gitterlinie, zu EINEM <path> zusammengefasst — billiger als
+// ein Knoten je Zelle, siehe der Prototyp (Texturen.html).
+function gridLinesPath(cols: number, rows: number): string {
+  let d = '';
+  for (let x = 0; x <= cols; x++) d += `M${x * CELL_PX} 0V${rows * CELL_PX}`;
+  for (let y = 0; y <= rows; y++) d += `M0 ${y * CELL_PX}H${cols * CELL_PX}`;
+  return d;
 }
 
 const CELL_PX = 40;
@@ -224,28 +250,48 @@ function MapCanvas({
   groupId,
   board,
   tokens,
+  tiles,
   canCreateTokens,
   canEditToken,
   canMoveToken: canMoveTokenFn,
+  canPaint,
   isGm,
 }: {
   groupId: number;
   board: BoardSettings;
   tokens: BoardToken[];
+  tiles: Record<string, string>;
   /** Placing a brand-new marker has no owner yet to check against — board-wide only. */
   canCreateTokens: boolean;
   canEditToken: (t: BoardToken) => boolean;
   canMoveToken: (t: BoardToken) => boolean;
+  canPaint: boolean;
   isGm: boolean;
 }) {
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
-  const { createToken, moveToken } = useDicePanel();
+  const { createToken, moveToken, paintTiles } = useDicePanel();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
+  // 'select': normales Verschieben/Anwählen von Marken + Verschieben der
+  // Kamera. 'paint': derselbe Zeiger bemalt stattdessen Zellen — siehe
+  // startPaint/onPaintPointerMove unten.
+  const [tool, setTool] = useState<'select' | 'paint'>('select');
+  const [pickerOpen, setPickerOpen] = useState(false);
+  // Pipette: der nächste Klick aufs Brett übernimmt die Farbe der getroffenen
+  // Zelle statt zu malen, dann schaltet sich das Werkzeug selbst wieder ab —
+  // ein Klick, keine eigene Dauer-Betriebsart.
+  const [pipetteArmed, setPipetteArmed] = useState(false);
+  // '' = Radierer, sonst ein getaggter Wert (siehe parseTileValue) — Vorgabe
+  // Gras, weil das die häufigste erste Wahl beim Kartenbau ist.
+  const [paintValue, setPaintValue] = usePersistedState<string>('vtt-paint-value', 't:gras');
+  // Während eines Bemal-Zugs lokal sichtbar (siehe onPaintPointerMove), bevor
+  // EIN Delta beim Loslassen gesendet wird — dieselbe „lokal rendern, beim
+  // Loslassen synchronisieren"-Form wie beim Verschieben einer Marke.
+  const [pendingPaint, setPendingPaint] = useState<Record<string, string> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number } | null>(null);
   const tokenDragRef = useRef<{
@@ -260,25 +306,37 @@ function MapCanvas({
     lastY: number;
     moved: number;
   } | null>(null);
+  const paintDragRef = useRef<{ value: string; touched: Record<string, string> } | null>(null);
 
   const viewW = totalW / camera.zoom;
   const viewH = totalH / camera.zoom;
 
-  // Board-Pixel je Bildschirmpixel — NICHT einfach viewW/wrap.clientWidth.
-  // Die Standard-preserveAspectRatio des <svg> ("xMidYMid meet") staucht die
-  // Karte auf die ENGERE Achse, sobald das Seitenverhältnis des Containers
-  // vom Brett abweicht (praktisch immer), und lässt daneben Leerraum stehen.
-  // Wer nur die Breite nimmt, unterschätzt den Maßstab, sobald die Höhe die
-  // engere Achse ist — Zeiger und Marke liefen dann spürbar auseinander,
-  // stärker bei stärkerem Seitenverhältnis-Unterschied und bei jedem Zoom.
-  const boardScale = useCallback(
+  // Maßstab UND Leerraum des <svg> innerhalb von .vtt-map-wrap — NICHT einfach
+  // viewW/wrap.clientWidth. Die Standard-preserveAspectRatio ("xMidYMid meet")
+  // staucht die Karte auf die ENGERE Achse, sobald das Seitenverhältnis des
+  // Containers vom Brett abweicht (praktisch immer), und zentriert sie darin:
+  // auf der weiteren Achse bleibt beidseitig Leerraum stehen (Letterboxing).
+  // Für eine reine SKALIERUNG (Kamera ziehen, Marke ziehen — beides rechnet
+  // mit der DIFFERENZ zweier Zeigerpositionen) kürzt sich der Leerraum
+  // heraus und scale allein reichte. Für eine ABSOLUTE Zeigerposition — welche
+  // Zelle liegt genau hier — tut es das nicht: ohne den Versatz zeigte jeder
+  // Bemal-Klick auf eine andere Zelle, als der Zeiger tatsächlich stand.
+  const mapMetrics = useCallback(
     (wrap: HTMLDivElement) => {
-      const cssPxPerUnitX = wrap.clientWidth / viewW;
-      const cssPxPerUnitY = wrap.clientHeight / viewH;
-      return 1 / Math.min(cssPxPerUnitX, cssPxPerUnitY);
+      const scaleX = wrap.clientWidth / viewW;
+      const scaleY = wrap.clientHeight / viewH;
+      const renderScale = Math.min(scaleX, scaleY);
+      return {
+        /** Board-Pixel je Bildschirmpixel. */
+        scale: 1 / renderScale,
+        /** Leerraum links/oben zwischen .vtt-map-wrap und dem tatsächlich gerenderten <svg>-Inhalt, in Bildschirmpixeln. */
+        offsetX: (wrap.clientWidth - viewW * renderScale) / 2,
+        offsetY: (wrap.clientHeight - viewH * renderScale) / 2,
+      };
     },
     [viewW, viewH],
   );
+  const boardScale = useCallback((wrap: HTMLDivElement) => mapMetrics(wrap).scale, [mapMetrics]);
 
   const clampCamera = useCallback(
     (x: number, y: number, zoom: number): Camera => {
@@ -327,6 +385,123 @@ function MapCanvas({
   const onWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15);
+  };
+
+  // Welche Brett-Zelle unter diesem Zeiger liegt, oder null außerhalb des
+  // Bretts. Absolute Position statt Versatz (Bemalen kennt keinen "Griff"-
+  // Punkt wie eine Marke) — braucht deshalb den Letterbox-Versatz aus
+  // mapMetrics, nicht nur dessen Maßstab (siehe Kommentar dort).
+  const cellAt = useCallback(
+    (e: { clientX: number; clientY: number }, wrap: HTMLDivElement): { x: number; y: number } | null => {
+      const rect = wrap.getBoundingClientRect();
+      const { scale, offsetX, offsetY } = mapMetrics(wrap);
+      const bx = camera.x + (e.clientX - rect.left - offsetX) * scale;
+      const by = camera.y + (e.clientY - rect.top - offsetY) * scale;
+      const cx = Math.floor(bx / CELL_PX);
+      const cy = Math.floor(by / CELL_PX);
+      if (cx < 0 || cy < 0 || cx >= cols || cy >= rows) return null;
+      return { x: cx, y: cy };
+    },
+    [mapMetrics, camera.x, camera.y, cols, rows],
+  );
+
+  const applyPaintCell = (cell: { x: number; y: number }) => {
+    const drag = paintDragRef.current;
+    if (!drag) return;
+    const key = cellKey(cell.x, cell.y);
+    if (key in drag.touched) return;
+    drag.touched[key] = drag.value;
+    setPendingPaint((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
+  };
+  const startPaint = (e: React.PointerEvent) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const cell = cellAt(e, wrap);
+    if (!cell) return;
+    (e.target as Element).setPointerCapture(e.pointerId);
+    paintDragRef.current = { value: paintValue, touched: {} };
+    applyPaintCell(cell);
+  };
+  // Nur wenn sich die getroffene ZELLE ändert, nicht bei jedem rohen
+  // pointermove — das hält die Update-Rate weit unter dem, was beim Ziehen
+  // einer Marke zum sichtbaren Nachziehen führte (siehe dortiger Kommentar),
+  // ohne dafür auf React-Rendern verzichten zu müssen: ein Feld dauert immer
+  // mehrere Zeigerereignisse.
+  const onPaintPointerMove = (e: React.PointerEvent) => {
+    const drag = paintDragRef.current;
+    const wrap = wrapRef.current;
+    if (!drag || !wrap) return;
+    const cell = cellAt(e, wrap);
+    if (!cell) return;
+    applyPaintCell(cell);
+  };
+  const onPaintPointerUp = () => {
+    const drag = paintDragRef.current;
+    paintDragRef.current = null;
+    if (!drag || Object.keys(drag.touched).length === 0) return;
+    // Eine Nachricht für den ganzen Strich/Pinsel — wie bei einer Marke
+    // (siehe onTokenPointerUp) sendet nur das ENDE, nie die Zwischenschritte.
+    paintTiles(drag.touched);
+    // Den eigenen Entwurf für GENAU diese Zellen kurz behalten, bis boardTiles
+    // den Server-Stand nachträgt (dasselbe Muster wie onTokenPointerUp) —
+    // sonst blitzten die gerade bemalten Zellen beim Loslassen kurz auf ihren
+    // alten Stand zurück, bevor das Echo eintrifft: setPendingPaint(null) räumt
+    // den lokalen Entwurf sofort ab, aber boardTiles (Kontext) aktualisiert
+    // sich erst, wenn board.tiles.painted vom Server zurückkommt — dazwischen
+    // zeigte kein Zustand mehr die gerade gemalten Zellen. Gezielt nur diese
+    // Zellen entfernen statt pauschal auf null, falls inzwischen schon ein
+    // neuer Strich begonnen hat.
+    const touchedKeys = Object.keys(drag.touched);
+    setTimeout(() => {
+      setPendingPaint((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        for (const k of touchedKeys) delete next[k];
+        return Object.keys(next).length > 0 ? next : null;
+      });
+    }, 200);
+  };
+
+  const onWrapPointerDown = (e: React.PointerEvent) => {
+    // Die rechte Maustaste verschiebt die Kamera IMMER, unabhängig vom
+    // Werkzeug — sonst gibt es beim Bemalen (linke Taste ist ja belegt)
+    // keine Möglichkeit mehr, sich über die Karte zu bewegen, ohne erst das
+    // Werkzeug zu wechseln. Siehe auch onContextMenu unten (kein Menü nach
+    // dem Loslassen).
+    if (e.button === 2) {
+      e.preventDefault();
+      onPointerDown(e);
+      return;
+    }
+    if (e.button !== 0) return;
+    if (tool === 'paint' && pipetteArmed && canPaint) {
+      const wrap = wrapRef.current;
+      const cell = wrap ? cellAt(e, wrap) : null;
+      const raw = cell ? tiles[cellKey(cell.x, cell.y)] : undefined;
+      const parsed = raw ? parseTileValue(raw) : null;
+      if (parsed?.kind === 'color') setPaintValue(parsed.hex);
+      setPipetteArmed(false);
+      return;
+    }
+    if (tool === 'paint' && canPaint) {
+      startPaint(e);
+      return;
+    }
+    onPointerDown(e);
+  };
+  const onWrapPointerMove = (e: React.PointerEvent) => {
+    if (paintDragRef.current) {
+      onPaintPointerMove(e);
+      return;
+    }
+    onPointerMove(e);
+  };
+  const onWrapPointerUp = () => {
+    if (paintDragRef.current) {
+      onPaintPointerUp();
+      return;
+    }
+    onPointerUp();
   };
 
   const startTokenDrag = (e: React.PointerEvent, token: BoardToken) => {
@@ -412,6 +587,31 @@ function MapCanvas({
 
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
 
+  // Eigener lokaler Entwurf während eines Strichs überlagert den Server-Stand
+  // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`.
+  const paintedTiles = pendingPaint ? { ...tiles, ...pendingPaint } : tiles;
+  // Nach Füllung gruppiert (Farbe direkt, Textur als url(#…)) statt ein
+  // <rect> je Zelle: EIN <path> pro Material reicht für die noch harten
+  // Kanten dieser Phase (weiche Übergänge sind Phase 7) und hält die
+  // Knotenzahl bei großflächig bemalten Bereichen klein.
+  const fillGroups = new Map<string, string[]>();
+  const usedTextureKeys = new Set<string>();
+  for (const [key, value] of Object.entries(paintedTiles)) {
+    const parsed = parseTileValue(value);
+    if (!parsed) continue;
+    const fill = parsed.kind === 'color' ? parsed.hex : parsed.kind === 'texture' ? `url(#tile-tex-${parsed.key})` : null;
+    if (!fill) continue;
+    if (parsed.kind === 'texture') usedTextureKeys.add(parsed.key);
+    const [xs, ys] = key.split(',');
+    const x = Number(xs) * CELL_PX;
+    const y = Number(ys) * CELL_PX;
+    const seg = `M${x} ${y}h${CELL_PX}v${CELL_PX}h${-CELL_PX}Z`;
+    const list = fillGroups.get(fill);
+    if (list) list.push(seg);
+    else fillGroups.set(fill, [seg]);
+  }
+  const texSpanPx = TEX_SPAN_CELLS * CELL_PX;
+
   return (
     <div className="vtt-map-col">
       <div className="vtt-toolbar">
@@ -419,6 +619,43 @@ function MapCanvas({
           <button className="small" onClick={placeMarker} title="Marker auf dem Tisch platzieren">
             + Marker
           </button>
+        )}
+        {canPaint && (
+          <>
+            {/* Solange „Bemalen" aktiv ist, schaltet dieser Knopf nur noch
+                die Farb-/Texturauswahl ein/aus, statt das Werkzeug selbst zu
+                verlassen — sonst konnte man beim Zuklappen der Auswahl (um
+                mehr von der Karte zu sehen) aus Versehen auch das Bemalen
+                selbst beenden. Verlassen geschieht jetzt ausdrücklich über
+                „Fertig" daneben. */}
+            <button
+              className={`small${tool === 'paint' ? ' active' : ''}`}
+              onClick={() => {
+                if (tool !== 'paint') {
+                  setTool('paint');
+                  setPickerOpen(true);
+                } else {
+                  setPickerOpen((v) => !v);
+                }
+              }}
+              title="Kacheln bemalen"
+            >
+              🖌 Bemalen
+            </button>
+            {tool === 'paint' && (
+              <button
+                className="small"
+                onClick={() => {
+                  setTool('select');
+                  setPickerOpen(false);
+                  setPipetteArmed(false);
+                }}
+                title="Bemalen beenden"
+              >
+                Fertig
+              </button>
+            )}
+          </>
         )}
         <span className="muted">
           {cols} × {rows} Felder
@@ -447,28 +684,48 @@ function MapCanvas({
         )}
       </div>
       {isGm && settingsOpen && <BoardSettingsPopover board={board} onClose={() => setSettingsOpen(false)} />}
+      {tool === 'paint' && pickerOpen && (
+        <TilePicker
+          value={paintValue}
+          onChange={setPaintValue}
+          onClose={() => setPickerOpen(false)}
+          pipetteActive={pipetteArmed}
+          onPipetteToggle={() => setPipetteArmed((v) => !v)}
+        />
+      )}
       <div
         className="vtt-map-wrap"
         ref={wrapRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onPointerDown={onWrapPointerDown}
+        onPointerMove={onWrapPointerMove}
+        onPointerUp={onWrapPointerUp}
+        onPointerCancel={onWrapPointerUp}
         onWheel={onWheel}
+        onContextMenu={(e) => e.preventDefault()}
+        style={{ cursor: pipetteArmed ? 'copy' : tool === 'paint' ? 'crosshair' : undefined }}
       >
         <svg viewBox={`${camera.x} ${camera.y} ${viewW} ${viewH}`} className="vtt-map-svg">
           <defs>
             <pattern id="vtt-grid" width={CELL_PX} height={CELL_PX} patternUnits="userSpaceOnUse">
               <rect width={CELL_PX} height={CELL_PX} fill="var(--map-outer, var(--surface-sunken))" />
-              <path
-                d={`M ${CELL_PX} 0 L 0 0 0 ${CELL_PX}`}
-                fill="none"
-                stroke="var(--map-line, var(--border))"
-                strokeWidth={1 / camera.zoom}
-              />
             </pattern>
+            {[...usedTextureKeys].map((key) => (
+              <pattern key={key} id={`tile-tex-${key}`} width={texSpanPx} height={texSpanPx} patternUnits="userSpaceOnUse">
+                <image href={textureHref(key)} width={texSpanPx} height={texSpanPx} preserveAspectRatio="none" />
+              </pattern>
+            ))}
           </defs>
           <rect x={0} y={0} width={totalW} height={totalH} fill="url(#vtt-grid)" />
+
+          {[...fillGroups].map(([fill, segs]) => (
+            <path key={fill} d={segs.join('')} fill={fill} />
+          ))}
+
+          {/* Gitterlinien als EIN Pfad über der Bemalung, wie im Plan
+              vorgesehen (Kachelebenen -> Gitterlinien -> …) — bewusst dünner
+              als die Zellgröße, damit sie über Texturen noch lesbar bleiben,
+              ohne die Fläche selbst zu verdunkeln. */}
+          <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={1 / camera.zoom} fill="none" />
 
           {tokens
             .filter((t) => !t.hidden || isGm)
@@ -517,6 +774,110 @@ function MapCanvas({
   );
 }
 
+// Farbe + Deckkraft zu einem Wert zusammenfassen — #rrggbb bei 100 %, sonst
+// #rrggbbaa (siehe parseTileValue: beide sind ein gültiger Farbwert, ein
+// direkt aufs SVG-<path> anwendbarer CSS-Farbstring, keine eigene Deckkraft
+// nötig).
+function withOpacity(hex: string, opacityPct: number): string {
+  if (opacityPct >= 100) return hex.slice(0, 7);
+  const alphaHex = Math.round((opacityPct / 100) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `${hex.slice(0, 7)}${alphaHex}`;
+}
+
+function TilePicker({
+  value,
+  onChange,
+  onClose,
+  pipetteActive,
+  onPipetteToggle,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  pipetteActive: boolean;
+  onPipetteToggle: () => void;
+}) {
+  const groups = new Map<string, typeof TILE_MATERIALS>();
+  for (const m of TILE_MATERIALS) {
+    const list = groups.get(m.gruppe);
+    if (list) list.push(m);
+    else groups.set(m.gruppe, [m]);
+  }
+  // Vorbelegt mit dem zuletzt verwendeten Wert, falls das schon eine Farbe
+  // war (auch mit Deckkraft-Anteil) — sonst ein vernünftiger Vorschlag, kein
+  // Zufallswert.
+  const isColorValue = value.startsWith('#');
+  const [customColor, setCustomColor] = useState(isColorValue ? value.slice(0, 7) : '#8b6a4a');
+  const [opacity, setOpacity] = useState(isColorValue && value.length === 9 ? Math.round((parseInt(value.slice(7, 9), 16) / 255) * 100) : 100);
+  // Von der Pipette übernommene Farbe schlägt sich hier nieder, auch wenn sie
+  // aus einem anderen Zug stammt als der zuletzt hier eingestellte Wert.
+  useEffect(() => {
+    if (!value.startsWith('#')) return;
+    setCustomColor(value.slice(0, 7));
+    setOpacity(value.length === 9 ? Math.round((parseInt(value.slice(7, 9), 16) / 255) * 100) : 100);
+  }, [value]);
+  const combined = withOpacity(customColor, opacity);
+
+  return (
+    <div className="vtt-tile-picker">
+      <div className="vtt-token-editor-head">
+        <strong>Bemalen</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      <div className="vtt-tile-picker-row">
+        <button className={`small${value === '' ? ' active' : ''}`} onClick={() => onChange('')}>
+          Radierer
+        </button>
+        <button
+          className={`small${pipetteActive ? ' active' : ''}`}
+          onClick={onPipetteToggle}
+          title="Farbe von einer bemalten Zelle übernehmen"
+        >
+          💧 Pipette
+        </button>
+      </div>
+      <div className="vtt-tile-picker-row">
+        <input type="color" value={customColor} onChange={(e) => setCustomColor(e.target.value)} title="Eigene Farbe" />
+        <input
+          type="range"
+          min={5}
+          max={100}
+          value={opacity}
+          onChange={(e) => setOpacity(Number(e.target.value))}
+          title="Deckkraft"
+          className="vtt-tile-picker-opacity"
+        />
+        <span className="muted vtt-tile-picker-opacity-pct">{opacity} %</span>
+      </div>
+      <div className="vtt-tile-picker-row">
+        <button className={`small${value === combined ? ' active' : ''}`} onClick={() => onChange(combined)}>
+          Farbe
+        </button>
+      </div>
+      {[...groups].map(([gruppe, mats]) => (
+        <div className="vtt-tile-picker-group" key={gruppe}>
+          <div className="muted vtt-tile-picker-groupname">{gruppe}</div>
+          <div className="vtt-tile-picker-swatches">
+            {mats.map((m) => (
+              <button
+                key={m.key}
+                className={`vtt-tile-swatch${value === `t:${m.key}` ? ' active' : ''}`}
+                title={m.label}
+                style={{ backgroundImage: `url(${textureHref(m.key)})` }}
+                onClick={() => onChange(`t:${m.key}`)}
+              />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClose: () => void }) {
   const { updateBoardSettings } = useDicePanel();
   const rows: { key: keyof BoardSettings; label: string }[] = [
@@ -559,7 +920,7 @@ export default function VirtualTable() {
   const { id } = useParams();
   const groupId = Number(id);
   const { user } = useAuth();
-  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, hydrateBoard } = useDicePanel();
+  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, hydrateBoard } = useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
   const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat');
@@ -571,7 +932,7 @@ export default function VirtualTable() {
       .then(setMeta)
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     apiGet<BoardSnapshotResponse>(`/api/groups/${groupId}/board`)
-      .then((snap) => hydrateBoard(snap.board, snap.tokens))
+      .then((snap) => hydrateBoard(snap.board, snap.tokens, JSON.parse(snap.board.tilesJson || '{}')))
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     // hydrateBoard ist stabil (useCallback ohne Abhängigkeiten in DicePanelProvider) — nicht in die Dep-Liste, sonst liefe der Fetch bei jeder Board-Änderung erneut.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -615,6 +976,7 @@ export default function VirtualTable() {
   // (ownerUserId === null) gilt weiterhin nur die Board-Einstellung.
   const canEditToken = (t: BoardToken) => user.isGm || boardSettings.permTokens === 'all' || t.ownerUserId === user.id;
   const canMoveToken = (t: BoardToken) => user.isGm || boardSettings.permMove === 'all' || t.ownerUserId === user.id;
+  const canPaint = user.isGm || boardSettings.permTiles === 'all';
 
   return (
     <div className="vtt-page">
@@ -637,9 +999,11 @@ export default function VirtualTable() {
           groupId={groupId}
           board={boardSettings}
           tokens={boardTokens}
+          tiles={boardTiles}
           canCreateTokens={canCreateTokens}
           canEditToken={canEditToken}
           canMoveToken={canMoveToken}
+          canPaint={canPaint}
           isGm={user.isGm}
         />
 

@@ -166,6 +166,25 @@ export function deleteToken(tokenId: number): BoardTokenRow | undefined {
   return existing;
 }
 
+/**
+ * Merges a delta into `tiles_json` — never a whole-map replace (see the
+ * plan's "Tile and fog writes are deltas" — once fog exists, a player's tile
+ * map already has the fogged cells stripped out, so accepting a full save
+ * from them would erase what the GM painted underneath). `value === ''`
+ * erases that cell back to unpainted (deletes the key) rather than storing
+ * an empty string, so the sparse map stays sparse.
+ */
+export function paintTiles(boardId: number, cells: Record<string, string>): void {
+  const board = getBoardById(boardId)!;
+  const tiles = JSON.parse(board.tilesJson || '{}') as Record<string, string>;
+  for (const [key, value] of Object.entries(cells)) {
+    if (value === '') delete tiles[key];
+    else tiles[key] = value;
+  }
+  db.prepare('UPDATE boards SET tiles_json = ? WHERE id = ?').run(JSON.stringify(tiles), boardId);
+  bumpRev(boardId);
+}
+
 export type BoardSettingsPatch = Partial<
   Pick<BoardRow, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>
 >;

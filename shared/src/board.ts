@@ -42,7 +42,9 @@ export type TileValue =
   | { kind: 'texture'; key: string }
   | { kind: 'asset'; slug: string }; // reserved — GM-uploaded textures, not built in v1
 
-const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+// 6 digits = opaque, 8 = with alpha (#rrggbbaa) — a plain CSS/SVG colour
+// string either way, so no separate opacity field is needed anywhere else.
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 export function parseTileValue(raw: string): TileValue | null {
   if (HEX_COLOR_RE.test(raw)) return { kind: 'color', hex: raw };
