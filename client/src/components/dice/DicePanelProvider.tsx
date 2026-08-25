@@ -9,6 +9,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
+import type { BoardSettings, BoardToken } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -217,6 +218,32 @@ interface DicePanelCtxValue {
    * `max` weglassen, um nur `aktuell` zu setzen.
    */
   setSchicksalspunkte: (aktuell: number, max?: number) => void;
+
+  // --- Virtueller Tisch (docs/concepts/virtual-table.md) ---
+  // Reitet denselben Socket wie Chat/Würfel statt eines zweiten (siehe
+  // "Realtime design" im Plan). Anders als der Feed oben gibt es hierfür
+  // keine REST-Historie über diesen Kontext — die Seite selbst holt den
+  // vollständigen Schnappschuss (GET .../board) und übergibt ihn per
+  // hydrateBoard(); von da an halten die WS-Deltas unten ihn aktuell.
+  boardTokens: BoardToken[];
+  boardSettings: BoardSettings | null;
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings einmalig. */
+  hydrateBoard: (board: BoardSettings, tokens: BoardToken[]) => void;
+  createToken: (input: {
+    kind: 'character' | 'marker';
+    characterId?: number;
+    name?: string;
+    color?: string;
+    icon?: string;
+    x: number;
+    y: number;
+    size?: number;
+  }) => void;
+  updateToken: (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>) => void;
+  /** `final: true` beim Loslassen — dazwischen die gedrosselten Live-Positionen während des Ziehens. */
+  moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
+  deleteToken: (tokenId: number) => void;
+  updateBoardSettings: (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -271,6 +298,14 @@ export function useDicePanel(): DicePanelCtxValue {
       refreshRooms: () => {},
       loadMore: () => {},
       setSchicksalspunkte: () => {},
+      boardTokens: [],
+      boardSettings: null,
+      hydrateBoard: () => {},
+      createToken: () => {},
+      updateToken: () => {},
+      moveToken: () => {},
+      deleteToken: () => {},
+      updateBoardSettings: () => {},
     }
   );
 }
@@ -306,6 +341,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [presenceNotes, setPresenceNotes] = useState<PresenceNote[]>([]);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [boardTokens, setBoardTokens] = useState<BoardToken[]>([]);
+  const [boardSettings, setBoardSettings] = useState<BoardSettings | null>(null);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -553,6 +590,25 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         addPresenceNote(`${msg.name} ist beigetreten.`);
         return;
       }
+      if (msg.type === 'board.token.created') {
+        setBoardTokens((prev) => [...prev.filter((t) => t.id !== msg.token.id), msg.token]);
+        return;
+      }
+      if (msg.type === 'board.token.updated') {
+        // Auch die Live-Position während eines Ziehens läuft hier durch —
+        // der ziehende Client selbst rendert währenddessen aus seinem eigenen
+        // Drag-Zustand, nicht aus boardTokens (siehe VirtualTable.tsx).
+        setBoardTokens((prev) => prev.map((t) => (t.id === msg.token.id ? msg.token : t)));
+        return;
+      }
+      if (msg.type === 'board.token.deleted') {
+        setBoardTokens((prev) => prev.filter((t) => t.id !== msg.tokenId));
+        return;
+      }
+      if (msg.type === 'board.settings.updated') {
+        setBoardSettings(msg.board);
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -614,6 +670,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setPendingRequests([]);
       setGroupRequests([]);
       setCoopPools([]);
+      // Gehört zum vorherigen Raum — die Seite ruft nach dem Wechsel ihr
+      // eigenes GET .../board neu auf und hydriert erneut (siehe hydrateBoard).
+      setBoardTokens([]);
+      setBoardSettings(null);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -862,6 +922,55 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
+  const hydrateBoard = useCallback((board: BoardSettings, tokens: BoardToken[]) => {
+    setBoardSettings(board);
+    setBoardTokens(tokens);
+  }, []);
+
+  const createToken = useCallback(
+    (input: {
+      kind: 'character' | 'marker';
+      characterId?: number;
+      name?: string;
+      color?: string;
+      icon?: string;
+      x: number;
+      y: number;
+      size?: number;
+    }) => {
+      sendMsg({ type: 'board.token.create', reqId: crypto.randomUUID(), ...input });
+    },
+    [sendMsg],
+  );
+
+  const updateTokenAction = useCallback(
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size'>>) => {
+      sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
+    },
+    [sendMsg],
+  );
+
+  const moveTokenAction = useCallback(
+    (tokenId: number, x: number, y: number, final?: boolean) => {
+      sendMsg({ type: 'board.token.move', reqId: crypto.randomUUID(), tokenId, x, y, final });
+    },
+    [sendMsg],
+  );
+
+  const deleteTokenAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.token.delete', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+
+  const updateBoardSettingsAction = useCallback(
+    (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => {
+      sendMsg({ type: 'board.settings.update', reqId: crypto.randomUUID(), patch });
+    },
+    [sendMsg],
+  );
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -912,6 +1021,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         refreshRooms,
         loadMore,
         setSchicksalspunkte,
+        boardTokens,
+        boardSettings,
+        hydrateBoard,
+        createToken,
+        updateToken: updateTokenAction,
+        moveToken: moveTokenAction,
+        deleteToken: deleteTokenAction,
+        updateBoardSettings: updateBoardSettingsAction,
       }}
     >
       {children}

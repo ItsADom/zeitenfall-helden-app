@@ -1,13 +1,94 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Progress (2026-08-25, end of session): Phases 1–4 done
+> ## Progress (2026-08-25, end of session): Phases 1–5 done
 >
 > **Committed on `feature/virtual-table`:** Phase 1 (Event-Gruppen player page),
 > Phase 2 (`CharSheetProvider` extraction, verified live), Phase 3 (shared board
 > math + the five board tables + the inert snapshot endpoint, verified live),
-> Phase 4 (page shell, verified live as both GM and player, light and dark). All
-> typecheck clean, `npm test -w shared` green (406 tests). See each phase's own
-> commit message for what was verified and how.
+> Phase 4 (page shell, verified live as both GM and player, light and dark),
+> Phase 5 (tokens — create/move/delete, status badges and covers, live sync,
+> `boardAccess.ts`, the GM rights panel; verified live including server-side
+> enforcement against a hand-crafted WS message). All typecheck clean,
+> `npm test -w shared` green (406 tests). See each phase's own commit message
+> for what was verified and how.
+>
+> **Phase 5 — what got built:**
+> - `shared/src/boardProtocol.ts` (new): `BoardToken`/`BoardSettings` wire types
+>   plus `BoardClientMessage`/`BoardServerMessage`, folded into
+>   `ClientToServerMessage`/`ServerToClientMessage` in `diceProtocol.ts` (same
+>   socket, per "Realtime design" below — no second connection).
+> - `server/src/board.ts`: token CRUD (`createToken`/`updateToken`/`moveToken`/
+>   `deleteToken`) and `updateBoardSettings`, each bumping `boards.rev` except
+>   `moveToken` (a drag fires many of these; every PERSISTED board message
+>   already carries `rev`, a live position isn't structural enough to need it).
+>   `portrait` is computed at read time from `hasPortrait(characterId)`, never
+>   stored on the token row.
+> - `server/src/boardAccess.ts` (new): `canPaint`/`canLabel`/`canEditTokens`/
+>   `canMoveToken`/`canEditImages`/`canEditFog`, each reading the board's own
+>   `perm_*` setting via `isRoomMember`. `canEditFog` is hard-coded to
+>   `viewer.isGm` per the plan — not perm-driven, on purpose.
+> - `server/src/ws.ts`: the five `board.*` cases. `board.token.move` is exempt
+>   from the per-user rate limiter (a throttled ~20/s drag would otherwise trip
+>   the chat bucket's 5/s refill) and re-broadcasts every move immediately while
+>   writing to SQLite through a 150 ms debounce keyed per token (`moveDebounce`),
+>   flushing early when the client marks a message `final` (pointerup).
+> - **No per-viewer redaction yet** — a `hidden` token's data goes out to every
+>   viewer including players, same "inert" caveat Phase 3's snapshot already
+>   carried. The client hides `hidden` tokens from non-GMs at render time only;
+>   that's convenience, not the guarantee. Fog (Phase 10) is what makes it real.
+> - Client: `DicePanelProvider` now also owns `boardTokens`/`boardSettings`
+>   (hydrated once from the page's own `GET .../board`, kept live via the same
+>   WS `onmessage` switch as chat/dice) and the five mutation senders
+>   (`createToken`/`updateToken`/`moveToken`/`deleteToken`/`updateBoardSettings`).
+> - `VirtualTable.tsx`'s `MapCanvas` renders tokens as SVG circles (initials or
+>   a typed emoji icon, colour, size, status-emoji row, cover badge, name label),
+>   drag-to-move (pointer capture per token, ~50 ms throttle, click-vs-drag by a
+>   5 px movement threshold), a `+ Marker` button, a `TokenEditor` popover
+>   (name/icon/colour/size/hidden/statuses/cover/delete), and a GM-only
+>   `BoardSettingsPopover` for the five `perm_*` toggles.
+> - `VttRoster.tsx` gained "Auf Tisch stellen" per character card (disabled once
+>   that character already has a token).
+> - `CharacterSidebar.tsx` gained the deferred **Zustände** section (read-only —
+>   set via the token's own editor, not from here): the player's own token's
+>   status badges, spelled out. Empty everywhere except the VTT page, since
+>   `boardTokens` is only ever populated there. **Kampf stayed deferred** —
+>   it needs a "which weapon" selection design the plan never settled, out of
+>   scope for what this session bundled in.
+> - Fixed a real unit bug caught during live verification: token `x`/`y` are
+>   board CELLS (`shared/src/board.ts`'s convention), but the marker-placement
+>   and drag-delta math were computed in `viewBox`/SVG pixels
+>   (`CELL_PX`-scaled) — division by `CELL_PX` was missing in both places.
+>   Caught by checking the actual persisted token row after a UI action, not by
+>   eyeballing the render.
+>
+> **Verified live** (`spielleiter`/`spielleiter` on `localhost`, `testspieler`/
+> `test1234` on `[::1]`, both against port 5180 — see the dev-port note below):
+> marker creation lands at the current view centre in correct cell coordinates;
+> the roster's "Auf Tisch stellen" creates a correctly-named/owned character
+> token and flips to "Steht auf dem Tisch"; drag moves a token and persists at
+> the expected cell delta; the token editor's status toggle and delete both
+> round-trip through a fresh `GET .../board`; the GM settings popover flips
+> `permMove`; with `permMove: 'gm'`, a **hand-crafted WS `board.token.move`
+> sent directly from the player's own session** (bypassing the UI entirely) is
+> rejected with `"Keine Berechtigung, Marken zu verschieben"` and the token's
+> position is unchanged — the palette is convenience, the server is the
+> enforcement, exactly per the plan's Phase 5 verification bullet. Flipping
+> `permMove` back to `'all'` restored normal player movement. Setting statuses
+> on a character's token live-updates that player's own `CharacterSidebar`
+> Zustände section. Left the dev servers running per CLAUDE.md.
+>
+> **Dev-port note:** the client dev server's default moved from 5173 to 5180
+> (`client/vite.config.ts`, `.claude/launch.json`) — 5173 is reserved for
+> another process on this machine. `PORT=<n>` still overrides for a second
+> instance alongside either way.
+>
+> **Next action, if you're picking this up fresh:** Phase 6 — tile painting,
+> flat colour, and the texture catalogue. The rendering approach (board-anchored
+> `<pattern>` spans, per-material `kante`, the mask-based autotile pipeline) is
+> already prototyped and reviewed in `docs/concepts/virtual-table-mockup/
+> Texturen.html` — this phase wires it into the real page rather than designing
+> it fresh. Autotiling itself is Phase 7, deliberately split off so painting can
+> land and be measured before the filter-heavy part is added.
 >
 > **Phase 4 scope, decided with the developer:** shell only — the route, layout,
 > pan/zoom map placeholder, and both side columns, reusing `CharacterSidebar`

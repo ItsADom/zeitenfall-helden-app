@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { apiGet } from '../api';
 import { useCollapsed } from './collapse';
+import { useDicePanel } from './dice/DicePanelProvider';
 import RequestProbePicker from './dice/RequestProbePicker';
 import { GmNoteField, VITAL_LABELS, vitalClass } from './gmRoster';
 import { usePersistedState } from './persist';
@@ -35,11 +36,12 @@ const MAX_W = 460;
 const DEFAULT_W = 280;
 const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)));
 
-export default function VttRoster({ groupId }: { groupId: number }) {
+export default function VttRoster({ groupId, cols, rows }: { groupId: number; cols: number; rows: number }) {
   const [collapsed, toggle] = useCollapsed('vtt-roster');
   const [width, setWidth] = usePersistedState<number>('vtt-roster-w', DEFAULT_W);
   const w = clampW(width);
   const [data, setData] = useState<RosterData | null>(null);
+  const { boardTokens, createToken } = useDicePanel();
 
   const load = useCallback(() => {
     apiGet<RosterData>(`/api/groups/${groupId}/overview`)
@@ -132,6 +134,22 @@ export default function VttRoster({ groupId }: { groupId: number }) {
                 ))}
               </div>
             )}
+
+            <div className="gm-chips">
+              {boardTokens.some((t) => t.characterId === c.id) ? (
+                <span className="muted" style={{ fontSize: 11 }}>
+                  Steht auf dem Tisch
+                </span>
+              ) : (
+                <button
+                  className="small"
+                  onClick={() => createToken({ kind: 'character', characterId: c.id, x: cols / 2, y: rows / 2 })}
+                  title="Eine Marke für diesen Charakter auf dem Tisch platzieren"
+                >
+                  Auf Tisch stellen
+                </button>
+              )}
+            </div>
 
             <RequestProbePicker groupId={groupId} charId={c.id} targetUserId={c.ownerUserId} charName={c.name} />
 

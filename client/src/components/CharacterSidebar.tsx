@@ -2,6 +2,7 @@ import { ATTR_CODES, ATTR_LABELS, RESOURCE_KEYS } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
 import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
 import { pouchUeberfuellt } from '@shared/currency';
+import { BOARD_STATUS_BY_KEY } from '@shared/boardStatus';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
 import { useDicePanel } from './dice/DicePanelProvider';
@@ -95,6 +96,7 @@ export default function CharacterSidebar() {
         </AlwaysEditable>
 
         <SidebarAttribute />
+        <SidebarZustaende />
         <SidebarGeld />
 
         <AlwaysEditable>
@@ -214,6 +216,36 @@ function SidebarAttribute() {
             >
               {inner}
             </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Zustände des eigenen Tisch-Tokens, ausgeschrieben statt nur als winzige
+// Marke auf dem Feld — siehe docs/concepts/virtual-table.md, "Settled for the
+// real Phase 4 build". Rein lesend: gesetzt wird ein Zustand über die
+// Token-Marke selbst (VirtualTable.tsx), nicht von hier aus. Auf jeder Seite
+// AUSSER dem virtuellen Tisch ist boardTokens leer (DicePanelProvider füllt
+// es erst nach hydrateBoard), die Sektion bleibt dort also unsichtbar, ohne
+// eine eigene "nur auf der VTT-Seite"-Bedingung zu brauchen.
+function SidebarZustaende() {
+  const { charId } = useChar();
+  const { boardTokens } = useDicePanel();
+  const token = boardTokens.find((t) => t.characterId === charId);
+  if (!token || token.statuses.length === 0) return null;
+  return (
+    <div className="side-block">
+      <h4>Zustände</h4>
+      <div className="side-status-list">
+        {token.statuses.map((key) => {
+          const status = BOARD_STATUS_BY_KEY[key];
+          if (!status) return null;
+          return (
+            <div className="side-status-line" key={key}>
+              <span aria-hidden>{status.emoji}</span> {status.label}
+            </div>
           );
         })}
       </div>

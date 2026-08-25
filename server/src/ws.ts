@@ -5,6 +5,7 @@ import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type {
+  BoardToken,
   ClientToServerMessage,
   CoopPoolRequest,
   ExpressionRollPayload,
@@ -15,11 +16,25 @@ import type {
   ServerToClientMessage,
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
-import { MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
+import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, parseDiceExpression, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
+import {
+  canEditTokens as boardCanEditTokens,
+  canMoveToken as boardCanMoveToken,
+} from './boardAccess.js';
+import {
+  type BoardTokenRow,
+  createToken as createBoardToken,
+  deleteToken as deleteBoardToken,
+  getOrCreateBoard,
+  getToken as getBoardToken,
+  moveToken as moveBoardToken,
+  updateBoardSettings,
+  updateToken as updateBoardToken,
+} from './board.js';
 import {
   createPendingRequest,
   getPendingRequest,
@@ -78,10 +93,11 @@ function rateLimitFor(userId: number): TokenBucket {
   return bucket;
 }
 
-// Rate-limited by default; nothing is currently exempt. Explicit opt-out
-// list instead of an allow-list match on msg.type, so a future message type
-// can't silently skip the limiter just because it doesn't start with 'roll.'.
-const RATE_LIMIT_EXEMPT: ReadonlySet<ClientToServerMessage['type']> = new Set();
+// Rate-limited by default. board.token.move is the one exemption — a drag is
+// throttled client-side to ~20/s already (see FeedColumn's counterpart in the
+// VTT map canvas), well past the chat bucket's 5/s refill, and rejecting mid-
+// drag messages would make the token visibly stutter for everyone watching.
+const RATE_LIMIT_EXEMPT: ReadonlySet<ClientToServerMessage['type']> = new Set(['board.token.move']);
 
 const rooms = new Map<number, Set<WebSocket>>();
 const socketMeta = new WeakMap<WebSocket, SocketMeta>();
@@ -96,6 +112,53 @@ const lastLeftRoom = new Map<string, number>();
 const RECONNECT_GRACE_MS = 60_000;
 function leftKey(groupId: number, userId: number): string {
   return `${groupId}:${userId}`;
+}
+
+// Virtual table — see docs/concepts/virtual-table.md, "Drag conflicts and
+// resync". A drag fires many board.token.move messages; the server
+// re-broadcasts every one immediately (see the board.token.move case below)
+// but only WRITES to SQLite at most once per DEBOUNCE_MS per token, flushing
+// early when the client marks a message `final` (pointerup). Keyed by tokenId
+// — never cleaned up beyond its own flush, same bounded-by-real-use tradeoff
+// as userRateLimits above (a live board has at most a few dozen tokens).
+const DEBOUNCE_MS = 150;
+const moveDebounce = new Map<number, ReturnType<typeof setTimeout>>();
+function scheduleMoveWrite(tokenId: number, x: number, y: number, final: boolean): void {
+  const pending = moveDebounce.get(tokenId);
+  if (pending) clearTimeout(pending);
+  if (final) {
+    moveDebounce.delete(tokenId);
+    moveBoardToken(tokenId, x, y);
+    return;
+  }
+  moveDebounce.set(
+    tokenId,
+    setTimeout(() => {
+      moveDebounce.delete(tokenId);
+      moveBoardToken(tokenId, x, y);
+    }, DEBOUNCE_MS),
+  );
+}
+
+function toWireToken(row: BoardTokenRow): BoardToken {
+  return {
+    id: row.id,
+    boardId: row.boardId,
+    kind: row.kind === 'character' ? 'character' : 'marker',
+    characterId: row.characterId,
+    ownerUserId: row.ownerUserId,
+    name: row.name,
+    color: row.color,
+    icon: row.icon,
+    x: row.x,
+    y: row.y,
+    size: row.size,
+    hidden: row.hidden,
+    statuses: row.statuses,
+    cover: row.cover,
+    portrait: row.portrait,
+    sort: row.sort,
+  };
 }
 
 function send(ws: WebSocket, msg: ServerToClientMessage): void {
@@ -936,6 +999,175 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (!request.groupRequestId) {
         sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.pending.cancelled', requestId: request.id });
       }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // Virtueller Tisch (docs/concepts/virtual-table.md) — reuses this same
+    // socket/room rather than a second connection. NO per-viewer redaction
+    // below (fog lands in Phase 10): every message here goes to the whole
+    // room, hidden tokens included.
+    case 'board.token.create': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanEditTokens(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Marken anzulegen' });
+        return;
+      }
+      const x = Number(msg.x);
+      const y = Number(msg.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
+        return;
+      }
+      const size = Math.min(6, Math.max(1, Math.round(Number(msg.size) || 1)));
+      let input: Parameters<typeof createBoardToken>[1];
+      if (msg.kind === 'character') {
+        const char = db.prepare('SELECT id, name, chat_name, owner_user_id FROM characters WHERE id = ?').get(Number(msg.characterId)) as
+          | { id: number; name: string; chat_name: string; owner_user_id: number }
+          | undefined;
+        if (!char || !charBelongsToRoom(char.id, meta.groupId)) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
+          return;
+        }
+        // Name/owner come from the character record, never the client — a
+        // player editing their own request payload could otherwise post a
+        // token under someone else's name. Colour/icon are cosmetic, so a
+        // client-supplied value is harmless and stays.
+        input = {
+          kind: 'character',
+          characterId: char.id,
+          ownerUserId: char.owner_user_id,
+          name: char.chat_name || char.name,
+          color: String(msg.color ?? '').slice(0, 20),
+          icon: String(msg.icon ?? '').slice(0, 4),
+          x,
+          y,
+          size,
+        };
+      } else {
+        input = {
+          kind: 'marker',
+          characterId: null,
+          ownerUserId: null,
+          name: String(msg.name ?? 'Marker').slice(0, 60).trim() || 'Marker',
+          color: String(msg.color ?? '').slice(0, 20),
+          icon: String(msg.icon ?? '').slice(0, 4),
+          x,
+          y,
+          size,
+        };
+      }
+      const token = createBoardToken(board.id, input);
+      broadcastToRoom(meta.groupId, { type: 'board.token.created', token: toWireToken(token) });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.token.update': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      const existing = getBoardToken(Number(msg.tokenId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
+        return;
+      }
+      if (!boardCanEditTokens(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, diese Marke zu bearbeiten' });
+        return;
+      }
+      const p = msg.patch ?? {};
+      const patch: Parameters<typeof updateBoardToken>[1] = {};
+      if (typeof p.name === 'string') patch.name = p.name.slice(0, 60).trim();
+      if (typeof p.color === 'string') patch.color = p.color.slice(0, 20);
+      if (typeof p.icon === 'string') patch.icon = p.icon.slice(0, 4);
+      if (typeof p.hidden === 'boolean') patch.hidden = p.hidden;
+      if (typeof p.size === 'number') patch.size = Math.min(6, Math.max(1, Math.round(p.size)));
+      // Nie unbekannte Schlüssel übernehmen — ein veralteter Client oder ein
+      // manuell gebasteltes Nachricht könnte sonst Katalog-fremde Werte
+      // einschleusen, die BOARD_STATUS_BY_KEY/BOARD_COVER_BY_KEY nie kennen.
+      if (Array.isArray(p.statuses)) patch.statuses = p.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
+      if (typeof p.cover === 'string' && (p.cover === '' || p.cover in BOARD_COVER_BY_KEY)) patch.cover = p.cover;
+      const updated = updateBoardToken(existing.id, patch);
+      if (updated) broadcastToRoom(meta.groupId, { type: 'board.token.updated', token: toWireToken(updated) });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.token.move': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      const existing = getBoardToken(Number(msg.tokenId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
+        return;
+      }
+      if (!boardCanMoveToken(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Marken zu verschieben' });
+        return;
+      }
+      const x = Number(msg.x);
+      const y = Number(msg.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
+        return;
+      }
+      // Re-broadcast immediately regardless of the write debounce below — see
+      // "Drag conflicts and resync" in the plan. Every OTHER viewer applies
+      // this the same way whether it's the live drag or the final drop; the
+      // dragging client itself ignores echoes of its own moves (DicePanelProvider).
+      broadcastToRoom(meta.groupId, { type: 'board.token.updated', token: toWireToken({ ...existing, x, y }) });
+      scheduleMoveWrite(existing.id, x, y, msg.final === true);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.token.delete': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      const existing = getBoardToken(Number(msg.tokenId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
+        return;
+      }
+      if (!boardCanEditTokens(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, diese Marke zu löschen' });
+        return;
+      }
+      deleteBoardToken(existing.id);
+      moveDebounce.delete(existing.id);
+      broadcastToRoom(meta.groupId, { type: 'board.token.deleted', tokenId: existing.id });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.settings.update': {
+      if (!meta.isGm) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung ändert die Karten-Rechte' });
+        return;
+      }
+      const board = getOrCreateBoard(meta.groupId);
+      const p = msg.patch ?? {};
+      const isPerm = (v: unknown): v is 'gm' | 'all' => v === 'gm' || v === 'all';
+      const patch: Parameters<typeof updateBoardSettings>[1] = {};
+      if (isPerm(p.permTiles)) patch.permTiles = p.permTiles;
+      if (isPerm(p.permLabels)) patch.permLabels = p.permLabels;
+      if (isPerm(p.permTokens)) patch.permTokens = p.permTokens;
+      if (isPerm(p.permImages)) patch.permImages = p.permImages;
+      if (isPerm(p.permMove)) patch.permMove = p.permMove;
+      const updated = updateBoardSettings(board.id, patch);
+      broadcastToRoom(meta.groupId, {
+        type: 'board.settings.updated',
+        board: {
+          id: updated.id,
+          groupId: updated.groupId,
+          cols: updated.cols,
+          rows: updated.rows,
+          permTiles: updated.permTiles as 'gm' | 'all',
+          permLabels: updated.permLabels as 'gm' | 'all',
+          permTokens: updated.permTokens as 'gm' | 'all',
+          permImages: updated.permImages as 'gm' | 'all',
+          permMove: updated.permMove as 'gm' | 'all',
+          round: updated.round,
+          turnIndex: updated.turnIndex,
+          rev: updated.rev,
+        },
+      });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

@@ -2284,6 +2284,23 @@ button.side-attr:active {
   font-weight: 700;
 }
 
+.side-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.side-status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-hover);
+  border-radius: 7px;
+  padding: 6px 8px;
+  line-height: 1.35;
+}
+
 .side-geld {
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -5880,6 +5897,7 @@ tr:hover .probe-roll,
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
+  position: relative;
 }
 .vtt-toolbar {
   flex: 0 0 auto;
@@ -5929,4 +5947,99 @@ tr:hover .probe-roll,
   .vtt-map-col {
     flex: 1 1 320px;
   }
+}
+
+/* ---------- VTT Phase 5: Token ---------- */
+.vtt-token-editor,
+.vtt-settings-pop {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vtt-settings-pop {
+  left: auto;
+  right: 12px;
+  top: 52px;
+  bottom: auto;
+}
+.vtt-token-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vtt-token-editor-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+.vtt-token-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+.vtt-token-editor-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vtt-token-editor-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.vtt-token-editor-statuses button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.vtt-settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 0;
+  font-size: 12.5px;
+  border-top: 1px solid var(--border-soft);
+}
+.vtt-settings-row:first-of-type {
+  border-top: none;
+}
+.vtt-settings-fixed {
+  font-size: 11px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+  margin: 0;
+}
+/* Zwei-Wege-Umschalter (Spielleitung/Alle), generisch genug für jeden
+   künftigen Rechte-Schalter, nicht nur die Karten-Rechte hier. */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 10.5px;
+}
+.seg button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.seg button.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
 }
