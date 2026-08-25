@@ -1043,7 +1043,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
         return;
       }
-      if (!boardCanEditTokens(board, viewer, meta.groupId)) {
+      if (!boardCanEditTokens(board, viewer, meta.groupId, existing.ownerUserId)) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, diese Marke zu bearbeiten' });
         return;
       }
@@ -1052,7 +1052,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (typeof p.name === 'string') patch.name = p.name.slice(0, 60).trim();
       if (typeof p.color === 'string') patch.color = p.color.slice(0, 20);
       if (typeof p.icon === 'string') patch.icon = p.icon.slice(0, 4);
-      if (typeof p.hidden === 'boolean') patch.hidden = p.hidden;
+      // Bewusst NICHT über den Besitzer-Bypass oben erreichbar — „hidden"
+      // ist der Spielleitung vorbehalten (siehe Spaltenkommentar in db.ts),
+      // die Besitzerin eines Charakters bekommt sonst dieselben Rechte wie
+      // die Spielleitung, aber gerade dieses eine Feld nicht.
+      if (typeof p.hidden === 'boolean' && meta.isGm) patch.hidden = p.hidden;
       if (typeof p.size === 'number') patch.size = Math.min(6, Math.max(1, Math.round(p.size)));
       // Nie unbekannte Schlüssel übernehmen — ein veralteter Client oder ein
       // manuell gebasteltes Nachricht könnte sonst Katalog-fremde Werte
@@ -1072,7 +1076,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
         return;
       }
-      if (!boardCanMoveToken(board, viewer, meta.groupId)) {
+      if (!boardCanMoveToken(board, viewer, meta.groupId, existing.ownerUserId)) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Marken zu verschieben' });
         return;
       }
@@ -1098,7 +1102,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
         return;
       }
-      if (!boardCanEditTokens(board, viewer, meta.groupId)) {
+      if (!boardCanEditTokens(board, viewer, meta.groupId, existing.ownerUserId)) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, diese Marke zu löschen' });
         return;
       }

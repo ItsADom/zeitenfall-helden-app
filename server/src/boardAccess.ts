@@ -26,12 +26,21 @@ export function canPaint(board: BoardRow, viewer: BoardViewer, groupId: number):
 export function canLabel(board: BoardRow, viewer: BoardViewer, groupId: number): boolean {
   return checkPerm(board.permLabels, viewer, groupId);
 }
-/** Create/delete/edit a token (statuses, cover, hidden, name, color, icon, size) — everything except moving it, see canMoveToken. */
-export function canEditTokens(board: BoardRow, viewer: BoardViewer, groupId: number): boolean {
+/**
+ * Create/delete/edit a token (statuses, cover, hidden, name, color, icon,
+ * size) — everything except moving it, see canMoveToken. `ownerUserId` is the
+ * EXISTING token's owner (undefined at creation time, when there's no token
+ * yet to own) — a player always has full control of their own character's
+ * token regardless of `perm_tokens`, the same as the GM always does. This is
+ * `board_tokens.owner_user_id`'s reason for existing (see its schema comment).
+ */
+export function canEditTokens(board: BoardRow, viewer: BoardViewer, groupId: number, ownerUserId?: number | null): boolean {
+  if (ownerUserId != null && ownerUserId === viewer.userId) return true;
   return checkPerm(board.permTokens, viewer, groupId);
 }
-/** Only the position — settled default is 'all', so this stops being a code default and becomes a real setting. */
-export function canMoveToken(board: BoardRow, viewer: BoardViewer, groupId: number): boolean {
+/** Only the position — settled default is 'all', so this stops being a code default and becomes a real setting. Same owner bypass as canEditTokens. */
+export function canMoveToken(board: BoardRow, viewer: BoardViewer, groupId: number, ownerUserId?: number | null): boolean {
+  if (ownerUserId != null && ownerUserId === viewer.userId) return true;
   return checkPerm(board.permMove, viewer, groupId);
 }
 export function canEditImages(board: BoardRow, viewer: BoardViewer, groupId: number): boolean {

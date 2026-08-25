@@ -224,15 +224,18 @@ function MapCanvas({
   groupId,
   board,
   tokens,
-  canEditTokens,
-  canMoveTokens,
+  canCreateTokens,
+  canEditToken,
+  canMoveToken: canMoveTokenFn,
   isGm,
 }: {
   groupId: number;
   board: BoardSettings;
   tokens: BoardToken[];
-  canEditTokens: boolean;
-  canMoveTokens: boolean;
+  /** Placing a brand-new marker has no owner yet to check against — board-wide only. */
+  canCreateTokens: boolean;
+  canEditToken: (t: BoardToken) => boolean;
+  canMoveToken: (t: BoardToken) => boolean;
   isGm: boolean;
 }) {
   const { cols, rows } = board;
@@ -328,7 +331,7 @@ function MapCanvas({
 
   const startTokenDrag = (e: React.PointerEvent, token: BoardToken) => {
     e.stopPropagation();
-    if (!canMoveTokens) {
+    if (!canMoveTokenFn(token)) {
       setSelectedTokenId(token.id);
       return;
     }
@@ -412,7 +415,7 @@ function MapCanvas({
   return (
     <div className="vtt-map-col">
       <div className="vtt-toolbar">
-        {canEditTokens && (
+        {canCreateTokens && (
           <button className="small" onClick={placeMarker} title="Marker auf dem Tisch platzieren">
             + Marker
           </button>
@@ -482,7 +485,7 @@ function MapCanvas({
                   onPointerMove={onTokenPointerMove}
                   onPointerUp={onTokenPointerUp}
                   onPointerCancel={onTokenPointerUp}
-                  style={{ cursor: canMoveTokens ? 'grab' : 'pointer' }}
+                  style={{ cursor: canMoveTokenFn(t) ? 'grab' : 'pointer' }}
                   opacity={t.hidden ? 0.55 : 1}
                 >
                   <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
@@ -508,7 +511,7 @@ function MapCanvas({
         </svg>
       </div>
       {selectedToken && (
-        <TokenEditor token={selectedToken} canEdit={canEditTokens} isGm={isGm} onClose={() => setSelectedTokenId(null)} />
+        <TokenEditor token={selectedToken} canEdit={canEditToken(selectedToken)} isGm={isGm} onClose={() => setSelectedTokenId(null)} />
       )}
     </div>
   );
@@ -605,8 +608,13 @@ export default function VirtualTable() {
 
   const myCharId = myGroups.find((g) => g.id === groupId)?.myCharacterId ?? null;
   const backHref = meta.group.isTemp ? `/event/${groupId}` : `/gruppe/${groupId}`;
-  const canEditTokens = user.isGm || boardSettings.permTokens === 'all';
-  const canMoveTokens = user.isGm || boardSettings.permMove === 'all';
+  const canCreateTokens = user.isGm || boardSettings.permTokens === 'all';
+  // Die Besitzerin eines Charakters hat auf DESSEN Marke immer die volle
+  // Kontrolle (Farbe, Zustände, Verschieben) — unabhängig von perm_tokens/
+  // perm_move, genau wie die Spielleitung sie immer hat. Bei Marker-Marken
+  // (ownerUserId === null) gilt weiterhin nur die Board-Einstellung.
+  const canEditToken = (t: BoardToken) => user.isGm || boardSettings.permTokens === 'all' || t.ownerUserId === user.id;
+  const canMoveToken = (t: BoardToken) => user.isGm || boardSettings.permMove === 'all' || t.ownerUserId === user.id;
 
   return (
     <div className="vtt-page">
@@ -629,8 +637,9 @@ export default function VirtualTable() {
           groupId={groupId}
           board={boardSettings}
           tokens={boardTokens}
-          canEditTokens={canEditTokens}
-          canMoveTokens={canMoveTokens}
+          canCreateTokens={canCreateTokens}
+          canEditToken={canEditToken}
+          canMoveToken={canMoveToken}
           isGm={user.isGm}
         />
 
