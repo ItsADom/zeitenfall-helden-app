@@ -93,11 +93,10 @@ function rateLimitFor(userId: number): TokenBucket {
   return bucket;
 }
 
-// Rate-limited by default. board.token.move is the one exemption — a drag is
-// throttled client-side to ~20/s already (see FeedColumn's counterpart in the
-// VTT map canvas), well past the chat bucket's 5/s refill, and rejecting mid-
-// drag messages would make the token visibly stutter for everyone watching.
-const RATE_LIMIT_EXEMPT: ReadonlySet<ClientToServerMessage['type']> = new Set(['board.token.move']);
+// Rate-limited by default; nothing is currently exempt. Explicit opt-out
+// list instead of an allow-list match on msg.type, so a future message type
+// can't silently skip the limiter just because it doesn't start with 'roll.'.
+const RATE_LIMIT_EXEMPT: ReadonlySet<ClientToServerMessage['type']> = new Set();
 
 const rooms = new Map<number, Set<WebSocket>>();
 const socketMeta = new WeakMap<WebSocket, SocketMeta>();
@@ -112,32 +111,6 @@ const lastLeftRoom = new Map<string, number>();
 const RECONNECT_GRACE_MS = 60_000;
 function leftKey(groupId: number, userId: number): string {
   return `${groupId}:${userId}`;
-}
-
-// Virtual table — see docs/concepts/virtual-table.md, "Drag conflicts and
-// resync". A drag fires many board.token.move messages; the server
-// re-broadcasts every one immediately (see the board.token.move case below)
-// but only WRITES to SQLite at most once per DEBOUNCE_MS per token, flushing
-// early when the client marks a message `final` (pointerup). Keyed by tokenId
-// — never cleaned up beyond its own flush, same bounded-by-real-use tradeoff
-// as userRateLimits above (a live board has at most a few dozen tokens).
-const DEBOUNCE_MS = 150;
-const moveDebounce = new Map<number, ReturnType<typeof setTimeout>>();
-function scheduleMoveWrite(tokenId: number, x: number, y: number, final: boolean): void {
-  const pending = moveDebounce.get(tokenId);
-  if (pending) clearTimeout(pending);
-  if (final) {
-    moveDebounce.delete(tokenId);
-    moveBoardToken(tokenId, x, y);
-    return;
-  }
-  moveDebounce.set(
-    tokenId,
-    setTimeout(() => {
-      moveDebounce.delete(tokenId);
-      moveBoardToken(tokenId, x, y);
-    }, DEBOUNCE_MS),
-  );
 }
 
 function toWireToken(row: BoardTokenRow): BoardToken {
@@ -1109,12 +1082,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
         return;
       }
-      // Re-broadcast immediately regardless of the write debounce below — see
-      // "Drag conflicts and resync" in the plan. Every OTHER viewer applies
-      // this the same way whether it's the live drag or the final drop; the
-      // dragging client itself ignores echoes of its own moves (DicePanelProvider).
+      // One message per drag — the client renders the whole drag locally and
+      // only sends the dropped-at position (see VirtualTable.tsx), so there's
+      // nothing to debounce or re-broadcast mid-drag: write and tell the room once.
+      moveBoardToken(existing.id, existing.boardId, x, y);
       broadcastToRoom(meta.groupId, { type: 'board.token.updated', token: toWireToken({ ...existing, x, y }) });
-      scheduleMoveWrite(existing.id, x, y, msg.final === true);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1131,7 +1103,6 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       deleteBoardToken(existing.id);
-      moveDebounce.delete(existing.id);
       broadcastToRoom(meta.groupId, { type: 'board.token.deleted', tokenId: existing.id });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;

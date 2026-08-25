@@ -27,10 +27,6 @@ interface BoardSnapshotResponse {
 const CELL_PX = 40;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 3;
-// Wie oft eine laufende Ziehbewegung höchstens gesendet wird — der Server
-// nimmt board.token.move ohnehin von der Ratenbegrenzung aus, aber ohne
-// Drosselung wäre jedes einzelne pointermove-Ereignis eine eigene Nachricht.
-const MOVE_THROTTLE_MS = 50;
 // Kürzer bewegt als das gilt als Klick (Marke auswählen), nicht als Ziehen —
 // sonst würde ein bloßer Klick eine (winzige) Positionsänderung senden.
 const CLICK_THRESHOLD_PX = 5;
@@ -251,6 +247,7 @@ function MapCanvas({
   const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number } | null>(null);
   const tokenDragRef = useRef<{
     id: number;
+    el: SVGGElement;
     size: number;
     startClientX: number;
     startClientY: number;
@@ -258,12 +255,27 @@ function MapCanvas({
     startY: number;
     lastX: number;
     lastY: number;
-    lastSent: number;
     moved: number;
   } | null>(null);
 
   const viewW = totalW / camera.zoom;
   const viewH = totalH / camera.zoom;
+
+  // Board-Pixel je Bildschirmpixel — NICHT einfach viewW/wrap.clientWidth.
+  // Die Standard-preserveAspectRatio des <svg> ("xMidYMid meet") staucht die
+  // Karte auf die ENGERE Achse, sobald das Seitenverhältnis des Containers
+  // vom Brett abweicht (praktisch immer), und lässt daneben Leerraum stehen.
+  // Wer nur die Breite nimmt, unterschätzt den Maßstab, sobald die Höhe die
+  // engere Achse ist — Zeiger und Marke liefen dann spürbar auseinander,
+  // stärker bei stärkerem Seitenverhältnis-Unterschied und bei jedem Zoom.
+  const boardScale = useCallback(
+    (wrap: HTMLDivElement) => {
+      const cssPxPerUnitX = wrap.clientWidth / viewW;
+      const cssPxPerUnitY = wrap.clientHeight / viewH;
+      return 1 / Math.min(cssPxPerUnitX, cssPxPerUnitY);
+    },
+    [viewW, viewH],
+  );
 
   const clampCamera = useCallback(
     (x: number, y: number, zoom: number): Camera => {
@@ -301,7 +313,7 @@ function MapCanvas({
     const drag = dragRef.current;
     const wrap = wrapRef.current;
     if (!drag || !wrap) return;
-    const scale = viewW / wrap.clientWidth;
+    const scale = boardScale(wrap);
     const dx = (e.clientX - drag.startClientX) * scale;
     const dy = (e.clientY - drag.startClientY) * scale;
     setCamera(clampCamera(drag.startX - dx, drag.startY - dy, camera.zoom));
@@ -323,6 +335,7 @@ function MapCanvas({
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     tokenDragRef.current = {
       id: token.id,
+      el: e.currentTarget as SVGGElement,
       size: token.size,
       startClientX: e.clientX,
       startClientY: e.clientY,
@@ -330,18 +343,30 @@ function MapCanvas({
       startY: token.y,
       lastX: token.x,
       lastY: token.y,
-      lastSent: 0,
       moved: 0,
     };
   };
+  // Rein lokal während des Ziehens — kein Netz beteiligt, also keine Latenz,
+  // die hinterherhinken könnte. Andere sehen die Marke erst, wenn sie beim
+  // Loslassen einmal ihre Endposition sendet (siehe onTokenPointerUp); bis
+  // dahin bleibt sie für alle anderen am alten Platz stehen. Verschoben wird
+  // relativ zum Klickpunkt (Versatz zwischen Zeiger und Marke bei
+  // Zugbeginn bleibt über den ganzen Zug erhalten), nicht die Marke unter den
+  // Zeiger gesprungen — ein Klick nicht exakt in der Mitte soll die Marke
+  // nicht ruckartig verschieben.
+  //
+  // Bewusst KEIN setState hier, auch nicht rein lokal: React verarbeitet
+  // pointermove schneller, als eine Zustandsänderung + Neu-Rendern der ganzen
+  // Karte samt aller anderen Marken hinterherkommt, und genau DAS erzeugte
+  // den sichtbaren Nachzieh-Effekt beim Ziehenden selbst — Netz oder nicht.
+  // Stattdessen wird das `transform` des gezogenen `<g>` direkt geschrieben,
+  // ohne React dazwischen; erst beim Loslassen übernimmt React wieder (siehe
+  // onTokenPointerUp), an genau der Stelle, an der die Marke schon steht.
   const onTokenPointerMove = (e: React.PointerEvent) => {
     const drag = tokenDragRef.current;
     const wrap = wrapRef.current;
     if (!drag || !wrap) return;
-    // viewW/wrap.clientWidth ist Pixel-je-Bildschirmpixel im SVG-Koordinaten-
-    // raum (== Board-Pixel, siehe CELL_PX) — token.x/y stehen aber in ZELLEN
-    // (shared/src/board.ts), deshalb hier zusätzlich durch CELL_PX teilen.
-    const scale = viewW / wrap.clientWidth / CELL_PX;
+    const scale = boardScale(wrap) / CELL_PX;
     const dxClient = e.clientX - drag.startClientX;
     const dyClient = e.clientY - drag.startClientY;
     drag.moved = Math.max(drag.moved, Math.abs(dxClient) + Math.abs(dyClient));
@@ -349,28 +374,28 @@ function MapCanvas({
     const y = Math.min(rows - drag.size, Math.max(0, drag.startY + dyClient * scale));
     drag.lastX = x;
     drag.lastY = y;
-    setDragPos({ id: drag.id, x, y });
-    const now = performance.now();
-    if (now - drag.lastSent >= MOVE_THROTTLE_MS) {
-      drag.lastSent = now;
-      moveToken(drag.id, x, y, false);
-    }
+    const cx = (x + drag.size / 2) * CELL_PX;
+    const cy = (y + drag.size / 2) * CELL_PX;
+    drag.el.setAttribute('transform', `translate(${cx}, ${cy})`);
   };
   const onTokenPointerUp = () => {
     const drag = tokenDragRef.current;
     tokenDragRef.current = null;
     if (!drag) return;
     if (drag.moved < CLICK_THRESHOLD_PX) {
-      setDragPos(null);
       setSelectedTokenId(drag.id);
       return;
     }
+    // Jetzt erst übernimmt React die Position (siehe Kommentar oben) — exakt
+    // der Stand, den das direkt geschriebene transform schon zeigt, damit es
+    // beim Rückwechsel auf React-Rendering keinen sichtbaren Sprung gibt.
+    setDragPos({ id: drag.id, x: drag.lastX, y: drag.lastY });
+    // Die einzige Netz-Nachricht des ganzen Zugs — andere sehen die Marke erst
+    // jetzt springen, nicht währenddessen mitwandern (siehe oben).
     moveToken(drag.id, drag.lastX, drag.lastY, true);
-    // Kurz die eigene, optimistische Position behalten — der endgültige
-    // board.token.updated (final:true umgeht die Server-Drossel) trifft fast
-    // augenblicklich ein und überschreibt boardTokens; ohne die kurze
-    // Verzögerung würde die Marke einen Frame lang zur letzten gedrosselten
-    // Position zurückspringen, bevor die finale Antwort da ist.
+    // Kurz die eigene, optimistische Position behalten — bis boardTokens den
+    // Server-Stand nachträgt, sonst springt die Marke einen Frame lang zurück
+    // zur alten Position, bevor die Antwort da ist.
     setTimeout(() => setDragPos((prev) => (prev?.id === drag.id ? null : prev)), 200);
   };
 

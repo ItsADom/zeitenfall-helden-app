@@ -147,13 +147,15 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
 }
 
 /**
- * Position only — deliberately its own statement (no rev bump, see ws.ts's
- * debounced writer): a drag fires many of these, and every persisted board
- * message already carries `rev` for gap detection, which a live position
- * isn't structural enough to need bumping for.
+ * Position only, called once per drag (the client renders the whole drag
+ * locally and sends just the dropped-at position — see VirtualTable.tsx) —
+ * cheap enough to bump `rev` like every other persisted board mutation.
+ * `boardId` comes from the caller's own lookup of the token (ws.ts already
+ * has it for the rights check) rather than a second query here.
  */
-export function moveToken(tokenId: number, x: number, y: number): void {
+export function moveToken(tokenId: number, boardId: number, x: number, y: number): void {
   db.prepare('UPDATE board_tokens SET x = ?, y = ? WHERE id = ?').run(x, y, tokenId);
+  bumpRev(boardId);
 }
 
 export function deleteToken(tokenId: number): BoardTokenRow | undefined {
