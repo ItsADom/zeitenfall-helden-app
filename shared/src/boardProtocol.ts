@@ -5,6 +5,8 @@
 // the shared barrel and folded into ClientToServerMessage/ServerToClientMessage
 // in diceProtocol.ts.
 
+import type { CellCoord } from './board.js';
+
 export type BoardPerm = 'gm' | 'all';
 
 /**
@@ -39,18 +41,23 @@ export interface LabelOverlayData {
 }
 
 /**
- * board_overlays row, kind narrowed to 'label' — `kind: 'measure'` (ruler/
- * circle/cone/rectangle) is reserved for the next slice of this phase and
- * intentionally not typed here yet, same as `a:<slug>` tile values are
- * reserved-but-untyped until GM-uploaded textures exist.
+ * Persistent, movable measure shapes — see "Measure shapes" in the plan.
+ * Circle/rectangle reuse shared/src/board.ts's `MeasureShape` cell-coverage
+ * math (`shapeCells`) for their highlight; ruler is just `gridDistance`
+ * between two points; cone stays visual-only (a true geometric wedge, no
+ * cell-accurate coverage — settled with the developer, same reasoning as
+ * autotiling using geometry instead of an authored transition sheet).
  */
-export interface BoardOverlay {
-  id: number;
-  boardId: number;
-  kind: 'label';
-  data: LabelOverlayData;
-  hidden: boolean;
-}
+export type MeasureOverlayData =
+  | { kind: 'ruler'; from: CellCoord; to: CellCoord }
+  | { kind: 'circle'; origin: CellCoord; radius: number }
+  | { kind: 'rectangle'; from: CellCoord; to: CellCoord }
+  | { kind: 'cone'; origin: CellCoord; angle: number; length: number };
+
+/** board_overlays row — a discriminated union so `data`'s shape follows `kind`. */
+export type BoardOverlay =
+  | { id: number; boardId: number; kind: 'label'; data: LabelOverlayData; hidden: boolean }
+  | { id: number; boardId: number; kind: 'measure'; data: MeasureOverlayData; hidden: boolean };
 
 export type TokenKind = 'character' | 'marker';
 
@@ -68,6 +75,8 @@ export interface BoardToken {
   size: number;
   /** Range ring around the token, in Schritt — 0 = none. AOE/torch/vision, moves with the token. */
   radius: number;
+  /** Ring colour+opacity, #rrggbb(aa) — independent of `color` (the token itself). */
+  radiusColor: string;
   /** GM-only token — Phase 5 does NOT redact this over the wire yet (see ws.ts); that structural piece lands with fog (Phase 10). */
   hidden: boolean;
   /** Corner badges — keys into BOARD_STATUSES, never the emoji itself. */
@@ -101,7 +110,7 @@ export type BoardClientMessage =
       type: 'board.token.update';
       reqId: string;
       tokenId: number;
-      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius'>>;
+      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor'>>;
     }
   // One message per drag, sent on release — the client renders the whole
   // drag locally and never broadcasts a live position (settled with the
@@ -129,11 +138,19 @@ export type BoardClientMessage =
   // colour values ('' or #rrggbb(aa)), never a texture/asset tag.
   | { type: 'board.highlights.paint'; reqId: string; cells: Record<string, string> }
   | { type: 'board.overlay.create'; reqId: string; kind: 'label'; data: LabelOverlayData }
+  // A measure shape is created whole (drag-to-size on the client, one
+  // message on release — same "render locally, sync once" shape as
+  // everything else that drags) rather than via a patch-based update
+  // afterward; see board.overlay.update below for why edits still exist.
+  | { type: 'board.overlay.create'; reqId: string; kind: 'measure'; data: MeasureOverlayData }
   // One message carries both a drag's dropped-at position AND a text edit —
   // labels have a single permission (perm_labels), unlike tokens' move/edit
   // split, so there is no reason for two message types. Same "render the
-  // drag locally, sync once on release" shape as a token move.
-  | { type: 'board.overlay.update'; reqId: string; overlayId: number; patch: Partial<LabelOverlayData> }
+  // drag locally, sync once on release" shape as a token move. Reused for
+  // measure shapes too — dragging one to reposition/resize sends its whole
+  // new `data` as the patch (a measure shape has no field that survives a
+  // drag the way a label's text does, so there's nothing to merge).
+  | { type: 'board.overlay.update'; reqId: string; overlayId: number; patch: Partial<LabelOverlayData> | MeasureOverlayData }
   | { type: 'board.overlay.delete'; reqId: string; overlayId: number };
 
 export type BoardServerMessage =

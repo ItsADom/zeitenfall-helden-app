@@ -7,7 +7,10 @@ import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type {
   BoardOverlay,
   BoardToken,
+  CellCoord,
   ClientToServerMessage,
+  LabelOverlayData,
+  MeasureOverlayData,
   CoopPoolRequest,
   ExpressionRollPayload,
   FeedEntry,
@@ -26,11 +29,13 @@ import {
   canEditTokens as boardCanEditTokens,
   canHighlightTiles as boardCanHighlightTiles,
   canLabel as boardCanLabel,
+  canMeasure as boardCanMeasure,
   canMoveToken as boardCanMoveToken,
   canPaint as boardCanPaint,
 } from './boardAccess.js';
 import {
   type BoardOverlayRow,
+  type BoardRow,
   type BoardTokenRow,
   createOverlay as createBoardOverlay,
   createToken as createBoardToken,
@@ -138,6 +143,7 @@ function toWireToken(row: BoardTokenRow): BoardToken {
     y: row.y,
     size: row.size,
     radius: row.radius,
+    radiusColor: row.radiusColor,
     hidden: row.hidden,
     statuses: row.statuses,
     cover: row.cover,
@@ -148,9 +154,50 @@ function toWireToken(row: BoardTokenRow): BoardToken {
 
 // `data` is trusted here — it only ever reaches board_overlays through
 // createBoardOverlay/updateBoardOverlay above, both of which already build
-// it from validated x/y/text, never from an unchecked client payload.
+// it from validated fields, never from an unchecked client payload.
 function toWireOverlay(row: BoardOverlayRow): BoardOverlay {
-  return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as BoardOverlay['data'], hidden: row.hidden };
+  if (row.kind === 'measure') {
+    return { id: row.id, boardId: row.boardId, kind: 'measure', data: row.data as MeasureOverlayData, hidden: row.hidden };
+  }
+  return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as LabelOverlayData, hidden: row.hidden };
+}
+
+// Every field checked and clamped to the board — a hand-crafted WS message
+// could otherwise plant an out-of-bounds or non-finite coordinate. Returns
+// null for anything that doesn't match one of the four known shapes rather
+// than rejecting the whole message elsewhere, same tolerance style as
+// parseTileValue.
+function measurePoint(raw: unknown, board: BoardRow): CellCoord | null {
+  const p = raw as Record<string, unknown> | null;
+  if (!p) return null;
+  const x = Number(p.x);
+  const y = Number(p.y);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x: Math.min(board.cols, Math.max(0, x)), y: Math.min(board.rows, Math.max(0, y)) };
+}
+function validateMeasureData(raw: unknown, board: BoardRow): MeasureOverlayData | null {
+  const d = raw as Record<string, unknown> | null;
+  if (!d || typeof d.kind !== 'string') return null;
+  if (d.kind === 'ruler' || d.kind === 'rectangle') {
+    const from = measurePoint(d.from, board);
+    const to = measurePoint(d.to, board);
+    if (!from || !to) return null;
+    return { kind: d.kind, from, to };
+  }
+  if (d.kind === 'circle') {
+    const origin = measurePoint(d.origin, board);
+    const radius = Number(d.radius);
+    if (!origin || !Number.isFinite(radius)) return null;
+    return { kind: 'circle', origin, radius: Math.min(50, Math.max(0, radius)) };
+  }
+  if (d.kind === 'cone') {
+    const origin = measurePoint(d.origin, board);
+    const angle = Number(d.angle);
+    const length = Number(d.length);
+    if (!origin || !Number.isFinite(angle) || !Number.isFinite(length)) return null;
+    return { kind: 'cone', origin, angle: ((angle % 360) + 360) % 360, length: Math.min(50, Math.max(0, length)) };
+  }
+  return null;
 }
 
 function send(ws: WebSocket, msg: ServerToClientMessage): void {
@@ -1078,6 +1125,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (typeof p.hidden === 'boolean' && meta.isGm) patch.hidden = p.hidden;
       if (typeof p.size === 'number') patch.size = Math.min(6, Math.max(1, Math.round(p.size)));
       if (typeof p.radius === 'number' && Number.isFinite(p.radius)) patch.radius = Math.min(50, Math.max(0, p.radius));
+      if (typeof p.radiusColor === 'string' && parseTileValue(p.radiusColor)?.kind === 'color') patch.radiusColor = p.radiusColor;
       // Nie unbekannte Schlüssel übernehmen — ein veralteter Client oder ein
       // manuell gebasteltes Nachricht könnte sonst Katalog-fremde Werte
       // einschleusen, die BOARD_STATUS_BY_KEY/BOARD_COVER_BY_KEY nie kennen.
@@ -1234,47 +1282,82 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
     case 'board.overlay.create': {
       const board = getOrCreateBoard(meta.groupId);
       const viewer = { userId: meta.userId, isGm: meta.isGm };
-      if (!boardCanLabel(board, viewer, meta.groupId)) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen anzulegen' });
-        return;
-      }
-      // Der Wire-Typ kennt heute nur 'label', aber msg kam als beliebiges JSON
-      // herein — ein handgebasteltes Paket könnte trotzdem etwas anderes
+      // Der Wire-Typ kennt heute 'label'/'measure', aber msg kam als beliebiges
+      // JSON herein — ein handgebasteltes Paket könnte trotzdem etwas anderes
       // schicken, deshalb zur Laufzeit prüfen statt dem Typsystem zu trauen.
-      if ((msg.kind as string) !== 'label') {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Beschriftungsart' });
+      const kind = msg.kind as string;
+      if (kind === 'label') {
+        if (!boardCanLabel(board, viewer, meta.groupId)) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen anzulegen' });
+          return;
+        }
+        const x = Number((msg.data as { x?: unknown })?.x);
+        const y = Number((msg.data as { y?: unknown })?.y);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > board.cols || y > board.rows) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
+          return;
+        }
+        const text = String((msg.data as { text?: unknown })?.text ?? '').slice(0, 80);
+        const overlay = createBoardOverlay(board.id, 'label', { x, y, text });
+        broadcastToRoom(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
+        send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }
-      const x = Number(msg.data?.x);
-      const y = Number(msg.data?.y);
-      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > board.cols || y > board.rows) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
+      if (kind === 'measure') {
+        // Messen ist immer 'all' — jeder Raum-Teilnehmer darf, siehe canMeasure.
+        if (!boardCanMeasure()) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, zu messen' });
+          return;
+        }
+        const data = validateMeasureData(msg.data, board);
+        if (!data) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Messform' });
+          return;
+        }
+        const overlay = createBoardOverlay(board.id, 'measure', data);
+        broadcastToRoom(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
+        send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }
-      const text = String(msg.data?.text ?? '').slice(0, 80);
-      const overlay = createBoardOverlay(board.id, 'label', { x, y, text });
-      broadcastToRoom(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
-      send(ws, { type: 'ack', reqId: msg.reqId });
+      send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Beschriftungsart' });
       return;
     }
     case 'board.overlay.update': {
       const board = getOrCreateBoard(meta.groupId);
       const viewer = { userId: meta.userId, isGm: meta.isGm };
-      if (!boardCanLabel(board, viewer, meta.groupId)) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen zu bearbeiten' });
-        return;
-      }
       const existing = getBoardOverlay(Number(msg.overlayId));
       if (!existing || existing.boardId !== board.id) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Beschriftung nicht gefunden' });
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Objekt nicht gefunden' });
         return;
       }
-      const p = msg.patch ?? {};
-      const patch: Record<string, unknown> = {};
-      if (typeof p.x === 'number' && Number.isFinite(p.x)) patch.x = Math.min(board.cols, Math.max(0, p.x));
-      if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = Math.min(board.rows, Math.max(0, p.y));
-      if (typeof p.text === 'string') patch.text = p.text.slice(0, 80);
-      const updated = updateBoardOverlay(existing.id, patch);
+      if (existing.kind === 'label') {
+        if (!boardCanLabel(board, viewer, meta.groupId)) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen zu bearbeiten' });
+          return;
+        }
+        const p = (msg.patch ?? {}) as Record<string, unknown>;
+        const patch: Record<string, unknown> = {};
+        if (typeof p.x === 'number' && Number.isFinite(p.x)) patch.x = Math.min(board.cols, Math.max(0, p.x));
+        if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = Math.min(board.rows, Math.max(0, p.y));
+        if (typeof p.text === 'string') patch.text = p.text.slice(0, 80);
+        const updated = updateBoardOverlay(existing.id, patch);
+        if (updated) broadcastToRoom(meta.groupId, { type: 'board.overlay.updated', overlay: toWireOverlay(updated) });
+        send(ws, { type: 'ack', reqId: msg.reqId });
+        return;
+      }
+      // measure: eine Bewegung/Größenänderung schickt die ganze neue `data`
+      // (siehe Protokoll-Kommentar) statt einzelner Felder — validateMeasureData
+      // verlangt deshalb ein vollständiges, gültiges Objekt, kein Teil-Patch.
+      if (!boardCanMeasure()) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, zu messen' });
+        return;
+      }
+      const data = validateMeasureData(msg.patch, board);
+      if (!data) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Messform' });
+        return;
+      }
+      const updated = updateBoardOverlay(existing.id, data);
       if (updated) broadcastToRoom(meta.groupId, { type: 'board.overlay.updated', overlay: toWireOverlay(updated) });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -1282,13 +1365,14 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
     case 'board.overlay.delete': {
       const board = getOrCreateBoard(meta.groupId);
       const viewer = { userId: meta.userId, isGm: meta.isGm };
-      if (!boardCanLabel(board, viewer, meta.groupId)) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Beschriftungen zu löschen' });
-        return;
-      }
       const existing = getBoardOverlay(Number(msg.overlayId));
       if (!existing || existing.boardId !== board.id) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Beschriftung nicht gefunden' });
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Objekt nicht gefunden' });
+        return;
+      }
+      const allowed = existing.kind === 'label' ? boardCanLabel(board, viewer, meta.groupId) : boardCanMeasure();
+      if (!allowed) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, das zu löschen' });
         return;
       }
       deleteBoardOverlay(existing.id);

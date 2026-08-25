@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { BoardOverlay, BoardSettings, BoardToken } from '@shared/boardProtocol';
+import type { BoardOverlay, BoardSettings, BoardToken, LabelOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { cellKey, parseTileValue } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
@@ -19,6 +19,12 @@ import { generatedWaterTexture } from '../components/vttWater';
 // Token hinzu. Phase 6 fügt Bemalen hinzu — Farbe/Textur, Radierer, Delta-
 // Schreiben. Noch kein Autotiling (weiche Übergänge kommen erst mit Phase 7),
 // noch kein Nebel/Bilder/Initiative.
+
+// Beschriftung, ausgesondert aus BoardOverlay (die Vereinigung mit 'measure')
+// — Messformen sind server-/protokollseitig fertig verdrahtet, aber ihre
+// Zeichen-/Zug-UI ist noch nicht gebaut (nächste Sitzung); bis dahin
+// rendert/bearbeitet diese Seite ausschließlich 'label'-Overlays.
+type LabelOverlay = Extract<BoardOverlay, { kind: 'label' }>;
 
 interface GroupMeta {
   group: { id: number; name: string; isTemp: boolean };
@@ -98,6 +104,10 @@ function TokenEditor({
   const [name, setName] = useState(token.name);
   const [icon, setIcon] = useState(token.icon);
   const [color, setColor] = useState(token.color || DEFAULT_TOKEN_COLOR);
+  const [radiusHex, setRadiusHex] = useState(token.radiusColor.slice(0, 7));
+  const [radiusOpacity, setRadiusOpacity] = useState(
+    token.radiusColor.length === 9 ? Math.round((parseInt(token.radiusColor.slice(7, 9), 16) / 255) * 100) : 100,
+  );
   const timers = useRef<Partial<Record<'name' | 'icon' | 'color', ReturnType<typeof setTimeout>>>>({});
 
   // Beim Wechsel der ausgewählten Marke den Entwurf neu aus dem Server-Stand
@@ -109,6 +119,8 @@ function TokenEditor({
     setName(token.name);
     setIcon(token.icon);
     setColor(token.color || DEFAULT_TOKEN_COLOR);
+    setRadiusHex(token.radiusColor.slice(0, 7));
+    setRadiusOpacity(token.radiusColor.length === 9 ? Math.round((parseInt(token.radiusColor.slice(7, 9), 16) / 255) * 100) : 100);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token.id]);
 
@@ -203,6 +215,27 @@ function TokenEditor({
                 title="Reichweiten-Ring um die Marke — 0 = kein Ring. Für Zauber-AOE, Fackel-/Sichtweite."
               />
             </label>
+            <input
+              type="color"
+              value={radiusHex}
+              onChange={(e) => {
+                setRadiusHex(e.target.value);
+                updateToken(token.id, { radiusColor: withOpacity(e.target.value, radiusOpacity) });
+              }}
+              title="Ring-Farbe"
+            />
+            <input
+              type="range"
+              min={5}
+              max={100}
+              value={radiusOpacity}
+              onChange={(e) => {
+                setRadiusOpacity(Number(e.target.value));
+                updateToken(token.id, { radiusColor: withOpacity(radiusHex, Number(e.target.value)) });
+              }}
+              title="Ring-Deckkraft"
+              style={{ width: 60 }}
+            />
           </div>
           {isGm && (
             <label className="vtt-token-editor-row">
@@ -677,7 +710,7 @@ function MapCanvas({
     setTimeout(() => setDragPos((prev) => (prev?.id === drag.id ? null : prev)), 200);
   };
 
-  const startOverlayDrag = (e: React.PointerEvent, overlay: BoardOverlay) => {
+  const startOverlayDrag = (e: React.PointerEvent, overlay: LabelOverlay) => {
     e.stopPropagation();
     if (e.button !== 0) return;
     if (!canLabel) {
@@ -736,7 +769,7 @@ function MapCanvas({
   };
 
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
-  const selectedOverlay = overlays.find((o) => o.id === selectedOverlayId) ?? null;
+  const selectedOverlay = overlays.find((o): o is LabelOverlay => o.kind === 'label' && o.id === selectedOverlayId) ?? null;
 
   // Eigener lokaler Entwurf während eines Strichs überlagert den Server-Stand
   // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`/`highlights`.
@@ -1082,7 +1115,9 @@ function MapCanvas({
               Beschriftung überdecken, nicht umgekehrt. Selber Halo-Trick wie
               beim Marken-Namen (Konturstrich statt Hintergrund-Box), damit es
               über jeder Kachel/Textur lesbar bleibt. */}
-          {overlays.map((o) => {
+          {overlays
+            .filter((o): o is LabelOverlay => o.kind === 'label')
+            .map((o) => {
             const pos = overlayDragPos?.id === o.id ? overlayDragPos : o.data;
             return (
               <g
@@ -1139,9 +1174,7 @@ function MapCanvas({
                       Zustand nötig. pointerEvents="none", sonst würde ein Klick
                       irgendwo im (viel größeren) Ring statt auf der Marke selbst
                       landen. */}
-                  {t.radius > 0 && (
-                    <circle r={t.radius * CELL_PX} fill={t.color || DEFAULT_TOKEN_COLOR} fillOpacity={0.12} stroke={t.color || DEFAULT_TOKEN_COLOR} strokeOpacity={0.5} strokeWidth={1.5} pointerEvents="none" />
-                  )}
+                  {t.radius > 0 && <circle r={t.radius * CELL_PX} fill={t.radiusColor} stroke={t.radiusColor} strokeWidth={1.5} pointerEvents="none" />}
                   <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
                   <text textAnchor="middle" dominantBaseline="central" fontSize={r * 0.7} fontWeight={700} fill="#fff">
                     {t.icon || initials(t.name)}
@@ -1249,9 +1282,9 @@ function LabelEditor({
   onDelete,
   onClose,
 }: {
-  overlay: BoardOverlay;
+  overlay: LabelOverlay;
   canEdit: boolean;
-  onChange: (patch: Partial<BoardOverlay['data']>) => void;
+  onChange: (patch: Partial<LabelOverlayData>) => void;
   onDelete: () => void;
   onClose: () => void;
 }) {

@@ -539,6 +539,10 @@ db.exec(`
     -- Zaubers, Fackel-/Sichtweite. Bewegt sich mit der Marke, keine eigene
     -- Position.
     radius REAL NOT NULL DEFAULT 0,
+    -- Farbe+Deckkraft des Rings, #rrggbb(aa) wie tiles_json/highlights_json —
+    -- unabhängig von der Spalte "color" (die Marke selbst), damit ein
+    -- greller Marken-Ton nicht automatisch auch der Ring-Ton sein muss.
+    radius_color TEXT NOT NULL DEFAULT '#ffcc0033',
     hidden INTEGER NOT NULL DEFAULT 0,     -- nur für die Spielleitung sichtbar
     statuses TEXT NOT NULL DEFAULT '[]',   -- Eck-Marken: Array von Status-Schlüsseln
     cover TEXT NOT NULL DEFAULT '',        -- Ganzfeld-Überlagerung, immer nur eine ('' = keine)
@@ -1224,6 +1228,7 @@ db.exec('DROP TABLE IF EXISTS group_members');
 {
   const cols = new Set((db.prepare('PRAGMA table_info(board_tokens)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('radius')) db.exec('ALTER TABLE board_tokens ADD COLUMN radius REAL NOT NULL DEFAULT 0');
+  if (!cols.has('radius_color')) db.exec("ALTER TABLE board_tokens ADD COLUMN radius_color TEXT NOT NULL DEFAULT '#ffcc0033'");
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an

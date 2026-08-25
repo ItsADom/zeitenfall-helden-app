@@ -76,8 +76,61 @@
 > same transform. `TokenEditor` gets a "Radius (Schritt)" number field next
 > to Größe. Verified live: set to 6 Schritt, ring persisted through the WS
 > round-trip (not just local optimistic state), set back to 0, ring
-> disappeared cleanly. tsc clean, 406/406 shared tests pass. Measure shapes
-> (ruler/circle/cone/rectangle) are the last slice, not started.
+> disappeared cleanly. tsc clean, 406/406 shared tests pass.
+>
+> **Follow-up on radius rings:** the ring's colour/opacity is now its own
+> `radius_color` column (`#rrggbb(aa)`, same encoding as tiles/highlights),
+> independent of the token's own `color` — a loud token colour shouldn't
+> force a loud ring. `TokenEditor` grew a colour input + opacity slider next
+> to the Radius field, same live-apply-on-change pattern already settled for
+> the tile/highlight pickers (no separate "apply" click). Not yet re-verified
+> live after a session interruption — the last live check landed on unclear
+> results, plausibly the developer testing the same token concurrently on
+> the shared dev board (a repeat of this session's recurring shared-board
+> pattern) rather than a real bug; typecheck and the shared test suite are
+> clean either way. **Re-verify this specific control live before trusting
+> it**, next session.
+>
+> **Phase 8, slice 3/3: measure shapes — server/protocol done, client UI NOT
+> started.** Interrupted mid-slice (session end) at a deliberately safe
+> boundary: everything below compiles and typechecks cleanly, but no toolbar
+> button, no drag-to-create gesture, and no rendering exist yet — a GM
+> cannot place a measure shape through the app today. What's already in
+> place, ready for the client half:
+> - `MeasureOverlayData` (`shared/src/boardProtocol.ts`): `{kind:'ruler'|
+>   'rectangle', from, to}` or `{kind:'circle', origin, radius}` or
+>   `{kind:'cone', origin, angle, length}` — `BoardOverlay` is now a proper
+>   discriminated union (`kind: 'label'` XOR `kind: 'measure'`), each with
+>   its own `data` shape. Circle/rectangle deliberately reuse
+>   `shared/src/board.ts`'s existing `MeasureShape`/`shapeCells` (already
+>   built and tested since Phase 3, unused until now) for cell-accurate
+>   coverage; ruler is just two points (`gridDistance` does the rest); cone
+>   stays visual-only per the plan (no `shapeCells` case for it).
+> - `canMeasure()` in `boardAccess.ts` — hard-coded `true` (not a `perm_*`
+>   check), because "Measuring is always 'all'" is a fixed rule per the
+>   plan's requirements table, not a setting. Every dispatcher of a
+>   `board.*` message is already a verified room member by the time it
+>   reaches here, so there's nothing further to check.
+> - Server (`ws.ts`): `board.overlay.create`/`update`/`delete` now branch on
+>   `kind` — label keeps its existing patch-based edit; a measure shape's
+>   `update` instead validates and replaces the WHOLE `data` (a drag/resize
+>   sends its complete new shape, there's no field worth partially patching
+>   the way a label's text is). `validateMeasureData`/`measurePoint` clamp
+>   every coordinate to the board and cap radius/length at 50 — same
+>   tolerant-but-bounded validation style as `board.tiles.paint`.
+> - `LabelOverlay` type alias (`Extract<BoardOverlay, {kind:'label'}>`) added
+>   client-side in `VirtualTable.tsx` so the existing label rendering/drag/
+>   editor code narrows cleanly against the now-wider `BoardOverlay` union —
+>   the render loop explicitly filters to `kind === 'label'` for now, with a
+>   comment marking where measure rendering plugs in next.
+> - **Still to build, next session:** a "📏 Messen" tool with a shape-kind
+>   sub-picker (ruler/circle/cone/rectangle), a drag-from-A-to-B creation
+>   gesture per shape (mirroring the paint tool's pointerdown→move→up
+>   pattern), rendering (grouped `<path>` from `shapeCells` for circle/
+>   rectangle matching the tile-layer rendering style, a line+distance label
+>   for the ruler, an SVG wedge for the cone — spread angle not decided,
+>   60° full-angle is a reasonable placeholder, not settled with the
+>   developer), and drag-to-resize/reposition for existing shapes.
 >
 > ## Progress (2026-08-25, end of session): Phases 1–5 done — superseded above
 >
@@ -1067,6 +1120,63 @@ front-loaded: the phase that touches existing, released code comes first.
     changelog entry and prune the virtual-table sketch from `TODO.md`. Mark GM-only
     bits with „(Spielleiter)". **No version number** — that is the developer's call,
     though a feature this size is a `0.X.0` recommendation.
+14. **Multiple scenes per group** (concept agreed 2026-08-25, **not started** —
+    build after the table itself is finished). Raised as "should a board just be
+    bigger (100×100) so the GM has room to sketch several areas at once, or
+    should there be several *named* boards to switch between" — settled on named
+    boards: a single shared canvas would still share one token set, one fog
+    state, one round counter across unrelated areas, which isn't real
+    separation. `board_tokens`/`tiles_json`/`highlights_json`/`board_overlays`
+    are already scoped per `board_id`, so a board is already a self-contained
+    scene — the missing pieces are identity and switching, not isolation.
+   - **Data model:** drop `idx_boards_group_id`'s uniqueness (a group gets
+     *many* boards now, not one), add `boards.name TEXT NOT NULL DEFAULT ''`.
+     Which scene is "current" for the room is **not** a flag on `boards`
+     (ambiguous if two ever end up marked active) — it's
+     `groups.active_board_id INTEGER REFERENCES boards(id) ON DELETE SET NULL`,
+     one FK, unambiguous. Migration for existing rows: every group today has
+     exactly one board (the old unique constraint guaranteed it) — set
+     `active_board_id` to that board's id for all of them in the same pass that
+     drops the constraint.
+   - **First-use behaviour is unchanged in shape:** `getOrCreateBoard` still
+     auto-creates on first access, just now also names it (e.g. „Szene 1") and
+     sets it as the group's `active_board_id`. Existing single-board groups
+     need no data change beyond the migration above — they just now *can* grow
+     a second scene.
+   - **Server functions (new, next to the existing token/overlay CRUD in
+     `board.ts`):** `listScenes(groupId)`, `createScene(groupId, name)`,
+     `renameScene(boardId, name)`, `deleteScene(boardId)`, `setActiveScene
+     (groupId, boardId)`. Deleting the *active* scene auto-switches the group
+     to another remaining one first (lowest id), then deletes — never leaves a
+     group without an active board. **A group's last remaining scene cannot be
+     deleted** — same reasoning as a board always existing today.
+   - **Rights: hard-coded GM-only**, same shape as `canEditFog` — not a new
+     `perm_*` setting. Scene management is prep, not something that would ever
+     make sense to delegate to a player, unlike tiles/labels/tokens which
+     genuinely have an "Alle" case.
+   - **Realtime switch, decided live-for-the-room with a fade (developer's
+     call, not GM-private-preview-then-present):** GM picks a scene from a
+     picker (toolbar, GM-only — players never see it) → `board.scene.switch
+     {reqId, boardId}` → server validates the id belongs to this group, calls
+     `setActiveScene`, broadcasts `board.scene.switched` carrying a **full
+     snapshot** of the new scene (board settings + tokens + tiles + highlights
+     + overlays — same shape as the REST snapshot response), not just a bare
+     id. Every connected client hydrates directly from that payload; nobody
+     has to race a follow-up REST fetch. Client plays a short fade-out on
+     `.vtt-map-wrap`/`.vtt-map-svg` (~250–300 ms opacity transition), swaps in
+     the new scene's state once faded, then fades back in — purely a client-
+     side CSS transition around the existing hydrate call, no new server
+     timing needed since the single broadcast already carries everything.
+   - **Per-scene camera:** `usePersistedState` already keys the pan/zoom camera
+     by a string (`vtt-camera:${groupId}` today) — switch that key to
+     `boardId` instead of `groupId` so each scene remembers its own last
+     view independently, rather than one shared camera position that makes no
+     sense across differently-sized/laid-out scenes. Small change, falls out
+     of the existing pattern.
+   - **Still open, low stakes:** `perm_*` columns live on `boards` already and
+     so are naturally per-scene with zero migration cost — a GM reconfiguring
+     rights per scene rather than once for the room. Whether that's desired or
+     mildly annoying is untested; not worth designing around before it's felt.
 
 **Idea, not yet scoped:** a rolz.org-style "point at a cell" ping — clicking a
 cell with the plain select tool (no paint/highlight active) briefly pops up

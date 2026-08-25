@@ -9,7 +9,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import type { BoardOverlay, BoardSettings, BoardToken } from '@shared/boardProtocol';
+import type { BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -253,7 +253,7 @@ interface DicePanelCtxValue {
   }) => void;
   updateToken: (
     tokenId: number,
-    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius'>>,
+    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor'>>,
   ) => void;
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
@@ -263,9 +263,15 @@ interface DicePanelCtxValue {
   paintTiles: (cells: Record<string, string>) => void;
   /** Same shape as paintTiles, but for the GM-only highlight/tint layer — never touches boardTiles. */
   paintHighlights: (cells: Record<string, string>) => void;
-  createOverlay: (kind: 'label', data: BoardOverlay['data']) => void;
-  /** One message carries both a drag's dropped position and a text edit — see the protocol comment. */
-  updateOverlay: (overlayId: number, patch: Partial<BoardOverlay['data']>) => void;
+  createOverlay(kind: 'label', data: LabelOverlayData): void;
+  createOverlay(kind: 'measure', data: MeasureOverlayData): void;
+  /**
+   * A label patches individual fields (position from a drag, or text from
+   * editing — see the protocol comment); a measure shape has no field that
+   * survives a drag the way a label's text does, so a move/resize sends its
+   * whole new `data` instead of a partial patch.
+   */
+  updateOverlay: (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => void;
   deleteOverlay: (overlayId: number) => void;
 }
 
@@ -1021,7 +1027,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateTokenAction = useCallback(
-    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius'>>) => {
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor'>>) => {
       sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
     },
     [sendMsg],
@@ -1063,14 +1069,16 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const createOverlayAction = useCallback(
-    (kind: 'label', data: BoardOverlay['data']) => {
-      sendMsg({ type: 'board.overlay.create', reqId: crypto.randomUUID(), kind, data });
+    (kind: 'label' | 'measure', data: LabelOverlayData | MeasureOverlayData) => {
+      // Die Überladungen im Interface halten Aufrufer bei kind<->data
+      // ehrlich; hier innen reicht die vereinigte Form.
+      sendMsg({ type: 'board.overlay.create', reqId: crypto.randomUUID(), kind, data } as ClientToServerMessage);
     },
     [sendMsg],
   );
 
   const updateOverlayAction = useCallback(
-    (overlayId: number, patch: Partial<BoardOverlay['data']>) => {
+    (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => {
       sendMsg({ type: 'board.overlay.update', reqId: crypto.randomUUID(), overlayId, patch });
     },
     [sendMsg],
