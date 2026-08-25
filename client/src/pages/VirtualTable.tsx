@@ -841,7 +841,15 @@ function TilePicker({
         </button>
       </div>
       <div className="vtt-tile-picker-row">
-        <input type="color" value={customColor} onChange={(e) => setCustomColor(e.target.value)} title="Eigene Farbe" />
+        <input
+          type="color"
+          value={customColor}
+          onChange={(e) => {
+            setCustomColor(e.target.value);
+            onChange(withOpacity(e.target.value, opacity));
+          }}
+          title="Eigene Farbe"
+        />
         <button className={`small${value === combined ? ' active' : ''}`} onClick={() => onChange(combined)}>
           In Farbe malen
         </button>
@@ -852,7 +860,10 @@ function TilePicker({
           min={5}
           max={100}
           value={opacity}
-          onChange={(e) => setOpacity(Number(e.target.value))}
+          onChange={(e) => {
+            setOpacity(Number(e.target.value));
+            onChange(withOpacity(customColor, Number(e.target.value)));
+          }}
           title="Deckkraft"
           className="vtt-tile-picker-opacity"
         />
