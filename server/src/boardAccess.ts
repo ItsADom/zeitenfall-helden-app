@@ -49,3 +49,7 @@ export function canEditImages(board: BoardRow, viewer: BoardViewer, groupId: num
 export function canEditFog(viewer: BoardViewer): boolean {
   return viewer.isGm;
 }
+/** Same hard-coded shape as canEditFog — tinting is a GM annotation tool, not a settable perm_*. */
+export function canHighlightTiles(viewer: BoardViewer): boolean {
+  return viewer.isGm;
+}

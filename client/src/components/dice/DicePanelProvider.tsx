@@ -229,8 +229,10 @@ interface DicePanelCtxValue {
   boardSettings: BoardSettings | null;
   /** cellKey (shared/src/board.ts) -> tagged tile value (parseTileValue) — sparse, unpainted cells simply absent. */
   boardTiles: Record<string, string>;
-  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles einmalig. */
-  hydrateBoard: (board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>) => void;
+  /** cellKey -> #rrggbb(aa) tint, GM-only layer ABOVE boardTiles — see paintHighlights below. */
+  boardHighlights: Record<string, string>;
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights einmalig. */
+  hydrateBoard: (board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>, highlights: Record<string, string>) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
     characterId?: number;
@@ -248,6 +250,8 @@ interface DicePanelCtxValue {
   updateBoardSettings: (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => void;
   /** value '' erases that cell. Sent once per stroke/fill, same "render locally, sync on release" shape as a token drag. */
   paintTiles: (cells: Record<string, string>) => void;
+  /** Same shape as paintTiles, but for the GM-only highlight/tint layer — never touches boardTiles. */
+  paintHighlights: (cells: Record<string, string>) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -305,6 +309,7 @@ export function useDicePanel(): DicePanelCtxValue {
       boardTokens: [],
       boardSettings: null,
       boardTiles: {},
+      boardHighlights: {},
       hydrateBoard: () => {},
       createToken: () => {},
       updateToken: () => {},
@@ -312,6 +317,7 @@ export function useDicePanel(): DicePanelCtxValue {
       deleteToken: () => {},
       updateBoardSettings: () => {},
       paintTiles: () => {},
+      paintHighlights: () => {},
     }
   );
 }
@@ -350,6 +356,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardTokens, setBoardTokens] = useState<BoardToken[]>([]);
   const [boardSettings, setBoardSettings] = useState<BoardSettings | null>(null);
   const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
+  const [boardHighlights, setBoardHighlights] = useState<Record<string, string>>({});
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -627,6 +634,17 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
+      if (msg.type === 'board.highlights.painted') {
+        setBoardHighlights((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(msg.cells)) {
+            if (value === '') delete next[key];
+            else next[key] = value;
+          }
+          return next;
+        });
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -693,6 +711,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardTokens([]);
       setBoardSettings(null);
       setBoardTiles({});
+      setBoardHighlights({});
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -941,10 +960,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
-  const hydrateBoard = useCallback((board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>) => {
+  const hydrateBoard = useCallback((board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>, highlights: Record<string, string>) => {
     setBoardSettings(board);
     setBoardTokens(tokens);
     setBoardTiles(tiles);
+    setBoardHighlights(highlights);
   }, []);
 
   const createToken = useCallback(
@@ -994,6 +1014,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const paintTilesAction = useCallback(
     (cells: Record<string, string>) => {
       sendMsg({ type: 'board.tiles.paint', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const paintHighlightsAction = useCallback(
+    (cells: Record<string, string>) => {
+      sendMsg({ type: 'board.highlights.paint', reqId: crypto.randomUUID(), cells });
     },
     [sendMsg],
   );
@@ -1051,6 +1078,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardTokens,
         boardSettings,
         boardTiles,
+        boardHighlights,
         hydrateBoard,
         createToken,
         updateToken: updateTokenAction,
@@ -1058,6 +1086,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         deleteToken: deleteTokenAction,
         updateBoardSettings: updateBoardSettingsAction,
         paintTiles: paintTilesAction,
+        paintHighlights: paintHighlightsAction,
       }}
     >
       {children}

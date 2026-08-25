@@ -501,6 +501,11 @@ db.exec(`
     cols INTEGER NOT NULL DEFAULT 40,
     rows INTEGER NOT NULL DEFAULT 30,
     tiles_json TEXT NOT NULL DEFAULT '{}', -- sparse bemalte Felder, siehe parseTileValue (shared/src/board.ts)
+    -- Sparse Einfärbung ÜBER den Feldern, gleiches #rrggbb(aa)-Format wie
+    -- tiles_json, aber eine eigene Ebene: die Kachel darunter bleibt unverändert
+    -- gespeichert, auch bei 100 % Deckkraft. Wie fog_json GM-only, keine
+    -- perm_*-Spalte — kein Spieler-Rechte-Fall, siehe canHighlightTiles.
+    highlights_json TEXT NOT NULL DEFAULT '{}',
     fog_json TEXT NOT NULL DEFAULT '[]',   -- sparse VERBORGENE Felder (leer = nichts verborgen)
     seed INTEGER NOT NULL DEFAULT 0,       -- Wiedergabe-Saat: Texturvariation + Kantenrauschen
     -- GM-einstellbare Nutzungsrechte, 'gm' | 'all'. Messen ist immer 'all',
@@ -1202,6 +1207,13 @@ if (hasTable('sec_techniken')) {
 // characters.group_id sinnvoll (siehe isGroupMember) — die Tabelle war zuletzt
 // nur noch eine zweite, teils veraltete Kopie derselben Information.
 db.exec('DROP TABLE IF EXISTS group_members');
+
+// Migration: 'highlights_json'-Spalte an bestehende boards ergänzen (Kachel-
+// Einfärbung als eigene Ebene über tiles_json, siehe Kommentar an der Spalte).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(boards)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('highlights_json')) db.exec("ALTER TABLE boards ADD COLUMN highlights_json TEXT NOT NULL DEFAULT '{}'");
+}
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
 export function initCharacterRows(characterId: number): void {

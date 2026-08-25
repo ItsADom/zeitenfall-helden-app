@@ -14,6 +14,7 @@ export interface BoardRow {
   cols: number;
   rows: number;
   tilesJson: string;
+  highlightsJson: string;
   fogJson: string;
   seed: number;
   permTiles: string;
@@ -27,7 +28,7 @@ export interface BoardRow {
   updatedAt: number;
 }
 
-const BOARD_COLS = `id, group_id AS groupId, cols, rows, tiles_json AS tilesJson, fog_json AS fogJson,
+const BOARD_COLS = `id, group_id AS groupId, cols, rows, tiles_json AS tilesJson, highlights_json AS highlightsJson, fog_json AS fogJson,
   seed, perm_tiles AS permTiles, perm_labels AS permLabels, perm_tokens AS permTokens,
   perm_images AS permImages, perm_move AS permMove, round, turn_index AS turnIndex, rev, updated_at AS updatedAt`;
 
@@ -182,6 +183,22 @@ export function paintTiles(boardId: number, cells: Record<string, string>): void
     else tiles[key] = value;
   }
   db.prepare('UPDATE boards SET tiles_json = ? WHERE id = ?').run(JSON.stringify(tiles), boardId);
+  bumpRev(boardId);
+}
+
+/**
+ * Same delta-merge as paintTiles, but for `highlights_json` — a separate
+ * layer (GM tinting, see the column comment in db.ts) so erasing a highlight
+ * never touches the tile underneath.
+ */
+export function paintHighlights(boardId: number, cells: Record<string, string>): void {
+  const board = getBoardById(boardId)!;
+  const highlights = JSON.parse(board.highlightsJson || '{}') as Record<string, string>;
+  for (const [key, value] of Object.entries(cells)) {
+    if (value === '') delete highlights[key];
+    else highlights[key] = value;
+  }
+  db.prepare('UPDATE boards SET highlights_json = ? WHERE id = ?').run(JSON.stringify(highlights), boardId);
   bumpRev(boardId);
 }
 

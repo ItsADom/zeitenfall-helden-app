@@ -23,6 +23,7 @@ import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import {
   canEditTokens as boardCanEditTokens,
+  canHighlightTiles as boardCanHighlightTiles,
   canMoveToken as boardCanMoveToken,
   canPaint as boardCanPaint,
 } from './boardAccess.js';
@@ -33,6 +34,7 @@ import {
   getOrCreateBoard,
   getToken as getBoardToken,
   moveToken as moveBoardToken,
+  paintHighlights as paintBoardHighlights,
   paintTiles as paintBoardTiles,
   updateBoardSettings,
   updateToken as updateBoardToken,
@@ -1179,6 +1181,36 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       }
       paintBoardTiles(board.id, cells);
       broadcastToRoom(meta.groupId, { type: 'board.tiles.painted', cells });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.highlights.paint': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanHighlightTiles(viewer)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Felder einzufärben' });
+        return;
+      }
+      const raw = msg.cells ?? {};
+      // Gleiche Toleranz wie board.tiles.paint, aber nur Farbwerte zulässig —
+      // eine Textur/Asset-Kachel ergibt auf der Einfärbe-Ebene keinen Sinn.
+      const cells: Record<string, string> = {};
+      let n = 0;
+      for (const [key, value] of Object.entries(raw)) {
+        if (n >= 10000) break;
+        if (typeof value !== 'string') continue;
+        const cell = parseCellKey(key);
+        if (!cell || cell.x < 0 || cell.y < 0 || cell.x >= board.cols || cell.y >= board.rows) continue;
+        if (value !== '' && parseTileValue(value)?.kind !== 'color') continue;
+        cells[key] = value;
+        n++;
+      }
+      if (n === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine gültigen Zellen' });
+        return;
+      }
+      paintBoardHighlights(board.id, cells);
+      broadcastToRoom(meta.groupId, { type: 'board.highlights.painted', cells });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

@@ -24,7 +24,7 @@ interface GroupMeta {
   group: { id: number; name: string; isTemp: boolean };
 }
 interface BoardSnapshotResponse {
-  board: BoardSettings & { tilesJson: string };
+  board: BoardSettings & { tilesJson: string; highlightsJson: string };
   tokens: BoardToken[];
 }
 
@@ -251,6 +251,7 @@ function MapCanvas({
   board,
   tokens,
   tiles,
+  highlights,
   canCreateTokens,
   canEditToken,
   canMoveToken: canMoveTokenFn,
@@ -261,6 +262,8 @@ function MapCanvas({
   board: BoardSettings;
   tokens: BoardToken[];
   tiles: Record<string, string>;
+  /** cellKey -> #rrggbb(aa) tint, GM-only layer above `tiles` — see paintHighlights. */
+  highlights: Record<string, string>;
   /** Placing a brand-new marker has no owner yet to check against — board-wide only. */
   canCreateTokens: boolean;
   canEditToken: (t: BoardToken) => boolean;
@@ -271,27 +274,36 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
-  const { createToken, moveToken, paintTiles } = useDicePanel();
+  const { createToken, moveToken, paintTiles, paintHighlights } = useDicePanel();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
   // 'select': normales Verschieben/Anwählen von Marken + Verschieben der
   // Kamera. 'paint': derselbe Zeiger bemalt stattdessen Zellen — siehe
-  // startPaint/onPaintPointerMove unten.
-  const [tool, setTool] = useState<'select' | 'paint'>('select');
+  // startPaint/onPaintPointerMove unten. 'highlight': dieselbe Mechanik, aber
+  // auf der separaten Einfärbe-Ebene (highlights_json) statt tiles_json — GM-
+  // only, siehe boardAccess.canHighlightTiles.
+  const [tool, setTool] = useState<'select' | 'paint' | 'highlight'>('select');
   const [pickerOpen, setPickerOpen] = useState(false);
   // Pipette: der nächste Klick aufs Brett übernimmt die Farbe der getroffenen
-  // Zelle statt zu malen, dann schaltet sich das Werkzeug selbst wieder ab —
-  // ein Klick, keine eigene Dauer-Betriebsart.
-  const [pipetteArmed, setPipetteArmed] = useState(false);
+  // Zelle statt zu malen/einzufärben, dann schaltet sich das Werkzeug selbst
+  // wieder ab — ein Klick, keine eigene Dauer-Betriebsart. Trägt die Ebene,
+  // damit ein Klick weiß, ob er aus `tiles` oder `highlights` liest.
+  const [pipetteArmed, setPipetteArmed] = useState<'tile' | 'highlight' | null>(null);
   // '' = Radierer, sonst ein getaggter Wert (siehe parseTileValue) — Vorgabe
-  // Gras, weil das die häufigste erste Wahl beim Kartenbau ist.
+  // Gras, weil das die häufigste erste Wahl beim Kartenbau ist. Nur noch
+  // Texturen: reine Farbe lebt seit der Einfärbe-Ebene ausschließlich dort.
   const [paintValue, setPaintValue] = usePersistedState<string>('vtt-paint-value', 't:gras');
-  // Während eines Bemal-Zugs lokal sichtbar (siehe onPaintPointerMove), bevor
-  // EIN Delta beim Loslassen gesendet wird — dieselbe „lokal rendern, beim
-  // Loslassen synchronisieren"-Form wie beim Verschieben einer Marke.
+  // Vorgabe: ein sichtbares, halbtransparentes Gelb — eine vernünftige erste
+  // Markierungsfarbe, kein Zufallswert (siehe Kommentar an TilePicker).
+  const [highlightValue, setHighlightValue] = usePersistedState<string>('vtt-highlight-value', '#ffcc0080');
+  // Während eines Bemal-/Einfärbe-Zugs lokal sichtbar (siehe onPaintPointerMove),
+  // bevor EIN Delta beim Loslassen gesendet wird — dieselbe „lokal rendern,
+  // beim Loslassen synchronisieren"-Form wie beim Verschieben einer Marke. Je
+  // eine pro Ebene, damit ein Strich auf der einen die andere nicht überlagert.
   const [pendingPaint, setPendingPaint] = useState<Record<string, string> | null>(null);
+  const [pendingHighlight, setPendingHighlight] = useState<Record<string, string> | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number } | null>(null);
   const tokenDragRef = useRef<{
@@ -306,7 +318,7 @@ function MapCanvas({
     lastY: number;
     moved: number;
   } | null>(null);
-  const paintDragRef = useRef<{ value: string; touched: Record<string, string> } | null>(null);
+  const paintDragRef = useRef<{ layer: 'tile' | 'highlight'; value: string; touched: Record<string, string> } | null>(null);
 
   const viewW = totalW / camera.zoom;
   const viewH = totalH / camera.zoom;
@@ -411,15 +423,16 @@ function MapCanvas({
     const key = cellKey(cell.x, cell.y);
     if (key in drag.touched) return;
     drag.touched[key] = drag.value;
-    setPendingPaint((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
+    const setPending = drag.layer === 'tile' ? setPendingPaint : setPendingHighlight;
+    setPending((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
   };
-  const startPaint = (e: React.PointerEvent) => {
+  const startPaint = (e: React.PointerEvent, layer: 'tile' | 'highlight') => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const cell = cellAt(e, wrap);
     if (!cell) return;
     (e.target as Element).setPointerCapture(e.pointerId);
-    paintDragRef.current = { value: paintValue, touched: {} };
+    paintDragRef.current = { layer, value: layer === 'tile' ? paintValue : highlightValue, touched: {} };
     applyPaintCell(cell);
   };
   // Nur wenn sich die getroffene ZELLE ändert, nicht bei jedem rohen
@@ -441,19 +454,18 @@ function MapCanvas({
     if (!drag || Object.keys(drag.touched).length === 0) return;
     // Eine Nachricht für den ganzen Strich/Pinsel — wie bei einer Marke
     // (siehe onTokenPointerUp) sendet nur das ENDE, nie die Zwischenschritte.
-    paintTiles(drag.touched);
-    // Den eigenen Entwurf für GENAU diese Zellen kurz behalten, bis boardTiles
-    // den Server-Stand nachträgt (dasselbe Muster wie onTokenPointerUp) —
-    // sonst blitzten die gerade bemalten Zellen beim Loslassen kurz auf ihren
-    // alten Stand zurück, bevor das Echo eintrifft: setPendingPaint(null) räumt
-    // den lokalen Entwurf sofort ab, aber boardTiles (Kontext) aktualisiert
-    // sich erst, wenn board.tiles.painted vom Server zurückkommt — dazwischen
-    // zeigte kein Zustand mehr die gerade gemalten Zellen. Gezielt nur diese
-    // Zellen entfernen statt pauschal auf null, falls inzwischen schon ein
-    // neuer Strich begonnen hat.
+    const action = drag.layer === 'tile' ? paintTiles : paintHighlights;
+    action(drag.touched);
+    // Den eigenen Entwurf für GENAU diese Zellen kurz behalten, bis boardTiles/
+    // boardHighlights den Server-Stand nachträgt (dasselbe Muster wie
+    // onTokenPointerUp) — sonst blitzten die gerade bemalten Zellen beim
+    // Loslassen kurz auf ihren alten Stand zurück, bevor das Echo eintrifft.
+    // Gezielt nur diese Zellen entfernen statt pauschal auf null, falls
+    // inzwischen schon ein neuer Strich begonnen hat.
+    const setPending = drag.layer === 'tile' ? setPendingPaint : setPendingHighlight;
     const touchedKeys = Object.keys(drag.touched);
     setTimeout(() => {
-      setPendingPaint((prev) => {
+      setPending((prev) => {
         if (!prev) return prev;
         const next = { ...prev };
         for (const k of touchedKeys) delete next[k];
@@ -474,17 +486,30 @@ function MapCanvas({
       return;
     }
     if (e.button !== 0) return;
-    if (tool === 'paint' && pipetteArmed && canPaint) {
+    if (tool === 'paint' && pipetteArmed === 'tile' && canPaint) {
       const wrap = wrapRef.current;
       const cell = wrap ? cellAt(e, wrap) : null;
       const raw = cell ? tiles[cellKey(cell.x, cell.y)] : undefined;
       const parsed = raw ? parseTileValue(raw) : null;
       if (parsed?.kind === 'color') setPaintValue(parsed.hex);
-      setPipetteArmed(false);
+      setPipetteArmed(null);
+      return;
+    }
+    if (tool === 'highlight' && pipetteArmed === 'highlight' && isGm) {
+      const wrap = wrapRef.current;
+      const cell = wrap ? cellAt(e, wrap) : null;
+      const raw = cell ? highlights[cellKey(cell.x, cell.y)] : undefined;
+      const parsed = raw ? parseTileValue(raw) : null;
+      if (parsed?.kind === 'color') setHighlightValue(parsed.hex);
+      setPipetteArmed(null);
       return;
     }
     if (tool === 'paint' && canPaint) {
-      startPaint(e);
+      startPaint(e, 'tile');
+      return;
+    }
+    if (tool === 'highlight' && isGm) {
+      startPaint(e, 'highlight');
       return;
     }
     onPointerDown(e);
@@ -588,8 +613,9 @@ function MapCanvas({
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
 
   // Eigener lokaler Entwurf während eines Strichs überlagert den Server-Stand
-  // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`.
+  // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`/`highlights`.
   const paintedTiles = pendingPaint ? { ...tiles, ...pendingPaint } : tiles;
+  const paintedHighlights = pendingHighlight ? { ...highlights, ...pendingHighlight } : highlights;
   // Nach Füllung gruppiert (Farbe direkt, Textur als url(#…)) statt ein
   // <rect> je Zelle: EIN <path> pro Material reicht für die noch harten
   // Kanten dieser Phase (weiche Übergänge sind Phase 7) und hält die
@@ -609,6 +635,21 @@ function MapCanvas({
     const list = fillGroups.get(fill);
     if (list) list.push(seg);
     else fillGroups.set(fill, [seg]);
+  }
+  // Gleiche Gruppierung für die Einfärbe-Ebene — nur Farbwerte, kein
+  // Texturfall, sonst dieselbe Form. Eigene Map, weil sie in einer eigenen
+  // <g> ÜBER fillGroups/Gitterlinien gerendert wird (siehe unten).
+  const highlightGroups = new Map<string, string[]>();
+  for (const [key, value] of Object.entries(paintedHighlights)) {
+    const parsed = parseTileValue(value);
+    if (parsed?.kind !== 'color') continue;
+    const [xs, ys] = key.split(',');
+    const x = Number(xs) * CELL_PX;
+    const y = Number(ys) * CELL_PX;
+    const seg = `M${x} ${y}h${CELL_PX}v${CELL_PX}h${-CELL_PX}Z`;
+    const list = highlightGroups.get(parsed.hex);
+    if (list) list.push(seg);
+    else highlightGroups.set(parsed.hex, [seg]);
   }
   const texSpanPx = TEX_SPAN_CELLS * CELL_PX;
 
@@ -648,9 +689,45 @@ function MapCanvas({
                 onClick={() => {
                   setTool('select');
                   setPickerOpen(false);
-                  setPipetteArmed(false);
+                  setPipetteArmed(null);
                 }}
                 title="Bemalen beenden"
+              >
+                Fertig
+              </button>
+            )}
+          </>
+        )}
+        {isGm && (
+          <>
+            {/* Eigenes Werkzeug statt Teil von „Bemalen": die Einfärbe-Ebene
+                ist GM-only fest verdrahtet (siehe canHighlightTiles), anders
+                als Bemalen selbst, das je nach perm_tiles auch Spielern
+                offenstehen kann — Farbfelder in derselben Auswahl hätten dort
+                ohne erkennbaren Grund abgelehnt werden können. */}
+            <button
+              className={`small${tool === 'highlight' ? ' active' : ''}`}
+              onClick={() => {
+                if (tool !== 'highlight') {
+                  setTool('highlight');
+                  setPickerOpen(true);
+                } else {
+                  setPickerOpen((v) => !v);
+                }
+              }}
+              title="Felder einfärben — die Kachel darunter bleibt unverändert"
+            >
+              🖍 Hervorheben
+            </button>
+            {tool === 'highlight' && (
+              <button
+                className="small"
+                onClick={() => {
+                  setTool('select');
+                  setPickerOpen(false);
+                  setPipetteArmed(null);
+                }}
+                title="Hervorheben beenden"
               >
                 Fertig
               </button>
@@ -689,8 +766,17 @@ function MapCanvas({
           value={paintValue}
           onChange={setPaintValue}
           onClose={() => setPickerOpen(false)}
-          pipetteActive={pipetteArmed}
-          onPipetteToggle={() => setPipetteArmed((v) => !v)}
+          pipetteActive={pipetteArmed === 'tile'}
+          onPipetteToggle={() => setPipetteArmed((v) => (v === 'tile' ? null : 'tile'))}
+        />
+      )}
+      {tool === 'highlight' && pickerOpen && (
+        <HighlightPicker
+          value={highlightValue}
+          onChange={setHighlightValue}
+          onClose={() => setPickerOpen(false)}
+          pipetteActive={pipetteArmed === 'highlight'}
+          onPipetteToggle={() => setPipetteArmed((v) => (v === 'highlight' ? null : 'highlight'))}
         />
       )}
       <div
@@ -702,7 +788,7 @@ function MapCanvas({
         onPointerCancel={onWrapPointerUp}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
-        style={{ cursor: pipetteArmed ? 'copy' : tool === 'paint' ? 'crosshair' : undefined }}
+        style={{ cursor: pipetteArmed ? 'copy' : tool === 'paint' || tool === 'highlight' ? 'crosshair' : undefined }}
       >
         <svg viewBox={`${camera.x} ${camera.y} ${viewW} ${viewH}`} className="vtt-map-svg">
           <defs>
@@ -726,6 +812,14 @@ function MapCanvas({
               als die Zellgröße, damit sie über Texturen noch lesbar bleiben,
               ohne die Fläche selbst zu verdunkeln. */}
           <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={1 / camera.zoom} fill="none" />
+
+          {/* Einfärbe-Ebene: ÜBER Kacheln+Gitter (bei 100 % Deckkraft deckt sie
+              beides sichtbar zu, siehe Spaltenkommentar an highlights_json in
+              db.ts), aber UNTER den Marken — eine Marke auf einem eingefärbten
+              Feld soll nicht darunter verschwinden. */}
+          {[...highlightGroups].map(([fill, segs]) => (
+            <path key={fill} d={segs.join('')} fill={fill} />
+          ))}
 
           {tokens
             .filter((t) => !t.hidden || isGm)
@@ -786,6 +880,93 @@ function withOpacity(hex: string, opacityPct: number): string {
   return `${hex.slice(0, 7)}${alphaHex}`;
 }
 
+// Der Farbe/Deckkraft/Pipette/Radierer-Block ist identisch für die
+// Kachel-Ebene (TilePicker, plus Texturen) und die Einfärbe-Ebene
+// (HighlightPicker, keine Texturen) — nur Titel/Beschriftungen unterscheiden
+// sich, siehe die beiden Aufrufer unten.
+function ColorOpacityFields({
+  value,
+  onChange,
+  onClose,
+  pipetteActive,
+  onPipetteToggle,
+  title,
+  applyLabel,
+  pipetteTitle,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  pipetteActive: boolean;
+  onPipetteToggle: () => void;
+  title: string;
+  applyLabel: string;
+  pipetteTitle: string;
+}) {
+  // Vorbelegt mit dem zuletzt verwendeten Wert, falls das schon eine Farbe
+  // war (auch mit Deckkraft-Anteil) — sonst ein vernünftiger Vorschlag, kein
+  // Zufallswert.
+  const isColorValue = value.startsWith('#');
+  const [customColor, setCustomColor] = useState(isColorValue ? value.slice(0, 7) : '#8b6a4a');
+  const [opacity, setOpacity] = useState(isColorValue && value.length === 9 ? Math.round((parseInt(value.slice(7, 9), 16) / 255) * 100) : 100);
+  // Von der Pipette übernommene Farbe schlägt sich hier nieder, auch wenn sie
+  // aus einem anderen Zug stammt als der zuletzt hier eingestellte Wert.
+  useEffect(() => {
+    if (!value.startsWith('#')) return;
+    setCustomColor(value.slice(0, 7));
+    setOpacity(value.length === 9 ? Math.round((parseInt(value.slice(7, 9), 16) / 255) * 100) : 100);
+  }, [value]);
+  const combined = withOpacity(customColor, opacity);
+
+  return (
+    <>
+      <div className="vtt-token-editor-head">
+        <strong>{title}</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      <div className="vtt-tile-picker-row">
+        <button className={`small${value === '' ? ' active' : ''}`} onClick={() => onChange('')}>
+          Radierer
+        </button>
+        <button className={`small${pipetteActive ? ' active' : ''}`} onClick={onPipetteToggle} title={pipetteTitle}>
+          💧 Pipette
+        </button>
+      </div>
+      <div className="vtt-tile-picker-row">
+        <input
+          type="color"
+          value={customColor}
+          onChange={(e) => {
+            setCustomColor(e.target.value);
+            onChange(withOpacity(e.target.value, opacity));
+          }}
+          title="Eigene Farbe"
+        />
+        <button className={`small${value === combined ? ' active' : ''}`} onClick={() => onChange(combined)}>
+          {applyLabel}
+        </button>
+      </div>
+      <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
+        <input
+          type="range"
+          min={5}
+          max={100}
+          value={opacity}
+          onChange={(e) => {
+            setOpacity(Number(e.target.value));
+            onChange(withOpacity(customColor, Number(e.target.value)));
+          }}
+          title="Deckkraft"
+          className="vtt-tile-picker-opacity"
+        />
+        <span className="muted vtt-tile-picker-opacity-pct">{opacity} %</span>
+      </div>
+    </>
+  );
+}
+
 function TilePicker({
   value,
   onChange,
@@ -805,70 +986,19 @@ function TilePicker({
     if (list) list.push(m);
     else groups.set(m.gruppe, [m]);
   }
-  // Vorbelegt mit dem zuletzt verwendeten Wert, falls das schon eine Farbe
-  // war (auch mit Deckkraft-Anteil) — sonst ein vernünftiger Vorschlag, kein
-  // Zufallswert.
-  const isColorValue = value.startsWith('#');
-  const [customColor, setCustomColor] = useState(isColorValue ? value.slice(0, 7) : '#8b6a4a');
-  const [opacity, setOpacity] = useState(isColorValue && value.length === 9 ? Math.round((parseInt(value.slice(7, 9), 16) / 255) * 100) : 100);
-  // Von der Pipette übernommene Farbe schlägt sich hier nieder, auch wenn sie
-  // aus einem anderen Zug stammt als der zuletzt hier eingestellte Wert.
-  useEffect(() => {
-    if (!value.startsWith('#')) return;
-    setCustomColor(value.slice(0, 7));
-    setOpacity(value.length === 9 ? Math.round((parseInt(value.slice(7, 9), 16) / 255) * 100) : 100);
-  }, [value]);
-  const combined = withOpacity(customColor, opacity);
 
   return (
     <div className="vtt-tile-picker">
-      <div className="vtt-token-editor-head">
-        <strong>Bemalen</strong>
-        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
-          ✕
-        </button>
-      </div>
-      <div className="vtt-tile-picker-row">
-        <button className={`small${value === '' ? ' active' : ''}`} onClick={() => onChange('')}>
-          Radierer
-        </button>
-        <button
-          className={`small${pipetteActive ? ' active' : ''}`}
-          onClick={onPipetteToggle}
-          title="Farbe von einer bemalten Zelle übernehmen"
-        >
-          💧 Pipette
-        </button>
-      </div>
-      <div className="vtt-tile-picker-row">
-        <input
-          type="color"
-          value={customColor}
-          onChange={(e) => {
-            setCustomColor(e.target.value);
-            onChange(withOpacity(e.target.value, opacity));
-          }}
-          title="Eigene Farbe"
-        />
-        <button className={`small${value === combined ? ' active' : ''}`} onClick={() => onChange(combined)}>
-          In Farbe malen
-        </button>
-      </div>
-      <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
-        <input
-          type="range"
-          min={5}
-          max={100}
-          value={opacity}
-          onChange={(e) => {
-            setOpacity(Number(e.target.value));
-            onChange(withOpacity(customColor, Number(e.target.value)));
-          }}
-          title="Deckkraft"
-          className="vtt-tile-picker-opacity"
-        />
-        <span className="muted vtt-tile-picker-opacity-pct">{opacity} %</span>
-      </div>
+      <ColorOpacityFields
+        value={value}
+        onChange={onChange}
+        onClose={onClose}
+        pipetteActive={pipetteActive}
+        onPipetteToggle={onPipetteToggle}
+        title="Bemalen"
+        applyLabel="In Farbe malen"
+        pipetteTitle="Farbe von einer bemalten Zelle übernehmen"
+      />
       {[...groups].map(([gruppe, mats]) => (
         <div className="vtt-tile-picker-group" key={gruppe}>
           <div className="muted vtt-tile-picker-groupname">{gruppe}</div>
@@ -885,6 +1015,38 @@ function TilePicker({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// GM-only Einfärben: derselbe Farbe/Deckkraft/Pipette/Radierer-Block wie
+// TilePicker, aber ohne Texturen — die Ebene kennt nur Farbwerte (siehe
+// board.highlights.paint in ws.ts, das alles andere ablehnt).
+function HighlightPicker({
+  value,
+  onChange,
+  onClose,
+  pipetteActive,
+  onPipetteToggle,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  pipetteActive: boolean;
+  onPipetteToggle: () => void;
+}) {
+  return (
+    <div className="vtt-tile-picker">
+      <ColorOpacityFields
+        value={value}
+        onChange={onChange}
+        onClose={onClose}
+        pipetteActive={pipetteActive}
+        onPipetteToggle={onPipetteToggle}
+        title="Hervorheben"
+        applyLabel="Einfärben"
+        pipetteTitle="Farbe von einem eingefärbten Feld übernehmen"
+      />
     </div>
   );
 }
@@ -931,7 +1093,7 @@ export default function VirtualTable() {
   const { id } = useParams();
   const groupId = Number(id);
   const { user } = useAuth();
-  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, hydrateBoard } = useDicePanel();
+  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, boardHighlights, hydrateBoard } = useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
   const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat');
@@ -943,7 +1105,9 @@ export default function VirtualTable() {
       .then(setMeta)
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     apiGet<BoardSnapshotResponse>(`/api/groups/${groupId}/board`)
-      .then((snap) => hydrateBoard(snap.board, snap.tokens, JSON.parse(snap.board.tilesJson || '{}')))
+      .then((snap) =>
+        hydrateBoard(snap.board, snap.tokens, JSON.parse(snap.board.tilesJson || '{}'), JSON.parse(snap.board.highlightsJson || '{}')),
+      )
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
     // hydrateBoard ist stabil (useCallback ohne Abhängigkeiten in DicePanelProvider) — nicht in die Dep-Liste, sonst liefe der Fetch bei jeder Board-Änderung erneut.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1011,6 +1175,7 @@ export default function VirtualTable() {
           board={boardSettings}
           tokens={boardTokens}
           tiles={boardTiles}
+          highlights={boardHighlights}
           canCreateTokens={canCreateTokens}
           canEditToken={canEditToken}
           canMoveToken={canMoveToken}

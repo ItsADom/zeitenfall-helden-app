@@ -97,11 +97,17 @@ export type BoardClientMessage =
   // them would erase what's hidden underneath). Each value is a tagged
   // string per parseTileValue in shared/src/board.ts; '' erases that cell
   // back to unpainted.
-  | { type: 'board.tiles.paint'; reqId: string; cells: Record<string, string> };
+  | { type: 'board.tiles.paint'; reqId: string; cells: Record<string, string> }
+  // Same delta shape as board.tiles.paint, but for the highlight/tint layer
+  // (highlights_json) — a GM-only overlay ABOVE the tile, kept as a separate
+  // key so erasing a highlight never touches the tile underneath. Only ever
+  // colour values ('' or #rrggbb(aa)), never a texture/asset tag.
+  | { type: 'board.highlights.paint'; reqId: string; cells: Record<string, string> };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
   | { type: 'board.token.updated'; token: BoardToken }
   | { type: 'board.token.deleted'; tokenId: number }
   | { type: 'board.settings.updated'; board: BoardSettings }
-  | { type: 'board.tiles.painted'; cells: Record<string, string> };
+  | { type: 'board.tiles.painted'; cells: Record<string, string> }
+  | { type: 'board.highlights.painted'; cells: Record<string, string> };

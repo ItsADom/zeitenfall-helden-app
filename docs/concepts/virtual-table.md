@@ -956,6 +956,17 @@ front-loaded: the phase that touches existing, released code comes first.
    board-anchored pattern span and the coarse shading layer are already prototyped
    and reviewed (`docs/concepts/virtual-table-mockup/Texturen.html`) — this phase
    wires the reviewed rendering into the real page rather than designing it fresh.
+   **Amendment (highlighting):** flat colour painting moved off `tiles_json`
+   entirely into a new `highlights_json` column — a separate sparse layer,
+   same `#rrggbb(aa)` values, rendered ABOVE tiles+grid but below tokens. The
+   tile underneath is untouched even at 100% opacity (a full-looking repaint
+   that's still just a tint), so erasing a highlight never loses map content.
+   Hard-coded GM-only, same shape as `canEditFog` — not a `perm_*` setting,
+   since letting flat colour live inside the perm_tiles-gated Bemalen picker
+   would mean a player could see swatches that then silently reject them.
+   Own toolbar tool ("Hervorheben"), own small picker (colour + opacity +
+   pipette + eraser, no textures) that shares its fields with the tile
+   picker via a `ColorOpacityFields` component.
 7. **Autotiling.** The mask pipeline (blur → optional turbulence → hard threshold
    → union with the source cells) from the prototype, per material `kante`. Ends
    with a measured perf check on a dense 100×100 board in both colour modes —
@@ -975,6 +986,14 @@ front-loaded: the phase that touches existing, released code comes first.
     changelog entry and prune the virtual-table sketch from `TODO.md`. Mark GM-only
     bits with „(Spielleiter)". **No version number** — that is the developer's call,
     though a feature this size is a `0.X.0` recommendation.
+
+**Idea, not yet scoped:** a rolz.org-style "point at a cell" ping — clicking a
+cell with the plain select tool (no paint/highlight active) briefly pops up
+the clicking user's name over that cell for everyone, so a spoken "that room
+there" has something to point at. Ephemeral, not persisted (unlike a Phase 8
+label) — needs its own ws message (ping, no ack'd delta), a client-side
+auto-expiring overlay, and a decision on whether it works in any tool mode or
+only 'select'. Not assigned to a phase yet.
 
 ---
 
