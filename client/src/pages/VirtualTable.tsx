@@ -842,6 +842,11 @@ function TilePicker({
       </div>
       <div className="vtt-tile-picker-row">
         <input type="color" value={customColor} onChange={(e) => setCustomColor(e.target.value)} title="Eigene Farbe" />
+        <button className={`small${value === combined ? ' active' : ''}`} onClick={() => onChange(combined)}>
+          In Farbe malen
+        </button>
+      </div>
+      <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
         <input
           type="range"
           min={5}
@@ -852,11 +857,6 @@ function TilePicker({
           className="vtt-tile-picker-opacity"
         />
         <span className="muted vtt-tile-picker-opacity-pct">{opacity} %</span>
-      </div>
-      <div className="vtt-tile-picker-row">
-        <button className={`small${value === combined ? ' active' : ''}`} onClick={() => onChange(combined)}>
-          Farbe
-        </button>
       </div>
       {[...groups].map(([gruppe, mats]) => (
         <div className="vtt-tile-picker-group" key={gruppe}>

@@ -6122,9 +6122,13 @@ tr:hover .probe-roll,
   align-items: center;
   gap: 8px;
 }
+.vtt-tile-picker-opacity-row {
+  padding: 0 2px;
+}
 .vtt-tile-picker-opacity {
   flex: 1;
   min-width: 0;
+  width: 100%;
 }
 .vtt-tile-picker-opacity-pct {
   width: 40px;
