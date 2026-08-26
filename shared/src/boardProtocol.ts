@@ -243,7 +243,14 @@ export type BoardClientMessage =
   // Every viewer (the sender included — no discrimination between the two,
   // same message reaches everyone) eases its own camera to {x, y, zoom} and
   // shows the same toast.
-  | { type: 'board.view.center'; reqId: string; x: number; y: number; zoom: number };
+  | { type: 'board.view.center'; reqId: string; x: number; y: number; zoom: number }
+  // "Point at a cell" ping (rolz.org-style) — same ephemeral shape as
+  // board.view.center: nothing written to `boards`, available to everyone,
+  // sender included in the broadcast. Fires from a plain click on an empty
+  // cell with the 'select' tool active (client-side gate; the cell bounds
+  // check below is the only server-side validation). x/y are cell indices,
+  // not board pixels.
+  | { type: 'board.cell.ping'; reqId: string; x: number; y: number };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
@@ -268,4 +275,6 @@ export type BoardServerMessage =
    */
   | { type: 'board.initiative.updated'; round: number; turnIndex: number; entries: BoardInitiative[] }
   /** `by` is the sender's display name, for the toast every viewer (including the sender) shows on receipt. */
-  | { type: 'board.view.centered'; x: number; y: number; zoom: number; by: string };
+  | { type: 'board.view.centered'; x: number; y: number; zoom: number; by: string }
+  /** `by` is the sender's display name, shown next to the pulsing ring every viewer (including the sender) renders on receipt. */
+  | { type: 'board.cell.pinged'; x: number; y: number; by: string };

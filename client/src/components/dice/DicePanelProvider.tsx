@@ -297,6 +297,10 @@ interface DicePanelCtxValue {
   boardViewCenter: { x: number; y: number; zoom: number; by: string; seq: number } | null;
   /** Available to everyone, not just the GM — broadcasts the caller's own camera; every viewer, sender included, eases to it and shows the same toast. */
   centerView: (x: number, y: number, zoom: number) => void;
+  /** Latest "point at a cell" ping — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat ping on the same cell. */
+  boardCellPing: { x: number; y: number; by: string; seq: number } | null;
+  /** Available to everyone, not just the GM — broadcasts a cell (grid index, not board pixels); every viewer, sender included, shows the same pulsing ring + name. */
+  pingCell: (x: number, y: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -378,6 +382,8 @@ export function useDicePanel(): DicePanelCtxValue {
       nextTurn: () => {},
       boardViewCenter: null,
       centerView: () => {},
+      boardCellPing: null,
+      pingCell: () => {},
     }
   );
 }
@@ -424,6 +430,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
   const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
   const boardViewCenterSeqRef = useRef(0);
+  /** "Point at a cell" ping — ephemeral, never board state (see board.cell.ping in shared/src/boardProtocol.ts). Same `seq`-per-broadcast idiom as boardViewCenter above. */
+  const [boardCellPing, setBoardCellPing] = useState<{ x: number; y: number; by: string; seq: number } | null>(null);
+  const boardCellPingSeqRef = useRef(0);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -743,6 +752,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       if (msg.type === 'board.view.centered') {
         boardViewCenterSeqRef.current += 1;
         setBoardViewCenter({ x: msg.x, y: msg.y, zoom: msg.zoom, by: msg.by, seq: boardViewCenterSeqRef.current });
+        return;
+      }
+      if (msg.type === 'board.cell.pinged') {
+        boardCellPingSeqRef.current += 1;
+        setBoardCellPing({ x: msg.x, y: msg.y, by: msg.by, seq: boardCellPingSeqRef.current });
         return;
       }
       if (msg.type === 'wartung.angekuendigt') {
@@ -1204,6 +1218,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     },
     [sendMsg],
   );
+  const pingCellAction = useCallback(
+    (x: number, y: number) => {
+      sendMsg({ type: 'board.cell.ping', reqId: crypto.randomUUID(), x, y });
+    },
+    [sendMsg],
+  );
 
   return (
     <DicePanelCtx.Provider
@@ -1282,6 +1302,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         nextTurn: nextTurnAction,
         boardViewCenter,
         centerView: centerViewAction,
+        boardCellPing,
+        pingCell: pingCellAction,
       }}
     >
       {children}

@@ -6231,6 +6231,38 @@ tr:hover .probe-roll,
     transform: translate(-50%, -50%) scale(1);
   }
 }
+/* "Point at a cell" ping — the <g> just fades the whole thing (ring + name)
+   in and out, the ring's own animation grows it outward at the same time. */
+.vtt-cell-ping {
+  animation: vtt-cell-ping-fade 1.6s ease-out both;
+}
+.vtt-cell-ping-ring {
+  fill: none;
+  stroke: var(--accent);
+  animation: vtt-cell-ping-ring 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes vtt-cell-ping-fade {
+  0% {
+    opacity: 0;
+  }
+  10%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes vtt-cell-ping-ring {
+  0% {
+    r: 3px;
+    stroke-width: 5px;
+  }
+  100% {
+    r: 34px;
+    stroke-width: 1px;
+  }
+}
 .vtt-tile-picker {
   position: absolute;
   left: 12px;

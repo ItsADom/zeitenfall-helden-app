@@ -1,5 +1,36 @@
 # Virtual table (VTT) — implementation plan
 
+> ## Progress (2026-08-26, latest session): "Point at a cell" ping, built to spec after a concept pass
+>
+> **Committed on `feature/virtual-table`.** The rolz.org-style ping sketched
+> below (now removed from its old "idea, not yet scoped" spot) — decided with
+> the developer before building: available to everyone (not GM-only, same
+> reasoning as "Center all on my view"), fires on a genuine (non-drag) left
+> click with 'select' as the active tool over an empty cell, shown as a
+> pulsing ring plus the sender's name.
+>
+> **Mechanically**: `board.cell.ping`/`board.cell.pinged` in
+> `shared/src/boardProtocol.ts`, same ephemeral shape as `board.view.center`/
+> `board.view.centered` — nothing written to `boards`, broadcast to everyone
+> including the sender, server only validates the cell is within
+> `board.cols`/`board.rows`. Client tracks pings as a `seq`-keyed list (not a
+> single slot, since two people can point at once, or the same cell twice in
+> a row) — each entry removes itself on its own ~1.6s timer. Rendered as an
+> SVG `<g>` above the fog layer, `pointerEvents="none"`.
+>
+> **Bug caught during the concept-to-build pass, fixed same session**:
+> `onPointerMove` (camera panning) had no deadzone — it panned the camera on
+> every sub-pixel movement between pointerdown and pointerup, invisible for a
+> single click but compounding into visible jitter under repeated same-spot
+> clicking, which is exactly what pinging invites. Fixed by skipping the
+> `setCamera` call entirely until `drag.moved` clears `CLICK_THRESHOLD_PX` —
+> delta is still measured from the original pointerdown point throughout, so
+> crossing the threshold applies the full accumulated delta in one small step
+> rather than skipping motion.
+>
+> Verified live (GM session, Seed-Testgruppe Alpha's dev board): ring + name
+> render on click, repeated same-spot clicks no longer drag the camera.
+>
 > ## Progress (2026-08-26, later session): Phase 11 done — "Center all on my view"; Phase 10 amended — surprise attacks, mid-round adds, hidden-combatant auto-skip
 >
 > **Committed on `feature/virtual-table`.**
@@ -1412,11 +1443,7 @@ front-loaded: the phase that touches existing, released code comes first.
     ever having to design around a half-built image feature. Includes the
     explicit „Bilder sind für Spieler sichtbar" note in the GM's image dialog,
     now that the dialog is what this phase builds.
-13. **Changelog + TODO.** Fold the player-facing notes into the newest unversioned
-    changelog entry and prune the virtual-table sketch from `TODO.md`. Mark GM-only
-    bits with „(Spielleiter)". **No version number** — that is the developer's call,
-    though a feature this size is a `0.X.0` recommendation.
-14. **Multiple scenes per group** (concept agreed 2026-08-25, **not started** —
+13. **Multiple scenes per group** (concept agreed 2026-08-25, **not started** —
     build after the table itself is finished). Raised as "should a board just be
     bigger (100×100) so the GM has room to sketch several areas at once, or
     should there be several *named* boards to switch between" — settled on named
@@ -1473,14 +1500,6 @@ front-loaded: the phase that touches existing, released code comes first.
      so are naturally per-scene with zero migration cost — a GM reconfiguring
      rights per scene rather than once for the room. Whether that's desired or
      mildly annoying is untested; not worth designing around before it's felt.
-
-**Idea, not yet scoped:** a rolz.org-style "point at a cell" ping — clicking a
-cell with the plain select tool (no paint/highlight active) briefly pops up
-the clicking user's name over that cell for everyone, so a spoken "that room
-there" has something to point at. Ephemeral, not persisted (unlike a Phase 8
-label) — needs its own ws message (ping, no ack'd delta), a client-side
-auto-expiring overlay, and a decision on whether it works in any tool mode or
-only 'select'. Not assigned to a phase yet.
 
 ---
 

@@ -1771,6 +1771,20 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
+    case 'board.cell.ping': {
+      const board = getOrCreateBoard(meta.groupId);
+      const x = Number(msg.x);
+      const y = Number(msg.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x >= board.cols || y >= board.rows) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
+        return;
+      }
+      // Ephemeral, same as board.view.center above — nothing written, same
+      // broadcast reaches everyone including the sender.
+      broadcastUngefiltert(meta.groupId, { type: 'board.cell.pinged', x, y, by: meta.displayName });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
     default: {
       // Alle bekannten Typen sind oben abgehandelt — TypeScript hält diesen
       // Zweig deshalb für unerreichbar. Zur Laufzeit ist er es nicht: die

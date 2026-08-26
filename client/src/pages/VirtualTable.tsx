@@ -233,6 +233,9 @@ const MAX_ZOOM = 3;
 // Kürzer bewegt als das gilt als Klick (Marke auswählen), nicht als Ziehen —
 // sonst würde ein bloßer Klick eine (winzige) Positionsänderung senden.
 const CLICK_THRESHOLD_PX = 5;
+// "Point at a cell" ping (rolz.org-style) — how long the ring + name stay
+// visible after a broadcast, client-side only (nothing server/DB-timed).
+const CELL_PING_DURATION_MS = 1600;
 
 interface Camera {
   x: number;
@@ -513,6 +516,8 @@ function MapCanvas({
     addInitiative,
     centerView,
     boardViewCenter,
+    pingCell,
+    boardCellPing,
   } = useDicePanel();
   const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
@@ -583,7 +588,7 @@ function MapCanvas({
   // Rauschkante selbst schaltet ab. Siehe "Risk, stated up front" im Plan.
   const [rauschkante, setRauschkante] = usePersistedState<boolean>('vtt-rauschkante', true);
   const wrapRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number; moved: number } | null>(null);
+  const dragRef = useRef<{ startClientX: number; startClientY: number; startX: number; startY: number; moved: number; button: number } | null>(null);
   const tokenDragRef = useRef<{
     id: number;
     el: SVGGElement;
@@ -764,15 +769,38 @@ function MapCanvas({
   }, [boardViewCenter]);
   useEffect(() => () => void (viewToastTimerRef.current && clearTimeout(viewToastTimerRef.current)), []);
 
+  // "Point at a cell" ping — several can be in flight at once (two people
+  // pointing at once, or the same cell twice in a row), so this is a list
+  // keyed by `seq`, not a single slot like viewToast above. Each entry
+  // removes itself on its own timer instead of one shared timer, so an
+  // earlier ping's expiry can't cut a later one short.
+  const [cellPings, setCellPings] = useState<{ x: number; y: number; by: string; seq: number }[]>([]);
+  useEffect(() => {
+    if (!boardCellPing) return;
+    setCellPings((prev) => [...prev, boardCellPing]);
+    const timer = setTimeout(() => {
+      setCellPings((prev) => prev.filter((p) => p.seq !== boardCellPing.seq));
+    }, CELL_PING_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [boardCellPing]);
+
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
-    dragRef.current = { startClientX: e.clientX, startClientY: e.clientY, startX: camera.x, startY: camera.y, moved: 0 };
+    dragRef.current = { startClientX: e.clientX, startClientY: e.clientY, startX: camera.x, startY: camera.y, moved: 0, button: e.button };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const drag = dragRef.current;
     const wrap = wrapRef.current;
     if (!drag || !wrap) return;
     drag.moved = Math.max(drag.moved, Math.abs(e.clientX - drag.startClientX) + Math.abs(e.clientY - drag.startClientY));
+    // Deadzone: below CLICK_THRESHOLD_PX this is still a click-in-progress,
+    // not a drag — panning on every sub-pixel wobble made repeated same-spot
+    // clicks (e.g. pinging a cell) visibly jitter the whole map. Once past
+    // the threshold the delta is still measured from the ORIGINAL pointerdown
+    // point, so crossing it applies the full accumulated delta in one step
+    // (a single jump of at most CLICK_THRESHOLD_PX, imperceptible) rather
+    // than skipping motion.
+    if (drag.moved < CLICK_THRESHOLD_PX) return;
     const scale = boardScale(wrap);
     const dx = (e.clientX - drag.startClientX) * scale;
     const dy = (e.clientY - drag.startClientY) * scale;
@@ -783,7 +811,20 @@ function MapCanvas({
     // Marken-Klick, siehe CLICK_THRESHOLD_PX) schließt eine offene Marken-
     // Bearbeitung. Ein Klick AUF einer Marke kommt hier nie an: startTokenDrag
     // ruft stopPropagation, dragRef.current bleibt dann null.
-    if (dragRef.current && dragRef.current.moved < CLICK_THRESHOLD_PX) setSelectedTokenId(null);
+    if (dragRef.current && dragRef.current.moved < CLICK_THRESHOLD_PX) {
+      setSelectedTokenId(null);
+      // "Point at a cell" ping — a real (non-drag) LEFT click, only while
+      // 'select' is the active tool (paint/highlight/fog/measure bind their
+      // own click behavior, and this same handler is also reached by the
+      // right-button camera-pan drag in onWrapPointerDown, which must not
+      // ping). onPointerDown recorded the button at drag start since that's
+      // the only place it's known — button isn't available here.
+      const wrap = wrapRef.current;
+      if (tool === 'select' && dragRef.current.button === 0 && wrap) {
+        const cell = cellAt({ clientX: dragRef.current.startClientX, clientY: dragRef.current.startClientY }, wrap);
+        if (cell) pingCell(cell.x, cell.y);
+      }
+    }
     dragRef.current = null;
   };
   const onWheel = (e: React.WheelEvent) => {
@@ -2020,6 +2061,20 @@ function MapCanvas({
               })}
             </g>
           )}
+
+          {/* "Point at a cell" ping — topmost, above fog, so it's visible
+              regardless of what's under it. pointerEvents="none": purely
+              decorative, must not eat the click that placed it or any click
+              after. Halo trick on the name, same as labels/token names
+              above, for legibility over any tile/texture. */}
+          {cellPings.map((p) => (
+            <g key={p.seq} className="vtt-cell-ping" transform={`translate(${(p.x + 0.5) * CELL_PX}, ${(p.y + 0.5) * CELL_PX})`} pointerEvents="none">
+              <circle className="vtt-cell-ping-ring" r={3} />
+              <text y={-CELL_PX * 0.75} textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--text)" stroke="var(--panel)" strokeWidth={3} paintOrder="stroke">
+                {p.by}
+              </text>
+            </g>
+          ))}
         </svg>
       </div>
       {selectedToken && (
