@@ -51,11 +51,13 @@ export default function VttRoster({ groupId, cols, rows }: { groupId: number; co
 
   useEffect(() => void load(), [load]);
 
+  // Die Leiste sitzt links vom Kartenbereich (wie CharacterSidebar am Tisch),
+  // also vergrößert ein Zug nach RECHTS die Breite.
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startW = w;
-    const onMove = (ev: PointerEvent) => setWidth(clampW(startW + (startX - ev.clientX)));
+    const onMove = (ev: PointerEvent) => setWidth(clampW(startW - (startX - ev.clientX)));
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -68,7 +70,7 @@ export default function VttRoster({ groupId, cols, rows }: { groupId: number; co
 
   if (collapsed) {
     return (
-      <aside className="char-sidebar collapsed">
+      <aside className="char-sidebar collapsed side-left">
         <button className="side-expand" onClick={toggle} title="Gruppenübersicht ausklappen" aria-label="Gruppenübersicht ausklappen">
           <span className="side-expand-chev" aria-hidden>
             ›
@@ -82,7 +84,7 @@ export default function VttRoster({ groupId, cols, rows }: { groupId: number; co
   }
 
   return (
-    <aside className="char-sidebar" style={{ '--sidebar-w': `${w}px` } as React.CSSProperties}>
+    <aside className="char-sidebar side-left" style={{ '--sidebar-w': `${w}px` } as React.CSSProperties}>
       <div className="side-resize" onPointerDown={startResize} role="separator" aria-orientation="vertical" title="Breite ziehen" />
       <div className="side-scroll">
         <div className="side-head">

@@ -281,8 +281,8 @@ interface DicePanelCtxValue {
    */
   updateOverlay: (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => void;
   deleteOverlay: (overlayId: number) => void;
-  /** GM only (canManageInitiative). Adds a token to the roster, unrolled — it waits for the next roll (combat start, or a round wrap if combat is already running). */
-  addInitiative: (tokenId: number) => void;
+  /** GM only (canManageInitiative). Before combat (round 0), always unrolled — waits for startCombat, `mode` ignored. Mid-combat, `mode` picks Normal (last this round, default) vs Überraschung (first, interrupts now) — see board.initiative.add in shared/src/boardProtocol.ts. */
+  addInitiative: (tokenId: number, mode?: 'normal' | 'surprise') => void;
   /** GM only. */
   removeInitiative: (tokenId: number) => void;
   /** GM only — a marker/monster's Initiative-Basis (a character's always comes live from its sheet and ignores this). */
@@ -293,6 +293,10 @@ interface DicePanelCtxValue {
   endCombat: () => void;
   /** GM or the current combatant's own owner. Past the last combatant this bumps the round and rerolls everyone instead of just moving the pointer. */
   nextTurn: () => void;
+  /** Latest "center all on my view" broadcast (Phase 11) — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat of the same view. */
+  boardViewCenter: { x: number; y: number; zoom: number; by: string; seq: number } | null;
+  /** Available to everyone, not just the GM — broadcasts the caller's own camera; every viewer, sender included, eases to it and shows the same toast. */
+  centerView: (x: number, y: number, zoom: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -372,6 +376,8 @@ export function useDicePanel(): DicePanelCtxValue {
       startCombat: () => {},
       endCombat: () => {},
       nextTurn: () => {},
+      boardViewCenter: null,
+      centerView: () => {},
     }
   );
 }
@@ -415,6 +421,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
   const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
   const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
+  /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
+  const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
+  const boardViewCenterSeqRef = useRef(0);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -729,6 +738,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       if (msg.type === 'board.initiative.updated') {
         setBoardInitiative(msg.entries);
         setBoardSettings((prev) => (prev ? { ...prev, round: msg.round, turnIndex: msg.turnIndex } : prev));
+        return;
+      }
+      if (msg.type === 'board.view.centered') {
+        boardViewCenterSeqRef.current += 1;
+        setBoardViewCenter({ x: msg.x, y: msg.y, zoom: msg.zoom, by: msg.by, seq: boardViewCenterSeqRef.current });
         return;
       }
       if (msg.type === 'wartung.angekuendigt') {
@@ -1158,8 +1172,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addInitiativeAction = useCallback(
-    (tokenId: number) => {
-      sendMsg({ type: 'board.initiative.add', reqId: crypto.randomUUID(), tokenId });
+    (tokenId: number, mode?: 'normal' | 'surprise') => {
+      sendMsg({ type: 'board.initiative.add', reqId: crypto.randomUUID(), tokenId, mode });
     },
     [sendMsg],
   );
@@ -1184,6 +1198,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const nextTurnAction = useCallback(() => {
     sendMsg({ type: 'board.turn.next', reqId: crypto.randomUUID() });
   }, [sendMsg]);
+  const centerViewAction = useCallback(
+    (x: number, y: number, zoom: number) => {
+      sendMsg({ type: 'board.view.center', reqId: crypto.randomUUID(), x, y, zoom });
+    },
+    [sendMsg],
+  );
 
   return (
     <DicePanelCtx.Provider
@@ -1260,6 +1280,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         startCombat: startCombatAction,
         endCombat: endCombatAction,
         nextTurn: nextTurnAction,
+        boardViewCenter,
+        centerView: centerViewAction,
       }}
     >
       {children}

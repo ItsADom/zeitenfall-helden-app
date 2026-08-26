@@ -511,6 +511,8 @@ function MapCanvas({
     deleteOverlay,
     boardInitiative,
     addInitiative,
+    centerView,
+    boardViewCenter,
   } = useDicePanel();
   const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
@@ -707,6 +709,60 @@ function MapCanvas({
   };
 
   const resetCamera = () => setCamera(clampCamera(0, 0, 1));
+
+  // "Center all on my view" (Phase 11) — eased, not an instant snap ("fast
+  // movement, not just a blink", per the plan), so a receiver can actually
+  // see the camera travel rather than just jump-cutting to a new spot.
+  // rAF-driven rather than a CSS transition: `camera` already drives the
+  // <svg> viewBox imperatively everywhere else (drag, zoom, reset), so
+  // easing it the same way keeps one mechanism instead of two.
+  const viewEaseRef = useRef<number | null>(null);
+  // easeCameraTo is memoized once (empty deps below, so its closure never
+  // sees a fresh `camera`) — it has to read the CURRENT camera through a
+  // ref instead of closing over the prop/state value directly, or every
+  // receiver's pan would always ease from whatever `camera` was at mount
+  // (effectively the page's default/persisted starting view) rather than
+  // wherever they'd actually panned to since — a visible jump back to that
+  // stale spot before easing onward, not a pan from where they are now.
+  const cameraRef = useRef(camera);
+  useEffect(() => {
+    cameraRef.current = camera;
+  }, [camera]);
+  const easeCameraTo = useCallback(
+    (target: Camera) => {
+      if (viewEaseRef.current != null) cancelAnimationFrame(viewEaseRef.current);
+      const from = cameraRef.current;
+      const startTime = performance.now();
+      const durationMs = 450;
+      const step = (now: number) => {
+        const t = Math.min(1, (now - startTime) / durationMs);
+        const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        setCamera({
+          x: from.x + (target.x - from.x) * eased,
+          y: from.y + (target.y - from.y) * eased,
+          zoom: from.zoom + (target.zoom - from.zoom) * eased,
+        });
+        if (t < 1) viewEaseRef.current = requestAnimationFrame(step);
+        else viewEaseRef.current = null;
+      };
+      viewEaseRef.current = requestAnimationFrame(step);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+  useEffect(() => () => void (viewEaseRef.current != null && cancelAnimationFrame(viewEaseRef.current)), []);
+
+  const [viewToast, setViewToast] = useState<{ by: string; seq: number } | null>(null);
+  const viewToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!boardViewCenter) return;
+    easeCameraTo(clampCamera(boardViewCenter.x, boardViewCenter.y, boardViewCenter.zoom));
+    setViewToast({ by: boardViewCenter.by, seq: boardViewCenter.seq });
+    if (viewToastTimerRef.current) clearTimeout(viewToastTimerRef.current);
+    viewToastTimerRef.current = setTimeout(() => setViewToast(null), 2500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardViewCenter]);
+  useEffect(() => () => void (viewToastTimerRef.current && clearTimeout(viewToastTimerRef.current)), []);
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -1245,11 +1301,6 @@ function MapCanvas({
   return (
     <div className="vtt-map-col">
       <div className="vtt-toolbar">
-        {canCreateTokens && (
-          <button className="small" onClick={placeMarker} title="Marker auf dem Tisch platzieren">
-            + Marker
-          </button>
-        )}
         {canPaint && (
           <>
             {/* Solange „Bemalen" aktiv ist, schaltet dieser Knopf nur noch
@@ -1316,14 +1367,43 @@ function MapCanvas({
             </button>
           </>
         )}
-        {canLabel && (
+        {/* "+ Marker" (instant placement) and "Beschriftung" (a click-to-place
+            MODE, see tool === 'label' below) used to be two separate always-
+            visible buttons — combined into one shared flyout per developer
+            feedback (TODO.md), same "flyout over inline sprawl" convention as
+            Bemalen/Hervorheben/Nebel/Messen. Only actually combined when BOTH
+            are available to this viewer; with just one, that one stays a
+            plain button — a flyout offering a single choice would be an extra
+            click for no reason. */}
+        {canCreateTokens && canLabel ? (
           <button
             className={`small${tool === 'label' ? ' active' : ''}`}
-            onClick={() => setTool((v) => (v === 'label' ? 'select' : 'label'))}
-            title="Beschriftung setzen — Klick aufs Brett legt eine neue an, mehrere hintereinander möglich"
+            onClick={() => {
+              if (tool !== 'label') {
+                setTool('label');
+                setPickerOpen(true);
+              } else {
+                setPickerOpen((v) => !v);
+              }
+            }}
+            title="Marker oder Beschriftung auf dem Tisch platzieren"
           >
-            🏷 Beschriftung
+            🏷 Beschriften
           </button>
+        ) : canCreateTokens ? (
+          <button className="small" onClick={placeMarker} title="Marker auf dem Tisch platzieren">
+            + Marker
+          </button>
+        ) : (
+          canLabel && (
+            <button
+              className={`small${tool === 'label' ? ' active' : ''}`}
+              onClick={() => setTool((v) => (v === 'label' ? 'select' : 'label'))}
+              title="Beschriftung setzen — Klick aufs Brett legt eine neue an, mehrere hintereinander möglich"
+            >
+              🏷 Beschriftung
+            </button>
+          )
         )}
         {/* Messen ist immer für alle offen (siehe canMeasure() serverseitig)
             — kein perm_*-Schalter, also kein Gate hier wie bei den anderen
@@ -1365,6 +1445,13 @@ function MapCanvas({
         </button>
         <button className="small" onClick={resetCamera} title="Ansicht zurücksetzen">
           Zurücksetzen
+        </button>
+        {/* Verfügbar für alle, nicht nur die Spielleitung — kleiner Tisch,
+            sozial selbstregulierend (siehe Plan). Broadcastet die eigene
+            Kamera; jede Ansicht, auch die eigene, fährt eingeblendet dorthin
+            und zeigt denselben Hinweis — keine Sonderrolle für den Absender. */}
+        <button className="small" onClick={() => centerView(camera.x, camera.y, camera.zoom)} title="Die Ansicht aller auf die eigene zentrieren">
+          Alle zentrieren
         </button>
         {isGm && (
           <button className="small" onClick={() => setSettingsOpen((v) => !v)} title="Karten-Rechte">
@@ -1410,6 +1497,16 @@ function MapCanvas({
         />
       )}
       {tool === 'fog' && pickerOpen && <FogPicker value={fogMode} onChange={setFogMode} onClose={() => setPickerOpen(false)} />}
+      {tool === 'label' && pickerOpen && canCreateTokens && canLabel && (
+        <LabelToolPicker
+          onPlaceMarker={() => {
+            placeMarker();
+            setTool('select');
+            setPickerOpen(false);
+          }}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
       {tool === 'measure' && pickerOpen && (
         <MeasureKindPicker
           value={measureKind}
@@ -1450,6 +1547,14 @@ function MapCanvas({
             <button className="small" onClick={cancelTool} title="Werkzeug beenden (Esc)" aria-label="Werkzeug beenden">
               ✕
             </button>
+          </div>
+        )}
+        {/* "Center all on my view" (Phase 11) — same message reaches everyone,
+            sender included, so this shows for whoever clicked it too. Fades
+            on its own; not another click target. */}
+        {viewToast && (
+          <div className="vtt-view-toast" key={viewToast.seq}>
+            {viewToast.by} hat die Ansicht für alle zentriert
           </div>
         )}
         <InitiativeTurnAction entries={boardInitiative} tokens={tokens} round={board.round} turnIndex={board.turnIndex} isGm={isGm} myUserId={user.id} />
@@ -1928,6 +2033,7 @@ function MapCanvas({
           // canManageInitiative (server) ist hart auf die Spielleitung
           // verdrahtet — kein perm_*-Gate, siehe boardAccess.ts.
           canAddInitiative={isGm && !boardInitiative.some((e) => e.tokenId === contextMenu.token.id)}
+          inCombat={board.round > 0}
           onEdit={() => {
             setSelectedTokenId(contextMenu.token.id);
             setContextMenu(null);
@@ -1936,8 +2042,8 @@ function MapCanvas({
             deleteToken(contextMenu.token.id);
             setContextMenu(null);
           }}
-          onAddInitiative={() => {
-            addInitiative(contextMenu.token.id);
+          onAddInitiative={(mode) => {
+            addInitiative(contextMenu.token.id, mode);
             setContextMenu(null);
           }}
           onClose={() => setContextMenu(null)}
@@ -1974,12 +2080,17 @@ function MapCanvas({
 // (siehe canAddInitiative unten — GM-only, hart verdrahtet wie
 // canManageInitiative in boardAccess.ts, und nur solange die Marke noch
 // nicht im Kampf steht; Entfernen geschieht im Initiative-Panel selbst, nicht
-// hier, da es dort schon einen Löschen-Knopf pro Zeile gibt).
+// hier, da es dort schon einen Löschen-Knopf pro Zeile gibt). Mitten im Kampf
+// (inCombat) wird daraus die Wahl Normal/Überraschung (GM-Regel, siehe
+// addInitiativeEntry in server/src/board.ts) — vor Kampfbeginn ist die Wahl
+// bedeutungslos, da noch nichts zu unterbrechen ist, also bleibt es dort beim
+// einzelnen Knopf.
 function TokenContextMenu({
   x,
   y,
   canEdit,
   canAddInitiative,
+  inCombat,
   onEdit,
   onDelete,
   onAddInitiative,
@@ -1989,9 +2100,10 @@ function TokenContextMenu({
   y: number;
   canEdit: boolean;
   canAddInitiative: boolean;
+  inCombat: boolean;
   onEdit: () => void;
   onDelete: () => void;
-  onAddInitiative: () => void;
+  onAddInitiative: (mode?: 'normal' | 'surprise') => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -2007,7 +2119,19 @@ function TokenContextMenu({
       <div className="vtt-context-menu-backdrop" onPointerDown={onClose} onContextMenu={(e) => e.preventDefault()} />
       <div className="vtt-context-menu" style={{ left: x, top: y }} onPointerDown={(e) => e.stopPropagation()}>
         <button onClick={onEdit}>Bearbeiten</button>
-        {canAddInitiative && <button onClick={onAddInitiative}>Zur Initiative</button>}
+        {canAddInitiative &&
+          (inCombat ? (
+            <>
+              <button onClick={() => onAddInitiative('normal')} title="Handelt am Ende dieser Runde">
+                Zur Initiative (normal)
+              </button>
+              <button onClick={() => onAddInitiative('surprise')} title="Handelt sofort — unterbricht die aktuell Handelnde">
+                Zur Initiative (Überraschung)
+              </button>
+            </>
+          ) : (
+            <button onClick={() => onAddInitiative()}>Zur Initiative</button>
+          ))}
         {canEdit && (
           <button onClick={onDelete} className="vtt-context-menu-danger">
             Löschen
@@ -2365,6 +2489,39 @@ function MeasureKindPicker({
   );
 }
 
+/**
+ * "+ Marker"/"Beschriftung" combined into one flyout (developer feedback,
+ * TODO.md) — same 2-column tile grid as MeasureKindPicker, but the two tiles
+ * aren't a persisted VALUE choice the way a measure shape's kind is: Marker
+ * fires once and is done (onPlaceMarker), Beschriftung just closes the
+ * flyout and leaves the already-active 'label' tool alone so the next click
+ * on the board places one (see the tool === 'label' handler). Only ever
+ * rendered when both canCreateTokens and canLabel are true — see the
+ * toolbar button above.
+ */
+function LabelToolPicker({ onPlaceMarker, onClose }: { onPlaceMarker: () => void; onClose: () => void }) {
+  return (
+    <div className="vtt-tile-picker">
+      <div className="vtt-token-editor-head">
+        <strong>Beschriften</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      <div className="vtt-measure-kind-grid">
+        <button className="vtt-measure-kind-tile" onClick={onPlaceMarker} title="Sofort eine Marke in der Bildmitte platzieren">
+          <span aria-hidden>📍</span>
+          <span>Marker</span>
+        </button>
+        <button className="vtt-measure-kind-tile active" onClick={onClose} title="Klick aufs Brett legt eine neue Beschriftung an">
+          <span aria-hidden>🏷</span>
+          <span>Beschriftung</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Farbe + Deckkraft zu einem Wert zusammenfassen — #rrggbb bei 100 %, sonst
 // #rrggbbaa (siehe parseTileValue: beide sind ein gültiger Farbwert, ein
 // direkt aufs SVG-<path> anwendbarer CSS-Farbstring, keine eigene Deckkraft
@@ -2649,19 +2806,24 @@ function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClos
 }
 
 /**
- * Initiative und Runden (Phase 10, Zeiger-Design) — ein fester, immer
+ * Initiative und Runden (Phase 10, Zeiger-Design; Phase 11-Nachtrag:
+ * Überraschungsangriffe/Normal-Zugänge mitten im Kampf, siehe die
+ * addInitiativeEntry-Doku in server/src/board.ts) — ein fester, immer
  * sichtbarer Streifen zwischen Werkzeugkasten und Karte (kein Ein-/
  * Ausklapp-Panel mehr). `round === 0` heißt „kein Kampf im Gange" — der
  * Streifen zeigt dann nur die Vorbereitung (hinzugefügt, noch nicht
- * gewürfelt). Ab Runde 1 läuft die Liste links→rechts, die AKTUELL Handelnde
- * IMMER ganz links (die Anzeige rotiert die feste Wertreihenfolge um
- * `turnIndex`, statt einen Zeiger in fester Reihenfolge zu markieren) — wer
- * schon dran war diese Runde folgt rechts von einer Rundenbruch-Markierung,
- * danach wer mitten im Kampf hinzugekommen und noch unrolled ist (wartet auf
- * die nächste Runde, siehe activeThisRound in shared/src/boardProtocol.ts).
- * Hinzufügen/Entfernen/Basis setzen/Kampf starten & beenden ist hart auf die
- * Spielleitung verdrahtet (canManageInitiative); „Nächster Zug" zusätzlich
- * auf die Besitzerin der gerade handelnden Marke (`myUserId` — derselbe
+ * gewürfelt; `waiting` unten). Ab Runde 1 läuft die Liste links→rechts, die
+ * AKTUELL Handelnde IMMER ganz links (die Anzeige rotiert die Zugreihenfolge
+ * — jetzt `roundOrder`, nicht mehr `value` live sortiert, siehe
+ * activeTurnOrder in shared/src/board.ts — um `turnIndex`) — wer schon dran
+ * war diese Runde folgt rechts von einer Rundenbruch-Markierung. `waiting`
+ * bleibt mitten im Kampf leer: ein Zugang während round > 0 ist sofort
+ * `activeThisRound`, egal ob Normal oder Überraschung, nur eben noch nicht
+ * `rolledThisRound` — dieselbe „—"/Basis-Eingabe-Behandlung wie ein
+ * Vor-Kampf-Zugang, nur eingereiht statt beiseite. Hinzufügen/Entfernen/
+ * Basis setzen/Kampf starten & beenden ist hart auf die Spielleitung
+ * verdrahtet (canManageInitiative); „Nächster Zug" zusätzlich auf die
+ * Besitzerin der gerade handelnden Marke (`myUserId` — derselbe
  * Besitzer-Bypass wie serverseitig in ws.ts). Der Server prüft jede Aktion
  * ohnehin nach — dieses Gating ist Bequemlichkeit, nicht die Durchsetzung.
  */
@@ -2692,10 +2854,15 @@ function InitiativeStrip({
   const upcoming = active.slice(idx);
   const alreadyWent = active.slice(0, idx);
 
-  const renderCard = (entry: BoardInitiative, opts: { current?: boolean; showValue?: boolean }) => {
+  const renderCard = (entry: BoardInitiative, opts: { current?: boolean }) => {
     const token = tokensById.get(entry.tokenId);
     if (!token) return null;
     const dying = entry.deathCountdown != null;
+    // Not just the pre-combat "waiting" group any more — a mid-round insert
+    // (Normal or Überraschung, see addInitiativeEntry in server/src/board.ts)
+    // is activeThisRound immediately but hasn't rolled a real value THIS
+    // round either, so it gets the same "—"/editable-basis treatment.
+    const rolled = entry.rolledThisRound;
     // Porträts nur für Charakter-Marken (nie für Marker/Monster) — siehe die
     // gleiche Unterscheidung wie token.characterId überall sonst auf der
     // Karte. Zeigt auch außerhalb der aktuellen Runde (schon dran gewesen,
@@ -2720,7 +2887,7 @@ function InitiativeStrip({
             {token.name}
           </button>
           <div className="vtt-initiative-card-meta">
-            {opts.showValue ? (
+            {rolled ? (
               <span className="vtt-initiative-value">{entry.value}</span>
             ) : isGm && token.characterId == null ? (
               <input
@@ -2772,17 +2939,17 @@ function InitiativeStrip({
             {isGm ? 'Noch niemand im Kampf — Rechtsklick auf eine Marke, „Zur Initiative".' : 'Noch kein Kampf im Gange.'}
           </span>
         )}
-        {inCombat && upcoming.map((entry, i) => renderCard(entry, { current: i === 0, showValue: true }))}
+        {inCombat && upcoming.map((entry, i) => renderCard(entry, { current: i === 0 }))}
         {inCombat && active.length > 0 && (
           <div className="vtt-initiative-break" title="Rundenende — hier war die/der Letzte diese Runde dran">
             ↻
           </div>
         )}
-        {inCombat && alreadyWent.map((entry) => renderCard(entry, { showValue: true }))}
+        {inCombat && alreadyWent.map((entry) => renderCard(entry, {}))}
         {waiting.length > 0 && (
           <>
             {inCombat && <span className="vtt-initiative-waiting-label muted">Wartet auf nächste Runde</span>}
-            {waiting.map((entry) => renderCard(entry, { showValue: false }))}
+            {waiting.map((entry) => renderCard(entry, {}))}
           </>
         )}
       </div>
@@ -2820,13 +2987,12 @@ function InitiativeTurnAction({
   const idx = Math.min(turnIndex, active.length - 1);
   const currentToken = tokens.find((t) => t.id === active[idx].tokenId);
   const canAdvance = isGm || currentToken?.ownerUserId === myUserId;
+  // Only the GM or whoever's turn it actually is gets this floating button —
+  // everyone else watching it sit there greyed out the whole round was just
+  // clutter over the map (developer feedback).
+  if (!canAdvance) return null;
   return (
-    <button
-      className="vtt-turn-action"
-      onClick={nextTurn}
-      disabled={!canAdvance}
-      title={canAdvance ? 'Nächster Zug' : 'Nur die Spielleitung oder die aktuell Handelnde'}
-    >
+    <button className="vtt-turn-action" onClick={nextTurn} title="Nächster Zug">
       Nächster Zug →
     </button>
   );
@@ -2917,7 +3083,7 @@ export default function VirtualTable() {
           <VttRoster groupId={groupId} cols={boardSettings.cols} rows={boardSettings.rows} />
         ) : myCharId != null ? (
           <CharSheetProvider charId={myCharId}>
-            <CharacterSidebar />
+            <CharacterSidebar side="left" />
           </CharSheetProvider>
         ) : (
           <p className="muted">Kein eigener Charakter in dieser Gruppe.</p>

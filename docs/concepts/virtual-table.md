@@ -1,5 +1,109 @@
 # Virtual table (VTT) — implementation plan
 
+> ## Progress (2026-08-26, later session): Phase 11 done — "Center all on my view"; Phase 10 amended — surprise attacks, mid-round adds, hidden-combatant auto-skip
+>
+> **Committed on `feature/virtual-table`.**
+>
+> **Phase 11 — "Center all on my view", built as spec'd in the plan below:**
+> new `board.view.center`/`board.view.centered` WS messages (ephemeral, never
+> board state — nothing written to `boards`, so a client that joins a moment
+> later never sees it). Available to everyone, not just the GM, per the plan.
+> Every viewer including the sender gets the exact same broadcast and eases
+> its own camera to it (rAF-driven, ease-out-cubic, ~450ms — "fast movement,
+> not just a blink") and shows the same toast, dead-center over the map,
+> bold accent fill. No discrimination between sender/receiver, confirmed with
+> the developer. Caught and fixed along the way:
+> - **Stale closure bug**: `easeCameraTo` was memoized once (empty deps), so
+>   its captured `camera` was always whatever it was AT MOUNT — every
+>   receiver's ease started from their page-load camera, not their actual
+>   current pan/zoom, producing a visible jump before the real animation.
+>   Fixed with a ref kept in sync via effect, read inside the rAF loop
+>   instead of the closed-over value.
+> - **Toolbar overflow → whole map scrolls away**: the new button pushed
+>   `.vtt-toolbar` past its row width on a narrow map column; left `nowrap`,
+>   a focused-but-clipped button made the browser scroll the nearest
+>   scrollable-but-`overflow:hidden` ancestor (`.vtt-map-col`) to bring it
+>   into view — taking the whole map with it, with nothing to scroll it back.
+>   Fixed with `flex-wrap: wrap` on `.vtt-toolbar`.
+> - Also, developer-flagged while testing this: the "Nächster Zug" floating
+>   button now only renders for the GM or whoever's turn it actually is
+>   (used to render greyed-out for everyone in combat — clutter), and its
+>   z-index dropped below the tool flyouts (it rendered last in the JSX,
+>   painting over an open picker at the same z-index despite sitting
+>   elsewhere on screen).
+> - Also fixed: the "Karten-Rechte" popover's longest label ("Marken
+>   anlegen/bearbeiten") wrapped to two lines while the Spielleitung/Alle
+>   toggle stayed vertically centered on the row, reading as the text running
+>   into the pill (an 8px DOM gap doesn't read as one visually) — switched
+>   `.vtt-settings-row` to a stacked (label-then-toggle) layout instead of
+>   fighting for horizontal space.
+> - Polish picked up from TODO.md's Low-Prio backlog in the same session,
+>   developer's choice: "+ Marker" and "Beschriftung" combined into one
+>   flyout (`LabelToolPicker`) when a viewer has both rights — falls back to
+>   the single plain button when only one applies, since a one-choice flyout
+>   is an extra click for nothing.
+>
+> **Phase 10 amendment — GM feedback after using the initiative tracker
+> live**: "Beim Hinzufügen gilt, wenn es ein Überraschungsangriff ist, dann
+> als erster, ansonsten als letzter und ab nächster Runde normal weiter" —
+> confirmed with the developer: the interrupted combatant's turn is lost
+> outright (not resumed after), a surprise insert gets no rolled value this
+> round (shows "—", same as a pre-combat add), and a hidden combatant's turn
+> is skipped server-side with no separate GM click (a stall where nothing
+> changes on a player's screen is itself a tell). This replaces the OLD
+> "mid-round add waits for the next mass reroll" behavior entirely — every
+> add now gets a turn THIS round, just first or last.
+>
+> **What changed, mechanically**: `value`/`iniBasis` alone can no longer
+> express turn order — a surprise attacker has to slot in at whatever
+> position the LIVE pointer happens to be, not a value-comparable rank — so
+> `InitiativeEntry` gained `roundOrder` (the field `activeTurnOrder` actually
+> sorts by now) and `rolledThisRound` (display-only: "—"/editable-basis vs a
+> real value, the same treatment a pre-combat add already had). Both reset
+> for EVERYONE at every mass reroll, folding any mid-round insert into normal
+> rotation exactly as asked. `board_initiative` gained matching
+> `round_order`/`rolled_this_round` columns (ALTER migration, harmless
+> defaults — both fields are meaningless until the next roll anyway).
+> `addInitiativeEntry` takes a `mode: 'normal' | 'surprise'` (protocol:
+> `board.initiative.add`'s new `mode` field, ignored — always the old
+> unrolled-wait behavior — before the first roll, since the choice is
+> meaningless with no round in progress to insert into): 'normal' appends
+> past everyone active (`round_order = max + 1`); 'surprise' finds the
+> CURRENT entry via the properly-sorted `activeTurnOrder` (not a raw
+> `round_order` comparison — see the bug below), renumbers everyone densely
+> 0..N-1 to match that order, shifts everyone after the current index by
+> one, and slots in at `currentIndex + 1`, then bumps `turn_index` by one so
+> the new entry IS "current" — the old current is now simply before the
+> pointer, i.e. "already gone". `advanceTurn` was refactored into `stepTurn`
+> (one pointer bump or a full reroll on wrap) plus a capped loop that keeps
+> calling it while the CURRENT combatant is hidden from players
+> (`tokenVisibleTo(token, fog, {isGm:false})` — no per-player fog, so this is
+> one board-wide check) — used both by `board.turn.next` and by a surprise
+> insert that itself lands on a hidden token (the ambusher IS the secret
+> monster).
+> - **Bug caught during live testing, fixed same session**: the first
+>   surprise-insert implementation compared raw `round_order` values
+>   (`round_order > current.roundOrder`) to decide who shifts. Two
+>   never-yet-rerolled legacy rows (both defaulted to `round_order = 0` by
+>   the migration) tie at that comparison, so the new entry was NOT placed
+>   right after the actual current combatant — a live click confirmed the
+>   turn pointer landed one combatant too far. Fixed by renumbering the
+>   roster to match `activeTurnOrder`'s own (tie-broken) sort BEFORE
+>   shifting, so "shift everyone after the current index" is unambiguous
+>   regardless of any raw-value ties.
+>
+> **Verified live** (Seed-Testgruppe Alpha's dev board, GM session): surprise
+> insert correctly interrupts the current combatant and becomes current
+> itself (checked via DOM query, not just eyeballing — a cropped/scrolled
+> strip screenshot briefly looked wrong and would have been misreported as a
+> bug); normal insert queues in after everyone active; a round wrap
+> correctly re-rolls real values and resets `rolled_this_round`/
+> `round_order` for a previously-inserted entry; a hidden marker added
+> mid-round is skipped in the SAME click that reaches it, jumping straight to
+> the next round with no visible pause. tsc clean (client + server),
+> `npm test -w shared` green (410/410). Test tokens/initiative entries
+> deleted afterward — shared dev board left clean.
+
 > ## Progress (2026-08-26, refinement pass): measure shapes — free positioning, real geometry, cone spread, labels/colors
 >
 > **Committed on `feature/virtual-table`, on top of the measure-shapes client UI below.** Developer feedback on the first pass, addressed same session:

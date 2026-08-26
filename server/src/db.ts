@@ -585,9 +585,15 @@ db.exec(`
   -- und jedes Mal, wenn der Zug-Zeiger über den letzten Kämpfenden hinausläuft.
   -- ini_basis ist von der SL eingetragen (Marke ohne Bogen); für eine
   -- Charakter-Marke wird sie ignoriert und live aus dem Bogen gelesen.
-  -- active_this_round ist 0 für einen frischen Zugang mitten in der Runde —
-  -- der wartet bis zum nächsten Rundenwurf statt in die laufende Runde
-  -- eingefügt zu werden.
+  -- active_this_round ist 0 nur vor dem ALLERERSTEN Wurf (Zugang vor
+  -- Kampfbeginn) — ein Zugang MITTEN im Kampf ist sofort aktiv (GM-Regel:
+  -- normal = zuletzt dran, Überraschung = sofort/unterbricht, siehe
+  -- round_order). round_order bestimmt die Zugreihenfolge dieser Runde —
+  -- NICHT mehr live aus value sortiert, weil ein Überraschungsangriff genau
+  -- an der aktuellen Zeigerposition einschieben muss, kein wertvergleichbarer
+  -- Rang ist. rolled_this_round ist 0 für einen frischen Zugang (Normal oder
+  -- Überraschung) — die Oberfläche zeigt „—" statt value, wie schon vor
+  -- Kampfbeginn. Beide werden bei jedem Massenwurf für ALLE zurückgesetzt.
   CREATE TABLE IF NOT EXISTS board_initiative (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
@@ -595,6 +601,8 @@ db.exec(`
     ini_basis INTEGER NOT NULL DEFAULT 0,
     value INTEGER NOT NULL DEFAULT 0,
     active_this_round INTEGER NOT NULL DEFAULT 0,
+    round_order INTEGER NOT NULL DEFAULT 0,
+    rolled_this_round INTEGER NOT NULL DEFAULT 0,
     death_countdown INTEGER                -- NULL = stirbt nicht; sonst verbleibende Runden
   );
   CREATE INDEX IF NOT EXISTS idx_board_initiative_board_id ON board_initiative(board_id);
@@ -1262,6 +1270,16 @@ db.exec('DROP TABLE IF EXISTS group_members');
       CREATE UNIQUE INDEX idx_board_initiative_token ON board_initiative(token_id);
     `);
   }
+}
+
+// Migration: 'round_order'/'rolled_this_round'-Spalten an bestehende
+// board_initiative ergänzen (Überraschungsangriffe/Normal-Zugänge mitten im
+// Kampf, siehe Kommentar an der Tabelle oben). Defaults (0) sind für jede
+// bestehende Zeile harmlos — beide Felder gelten erst ab dem NÄCHSTEN Wurf.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(board_initiative)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('round_order')) db.exec('ALTER TABLE board_initiative ADD COLUMN round_order INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('rolled_this_round')) db.exec('ALTER TABLE board_initiative ADD COLUMN rolled_this_round INTEGER NOT NULL DEFAULT 0');
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an

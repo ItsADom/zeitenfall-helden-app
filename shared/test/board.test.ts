@@ -185,11 +185,22 @@ describe('initiativeOrder', () => {
 });
 
 describe('activeTurnOrder', () => {
-  it('drops entries not yet rolled into the current round, value descending among the rest', () => {
-    const a = { value: 5, iniBasis: 0, activeThisRound: true, id: 'a' };
-    const b = { value: 12, iniBasis: 0, activeThisRound: false, id: 'b' };
-    const c = { value: 8, iniBasis: 0, activeThisRound: true, id: 'c' };
+  it('drops entries not yet rolled into the current round, ordered by roundOrder among the rest', () => {
+    // roundOrder — not value — drives the sort now: a surprise attacker has
+    // to slot in wherever the live pointer is, which isn't a value-comparable
+    // rank (see the module comment on InitiativeEntry). value stays purely a
+    // display field here.
+    const a = { value: 5, iniBasis: 0, activeThisRound: true, roundOrder: 1, id: 'a' };
+    const b = { value: 12, iniBasis: 0, activeThisRound: false, roundOrder: 0, id: 'b' };
+    const c = { value: 8, iniBasis: 0, activeThisRound: true, roundOrder: 0, id: 'c' };
     expect(activeTurnOrder([a, b, c]).map((e) => e.id)).toEqual(['c', 'a']);
+  });
+
+  it('a mid-round surprise insert (lower roundOrder than what follows) sorts ahead of it', () => {
+    const current = { value: 5, iniBasis: 0, activeThisRound: true, roundOrder: 0, id: 'current' };
+    const upcoming = { value: 12, iniBasis: 0, activeThisRound: true, roundOrder: 2, id: 'upcoming' };
+    const surprise = { value: 0, iniBasis: 0, activeThisRound: true, roundOrder: 1, id: 'surprise' };
+    expect(activeTurnOrder([current, upcoming, surprise]).map((e) => e.id)).toEqual(['current', 'surprise', 'upcoming']);
   });
 });
 
@@ -208,7 +219,15 @@ describe('nextTurn', () => {
 });
 
 describe('tickDeathCountdowns', () => {
-  const base: InitiativeEntry = { tokenId: 1, value: 10, iniBasis: 0, activeThisRound: true, deathCountdown: null };
+  const base: InitiativeEntry = {
+    tokenId: 1,
+    value: 10,
+    iniBasis: 0,
+    activeThisRound: true,
+    roundOrder: 0,
+    rolledThisRound: true,
+    deathCountdown: null,
+  };
 
   it('ticks an active death countdown down by one', () => {
     const res = tickDeathCountdowns([{ ...base, deathCountdown: 3 }]);

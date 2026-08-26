@@ -77,10 +77,12 @@ export type BoardOverlay =
  * `iniBasis` is GM-typed for a marker/monster token; for a character token
  * it's ignored and recomputed live from the sheet at every roll instead, so
  * it always reflects the sheet's current Initiative-Basis. `value` is that
- * round's rolled total (0 before the first roll). `activeThisRound` is false
- * for a fresh mid-combat addition — it sits in the roster unrolled until the
- * NEXT round's mass reroll rather than being spliced into the round already
- * in progress. `deathCountdown` is null while the token isn't dying.
+ * round's rolled total, meaningless while `rolledThisRound` is false.
+ * `activeThisRound` is false only before the very first roll (a pre-combat
+ * add) — a mid-round add (Normal or Überraschung, see `board.initiative.add`)
+ * is active immediately, ordered by `roundOrder` rather than `value` (see the
+ * module comment in shared/src/board.ts for why). `deathCountdown` is null
+ * while the token isn't dying.
  */
 export interface BoardInitiative {
   id: number;
@@ -89,6 +91,8 @@ export interface BoardInitiative {
   iniBasis: number;
   value: number;
   activeThisRound: boolean;
+  roundOrder: number;
+  rolledThisRound: boolean;
   deathCountdown: number | null;
 }
 
@@ -206,7 +210,13 @@ export type BoardClientMessage =
   // every round wrap) is server-computed: Initiative-Basis (live from the
   // sheet for a character, `board.initiative.setBasis` for a marker/monster)
   // plus a fresh 1W6, never cumulative.
-  | { type: 'board.initiative.add'; reqId: string; tokenId: number }
+  // `mode` (GM's rule, see the module comment on InitiativeEntry in
+  // shared/src/board.ts): only meaningful for a MID-COMBAT add (round > 0) —
+  // 'normal' (the default, also what a pre-combat add always uses since the
+  // choice is meaningless before the first roll) queues the token to act
+  // LAST this round; 'surprise' cuts it in to act FIRST, right now,
+  // interrupting/ending whoever is currently acting.
+  | { type: 'board.initiative.add'; reqId: string; tokenId: number; mode?: 'normal' | 'surprise' }
   | { type: 'board.initiative.remove'; reqId: string; tokenId: number }
   /** Marker/monster only — a character's basis always comes from its sheet and ignores this. */
   | { type: 'board.initiative.setBasis'; reqId: string; tokenId: number; basis: number }
@@ -218,9 +228,22 @@ export type BoardClientMessage =
   | { type: 'board.combat.end'; reqId: string }
   // Advances the turn pointer. Past the last combatant in the CURRENT
   // round's active order, this instead bumps the round: re-rolls the whole
-  // roster (including anyone added mid-round, who was sitting unrolled),
-  // ticks death countdowns, and resets the pointer to the top.
-  | { type: 'board.turn.next'; reqId: string };
+  // roster (including anyone added mid-round), ticks death countdowns, and
+  // resets the pointer to the top. Whatever this lands on, the server keeps
+  // advancing past it automatically — without a further client message —
+  // while it's a token hidden from players (developer feedback: a player
+  // must never see the round stall on an invisible combatant, which would
+  // itself give away that something is happening off-screen). The GM still
+  // sees the normal round/turn state; only the skip itself is silent.
+  | { type: 'board.turn.next'; reqId: string }
+  // "Center all on my view" (Phase 11) — a one-shot broadcast, not board
+  // state (see "Persisted vs ephemeral" in the plan): nothing is written to
+  // `boards`, so a client that joins a moment later never sees it. Available
+  // to everyone, not just the GM — small table, socially self-regulating.
+  // Every viewer (the sender included — no discrimination between the two,
+  // same message reaches everyone) eases its own camera to {x, y, zoom} and
+  // shows the same toast.
+  | { type: 'board.view.center'; reqId: string; x: number; y: number; zoom: number };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
@@ -243,4 +266,6 @@ export type BoardServerMessage =
    * hidden-from-this-viewer token are left out server-side (see
    * redactSnapshotForViewer/board.ts), same guarantee as tokens/labels.
    */
-  | { type: 'board.initiative.updated'; round: number; turnIndex: number; entries: BoardInitiative[] };
+  | { type: 'board.initiative.updated'; round: number; turnIndex: number; entries: BoardInitiative[] }
+  /** `by` is the sender's display name, for the toast every viewer (including the sender) shows on receipt. */
+  | { type: 'board.view.centered'; x: number; y: number; zoom: number; by: string };

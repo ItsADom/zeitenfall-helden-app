@@ -34,18 +34,24 @@ const MAX_W = 520;
 const DEFAULT_W = 300;
 const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)));
 
-export default function CharacterSidebar() {
+// `side` sagt, an welcher Kante des Inhalts die Leiste sitzt — im Heldenbrief
+// rechts (Standard), am virtuellen Tisch links (VirtualTable.tsx). Zieh-Griff-
+// Richtung und Chevrons zeigen sonst in die falsche Richtung, wenn die Leiste
+// gespiegelt eingebaut wird.
+export default function CharacterSidebar({ side = 'right' }: { side?: 'left' | 'right' }) {
   const [collapsed, toggle] = useCollapsed('sidebar');
   const [width, setWidth] = usePersistedState<number>('sidebar-w', DEFAULT_W);
   const w = clampW(width);
 
-  // Ziehen am linken Rand. Die Leiste sitzt rechts, also vergrößert ein Zug
-  // nach LINKS (kleineres clientX) die Breite. Grenzen via clampW.
+  // Der Zieh-Griff liegt (per CSS) an der Kante zum Inhalt. Rechts sitzende
+  // Leiste: Zug nach LINKS vergrößert. Links sitzende Leiste: Zug nach RECHTS
+  // vergrößert — also das Vorzeichen umdrehen.
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
     const startW = w;
-    const onMove = (ev: PointerEvent) => setWidth(clampW(startW + (startX - ev.clientX)));
+    const sign = side === 'left' ? -1 : 1;
+    const onMove = (ev: PointerEvent) => setWidth(clampW(startW + sign * (startX - ev.clientX)));
     const onUp = () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -61,10 +67,10 @@ export default function CharacterSidebar() {
     // ein einzelnes Zeichen. Der sonst leere senkrechte Platz trägt „Überblick"
     // als aufrecht gestapelte Schrift, damit klar ist, was sich hier verbirgt.
     return (
-      <aside className="char-sidebar collapsed">
+      <aside className={`char-sidebar collapsed${side === 'left' ? ' side-left' : ''}`}>
         <button className="side-expand" onClick={toggle} title="Seitenleiste ausklappen" aria-label="Seitenleiste ausklappen">
           <span className="side-expand-chev" aria-hidden>
-            ‹
+            {side === 'left' ? '›' : '‹'}
           </span>
           <span className="side-expand-label" aria-hidden>
             Überblick
@@ -75,7 +81,10 @@ export default function CharacterSidebar() {
   }
 
   return (
-    <aside className="char-sidebar" style={{ '--sidebar-w': `${w}px` } as React.CSSProperties}>
+    <aside
+      className={`char-sidebar${side === 'left' ? ' side-left' : ''}`}
+      style={{ '--sidebar-w': `${w}px` } as React.CSSProperties}
+    >
       <div
         className="side-resize"
         onPointerDown={startResize}
@@ -87,7 +96,7 @@ export default function CharacterSidebar() {
         <div className="side-head">
           <span className="side-title">Überblick</span>
           <button className="side-toggle" onClick={toggle} title="Seitenleiste einklappen" aria-label="Seitenleiste einklappen">
-            ›
+            {side === 'left' ? '‹' : '›'}
           </button>
         </div>
 

@@ -2050,6 +2050,17 @@ main {
 body.resizing-col .side-resize {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+/* Am virtuellen Tisch sitzt dieselbe Leiste links vom Inhalt statt rechts
+   (VirtualTable.tsx) — Zieh-Griff und Innenabstand spiegeln sich, damit der
+   Griff wieder an der Kante zur Karte liegt statt am Bildschirmrand. */
+.char-sidebar.side-left .side-resize {
+  order: 2;
+  border-radius: 0 12px 12px 0;
+}
+.char-sidebar.side-left .side-scroll {
+  order: 1;
+  padding: 12px 8px 12px 14px;
+}
 /* Während des Ziehens nichts markieren und überall den Resize-Zeiger zeigen. */
 body.resizing-col {
   cursor: col-resize;
@@ -5940,9 +5951,17 @@ tr:hover .probe-roll,
   overflow: hidden;
   position: relative;
 }
+/* flex-wrap: a narrow map column (narrow window, or a wide GM roster/
+   character sidebar next to it) can make the toolbar wider than its row.
+   Left as the flex default (nowrap), the overflowing buttons don't just
+   clip — .vtt-map-col's `overflow: hidden` still lets the browser scroll it
+   horizontally to bring a focused-but-clipped button into view, taking the
+   WHOLE map with it (not just the toolbar), and nothing scrolls it back.
+   Wrapping to a second line removes the overflow that triggers that. */
 .vtt-toolbar {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
@@ -6057,11 +6076,19 @@ tr:hover .probe-roll,
   border-color: var(--accent);
   color: var(--accent-dark);
 }
+/* Stacked, not side-by-side — the popover is only 260px wide and the
+   longest label ("Marken anlegen/bearbeiten") doesn't fit next to the
+   Spielleitung/Alle pill on one line. Side-by-side with the label allowed to
+   wrap still put the pill (vertically centered on the row) right in the
+   gap between the label's two lines — an 8px gap in the DOM, but visually
+   reading as the text running into the pill. Label on its own line removes
+   the fight for width entirely, and scales to any future longer label. */
 .vtt-settings-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 5px 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 7px 0;
   font-size: 12.5px;
   border-top: 1px solid var(--border-soft);
 }
@@ -6078,6 +6105,7 @@ tr:hover .probe-roll,
    künftigen Rechte-Schalter, nicht nur die Karten-Rechte hier. */
 .seg {
   display: inline-flex;
+  flex-shrink: 0;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   overflow: hidden;
@@ -6165,6 +6193,43 @@ tr:hover .probe-roll,
 .vtt-tool-badge button:hover {
   background: var(--surface-sunken);
   color: var(--text);
+}
+/* "Center all on my view" (Phase 11) toast — dead center over the map, solid
+   accent fill rather than the muted panel style everything else on the map
+   uses, so a re-pan someone might not be looking at when it starts is hard
+   to miss. Fades in/out on its own, no close button (it's feedback, not
+   another click target); pointer-events: none so it never blocks a click
+   meant for the map underneath. */
+.vtt-view-toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 7;
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 45%, transparent);
+  padding: 12px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  pointer-events: none;
+  animation: vtt-view-toast-fade 2.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes vtt-view-toast-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 .vtt-tile-picker {
   position: absolute;
@@ -6380,12 +6445,18 @@ tr:hover .probe-roll,
   text-decoration: underline;
 }
 .vtt-initiative-value {
-  width: 32px;
-  text-align: center;
+  /* Nur das (bearbeitbare) Eingabefeld unten bekommt eine feste, zentrierte
+     Breite — als reiner <span> (der Regelfall: gewürfelter Wert oder „—")
+     zwänge width+center-Ausrichtung eine kurze Zahl wie „20" sichtbar nach
+     rechts, versetzt gegen den Namen darüber, der linksbündig beginnt. */
+  min-width: 32px;
+  text-align: left;
   flex-shrink: 0;
   font-size: 11.5px;
 }
 input.vtt-initiative-value {
+  width: 32px;
+  text-align: center;
   padding: 1px 2px;
 }
 .vtt-initiative-death {
@@ -6406,7 +6477,12 @@ input.vtt-initiative-value {
   top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 6;
+  /* Below the flyouts (.vtt-tile-picker, z-index: 6) on purpose — this
+     button renders LAST in the JSX (right before the <svg>), so at an equal
+     z-index it painted over every open picker regardless of where they sit
+     on screen. It's a permanent fixture during combat; a flyout is
+     transient and should always win. */
+  z-index: 4;
   padding: 8px 18px;
   border: 1px solid var(--accent);
   border-radius: 999px;
@@ -6416,10 +6492,4 @@ input.vtt-initiative-value {
   font-size: 13px;
   box-shadow: var(--shadow);
   cursor: pointer;
-}
-.vtt-turn-action:disabled {
-  background: var(--surface-sunken);
-  border-color: var(--border-strong);
-  color: var(--muted);
-  cursor: default;
 }

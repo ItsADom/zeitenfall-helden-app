@@ -145,22 +145,39 @@ export function shapeCells(shape: MeasureShape): CellCoord[] {
 // --- Initiative and rounds ---------------------------------------------------
 //
 // Turn-pointer design (settled with the developer, revised from the earlier
-// done-checkbox version): the whole roster re-rolls — ini_basis + a FRESH 1W6,
-// never cumulative — at combat start and again every time the turn pointer
-// wraps past the last combatant. A participant added mid-combat sits in the
-// roster unrolled (`activeThisRound: false`) and simply waits for the next
-// round's mass reroll rather than being spliced into the round already in
-// progress. There is no "done" flag any more — whose turn it is is a single
-// index into the sorted active order, and either the GM or that combatant's
-// own owner can advance it.
+// done-checkbox version, then again for mid-combat inserts — see "Surprise
+// attacks and mid-round adds" below): the whole roster re-rolls — ini_basis +
+// a FRESH 1W6, never cumulative — at combat start and again every time the
+// turn pointer wraps past the last combatant. There is no "done" flag — whose
+// turn it is is a single index into the CURRENT round's turn order, and
+// either the GM or that combatant's own owner can advance it.
+//
+// Surprise attacks and mid-round adds (developer feedback, GM's rule: "wenn
+// es ein Überraschungsangriff ist, dann als erster, ansonsten als letzter,
+// und ab nächster Runde normal weiter"). A token added mid-round always gets
+// a turn THIS round — there is no more "waits until the next mass reroll".
+// `value`/`iniBasis` alone can no longer express the resulting order (a
+// surprise attacker has to slot in at whatever position the LIVE pointer
+// happens to be at the moment it's added — not a value-comparable rank), so
+// the per-round order is now the explicit `roundOrder` field rather than a
+// live sort of `value`. `rolledThisRound` says whether that round's value was
+// actually rolled (false for a fresh mid-round insert, either mode — the UI
+// shows "—" the same way it already did for a pre-combat add) or is a
+// leftover from the last roll. Both fields are reassigned/reset for
+// EVERYONE at every mass reroll, folding a mid-round insert back into normal
+// rotation exactly as the GM asked ("ab nächster Runde normal weiter").
 
 export interface InitiativeEntry {
   tokenId: number;
   value: number;
   /** The Initiative-Basis actually rolled with this round — snapshotted at roll time, see the tiebreak in initiativeOrder(). */
   iniBasis: number;
-  /** Rolled into the CURRENT round's turn order — false for a fresh add mid-round, true for everyone once a round (re)rolls. */
+  /** Rolled into the CURRENT round's turn order — false only before the FIRST roll (pre-combat add); a mid-round insert is active immediately. */
   activeThisRound: boolean;
+  /** Position within the current round's turn order — see the module comment above. Meaningless while !activeThisRound. */
+  roundOrder: number;
+  /** false for a fresh mid-round insert (surprise or otherwise) — the UI shows "—" instead of `value`/lets the GM edit iniBasis, same treatment as a not-yet-rolled pre-combat add. */
+  rolledThisRound: boolean;
   /** null = not dying; otherwise rounds left until death. */
   deathCountdown: number | null;
 }
@@ -171,7 +188,11 @@ export interface InitiativeEntry {
  * is not resolved here at all: the roller (server/src/board.ts) rerolls
  * exactly that subset until every value+basis pair is unique, so this sort
  * never actually has to fall back past the basis compare in practice. The
- * original-order fallback stays only as a last-resort safety net.
+ * original-order fallback stays only as a last-resort safety net. Used at
+ * ROLL time (server/src/board.ts) to rank a freshly-rolled set into the
+ * `roundOrder` each entry then keeps for the rest of that round —
+ * activeTurnOrder below no longer sorts by value live (see the module
+ * comment).
  */
 export function initiativeOrder<T extends { value: number; iniBasis: number }>(entries: T[]): T[] {
   return entries
@@ -180,9 +201,13 @@ export function initiativeOrder<T extends { value: number; iniBasis: number }>(e
     .map(({ entry }) => entry);
 }
 
-/** The subset of the roster that takes a turn this round, in turn order. */
+/** The subset of the roster that takes a turn this round, in turn order (by `roundOrder` — see the module comment above). */
 export function activeTurnOrder<T extends InitiativeEntry>(entries: T[]): T[] {
-  return initiativeOrder(entries.filter((e) => e.activeThisRound));
+  return entries
+    .filter((e) => e.activeThisRound)
+    .map((entry, index) => ({ entry, index }))
+    .sort((a, b) => a.entry.roundOrder - b.entry.roundOrder || a.index - b.index)
+    .map(({ entry }) => entry);
 }
 
 export interface NextTurnResult {

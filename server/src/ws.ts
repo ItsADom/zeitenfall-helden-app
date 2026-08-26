@@ -194,6 +194,8 @@ function toWireInitiative(row: BoardInitiativeRow): BoardInitiative {
     iniBasis: row.iniBasis,
     value: row.value,
     activeThisRound: row.activeThisRound,
+    roundOrder: row.roundOrder,
+    rolledThisRound: row.rolledThisRound,
     deathCountdown: row.deathCountdown,
   };
 }
@@ -1664,7 +1666,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
         return;
       }
-      addBoardInitiativeEntry(board.id, token);
+      const mode = msg.mode === 'surprise' ? 'surprise' : 'normal';
+      addBoardInitiativeEntry(board.id, token, mode);
       broadcastInitiative(meta.groupId, board.id);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -1749,6 +1752,22 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       }
       advanceBoardTurn(board.id);
       broadcastInitiative(meta.groupId, board.id);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.view.center': {
+      const x = Number(msg.x);
+      const y = Number(msg.y);
+      const zoom = Number(msg.zoom);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Ansicht' });
+        return;
+      }
+      // Ephemeral event, not board state — nothing is written, so a client
+      // that joins a moment later never sees it (see "Persisted vs
+      // ephemeral" in the plan). Same message to everyone, sender included —
+      // no reason to special-case who gets told.
+      broadcastUngefiltert(meta.groupId, { type: 'board.view.centered', x, y, zoom, by: meta.displayName });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

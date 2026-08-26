@@ -417,15 +417,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   (same class of problem as the color-swatch-reopen bug below — needs
   someone actually reproducing it live, cursor state included, before
   attempting a fix).
-- [sketch] **VTT: combine "Beschriftung" and "+ Marker" into one tool-flyout**
-  (developer feedback, Phase 9). Both are single always-visible toolbar
-  buttons today (`client/src/pages/VirtualTable.tsx`) rather than a flyout
-  like `TilePicker`/`HighlightPicker`/`FogPicker` — technically still within
-  the "flyouts over inline sprawl" rule above since neither has SUB-options,
-  but the developer wants them grouped under one shared flyout/button instead
-  of two separate always-visible entries. Needs a design pass on what the
-  combined control looks like (a picker offering "Marker" vs "Beschriftung"
-  as two choices, presumably) before building it.
 - [sketch] **Native colour swatch reopens on a second click instead of
   closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
   used by token colour/ring colour, the tile/highlight picker, and the
