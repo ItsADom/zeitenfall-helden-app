@@ -198,6 +198,13 @@ interface MeasureEls {
   textEl?: SVGTextElement | null;
   circleEl?: SVGCircleElement | null;
   rectEl?: SVGRectElement | null;
+  // Der Ziehgriff (siehe startMeasureResize) ist KEIN Teil der Geometrie, die
+  // writeMeasureVisual schreibt — separat hier mitgeführt, damit ein
+  // Verschieben der GANZEN Form (onMeasureOverlayPointerMove) ihn ebenfalls
+  // live mitzieht, statt erst beim Loslassen nachzuspringen (derselbe Fehler,
+  // den das Schloss-Symbol bei Bildern schon einmal hatte — siehe Phase 12's
+  // "Follow-up fixes").
+  handleEl?: SVGCircleElement | null;
 }
 
 /** Direktes DOM-Schreiben der Geometrie — genutzt sowohl von der Zieh-Vorschau einer neuen Form als auch vom Verschieben einer bestehenden, kein setState in beiden Fällen (siehe measureDragRef/measureOverlayDragRef). */
@@ -1140,6 +1147,16 @@ function MapCanvas({
     drag.lastData = shifted;
     const els = measureElsRef.current.get(drag.id);
     if (els) writeMeasureVisual(shifted, els);
+    // Der Ziehgriff sitzt NICHT in writeMeasureVisual (siehe MeasureEls) —
+    // ohne diesen Schritt bliebe er beim Verschieben der ganzen Form am alten
+    // Platz stehen und spränge erst beim Loslassen (React-Neu-Render) an die
+    // richtige Stelle, exakt der Fehler, den das Schloss-Symbol bei Bildern
+    // schon einmal hatte.
+    if (els?.handleEl) {
+      const handlePoint = measureHandlePoint(shifted);
+      els.handleEl.setAttribute('cx', String(handlePoint.x * CELL_PX));
+      els.handleEl.setAttribute('cy', String(handlePoint.y * CELL_PX));
+    }
   };
   const onMeasureOverlayPointerUp = () => {
     const drag = measureOverlayDragRef.current;
@@ -2344,6 +2361,11 @@ function MapCanvas({
                       const handlePoint = measureHandlePoint(data);
                       return (
                         <circle
+                          ref={(el) => {
+                            const els = measureElsRef.current.get(o.id) ?? {};
+                            els.handleEl = el;
+                            measureElsRef.current.set(o.id, els);
+                          }}
                           cx={handlePoint.x * CELL_PX}
                           cy={handlePoint.y * CELL_PX}
                           r={7}
