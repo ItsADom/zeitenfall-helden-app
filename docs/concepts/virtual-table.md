@@ -1,5 +1,52 @@
 # Virtual table (VTT) — implementation plan
 
+> ## Progress (2026-08-26, latest session): step-counting token-drag trail
+>
+> **Committed on `feature/virtual-table`.** A new idea from the developer
+> (sketched with a reference image: a row of bordered, numbered squares
+> trailing a moved token), concepted together before building rather than
+> guessed at, per three explicit decisions:
+> - **Straight king-move line**, not the actual (possibly winding) pointer
+>   path — same Chebyshev metric `gridDistance` already uses for the ruler,
+>   just re-rasterized as a sequence of cells (`chebyshevPath`) instead of a
+>   single distance number. Cell **0** is the cell whose center is closest to
+>   where the token started (`Math.floor` of the token's footprint-center at
+>   drag start — every cell has an unambiguous nearest-center owner, no
+>   rounding-direction edge case), then 1, 2, 3, … toward wherever the drag
+>   currently is.
+> - **Visible only to the person dragging.** This fell out cleanly from how
+>   token drags already work here: `onTokenPointerUp`'s own comment already
+>   says the whole drag is "rein lokal … kein Netz beteiligt" — a token's
+>   live position during a drag was never broadcast to other viewers to
+>   begin with (only the final dropped position is, in one message), so a
+>   client-only trail needed no protocol change and no new "who am I
+>   broadcasting to" question.
+> - **Gone the instant the token is dropped** — matches every other live-drag
+>   preview in this file (paint stroke, measure-shape draft/resize, image
+>   resize): ephemeral tool feedback, never persisted state.
+>
+> **Mechanically**: a FIXED pool of `MAX_TRAIL_CELLS` (60) square+number
+> element pairs mounts once per drag (`tokenTrailActive`, flipped in
+> `startTokenDrag`/`onTokenPointerUp`) — deliberately not a variable-length
+> React list, since re-rendering a list every pointermove would reintroduce
+> exactly the lag `onTokenPointerMove`'s own comment warns about (any
+> `setState` during the drag re-renders the whole map, not just the trail).
+> `onTokenPointerMove` instead writes `chebyshevPath`'s current cells
+> straight into that pool's DOM refs (`trailElsRef`), same "direct write,
+> mount once" idiom as the measure-shape draft preview; unused pool slots
+> get `display: none`. Gated behind the same `CLICK_THRESHOLD_PX` the
+> cursor-swap already uses, so a plain click never flashes a "0" square.
+>
+> **Verified so far**: a real CDP-driven drag (start→end, not a scripted
+> multi-step pointer sequence) moved the test token correctly with no
+> console errors — the trail logic doesn't break ordinary token movement.
+> **Not yet verified**: the trail's actual on-screen appearance *during* the
+> drag — this session's browser tooling can only fire an atomic drag
+> (start→end in one call), with no way to pause mid-gesture for a
+> screenshot, so the numbered squares' positioning/legibility needs an
+> actual live drag by the developer before this is called done. tsc clean.
+> Test marker created and deleted afterward — shared dev board left clean.
+>
 > ## Progress (2026-08-26, latest session): resize drag handle for measure shapes
 >
 > **Committed on `feature/virtual-table`.** Picks up the Low-Prio TODO left by

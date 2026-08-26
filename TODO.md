@@ -444,31 +444,17 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   (GM-only, or also the current owner handing it off?), and whether a
   character token's owner should even be independently settable or always
   implied by the character's `group_id`/player link.
-- [sketch] **VTT: a step-counting trail while dragging a token** (developer
-  feedback, sketched with a reference image). While a token is being
-  dragged, show a numbered trail of cells along the path: cell **0** is
-  whichever cell's center sits closest to where the drag started, then 1,
-  2, 3, … outward along the path the drag has covered — a king-move
-  (8-directional) step count, the same metric `gridDistance` already uses
-  for the ruler's distance label, not a straight Euclidean line. The
-  reference image shows this as a row of bordered, numbered squares
-  overlaid on the grid.
-  Not concepted yet, needs a pass before building:
-  - Path source: rasterize a straight line from the start cell to the
-    current drag cell each frame (simplest, matches how the ruler already
-    works), or trace the actual pointer path if the drag wanders (more
-    "real" movement, more edge cases — doubling back, diagonal-adjacent
-    cells visited more than once).
-  - Lifetime: purely an ephemeral overlay for the duration of the drag
-    (gone on pointerup, like the paint-tool's live preview), or does it
-    persist briefly/until deselected as a readout of the move just made?
-  - Visibility: only the player dragging their own token, or does everyone
-    at the table see it live (same as every other token move today)?
-  - Interaction with fog: does the trail stop/hide once it crosses into
-    fogged territory for a given viewer, or is it drawn the same
-    everywhere since it's ephemeral tool feedback, not board state?
-  This would live alongside the existing token-drag code (`startTokenDrag`/
-  the token pointer-move handlers) in `client/src/pages/VirtualTable.tsx`.
+- [sketch] **VTT: step-counting token-drag trail — built, wants a real live
+  drag test.** Concept settled with the developer (straight king-move line
+  from the drag's start cell, numbered 0/1/2/…; visible only to the person
+  dragging; gone the instant the token is dropped) and implemented in
+  `client/src/pages/VirtualTable.tsx` (`chebyshevPath`, `tokenTrailActive`/
+  `trailElsRef`, wired into `startTokenDrag`/`onTokenPointerMove`/
+  `onTokenPointerUp`). A CDP-driven drag confirmed the move itself still
+  works with no console errors, but this session's automated tooling has no
+  way to pause mid-drag for a screenshot, so the trail's actual on-screen
+  numbering/positioning during a real drag hasn't been eyeballed yet —
+  needs a live check before this counts as done.
 - [ready] **Note field on Talente** (user feedback): `CharTalent`
   (`shared/src/types.ts:220`) has no `notiz` field, and neither table
   renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.

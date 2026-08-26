@@ -270,6 +270,30 @@ function gridLinesPath(cols: number, rows: number): string {
   return d;
 }
 
+/**
+ * Gerade Zugbahn in Zellschritten (König-Züge, dieselbe Chebyshev-Metrik wie
+ * gridDistance) für den Schritt-Zähler-Pfad beim Marken-Verschieben (siehe
+ * startTokenDrag/onTokenPointerMove). `from`/`to` sind bereits ganzzahlige
+ * Zellindizes; jeder Schritt zählt als EIN Feld, egal ob gerade oder
+ * diagonal, damit die Nummerierung genau `gridDistance` entspricht — eine
+ * gerade Linie zum aktuellen Zeigerpunkt, kein Nachzeichnen des tatsächlich
+ * gezogenen (womöglich verwinkelten) Zeigerpfads (settled with the developer:
+ * straight line only).
+ */
+function chebyshevPath(from: CellCoord, to: CellCoord): CellCoord[] {
+  const path: CellCoord[] = [{ x: from.x, y: from.y }];
+  let cx = from.x;
+  let cy = from.y;
+  while (cx !== to.x || cy !== to.y) {
+    if (cx < to.x) cx++;
+    else if (cx > to.x) cx--;
+    if (cy < to.y) cy++;
+    else if (cy > to.y) cy--;
+    path.push({ x: cx, y: cy });
+  }
+  return path;
+}
+
 const CELL_PX = 40;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 3;
@@ -282,6 +306,14 @@ const CELL_PING_DURATION_MS = 1600;
 // A freshly uploaded image's long edge, in cells — a starting point to
 // resize from (drag handle, see startImageResize), not a measured scale.
 const DEFAULT_IMAGE_LONG_EDGE_CELLS = 4;
+// Step-counter trail while dragging a token (chebyshevPath): a FIXED pool of
+// this many square+number pairs is mounted once per drag (see
+// tokenTrailDraft/trailElsRef) and only their attributes are rewritten per
+// pointermove — a variable-length list would need setState each frame, which
+// is exactly the re-render lag onTokenPointerMove's own comment warns about.
+// 60 comfortably covers any reasonably sized board's diagonal; a drag longer
+// than that just stops growing visible numbers rather than erroring.
+const MAX_TRAIL_CELLS = 60;
 
 interface Camera {
   x: number;
@@ -658,6 +690,15 @@ function MapCanvas({
     lastY: number;
     moved: number;
   } | null>(null);
+  // Schritt-Zähler-Trail beim Marken-Verschieben (settled with the developer:
+  // gerade Linie, nur für die ziehende Person selbst sichtbar, sofort weg
+  // beim Loslassen). NUR die Anwesenheit des Trails ist State (mountet/
+  // unmountet den festen Pool aus MAX_TRAIL_CELLS Quadraten EINMAL bei
+  // Zugbeginn/-ende) — welche Zellen gerade sichtbar sind und welche Nummer
+  // sie tragen, wird wie beim Rest dieser Datei direkt ins DOM geschrieben
+  // (siehe onTokenPointerMove), kein State pro Zeigerbewegung.
+  const [tokenTrailActive, setTokenTrailActive] = useState(false);
+  const trailElsRef = useRef<{ rectEl: SVGRectElement | null; textEl: SVGTextElement | null }[]>([]);
   // 'fog' reuses this same string-valued touched map — its boolean hide/
   // reveal choice rides along as '1'/'0' (see startPaint/onPaintPointerUp),
   // converted back to boolean only where paintFog/pendingFog actually need
@@ -1278,6 +1319,10 @@ function MapCanvas({
       lastY: token.y,
       moved: 0,
     };
+    // Mountet nur den Quadrat-Pool (siehe MAX_TRAIL_CELLS) — welche davon
+    // sichtbar sind, schreibt onTokenPointerMove direkt ins DOM, ohne
+    // weiteres setState während des Zugs.
+    setTokenTrailActive(true);
   };
   // Rein lokal während des Ziehens — kein Netz beteiligt, also keine Latenz,
   // die hinterherhinken könnte. Andere sehen die Marke erst, wenn sie beim
@@ -1312,12 +1357,45 @@ function MapCanvas({
     drag.el.setAttribute('transform', `translate(${cx}, ${cy})`);
     // Erst ab der Klick-Schwelle: darunter ist es (noch) ein Klick, kein Zug
     // — der Zeiger soll bis dahin der normale Finger bleiben, nicht schon bei
-    // der kleinsten Bewegung auf die Verschiebe-Pfeile springen.
-    if (drag.moved >= CLICK_THRESHOLD_PX) drag.el.style.cursor = 'move';
+    // der kleinsten Bewegung auf die Verschiebe-Pfeile springen. Derselbe
+    // Schwellwert blendet den Schritt-Trail erst ein (sonst würde ein bloßer
+    // Klick eine einzelne "0"-Kachel aufblitzen lassen).
+    if (drag.moved >= CLICK_THRESHOLD_PX) {
+      drag.el.style.cursor = 'move';
+      // Gerade Linie (Chebyshev, siehe chebyshevPath) von der Zelle, in der
+      // die Marke START — nicht der aktuellen Zellmitte des Zugs selbst —
+      // bis zur aktuellen Zellmitte. `size/2` verschiebt vom Fußabdruck-
+      // Eckpunkt (x/y) auf die tatsächliche Mitte der Marke, dieselbe
+      // Rechnung wie cx/cy zwei Zeilen darüber, nur ohne *CELL_PX.
+      const startCell = { x: Math.floor(drag.startX + drag.size / 2), y: Math.floor(drag.startY + drag.size / 2) };
+      const currentCell = { x: Math.floor(x + drag.size / 2), y: Math.floor(y + drag.size / 2) };
+      const path = chebyshevPath(startCell, currentCell);
+      for (let i = 0; i < MAX_TRAIL_CELLS; i++) {
+        const els = trailElsRef.current[i];
+        if (!els?.rectEl || !els.textEl) continue;
+        if (i < path.length) {
+          const cell = path[i];
+          els.rectEl.style.display = '';
+          els.rectEl.setAttribute('x', String(cell.x * CELL_PX));
+          els.rectEl.setAttribute('y', String(cell.y * CELL_PX));
+          els.textEl.style.display = '';
+          els.textEl.setAttribute('x', String((cell.x + 0.5) * CELL_PX));
+          els.textEl.setAttribute('y', String((cell.y + 0.5) * CELL_PX));
+          els.textEl.textContent = String(i);
+        } else {
+          els.rectEl.style.display = 'none';
+          els.textEl.style.display = 'none';
+        }
+      }
+    }
   };
   const onTokenPointerUp = () => {
     const drag = tokenDragRef.current;
     tokenDragRef.current = null;
+    // Weg, sobald losgelassen wird (settled with the developer: kein
+    // Nachleuchten wie beim Ping) — egal ob ein echter Zug oder nur ein
+    // Klick war, siehe die frühe Rückkehr gleich darunter.
+    setTokenTrailActive(false);
     if (!drag) return;
     drag.el.style.cursor = '';
     if (drag.moved < CLICK_THRESHOLD_PX) {
@@ -2394,6 +2472,52 @@ function MapCanvas({
               </g>
             );
           })}
+
+          {/* Schritt-Zähler-Trail beim Marken-Verschieben: fester Pool aus
+              MAX_TRAIL_CELLS Quadrat+Zahl-Paaren, EINMAL gemountet
+              (tokenTrailActive), danach schreibt nur onTokenPointerMove noch
+              direkt in ihre Attribute — kein Re-Render pro Zeigerbewegung
+              (siehe Kommentar dort). Rein lokal für die ziehende Person
+              (kein Netz-Bezug), UNTER den Marken (siehe Ebenenreihenfolge:
+              Marke bleibt über der eigenen Trail-Kachel lesbar), anfangs
+              display:none, bis der erste Zug jenseits der Klick-Schwelle
+              die tatsächlich sichtbaren Kacheln einblendet. */}
+          {tokenTrailActive && (
+            <g pointerEvents="none">
+              {Array.from({ length: MAX_TRAIL_CELLS }, (_, i) => (
+                <g key={i}>
+                  <rect
+                    ref={(el) => {
+                      const arr = trailElsRef.current;
+                      arr[i] = { rectEl: el, textEl: arr[i]?.textEl ?? null };
+                    }}
+                    width={CELL_PX}
+                    height={CELL_PX}
+                    fill="var(--panel)"
+                    fillOpacity={0.65}
+                    stroke="var(--accent)"
+                    strokeWidth={1.5}
+                    style={{ display: 'none' }}
+                  />
+                  <text
+                    ref={(el) => {
+                      const arr = trailElsRef.current;
+                      arr[i] = { rectEl: arr[i]?.rectEl ?? null, textEl: el };
+                    }}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={13}
+                    fontWeight={700}
+                    fill="var(--text)"
+                    stroke="var(--panel)"
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                    style={{ display: 'none' }}
+                  />
+                </g>
+              ))}
+            </g>
+          )}
 
           {tokens
             .filter((t) => !t.hidden || isGm)
