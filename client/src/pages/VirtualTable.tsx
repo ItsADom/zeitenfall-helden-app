@@ -2078,24 +2078,25 @@ function withOpacity(hex: string, opacityPct: number): string {
  * picker, measure-shape colour), so the fix lands once, not four times.
  */
 function ColorSwatchInput({ value, onChange, title }: { value: string; onChange: (v: string) => void; title?: string }) {
-  const openRef = useRef(false);
   return (
     <input
       type="color"
       value={value}
       title={title}
       onChange={(e) => onChange(e.target.value)}
+      // A self-tracked "is it open" ref drifts out of sync with reality —
+      // Chromium doesn't reliably blur the input when its native popup
+      // closes by other means (Escape, picking a colour), so a remembered
+      // flag can end up blocking the NEXT legitimate open. `activeElement`
+      // asks the browser directly instead: this input keeps DOM focus for
+      // as long as its popup is showing (the same reason blur() can close
+      // it), so it's already true exactly when a second mousedown means
+      // "close it", never stale.
       onMouseDown={(e) => {
-        if (openRef.current) {
+        if (document.activeElement === e.currentTarget) {
           e.preventDefault();
-          (e.currentTarget as HTMLInputElement).blur();
-          openRef.current = false;
-        } else {
-          openRef.current = true;
+          e.currentTarget.blur();
         }
-      }}
-      onBlur={() => {
-        openRef.current = false;
       }}
     />
   );

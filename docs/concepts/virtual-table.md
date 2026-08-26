@@ -58,21 +58,27 @@
 >   when absent; an explicit `undefined` property still overwrites in a
 >   spread (and is dropped by `JSON.stringify` same as never having been
 >   set), which a merely-missing key does not.
-> - **Bug caught and fixed: a native colour swatch reopened instead of
->   closing on a second click.** Not a measure-specific bug — every plain
->   `<input type="color">` on this page had it (token colour, token ring
->   colour, the tile/highlight custom-colour swatch, and now the measure
->   colour field): the browser's native colour dialog has no DOM-readable
->   "is it open" state, and a bare `<input type="color">` reopens it on
->   every click regardless. Fixed once for all four with a new
->   `ColorSwatchInput` wrapper: tracks "believed open" in a ref, and a
->   second `mousedown` while that ref is true calls `preventDefault()` +
->   `blur()` to force-close instead of letting the browser reopen it — the
->   standard workaround for this exact native-control limitation. **Not
->   verifiable by the automated browser tooling used for the rest of this
->   session** (a native OS/browser colour dialog isn't part of the DOM and
->   can't be driven or observed over CDP) — needs a manual click-twice
->   check by the developer.
+> - **Bug reported, one fix attempted and rejected by live testing, a second
+>   fix in place — still unverified.** Not a measure-specific bug — every
+>   plain `<input type="color">` on this page has it (token colour, token
+>   ring colour, the tile/highlight custom-colour swatch, and now the
+>   measure colour field): a second click while the browser's native colour
+>   dialog is already open reopens it instead of closing it.
+>   `ColorSwatchInput` centralises the fix for all four swatches, but the
+>   FIRST attempt — a self-tracked "believed open" ref, `mousedown` +
+>   `preventDefault()` + `blur()` to force-close on the second click — the
+>   developer tried live and it did not work. Root suspicion: a manually
+>   tracked ref drifts from reality, since Chromium doesn't reliably blur
+>   the input when its popup closes by OTHER means (Escape, picking a
+>   colour) — a stale "still open" flag then blocks the NEXT legitimate
+>   open. **Replaced with a version that asks the browser directly**
+>   instead of remembering: `document.activeElement === e.currentTarget`
+>   on `mousedown` (the input keeps DOM focus for exactly as long as its
+>   popup is showing — same reason `blur()` can close it — so this can't go
+>   stale the way a remembered ref can). tsc clean; **still not verified
+>   live** — a native OS/browser colour dialog isn't part of the DOM and
+>   can't be driven or observed over CDP, so this needs the developer's own
+>   click-twice check again before it counts as fixed.
 >
 > **Verified live** (same dev board as below) for everything CDP-testable:
 > continuous (non-snapped) origins on circle/cone/rectangle creation,
