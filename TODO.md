@@ -69,8 +69,33 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
+- [ready] **VTT toolbar styling rule: dropdowns/flyouts over inline button
+  sprawl.** `TilePicker`/`HighlightPicker` already open as a floating panel
+  below the toolbar (`.vtt-tile-picker`, `position: absolute`) rather than as
+  inline buttons — Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel)
+  briefly broke that convention as an inline row during Phase 8 slice 3/3 and
+  has since been converted to the same flyout (`MeasureKindPicker`, reusing
+  `.vtt-tile-picker`/`pickerOpen`). Write this down as a standing rule for
+  every future VTT toolbar addition in `client/src/pages/VirtualTable.tsx`: a
+  tool's sub-options open as a flyout anchored below the toolbar, never as
+  additional always-visible buttons pushing the rest of the bar around — that
+  growth also makes the toolbar's button positions shift underfoot, which
+  broke a scripted/automated click sequence during testing. No further work
+  needed right now beyond keeping to it; re-open only if a future tool
+  reintroduces inline sub-buttons.
+
 ## Mid-Prio
 
+- [sketch] **VTT: area-fill painting, not just cell-by-cell** (developer
+  feedback, Phase 9). Bemalen/Hervorheben/Nebel all paint one cell per
+  pointer-move step today (`startPaint`/`applyPaintCell` in
+  `client/src/pages/VirtualTable.tsx`, shared by all three layers as of the
+  fog tool). Not concepted yet: whether "whole area" means a drag-rectangle
+  fill (like the rectangle measure shape's drag), a flood-fill from a clicked
+  cell bounded by existing painted edges, or both as separate brush modes —
+  needs a decision with the developer before building, plus how it interacts
+  with the existing single-cell brush (replace it vs. an additional tool
+  mode).
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of
   talents/skills). Not concepted at all yet: how much a pet sheet shares with
@@ -348,6 +373,70 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
+- [sketch] **VTT: a way to set a character token's own appearance (custom
+  image/icon), not just fall back to initials** (developer feedback,
+  Phase 10 initiative tracker). The initiative strip shows a real portrait
+  for a character with one uploaded (`client/src/pages/VirtualTable.tsx`,
+  `InitiativeStrip`'s `renderCard`), a dashed empty box otherwise — the
+  two-letter initials monogram used elsewhere on the map (`initials()`) reads
+  as stale/placeholder-ish for a token that's meant to represent a real
+  character across a whole session. No design decided yet on what a token's
+  own settable appearance would look like (a small icon picker? a distinct
+  upload separate from the character's sheet portrait?) — needs a concept
+  pass before building.
+- [sketch] **VTT: GM's cursor gets stuck as the "grabbing" hand, even while
+  hovering a token** (developer feedback, Phase 9 fog testing). The GM
+  reported the cursor never returns to the token's own `pointer`/pan tool's
+  `grab` cursor once something has been dragged — a player's session behaves
+  correctly. `.vtt-map-wrap` sets `cursor: grab` / `:active { cursor: grabbing
+  }` in `client/src/styles.css`; each token `<g>` overrides that to `pointer`
+  inline (`client/src/pages/VirtualTable.tsx`), identically for every role —
+  nothing in the code branches on `isGm` for this, so the asymmetry isn't
+  obviously explained by a role-specific code path. Likely candidate: a
+  stuck `:active` pseudo-class from a pointer-capture/mouseup mismatch during
+  one of the GM-only paint/highlight/fog drags, but this is a live-browser
+  cursor-rendering quirk that can't be diagnosed from network/DOM inspection
+  (same class of problem as the color-swatch-reopen bug below — needs
+  someone actually reproducing it live, cursor state included, before
+  attempting a fix).
+- [sketch] **Native colour swatch reopens on a second click instead of
+  closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
+  used by token colour/ring colour, the tile/highlight picker, and the
+  measure-shape colour field): clicking a `<input type="color">` swatch
+  while its native browser dialog is already open should close it, but the
+  browser reopens it instead. Two fix attempts (a tracked "believed open"
+  ref + `blur()`, then a `document.activeElement` check + `blur()`) both
+  failed live testing — a native colour dialog isn't part of the DOM, so it
+  can't be driven/observed by this session's automated browser tooling
+  either, which made both attempts guesswork. Confirmed minor/cosmetic by
+  the developer, not blocking. Whoever picks this up next needs to actually
+  reproduce it live (real browser, real clicks) to see what's really
+  happening before trying a third fix — or consider swapping to a custom
+  (non-native) colour picker instead, which would sidestep the browser
+  quirk entirely.
+- [sketch] **VTT: show a token's current owner, and allow changing it on the
+  fly** (developer feedback). `board_tokens.owner_user_id` already exists and
+  is read for the owner-bypass in `canEditTokens`/`canMoveToken`
+  (`server/src/boardAccess.ts`) and for the "GM or the current combatant's
+  own owner may advance the turn" check in `ws.ts`, but nothing in the UI
+  shows whose token it is, and it's set once at creation with no way to
+  reassign it later (e.g. a marker created by the GM handed off to a
+  player, or a player leaving the table). Needs a concept pass: where the
+  owner shows (token editor? a label on hover?), who may change it
+  (GM-only, or also the current owner handing it off?), and whether a
+  character token's owner should even be independently settable or always
+  implied by the character's `group_id`/player link.
+- [sketch] **VTT: step-counting token-drag trail — built, wants a real live
+  drag test.** Concept settled with the developer (straight king-move line
+  from the drag's start cell, numbered 0/1/2/…; visible only to the person
+  dragging; gone the instant the token is dropped) and implemented in
+  `client/src/pages/VirtualTable.tsx` (`chebyshevPath`, `tokenTrailActive`/
+  `trailElsRef`, wired into `startTokenDrag`/`onTokenPointerMove`/
+  `onTokenPointerUp`). A CDP-driven drag confirmed the move itself still
+  works with no console errors, but this session's automated tooling has no
+  way to pause mid-drag for a screenshot, so the trail's actual on-screen
+  numbering/positioning during a real drag hasn't been eyeballed yet —
+  needs a live check before this counts as done.
 - [ready] **Note field on Talente** (user feedback): `CharTalent`
   (`shared/src/types.ts:220`) has no `notiz` field, and neither table
   renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.

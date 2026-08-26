@@ -490,6 +490,123 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL DEFAULT ''
   );
+
+  -- Virtueller Tisch (siehe docs/concepts/virtual-table.md). Ein Brett pro
+  -- Raum — group_id reicht, ohne room_kind: eine Event-Gruppe ist seit
+  -- be5a995 eine ganz normale Zeile in groups, im selben Id-Raum, also deckt
+  -- ein einziges ON DELETE CASCADE beide Gruppenarten sauber ab.
+  CREATE TABLE IF NOT EXISTS boards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    cols INTEGER NOT NULL DEFAULT 40,
+    rows INTEGER NOT NULL DEFAULT 30,
+    tiles_json TEXT NOT NULL DEFAULT '{}', -- sparse bemalte Felder, siehe parseTileValue (shared/src/board.ts)
+    -- Sparse Einfärbung ÜBER den Feldern, gleiches #rrggbb(aa)-Format wie
+    -- tiles_json, aber eine eigene Ebene: die Kachel darunter bleibt unverändert
+    -- gespeichert, auch bei 100 % Deckkraft. Wie fog_json GM-only, keine
+    -- perm_*-Spalte — kein Spieler-Rechte-Fall, siehe canHighlightTiles.
+    highlights_json TEXT NOT NULL DEFAULT '{}',
+    fog_json TEXT NOT NULL DEFAULT '[]',   -- sparse VERBORGENE Felder (leer = nichts verborgen)
+    seed INTEGER NOT NULL DEFAULT 0,       -- Wiedergabe-Saat: Texturvariation + Kantenrauschen
+    -- GM-einstellbare Nutzungsrechte, 'gm' | 'all'. Messen ist immer 'all',
+    -- Nebel immer 'gm' — beides bekommt bewusst keine Spalte, das ist keine
+    -- Einstellung.
+    perm_tiles TEXT NOT NULL DEFAULT 'gm',
+    perm_labels TEXT NOT NULL DEFAULT 'gm',
+    perm_tokens TEXT NOT NULL DEFAULT 'gm',
+    perm_images TEXT NOT NULL DEFAULT 'gm',
+    perm_move TEXT NOT NULL DEFAULT 'all',
+    round INTEGER NOT NULL DEFAULT 0,
+    turn_index INTEGER NOT NULL DEFAULT 0,
+    rev INTEGER NOT NULL DEFAULT 0,        -- monoton; Clients erkennen Lücken und laden neu
+    updated_at INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_boards_group_id ON boards(group_id);
+
+  CREATE TABLE IF NOT EXISTS board_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,                    -- 'character' | 'marker'
+    character_id INTEGER REFERENCES characters(id) ON DELETE CASCADE,
+    owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    name TEXT NOT NULL DEFAULT '',
+    color TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL DEFAULT '',
+    x REAL NOT NULL DEFAULT 0,
+    y REAL NOT NULL DEFAULT 0,
+    size INTEGER NOT NULL DEFAULT 1,       -- Felder in der Kante
+    -- Reichweiten-Ring um die Marke, in Schritt (0 = kein Ring) — AOE eines
+    -- Zaubers, Fackel-/Sichtweite. Bewegt sich mit der Marke, keine eigene
+    -- Position.
+    radius REAL NOT NULL DEFAULT 0,
+    -- Farbe+Deckkraft des Rings, #rrggbb(aa) wie tiles_json/highlights_json —
+    -- unabhängig von der Spalte "color" (die Marke selbst), damit ein
+    -- greller Marken-Ton nicht automatisch auch der Ring-Ton sein muss.
+    radius_color TEXT NOT NULL DEFAULT '#ffcc0033',
+    hidden INTEGER NOT NULL DEFAULT 0,     -- nur für die Spielleitung sichtbar
+    statuses TEXT NOT NULL DEFAULT '[]',   -- Eck-Marken: Array von Status-Schlüsseln
+    cover TEXT NOT NULL DEFAULT '',        -- Ganzfeld-Überlagerung, immer nur eine ('' = keine)
+    cover_asset TEXT,                      -- reserviert: hochgeladene Overlay-Grafik, in v1 immer NULL
+    sort INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_tokens_board_id ON board_tokens(board_id);
+
+  CREATE TABLE IF NOT EXISTS board_overlays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,                    -- 'label' | 'measure'
+    data_json TEXT NOT NULL DEFAULT '{}',  -- Text/Anker, oder Form+Ursprung+Radius
+    hidden INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_overlays_board_id ON board_overlays(board_id);
+
+  -- Bilder auf dem Tisch: Objekt (interaktiv) oder Hintergrund (gesperrt,
+  -- unter den Feldern). Behält immer seine eigene Fläche — nie über das
+  -- ganze Brett gestreckt. Liegt in helden-assets.db; siehe loescheAssetsFuer
+  -- in jedem Löschpfad, der eine Bild-Zeile mitreißt (Bild, Brett, Raum).
+  CREATE TABLE IF NOT EXISTS board_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    asset_slug TEXT NOT NULL,
+    modus TEXT NOT NULL DEFAULT 'objekt',  -- 'objekt' | 'hintergrund' (= gesperrt, nicht interaktiv)
+    x REAL NOT NULL DEFAULT 0,             -- Brettkoordinaten in FELDERN, obere linke Ecke
+    y REAL NOT NULL DEFAULT 0,
+    w REAL NOT NULL DEFAULT 1,
+    h REAL NOT NULL DEFAULT 1,
+    rotation REAL NOT NULL DEFAULT 0,      -- Grad
+    opacity REAL NOT NULL DEFAULT 1,
+    z INTEGER NOT NULL DEFAULT 0,
+    hidden INTEGER NOT NULL DEFAULT 0      -- nur Spielleitung: Spielern ganz vorenthalten
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_images_board_id ON board_images(board_id);
+
+  -- Zeiger-Design (siehe boardProtocol.ts): die ganze Kampfliste würfelt
+  -- zusammen — ini_basis + ein FRISCHER 1W6, nie kumulativ — beim Kampfstart
+  -- und jedes Mal, wenn der Zug-Zeiger über den letzten Kämpfenden hinausläuft.
+  -- ini_basis ist von der SL eingetragen (Marke ohne Bogen); für eine
+  -- Charakter-Marke wird sie ignoriert und live aus dem Bogen gelesen.
+  -- active_this_round ist 0 nur vor dem ALLERERSTEN Wurf (Zugang vor
+  -- Kampfbeginn) — ein Zugang MITTEN im Kampf ist sofort aktiv (GM-Regel:
+  -- normal = zuletzt dran, Überraschung = sofort/unterbricht, siehe
+  -- round_order). round_order bestimmt die Zugreihenfolge dieser Runde —
+  -- NICHT mehr live aus value sortiert, weil ein Überraschungsangriff genau
+  -- an der aktuellen Zeigerposition einschieben muss, kein wertvergleichbarer
+  -- Rang ist. rolled_this_round ist 0 für einen frischen Zugang (Normal oder
+  -- Überraschung) — die Oberfläche zeigt „—" statt value, wie schon vor
+  -- Kampfbeginn. Beide werden bei jedem Massenwurf für ALLE zurückgesetzt.
+  CREATE TABLE IF NOT EXISTS board_initiative (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    token_id INTEGER NOT NULL REFERENCES board_tokens(id) ON DELETE CASCADE,
+    ini_basis INTEGER NOT NULL DEFAULT 0,
+    value INTEGER NOT NULL DEFAULT 0,
+    active_this_round INTEGER NOT NULL DEFAULT 0,
+    round_order INTEGER NOT NULL DEFAULT 0,
+    rolled_this_round INTEGER NOT NULL DEFAULT 0,
+    death_countdown INTEGER                -- NULL = stirbt nicht; sonst verbleibende Runden
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_initiative_board_id ON board_initiative(board_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_board_initiative_token ON board_initiative(token_id);
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).
@@ -1115,6 +1232,55 @@ if (hasTable('sec_techniken')) {
 // characters.group_id sinnvoll (siehe isGroupMember) — die Tabelle war zuletzt
 // nur noch eine zweite, teils veraltete Kopie derselben Information.
 db.exec('DROP TABLE IF EXISTS group_members');
+
+// Migration: 'highlights_json'-Spalte an bestehende boards ergänzen (Kachel-
+// Einfärbung als eigene Ebene über tiles_json, siehe Kommentar an der Spalte).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(boards)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('highlights_json')) db.exec("ALTER TABLE boards ADD COLUMN highlights_json TEXT NOT NULL DEFAULT '{}'");
+}
+
+// Migration: 'radius'-Spalte an bestehende board_tokens ergänzen (Reichweiten-
+// Ring, siehe Kommentar an der Spalte).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(board_tokens)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('radius')) db.exec('ALTER TABLE board_tokens ADD COLUMN radius REAL NOT NULL DEFAULT 0');
+  if (!cols.has('radius_color')) db.exec("ALTER TABLE board_tokens ADD COLUMN radius_color TEXT NOT NULL DEFAULT '#ffcc0033'");
+}
+
+// Migration: board_initiative auf das Zeiger-Design umgestellt (rolled/done
+// weg, ini_basis/active_this_round neu, siehe Kommentar an der Tabelle oben).
+// Phase 10 ist noch unveröffentlicht — nichts in dieser Tabelle ist echte
+// Spieldaten, deshalb DROP+CREATE statt spaltenweisem ALTER.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(board_initiative)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('rolled') || cols.has('done')) {
+    db.exec(`
+      DROP TABLE board_initiative;
+      CREATE TABLE board_initiative (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+        token_id INTEGER NOT NULL REFERENCES board_tokens(id) ON DELETE CASCADE,
+        ini_basis INTEGER NOT NULL DEFAULT 0,
+        value INTEGER NOT NULL DEFAULT 0,
+        active_this_round INTEGER NOT NULL DEFAULT 0,
+        death_countdown INTEGER
+      );
+      CREATE INDEX idx_board_initiative_board_id ON board_initiative(board_id);
+      CREATE UNIQUE INDEX idx_board_initiative_token ON board_initiative(token_id);
+    `);
+  }
+}
+
+// Migration: 'round_order'/'rolled_this_round'-Spalten an bestehende
+// board_initiative ergänzen (Überraschungsangriffe/Normal-Zugänge mitten im
+// Kampf, siehe Kommentar an der Tabelle oben). Defaults (0) sind für jede
+// bestehende Zeile harmlos — beide Felder gelten erst ab dem NÄCHSTEN Wurf.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(board_initiative)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('round_order')) db.exec('ALTER TABLE board_initiative ADD COLUMN round_order INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('rolled_this_round')) db.exec('ALTER TABLE board_initiative ADD COLUMN rolled_this_round INTEGER NOT NULL DEFAULT 0');
+}
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
 export function initCharacterRows(characterId: number): void {

@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { AttrRowCode, ResourceKey } from '@shared/types';
+import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
-import { apiDelete, apiGet, apiPost, apiPut } from '../api';
-import { depletionClass, overfilled } from '../components/energie';
+import { apiDelete, apiGet, apiPost } from '../api';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
 import RequestProbePicker from '../components/dice/RequestProbePicker';
+import { GmNoteField, VITAL_LABELS, vitalClass } from '../components/gmRoster';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
 
@@ -48,49 +48,8 @@ interface OverviewData {
   characters: OverviewChar[];
 }
 
-// Kürzel wie in der Seitenleiste (RES_ABBR): LP/AUS/ASP, plus Psyche.
-const VITAL_LABELS: Record<string, string> = { le: 'LP', aus: 'AUS', ase: 'ASP', psyche: 'Psyche', schicksalspunkte: '🍀 SP' };
-
 // Takt der stillen Auto-Aktualisierung, solange die Übersicht sichtbar offen ist.
 const POLL_MS = 15000;
-
-// Färbung eines Vital-Chips: Überladung hat Vorrang, sonst Zehrung — aber
-// Zehrung nur für die vitalen Pools (LE/AUS), wie im Heldenbrief. Psyche/AsE
-// bekommen kein Dauer-Rot, nur die Überladungs-Färbung.
-function vitalClass(key: string, aktuell: number, max: number): string {
-  if (overfilled(aktuell, max)) return 'res-over';
-  if (key === 'le' || key === 'aus') return depletionClass(key as ResourceKey, aktuell, max);
-  return '';
-}
-
-// Freitext-GM-Notiz je Charakter: eigene, kleine Save-Debounce-Logik statt der
-// TextInput/NumInput-Displaymode-Kopplung, weil das hier GM-only und außerhalb
-// des normalen section-save-Wegs ist. `initial` wird nur beim ersten Rendern
-// übernommen, damit ein stiller Poll währenddessen nicht mittippt.
-function GmNoteField({ charId, initial }: { charId: number; initial: string }) {
-  const [value, setValue] = useState(initial);
-  const timer = useRef<number | undefined>(undefined);
-
-  const onChange = (v: string) => {
-    setValue(v);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      void apiPut(`/api/characters/${charId}/gm-notiz`, { notiz: v });
-    }, 1200);
-  };
-
-  useEffect(() => () => window.clearTimeout(timer.current), []);
-
-  return (
-    <textarea
-      className="gm-note"
-      placeholder="Notiz (nur für den Spielleiter)…"
-      rows={2}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
-  );
-}
 
 // Bedient feste UND Event-Gruppen mit derselben Seite — der Server liefert für
 // beide dasselbe Antwortformat inklusive group.isTemp, das entscheidet allein
@@ -192,9 +151,19 @@ export default function GroupOverviewPage() {
   return (
     <>
       <p className="muted">
-        {data.group.isTemp ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
+        {data.group.isTemp ? (
+          <>
+            <Link to={`/event/${groupId}`}>← Zum Event</Link> · <Link to="/verwaltung">Zur Verwaltung</Link>
+          </>
+        ) : (
+          <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>
+        )}
       </p>
       <h1>{data.group.isTemp ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
+
+      <p>
+        <Link to={`/${data.group.isTemp ? 'event' : 'gruppe'}/${groupId}/tisch`}>Virtueller Tisch →</Link>
+      </p>
 
       <div className="gm-overview-actions">
         <button

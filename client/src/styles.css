@@ -2050,6 +2050,17 @@ main {
 body.resizing-col .side-resize {
   background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
+/* Am virtuellen Tisch sitzt dieselbe Leiste links vom Inhalt statt rechts
+   (VirtualTable.tsx) — Zieh-Griff und Innenabstand spiegeln sich, damit der
+   Griff wieder an der Kante zur Karte liegt statt am Bildschirmrand. */
+.char-sidebar.side-left .side-resize {
+  order: 2;
+  border-radius: 0 12px 12px 0;
+}
+.char-sidebar.side-left .side-scroll {
+  order: 1;
+  padding: 12px 8px 12px 14px;
+}
 /* Während des Ziehens nichts markieren und überall den Resize-Zeiger zeigen. */
 body.resizing-col {
   cursor: col-resize;
@@ -2282,6 +2293,23 @@ button.side-attr:active {
   line-height: 1.1;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+}
+
+.side-status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.side-status-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--surface-hover);
+  border-radius: 7px;
+  padding: 6px 8px;
+  line-height: 1.35;
 }
 
 .side-geld {
@@ -4335,6 +4363,47 @@ body.resizing-dice {
   gap: 6px;
   padding: 8px 10px;
   border-top: 1px solid var(--border);
+  /* Erlaubt die @container-Regel unten — die Werkzeuge (Kurzbefehle/
+     Sichtbarkeit/Modifikator/Schicksalspunkte) klappen zusammen, sobald DIESE
+     Zeile eng wird, unabhängig vom Fenster: der schwebende Dock UND die
+     Chat-Spalte des virtuellen Tisches nutzen dieselbe Komponente, aber sind
+     unterschiedlich breit. */
+  container-type: inline-size;
+  container-name: dice-input;
+}
+.dice-dock-tools--inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dice-dock-tools-compact {
+  position: relative;
+  display: none;
+}
+.dice-dock-tools-flyout {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 6px;
+  padding: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+/* Unter dieser Breite passen die vier Werkzeuge (im schlimmsten Fall inklusive
+   Schicksalspunkte-Zähler eines Spielers) nicht mehr bequem neben Eingabefeld
+   und Senden-Knopf — dahinter hinter EINEM Knopf verstecken statt zu quetschen. */
+@container dice-input (max-width: 320px) {
+  .dice-dock-tools--inline {
+    display: none;
+  }
+  .dice-dock-tools-compact {
+    display: flex;
+  }
 }
 /* Proben-Vorschläge für "/r <Suchtext>" — klappt wie die Favoriten-/Sichtbar-
    keits-Flyouts nach OBEN auf, aber über die ganze Eingabezeile statt an
@@ -5853,4 +5922,625 @@ tr:hover .probe-roll,
   text-decoration: underline;
   cursor: pointer;
   font: inherit;
+}
+
+/* ---------- Virtueller Tisch (VTT), Phase 4: Seitenrahmen ----------
+   docs/concepts/virtual-table.md. Tokens only — die sechs Farbwelten und der
+   Dunkelmodus greifen ohne eigene Regeln. Full-bleed innerhalb von main
+   (padding: 20px var(--pad-x) 60px, siehe dort) über negative Ränder, dieselbe
+   Brücke, die die klebenden Leisten schon benutzen. Beide Seitenspalten sind
+   `.char-sidebar` (Schnellübersicht UND Chat, siehe VirtualTable.tsx/
+   VttRoster.tsx) — unverändert wiederverwendet, damit sie überall in der App
+   gleich aussehen und sich gleich ziehen/einklappen lassen. */
+.vtt-page {
+  margin: -20px calc(-1 * var(--pad-x)) -60px;
+  padding: 0 var(--pad-x);
+  height: calc(100dvh - var(--topbar-h, 47px));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.vtt-crumb {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 10px 0;
+}
+.vtt-room-name {
+  margin: 0;
+  font-size: 18px;
+}
+.vtt-cols {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding-bottom: 10px;
+}
+.vtt-map-col {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+/* flex-wrap: a narrow map column (narrow window, or a wide GM roster/
+   character sidebar next to it) can make the toolbar wider than its row.
+   Left as the flex default (nowrap), the overflowing buttons don't just
+   clip — .vtt-map-col's `overflow: hidden` still lets the browser scroll it
+   horizontally to bring a focused-but-clipped button into view, taking the
+   WHOLE map with it (not just the toolbar), and nothing scrolls it back.
+   Wrapping to a second line removes the overflow that triggers that. */
+.vtt-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.vtt-toolbar-spacer {
+  flex: 1;
+}
+.vtt-zoom-level {
+  display: inline-block;
+  min-width: 3.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+.vtt-map-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.vtt-map-wrap:active {
+  cursor: grabbing;
+}
+.vtt-map-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Ohne das markiert ein Ziehen über einer Marke deren Namens-<text> wie
+     normalen Fließtext (sichtbare blaue Auswahl) statt nur die Marke zu
+     bewegen — SVG-Text ist standardmäßig selektierbar. */
+  user-select: none;
+}
+/* Der Rumpf der Chat-Spalte tritt an die Stelle von `.side-scroll` — der
+   Feed braucht eine BEGRENZTE Höhe (flex:1 auf `.dice-dock-feed`, siehe
+   FeedColumn.tsx), keine eigene max-height-Berechnung. */
+.vtt-chat-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Schmale Schirme: beide Seitenspalten rutschen unter die Karte statt daneben
+   zu stehen — dieselbe Auflösung wie der Charakterbogen bei 1100px, nur für
+   die Spalten-Reihenfolge dieser Seite. */
+@media (max-width: 900px) {
+  .vtt-cols {
+    flex-direction: column;
+  }
+  .vtt-map-col {
+    flex: 1 1 320px;
+  }
+}
+
+/* ---------- VTT Phase 5: Token ---------- */
+.vtt-token-editor,
+.vtt-settings-pop {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: 260px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vtt-settings-pop {
+  left: auto;
+  right: 12px;
+  top: 52px;
+  bottom: auto;
+}
+.vtt-token-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.vtt-token-editor-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 700;
+}
+.vtt-token-editor-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+.vtt-token-editor-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.vtt-token-editor-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.vtt-token-editor-statuses button.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+/* Stacked, not side-by-side — the popover is only 260px wide and the
+   longest label ("Marken anlegen/bearbeiten") doesn't fit next to the
+   Spielleitung/Alle pill on one line. Side-by-side with the label allowed to
+   wrap still put the pill (vertically centered on the row) right in the
+   gap between the label's two lines — an 8px gap in the DOM, but visually
+   reading as the text running into the pill. Label on its own line removes
+   the fight for width entirely, and scales to any future longer label. */
+.vtt-settings-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 7px 0;
+  font-size: 12.5px;
+  border-top: 1px solid var(--border-soft);
+}
+.vtt-settings-row:first-of-type {
+  border-top: none;
+}
+.vtt-settings-fixed {
+  font-size: 11px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+  margin: 0;
+}
+/* Zwei-Wege-Umschalter (Spielleitung/Alle), generisch genug für jeden
+   künftigen Rechte-Schalter, nicht nur die Karten-Rechte hier. */
+.seg {
+  display: inline-flex;
+  flex-shrink: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 10.5px;
+}
+.seg button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 3px 9px;
+  cursor: pointer;
+}
+.seg button.active {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ---------- VTT Phase 6: Bemalen ---------- */
+/* Aktiver Werkzeug-Knopf in der Kartenleiste (bislang nur „Bemalen") — gleiche
+   Optik wie der aktive Zustand im Karten-Rechte-Umschalter oben. */
+.vtt-toolbar button.small.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+.vtt-context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+}
+.vtt-context-menu {
+  position: fixed;
+  z-index: 21;
+  min-width: 160px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vtt-context-menu button {
+  all: unset;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+.vtt-context-menu button:hover {
+  background: var(--surface-sunken);
+}
+.vtt-context-menu-danger {
+  color: var(--danger, #c33);
+}
+.vtt-tool-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  padding: 6px 6px 6px 14px;
+  font-size: 12.5px;
+  font-weight: 700;
+  pointer-events: auto;
+}
+.vtt-tool-badge button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+.vtt-tool-badge button:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+/* "Center all on my view" (Phase 11) toast — dead center over the map, solid
+   accent fill rather than the muted panel style everything else on the map
+   uses, so a re-pan someone might not be looking at when it starts is hard
+   to miss. Fades in/out on its own, no close button (it's feedback, not
+   another click target); pointer-events: none so it never blocks a click
+   meant for the map underneath. */
+.vtt-view-toast {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  z-index: 7;
+  background: var(--accent);
+  border-radius: 999px;
+  box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 45%, transparent);
+  padding: 12px 28px;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  pointer-events: none;
+  animation: vtt-view-toast-fade 2.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes vtt-view-toast-fade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.85);
+  }
+  12%,
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+/* "Point at a cell" ping — the <g> just fades the whole thing (ring + name)
+   in and out, the ring's own animation grows it outward at the same time. */
+.vtt-cell-ping {
+  animation: vtt-cell-ping-fade 1.6s ease-out both;
+}
+.vtt-cell-ping-ring {
+  fill: none;
+  stroke: var(--accent);
+  animation: vtt-cell-ping-ring 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes vtt-cell-ping-fade {
+  0% {
+    opacity: 0;
+  }
+  10%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes vtt-cell-ping-ring {
+  0% {
+    r: 3px;
+    stroke-width: 5px;
+  }
+  100% {
+    r: 34px;
+    stroke-width: 1px;
+  }
+}
+.vtt-tile-picker {
+  position: absolute;
+  left: 12px;
+  top: 52px;
+  z-index: 6;
+  width: 280px;
+  max-height: calc(100% - 64px);
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vtt-tile-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vtt-tile-picker-opacity-row {
+  padding: 0 2px;
+}
+.vtt-tile-picker-opacity {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+.vtt-tile-picker-opacity-pct {
+  width: 40px;
+  text-align: right;
+  font-size: 12px;
+}
+.vtt-tile-picker-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vtt-tile-picker-groupname {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.vtt-tile-picker-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.vtt-tile-swatch {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  background-size: cover;
+  background-position: center;
+  cursor: pointer;
+  padding: 0;
+}
+.vtt-tile-swatch.active {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}
+
+/* ---------- VTT Phase 8 (slice 3/3): Messformen — Kachelraster im Flyout ---------- */
+.vtt-measure-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.vtt-measure-kind-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+  color: var(--text);
+  cursor: pointer;
+}
+.vtt-measure-kind-tile.active {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  color: var(--accent-dark);
+}
+.vtt-measure-kind-tile span {
+  font-size: 12px;
+}
+
+/* ---------- VTT Phase 10: Initiative und Runden ---------- */
+/* Fester Streifen im normalen Fluss zwischen .vtt-toolbar und .vtt-map-wrap
+   (kein position: absolute mehr — immer sichtbar, kein Auf-/Zuklappen). */
+.vtt-initiative-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 12.5px;
+}
+/* Runde/Kampf starten/beenden gestapelt in einem eigenen kleinen Block, statt
+   inline in der Kartenreihe — eigene Steuerungsgruppe, kein Kämpfender. */
+.vtt-initiative-strip-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-right: 10px;
+  border-right: 1px solid var(--border-soft);
+}
+.vtt-initiative-strip-controls strong {
+  text-align: center;
+}
+.vtt-initiative-cards {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+}
+.vtt-initiative-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 2px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+  white-space: nowrap;
+}
+/* Aktuell Handelnde: immer die erste Karte ganz links, siehe InitiativeStrip. */
+.vtt-initiative-card-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.vtt-initiative-card-current .vtt-initiative-name {
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+.vtt-initiative-portrait {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--input-bg);
+}
+.vtt-initiative-portrait--empty {
+  border-style: dashed;
+}
+.vtt-initiative-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.vtt-initiative-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.vtt-initiative-remove {
+  flex-shrink: 0;
+}
+/* Markiert das Rundenende in der rotierten Anzeige — rechts davon steht, wer
+   diese Runde schon dran war (siehe InitiativeStrip's alreadyWent). Als
+   Akzent-Plakette statt einer dünnen Linie, damit sie im Kartenfluss nicht
+   mit einer bloßen Trennlinie verwechselt wird. */
+.vtt-initiative-break {
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent-dark);
+  font-size: 13px;
+  line-height: 1;
+}
+.vtt-initiative-waiting-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border-soft);
+}
+.vtt-initiative-name {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  white-space: nowrap;
+  text-align: left;
+}
+.vtt-initiative-name:hover {
+  text-decoration: underline;
+}
+.vtt-initiative-value {
+  /* Nur das (bearbeitbare) Eingabefeld unten bekommt eine feste, zentrierte
+     Breite — als reiner <span> (der Regelfall: gewürfelter Wert oder „—")
+     zwänge width+center-Ausrichtung eine kurze Zahl wie „20" sichtbar nach
+     rechts, versetzt gegen den Namen darüber, der linksbündig beginnt. */
+  min-width: 32px;
+  text-align: left;
+  flex-shrink: 0;
+  font-size: 11.5px;
+}
+input.vtt-initiative-value {
+  width: 32px;
+  text-align: center;
+  padding: 1px 2px;
+}
+.vtt-initiative-death {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--warn-line);
+  white-space: nowrap;
+}
+.vtt-initiative-death-tot {
+  color: var(--crit-line);
+  font-weight: 700;
+}
+/* Schwebender Knopf ÜBER der Karte statt im Streifen (developer's Layout-
+   Entscheidung) — position: absolute in der (position: relative)
+   .vtt-map-wrap, gleiche Technik wie .vtt-tool-badge daneben. */
+.vtt-turn-action {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  /* Below the flyouts (.vtt-tile-picker, z-index: 6) on purpose — this
+     button renders LAST in the JSX (right before the <svg>), so at an equal
+     z-index it painted over every open picker regardless of where they sit
+     on screen. It's a permanent fixture during combat; a flyout is
+     transient and should always win. */
+  z-index: 4;
+  padding: 8px 18px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
 }

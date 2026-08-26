@@ -16,7 +16,10 @@ import { bildMasse } from './masse.js';
 // 'user' ist der einzige Besitzer, der kein Bild hält: dort hängt der eigene
 // Benachrichtigungston (rolle 'chime', siehe assets/chimes.ts). Das Schema
 // ändert sich dafür nicht — owner_type ist ein freies TEXT-Feld.
-export type OwnerTyp = 'wiki' | 'character' | 'group' | 'user';
+// 'board' (Phase 12, Virtueller Tisch): owner_id ist boards.id, nicht
+// group_id — mehrere Bilder pro Brett, adressiert wie beim Wiki über den
+// eigenen Slug (legeAssetAn/ladeAsset), nicht über setzeEinzelAsset.
+export type OwnerTyp = 'wiki' | 'character' | 'group' | 'user' | 'board';
 
 export interface AssetInfo {
   slug: string;

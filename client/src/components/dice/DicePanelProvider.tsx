@@ -10,6 +10,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -279,6 +280,97 @@ interface DicePanelCtxValue {
    * Idempotent: whichever of those happens first wins, the rest are no-ops.
    */
   kinoBeenden: (entryId: number) => void;
+
+  // --- Virtueller Tisch (docs/concepts/virtual-table.md) ---
+  // Reitet denselben Socket wie Chat/Würfel statt eines zweiten (siehe
+  // "Realtime design" im Plan). Anders als der Feed oben gibt es hierfür
+  // keine REST-Historie über diesen Kontext — die Seite selbst holt den
+  // vollständigen Schnappschuss (GET .../board) und übergibt ihn per
+  // hydrateBoard(); von da an halten die WS-Deltas unten ihn aktuell.
+  boardTokens: BoardToken[];
+  boardSettings: BoardSettings | null;
+  /** cellKey (shared/src/board.ts) -> tagged tile value (parseTileValue) — sparse, unpainted cells simply absent. */
+  boardTiles: Record<string, string>;
+  /** cellKey -> #rrggbb(aa) tint, GM-only layer ABOVE boardTiles — see paintHighlights below. */
+  boardHighlights: Record<string, string>;
+  /** Persistent, movable labels (board_overlays, kind 'label') — perm_labels-gated, see canLabel below. */
+  boardOverlays: BoardOverlay[];
+  /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded); everyone gets the same mask, only its contents are redacted server-side. */
+  boardFog: Set<string>;
+  /** Placed images (Phase 12, "Images on the table") — perm_images-gated, see canImages below. Hidden ones are already stripped server-side for a non-GM viewer. */
+  boardImages: BoardImage[];
+  /** The initiative roster (board_initiative), already redacted for hidden/fogged tokens by the server. Sorted by the caller (initiativeOrder), not here. */
+  boardInitiative: BoardInitiative[];
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog/boardInitiative einmalig. */
+  hydrateBoard: (
+    board: BoardSettings,
+    tokens: BoardToken[],
+    tiles: Record<string, string>,
+    highlights: Record<string, string>,
+    overlays: BoardOverlay[],
+    fog: string[],
+    initiative: BoardInitiative[],
+    images: BoardImage[],
+  ) => void;
+  createToken: (input: {
+    kind: 'character' | 'marker';
+    characterId?: number;
+    name?: string;
+    color?: string;
+    icon?: string;
+    x: number;
+    y: number;
+    size?: number;
+  }) => void;
+  updateToken: (
+    tokenId: number,
+    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor'>>,
+  ) => void;
+  /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
+  moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
+  deleteToken: (tokenId: number) => void;
+  updateBoardSettings: (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => void;
+  /** value '' erases that cell. Sent once per stroke/fill, same "render locally, sync on release" shape as a token drag. */
+  paintTiles: (cells: Record<string, string>) => void;
+  /** Same shape as paintTiles, but for the GM-only highlight/tint layer — never touches boardTiles. */
+  paintHighlights: (cells: Record<string, string>) => void;
+  createOverlay(kind: 'label', data: LabelOverlayData): void;
+  createOverlay(kind: 'measure', data: MeasureOverlayData): void;
+  /** GM only (canEditFog). true hides a cell, false reveals it — same "one delta on release" shape as paintTiles, just boolean instead of a tagged value. */
+  paintFog: (cells: Record<string, boolean>) => void;
+  /**
+   * A label patches individual fields (position from a drag, or text from
+   * editing — see the protocol comment); a measure shape has no field that
+   * survives a drag the way a label's text does, so a move/resize sends its
+   * whole new `data` instead of a partial patch.
+   */
+  updateOverlay: (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => void;
+  deleteOverlay: (overlayId: number) => void;
+  /** GM only (canManageInitiative). Before combat (round 0), always unrolled — waits for startCombat, `mode` ignored. Mid-combat, `mode` picks Normal (last this round, default) vs Überraschung (first, interrupts now) — see board.initiative.add in shared/src/boardProtocol.ts. */
+  addInitiative: (tokenId: number, mode?: 'normal' | 'surprise') => void;
+  /** GM only. */
+  removeInitiative: (tokenId: number) => void;
+  /** GM only — a marker/monster's Initiative-Basis (a character's always comes live from its sheet and ignores this). */
+  setInitiativeBasis: (tokenId: number, basis: number) => void;
+  /** GM only. Rolls the whole roster and begins round 1 — rejected server-side if the roster is empty or combat is already running. */
+  startCombat: () => void;
+  /** GM only. Clears the whole roster and resets round/turn back to 0. */
+  endCombat: () => void;
+  /** GM or the current combatant's own owner. Past the last combatant this bumps the round and rerolls everyone instead of just moving the pointer. */
+  nextTurn: () => void;
+  /** Latest "center all on my view" broadcast (Phase 11) — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat of the same view. */
+  boardViewCenter: { x: number; y: number; zoom: number; by: string; seq: number } | null;
+  /** Available to everyone, not just the GM — broadcasts the caller's own camera; every viewer, sender included, eases to it and shows the same toast. */
+  centerView: (x: number, y: number, zoom: number) => void;
+  /** Latest "point at a cell" ping — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat ping on the same cell. */
+  boardCellPing: { x: number; y: number; by: string; seq: number } | null;
+  /** Available to everyone, not just the GM — broadcasts a cell (grid index, not board pixels); every viewer, sender included, shows the same pulsing ring + name. */
+  pingCell: (x: number, y: number) => void;
+  /** Places an already-uploaded asset (see POST .../board/images) on the board — perm_images-gated (canEditImages). */
+  createImage: (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => void;
+  /** Move/resize/rotate/opacity/z-order/modus, and `hidden` (GM-only server-side — the one all-or-nothing fog escape hatch for images). */
+  updateImage: (imageId: number, patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => void;
+  deleteImage: (imageId: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -336,6 +428,39 @@ export function useDicePanel(): DicePanelCtxValue {
       rollWichtig: () => {},
       kino: null,
       kinoBeenden: () => {},
+      boardTokens: [],
+      boardSettings: null,
+      boardTiles: {},
+      boardHighlights: {},
+      boardOverlays: [],
+      boardFog: new Set<string>(),
+      boardInitiative: [],
+      hydrateBoard: () => {},
+      createToken: () => {},
+      updateToken: () => {},
+      moveToken: () => {},
+      deleteToken: () => {},
+      updateBoardSettings: () => {},
+      paintTiles: () => {},
+      paintHighlights: () => {},
+      createOverlay: () => {},
+      updateOverlay: () => {},
+      deleteOverlay: () => {},
+      paintFog: () => {},
+      addInitiative: () => {},
+      removeInitiative: () => {},
+      setInitiativeBasis: () => {},
+      startCombat: () => {},
+      endCombat: () => {},
+      nextTurn: () => {},
+      boardViewCenter: null,
+      centerView: () => {},
+      boardCellPing: null,
+      pingCell: () => {},
+      boardImages: [],
+      createImage: () => {},
+      updateImage: () => {},
+      deleteImage: () => {},
     }
   );
 }
@@ -377,6 +502,21 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const kinoLaufRef = useRef(0);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [boardTokens, setBoardTokens] = useState<BoardToken[]>([]);
+  const [boardSettings, setBoardSettings] = useState<BoardSettings | null>(null);
+  const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
+  const [boardHighlights, setBoardHighlights] = useState<Record<string, string>>({});
+  const [boardOverlays, setBoardOverlays] = useState<BoardOverlay[]>([]);
+  const [boardImages, setBoardImages] = useState<BoardImage[]>([]);
+  /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
+  const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
+  const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
+  /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
+  const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
+  const boardViewCenterSeqRef = useRef(0);
+  /** "Point at a cell" ping — ephemeral, never board state (see board.cell.ping in shared/src/boardProtocol.ts). Same `seq`-per-broadcast idiom as boardViewCenter above. */
+  const [boardCellPing, setBoardCellPing] = useState<{ x: number; y: number; by: string; seq: number } | null>(null);
+  const boardCellPingSeqRef = useRef(0);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -696,6 +836,100 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         starteKino(msg);
         return;
       }
+      if (msg.type === 'board.token.created') {
+        setBoardTokens((prev) => [...prev.filter((t) => t.id !== msg.token.id), msg.token]);
+        return;
+      }
+      if (msg.type === 'board.token.updated') {
+        // Auch die Live-Position während eines Ziehens läuft hier durch —
+        // der ziehende Client selbst rendert währenddessen aus seinem eigenen
+        // Drag-Zustand, nicht aus boardTokens (siehe VirtualTable.tsx).
+        setBoardTokens((prev) => prev.map((t) => (t.id === msg.token.id ? msg.token : t)));
+        return;
+      }
+      if (msg.type === 'board.token.deleted') {
+        setBoardTokens((prev) => prev.filter((t) => t.id !== msg.tokenId));
+        return;
+      }
+      if (msg.type === 'board.settings.updated') {
+        setBoardSettings(msg.board);
+        return;
+      }
+      if (msg.type === 'board.tiles.painted') {
+        setBoardTiles((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(msg.cells)) {
+            if (value === '') delete next[key];
+            else next[key] = value;
+          }
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'board.highlights.painted') {
+        setBoardHighlights((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(msg.cells)) {
+            if (value === '') delete next[key];
+            else next[key] = value;
+          }
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'board.overlay.created') {
+        setBoardOverlays((prev) => [...prev, msg.overlay]);
+        return;
+      }
+      if (msg.type === 'board.overlay.updated') {
+        setBoardOverlays((prev) => prev.map((o) => (o.id === msg.overlay.id ? msg.overlay : o)));
+        return;
+      }
+      if (msg.type === 'board.overlay.deleted') {
+        setBoardOverlays((prev) => prev.filter((o) => o.id !== msg.overlayId));
+        return;
+      }
+      if (msg.type === 'board.image.created') {
+        // Filter-then-push, same dedupe shape as board.token.created — a
+        // viewer whose `hidden` image just got un-hidden gets 'created' too,
+        // even though the row already existed server-side.
+        setBoardImages((prev) => [...prev.filter((i) => i.id !== msg.image.id), msg.image]);
+        return;
+      }
+      if (msg.type === 'board.image.updated') {
+        setBoardImages((prev) => prev.map((i) => (i.id === msg.image.id ? msg.image : i)));
+        return;
+      }
+      if (msg.type === 'board.image.deleted') {
+        setBoardImages((prev) => prev.filter((i) => i.id !== msg.imageId));
+        return;
+      }
+      if (msg.type === 'board.fog.updated') {
+        setBoardFog((prev) => {
+          const next = new Set(prev);
+          for (const [key, hidden] of Object.entries(msg.cells)) {
+            if (hidden) next.add(key);
+            else next.delete(key);
+          }
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'board.initiative.updated') {
+        setBoardInitiative(msg.entries);
+        setBoardSettings((prev) => (prev ? { ...prev, round: msg.round, turnIndex: msg.turnIndex } : prev));
+        return;
+      }
+      if (msg.type === 'board.view.centered') {
+        boardViewCenterSeqRef.current += 1;
+        setBoardViewCenter({ x: msg.x, y: msg.y, zoom: msg.zoom, by: msg.by, seq: boardViewCenterSeqRef.current });
+        return;
+      }
+      if (msg.type === 'board.cell.pinged') {
+        boardCellPingSeqRef.current += 1;
+        setBoardCellPing({ x: msg.x, y: msg.y, by: msg.by, seq: boardCellPingSeqRef.current });
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -757,6 +991,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setPendingRequests([]);
       setGroupRequests([]);
       setCoopPools([]);
+      // Gehört zum vorherigen Raum — die Seite ruft nach dem Wechsel ihr
+      // eigenes GET .../board neu auf und hydriert erneut (siehe hydrateBoard).
+      setBoardTokens([]);
+      setBoardSettings(null);
+      setBoardTiles({});
+      setBoardHighlights({});
+      setBoardOverlays([]);
+      setBoardInitiative([]);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -1037,6 +1279,175 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
+  const hydrateBoard = useCallback(
+    (
+      board: BoardSettings,
+      tokens: BoardToken[],
+      tiles: Record<string, string>,
+      highlights: Record<string, string>,
+      overlays: BoardOverlay[],
+      fog: string[],
+      initiative: BoardInitiative[],
+      images: BoardImage[],
+    ) => {
+      setBoardSettings(board);
+      setBoardTokens(tokens);
+      setBoardTiles(tiles);
+      setBoardHighlights(highlights);
+      setBoardOverlays(overlays);
+      setBoardFog(new Set(fog));
+      setBoardInitiative(initiative);
+      setBoardImages(images);
+    },
+    [],
+  );
+
+  const createToken = useCallback(
+    (input: {
+      kind: 'character' | 'marker';
+      characterId?: number;
+      name?: string;
+      color?: string;
+      icon?: string;
+      x: number;
+      y: number;
+      size?: number;
+    }) => {
+      sendMsg({ type: 'board.token.create', reqId: crypto.randomUUID(), ...input });
+    },
+    [sendMsg],
+  );
+
+  const updateTokenAction = useCallback(
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor'>>) => {
+      sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
+    },
+    [sendMsg],
+  );
+
+  const moveTokenAction = useCallback(
+    (tokenId: number, x: number, y: number, final?: boolean) => {
+      sendMsg({ type: 'board.token.move', reqId: crypto.randomUUID(), tokenId, x, y, final });
+    },
+    [sendMsg],
+  );
+
+  const deleteTokenAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.token.delete', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+
+  const updateBoardSettingsAction = useCallback(
+    (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => {
+      sendMsg({ type: 'board.settings.update', reqId: crypto.randomUUID(), patch });
+    },
+    [sendMsg],
+  );
+
+  const paintTilesAction = useCallback(
+    (cells: Record<string, string>) => {
+      sendMsg({ type: 'board.tiles.paint', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const paintHighlightsAction = useCallback(
+    (cells: Record<string, string>) => {
+      sendMsg({ type: 'board.highlights.paint', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const createOverlayAction = useCallback(
+    (kind: 'label' | 'measure', data: LabelOverlayData | MeasureOverlayData) => {
+      // Die Überladungen im Interface halten Aufrufer bei kind<->data
+      // ehrlich; hier innen reicht die vereinigte Form.
+      sendMsg({ type: 'board.overlay.create', reqId: crypto.randomUUID(), kind, data } as ClientToServerMessage);
+    },
+    [sendMsg],
+  );
+
+  const updateOverlayAction = useCallback(
+    (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => {
+      sendMsg({ type: 'board.overlay.update', reqId: crypto.randomUUID(), overlayId, patch });
+    },
+    [sendMsg],
+  );
+
+  const deleteOverlayAction = useCallback(
+    (overlayId: number) => {
+      sendMsg({ type: 'board.overlay.delete', reqId: crypto.randomUUID(), overlayId });
+    },
+    [sendMsg],
+  );
+  const createImageAction = useCallback(
+    (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => {
+      sendMsg({ type: 'board.image.create', reqId: crypto.randomUUID(), ...input });
+    },
+    [sendMsg],
+  );
+  const updateImageAction = useCallback(
+    (imageId: number, patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => {
+      sendMsg({ type: 'board.image.update', reqId: crypto.randomUUID(), imageId, patch });
+    },
+    [sendMsg],
+  );
+  const deleteImageAction = useCallback(
+    (imageId: number) => {
+      sendMsg({ type: 'board.image.delete', reqId: crypto.randomUUID(), imageId });
+    },
+    [sendMsg],
+  );
+
+  const paintFogAction = useCallback(
+    (cells: Record<string, boolean>) => {
+      sendMsg({ type: 'board.fog.set', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const addInitiativeAction = useCallback(
+    (tokenId: number, mode?: 'normal' | 'surprise') => {
+      sendMsg({ type: 'board.initiative.add', reqId: crypto.randomUUID(), tokenId, mode });
+    },
+    [sendMsg],
+  );
+  const removeInitiativeAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.initiative.remove', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+  const setInitiativeBasisAction = useCallback(
+    (tokenId: number, basis: number) => {
+      sendMsg({ type: 'board.initiative.setBasis', reqId: crypto.randomUUID(), tokenId, basis });
+    },
+    [sendMsg],
+  );
+  const startCombatAction = useCallback(() => {
+    sendMsg({ type: 'board.combat.start', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const endCombatAction = useCallback(() => {
+    sendMsg({ type: 'board.combat.end', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const nextTurnAction = useCallback(() => {
+    sendMsg({ type: 'board.turn.next', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const centerViewAction = useCallback(
+    (x: number, y: number, zoom: number) => {
+      sendMsg({ type: 'board.view.center', reqId: crypto.randomUUID(), x, y, zoom });
+    },
+    [sendMsg],
+  );
+  const pingCellAction = useCallback(
+    (x: number, y: number) => {
+      sendMsg({ type: 'board.cell.ping', reqId: crypto.randomUUID(), x, y });
+    },
+    [sendMsg],
+  );
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -1090,6 +1501,39 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         rollWichtig,
         kino,
         kinoBeenden,
+        boardTokens,
+        boardSettings,
+        boardTiles,
+        boardHighlights,
+        boardOverlays,
+        boardFog,
+        boardInitiative,
+        boardImages,
+        hydrateBoard,
+        createToken,
+        updateToken: updateTokenAction,
+        moveToken: moveTokenAction,
+        deleteToken: deleteTokenAction,
+        updateBoardSettings: updateBoardSettingsAction,
+        paintTiles: paintTilesAction,
+        paintHighlights: paintHighlightsAction,
+        createOverlay: createOverlayAction,
+        updateOverlay: updateOverlayAction,
+        deleteOverlay: deleteOverlayAction,
+        paintFog: paintFogAction,
+        addInitiative: addInitiativeAction,
+        removeInitiative: removeInitiativeAction,
+        setInitiativeBasis: setInitiativeBasisAction,
+        startCombat: startCombatAction,
+        endCombat: endCombatAction,
+        nextTurn: nextTurnAction,
+        boardViewCenter,
+        centerView: centerViewAction,
+        boardCellPing,
+        pingCell: pingCellAction,
+        createImage: createImageAction,
+        updateImage: updateImageAction,
+        deleteImage: deleteImageAction,
       }}
     >
       {children}

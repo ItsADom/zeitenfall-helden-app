@@ -958,7 +958,7 @@ export default function AdminPage() {
                       }}
                     />
                     <div>
-                      <Link to={`/event/${g.id}/uebersicht`}>Übersicht →</Link>
+                      <Link to={`/event/${g.id}/uebersicht`}>Übersicht →</Link> · <Link to={`/event/${g.id}/tisch`}>Tisch →</Link>
                     </div>
                   </td>
                   <td>

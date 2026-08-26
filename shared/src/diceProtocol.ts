@@ -3,6 +3,7 @@
 
 import type { DieConfirmation, DiceExpression, PendingConfirmation } from './dice.js';
 import type { AttrRowCode, BaseValueKey } from './types.js';
+import type { BoardClientMessage, BoardServerMessage } from './boardProtocol.js';
 
 export type RollVisibility = 'public' | 'hidden' | 'gm_player';
 
@@ -336,7 +337,10 @@ export type ClientToServerMessage =
   | { type: 'roll.coop.start'; reqId: string; poolId: string }
   // Verwirft den Pool ohne zu würfeln. Nur die vorschlagende Person oder die
   // Spielleitung.
-  | { type: 'roll.coop.cancel'; reqId: string; poolId: string };
+  | { type: 'roll.coop.cancel'; reqId: string; poolId: string }
+  // Virtueller Tisch (docs/concepts/virtual-table.md) — rides this same
+  // socket rather than a second connection, see boardProtocol.ts.
+  | BoardClientMessage;
 
 export type ServerToClientMessage =
   | { type: 'feed.append'; entry: FeedEntry }
@@ -396,4 +400,5 @@ export type ServerToClientMessage =
   // socket alone would pop the screen up on every Wi-Fi hiccup.
   | { type: 'wartung.angekuendigt'; durch: string }
   | { type: 'ack'; reqId: string }
-  | { type: 'error'; reqId: string; message: string };
+  | { type: 'error'; reqId: string; message: string }
+  | BoardServerMessage;
