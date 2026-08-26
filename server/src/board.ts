@@ -88,6 +88,8 @@ export interface BoardTokenRow {
   radius: number;
   /** Ring colour+opacity, #rrggbb(aa) — independent of `color` (the token itself). */
   radiusColor: string;
+  /** Facing/view direction, degrees — see the column comment in db.ts. */
+  rotation: number;
   hidden: boolean;
   statuses: string[];
   cover: string;
@@ -98,7 +100,7 @@ export interface BoardTokenRow {
 }
 
 const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, owner_user_id AS ownerUserId,
-  name, color, icon, x, y, size, radius, radius_color AS radiusColor, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
+  name, color, icon, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
 
 function toToken(
   r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait'> & { hidden: number; statuses: string },
@@ -137,6 +139,14 @@ export interface CreateTokenInput {
   x: number;
   y: number;
   size: number;
+  // Optional, marker-only (see BoardClientMessage's board.token.create) — a
+  // pasted copy of another marker's full appearance. Omitted for a fresh
+  // marker/character, which fall back to the column DEFAULTs (radius 0,
+  // radius_color '#ffcc0033', statuses '[]', cover '').
+  radius?: number;
+  radiusColor?: string;
+  statuses?: string[];
+  cover?: string;
 }
 
 export function createToken(boardId: number, input: CreateTokenInput): BoardTokenRow {
@@ -144,10 +154,26 @@ export function createToken(boardId: number, input: CreateTokenInput): BoardToke
     .n;
   const info = db
     .prepare(
-      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, x, y, size, sort)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, x, y, size, radius, radius_color, statuses, cover, sort)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?)`,
     )
-    .run(boardId, input.kind, input.characterId, input.ownerUserId, input.name, input.color, input.icon, input.x, input.y, input.size, sort);
+    .run(
+      boardId,
+      input.kind,
+      input.characterId,
+      input.ownerUserId,
+      input.name,
+      input.color,
+      input.icon,
+      input.x,
+      input.y,
+      input.size,
+      input.radius ?? null,
+      input.radiusColor ?? null,
+      input.statuses ? JSON.stringify(input.statuses) : null,
+      input.cover ?? null,
+      sort,
+    );
   bumpRev(boardId);
   return getToken(info.lastInsertRowid as number)!;
 }
@@ -162,6 +188,7 @@ export interface TokenPatch {
   size?: number;
   radius?: number;
   radiusColor?: string;
+  rotation?: number;
 }
 
 /** Everything about a token except its position — see moveToken below for that. */
@@ -170,7 +197,7 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
   if (!existing) return undefined;
   const next = { ...existing, ...patch };
   db.prepare(
-    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ? WHERE id = ?`,
+    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ? WHERE id = ?`,
   ).run(
     next.name,
     next.color,
@@ -181,6 +208,7 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
     next.size,
     next.radius,
     next.radiusColor,
+    next.rotation,
     tokenId,
   );
   bumpRev(existing.boardId);

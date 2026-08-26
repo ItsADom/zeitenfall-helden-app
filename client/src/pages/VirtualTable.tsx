@@ -10,6 +10,7 @@ import { CharSheetProvider } from '../components/charSheet';
 import CharacterSidebar from '../components/CharacterSidebar';
 import { useCollapsed } from '../components/collapse';
 import { useDicePanel } from '../components/dice/DicePanelProvider';
+import { tinteFuer } from '../components/dice/cinematic/kontrast';
 import FeedColumn from '../components/dice/FeedColumn';
 import { usePersistedState } from '../components/persist';
 import VttRoster from '../components/VttRoster';
@@ -205,10 +206,27 @@ interface MeasureEls {
   // den das Schloss-Symbol bei Bildern schon einmal hatte — siehe Phase 12's
   // "Follow-up fixes").
   handleEl?: SVGCircleElement | null;
+  // Das optionale Benutzer-Label (data.label) — genau derselbe Fehler wie beim
+  // Ziehgriff: ohne eigenen Ref bliebe es beim Verschieben/Skalieren am alten
+  // Platz stehen und spränge erst beim Loslassen an die richtige Stelle.
+  labelEl?: SVGTextElement | null;
+}
+
+/** Position des optionalen Benutzer-Labels — dieselbe Formel wie im JSX unten (siehe labelEl), hier geteilt, damit writeMeasureVisual sie beim Ziehen/Skalieren live nachschreiben kann. */
+function measureLabelPos(data: MeasureOverlayData): { x: number; y: number } {
+  if (data.kind === 'rectangle') return { x: ((data.from.x + data.to.x) / 2) * CELL_PX, y: ((data.from.y + data.to.y) / 2) * CELL_PX };
+  if (data.kind === 'ruler') return { x: ((data.from.x + data.to.x) / 2) * CELL_PX, y: ((data.from.y + data.to.y) / 2) * CELL_PX - 14 };
+  if (data.kind === 'circle') return { x: data.origin.x * CELL_PX, y: data.origin.y * CELL_PX - data.radius * CELL_PX - 8 };
+  return { x: data.origin.x * CELL_PX, y: data.origin.y * CELL_PX - 8 };
 }
 
 /** Direktes DOM-Schreiben der Geometrie — genutzt sowohl von der Zieh-Vorschau einer neuen Form als auch vom Verschieben einer bestehenden, kein setState in beiden Fällen (siehe measureDragRef/measureOverlayDragRef). */
 function writeMeasureVisual(data: MeasureOverlayData, els: MeasureEls): void {
+  if (els.labelEl) {
+    const pos = measureLabelPos(data);
+    els.labelEl.setAttribute('x', String(pos.x));
+    els.labelEl.setAttribute('y', String(pos.y));
+  }
   if (data.kind === 'ruler') {
     els.lineEl?.setAttribute('x1', String(data.from.x * CELL_PX));
     els.lineEl?.setAttribute('y1', String(data.from.y * CELL_PX));
@@ -337,6 +355,12 @@ function initials(name: string): string {
 }
 
 const DEFAULT_TOKEN_COLOR = '#8b6a4a';
+// Icon/Initialen-Text auf der Marke: hartkodiertes Weiß war auf einer hellen
+// Markenfarbe unlesbar (developer feedback). Gemessener Kontrast statt fester
+// Schwelle — dieselbe Begründung wie tinteFuer's eigener Kommentar, kein
+// Helligkeitswert lässt sich für jedes Pigment richtig raten.
+const TOKEN_INK_LIGHT = '#fff';
+const TOKEN_INK_DARK = '#1a1512';
 
 // Wie lange ein Text-/Farbfeld nach der letzten Änderung wartet, bevor es
 // tatsächlich sendet — wie GmNoteField (gmRoster.tsx). NICHT nur Kosmetik:
@@ -480,6 +504,8 @@ function TokenEditor({
               }}
               title="Ring-Farbe"
             />
+          </div>
+          <div className="vtt-token-editor-row">
             <input
               type="range"
               min={5}
@@ -491,8 +517,11 @@ function TokenEditor({
                 scheduleUpdate('radiusColor', withOpacity(radiusHex, v));
               }}
               title="Ring-Deckkraft"
-              style={{ width: 60 }}
+              style={{ flex: 1, minWidth: 0 }}
             />
+            <span className="muted" style={{ width: 34, textAlign: 'right' }}>
+              {radiusOpacity}%
+            </span>
           </div>
           {isGm && (
             <label className="vtt-token-editor-row">
@@ -594,6 +623,7 @@ function MapCanvas({
   const totalH = rows * CELL_PX;
   const {
     createToken,
+    updateToken,
     moveToken,
     deleteToken,
     paintTiles,
@@ -615,12 +645,36 @@ function MapCanvas({
   const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
+  const [selectedTokenId, setSelectedTokenIdRaw] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
-  const [selectedOverlayId, setSelectedOverlayId] = useState<number | null>(null);
+  const [selectedOverlayId, setSelectedOverlayIdRaw] = useState<number | null>(null);
   const [overlayDragPos, setOverlayDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
-  const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [selectedImageId, setSelectedImageIdRaw] = useState<number | null>(null);
   const [imageDragPos, setImageDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
+  // Nur eines der drei Edit-Panels (Token/Messform/Bild) darf gleichzeitig offen
+  // sein — sie überlappen sich sonst auf der Karte. Eine neue Auswahl schließt
+  // die jeweils anderen beiden.
+  const setSelectedTokenId = useCallback((id: number | null) => {
+    setSelectedTokenIdRaw(id);
+    if (id !== null) {
+      setSelectedOverlayIdRaw(null);
+      setSelectedImageIdRaw(null);
+    }
+  }, []);
+  const setSelectedOverlayId = useCallback((id: number | null) => {
+    setSelectedOverlayIdRaw(id);
+    if (id !== null) {
+      setSelectedTokenIdRaw(null);
+      setSelectedImageIdRaw(null);
+    }
+  }, []);
+  const setSelectedImageId = useCallback((id: number | null) => {
+    setSelectedImageIdRaw(id);
+    if (id !== null) {
+      setSelectedTokenIdRaw(null);
+      setSelectedOverlayIdRaw(null);
+    }
+  }, []);
   const [imageUploadOpen, setImageUploadOpen] = useState(false);
   // Rechtsklick auf eine Marke — Bildschirmkoordinaten (nicht Brett-Zelle),
   // damit das Menü als normales HTML-Overlay position: fixed neben dem
@@ -697,6 +751,57 @@ function MapCanvas({
     lastY: number;
     moved: number;
   } | null>(null);
+  // Blickrichtung ziehen (developer feedback) — derselbe atan2(dy,dx)-Winkel
+  // wie beim Kegel-Ziehgriff (buildMeasureData/resizeMeasureData), nur um den
+  // Mittelpunkt der Marke statt um einen Messform-Ursprung. `origin` ist die
+  // Zell-Mitte der Marke bei Zugbeginn (Zellkoordinaten, nicht Pixel — der
+  // Winkel ist unter gleichförmigem Zoom ohnehin skalierungsunabhängig) und
+  // ändert sich während des Ziehens nicht, nur der Winkel.
+  const tokenRotateRef = useRef<{
+    id: number;
+    contentEl: SVGGElement;
+    handleEl: SVGCircleElement;
+    origin: { x: number; y: number };
+    handleDist: number;
+    lastRotation: number;
+  } | null>(null);
+  const startTokenRotate = (e: React.PointerEvent, token: BoardToken) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    const handle = e.currentTarget as SVGCircleElement;
+    const g = handle.parentElement as unknown as SVGGElement | null;
+    const contentEl = g?.querySelector('[data-token-content]') as SVGGElement | null;
+    if (!g || !contentEl) return;
+    handle.setPointerCapture(e.pointerId);
+    tokenRotateRef.current = {
+      id: token.id,
+      contentEl,
+      handleEl: handle,
+      origin: { x: token.x + token.size / 2, y: token.y + token.size / 2 },
+      handleDist: (token.size * CELL_PX) / 2 - 3 + 14,
+      lastRotation: token.rotation,
+    };
+  };
+  const onTokenRotateMove = (e: React.PointerEvent) => {
+    const drag = tokenRotateRef.current;
+    const wrap = wrapRef.current;
+    if (!drag || !wrap) return;
+    const point = pointAt(e, wrap);
+    const dx = point.x - drag.origin.x;
+    const dy = point.y - drag.origin.y;
+    const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+    drag.lastRotation = angle;
+    drag.contentEl.setAttribute('transform', `rotate(${angle})`);
+    const rad = (angle * Math.PI) / 180;
+    drag.handleEl.setAttribute('cx', String(Math.cos(rad) * drag.handleDist));
+    drag.handleEl.setAttribute('cy', String(Math.sin(rad) * drag.handleDist));
+  };
+  const onTokenRotateUp = () => {
+    const drag = tokenRotateRef.current;
+    tokenRotateRef.current = null;
+    if (!drag) return;
+    updateToken(drag.id, { rotation: drag.lastRotation });
+  };
   // Schritt-Zähler-Trail beim Marken-Verschieben (settled with the developer:
   // gerade Linie, nur für die ziehende Person selbst sichtbar, sofort weg
   // beim Loslassen). NUR die Anwesenheit des Trails ist State (mountet/
@@ -830,10 +935,19 @@ function MapCanvas({
       const vh = totalH / zoom;
       const maxX = Math.max(0, totalW - vw);
       const maxY = Math.max(0, totalH - vh);
+      // Overscroll allowance so an edge/corner can be centered on screen
+      // (developer feedback) instead of always sitting flush against the
+      // viewport border — half the viewport in each direction, so camera.x
+      // reaching -marginX puts the map's left edge exactly at screen center,
+      // and maxX+marginX does the same for the right edge (and analogous for
+      // y). Only applies once the map is actually larger than the viewport
+      // (maxX/maxY > 0) — a map that already fits is centered as before.
+      const marginX = maxX > 0 ? vw / 2 : 0;
+      const marginY = maxY > 0 ? vh / 2 : 0;
       return {
         zoom,
-        x: maxX === 0 ? (totalW - vw) / 2 : Math.min(maxX, Math.max(0, x)),
-        y: maxY === 0 ? (totalH - vh) / 2 : Math.min(maxY, Math.max(0, y)),
+        x: maxX === 0 ? (totalW - vw) / 2 : Math.min(maxX + marginX, Math.max(-marginX, x)),
+        y: maxY === 0 ? (totalH - vh) / 2 : Math.min(maxY + marginY, Math.max(-marginY, y)),
       };
     },
     [totalW, totalH],
@@ -1123,8 +1237,11 @@ function MapCanvas({
   };
 
   const startMeasureOverlayDrag = (e: React.PointerEvent, overlay: MeasureOverlay) => {
-    e.stopPropagation();
+    // Rechtsklick-Ziehen soll die Kamera verschieben statt die Form (developer
+    // feedback) — kein stopPropagation für die rechte Taste, das Event muss
+    // zum Wrap durchreichen (onWrapPointerDown), genau wie bei startTokenDrag.
     if (e.button !== 0) return;
+    e.stopPropagation();
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
     measureOverlayDragRef.current = {
       id: overlay.id,
@@ -1313,12 +1430,15 @@ function MapCanvas({
   };
 
   const startTokenDrag = (e: React.PointerEvent, token: BoardToken) => {
-    e.stopPropagation();
-    // Rechtsklick verschiebt/wählt nicht — der öffnet stattdessen das
-    // Kontextmenü (siehe onContextMenu am selben <g> unten). stopPropagation
-    // oben bleibt trotzdem nötig, sonst startete der Wrap darunter sein
-    // eigenes Rechtsklick-Kamera-Ziehen (onWrapPointerDown).
+    // Rechtsklick verschiebt/wählt nicht — ein Rechtsklick OHNE Ziehen öffnet
+    // stattdessen das Kontextmenü (siehe onContextMenu am selben <g> unten,
+    // ein separates Browser-Event, das unabhängig von diesem Abbruch feuert).
+    // KEIN stopPropagation hier für die rechte Taste (developer feedback):
+    // Rechtsklick-Ziehen soll die Kamera verschieben, genau wie über leerer
+    // Fläche, auch wenn es über einer Marke beginnt — dafür muss das Event
+    // zum Wrap durchreichen (onWrapPointerDown).
     if (e.button !== 0) return;
+    e.stopPropagation();
     if (!canMoveTokenFn(token)) {
       setSelectedTokenId(token.id);
       return;
@@ -1433,8 +1553,11 @@ function MapCanvas({
   };
 
   const startOverlayDrag = (e: React.PointerEvent, overlay: LabelOverlay) => {
-    e.stopPropagation();
+    // Rechtsklick-Ziehen soll die Kamera verschieben statt die Beschriftung
+    // (developer feedback) — kein stopPropagation für die rechte Taste, siehe
+    // startTokenDrag.
     if (e.button !== 0) return;
+    e.stopPropagation();
     if (!canLabel) {
       setSelectedOverlayId(overlay.id);
       return;
@@ -1492,8 +1615,11 @@ function MapCanvas({
     // stopPropagation lets the event keep bubbling up to onWrapPointerDown,
     // same as if the image weren't there at all.
     if (tool !== 'select') return;
-    e.stopPropagation();
+    // Rechtsklick-Ziehen soll die Kamera verschieben statt das Bild (developer
+    // feedback) — kein stopPropagation für die rechte Taste, damit onWrapPointerDown
+    // es bekommt, genau wie bei startTokenDrag/startMeasureOverlayDrag.
     if (e.button !== 0) return;
+    e.stopPropagation();
     if (!canImages) {
       setSelectedImageId(image.id);
       return;
@@ -1536,14 +1662,13 @@ function MapCanvas({
     const y = Math.min(rows - drag.h, Math.max(0, drag.startY + dyClient * scale));
     drag.lastX = x;
     drag.lastY = y;
-    if (drag.lockEl) drag.lockEl.setAttribute('transform', `translate(${x * CELL_PX + 12}, ${y * CELL_PX + 12})`);
-    // Rotation lives in the SAME transform (rotate is centered on the
-    // image's own footprint) — writing translate alone here would drop it
-    // for the duration of the drag.
-    drag.el.setAttribute(
-      'transform',
-      `translate(${x * CELL_PX}, ${y * CELL_PX}) rotate(${drag.rotation}, ${(drag.w * CELL_PX) / 2}, ${(drag.h * CELL_PX) / 2})`,
-    );
+    // Rotation lives in the SAME transform for both the image and its lock
+    // icon (rotate is centered on the image's own footprint) — writing
+    // translate alone here would drop it for the duration of the drag, and
+    // would leave the icon un-rotated while the image spins under it.
+    const transform = `translate(${x * CELL_PX}, ${y * CELL_PX}) rotate(${drag.rotation}, ${(drag.w * CELL_PX) / 2}, ${(drag.h * CELL_PX) / 2})`;
+    if (drag.lockEl) drag.lockEl.setAttribute('transform', `${transform} translate(12, 12)`);
+    drag.el.setAttribute('transform', transform);
   };
   const onImagePointerUp = () => {
     const drag = imageDragRef.current;
@@ -1571,6 +1696,7 @@ function MapCanvas({
     gEl: SVGGElement;
     imgEl: SVGImageElement;
     handleEl: SVGElement;
+    lockEl: SVGGElement | null;
     startClientX: number;
     startClientY: number;
     startW: number;
@@ -1589,11 +1715,16 @@ function MapCanvas({
     const imgEl = g?.querySelector('image') as SVGImageElement | null;
     if (!g || !imgEl) return;
     handle.setPointerCapture(e.pointerId);
+    // Same lookup as startImageDrag — the lock icon is a sibling <g>, not a
+    // child of this image's group, and resizing a rotated image shifts the
+    // rotation center (it's anchored on w/h), so the icon needs updating too.
+    const lockEl = wrapRef.current?.querySelector(`[data-lock-for="${image.id}"]`) as SVGGElement | null;
     imageResizeRef.current = {
       id: image.id,
       gEl: g,
       imgEl,
       handleEl: handle,
+      lockEl,
       startClientX: e.clientX,
       startClientY: e.clientY,
       startW: image.w,
@@ -1624,7 +1755,9 @@ function MapCanvas({
     }
     drag.lastW = w;
     drag.lastH = h;
-    drag.gEl.setAttribute('transform', `translate(${drag.x * CELL_PX}, ${drag.y * CELL_PX}) rotate(${drag.rotation}, ${(w * CELL_PX) / 2}, ${(h * CELL_PX) / 2})`);
+    const transform = `translate(${drag.x * CELL_PX}, ${drag.y * CELL_PX}) rotate(${drag.rotation}, ${(w * CELL_PX) / 2}, ${(h * CELL_PX) / 2})`;
+    drag.gEl.setAttribute('transform', transform);
+    if (drag.lockEl) drag.lockEl.setAttribute('transform', `${transform} translate(12, 12)`);
     drag.imgEl.setAttribute('width', String(w * CELL_PX));
     drag.imgEl.setAttribute('height', String(h * CELL_PX));
     drag.handleEl.setAttribute('cx', String(w * CELL_PX));
@@ -1646,6 +1779,77 @@ function MapCanvas({
   };
 
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
+
+  // Ctrl/Cmd+C/V für Marken (developer feedback: NSC-Kopien für mehrere
+  // gleichartige Gegner) — kopiert nur das Aussehen (Name/Icon/Farbe/Größe/
+  // Reichweiten-Ring/Status/Cover), nie eine Verknüpfung zu einem Charakter,
+  // daher 'character'-Marken nicht kopierbar. Jedes Einfügen versetzt EINE
+  // Zelle diagonal weiter als das vorherige (nextX/nextY wandert mit), damit
+  // mehrfaches Einfügen auffächert statt exakt übereinanderzustapeln —
+  // dieselbe Konvention wie in den meisten Editoren.
+  const tokenClipboardRef = useRef<{
+    name: string;
+    icon: string;
+    color: string;
+    size: number;
+    radius: number;
+    radiusColor: string;
+    statuses: string[];
+    cover: string;
+    nextX: number;
+    nextY: number;
+  } | null>(null);
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const key = e.key.toLowerCase();
+      if (key !== 'c' && key !== 'v') return;
+      // Normales Kopieren/Einfügen in einem Textfeld (z. B. TokenEditors
+      // Namensfeld) darf nicht abgefangen werden.
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return;
+      if (key === 'c') {
+        if (!selectedToken || selectedToken.kind !== 'marker' || !canEditToken(selectedToken)) return;
+        e.preventDefault();
+        tokenClipboardRef.current = {
+          name: selectedToken.name,
+          icon: selectedToken.icon,
+          color: selectedToken.color,
+          size: selectedToken.size,
+          radius: selectedToken.radius,
+          radiusColor: selectedToken.radiusColor,
+          statuses: selectedToken.statuses,
+          cover: selectedToken.cover,
+          nextX: selectedToken.x,
+          nextY: selectedToken.y,
+        };
+        return;
+      }
+      const clip = tokenClipboardRef.current;
+      if (!clip || !canCreateTokens) return;
+      e.preventDefault();
+      const x = Math.min(cols - clip.size, Math.max(0, clip.nextX + 1));
+      const y = Math.min(rows - clip.size, Math.max(0, clip.nextY + 1));
+      clip.nextX = x;
+      clip.nextY = y;
+      createToken({
+        kind: 'marker',
+        name: clip.name,
+        icon: clip.icon,
+        color: clip.color,
+        size: clip.size,
+        radius: clip.radius,
+        radiusColor: clip.radiusColor,
+        statuses: clip.statuses,
+        cover: clip.cover,
+        x,
+        y,
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [selectedToken, canEditToken, canCreateTokens, createToken, cols, rows]);
+
   const selectedOverlay = overlays.find((o): o is LabelOverlay => o.kind === 'label' && o.id === selectedOverlayId) ?? null;
   const selectedMeasure = overlays.find((o): o is MeasureOverlay => o.kind === 'measure' && o.id === selectedOverlayId) ?? null;
   const selectedImage = images.find((i) => i.id === selectedImageId) ?? null;
@@ -2225,24 +2429,16 @@ function MapCanvas({
               // Halo-Textstil wie bei Beschriftung/Marken-Name — über jeder
               // Kachel/Textur lesbar. Nicht gerendert, wenn kein label
               // gesetzt ist (die meisten Formen bleiben unbenannt).
+              const labelPos = measureLabelPos(data);
               const labelEl = data.label ? (
                 <text
-                  x={
-                    data.kind === 'rectangle'
-                      ? ((data.from.x + data.to.x) / 2) * CELL_PX
-                      : data.kind === 'ruler'
-                        ? ((data.from.x + data.to.x) / 2) * CELL_PX
-                        : data.origin.x * CELL_PX
-                  }
-                  y={
-                    data.kind === 'rectangle'
-                      ? ((data.from.y + data.to.y) / 2) * CELL_PX
-                      : data.kind === 'ruler'
-                        ? ((data.from.y + data.to.y) / 2) * CELL_PX - 14
-                        : data.kind === 'circle'
-                          ? data.origin.y * CELL_PX - data.radius * CELL_PX - 8
-                          : data.origin.y * CELL_PX - 8
-                  }
+                  ref={(el) => {
+                    const els = measureElsRef.current.get(o.id) ?? {};
+                    els.labelEl = el;
+                    measureElsRef.current.set(o.id, els);
+                  }}
+                  x={labelPos.x}
+                  y={labelPos.y}
                   textAnchor="middle"
                   dominantBaseline="central"
                   fontSize={12}
@@ -2569,12 +2765,22 @@ function MapCanvas({
                       transform-<g> sitzt wie die Marke selbst — kein eigener
                       Zustand nötig. pointerEvents="none", sonst würde ein Klick
                       irgendwo im (viel größeren) Ring statt auf der Marke selbst
-                      landen. */}
+                      landen. AUSSERHALB der rotierten data-token-content-Gruppe,
+                      genau wie Status/Name/Cover — nur die Blickrichtung selbst
+                      (Kreis+Icon) dreht sich (developer feedback). */}
                   {t.radius > 0 && <circle r={t.radius * CELL_PX} fill={t.radiusColor} stroke={t.radiusColor} strokeWidth={1.5} pointerEvents="none" />}
-                  <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
-                  <text textAnchor="middle" dominantBaseline="central" fontSize={r * 0.7} fontWeight={700} fill="#fff">
-                    {t.icon || initials(t.name)}
-                  </text>
+                  <g data-token-content transform={`rotate(${t.rotation})`}>
+                    <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
+                    <text
+                      textAnchor="middle"
+                      dominantBaseline="central"
+                      fontSize={r * 0.7}
+                      fontWeight={700}
+                      fill={tinteFuer(t.color || DEFAULT_TOKEN_COLOR, TOKEN_INK_LIGHT, TOKEN_INK_DARK)}
+                    >
+                      {t.icon || initials(t.name)}
+                    </text>
+                  </g>
                   {t.cover && (
                     <text textAnchor="middle" dominantBaseline="central" fontSize={r * 1.3} opacity={0.75}>
                       💀
@@ -2588,6 +2794,25 @@ function MapCanvas({
                   <text y={r + 24} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--text)" stroke="var(--panel)" strokeWidth={3} paintOrder="stroke">
                     {t.name}
                   </text>
+                  {/* Dreh-Griff: nur an der ausgewählten, bearbeitbaren Marke,
+                      analog zum Ziehgriff der Messformen (measureHandlePoint/
+                      startMeasureResize) — Ziehen berechnet den Winkel per
+                      atan2(dy,dx) genau wie der Kegel (buildMeasureData). */}
+                  {selectedTokenId === t.id && canEditToken(t) && (
+                    <circle
+                      cx={Math.cos((t.rotation * Math.PI) / 180) * (r + 14)}
+                      cy={Math.sin((t.rotation * Math.PI) / 180) * (r + 14)}
+                      r={6}
+                      fill="var(--accent)"
+                      stroke="var(--panel)"
+                      strokeWidth={2}
+                      style={{ cursor: 'grab' }}
+                      onPointerDown={(e) => startTokenRotate(e, t)}
+                      onPointerMove={onTokenRotateMove}
+                      onPointerUp={onTokenRotateUp}
+                      onPointerCancel={onTokenRotateUp}
+                    />
+                  )}
                 </g>
               );
             })}
@@ -2644,10 +2869,11 @@ function MapCanvas({
               wenn ein 'hintergrund'-Bild sonst komplett regungslos ist
               (pointerEvents="none" dort, siehe oben). Ein Klick schaltet nur
               den modus um — Größe/Drehung/Deckkraft bleiben Sache des
-              ImageEditor bzw. des Anfassers am 'objekt'-Bild. Nicht rotiert
-              (bewusst vereinfacht): bei starker Drehung sitzt es nicht mehr
-              exakt auf der optischen Ecke, bleibt aber unter dem
-              unrotierten x/y auffindbar. */}
+              ImageEditor bzw. des Anfassers am 'objekt'-Bild. Dieselbe
+              rotate()-Transform wie das Bild selbst (siehe onImagePointerMove/
+              onImageResizeMove) — reitet auf der Ecke mit UND dreht sich mit,
+              statt lesbar aufrecht zu bleiben (Bilder werden laut Feedback
+              selten gedreht, daher bewusst keine Gegenrotation). */}
           {canImages &&
             images.map((img) => {
               // Same live-drag-position override as the image's own render
@@ -2660,7 +2886,7 @@ function MapCanvas({
                 <g
                   key={`lock-${img.id}`}
                   data-lock-for={img.id}
-                  transform={`translate(${pos.x * CELL_PX + 12}, ${pos.y * CELL_PX + 12})`}
+                  transform={`translate(${pos.x * CELL_PX}, ${pos.y * CELL_PX}) rotate(${img.rotation}, ${(img.w * CELL_PX) / 2}, ${(img.h * CELL_PX) / 2}) translate(12, 12)`}
                   onPointerDown={(e) => {
                     e.stopPropagation();
                     updateImage(img.id, { modus: img.modus === 'hintergrund' ? 'objekt' : 'hintergrund' });

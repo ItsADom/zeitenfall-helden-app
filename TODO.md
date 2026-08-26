@@ -16,6 +16,14 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ---
 
+## Virtual table
+- limit currently active measure shapes per players
+- round tracker (countdown) for spell duration tracking etc.
+   - visibility toggleable for GM per timer
+   - multiple creatable (locally rendered)
+- wound tracking/count-display
+- bigger drawing area (copuld be alread ymentioned)
+
 ## User feedback
 
 - move items between group inventory and player inventory
@@ -62,7 +70,9 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 - check if confirmations that get rolled together always get the same value or just coincidence on last occasions
   - in general many 1s and 20s. check RNG
 - equipment item names should break line, not be trimmed
-- chat does not work reliable when a single user has it open on multiple browser-tabs
+- chat does not work reliable when a single user has it open on multiple browser-tabs (visibility setting resets etc. / could be a racing problem)
+- gm wants to be able to force rolls on characters, for example when they are afk
+- delete the chat warnings for wrng dicecodes etc. when chat input is emptied
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)

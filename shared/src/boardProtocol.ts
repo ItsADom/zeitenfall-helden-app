@@ -150,6 +150,8 @@ export interface BoardToken {
   radiusColor: string;
   /** GM-only token — Phase 5 does NOT redact this over the wire yet (see ws.ts); that structural piece lands with fog (Phase 10). */
   hidden: boolean;
+  /** Facing/view direction, degrees, 0 = pointing right (same convention as MeasureOverlayData's cone `angle`) — purely cosmetic, drawn by rotating the token's own circle+icon content, not the range ring/statuses/cover. */
+  rotation: number;
   /** Corner badges — keys into BOARD_STATUSES, never the emoji itself. */
   statuses: string[];
   /** At most one, drawn over the whole token — key into BOARD_COVERS, '' = none. */
@@ -162,7 +164,11 @@ export interface BoardToken {
 export type BoardClientMessage =
   // kind: 'character' needs characterId (server pulls name/portrait itself —
   // never trust a client-supplied name for someone else's character); kind:
-  // 'marker' takes name/color/icon as typed, ad hoc.
+  // 'marker' takes name/color/icon as typed, ad hoc. radius/radiusColor/
+  // statuses/cover are marker-only (a pasted copy of another marker's full
+  // appearance, see VirtualTable.tsx's copy/paste gesture) — ignored for
+  // kind: 'character', same as the other cosmetic fields are for a linked
+  // character's own values.
   | {
       type: 'board.token.create';
       reqId: string;
@@ -174,6 +180,10 @@ export type BoardClientMessage =
       x: number;
       y: number;
       size?: number;
+      radius?: number;
+      radiusColor?: string;
+      statuses?: string[];
+      cover?: string;
     }
   // Everything about a token except its position — perm_tokens governs this
   // (create/delete/edit), perm_move governs only board.token.move below.
@@ -181,7 +191,7 @@ export type BoardClientMessage =
       type: 'board.token.update';
       reqId: string;
       tokenId: number;
-      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor'>>;
+      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>;
     }
   // One message per drag, sent on release — the client renders the whole
   // drag locally and never broadcasts a live position (settled with the

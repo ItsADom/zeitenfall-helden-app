@@ -543,6 +543,9 @@ db.exec(`
     -- unabhängig von der Spalte "color" (die Marke selbst), damit ein
     -- greller Marken-Ton nicht automatisch auch der Ring-Ton sein muss.
     radius_color TEXT NOT NULL DEFAULT '#ffcc0033',
+    -- Blickrichtung in Grad, rein kosmetisch (dreht nur Kreis+Icon, nicht
+    -- Reichweiten-Ring/Status/Cover) — siehe BoardToken.rotation.
+    rotation REAL NOT NULL DEFAULT 0,
     hidden INTEGER NOT NULL DEFAULT 0,     -- nur für die Spielleitung sichtbar
     statuses TEXT NOT NULL DEFAULT '[]',   -- Eck-Marken: Array von Status-Schlüsseln
     cover TEXT NOT NULL DEFAULT '',        -- Ganzfeld-Überlagerung, immer nur eine ('' = keine)
@@ -1246,6 +1249,10 @@ db.exec('DROP TABLE IF EXISTS group_members');
   const cols = new Set((db.prepare('PRAGMA table_info(board_tokens)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('radius')) db.exec('ALTER TABLE board_tokens ADD COLUMN radius REAL NOT NULL DEFAULT 0');
   if (!cols.has('radius_color')) db.exec("ALTER TABLE board_tokens ADD COLUMN radius_color TEXT NOT NULL DEFAULT '#ffcc0033'");
+  // Migration: 'rotation'-Spalte (Blickrichtung, developer feedback) — 0 ist
+  // ein neutraler Rückfall für jede bereits bestehende Marke, kein Nachrechnen
+  // nötig.
+  if (!cols.has('rotation')) db.exec('ALTER TABLE board_tokens ADD COLUMN rotation REAL NOT NULL DEFAULT 0');
 }
 
 // Migration: board_initiative auf das Zeiger-Design umgestellt (rolled/done

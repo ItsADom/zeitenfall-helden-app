@@ -206,6 +206,7 @@ function toWireToken(row: BoardTokenRow): BoardToken {
     size: row.size,
     radius: row.radius,
     radiusColor: row.radiusColor,
+    rotation: row.rotation,
     hidden: row.hidden,
     statuses: row.statuses,
     cover: row.cover,
@@ -1318,6 +1319,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           y,
           size,
         };
+        // Same validation as board.token.update below — a pasted copy of
+        // another marker's full appearance (see the copy/paste gesture in
+        // VirtualTable.tsx), marker-only, never trusted for kind: 'character'.
+        if (typeof msg.radius === 'number' && Number.isFinite(msg.radius)) input.radius = Math.min(50, Math.max(0, msg.radius));
+        if (typeof msg.radiusColor === 'string' && parseTileValue(msg.radiusColor)?.kind === 'color') input.radiusColor = msg.radiusColor;
+        if (Array.isArray(msg.statuses)) input.statuses = msg.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
+        if (typeof msg.cover === 'string' && (msg.cover === '' || msg.cover in BOARD_COVER_BY_KEY)) input.cover = msg.cover;
       }
       const token = createBoardToken(board.id, input);
       const fogAtCreate = fogSet(board);
@@ -1350,6 +1358,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (typeof p.size === 'number') patch.size = Math.min(6, Math.max(1, Math.round(p.size)));
       if (typeof p.radius === 'number' && Number.isFinite(p.radius)) patch.radius = Math.min(50, Math.max(0, p.radius));
       if (typeof p.radiusColor === 'string' && parseTileValue(p.radiusColor)?.kind === 'color') patch.radiusColor = p.radiusColor;
+      // Blickrichtung, rein kosmetisch — auf ]-360, 360[ begrenzt statt streng
+      // normalisiert, das Ziehen am Griff kann kurzzeitig über 360°/unter 0°
+      // hinauslaufen, ohne dass ein Sprung entsteht (siehe onTokenRotateMove).
+      if (typeof p.rotation === 'number' && Number.isFinite(p.rotation)) patch.rotation = Math.max(-360, Math.min(360, p.rotation));
       // Nie unbekannte Schlüssel übernehmen — ein veralteter Client oder ein
       // manuell gebasteltes Nachricht könnte sonst Katalog-fremde Werte
       // einschleusen, die BOARD_STATUS_BY_KEY/BOARD_COVER_BY_KEY nie kennen.
