@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom';
 import type { BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
-import { cellKey, gridDistance, parseTileValue } from '@shared/board';
+import { cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
@@ -36,6 +36,17 @@ const MEASURE_KIND_LABEL: Record<MeasureOverlayData['kind'], string> = {
   circle: 'Kreis',
   rectangle: 'Rechteck',
   cone: 'Kegel',
+};
+
+// Für den Werkzeug-Abzeichen (siehe .vtt-tool-badge) — dieselben Icon+Text-
+// Paare wie die Werkzeugkasten-Knöpfe, nur an einer Stelle statt viermal
+// dupliziert.
+const TOOL_BADGE_LABEL: Record<'paint' | 'highlight' | 'fog' | 'label' | 'measure', string> = {
+  paint: '🖌 Bemalen',
+  highlight: '🖍 Hervorheben',
+  fog: '🌫 Nebel',
+  label: '🏷 Beschriftung',
+  measure: '📏 Messen',
 };
 // Eigene, gedämpfte Akzentfarbe statt einer der Terrain-/Einfärbe-Paletten —
 // eine Messform ist Werkzeug-Feedback (Chrome), keine Kartenbemalung, siehe
@@ -113,6 +124,37 @@ function shiftMeasureData(base: MeasureOverlayData, dx: number, dy: number): Mea
   return { ...base, origin: { x: base.origin.x + dx, y: base.origin.y + dy } };
 }
 
+/**
+ * Ein Lineal auf eine exakte Länge (Chebyshev, siehe gridDistance) setzen —
+ * `from` bleibt der Anker, `to` wird entlang der bestehenden Richtung neu
+ * skaliert. Ziehen auf genau 5 Schritt ist fummelig, Eintippen nicht (siehe
+ * MeasureEditor). Ohne Richtung (from === to, sollte über die UI nicht
+ * vorkommen) fällt das auf eine waagerechte Linie zurück, statt eine 0er-
+ * Division zu erzeugen.
+ */
+function resizeRulerLength(
+  base: Extract<MeasureOverlayData, { kind: 'ruler' }>,
+  length: number,
+): Extract<MeasureOverlayData, { kind: 'ruler' }> {
+  const dx = base.to.x - base.from.x;
+  const dy = base.to.y - base.from.y;
+  const current = Math.max(Math.abs(dx), Math.abs(dy));
+  if (current < 1e-6) return { ...base, to: { x: base.from.x + length, y: base.from.y } };
+  const k = length / current;
+  return { ...base, to: { x: base.from.x + dx * k, y: base.from.y + dy * k } };
+}
+
+/** Wie resizeRulerLength, aber Breite/Tiefe unabhängig statt eines gemeinsamen Maßstabs — ein Rechteck zeigt beide Kantenlängen einzeln an, nicht eine Diagonale. `from` bleibt der Anker, das Vorzeichen (welche Seite von `from` aus) bleibt erhalten. */
+function resizeRectangle(
+  base: Extract<MeasureOverlayData, { kind: 'rectangle' }>,
+  width: number,
+  height: number,
+): Extract<MeasureOverlayData, { kind: 'rectangle' }> {
+  const signX = base.to.x < base.from.x ? -1 : 1;
+  const signY = base.to.y < base.from.y ? -1 : 1;
+  return { ...base, to: { x: base.from.x + signX * width, y: base.from.y + signY * height } };
+}
+
 interface MeasureEls {
   pathEl?: SVGPathElement | null;
   lineEl?: SVGLineElement | null;
@@ -157,7 +199,7 @@ interface GroupMeta {
   group: { id: number; name: string; isTemp: boolean };
 }
 interface BoardSnapshotResponse {
-  board: BoardSettings & { tilesJson: string; highlightsJson: string };
+  board: BoardSettings & { tilesJson: string; highlightsJson: string; fogJson: string };
   tokens: BoardToken[];
   overlays: BoardOverlay[];
 }
@@ -235,7 +277,7 @@ function TokenEditor({
   const [radiusOpacity, setRadiusOpacity] = useState(
     token.radiusColor.length === 9 ? Math.round((parseInt(token.radiusColor.slice(7, 9), 16) / 255) * 100) : 100,
   );
-  const timers = useRef<Partial<Record<'name' | 'icon' | 'color', ReturnType<typeof setTimeout>>>>({});
+  const timers = useRef<Partial<Record<'name' | 'icon' | 'color' | 'radiusColor', ReturnType<typeof setTimeout>>>>({});
 
   // Beim Wechsel der ausgewählten Marke den Entwurf neu aus dem Server-Stand
   // ziehen — sonst zeigten die Felder noch die vorherige Marke. Bewusst NICHT
@@ -258,7 +300,7 @@ function TokenEditor({
     [],
   );
 
-  const scheduleUpdate = (key: 'name' | 'icon' | 'color', value: string) => {
+  const scheduleUpdate = (key: 'name' | 'icon' | 'color' | 'radiusColor', value: string) => {
     clearTimeout(timers.current[key]);
     timers.current[key] = setTimeout(() => updateToken(token.id, { [key]: value }), FIELD_DEBOUNCE_MS);
   };
@@ -345,7 +387,7 @@ function TokenEditor({
               value={radiusHex}
               onChange={(v) => {
                 setRadiusHex(v);
-                updateToken(token.id, { radiusColor: withOpacity(v, radiusOpacity) });
+                scheduleUpdate('radiusColor', withOpacity(v, radiusOpacity));
               }}
               title="Ring-Farbe"
             />
@@ -355,8 +397,9 @@ function TokenEditor({
               max={100}
               value={radiusOpacity}
               onChange={(e) => {
-                setRadiusOpacity(Number(e.target.value));
-                updateToken(token.id, { radiusColor: withOpacity(radiusHex, Number(e.target.value)) });
+                const v = Number(e.target.value);
+                setRadiusOpacity(v);
+                scheduleUpdate('radiusColor', withOpacity(radiusHex, v));
               }}
               title="Ring-Deckkraft"
               style={{ width: 60 }}
@@ -426,6 +469,7 @@ function MapCanvas({
   tiles,
   highlights,
   overlays,
+  fog,
   canCreateTokens,
   canEditToken,
   canMoveToken: canMoveTokenFn,
@@ -441,6 +485,8 @@ function MapCanvas({
   highlights: Record<string, string>;
   /** Persistent, movable text labels (board_overlays, kind 'label') — perm_labels-gated. */
   overlays: BoardOverlay[];
+  /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded — see the "Nebel" tool below). */
+  fog: Set<string>;
   /** Placing a brand-new marker has no owner yet to check against — board-wide only. */
   canCreateTokens: boolean;
   canEditToken: (t: BoardToken) => boolean;
@@ -452,7 +498,7 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
-  const { createToken, moveToken, deleteToken, paintTiles, paintHighlights, createOverlay, updateOverlay, deleteOverlay } = useDicePanel();
+  const { createToken, moveToken, deleteToken, paintTiles, paintHighlights, paintFog, createOverlay, updateOverlay, deleteOverlay } = useDicePanel();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
@@ -474,8 +520,11 @@ function MapCanvas({
   // hintereinander sind der häufigere Fall als eine einzelne. 'measure': ein
   // Ziehen von Punkt A nach B legt beim Loslassen eine Messform an (siehe
   // startMeasureDrag/onMeasurePointerMove unten) — welche Form, bestimmt
-  // measureKind.
-  const [tool, setTool] = useState<'select' | 'paint' | 'highlight' | 'label' | 'measure'>('select');
+  // measureKind. 'fog': dieselbe Bemal-Mechanik wie 'paint'/'highlight',
+  // aber auf fog_json statt einem getaggten Wert — GM-only (canEditFog,
+  // hart verdrahtet, siehe boardAccess.ts), kein perm_*-Gate wie bei den
+  // anderen Werkzeugen.
+  const [tool, setTool] = useState<'select' | 'paint' | 'highlight' | 'label' | 'measure' | 'fog'>('select');
   // Messen ist IMMER für alle offen (siehe canMeasure() serverseitig, hart auf
   // true) — anders als Bemalen/Beschriften/Token gibt es dafür keinen
   // perm_*-Schalter und keine gesonderte canMeasure-Prop hier.
@@ -498,12 +547,18 @@ function MapCanvas({
   // Vorgabe: ein sichtbares, halbtransparentes Gelb — eine vernünftige erste
   // Markierungsfarbe, kein Zufallswert (siehe Kommentar an TilePicker).
   const [highlightValue, setHighlightValue] = usePersistedState<string>('vtt-highlight-value', '#ffcc0080');
-  // Während eines Bemal-/Einfärbe-Zugs lokal sichtbar (siehe onPaintPointerMove),
+  // Ob der Nebel-Pinsel gerade verdeckt oder aufdeckt — zwei Zustände statt
+  // einer Farbwahl wie bei Bemalen/Hervorheben, siehe FogPicker.
+  const [fogMode, setFogMode] = usePersistedState<'hide' | 'reveal'>('vtt-fog-mode', 'hide');
+  // Während eines Bemal-/Einfärbe-/Nebel-Zugs lokal sichtbar (siehe onPaintPointerMove),
   // bevor EIN Delta beim Loslassen gesendet wird — dieselbe „lokal rendern,
   // beim Loslassen synchronisieren"-Form wie beim Verschieben einer Marke. Je
   // eine pro Ebene, damit ein Strich auf der einen die andere nicht überlagert.
   const [pendingPaint, setPendingPaint] = useState<Record<string, string> | null>(null);
   const [pendingHighlight, setPendingHighlight] = useState<Record<string, string> | null>(null);
+  // Wie pendingPaint/pendingHighlight, aber boolesch (verdeckt/aufgedeckt)
+  // statt eines getaggten Werts — dieselbe lokale-Entwurf-Idee, andere Form.
+  const [pendingFog, setPendingFog] = useState<Record<string, boolean> | null>(null);
   // Eigene, clientseitige Einstellung (keine Board-Einstellung — jeder sieht
   // sie unabhängig) — Fluchtluke für den teuersten Teil des Autotile-Filters
   // (feTurbulence + feDisplacementMap je Material), falls das auf einer
@@ -525,7 +580,12 @@ function MapCanvas({
     lastY: number;
     moved: number;
   } | null>(null);
-  const paintDragRef = useRef<{ layer: 'tile' | 'highlight'; value: string; touched: Record<string, string> } | null>(null);
+  // 'fog' reuses this same string-valued touched map — its boolean hide/
+  // reveal choice rides along as '1'/'0' (see startPaint/onPaintPointerUp),
+  // converted back to boolean only where paintFog/pendingFog actually need
+  // it, so all three layers share one drag mechanism instead of a third
+  // near-identical copy.
+  const paintDragRef = useRef<{ layer: 'tile' | 'highlight' | 'fog'; value: string; touched: Record<string, string> } | null>(null);
   // Dieselbe Versatz-erhaltende Zug-Mechanik wie bei einer Marke (siehe
   // tokenDragRef/onTokenPointerMove) — direktes transform-Schreiben ohne
   // React dazwischen, EINE Netz-Nachricht erst beim Loslassen.
@@ -701,16 +761,20 @@ function MapCanvas({
     const key = cellKey(cell.x, cell.y);
     if (key in drag.touched) return;
     drag.touched[key] = drag.value;
-    const setPending = drag.layer === 'tile' ? setPendingPaint : setPendingHighlight;
-    setPending((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
+    if (drag.layer === 'tile') setPendingPaint((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
+    else if (drag.layer === 'highlight') setPendingHighlight((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
+    else setPendingFog((prev) => ({ ...(prev ?? {}), [key]: drag.value === '1' }));
   };
-  const startPaint = (e: React.PointerEvent, layer: 'tile' | 'highlight') => {
+  const startPaint = (e: React.PointerEvent, layer: 'tile' | 'highlight' | 'fog') => {
     const wrap = wrapRef.current;
     if (!wrap) return;
     const cell = cellAt(e, wrap);
     if (!cell) return;
     (e.target as Element).setPointerCapture(e.pointerId);
-    paintDragRef.current = { layer, value: layer === 'tile' ? paintValue : highlightValue, touched: {} };
+    // Nebel trägt keinen getaggten Wert wie Bemalen/Hervorheben — nur
+    // verdecken/aufdecken, als '1'/'0' codiert (siehe paintDragRef-Kommentar).
+    const value = layer === 'tile' ? paintValue : layer === 'highlight' ? highlightValue : fogMode === 'hide' ? '1' : '0';
+    paintDragRef.current = { layer, value, touched: {} };
     applyPaintCell(cell);
   };
   // Nur wenn sich die getroffene ZELLE ändert, nicht bei jedem rohen
@@ -732,24 +796,49 @@ function MapCanvas({
     if (!drag || Object.keys(drag.touched).length === 0) return;
     // Eine Nachricht für den ganzen Strich/Pinsel — wie bei einer Marke
     // (siehe onTokenPointerUp) sendet nur das ENDE, nie die Zwischenschritte.
-    const action = drag.layer === 'tile' ? paintTiles : paintHighlights;
-    action(drag.touched);
     // Den eigenen Entwurf für GENAU diese Zellen kurz behalten, bis boardTiles/
-    // boardHighlights den Server-Stand nachträgt (dasselbe Muster wie
+    // boardHighlights/boardFog den Server-Stand nachträgt (dasselbe Muster wie
     // onTokenPointerUp) — sonst blitzten die gerade bemalten Zellen beim
     // Loslassen kurz auf ihren alten Stand zurück, bevor das Echo eintrifft.
     // Gezielt nur diese Zellen entfernen statt pauschal auf null, falls
-    // inzwischen schon ein neuer Strich begonnen hat.
-    const setPending = drag.layer === 'tile' ? setPendingPaint : setPendingHighlight;
+    // inzwischen schon ein neuer Strich begonnen hat. Drei separate Zweige
+    // statt einer gemeinsamen `action`/`setPending`-Variable wie früher: Nebel
+    // sendet boolesche Werte, Bemalen/Hervorheben getaggte Strings — deren
+    // Setter lassen sich nicht sinnvoll unter einem Typ vereinen.
     const touchedKeys = Object.keys(drag.touched);
-    setTimeout(() => {
-      setPending((prev) => {
-        if (!prev) return prev;
-        const next = { ...prev };
-        for (const k of touchedKeys) delete next[k];
-        return Object.keys(next).length > 0 ? next : null;
-      });
-    }, 200);
+    if (drag.layer === 'tile') {
+      paintTiles(drag.touched);
+      setTimeout(() => {
+        setPendingPaint((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          for (const k of touchedKeys) delete next[k];
+          return Object.keys(next).length > 0 ? next : null;
+        });
+      }, 200);
+    } else if (drag.layer === 'highlight') {
+      paintHighlights(drag.touched);
+      setTimeout(() => {
+        setPendingHighlight((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          for (const k of touchedKeys) delete next[k];
+          return Object.keys(next).length > 0 ? next : null;
+        });
+      }, 200);
+    } else {
+      const cells: Record<string, boolean> = {};
+      for (const [k, v] of Object.entries(drag.touched)) cells[k] = v === '1';
+      paintFog(cells);
+      setTimeout(() => {
+        setPendingFog((prev) => {
+          if (!prev) return prev;
+          const next = { ...prev };
+          for (const k of touchedKeys) delete next[k];
+          return Object.keys(next).length > 0 ? next : null;
+        });
+      }, 200);
+    }
   };
 
   const startMeasureDrag = (e: React.PointerEvent) => {
@@ -824,6 +913,29 @@ function MapCanvas({
     setTimeout(() => setMeasureOverlayDraft((prev) => (prev?.id === drag.id ? null : prev)), 200);
   };
 
+  // Die EINE Stelle, die ein aktives Werkzeug wieder verlässt — der
+  // Werkzeug-Abzeichen-Knopf (.vtt-tool-badge) und Escape (siehe der Effekt
+  // gleich danach) rufen beide dasselbe auf, statt je einer eigenen Kopie
+  // der drei Aufräum-Schritte (ersetzt die vormals verstreuten „Fertig"-
+  // Knöpfe im Werkzeugkasten selbst).
+  const cancelTool = () => {
+    setTool('select');
+    setPickerOpen(false);
+    setPipetteArmed(null);
+  };
+  // Nur horchen, solange überhaupt ein Werkzeug aktiv ist — sonst würde
+  // Escape auch auf der reinen Auswahl-Seite unnötig einen globalen Listener
+  // binden.
+  useEffect(() => {
+    if (tool === 'select') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelTool();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tool]);
+
   const onWrapPointerDown = (e: React.PointerEvent) => {
     // Die rechte Maustaste verschiebt die Kamera IMMER, unabhängig vom
     // Werkzeug — sonst gibt es beim Bemalen (linke Taste ist ja belegt)
@@ -860,6 +972,10 @@ function MapCanvas({
     }
     if (tool === 'highlight' && isGm) {
       startPaint(e, 'highlight');
+      return;
+    }
+    if (tool === 'fog' && isGm) {
+      startPaint(e, 'fog');
       return;
     }
     if (tool === 'label' && canLabel) {
@@ -1048,6 +1164,18 @@ function MapCanvas({
   // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`/`highlights`.
   const paintedTiles = pendingPaint ? { ...tiles, ...pendingPaint } : tiles;
   const paintedHighlights = pendingHighlight ? { ...highlights, ...pendingHighlight } : highlights;
+  // Eigener lokaler Entwurf wie oben, aber als Set statt Objekt (siehe fog-Prop) —
+  // pendingFog trägt true/false, ein Strich kann also mitten im Ziehen sowohl
+  // verdecken als auch (nach einem Werkzeugwechsel) aufdecken enthalten.
+  const effectiveFog = (() => {
+    if (!pendingFog) return fog;
+    const next = new Set(fog);
+    for (const [key, hide] of Object.entries(pendingFog)) {
+      if (hide) next.add(key);
+      else next.delete(key);
+    }
+    return next;
+  })();
   // Farbe direkt als Pfad (unverändert) — Textur bekommt seit Phase 7 eine
   // eigene, nach Material gruppierte Maske statt eines einfachen Pfads, siehe
   // materialCells/usedMaterialKeys unten und "Autotiling ohne Kantenkunst" im
@@ -1114,8 +1242,9 @@ function MapCanvas({
                 die Farb-/Texturauswahl ein/aus, statt das Werkzeug selbst zu
                 verlassen — sonst konnte man beim Zuklappen der Auswahl (um
                 mehr von der Karte zu sehen) aus Versehen auch das Bemalen
-                selbst beenden. Verlassen geschieht jetzt ausdrücklich über
-                „Fertig" daneben. */}
+                selbst beenden. Verlassen geschieht jetzt über das
+                Werkzeug-Abzeichen auf der Karte (siehe .vtt-tool-badge) oder
+                Escape, nicht mehr über einen eigenen „Fertig"-Knopf hier. */}
             <button
               className={`small${tool === 'paint' ? ' active' : ''}`}
               onClick={() => {
@@ -1130,19 +1259,6 @@ function MapCanvas({
             >
               🖌 Bemalen
             </button>
-            {tool === 'paint' && (
-              <button
-                className="small"
-                onClick={() => {
-                  setTool('select');
-                  setPickerOpen(false);
-                  setPipetteArmed(null);
-                }}
-                title="Bemalen beenden"
-              >
-                Fertig
-              </button>
-            )}
           </>
         )}
         {isGm && (
@@ -1166,19 +1282,24 @@ function MapCanvas({
             >
               🖍 Hervorheben
             </button>
-            {tool === 'highlight' && (
-              <button
-                className="small"
-                onClick={() => {
-                  setTool('select');
-                  setPickerOpen(false);
-                  setPipetteArmed(null);
-                }}
-                title="Hervorheben beenden"
-              >
-                Fertig
-              </button>
-            )}
+            {/* canEditFog ist hart auf die Spielleitung verdrahtet (siehe
+                boardAccess.ts) — kein perm_*-Schalter wie bei Bemalen/
+                Beschriften, also auch hier direkt isGm statt einer eigenen
+                Prop. */}
+            <button
+              className={`small${tool === 'fog' ? ' active' : ''}`}
+              onClick={() => {
+                if (tool !== 'fog') {
+                  setTool('fog');
+                  setPickerOpen(true);
+                } else {
+                  setPickerOpen((v) => !v);
+                }
+              }}
+              title="Nebel — Felder für Spieler verdecken/aufdecken"
+            >
+              🌫 Nebel
+            </button>
           </>
         )}
         {canLabel && (
@@ -1211,18 +1332,6 @@ function MapCanvas({
         >
           📏 Messen
         </button>
-        {tool === 'measure' && (
-          <button
-            className="small"
-            onClick={() => {
-              setTool('select');
-              setPickerOpen(false);
-            }}
-            title="Messen beenden"
-          >
-            Fertig
-          </button>
-        )}
         <span className="muted">
           {cols} × {rows} Felder
         </span>
@@ -1278,6 +1387,7 @@ function MapCanvas({
           onPipetteToggle={() => setPipetteArmed((v) => (v === 'highlight' ? null : 'highlight'))}
         />
       )}
+      {tool === 'fog' && pickerOpen && <FogPicker value={fogMode} onChange={setFogMode} onClose={() => setPickerOpen(false)} />}
       {tool === 'measure' && pickerOpen && (
         <MeasureKindPicker
           value={measureKind}
@@ -1296,8 +1406,30 @@ function MapCanvas({
         onPointerCancel={onWrapPointerUp}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
-        style={{ cursor: pipetteArmed ? 'copy' : tool === 'paint' || tool === 'highlight' || tool === 'measure' ? 'crosshair' : undefined }}
+        style={{
+          cursor: pipetteArmed ? 'copy' : tool === 'paint' || tool === 'highlight' || tool === 'measure' || tool === 'fog' ? 'crosshair' : undefined,
+        }}
       >
+        {/* Zeigt, welches Werkzeug gerade aktiv ist, und ist die einzige
+            Stelle, es wieder zu verlassen (siehe cancelTool oben) — ersetzt
+            die vormals verstreuten „Fertig"-Knöpfe je Werkzeug im
+            Werkzeugkasten. Eigenes HTML-Element außerhalb des <svg>, wie
+            TokenEditor/TokenContextMenu auch, position: absolute in der
+            (position: relative) .vtt-map-wrap. onPointerDown stoppt hier VOR
+            onWrapPointerDown darunter — ohne das bubbelte ein Klick aufs ✕
+            erst zum Wrap hoch und startete dort (Werkzeug ist ja noch aktiv,
+            solange cancelTool nicht gelaufen ist) einen Bemal-/Nebel-Zug an
+            genau dieser Bildschirmstelle, BEVOR der Klick selbst das
+            Werkzeug wieder verließ — ein Feld wurde also noch kurz vorm
+            Abbrechen bemalt. */}
+        {tool !== 'select' && (
+          <div className="vtt-tool-badge" onPointerDown={(e) => e.stopPropagation()}>
+            <span>{TOOL_BADGE_LABEL[tool]}</span>
+            <button className="small" onClick={cancelTool} title="Werkzeug beenden (Esc)" aria-label="Werkzeug beenden">
+              ✕
+            </button>
+          </div>
+        )}
         <svg viewBox={`${camera.x} ${camera.y} ${viewW} ${viewH}`} className="vtt-map-svg" shapeRendering="geometricPrecision">
           <defs>
             <pattern id="vtt-grid" width={CELL_PX} height={CELL_PX} patternUnits="userSpaceOnUse">
@@ -1728,6 +1860,38 @@ function MapCanvas({
                 </g>
               );
             })}
+
+          {/* Nebel: ÜBER den Marken (siehe Ebenenreihenfolge im Plan) — die
+              Spielleitung soll auch eine verdeckte Marke unter halbtransparentem
+              Nebel wiederfinden, ohne dass er hinter ihr verschwindet.
+              pointerEvents="none": Klicks/Züge gehen weiter an die Karte
+              darunter durch (Bemalen/Marken/Messen bleiben bedienbar), außer
+              beim Nebel-Werkzeug selbst, das ohnehin am .vtt-map-wrap
+              ansetzt, nicht an dieser Ebene. */}
+          {effectiveFog.size > 0 && (
+            <g pointerEvents="none">
+              {[...effectiveFog].map((key) => {
+                const cell = parseCellKey(key);
+                if (!cell) return null;
+                return (
+                  <rect
+                    key={key}
+                    x={cell.x * CELL_PX}
+                    y={cell.y * CELL_PX}
+                    width={CELL_PX}
+                    height={CELL_PX}
+                    fill="#0a0a10"
+                    // Undurchsichtig für Spieler (sie bekommen unter einer
+                    // verdeckten Zelle serverseitig ohnehin keinen Inhalt
+                    // mehr, siehe redactCells), halbtransparent für die
+                    // Spielleitung — „liest die Karte darunter mit, sieht
+                    // aber genau, was verborgen ist" (siehe Plan).
+                    opacity={isGm ? 0.55 : 1}
+                  />
+                );
+              })}
+            </g>
+          )}
         </svg>
       </div>
       {selectedToken && (
@@ -1882,12 +2046,14 @@ function LabelEditor({
 // Messen ist immer für alle offen (canMeasure() serverseitig hart auf true,
 // siehe boardAccess.ts) — kein canEdit-Feld nötig, jeder darf löschen. Kegel
 // bekommt zusätzlich seinen eigenen Öffnungswinkel-Regler (spread lebt PRO
-// Form in data, siehe MeasureOverlayData), alle anderen nur die Kennzahl-
-// Anzeige + Löschen. Verschieben geschieht direkt auf der Karte (siehe
-// startMeasureOverlayDrag); Größe-Ändern per Ziehpunkt bleibt bewusst noch
-// nicht gebaut — siehe Plan, "still to build".
+// Form in data, siehe MeasureOverlayData). Verschieben geschieht weiterhin
+// per Ziehen direkt auf der Karte (siehe startMeasureOverlayDrag) — aber die
+// GRÖSSE (Radius/Länge/Breite/Tiefe) lässt sich hier zusätzlich exakt
+// eintippen (developer feedback: einen Kreis per Ziehen auf genau 5 Schritt
+// zu treffen ist fummelig, ein Zahlenfeld nicht) statt nur über den Zug
+// bestimmt zu werden.
 /** Was MeasureEditor an updateOverlay meldet — immer gemergt mit dem aktuellen `data`, nie als eigenständiges Objekt (Messform-Updates ersetzen `data` ganz, siehe boardProtocol.ts). */
-type MeasurePatch = { label?: string; color?: string; spread?: number };
+type MeasurePatch = { label?: string; color?: string; spread?: number; radius?: number; length?: number; to?: CellCoord };
 
 function MeasureEditor({
   overlay,
@@ -1902,15 +2068,35 @@ function MeasureEditor({
 }) {
   const { data } = overlay;
   const [label, setLabel] = useState(data.label ?? '');
+  // Lokal statt direkt an data.color/data.spread gebunden — sonst würde ein
+  // natives <input type="color">/<input type="range"> bei JEDEM Zwischenschritt
+  // des Ziehens sofort einen board.overlay.update übers Netz schicken (siehe
+  // FIELD_DEBOUNCE_MS-Kommentar oben: „ohne Drosselung ein Update je Pixel
+  // Mausbewegung"). Lokaler Zustand hält die eigene Anzeige (Schwatch/Regler)
+  // sofort reaktionsschnell, während der eigentliche Versand debounced bleibt
+  // — dasselbe Muster wie TokenEditors color/radiusColor.
+  const [color, setColor] = useState(data.color ?? MEASURE_STROKE_DEFAULT);
+  const [spread, setSpread] = useState(data.kind === 'cone' ? data.spread : 0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const colorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spreadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Gleiches Muster wie LabelEditor: beim Wechsel der ausgewählten Form den
   // Entwurf neu aus dem Server-Stand ziehen, nicht bei jeder Änderung.
   useEffect(() => {
     setLabel(data.label ?? '');
+    setColor(data.color ?? MEASURE_STROKE_DEFAULT);
+    setSpread(data.kind === 'cone' ? data.spread : 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlay.id]);
-  useEffect(() => () => clearTimeout(timerRef.current ?? undefined), []);
+  useEffect(
+    () => () => {
+      clearTimeout(timerRef.current ?? undefined);
+      clearTimeout(colorTimerRef.current ?? undefined);
+      clearTimeout(spreadTimerRef.current ?? undefined);
+    },
+    [],
+  );
 
   const summary =
     data.kind === 'ruler'
@@ -1919,7 +2105,7 @@ function MeasureEditor({
         ? `Radius ${data.radius.toFixed(1)} Schritt`
         : data.kind === 'rectangle'
           ? `${Math.abs(data.to.x - data.from.x).toFixed(1)} × ${Math.abs(data.to.y - data.from.y).toFixed(1)} Schritt`
-          : `Länge ${data.length.toFixed(1)} Schritt, ${data.spread}°`;
+          : `Länge ${data.length.toFixed(1)} Schritt, ${spread}°`;
   return (
     <div className="vtt-token-editor">
       <div className="vtt-token-editor-head">
@@ -1946,22 +2132,75 @@ function MeasureEditor({
           }}
           maxLength={60}
         />
-        <ColorSwatchInput value={data.color ?? MEASURE_STROKE_DEFAULT} onChange={(v) => onChange({ color: v })} title="Farbe" />
+        <ColorSwatchInput
+          value={color}
+          onChange={(v) => {
+            setColor(v);
+            clearTimeout(colorTimerRef.current ?? undefined);
+            colorTimerRef.current = setTimeout(() => onChange({ color: v }), FIELD_DEBOUNCE_MS);
+          }}
+          title="Farbe"
+        />
       </div>
-      {data.kind === 'cone' && (
-        <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
-          <input
-            type="range"
-            min={5}
-            max={180}
-            step={5}
-            value={data.spread}
-            onChange={(e) => onChange({ spread: Number(e.target.value) })}
-            title="Öffnungswinkel"
-            className="vtt-tile-picker-opacity"
+      {/* Exakte Größe eintippen statt nur ziehen zu können — key={overlay.id}
+          erzwingt einen echten Remount beim Formwechsel, damit jedes Feld
+          sein eigenes lokales Tipp-Zwischenergebnis nur einmal aus dem
+          Server-Stand zieht (gleiches Prinzip wie label oben, nur ohne einen
+          eigenen Reset-Effekt je Feld). */}
+      {data.kind === 'circle' && (
+        <MeasureSizeField
+          key={overlay.id}
+          label="Radius"
+          value={data.radius}
+          onCommit={(v) => onChange({ radius: v })}
+        />
+      )}
+      {data.kind === 'ruler' && (
+        <MeasureSizeField
+          key={overlay.id}
+          label="Länge"
+          value={gridDistance(data.from, data.to)}
+          onCommit={(v) => onChange({ to: resizeRulerLength(data, v).to })}
+        />
+      )}
+      {data.kind === 'rectangle' && (
+        <>
+          <MeasureSizeField
+            key={`${overlay.id}-w`}
+            label="Breite"
+            value={Math.abs(data.to.x - data.from.x)}
+            onCommit={(v) => onChange({ to: resizeRectangle(data, v, Math.abs(data.to.y - data.from.y)).to })}
           />
-          <span className="muted vtt-tile-picker-opacity-pct">{data.spread}°</span>
-        </div>
+          <MeasureSizeField
+            key={`${overlay.id}-h`}
+            label="Tiefe"
+            value={Math.abs(data.to.y - data.from.y)}
+            onCommit={(v) => onChange({ to: resizeRectangle(data, Math.abs(data.to.x - data.from.x), v).to })}
+          />
+        </>
+      )}
+      {data.kind === 'cone' && (
+        <>
+          <MeasureSizeField key={overlay.id} label="Länge" value={data.length} onCommit={(v) => onChange({ length: v })} />
+          <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
+            <input
+              type="range"
+              min={5}
+              max={180}
+              step={5}
+              value={spread}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setSpread(v);
+                clearTimeout(spreadTimerRef.current ?? undefined);
+                spreadTimerRef.current = setTimeout(() => onChange({ spread: v }), FIELD_DEBOUNCE_MS);
+              }}
+              title="Öffnungswinkel"
+              className="vtt-tile-picker-opacity"
+            />
+            <span className="muted vtt-tile-picker-opacity-pct">{spread}°</span>
+          </div>
+        </>
       )}
       <div className="vtt-token-editor-row">
         <button className="small" onClick={onDelete}>
@@ -1969,6 +2208,42 @@ function MeasureEditor({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Eigene lokale Textstufe statt direkt an `value` gebunden — sonst würde
+ * jeder Tastenanschlag sofort einen Server-Rundlauf auslösen UND ein
+ * Zwischenwert wie "5." (noch keine gültige Zahl) sofort wieder überschrieben.
+ * `key={overlay.id}` am Aufrufer (siehe MeasureEditor) übernimmt den
+ * "beim Formwechsel neu aus dem Server-Stand ziehen"-Reset per Remount,
+ * dieselbe Wirkung wie LabelEditors expliziter useEffect, nur ohne dafür
+ * hier eine eigene Abhängigkeit zu brauchen.
+ */
+function MeasureSizeField({ label, value, onCommit }: { label: string; value: number; onCommit: (n: number) => void }) {
+  const [text, setText] = useState(value.toFixed(1));
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(timerRef.current ?? undefined), []);
+  return (
+    <label className="vtt-token-editor-row">
+      <span className="muted">{label}</span>
+      <input
+        type="number"
+        min={0.1}
+        step={0.5}
+        value={text}
+        style={{ width: '5em' }}
+        onChange={(e) => {
+          const v = e.target.value;
+          setText(v);
+          const n = Number(v);
+          if (!Number.isFinite(n) || n <= 0) return;
+          clearTimeout(timerRef.current ?? undefined);
+          timerRef.current = setTimeout(() => onCommit(n), FIELD_DEBOUNCE_MS);
+        }}
+      />
+      <span className="muted">Schritt</span>
+    </label>
   );
 }
 
@@ -2257,6 +2532,49 @@ function HighlightPicker({
   );
 }
 
+// Kein Farb-/Deckkraft-Regler wie bei TilePicker/HighlightPicker — Nebel
+// kennt nur zwei Zustände (verdeckt/aufgedeckt), also ein simpler
+// Umschalter statt ColorOpacityFields. Gleiche .vtt-tile-picker-Position wie
+// die anderen Flyouts (siehe TODO.md, "dropdowns/flyouts over inline button
+// sprawl").
+function FogPicker({
+  value,
+  onChange,
+  onClose,
+}: {
+  value: 'hide' | 'reveal';
+  onChange: (v: 'hide' | 'reveal') => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="vtt-tile-picker">
+      <div className="vtt-token-editor-head">
+        <strong>Nebel</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      {/* .seg allein wäre als direktes Kind von .vtt-tile-picker (Flex-Spalte,
+          align-items:stretch per Vorgabe) auf die volle Breite gestreckt und
+          hätte hinter „Aufdecken" einen leeren Rest der Pille stehen lassen,
+          der wie Platz für einen dritten Knopf aussah — die Zeile hier nimmt
+          .seg aus dem Spalten-Stretch heraus, genau wie bei jeder anderen
+          .vtt-tile-picker-row. */}
+      <div className="vtt-tile-picker-row">
+        <div className="seg">
+          <button className={value === 'hide' ? 'active' : ''} onClick={() => onChange('hide')}>
+            Verdecken
+          </button>
+          <button className={value === 'reveal' ? 'active' : ''} onClick={() => onChange('reveal')}>
+            Aufdecken
+          </button>
+        </div>
+      </div>
+      <p className="muted vtt-settings-fixed">Spieler sehen nur, DASS ein Feld verdeckt ist, nicht was darunter liegt.</p>
+    </div>
+  );
+}
+
 function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClose: () => void }) {
   const { updateBoardSettings } = useDicePanel();
   const rows: { key: keyof BoardSettings; label: string }[] = [
@@ -2299,7 +2617,7 @@ export default function VirtualTable() {
   const { id } = useParams();
   const groupId = Number(id);
   const { user } = useAuth();
-  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, boardHighlights, boardOverlays, hydrateBoard } =
+  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, boardHighlights, boardOverlays, boardFog, hydrateBoard } =
     useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
@@ -2319,6 +2637,7 @@ export default function VirtualTable() {
           JSON.parse(snap.board.tilesJson || '{}'),
           JSON.parse(snap.board.highlightsJson || '{}'),
           snap.overlays,
+          JSON.parse(snap.board.fogJson || '[]'),
         ),
       )
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
@@ -2391,6 +2710,7 @@ export default function VirtualTable() {
           tiles={boardTiles}
           highlights={boardHighlights}
           overlays={boardOverlays}
+          fog={boardFog}
           canCreateTokens={canCreateTokens}
           canEditToken={canEditToken}
           canMoveToken={canMoveToken}

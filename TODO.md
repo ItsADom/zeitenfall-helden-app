@@ -90,6 +90,16 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Mid-Prio
 
+- [sketch] **VTT: area-fill painting, not just cell-by-cell** (developer
+  feedback, Phase 9). Bemalen/Hervorheben/Nebel all paint one cell per
+  pointer-move step today (`startPaint`/`applyPaintCell` in
+  `client/src/pages/VirtualTable.tsx`, shared by all three layers as of the
+  fog tool). Not concepted yet: whether "whole area" means a drag-rectangle
+  fill (like the rectangle measure shape's drag), a flood-fill from a clicked
+  cell bounded by existing painted edges, or both as separate brush modes —
+  needs a decision with the developer before building, plus how it interacts
+  with the existing single-cell brush (replace it vs. an additional tool
+  mode).
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of
   talents/skills). Not concepted at all yet: how much a pet sheet shares with
@@ -381,6 +391,30 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
+- [sketch] **VTT: GM's cursor gets stuck as the "grabbing" hand, even while
+  hovering a token** (developer feedback, Phase 9 fog testing). The GM
+  reported the cursor never returns to the token's own `pointer`/pan tool's
+  `grab` cursor once something has been dragged — a player's session behaves
+  correctly. `.vtt-map-wrap` sets `cursor: grab` / `:active { cursor: grabbing
+  }` in `client/src/styles.css`; each token `<g>` overrides that to `pointer`
+  inline (`client/src/pages/VirtualTable.tsx`), identically for every role —
+  nothing in the code branches on `isGm` for this, so the asymmetry isn't
+  obviously explained by a role-specific code path. Likely candidate: a
+  stuck `:active` pseudo-class from a pointer-capture/mouseup mismatch during
+  one of the GM-only paint/highlight/fog drags, but this is a live-browser
+  cursor-rendering quirk that can't be diagnosed from network/DOM inspection
+  (same class of problem as the color-swatch-reopen bug below — needs
+  someone actually reproducing it live, cursor state included, before
+  attempting a fix).
+- [sketch] **VTT: combine "Beschriftung" and "+ Marker" into one tool-flyout**
+  (developer feedback, Phase 9). Both are single always-visible toolbar
+  buttons today (`client/src/pages/VirtualTable.tsx`) rather than a flyout
+  like `TilePicker`/`HighlightPicker`/`FogPicker` — technically still within
+  the "flyouts over inline sprawl" rule above since neither has SUB-options,
+  but the developer wants them grouped under one shared flyout/button instead
+  of two separate always-visible entries. Needs a design pass on what the
+  combined control looks like (a picker offering "Marker" vs "Beschriftung"
+  as two choices, presumably) before building it.
 - [sketch] **Native colour swatch reopens on a second click instead of
   closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
   used by token colour/ring colour, the tile/highlight picker, and the

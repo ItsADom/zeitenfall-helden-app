@@ -6,13 +6,10 @@
 // hard-coded to viewer.isGm below, because a player able to lift fog defeats
 // the point. There is no canSeeFog: once fog exists the mask itself is public,
 // only its contents are redacted (Phase 10).
-import type { BoardRow } from './board.js';
+import type { BoardRow, BoardViewer } from './board.js';
 import { isRoomMember } from './routes.js';
 
-export interface BoardViewer {
-  userId: number;
-  isGm: boolean;
-}
+export type { BoardViewer };
 
 function checkPerm(perm: string, viewer: BoardViewer, groupId: number): boolean {
   if (viewer.isGm) return true;

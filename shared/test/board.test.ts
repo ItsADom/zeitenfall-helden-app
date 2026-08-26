@@ -8,6 +8,7 @@ import {
   encodeCellSet,
   gridDistance,
   initiativeOrder,
+  overlayCell,
   parseCellKey,
   parseTileValue,
   shapeCells,
@@ -106,6 +107,16 @@ describe('tokenCells', () => {
 
   it('a size-3 token covers nine cells', () => {
     expect(tokenCells({ x: 0, y: 0, size: 3 })).toHaveLength(9);
+  });
+});
+
+describe('overlayCell', () => {
+  it('recovers the cell a label was created at (center-anchored, x = cell.x + 0.5)', () => {
+    expect(overlayCell({ x: 3.5, y: 5.5 })).toEqual({ x: 3, y: 5 });
+  });
+
+  it('floors any off-center position onto the cell it visually sits in', () => {
+    expect(overlayCell({ x: 3.9, y: 5.1 })).toEqual({ x: 3, y: 5 });
   });
 });
 

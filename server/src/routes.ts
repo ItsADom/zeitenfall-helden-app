@@ -28,7 +28,7 @@ import {
 import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chimes.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
-import { loadBoardSnapshot } from './board.js';
+import { loadBoardSnapshot, redactSnapshotForViewer } from './board.js';
 import { listRollableProbes } from './diceSource.js';
 import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
@@ -786,8 +786,11 @@ api.get('/groups/:id/feed', requireAuth, (req, res) => {
 // reasoning as the feed above — an event group's additive members read the
 // board same as a permanent group's exclusive ones. Creates the board on
 // first access (getOrCreateBoard), same idempotent-nachziehen shape as
-// instantiateGroupTabs. No per-viewer redaction yet: this phase is inert,
-// nothing paints tiles or hides tokens until later phases build those tools.
+// instantiateGroupTabs. redactSnapshotForViewer strips fogged tiles/
+// highlights, hidden-or-fogged tokens, fogged labels and hidden images for
+// anyone but the GM — the same redaction every live WS delta applies (see
+// board.ts/ws.ts, "Realtime design"), so this REST fetch (initial load, and
+// every reconnect refetch on a `rev` gap) never ships hidden state either.
 api.get('/groups/:id/board', requireAuth, (req, res) => {
   const groupId = Number(req.params.id);
   const user = req.user!;
@@ -796,7 +799,7 @@ api.get('/groups/:id/board', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
-  res.json(loadBoardSnapshot(groupId));
+  res.json(redactSnapshotForViewer(loadBoardSnapshot(groupId), { userId: user.id, isGm: user.isGm }));
 });
 
 api.post('/groups/:id/tabs', requireAuth, (req, res) => {

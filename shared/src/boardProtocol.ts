@@ -160,7 +160,17 @@ export type BoardClientMessage =
   // new `data` as the patch (a measure shape has no field that survives a
   // drag the way a label's text does, so there's nothing to merge).
   | { type: 'board.overlay.update'; reqId: string; overlayId: number; patch: Partial<LabelOverlayData> | MeasureOverlayData }
-  | { type: 'board.overlay.delete'; reqId: string; overlayId: number };
+  | { type: 'board.overlay.delete'; reqId: string; overlayId: number }
+  // GM only (canEditFog — hard-coded, not a perm_*). Delta cells, same "never
+  // a whole-map replace" shape as board.tiles.paint: true = hide this cell,
+  // false = reveal it. The fog MASK itself is public (every viewer gets the
+  // same board.fog.updated broadcast unfiltered) — only its CONTENTS are
+  // redacted, which is why revealing a cell separately triggers synthetic
+  // board.tiles.painted/board.highlights.painted/board.token.created/
+  // board.overlay.created messages to players for whatever was hiding there
+  // (see "Realtime design" in the plan and emitBoardChange in server/src/
+  // ws.ts) — those aren't part of this message's own payload.
+  | { type: 'board.fog.set'; reqId: string; cells: Record<string, boolean> };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
@@ -171,4 +181,6 @@ export type BoardServerMessage =
   | { type: 'board.highlights.painted'; cells: Record<string, string> }
   | { type: 'board.overlay.created'; overlay: BoardOverlay }
   | { type: 'board.overlay.updated'; overlay: BoardOverlay }
-  | { type: 'board.overlay.deleted'; overlayId: number };
+  | { type: 'board.overlay.deleted'; overlayId: number }
+  /** cellKey -> hidden? — the mask itself, same for every viewer (public per the fog design). */
+  | { type: 'board.fog.updated'; cells: Record<string, boolean> };

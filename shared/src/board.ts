@@ -71,6 +71,16 @@ export interface TokenFootprint {
   size: number;
 }
 
+/**
+ * The single cell a point-anchored overlay (a label) sits on — same
+ * "integer is a grid line, not a cell center" convention as everything else
+ * here. A label is created at its cell's center (x = cell.x + 0.5, see
+ * VirtualTable.tsx), so flooring recovers that same cell.
+ */
+export function overlayCell(pos: CellCoord): CellCoord {
+  return { x: Math.floor(pos.x), y: Math.floor(pos.y) };
+}
+
 /** Every cell a token of size > 1 occupies, anchored at its top-left cell. */
 export function tokenCells(token: TokenFootprint): CellCoord[] {
   const size = Math.max(1, Math.round(token.size));

@@ -20,12 +20,13 @@ import type {
   ServerToClientMessage,
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
-import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, parseCellKey, parseDiceExpression, parseTileValue, resolveExpressionRoll, resolveProbeRoll, type DiceExpression } from 'shared';
+import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, cellKey, overlayCell, parseCellKey, parseDiceExpression, parseTileValue, resolveExpressionRoll, resolveProbeRoll, tokenCells, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import {
+  canEditFog as boardCanEditFog,
   canEditTokens as boardCanEditTokens,
   canHighlightTiles as boardCanHighlightTiles,
   canLabel as boardCanLabel,
@@ -37,16 +38,24 @@ import {
   type BoardOverlayRow,
   type BoardRow,
   type BoardTokenRow,
+  type BoardViewer,
   createOverlay as createBoardOverlay,
   createToken as createBoardToken,
   deleteOverlay as deleteBoardOverlay,
   deleteToken as deleteBoardToken,
+  fogSet,
   getOrCreateBoard,
   getOverlay as getBoardOverlay,
   getToken as getBoardToken,
+  labelVisibleTo,
+  loadOverlays as loadBoardOverlays,
+  loadTokens as loadBoardTokens,
   moveToken as moveBoardToken,
   paintHighlights as paintBoardHighlights,
   paintTiles as paintBoardTiles,
+  redactCells,
+  setFog as setBoardFog,
+  tokenVisibleTo,
   updateBoardSettings,
   updateOverlay as updateBoardOverlay,
   updateToken as updateBoardToken,
@@ -127,6 +136,11 @@ const lastLeftRoom = new Map<string, number>();
 const RECONNECT_GRACE_MS = 60_000;
 function leftKey(groupId: number, userId: number): string {
   return `${groupId}:${userId}`;
+}
+
+/** Whether any cell this token occupies is in `cellSet` — used by the fog-reveal/-hide sweep below. */
+function tokenCellsIntersect(token: BoardTokenRow, cellSet: ReadonlySet<string>): boolean {
+  return tokenCells(token).some((c) => cellSet.has(cellKey(c.x, c.y)));
 }
 
 function toWireToken(row: BoardTokenRow): BoardToken {
@@ -265,16 +279,36 @@ function sendToUserInGroup(groupId: number, userId: number, msg: ServerToClientM
  * (canSeeFeedEntry): der ganze Witz eines offenen, selbstbedienten Pools ist,
  * dass alle ihn sehen und beitreten können.
  */
-function broadcastToRoom(groupId: number, msg: ServerToClientMessage): void {
+function broadcastUngefiltert(groupId: number, msg: ServerToClientMessage): void {
   const room = rooms.get(groupId);
   if (!room) return;
   for (const ws of room) send(ws, msg);
 }
 
 /**
+ * Per-viewer broadcast — `build` runs once per connected socket and decides
+ * what (if anything) THAT viewer gets; returning null sends nothing. This is
+ * the fog/hidden-token counterpart to broadcastUngefiltert() above: every
+ * board.* case that can carry redactable content (tiles, tokens, labels)
+ * goes through this instead, consulting the pure redaction helpers in
+ * board.ts (fogSet/tokenVisibleTo/labelVisibleTo/redactCells) inside its
+ * builder. See "Realtime design" in the plan.
+ */
+function broadcastBuilt(groupId: number, build: (viewer: BoardViewer) => ServerToClientMessage | null): void {
+  const room = rooms.get(groupId);
+  if (!room) return;
+  for (const ws of room) {
+    const meta = socketMeta.get(ws);
+    if (!meta) continue;
+    const msg = build({ userId: meta.userId, isGm: meta.isGm });
+    if (msg) send(ws, msg);
+  }
+}
+
+/**
  * To EVERY room at once — the only message without a group: the instance is
  * about to restart, which concerns everyone. Deliberately its own function
- * rather than a special case inside broadcastToRoom(), so that skipping the
+ * rather than a special case inside broadcastUngefiltert(), so that skipping the
  * room boundary stays visible in the signature.
  *
  * Anyone who has never picked a room holds no socket and gets no warning. For
@@ -820,7 +854,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         initiatorUserId: meta.userId,
         initiatorName: meta.displayName,
       });
-      broadcastToRoom(meta.groupId, { type: 'roll.coop.created', pool });
+      broadcastUngefiltert(meta.groupId, { type: 'roll.coop.created', pool });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -839,7 +873,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Pool nicht gefunden' });
         return;
       }
-      broadcastToRoom(meta.groupId, { type: 'roll.coop.updated', pool });
+      broadcastUngefiltert(meta.groupId, { type: 'roll.coop.updated', pool });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -853,7 +887,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // beigetreten ist, steht schon in pool.members.
       const own = pool.members.find((m) => m.userId === meta.userId);
       const updated = own ? leaveCoopPool(msg.poolId, own.charId) : pool;
-      if (updated) broadcastToRoom(meta.groupId, { type: 'roll.coop.updated', pool: updated });
+      if (updated) broadcastUngefiltert(meta.groupId, { type: 'roll.coop.updated', pool: updated });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -907,7 +941,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         );
         for (const r of rolls) insertFeedRoll(meta.groupId, r.author, null, 'public', r.roll, pool.id, true);
       }
-      broadcastToRoom(meta.groupId, { type: 'roll.coop.closed', poolId: pool.id });
+      broadcastUngefiltert(meta.groupId, { type: 'roll.coop.closed', poolId: pool.id });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -918,7 +952,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       removeCoopPool(msg.poolId);
-      broadcastToRoom(meta.groupId, { type: 'roll.coop.cancelled', poolId: pool.id });
+      broadcastUngefiltert(meta.groupId, { type: 'roll.coop.cancelled', poolId: pool.id });
       // Wie beim Verwerfen einer Gruppenprobe: sichtbar machen statt
       // stillschweigend verschwinden lassen. Der TATSÄCHLICH Klickende steht
       // im Text — das kann die Spielleitung sein, die den Pool einer anderen
@@ -1068,9 +1102,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       return;
     }
     // Virtueller Tisch (docs/concepts/virtual-table.md) — reuses this same
-    // socket/room rather than a second connection. NO per-viewer redaction
-    // below (fog lands in Phase 10): every message here goes to the whole
-    // room, hidden tokens included.
+    // socket/room rather than a second connection. Fog/hidden redaction
+    // (broadcastBuilt + the pure helpers in board.ts) covers token.*,
+    // tiles.paint, highlights.paint and the 'label' half of overlay.* below;
+    // board.settings.update and the 'measure' half of overlay.* stay
+    // unfiltered (broadcastUngefiltert) — settings aren't secret and measure
+    // shapes are deliberately NOT redacted by fog (an in-play tool, not a
+    // secret-planning annotation like a label — see board.ts's overlayVisibleTo).
     case 'board.token.create': {
       const board = getOrCreateBoard(meta.groupId);
       const viewer = { userId: meta.userId, isGm: meta.isGm };
@@ -1123,7 +1161,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         };
       }
       const token = createBoardToken(board.id, input);
-      broadcastToRoom(meta.groupId, { type: 'board.token.created', token: toWireToken(token) });
+      const fogAtCreate = fogSet(board);
+      broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(token, fogAtCreate, v) ? { type: 'board.token.created', token: toWireToken(token) } : null));
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1158,7 +1197,22 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (Array.isArray(p.statuses)) patch.statuses = p.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
       if (typeof p.cover === 'string' && (p.cover === '' || p.cover in BOARD_COVER_BY_KEY)) patch.cover = p.cover;
       const updated = updateBoardToken(existing.id, patch);
-      if (updated) broadcastToRoom(meta.groupId, { type: 'board.token.updated', token: toWireToken(updated) });
+      if (updated) {
+        const fog = fogSet(board);
+        // Only `hidden` can flip visibility here (position is untouched) —
+        // still computed generally via tokenVisibleTo so this stays correct
+        // if that ever changes. A viewer who never had this token needs
+        // 'created' (the reducer's 'updated' handler only replaces an
+        // existing entry, see DicePanelProvider.tsx), one who had it and
+        // loses it needs 'deleted', and unchanged visibility keeps 'updated'.
+        broadcastBuilt(meta.groupId, (v) => {
+          const wasVisible = tokenVisibleTo(existing, fog, v);
+          const nowVisible = tokenVisibleTo(updated, fog, v);
+          if (!nowVisible) return wasVisible ? { type: 'board.token.deleted', tokenId: updated.id } : null;
+          if (wasVisible) return { type: 'board.token.updated', token: toWireToken(updated) };
+          return { type: 'board.token.created', token: toWireToken(updated) };
+        });
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1184,7 +1238,18 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // only sends the dropped-at position (see VirtualTable.tsx), so there's
       // nothing to debounce or re-broadcast mid-drag: write and tell the room once.
       moveBoardToken(existing.id, existing.boardId, x, y);
-      broadcastToRoom(meta.groupId, { type: 'board.token.updated', token: toWireToken({ ...existing, x, y }) });
+      const moved = { ...existing, x, y };
+      const fogAtMove = fogSet(board);
+      // Moving into/out of a fogged cell is the plan's headline fog example:
+      // players get 'removed' walking in, 'created' walking out — same
+      // visibility-transition shape as board.token.update above.
+      broadcastBuilt(meta.groupId, (v) => {
+        const wasVisible = tokenVisibleTo(existing, fogAtMove, v);
+        const nowVisible = tokenVisibleTo(moved, fogAtMove, v);
+        if (!nowVisible) return wasVisible ? { type: 'board.token.deleted', tokenId: moved.id } : null;
+        if (wasVisible) return { type: 'board.token.updated', token: toWireToken(moved) };
+        return { type: 'board.token.created', token: toWireToken(moved) };
+      });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1201,7 +1266,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       deleteBoardToken(existing.id);
-      broadcastToRoom(meta.groupId, { type: 'board.token.deleted', tokenId: existing.id });
+      const fogAtDelete = fogSet(board);
+      // Only tell a viewer who could actually see this token that it's gone
+      // — nothing else about it leaks (not even that an id existed) to one
+      // who couldn't.
+      broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(existing, fogAtDelete, v) ? { type: 'board.token.deleted', tokenId: existing.id } : null));
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1220,7 +1289,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (isPerm(p.permImages)) patch.permImages = p.permImages;
       if (isPerm(p.permMove)) patch.permMove = p.permMove;
       const updated = updateBoardSettings(board.id, patch);
-      broadcastToRoom(meta.groupId, {
+      broadcastUngefiltert(meta.groupId, {
         type: 'board.settings.updated',
         board: {
           id: updated.id,
@@ -1271,7 +1340,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       paintBoardTiles(board.id, cells);
-      broadcastToRoom(meta.groupId, { type: 'board.tiles.painted', cells });
+      const fogAtPaint = fogSet(board);
+      // A painted cell that's currently fogged is withheld from players
+      // entirely (see redactCells) — GM still gets the full stroke.
+      broadcastBuilt(meta.groupId, (v) => {
+        const redacted = redactCells(cells, fogAtPaint, v);
+        return Object.keys(redacted).length > 0 ? { type: 'board.tiles.painted', cells: redacted } : null;
+      });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1301,7 +1376,14 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       paintBoardHighlights(board.id, cells);
-      broadcastToRoom(meta.groupId, { type: 'board.highlights.painted', cells });
+      const fogAtHighlight = fogSet(board);
+      // Same fog redaction as tiles.paint — a GM tint over a fogged cell
+      // would otherwise leak the room's shape to players who can't see the
+      // tile itself.
+      broadcastBuilt(meta.groupId, (v) => {
+        const redacted = redactCells(cells, fogAtHighlight, v);
+        return Object.keys(redacted).length > 0 ? { type: 'board.highlights.painted', cells: redacted } : null;
+      });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1325,7 +1407,12 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         }
         const text = String((msg.data as { text?: unknown })?.text ?? '').slice(0, 80);
         const overlay = createBoardOverlay(board.id, 'label', { x, y, text });
-        broadcastToRoom(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
+        const fogAtLabel = fogSet(board);
+        // GM plans maps secretly (developer's call): a label the GM drops on
+        // a currently-fogged cell never reaches a player at all.
+        broadcastBuilt(meta.groupId, (v) =>
+          labelVisibleTo(overlay.data as LabelOverlayData, fogAtLabel, v) ? { type: 'board.overlay.created', overlay: toWireOverlay(overlay) } : null,
+        );
         send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }
@@ -1341,7 +1428,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           return;
         }
         const overlay = createBoardOverlay(board.id, 'measure', data);
-        broadcastToRoom(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
+        broadcastUngefiltert(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
         send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }
@@ -1367,7 +1454,20 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = Math.min(board.rows, Math.max(0, p.y));
         if (typeof p.text === 'string') patch.text = p.text.slice(0, 80);
         const updated = updateBoardOverlay(existing.id, patch);
-        if (updated) broadcastToRoom(meta.groupId, { type: 'board.overlay.updated', overlay: toWireOverlay(updated) });
+        if (updated) {
+          const fog = fogSet(board);
+          // Same visibility-transition shape as a token move: dragging a
+          // label into/out of a fogged cell needs 'created'/'deleted', not
+          // 'updated', for a viewer who didn't already have it (see the
+          // reducer comment on board.token.update above).
+          broadcastBuilt(meta.groupId, (v) => {
+            const wasVisible = labelVisibleTo(existing.data as LabelOverlayData, fog, v);
+            const nowVisible = labelVisibleTo(updated.data as LabelOverlayData, fog, v);
+            if (!nowVisible) return wasVisible ? { type: 'board.overlay.deleted', overlayId: updated.id } : null;
+            if (wasVisible) return { type: 'board.overlay.updated', overlay: toWireOverlay(updated) };
+            return { type: 'board.overlay.created', overlay: toWireOverlay(updated) };
+          });
+        }
         send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }
@@ -1384,7 +1484,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       const updated = updateBoardOverlay(existing.id, data);
-      if (updated) broadcastToRoom(meta.groupId, { type: 'board.overlay.updated', overlay: toWireOverlay(updated) });
+      if (updated) broadcastUngefiltert(meta.groupId, { type: 'board.overlay.updated', overlay: toWireOverlay(updated) });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1402,7 +1502,92 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       deleteBoardOverlay(existing.id);
-      broadcastToRoom(meta.groupId, { type: 'board.overlay.deleted', overlayId: existing.id });
+      if (existing.kind === 'label') {
+        const fog = fogSet(board);
+        // Same "only tell whoever could actually see it" rule as a token delete.
+        broadcastBuilt(meta.groupId, (v) =>
+          labelVisibleTo(existing.data as LabelOverlayData, fog, v) ? { type: 'board.overlay.deleted', overlayId: existing.id } : null,
+        );
+      } else {
+        broadcastUngefiltert(meta.groupId, { type: 'board.overlay.deleted', overlayId: existing.id });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.fog.set': {
+      if (!boardCanEditFog({ userId: meta.userId, isGm: meta.isGm })) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung ändert den Nebel' });
+        return;
+      }
+      const board = getOrCreateBoard(meta.groupId);
+      const raw = msg.cells ?? {};
+      // Same tolerance/cap as board.tiles.paint — silently drop what doesn't
+      // fit rather than reject the whole message.
+      const delta: Record<string, boolean> = {};
+      let n = 0;
+      for (const [key, value] of Object.entries(raw)) {
+        if (n >= 10000) break;
+        if (typeof value !== 'boolean') continue;
+        const cell = parseCellKey(key);
+        if (!cell || cell.x < 0 || cell.y < 0 || cell.x >= board.cols || cell.y >= board.rows) continue;
+        delta[key] = value;
+        n++;
+      }
+      if (n === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine gültigen Zellen' });
+        return;
+      }
+      const { board: updatedBoard, revealedCells, hiddenCells } = setBoardFog(board.id, delta);
+      if (revealedCells.length === 0 && hiddenCells.length === 0) {
+        send(ws, { type: 'ack', reqId: msg.reqId });
+        return;
+      }
+      // The mask itself is public — every viewer, GM and players alike, gets
+      // the same delta unfiltered (see the plan: "the fog set itself is
+      // public"). What's now UNDER a revealed/hidden cell is a separate,
+      // per-viewer concern handled below.
+      broadcastUngefiltert(meta.groupId, { type: 'board.fog.updated', cells: delta });
+
+      if (revealedCells.length > 0) {
+        const revealedSet = new Set(revealedCells);
+        const tiles = JSON.parse(updatedBoard.tilesJson || '{}') as Record<string, string>;
+        const revealedTiles: Record<string, string> = {};
+        for (const key of revealedCells) if (tiles[key] !== undefined) revealedTiles[key] = tiles[key];
+        const highlights = JSON.parse(updatedBoard.highlightsJson || '{}') as Record<string, string>;
+        const revealedHighlights: Record<string, string> = {};
+        for (const key of revealedCells) if (highlights[key] !== undefined) revealedHighlights[key] = highlights[key];
+        // Players never had these — GM already does, so skip it there too
+        // (redundant data over the wire for no reason).
+        if (Object.keys(revealedTiles).length > 0) {
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.tiles.painted', cells: revealedTiles }));
+        }
+        if (Object.keys(revealedHighlights).length > 0) {
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.highlights.painted', cells: revealedHighlights }));
+        }
+        for (const token of loadBoardTokens(board.id)) {
+          if (token.hidden || !tokenCellsIntersect(token, revealedSet)) continue;
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.token.created', token: toWireToken(token) }));
+        }
+        for (const overlay of loadBoardOverlays(board.id)) {
+          if (overlay.kind !== 'label') continue;
+          const cell = overlayCell(overlay.data as LabelOverlayData);
+          if (!revealedSet.has(cellKey(cell.x, cell.y))) continue;
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.overlay.created', overlay: toWireOverlay(overlay) }));
+        }
+      }
+      if (hiddenCells.length > 0) {
+        const hiddenSet = new Set(hiddenCells);
+        for (const token of loadBoardTokens(board.id)) {
+          if (token.hidden || !tokenCellsIntersect(token, hiddenSet)) continue;
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.token.deleted', tokenId: token.id }));
+        }
+        for (const overlay of loadBoardOverlays(board.id)) {
+          if (overlay.kind !== 'label') continue;
+          const cell = overlayCell(overlay.data as LabelOverlayData);
+          if (!hiddenSet.has(cellKey(cell.x, cell.y))) continue;
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.overlay.deleted', overlayId: overlay.id }));
+        }
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

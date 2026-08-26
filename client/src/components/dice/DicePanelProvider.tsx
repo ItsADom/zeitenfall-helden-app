@@ -233,13 +233,16 @@ interface DicePanelCtxValue {
   boardHighlights: Record<string, string>;
   /** Persistent, movable labels (board_overlays, kind 'label') — perm_labels-gated, see canLabel below. */
   boardOverlays: BoardOverlay[];
-  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays einmalig. */
+  /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded); everyone gets the same mask, only its contents are redacted server-side. */
+  boardFog: Set<string>;
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog einmalig. */
   hydrateBoard: (
     board: BoardSettings,
     tokens: BoardToken[],
     tiles: Record<string, string>,
     highlights: Record<string, string>,
     overlays: BoardOverlay[],
+    fog: string[],
   ) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
@@ -265,6 +268,8 @@ interface DicePanelCtxValue {
   paintHighlights: (cells: Record<string, string>) => void;
   createOverlay(kind: 'label', data: LabelOverlayData): void;
   createOverlay(kind: 'measure', data: MeasureOverlayData): void;
+  /** GM only (canEditFog). true hides a cell, false reveals it — same "one delta on release" shape as paintTiles, just boolean instead of a tagged value. */
+  paintFog: (cells: Record<string, boolean>) => void;
   /**
    * A label patches individual fields (position from a drag, or text from
    * editing — see the protocol comment); a measure shape has no field that
@@ -332,6 +337,7 @@ export function useDicePanel(): DicePanelCtxValue {
       boardTiles: {},
       boardHighlights: {},
       boardOverlays: [],
+      boardFog: new Set<string>(),
       hydrateBoard: () => {},
       createToken: () => {},
       updateToken: () => {},
@@ -343,6 +349,7 @@ export function useDicePanel(): DicePanelCtxValue {
       createOverlay: () => {},
       updateOverlay: () => {},
       deleteOverlay: () => {},
+      paintFog: () => {},
     }
   );
 }
@@ -383,6 +390,8 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
   const [boardHighlights, setBoardHighlights] = useState<Record<string, string>>({});
   const [boardOverlays, setBoardOverlays] = useState<BoardOverlay[]>([]);
+  /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
+  const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -681,6 +690,17 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'board.overlay.deleted') {
         setBoardOverlays((prev) => prev.filter((o) => o.id !== msg.overlayId));
+        return;
+      }
+      if (msg.type === 'board.fog.updated') {
+        setBoardFog((prev) => {
+          const next = new Set(prev);
+          for (const [key, hidden] of Object.entries(msg.cells)) {
+            if (hidden) next.add(key);
+            else next.delete(key);
+          }
+          return next;
+        });
         return;
       }
       if (msg.type === 'wartung.angekuendigt') {
@@ -1000,12 +1020,20 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const hydrateBoard = useCallback(
-    (board: BoardSettings, tokens: BoardToken[], tiles: Record<string, string>, highlights: Record<string, string>, overlays: BoardOverlay[]) => {
+    (
+      board: BoardSettings,
+      tokens: BoardToken[],
+      tiles: Record<string, string>,
+      highlights: Record<string, string>,
+      overlays: BoardOverlay[],
+      fog: string[],
+    ) => {
       setBoardSettings(board);
       setBoardTokens(tokens);
       setBoardTiles(tiles);
       setBoardHighlights(highlights);
       setBoardOverlays(overlays);
+      setBoardFog(new Set(fog));
     },
     [],
   );
@@ -1091,6 +1119,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const paintFogAction = useCallback(
+    (cells: Record<string, boolean>) => {
+      sendMsg({ type: 'board.fog.set', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -1146,6 +1181,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardTiles,
         boardHighlights,
         boardOverlays,
+        boardFog,
         hydrateBoard,
         createToken,
         updateToken: updateTokenAction,
@@ -1157,6 +1193,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         createOverlay: createOverlayAction,
         updateOverlay: updateOverlayAction,
         deleteOverlay: deleteOverlayAction,
+        paintFog: paintFogAction,
       }}
     >
       {children}

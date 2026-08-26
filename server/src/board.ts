@@ -1,12 +1,23 @@
-// Virtual table (VTT) persistence — board load/create, tokens, and the full
-// snapshot. See docs/concepts/virtual-table.md. Tiles/fog/overlays/images/
-// initiative are still inert (Phases 6-11) — this phase is tokens only. The
-// snapshot (and every token broadcast) carries NO per-viewer redaction yet:
-// a `hidden` token goes out to every viewer including players. That
-// structural piece (emitBoardChange) lands with fog of war (Phase 10), once
-// there is something worth actually hiding rather than just marking.
+// Virtual table (VTT) persistence — board load/create, tokens, tiles/
+// highlights/overlays/images, and per-viewer fog redaction. See
+// docs/concepts/virtual-table.md, "Realtime design". Initiative is still
+// inert (Phase 10 in the current plan numbering).
+import { cellKey, decodeCellSet, encodeCellSet, overlayCell, tokenCells } from 'shared';
+import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { hasPortrait } from './characterData.js';
+
+/**
+ * Who's asking. The one thing every board access/redaction decision needs —
+ * see boardAccess.ts (edit rights) and the redaction helpers below (fog/
+ * hidden-token visibility). Owned here rather than in boardAccess.ts because
+ * emitBoardChange-adjacent code (redactSnapshotForViewer et al.) needs it too
+ * and boardAccess.ts already imports FROM board.ts, not the other way round.
+ */
+export interface BoardViewer {
+  userId: number;
+  isGm: boolean;
+}
 
 export interface BoardRow {
   id: number;
@@ -88,7 +99,7 @@ function toToken(
   };
 }
 
-function loadTokens(boardId: number): BoardTokenRow[] {
+export function loadTokens(boardId: number): BoardTokenRow[] {
   const rows = db.prepare(`SELECT ${TOKEN_COLS} FROM board_tokens WHERE board_id = ? ORDER BY sort, id`).all(boardId) as Parameters<
     typeof toToken
   >[0][];
@@ -219,6 +230,110 @@ export function paintHighlights(boardId: number, cells: Record<string, string>):
   bumpRev(boardId);
 }
 
+// --- Fog of war — per-viewer redaction ------------------------------------
+//
+// The guarantee: a player's client never receives hidden tile/token/label
+// state. The GM always sees everything (checked first in every helper
+// below). There is no per-player fog — one board has one mask, shared by
+// every non-GM viewer alike, so redaction only ever branches on
+// `viewer.isGm`, never on WHICH player.
+
+export function fogSet(board: BoardRow): Set<string> {
+  return decodeCellSet(JSON.parse(board.fogJson || '[]') as string[]);
+}
+
+/** Drops any key present in `fog` — the tile/highlight redaction for every non-GM payload. GM sees everything unfiltered. */
+export function redactCells(cells: Record<string, string>, fog: Set<string>, viewer: BoardViewer): Record<string, string> {
+  if (viewer.isGm || fog.size === 0) return cells;
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(cells)) {
+    if (!fog.has(key)) out[key] = value;
+  }
+  return out;
+}
+
+/** Invisible to a non-GM viewer if flagged `hidden`, or if any cell it occupies is fogged. */
+export function tokenVisibleTo(token: BoardTokenRow, fog: Set<string>, viewer: BoardViewer): boolean {
+  if (viewer.isGm) return true;
+  if (token.hidden) return false;
+  return !tokenCells(token).some((c) => fog.has(cellKey(c.x, c.y)));
+}
+
+/**
+ * Invisible to a non-GM viewer if the cell it sits on is fogged — this is
+ * the "GM plans maps secretly" case: a text label has no `hidden` flag of
+ * its own (unlike a token), fog IS the only way to keep one from players.
+ */
+export function labelVisibleTo(data: LabelOverlayData, fog: Set<string>, viewer: BoardViewer): boolean {
+  if (viewer.isGm) return true;
+  const cell = overlayCell(data);
+  return !fog.has(cellKey(cell.x, cell.y));
+}
+
+/** Measure shapes are NOT redacted by fog — settled with the developer: they're an in-play tool, not a secret-planning annotation like a label. */
+export function overlayVisibleTo(overlay: BoardOverlayRow, fog: Set<string>, viewer: BoardViewer): boolean {
+  if (overlay.kind !== 'label') return true;
+  return labelVisibleTo(overlay.data as LabelOverlayData, fog, viewer);
+}
+
+export function redactImages(images: BoardImageRow[], viewer: BoardViewer): BoardImageRow[] {
+  if (viewer.isGm) return images;
+  return images.filter((i) => !i.hidden);
+}
+
+/**
+ * The full board state, redacted for one viewer — used by the REST snapshot
+ * (initial load, and every reconnect refetch on a `rev` gap, per the plan).
+ * GM gets the input back untouched.
+ */
+export function redactSnapshotForViewer(snapshot: BoardSnapshot, viewer: BoardViewer): BoardSnapshot {
+  if (viewer.isGm) return snapshot;
+  const fog = fogSet(snapshot.board);
+  const tiles = redactCells(JSON.parse(snapshot.board.tilesJson || '{}') as Record<string, string>, fog, viewer);
+  const highlights = redactCells(JSON.parse(snapshot.board.highlightsJson || '{}') as Record<string, string>, fog, viewer);
+  return {
+    ...snapshot,
+    board: { ...snapshot.board, tilesJson: JSON.stringify(tiles), highlightsJson: JSON.stringify(highlights) },
+    tokens: snapshot.tokens.filter((t) => tokenVisibleTo(t, fog, viewer)),
+    overlays: snapshot.overlays.filter((o) => overlayVisibleTo(o, fog, viewer)),
+    images: redactImages(snapshot.images, viewer),
+  };
+}
+
+export interface SetFogResult {
+  board: BoardRow;
+  /** Cell keys that flipped from fogged to clear — ws.ts uses this to push players the tiles/tokens/labels newly uncovered there. */
+  revealedCells: string[];
+  /** Cell keys that flipped from clear to fogged — ws.ts uses this to tell players about tokens/labels that just vanished from view. */
+  hiddenCells: string[];
+}
+
+/**
+ * Merges a fog delta — `true` hides a cell, `false` reveals it — never a
+ * whole-mask replace, same "deltas only" reasoning as paintTiles. Only keys
+ * that actually CHANGE state end up in revealedCells/hiddenCells: re-hiding
+ * an already-fogged cell is a no-op, not a re-reveal.
+ */
+export function setFog(boardId: number, delta: Record<string, boolean>): SetFogResult {
+  const board = getBoardById(boardId)!;
+  const fog = fogSet(board);
+  const revealedCells: string[] = [];
+  const hiddenCells: string[] = [];
+  for (const [key, wantHidden] of Object.entries(delta)) {
+    const wasHidden = fog.has(key);
+    if (wantHidden && !wasHidden) {
+      fog.add(key);
+      hiddenCells.push(key);
+    } else if (!wantHidden && wasHidden) {
+      fog.delete(key);
+      revealedCells.push(key);
+    }
+  }
+  db.prepare('UPDATE boards SET fog_json = ? WHERE id = ?').run(JSON.stringify(encodeCellSet(fog)), boardId);
+  bumpRev(boardId);
+  return { board: getBoardById(boardId)!, revealedCells, hiddenCells };
+}
+
 export type BoardSettingsPatch = Partial<
   Pick<BoardRow, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>
 >;
@@ -252,7 +367,7 @@ export interface BoardOverlayRow {
   hidden: boolean;
 }
 
-function loadOverlays(boardId: number): BoardOverlayRow[] {
+export function loadOverlays(boardId: number): BoardOverlayRow[] {
   const rows = db
     .prepare(`SELECT id, board_id AS boardId, kind, data_json AS dataJson, hidden FROM board_overlays WHERE board_id = ?`)
     .all(boardId) as { id: number; boardId: number; kind: string; dataJson: string; hidden: number }[];
@@ -347,11 +462,12 @@ export interface BoardSnapshot {
 }
 
 /**
- * The full board state for a room, unredacted. Fine for now because nothing
- * populates fog/hidden tokens/hidden images yet — the per-viewer redaction
- * this will need once painting and fog exist is a structural piece
- * (emitBoardChange, see the plan's "Realtime design"), not a filter to bolt
- * on here later.
+ * The full board state for a room, UNREDACTED — callers must run this
+ * through redactSnapshotForViewer() before it reaches anyone but the GM (see
+ * routes.ts's `/board` handler). Kept separate from redaction rather than
+ * taking a viewer here, so `loadBoardSnapshot` stays the one place that
+ * reads the DB and `redactSnapshotForViewer` stays pure and independently
+ * testable.
  */
 export function loadBoardSnapshot(groupId: number): BoardSnapshot {
   const board = getOrCreateBoard(groupId);

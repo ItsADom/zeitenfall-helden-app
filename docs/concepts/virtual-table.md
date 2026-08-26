@@ -1288,16 +1288,26 @@ front-loaded: the phase that touches existing, released code comes first.
 8. **Labels and measurement shapes** (persistent and movable). Cone ships
    visual-only unless cell coverage falls out easily. Includes setting radiuses to token
    for showing AOEs like spells or simply torch/vision range.
-9. **Images on the table.** `board_images`, upload with `OwnerTyp 'board'`, the
-   „Pixel pro Feld" alignment dialog, object vs Hintergrund, `perm_images`, and —
-   in the same commit, not a follow-up — every asset cleanup path plus the sweeper
-   entry.
-10. **Fog of war.** Per-viewer redaction through `emitBoardChange()`, and the
-    explicit „Bilder sind für Spieler sichtbar" note in the GM's image dialog.
-11. **Initiative and rounds.** Player-rolled `Basis + 1W6`, GM-set initative-base for monsters
+9. **Fog of war.** Per-viewer redaction through `emitBoardChange()`. The
+   redaction logic already accounts for `board_images.hidden` per the schema
+   (see "Fog over images is cosmetic" below) even though no image exists yet
+   to exercise it — that stays inert until Phase 12 builds the image dialog,
+   the same way this phase's token/tile redaction was already structurally
+   ready before painting/tokens existed.
+10. **Initiative and rounds.** Player-rolled `Basis + 1W6`, GM-set initative-base for monsters
     , the "done" checkbox gating round advance, the Todesschwelle countdown. Reroll Initiative on every round.
-12. **"Center all on my view"** and polish. Just a single re-pan with feedback, no interlocking with GMs pan movements.
+11. **"Center all on my view"** and polish. Just a single re-pan with feedback, no interlocking with GMs pan movements.
     display as fast movement, not just a "blink"
+12. **Images on the table.** `board_images`, upload with `OwnerTyp 'board'`, the
+    „Pixel pro Feld" alignment dialog, object vs Hintergrund, `perm_images`, and —
+    in the same commit, not a follow-up — every asset cleanup path plus the sweeper
+    entry. Deliberately last before the wrap-up phase, not right after labels: no
+    later phase depends on it (fog's per-viewer redaction already accounts for
+    `board_images.hidden` structurally, per the note in Phase 9, without needing
+    a real image to exercise it), so slotting it here avoids fog/initiative/polish
+    ever having to design around a half-built image feature. Includes the
+    explicit „Bilder sind für Spieler sichtbar" note in the GM's image dialog,
+    now that the dialog is what this phase builds.
 13. **Changelog + TODO.** Fold the player-facing notes into the newest unversioned
     changelog entry and prune the virtual-table sketch from `TODO.md`. Mark GM-only
     bits with „(Spielleiter)". **No version number** — that is the developer's call,
@@ -1372,7 +1382,7 @@ only 'select'. Not assigned to a phase yet.
 
 ## Verification
 
-- `npm test -w shared` after phases 1, 3, 7 and 11 — the pure logic lives there and
+- `npm test -w shared` after phases 1, 3, 7 and 10 — the pure logic lives there and
   is the only workspace with a runner.
 - Browser verification needs **two logged-in users at once**, and `localhost` and
   `[::1]` are separate cookie jars — so GM at `http://localhost:5173`, player at
