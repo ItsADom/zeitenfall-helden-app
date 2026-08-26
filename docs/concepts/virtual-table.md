@@ -1,6 +1,91 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Progress (2026-08-26): Phase 8 (slice 3/3) — measure shapes, client UI done
+> ## Progress (2026-08-26, refinement pass): measure shapes — free positioning, real geometry, cone spread, labels/colors
+>
+> **Committed on `feature/virtual-table`, on top of the measure-shapes client UI below.** Developer feedback on the first pass, addressed same session:
+>
+> - **No more cell-snapping.** Circle/cone origin used to round to the
+>   nearest cell CENTER, and rectangle's corners rounded to cell INDICES —
+>   "tokens don't snap to the grid, so measure shapes shouldn't either."
+>   `buildMeasureData`/`shiftMeasureData` now use the raw drag point exactly,
+>   same free continuous positioning as a token or label. `shapeCells`-based
+>   cell coverage is dropped from rendering entirely as a result — a circle
+>   is now a real `<circle>`, a rectangle a real `<rect>`, computed straight
+>   from continuous coordinates rather than a unioned set of highlighted
+>   cells. `shared/src/board.ts`'s `shapeCells`/`MeasureShape` stay in place
+>   for a possible future cell-coverage LOOKUP (e.g. token-in-template
+>   checks), just no longer for how a shape is drawn.
+> - **Cone spread is now a real, per-shape field**, not a fixed 60°
+>   constant — `MeasureOverlayData`'s cone variant gained `spread: number`
+>   (shared/server/client, validated+clamped 1–180° server-side). A slider
+>   in the `MeasureKindPicker` flyout sets the value a NEW cone is drawn
+>   with (5° steps); `MeasureEditor` carries the same slider so an existing
+>   cone's spread can be changed after the fact too. `conePath`/`wedgePath`
+>   were split so the exact same arc-sector geometry draws both the real
+>   board shape and the flyout's cone ICON — the icon started as a plain
+>   triangle and was corrected to match what a cone actually renders as
+>   (caught by the developer: "add a real cone shape instead of the
+>   triangle").
+> - **Flyout redesigned to a 2×2 icon grid** (`MeasureKindPicker` /
+>   `MEASURE_KIND_ICON`) per a design the developer sketched — small
+>   stroke-only SVG icons (a line, a rect outline, a circle outline, the
+>   same wedge geometry as the real cone) over a label, replacing the
+>   plain text-button row from the first pass. Flyout title changed to
+>   "Messen"; the ruler's label changed from "Lineal" to "Linie" to match
+>   the sketch's wording.
+> - **Optional label + colour, per shape** (`label?: string; color?:
+>   string` on every `MeasureOverlayData` variant) — "several measurements
+>   on the table at once need to be tellable apart." Both editable only
+>   after creation, via `MeasureEditor` (a debounced text field + a colour
+>   swatch); a fresh shape has neither and renders in the plain default
+>   accent colour. `measureColors()` derives fill/stroke from the chosen
+>   hex (28% alpha fill, opaque stroke) with the old constants as fallback.
+>   Label text renders near each shape (above the ruler's distance label,
+>   above a circle, centered in a rectangle, above a cone's origin), same
+>   halo-stroke style as everything else on the map.
+> - **Bug caught and fixed: clearing a label back to blank didn't persist.**
+>   Root cause was in `server/src/board.ts`'s `updateOverlay()`, which
+>   SHALLOW-MERGES the validated data onto the existing row
+>   (`{...existing, ...patch}`) rather than replacing it outright, despite
+>   the protocol comment's claim that a measure update "replaces `data`
+>   ganz". As long as every field was mandatory this was harmless (every
+>   key was always present, always overwriting); once `label`/`color`
+>   became optional, `validateMeasureData` OMITTING the key entirely (its
+>   `measureLabelColor` helper only set `out.label` when non-empty) meant
+>   the merge just kept whatever stale value was already stored — clearing
+>   the field client-side had no effect server-side. Fixed by having
+>   `measureLabelColor` always return BOTH keys, explicitly `undefined`
+>   when absent; an explicit `undefined` property still overwrites in a
+>   spread (and is dropped by `JSON.stringify` same as never having been
+>   set), which a merely-missing key does not.
+> - **Bug caught and fixed: a native colour swatch reopened instead of
+>   closing on a second click.** Not a measure-specific bug — every plain
+>   `<input type="color">` on this page had it (token colour, token ring
+>   colour, the tile/highlight custom-colour swatch, and now the measure
+>   colour field): the browser's native colour dialog has no DOM-readable
+>   "is it open" state, and a bare `<input type="color">` reopens it on
+>   every click regardless. Fixed once for all four with a new
+>   `ColorSwatchInput` wrapper: tracks "believed open" in a ref, and a
+>   second `mousedown` while that ref is true calls `preventDefault()` +
+>   `blur()` to force-close instead of letting the browser reopen it — the
+>   standard workaround for this exact native-control limitation. **Not
+>   verifiable by the automated browser tooling used for the rest of this
+>   session** (a native OS/browser colour dialog isn't part of the DOM and
+>   can't be driven or observed over CDP) — needs a manual click-twice
+>   check by the developer.
+>
+> **Verified live** (same dev board as below) for everything CDP-testable:
+> continuous (non-snapped) origins on circle/cone/rectangle creation,
+> real `<circle>`/`<rect>` elements in the DOM (not a cell-mask path),
+> cone `spread` round-tripping through creation AND through
+> `MeasureEditor`'s slider, label+colour round-tripping including the
+> clear-to-blank fix (confirmed the `label` key disappears from the
+> stored JSON and the map text disappears), the new flyout's title/tile
+> labels. tsc clean (client + server), `npm test -w shared` green
+> (406/406). Test overlays deleted afterward — shared dev board left
+> clean.
+
+> ## Progress (2026-08-26): Phase 8 (slice 3/3) — measure shapes, client UI done — superseded above
 >
 > **Committed on `feature/virtual-table`.** Picks up exactly where the prior
 > session's "safe stop" left off: server/protocol for measure shapes already

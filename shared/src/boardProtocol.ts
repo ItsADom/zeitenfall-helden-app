@@ -42,17 +42,26 @@ export interface LabelOverlayData {
 
 /**
  * Persistent, movable measure shapes — see "Measure shapes" in the plan.
- * Circle/rectangle reuse shared/src/board.ts's `MeasureShape` cell-coverage
- * math (`shapeCells`) for their highlight; ruler is just `gridDistance`
- * between two points; cone stays visual-only (a true geometric wedge, no
- * cell-accurate coverage — settled with the developer, same reasoning as
- * autotiling using geometry instead of an authored transition sheet).
+ * None of these snap to the grid — same free, continuous positioning as a
+ * token (settled with the developer during Phase 8 slice 3/3: a measure
+ * shape's origin should follow the drag exactly, not jump to a cell
+ * boundary/center). Ruler is `gridDistance` between two points; circle/
+ * rectangle/cone are all rendered as true geometry (circle, rect, pie
+ * wedge) rather than a unioned set of highlighted cells — `shared/src/
+ * board.ts`'s `shapeCells`/`MeasureShape` stay available for a future
+ * cell-coverage LOOKUP (e.g. "which tokens are inside this template"), just
+ * not for how the shape is drawn. `spread` is the cone's full opening angle
+ * in degrees, per-shape rather than a fixed constant — different effects
+ * have different length/width ratios. `label`/`color` are both optional and
+ * per-shape (never a board default) — a GM naming/coloring "Feuerball" vs.
+ * "Kegelangriff" so several shapes on the table stay tellable apart; unset
+ * means the plain default look every shape had before this existed.
  */
 export type MeasureOverlayData =
-  | { kind: 'ruler'; from: CellCoord; to: CellCoord }
-  | { kind: 'circle'; origin: CellCoord; radius: number }
-  | { kind: 'rectangle'; from: CellCoord; to: CellCoord }
-  | { kind: 'cone'; origin: CellCoord; angle: number; length: number };
+  | { kind: 'ruler'; from: CellCoord; to: CellCoord; label?: string; color?: string }
+  | { kind: 'circle'; origin: CellCoord; radius: number; label?: string; color?: string }
+  | { kind: 'rectangle'; from: CellCoord; to: CellCoord; label?: string; color?: string }
+  | { kind: 'cone'; origin: CellCoord; angle: number; length: number; spread: number; label?: string; color?: string };
 
 /** board_overlays row — a discriminated union so `data`'s shape follows `kind`. */
 export type BoardOverlay =

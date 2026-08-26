@@ -6199,3 +6199,31 @@ tr:hover .probe-roll,
   border-color: var(--accent);
   outline: 2px solid var(--accent-soft);
 }
+
+/* ---------- VTT Phase 8 (slice 3/3): Messformen — Kachelraster im Flyout ---------- */
+.vtt-measure-kind-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.vtt-measure-kind-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 6px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+  color: var(--text);
+  cursor: pointer;
+}
+.vtt-measure-kind-tile.active {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+  color: var(--accent-dark);
+}
+.vtt-measure-kind-tile span {
+  font-size: 12px;
+}

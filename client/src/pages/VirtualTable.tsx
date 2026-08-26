@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
-import { cellKey, gridDistance, parseTileValue, shapeCells } from '@shared/board';
+import { cellKey, gridDistance, parseTileValue } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
@@ -26,12 +26,13 @@ import { generatedWaterTexture } from '../components/vttWater';
 type LabelOverlay = Extract<BoardOverlay, { kind: 'label' }>;
 type MeasureOverlay = Extract<BoardOverlay, { kind: 'measure' }>;
 
-// Kegel bleibt rein visuell (keine zellgenaue Abdeckung) — Öffnungswinkel als
-// Platzhalter, nicht mit dem Entwickler abgestimmt (siehe Plan, "cone may be
-// visual-only"). Ein späterer Regler wäre die naheliegende Erweiterung.
-const CONE_SPREAD_DEG = 60;
+// Kegel bleibt rein visuell (keine zellgenaue Abdeckung). Der Öffnungswinkel
+// ist PRO FORM einstellbar (siehe measureConeSpread/MeasureEditor) statt
+// eine feste Konstante — nicht jeder Effekt hat dasselbe Längen-Breiten-
+// Verhältnis. Nur der VORSCHLAGSWERT für eine neu gezogene Form ist fix.
+const CONE_SPREAD_DEFAULT = 60;
 const MEASURE_KIND_LABEL: Record<MeasureOverlayData['kind'], string> = {
-  ruler: 'Lineal',
+  ruler: 'Linie',
   circle: 'Kreis',
   rectangle: 'Rechteck',
   cone: 'Kegel',
@@ -43,68 +44,81 @@ const MEASURE_KIND_LABEL: Record<MeasureOverlayData['kind'], string> = {
 // Messform kein bemaltes Terrain ist, sondern ein flüchtiges Hilfsmittel.
 const MEASURE_FILL = 'rgba(77,163,255,0.28)';
 const MEASURE_STROKE = 'rgba(30,110,220,0.9)';
+// #rrggbb-Äquivalent von MEASURE_STROKE — Vorbelegung für den <input
+// type="color">, der kein rgba() versteht.
+const MEASURE_STROKE_DEFAULT = '#1e6edc';
 
-/** Ein <path> aus vereinigten Zellquadraten, wie die Kachel-/Einfärbe-Ebenen — für Kreis/Rechteck. */
-function shapeCellPath(shape: MeasureOverlayData & { kind: 'circle' | 'rectangle' }): string {
-  return shapeCells(shape)
-    .map((c) => `M${c.x * CELL_PX} ${c.y * CELL_PX}h${CELL_PX}v${CELL_PX}h${-CELL_PX}Z`)
-    .join('');
+/** Eigene Farbe je Form (optional) statt der gedämpften Standardfarbe — Deckkraft der Füllung bleibt an MEASURE_FILL angelehnt. */
+function measureColors(data: MeasureOverlayData): { fill: string; stroke: string } {
+  if (!data.color) return { fill: MEASURE_FILL, stroke: MEASURE_STROKE };
+  const r = parseInt(data.color.slice(1, 3), 16);
+  const g = parseInt(data.color.slice(3, 5), 16);
+  const b = parseInt(data.color.slice(5, 7), 16);
+  return { fill: `rgba(${r},${g},${b},0.28)`, stroke: data.color };
 }
 
-/** Kreissegment (Kegel) — reines SVG-Bogenstück, keine Zellliste, absolute Brett-Pixel wie shapeCellPath. */
-function conePath(origin: { x: number; y: number }, lengthCells: number, angleDeg: number): string {
-  const cx = origin.x * CELL_PX;
-  const cy = origin.y * CELL_PX;
-  const r = lengthCells * CELL_PX;
-  const half = (CONE_SPREAD_DEG / 2) * (Math.PI / 180);
+/**
+ * Ein echter Kegel/Sektor — Ursprung, zwei gerade Kanten hinaus, dazwischen
+ * ein BOGEN (kein gerader Abschluss wie ein Dreieck) — das ist die Form, die
+ * ein Kegel-Effekt tatsächlich hat. Reine Pixel/Grad, ohne Zellbezug, damit
+ * dieselbe Funktion sowohl das echte Brett-Rendern (conePath, Zellen×CELL_PX)
+ * als auch das kleine Flyout-Icon (MEASURE_KIND_ICON.cone, feste Pixelwerte)
+ * bedient — ein Dreieck-Icon hätte etwas anderes gezeigt als das, was auf dem
+ * Brett entsteht.
+ */
+function wedgePath(cx: number, cy: number, r: number, angleDeg: number, spreadDeg: number): string {
+  const half = (spreadDeg / 2) * (Math.PI / 180);
   const a = angleDeg * (Math.PI / 180);
   const x1 = cx + r * Math.cos(a - half);
   const y1 = cy + r * Math.sin(a - half);
   const x2 = cx + r * Math.cos(a + half);
   const y2 = cy + r * Math.sin(a + half);
-  const largeArc = CONE_SPREAD_DEG > 180 ? 1 : 0;
+  const largeArc = spreadDeg > 180 ? 1 : 0;
   return `M${cx} ${cy} L${x1} ${y1} A${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
 }
 
-/** Aus zwei Zugpunkten die endgültigen Formdaten bauen — Kreis/Kegel runden ihren Ursprung auf die Zellmitte, dieselbe Konvention wie eine Beschriftung. */
+/** Kegel auf dem Brett — Ursprung/Länge in Zellen, siehe wedgePath. */
+function conePath(origin: { x: number; y: number }, lengthCells: number, angleDeg: number, spreadDeg: number): string {
+  return wedgePath(origin.x * CELL_PX, origin.y * CELL_PX, lengthCells * CELL_PX, angleDeg, spreadDeg);
+}
+
+/**
+ * Aus zwei Zugpunkten die endgültigen Formdaten bauen — KEINE Rasterung auf
+ * Zellen/Zellmitten mehr (settled with the developer: eine Messform folgt
+ * dem Zug genauso frei wie eine Marke, springt nicht auf ein Gitter).
+ * `coneSpread` kommt von außen (siehe measureConeSpread), weil er pro
+ * gezogener Form gilt, nicht aus origin/current ableitbar ist.
+ */
 function buildMeasureData(
   kind: MeasureOverlayData['kind'],
   origin: { x: number; y: number },
   current: { x: number; y: number },
+  coneSpread: number,
 ): MeasureOverlayData {
   if (kind === 'ruler') return { kind: 'ruler', from: origin, to: current };
-  if (kind === 'rectangle') {
-    return {
-      kind: 'rectangle',
-      from: { x: Math.floor(origin.x), y: Math.floor(origin.y) },
-      to: { x: Math.floor(current.x), y: Math.floor(current.y) },
-    };
-  }
-  const center = { x: Math.floor(origin.x) + 0.5, y: Math.floor(origin.y) + 0.5 };
-  const dx = current.x - center.x;
-  const dy = current.y - center.y;
-  if (kind === 'circle') return { kind: 'circle', origin: center, radius: Math.hypot(dx, dy) };
-  return { kind: 'cone', origin: center, angle: (Math.atan2(dy, dx) * 180) / Math.PI, length: Math.hypot(dx, dy) };
+  if (kind === 'rectangle') return { kind: 'rectangle', from: origin, to: current };
+  const dx = current.x - origin.x;
+  const dy = current.y - origin.y;
+  if (kind === 'circle') return { kind: 'circle', origin, radius: Math.hypot(dx, dy) };
+  return { kind: 'cone', origin, angle: (Math.atan2(dy, dx) * 180) / Math.PI, length: Math.hypot(dx, dy), spread: coneSpread };
 }
 
-/** Eine bestehende Messform um (dx, dy) Zellen verschieben — Rechteck rundet, damit seine Ecken Zellindizes bleiben (siehe shapeCells), die anderen bleiben kontinuierlich. */
+/** Eine bestehende Messform um (dx, dy) Zellen verschieben — durchweg kontinuierlich, keine Form ist mehr ans Gitter gebunden. */
 function shiftMeasureData(base: MeasureOverlayData, dx: number, dy: number): MeasureOverlayData {
-  if (base.kind === 'ruler') {
-    return { kind: 'ruler', from: { x: base.from.x + dx, y: base.from.y + dy }, to: { x: base.to.x + dx, y: base.to.y + dy } };
+  // Immer von `base` spreaden statt die Form neu zu bauen — sonst gehen
+  // optionale Felder (label/color) bei jedem Verschieben verloren.
+  if (base.kind === 'ruler' || base.kind === 'rectangle') {
+    return { ...base, from: { x: base.from.x + dx, y: base.from.y + dy }, to: { x: base.to.x + dx, y: base.to.y + dy } };
   }
-  if (base.kind === 'rectangle') {
-    const rdx = Math.round(dx);
-    const rdy = Math.round(dy);
-    return { kind: 'rectangle', from: { x: base.from.x + rdx, y: base.from.y + rdy }, to: { x: base.to.x + rdx, y: base.to.y + rdy } };
-  }
-  if (base.kind === 'circle') return { kind: 'circle', origin: { x: base.origin.x + dx, y: base.origin.y + dy }, radius: base.radius };
-  return { kind: 'cone', origin: { x: base.origin.x + dx, y: base.origin.y + dy }, angle: base.angle, length: base.length };
+  return { ...base, origin: { x: base.origin.x + dx, y: base.origin.y + dy } };
 }
 
 interface MeasureEls {
   pathEl?: SVGPathElement | null;
   lineEl?: SVGLineElement | null;
   textEl?: SVGTextElement | null;
+  circleEl?: SVGCircleElement | null;
+  rectEl?: SVGRectElement | null;
 }
 
 /** Direktes DOM-Schreiben der Geometrie — genutzt sowohl von der Zieh-Vorschau einer neuen Form als auch vom Verschieben einer bestehenden, kein setState in beiden Fällen (siehe measureDragRef/measureOverlayDragRef). */
@@ -121,11 +135,22 @@ function writeMeasureVisual(data: MeasureOverlayData, els: MeasureEls): void {
     }
     return;
   }
-  if (data.kind === 'circle' || data.kind === 'rectangle') {
-    els.pathEl?.setAttribute('d', shapeCellPath(data));
+  if (data.kind === 'circle') {
+    els.circleEl?.setAttribute('cx', String(data.origin.x * CELL_PX));
+    els.circleEl?.setAttribute('cy', String(data.origin.y * CELL_PX));
+    els.circleEl?.setAttribute('r', String(data.radius * CELL_PX));
     return;
   }
-  els.pathEl?.setAttribute('d', conePath(data.origin, data.length, data.angle));
+  if (data.kind === 'rectangle') {
+    const x0 = Math.min(data.from.x, data.to.x);
+    const y0 = Math.min(data.from.y, data.to.y);
+    els.rectEl?.setAttribute('x', String(x0 * CELL_PX));
+    els.rectEl?.setAttribute('y', String(y0 * CELL_PX));
+    els.rectEl?.setAttribute('width', String(Math.abs(data.to.x - data.from.x) * CELL_PX));
+    els.rectEl?.setAttribute('height', String(Math.abs(data.to.y - data.from.y) * CELL_PX));
+    return;
+  }
+  els.pathEl?.setAttribute('d', conePath(data.origin, data.length, data.angle, data.spread));
 }
 
 interface GroupMeta {
@@ -283,12 +308,11 @@ function TokenEditor({
             </label>
             <label>
               Farbe{' '}
-              <input
-                type="color"
+              <ColorSwatchInput
                 value={color}
-                onChange={(e) => {
-                  setColor(e.target.value);
-                  scheduleUpdate('color', e.target.value);
+                onChange={(v) => {
+                  setColor(v);
+                  scheduleUpdate('color', v);
                 }}
               />
             </label>
@@ -317,12 +341,11 @@ function TokenEditor({
                 title="Reichweiten-Ring um die Marke — 0 = kein Ring. Für Zauber-AOE, Fackel-/Sichtweite."
               />
             </label>
-            <input
-              type="color"
+            <ColorSwatchInput
               value={radiusHex}
-              onChange={(e) => {
-                setRadiusHex(e.target.value);
-                updateToken(token.id, { radiusColor: withOpacity(e.target.value, radiusOpacity) });
+              onChange={(v) => {
+                setRadiusHex(v);
+                updateToken(token.id, { radiusColor: withOpacity(v, radiusOpacity) });
               }}
               title="Ring-Farbe"
             />
@@ -457,6 +480,11 @@ function MapCanvas({
   // true) — anders als Bemalen/Beschriften/Token gibt es dafür keinen
   // perm_*-Schalter und keine gesonderte canMeasure-Prop hier.
   const [measureKind, setMeasureKind] = usePersistedState<MeasureOverlayData['kind']>('vtt-measure-kind', 'ruler');
+  // Vorschlagswert für eine NEU gezogene Kegel-Form — der Regler dazu sitzt
+  // im selben Flyout wie die Form-Auswahl (siehe MeasureKindPicker), eine
+  // bestehende Form behält ihren eigenen, unabhängig editierbaren Wert
+  // (siehe MeasureEditor).
+  const [measureConeSpread, setMeasureConeSpread] = usePersistedState<number>('vtt-measure-cone-spread', CONE_SPREAD_DEFAULT);
   const [pickerOpen, setPickerOpen] = useState(false);
   // Pipette: der nächste Klick aufs Brett übernimmt die Farbe der getroffenen
   // Zelle statt zu malen/einzufärben, dann schaltet sich das Werkzeug selbst
@@ -517,14 +545,14 @@ function MapCanvas({
   // schon gemountete Vorschau geschrieben (siehe die Elementrefs unten) —
   // kein setState während des Zugs, gleiches Muster wie tokenDragRef/
   // overlayDragRef, um denselben Nachzieh-Effekt zu vermeiden.
-  const measureDragRef = useRef<{
-    kind: MeasureOverlayData['kind'];
-    origin: { x: number; y: number };
-    current: { x: number; y: number };
-    pathEl?: SVGPathElement | null;
-    lineEl?: SVGLineElement | null;
-    textEl?: SVGTextElement | null;
-  } | null>(null);
+  const measureDragRef = useRef<
+    | ({
+        kind: MeasureOverlayData['kind'];
+        origin: { x: number; y: number };
+        current: { x: number; y: number };
+      } & MeasureEls)
+    | null
+  >(null);
   // Nur EINMAL bei Zugbeginn gesetzt (mountet die Vorschau-<g>), nicht bei
   // jeder Zeigerbewegung — siehe measureDragRef.
   const [measureDraftKind, setMeasureDraftKind] = useState<MeasureOverlayData['kind'] | null>(null);
@@ -737,20 +765,23 @@ function MapCanvas({
     const wrap = wrapRef.current;
     if (!drag || !wrap) return;
     drag.current = pointAt(e, wrap);
-    writeMeasureVisual(buildMeasureData(drag.kind, drag.origin, drag.current), drag);
+    writeMeasureVisual(buildMeasureData(drag.kind, drag.origin, drag.current, measureConeSpread), drag);
   };
   const onMeasurePointerUp = () => {
     const drag = measureDragRef.current;
     measureDragRef.current = null;
     setMeasureDraftKind(null);
     if (!drag) return;
-    const data = buildMeasureData(drag.kind, drag.origin, drag.current);
-    // Ein bloßer Klick (kein Zug) auf Kreis/Kegel/Lineal ergäbe eine
-    // unsichtbare Form ohne Ausdehnung — Rechteck bleibt davon ausgenommen,
-    // ein Ein-Feld-Rechteck ist ein sinnvolles Ergebnis.
+    const data = buildMeasureData(drag.kind, drag.origin, drag.current, measureConeSpread);
+    // Ein bloßer Klick (kein Zug) ergäbe eine unsichtbare Form ohne
+    // Ausdehnung — seit Messformen nicht mehr aufs Gitter rasten (siehe
+    // buildMeasureData), gilt das jetzt auch fürs Rechteck: from===to wäre
+    // eine 0×0-Fläche, anders als früher, wo die Zellrundung immer
+    // mindestens ein Feld ergab.
     if (data.kind === 'circle' && data.radius < 0.15) return;
     if (data.kind === 'cone' && data.length < 0.15) return;
     if (data.kind === 'ruler' && gridDistance(data.from, data.to) < 0.15) return;
+    if (data.kind === 'rectangle' && Math.hypot(data.to.x - data.from.x, data.to.y - data.from.y) < 0.15) return;
     createOverlay('measure', data);
   };
 
@@ -1247,7 +1278,15 @@ function MapCanvas({
           onPipetteToggle={() => setPipetteArmed((v) => (v === 'highlight' ? null : 'highlight'))}
         />
       )}
-      {tool === 'measure' && pickerOpen && <MeasureKindPicker value={measureKind} onChange={setMeasureKind} onClose={() => setPickerOpen(false)} />}
+      {tool === 'measure' && pickerOpen && (
+        <MeasureKindPicker
+          value={measureKind}
+          onChange={setMeasureKind}
+          coneSpread={measureConeSpread}
+          onConeSpreadChange={setMeasureConeSpread}
+          onClose={() => setPickerOpen(false)}
+        />
+      )}
       <div
         className="vtt-map-wrap"
         ref={wrapRef}
@@ -1394,6 +1433,40 @@ function MapCanvas({
             .filter((o): o is MeasureOverlay => o.kind === 'measure')
             .map((o) => {
               const data = measureOverlayDraft?.id === o.id ? measureOverlayDraft.data : o.data;
+              const { fill, stroke } = measureColors(data);
+              // Halo-Textstil wie bei Beschriftung/Marken-Name — über jeder
+              // Kachel/Textur lesbar. Nicht gerendert, wenn kein label
+              // gesetzt ist (die meisten Formen bleiben unbenannt).
+              const labelEl = data.label ? (
+                <text
+                  x={
+                    data.kind === 'rectangle'
+                      ? ((data.from.x + data.to.x) / 2) * CELL_PX
+                      : data.kind === 'ruler'
+                        ? ((data.from.x + data.to.x) / 2) * CELL_PX
+                        : data.origin.x * CELL_PX
+                  }
+                  y={
+                    data.kind === 'rectangle'
+                      ? ((data.from.y + data.to.y) / 2) * CELL_PX
+                      : data.kind === 'ruler'
+                        ? ((data.from.y + data.to.y) / 2) * CELL_PX - 14
+                        : data.kind === 'circle'
+                          ? data.origin.y * CELL_PX - data.radius * CELL_PX - 8
+                          : data.origin.y * CELL_PX - 8
+                  }
+                  textAnchor="middle"
+                  dominantBaseline="central"
+                  fontSize={12}
+                  fontWeight={700}
+                  fill="var(--text)"
+                  stroke="var(--panel)"
+                  strokeWidth={3}
+                  paintOrder="stroke"
+                >
+                  {data.label}
+                </text>
+              ) : null;
               return (
                 <g
                   key={o.id}
@@ -1415,7 +1488,7 @@ function MapCanvas({
                         y1={data.from.y * CELL_PX}
                         x2={data.to.x * CELL_PX}
                         y2={data.to.y * CELL_PX}
-                        stroke={MEASURE_STROKE}
+                        stroke={stroke}
                         strokeWidth={2}
                       />
                       <text
@@ -1437,19 +1510,58 @@ function MapCanvas({
                       >
                         {gridDistance(data.from, data.to).toFixed(1)} Schritt
                       </text>
+                      {labelEl}
+                    </>
+                  ) : data.kind === 'circle' ? (
+                    <>
+                      <circle
+                        ref={(el) => {
+                          const els = measureElsRef.current.get(o.id) ?? {};
+                          els.circleEl = el;
+                          measureElsRef.current.set(o.id, els);
+                        }}
+                        cx={data.origin.x * CELL_PX}
+                        cy={data.origin.y * CELL_PX}
+                        r={data.radius * CELL_PX}
+                        fill={fill}
+                        stroke={stroke}
+                        strokeWidth={1.5}
+                      />
+                      {labelEl}
+                    </>
+                  ) : data.kind === 'rectangle' ? (
+                    <>
+                      <rect
+                        ref={(el) => {
+                          const els = measureElsRef.current.get(o.id) ?? {};
+                          els.rectEl = el;
+                          measureElsRef.current.set(o.id, els);
+                        }}
+                        x={Math.min(data.from.x, data.to.x) * CELL_PX}
+                        y={Math.min(data.from.y, data.to.y) * CELL_PX}
+                        width={Math.abs(data.to.x - data.from.x) * CELL_PX}
+                        height={Math.abs(data.to.y - data.from.y) * CELL_PX}
+                        fill={fill}
+                        stroke={stroke}
+                        strokeWidth={1.5}
+                      />
+                      {labelEl}
                     </>
                   ) : (
-                    <path
-                      ref={(el) => {
-                        const els = measureElsRef.current.get(o.id) ?? {};
-                        els.pathEl = el;
-                        measureElsRef.current.set(o.id, els);
-                      }}
-                      d={data.kind === 'cone' ? conePath(data.origin, data.length, data.angle) : shapeCellPath(data)}
-                      fill={MEASURE_FILL}
-                      stroke={MEASURE_STROKE}
-                      strokeWidth={1.5}
-                    />
+                    <>
+                      <path
+                        ref={(el) => {
+                          const els = measureElsRef.current.get(o.id) ?? {};
+                          els.pathEl = el;
+                          measureElsRef.current.set(o.id, els);
+                        }}
+                        d={conePath(data.origin, data.length, data.angle, data.spread)}
+                        fill={fill}
+                        stroke={stroke}
+                        strokeWidth={1.5}
+                      />
+                      {labelEl}
+                    </>
                   )}
                 </g>
               );
@@ -1492,6 +1604,31 @@ function MapCanvas({
                     0 Schritt
                   </text>
                 </>
+              ) : measureDraftKind === 'circle' ? (
+                <circle
+                  ref={(el) => {
+                    if (measureDragRef.current) measureDragRef.current.circleEl = el;
+                  }}
+                  cx={measureDragRef.current.origin.x * CELL_PX}
+                  cy={measureDragRef.current.origin.y * CELL_PX}
+                  r={0}
+                  fill={MEASURE_FILL}
+                  stroke={MEASURE_STROKE}
+                  strokeWidth={1.5}
+                />
+              ) : measureDraftKind === 'rectangle' ? (
+                <rect
+                  ref={(el) => {
+                    if (measureDragRef.current) measureDragRef.current.rectEl = el;
+                  }}
+                  x={measureDragRef.current.origin.x * CELL_PX}
+                  y={measureDragRef.current.origin.y * CELL_PX}
+                  width={0}
+                  height={0}
+                  fill={MEASURE_FILL}
+                  stroke={MEASURE_STROKE}
+                  strokeWidth={1.5}
+                />
               ) : (
                 <path
                   ref={(el) => {
@@ -1627,6 +1764,7 @@ function MapCanvas({
       {selectedMeasure && (
         <MeasureEditor
           overlay={selectedMeasure}
+          onChange={(patch) => updateOverlay(selectedMeasure.id, { ...selectedMeasure.data, ...patch })}
           onDelete={() => {
             deleteOverlay(selectedMeasure.id);
             setSelectedOverlayId(null);
@@ -1742,20 +1880,46 @@ function LabelEditor({
 }
 
 // Messen ist immer für alle offen (canMeasure() serverseitig hart auf true,
-// siehe boardAccess.ts) — kein canEdit-Feld nötig, jeder darf löschen. Nur
-// eine Kennzahl-Anzeige + Löschen; Verschieben geschieht direkt auf der Karte
-// (siehe startMeasureOverlayDrag), Feingranulares Größe-Ändern per
-// Ziehpunkt ist bewusst noch nicht gebaut — siehe Plan, "still to build".
-function MeasureEditor({ overlay, onDelete, onClose }: { overlay: MeasureOverlay; onDelete: () => void; onClose: () => void }) {
+// siehe boardAccess.ts) — kein canEdit-Feld nötig, jeder darf löschen. Kegel
+// bekommt zusätzlich seinen eigenen Öffnungswinkel-Regler (spread lebt PRO
+// Form in data, siehe MeasureOverlayData), alle anderen nur die Kennzahl-
+// Anzeige + Löschen. Verschieben geschieht direkt auf der Karte (siehe
+// startMeasureOverlayDrag); Größe-Ändern per Ziehpunkt bleibt bewusst noch
+// nicht gebaut — siehe Plan, "still to build".
+/** Was MeasureEditor an updateOverlay meldet — immer gemergt mit dem aktuellen `data`, nie als eigenständiges Objekt (Messform-Updates ersetzen `data` ganz, siehe boardProtocol.ts). */
+type MeasurePatch = { label?: string; color?: string; spread?: number };
+
+function MeasureEditor({
+  overlay,
+  onChange,
+  onDelete,
+  onClose,
+}: {
+  overlay: MeasureOverlay;
+  onChange: (patch: MeasurePatch) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
   const { data } = overlay;
+  const [label, setLabel] = useState(data.label ?? '');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Gleiches Muster wie LabelEditor: beim Wechsel der ausgewählten Form den
+  // Entwurf neu aus dem Server-Stand ziehen, nicht bei jeder Änderung.
+  useEffect(() => {
+    setLabel(data.label ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay.id]);
+  useEffect(() => () => clearTimeout(timerRef.current ?? undefined), []);
+
   const summary =
     data.kind === 'ruler'
       ? `${gridDistance(data.from, data.to).toFixed(1)} Schritt`
       : data.kind === 'circle'
         ? `Radius ${data.radius.toFixed(1)} Schritt`
         : data.kind === 'rectangle'
-          ? `${Math.abs(data.to.x - data.from.x) + 1} × ${Math.abs(data.to.y - data.from.y) + 1} Felder`
-          : `Länge ${data.length.toFixed(1)} Schritt`;
+          ? `${Math.abs(data.to.x - data.from.x).toFixed(1)} × ${Math.abs(data.to.y - data.from.y).toFixed(1)} Schritt`
+          : `Länge ${data.length.toFixed(1)} Schritt, ${data.spread}°`;
   return (
     <div className="vtt-token-editor">
       <div className="vtt-token-editor-head">
@@ -1766,6 +1930,39 @@ function MeasureEditor({ overlay, onDelete, onClose }: { overlay: MeasureOverlay
           ✕
         </button>
       </div>
+      {/* Optional, je Form — nicht jede Messform braucht einen Namen, aber
+          mehrere gleichzeitig auf dem Brett (z. B. zwei Kegel verschiedener
+          Angreifer) sind sonst nicht auseinanderzuhalten. */}
+      <div className="vtt-token-editor-row">
+        <input
+          className="vtt-token-editor-name"
+          value={label}
+          placeholder="Beschriftung (optional)"
+          onChange={(e) => {
+            const v = e.target.value.slice(0, 60);
+            setLabel(v);
+            clearTimeout(timerRef.current ?? undefined);
+            timerRef.current = setTimeout(() => onChange({ label: v }), FIELD_DEBOUNCE_MS);
+          }}
+          maxLength={60}
+        />
+        <ColorSwatchInput value={data.color ?? MEASURE_STROKE_DEFAULT} onChange={(v) => onChange({ color: v })} title="Farbe" />
+      </div>
+      {data.kind === 'cone' && (
+        <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
+          <input
+            type="range"
+            min={5}
+            max={180}
+            step={5}
+            value={data.spread}
+            onChange={(e) => onChange({ spread: Number(e.target.value) })}
+            title="Öffnungswinkel"
+            className="vtt-tile-picker-opacity"
+          />
+          <span className="muted vtt-tile-picker-opacity-pct">{data.spread}°</span>
+        </div>
+      )}
       <div className="vtt-token-editor-row">
         <button className="small" onClick={onDelete}>
           Löschen
@@ -1775,34 +1972,85 @@ function MeasureEditor({ overlay, onDelete, onClose }: { overlay: MeasureOverlay
   );
 }
 
+// Kleine Strichzeichnungen statt Text allein — je Form dieselbe Geometrie,
+// die die Form später auch auf dem Brett zeigt, nur als Icon fürs Flyout.
+// currentColor, damit sie mit dem Button-Text mitfärben (Ruhezustand vs.
+// aktiv, hell/dunkel — kein eigener Farbwert nötig).
+const MEASURE_KIND_ICON: Record<MeasureOverlayData['kind'], ReactNode> = {
+  ruler: (
+    <svg viewBox="0 0 40 40" width={32} height={32} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+      <line x1="8" y1="30" x2="32" y2="10" />
+    </svg>
+  ),
+  rectangle: (
+    <svg viewBox="0 0 40 40" width={32} height={32} fill="none" stroke="currentColor" strokeWidth={2.5}>
+      <rect x="6" y="12" width="28" height="16" rx="1" />
+    </svg>
+  ),
+  circle: (
+    <svg viewBox="0 0 40 40" width={32} height={32} fill="none" stroke="currentColor" strokeWidth={2.5}>
+      <circle cx="20" cy="20" r="11" />
+    </svg>
+  ),
+  cone: (
+    <svg viewBox="0 0 40 40" width={32} height={32} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinejoin="round">
+      <path d={wedgePath(9, 31, 24, -40, 55)} />
+    </svg>
+  ),
+};
+
 // Flyout statt Inline-Reihe im Werkzeugkasten (siehe TODO.md, "dropdowns/
-// flyouts over inline button sprawl") — dieselbe .vtt-tile-picker-Position
-// wie TilePicker/HighlightPicker, damit immer nur EIN Flyout unter dem
+// flyouts over inline button sprawl") — ein 2×2-Kachelraster mit Icon +
+// Beschriftung je Form statt einer reinen Textknopf-Reihe (Design mit dem
+// Entwickler abgestimmt), sonst dieselbe .vtt-tile-picker-Position wie
+// TilePicker/HighlightPicker, damit immer nur EIN Flyout unter dem
 // Werkzeugkasten sitzt, egal welches der drei Werkzeuge gerade aktiv ist.
 function MeasureKindPicker({
   value,
   onChange,
+  coneSpread,
+  onConeSpreadChange,
   onClose,
 }: {
   value: MeasureOverlayData['kind'];
   onChange: (v: MeasureOverlayData['kind']) => void;
+  coneSpread: number;
+  onConeSpreadChange: (v: number) => void;
   onClose: () => void;
 }) {
   return (
     <div className="vtt-tile-picker">
       <div className="vtt-token-editor-head">
-        <strong>Messform</strong>
+        <strong>Messen</strong>
         <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
           ✕
         </button>
       </div>
-      <div className="vtt-tile-picker-row">
+      <div className="vtt-measure-kind-grid">
         {(Object.keys(MEASURE_KIND_LABEL) as MeasureOverlayData['kind'][]).map((k) => (
-          <button key={k} className={`small${value === k ? ' active' : ''}`} onClick={() => onChange(k)}>
-            {MEASURE_KIND_LABEL[k]}
+          <button key={k} className={`vtt-measure-kind-tile${value === k ? ' active' : ''}`} onClick={() => onChange(k)}>
+            {MEASURE_KIND_ICON[k]}
+            <span>{MEASURE_KIND_LABEL[k]}</span>
           </button>
         ))}
       </div>
+      {/* Nur relevant für eine NEU gezogene Kegel-Form — eine bestehende
+          behält ihren eigenen Wert, editierbar über MeasureEditor. */}
+      {value === 'cone' && (
+        <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
+          <input
+            type="range"
+            min={5}
+            max={180}
+            step={5}
+            value={coneSpread}
+            onChange={(e) => onConeSpreadChange(Number(e.target.value))}
+            title="Öffnungswinkel"
+            className="vtt-tile-picker-opacity"
+          />
+          <span className="muted vtt-tile-picker-opacity-pct">{coneSpread}°</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -1817,6 +2065,40 @@ function withOpacity(hex: string, opacityPct: number): string {
     .toString(16)
     .padStart(2, '0');
   return `${hex.slice(0, 7)}${alphaHex}`;
+}
+
+/**
+ * A plain <input type="color"> reopens the browser's native colour dialog on
+ * every click — including a SECOND click meant to close the one already
+ * open, which reads as a bug ("I click it again and it just reopens"). There
+ * is no DOM property to ask "is the picker open", so this tracks it itself:
+ * a mousedown while we believe it's already open force-closes it via
+ * `blur()` instead of letting the browser reopen it. Used everywhere a plain
+ * colour swatch appears on this page (token colour/ring, tile/highlight
+ * picker, measure-shape colour), so the fix lands once, not four times.
+ */
+function ColorSwatchInput({ value, onChange, title }: { value: string; onChange: (v: string) => void; title?: string }) {
+  const openRef = useRef(false);
+  return (
+    <input
+      type="color"
+      value={value}
+      title={title}
+      onChange={(e) => onChange(e.target.value)}
+      onMouseDown={(e) => {
+        if (openRef.current) {
+          e.preventDefault();
+          (e.currentTarget as HTMLInputElement).blur();
+          openRef.current = false;
+        } else {
+          openRef.current = true;
+        }
+      }}
+      onBlur={() => {
+        openRef.current = false;
+      }}
+    />
+  );
 }
 
 // Der Farbe/Deckkraft/Pipette/Radierer-Block ist identisch für die
@@ -1874,12 +2156,11 @@ function ColorOpacityFields({
         </button>
       </div>
       <div className="vtt-tile-picker-row">
-        <input
-          type="color"
+        <ColorSwatchInput
           value={customColor}
-          onChange={(e) => {
-            setCustomColor(e.target.value);
-            onChange(withOpacity(e.target.value, opacity));
+          onChange={(v) => {
+            setCustomColor(v);
+            onChange(withOpacity(v, opacity));
           }}
           title="Eigene Farbe"
         />

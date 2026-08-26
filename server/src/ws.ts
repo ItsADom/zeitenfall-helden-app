@@ -175,27 +175,53 @@ function measurePoint(raw: unknown, board: BoardRow): CellCoord | null {
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
   return { x: Math.min(board.cols, Math.max(0, x)), y: Math.min(board.rows, Math.max(0, y)) };
 }
+// Optional, per-shape, never required — unset means the plain default look.
+// Same tolerant style as the rest of this validator: silently drop what
+// doesn't look right rather than rejecting the whole message over it.
+// Returns BOTH keys always, even as `undefined` — `updateOverlay()` (board.ts)
+// shallow-merges the returned data onto the existing row (`{...existing,
+// ...patch}`), so a key that's simply ABSENT here would leave a stale
+// label/color from a previous edit in place forever. An explicit `undefined`
+// property still overwrites in the spread (and JSON.stringify then drops it,
+// same as never having been set) — that's the only way "clear the label
+// field" can ever take effect.
+function measureLabelColor(d: Record<string, unknown>): { label: string | undefined; color: string | undefined } {
+  const label = typeof d.label === 'string' && d.label.trim() !== '' ? d.label.slice(0, 60).trim() : undefined;
+  const color = typeof d.color === 'string' && parseTileValue(d.color)?.kind === 'color' ? d.color : undefined;
+  return { label, color };
+}
 function validateMeasureData(raw: unknown, board: BoardRow): MeasureOverlayData | null {
   const d = raw as Record<string, unknown> | null;
   if (!d || typeof d.kind !== 'string') return null;
+  const extra = measureLabelColor(d);
   if (d.kind === 'ruler' || d.kind === 'rectangle') {
     const from = measurePoint(d.from, board);
     const to = measurePoint(d.to, board);
     if (!from || !to) return null;
-    return { kind: d.kind, from, to };
+    return { kind: d.kind, from, to, ...extra };
   }
   if (d.kind === 'circle') {
     const origin = measurePoint(d.origin, board);
     const radius = Number(d.radius);
     if (!origin || !Number.isFinite(radius)) return null;
-    return { kind: 'circle', origin, radius: Math.min(50, Math.max(0, radius)) };
+    return { kind: 'circle', origin, radius: Math.min(50, Math.max(0, radius)), ...extra };
   }
   if (d.kind === 'cone') {
     const origin = measurePoint(d.origin, board);
     const angle = Number(d.angle);
     const length = Number(d.length);
-    if (!origin || !Number.isFinite(angle) || !Number.isFinite(length)) return null;
-    return { kind: 'cone', origin, angle: ((angle % 360) + 360) % 360, length: Math.min(50, Math.max(0, length)) };
+    // Per-shape opening angle, not a fixed constant — clamped to a sane
+    // wedge range (a 0° cone is a ruler, >180° stops reading as a cone).
+    const spread = Number(d.spread);
+    if (!origin || !Number.isFinite(angle) || !Number.isFinite(length) || !Number.isFinite(spread)) return null;
+    return {
+      kind: 'cone',
+      origin,
+      angle: ((angle % 360) + 360) % 360,
+      length: Math.min(50, Math.max(0, length)),
+      spread: Math.min(180, Math.max(1, spread)),
+      ...extra,
+    };
   }
   return null;
 }
