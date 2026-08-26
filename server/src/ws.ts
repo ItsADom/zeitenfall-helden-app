@@ -5,6 +5,7 @@ import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type {
+  BoardInitiative,
   BoardOverlay,
   BoardToken,
   CellCoord,
@@ -20,7 +21,7 @@ import type {
   ServerToClientMessage,
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
-import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, cellKey, overlayCell, parseCellKey, parseDiceExpression, parseTileValue, resolveExpressionRoll, resolveProbeRoll, tokenCells, type DiceExpression } from 'shared';
+import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, activeTurnOrder, cellKey, overlayCell, parseCellKey, parseDiceExpression, parseTileValue, resolveExpressionRoll, resolveProbeRoll, tokenCells, type DiceExpression } from 'shared';
 import { getSessionToken, userForToken } from './auth.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
@@ -30,31 +31,40 @@ import {
   canEditTokens as boardCanEditTokens,
   canHighlightTiles as boardCanHighlightTiles,
   canLabel as boardCanLabel,
+  canManageInitiative as boardCanManageInitiative,
   canMeasure as boardCanMeasure,
   canMoveToken as boardCanMoveToken,
   canPaint as boardCanPaint,
 } from './boardAccess.js';
 import {
+  type BoardInitiativeRow,
   type BoardOverlayRow,
   type BoardRow,
   type BoardTokenRow,
   type BoardViewer,
+  addInitiativeEntry as addBoardInitiativeEntry,
+  advanceTurn as advanceBoardTurn,
   createOverlay as createBoardOverlay,
   createToken as createBoardToken,
   deleteOverlay as deleteBoardOverlay,
   deleteToken as deleteBoardToken,
+  endCombat as endBoardCombat,
   fogSet,
   getOrCreateBoard,
   getOverlay as getBoardOverlay,
   getToken as getBoardToken,
   labelVisibleTo,
+  loadInitiative as loadBoardInitiative,
   loadOverlays as loadBoardOverlays,
   loadTokens as loadBoardTokens,
   moveToken as moveBoardToken,
   paintHighlights as paintBoardHighlights,
   paintTiles as paintBoardTiles,
   redactCells,
+  removeInitiativeEntry as removeBoardInitiativeEntry,
   setFog as setBoardFog,
+  setInitiativeBasis as setBoardInitiativeBasis,
+  startCombat as startBoardCombat,
   tokenVisibleTo,
   updateBoardSettings,
   updateOverlay as updateBoardOverlay,
@@ -174,6 +184,47 @@ function toWireOverlay(row: BoardOverlayRow): BoardOverlay {
     return { id: row.id, boardId: row.boardId, kind: 'measure', data: row.data as MeasureOverlayData, hidden: row.hidden };
   }
   return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as LabelOverlayData, hidden: row.hidden };
+}
+
+function toWireInitiative(row: BoardInitiativeRow): BoardInitiative {
+  return {
+    id: row.id,
+    boardId: row.boardId,
+    tokenId: row.tokenId,
+    iniBasis: row.iniBasis,
+    value: row.value,
+    activeThisRound: row.activeThisRound,
+    deathCountdown: row.deathCountdown,
+  };
+}
+
+/**
+ * Full roster + round/turnIndex, per viewer, in one broadcast — same "whole
+ * state, not a delta" shape as board.settings.updated (the list is always
+ * short, and every initiative mutation touches at least one of the three
+ * anyway). An entry for a token the viewer can't currently see (hidden, or
+ * under fog) is left out, same guarantee as the token itself — see
+ * redactSnapshotForViewer's matching filter for the REST snapshot. Reloads
+ * the board row itself rather than trusting a caller-held one — some
+ * mutations (e.g. removeInitiativeEntry clamping turn_index) change it
+ * without the caller's copy knowing.
+ */
+function broadcastInitiative(groupId: number, boardId: number): void {
+  const board = getOrCreateBoard(groupId);
+  const entries = loadBoardInitiative(boardId);
+  const tokensById = new Map(loadBoardTokens(board.id).map((t) => [t.id, t]));
+  const fog = fogSet(board);
+  broadcastBuilt(groupId, (v) => ({
+    type: 'board.initiative.updated',
+    round: board.round,
+    turnIndex: board.turnIndex,
+    entries: entries
+      .filter((e) => {
+        const token = tokensById.get(e.tokenId);
+        return !!token && tokenVisibleTo(token, fog, v);
+      })
+      .map(toWireInitiative),
+  }));
 }
 
 // Every field checked and clamped to the board — a hand-crafted WS message
@@ -1588,6 +1639,116 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.overlay.deleted', overlayId: overlay.id }));
         }
       }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // Initiative and rounds (docs/concepts/virtual-table.md, Phase 10,
+    // turn-pointer design). Roster add/remove/setBasis and starting/ending
+    // combat are GM-only (boardCanManageInitiative, hard-coded — see its
+    // comment in boardAccess.ts). board.turn.next is the one exception — the
+    // GM OR the current combatant's own owner may call it, same owner-bypass
+    // shape as board.token.move above. Every mutation re-broadcasts the
+    // WHOLE roster (+ round/turnIndex) per viewer (broadcastInitiative)
+    // rather than a per-entry delta — the list is always short, and this
+    // keeps the fog/hidden-token filtering in one place instead of
+    // duplicated per message type.
+    case 'board.initiative.add': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanManageInitiative(viewer)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung verwaltet die Initiative' });
+        return;
+      }
+      const token = getBoardToken(Number(msg.tokenId));
+      if (!token || token.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
+        return;
+      }
+      addBoardInitiativeEntry(board.id, token);
+      broadcastInitiative(meta.groupId, board.id);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.initiative.remove': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanManageInitiative(viewer)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung verwaltet die Initiative' });
+        return;
+      }
+      removeBoardInitiativeEntry(board.id, Number(msg.tokenId));
+      broadcastInitiative(meta.groupId, board.id);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.initiative.setBasis': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanManageInitiative(viewer)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung setzt die Initiative-Basis' });
+        return;
+      }
+      const basis = Number(msg.basis);
+      if (!Number.isFinite(basis)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Wert' });
+        return;
+      }
+      setBoardInitiativeBasis(board.id, Number(msg.tokenId), Math.round(Math.min(99, Math.max(-99, basis))));
+      broadcastInitiative(meta.groupId, board.id);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.combat.start': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanManageInitiative(viewer)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung startet den Kampf' });
+        return;
+      }
+      if (board.round > 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Der Kampf läuft bereits' });
+        return;
+      }
+      if (loadBoardInitiative(board.id).length === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Noch niemand in der Kampfliste' });
+        return;
+      }
+      startBoardCombat(board.id);
+      broadcastInitiative(meta.groupId, board.id);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.combat.end': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanManageInitiative(viewer)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung beendet den Kampf' });
+        return;
+      }
+      endBoardCombat(board.id);
+      broadcastInitiative(meta.groupId, board.id);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.turn.next': {
+      const board = getOrCreateBoard(meta.groupId);
+      if (board.round <= 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Der Kampf hat noch nicht begonnen' });
+        return;
+      }
+      const active = activeTurnOrder(loadBoardInitiative(board.id));
+      if (active.length === 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Niemand ist an der Reihe' });
+        return;
+      }
+      const current = active[Math.min(board.turnIndex, active.length - 1)];
+      const currentToken = getBoardToken(current.tokenId);
+      if (!meta.isGm && currentToken?.ownerUserId !== meta.userId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung oder die aktuell Handelnde ist an der Reihe' });
+        return;
+      }
+      advanceBoardTurn(board.id);
+      broadcastInitiative(meta.groupId, board.id);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

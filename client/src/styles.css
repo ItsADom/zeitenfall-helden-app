@@ -6258,3 +6258,168 @@ tr:hover .probe-roll,
 .vtt-measure-kind-tile span {
   font-size: 12px;
 }
+
+/* ---------- VTT Phase 10: Initiative und Runden ---------- */
+/* Fester Streifen im normalen Fluss zwischen .vtt-toolbar und .vtt-map-wrap
+   (kein position: absolute mehr — immer sichtbar, kein Auf-/Zuklappen). */
+.vtt-initiative-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 12.5px;
+}
+/* Runde/Kampf starten/beenden gestapelt in einem eigenen kleinen Block, statt
+   inline in der Kartenreihe — eigene Steuerungsgruppe, kein Kämpfender. */
+.vtt-initiative-strip-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding-right: 10px;
+  border-right: 1px solid var(--border-soft);
+}
+.vtt-initiative-strip-controls strong {
+  text-align: center;
+}
+.vtt-initiative-cards {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+}
+.vtt-initiative-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 2px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+  white-space: nowrap;
+}
+/* Aktuell Handelnde: immer die erste Karte ganz links, siehe InitiativeStrip. */
+.vtt-initiative-card-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.vtt-initiative-card-current .vtt-initiative-name {
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+.vtt-initiative-portrait {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--input-bg);
+}
+.vtt-initiative-portrait--empty {
+  border-style: dashed;
+}
+.vtt-initiative-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.vtt-initiative-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.vtt-initiative-remove {
+  flex-shrink: 0;
+}
+/* Markiert das Rundenende in der rotierten Anzeige — rechts davon steht, wer
+   diese Runde schon dran war (siehe InitiativeStrip's alreadyWent). Als
+   Akzent-Plakette statt einer dünnen Linie, damit sie im Kartenfluss nicht
+   mit einer bloßen Trennlinie verwechselt wird. */
+.vtt-initiative-break {
+  flex-shrink: 0;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  color: var(--accent-dark);
+  font-size: 13px;
+  line-height: 1;
+}
+.vtt-initiative-waiting-label {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding-left: 4px;
+  border-left: 1px solid var(--border-soft);
+}
+.vtt-initiative-name {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+  white-space: nowrap;
+  text-align: left;
+}
+.vtt-initiative-name:hover {
+  text-decoration: underline;
+}
+.vtt-initiative-value {
+  width: 32px;
+  text-align: center;
+  flex-shrink: 0;
+  font-size: 11.5px;
+}
+input.vtt-initiative-value {
+  padding: 1px 2px;
+}
+.vtt-initiative-death {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--warn-line);
+  white-space: nowrap;
+}
+.vtt-initiative-death-tot {
+  color: var(--crit-line);
+  font-weight: 700;
+}
+/* Schwebender Knopf ÜBER der Karte statt im Streifen (developer's Layout-
+   Entscheidung) — position: absolute in der (position: relative)
+   .vtt-map-wrap, gleiche Technik wie .vtt-tool-badge daneben. */
+.vtt-turn-action {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 8px 18px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.vtt-turn-action:disabled {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+  color: var(--muted);
+  cursor: default;
+}

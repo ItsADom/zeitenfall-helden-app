@@ -54,3 +54,14 @@ export function canHighlightTiles(viewer: BoardViewer): boolean {
 export function canMeasure(): boolean {
   return true;
 }
+/**
+ * Adding/removing a roster entry, setting a marker/monster's Initiative-
+ * Basis by hand, and starting/ending combat — hard-coded GM-only, same shape
+ * as canEditFog: running combat isn't a delegable perm_*. Advancing the turn
+ * pointer (board.turn.next) is NOT gated by this — the GM or the current
+ * combatant's own owner may call it, same owner-bypass shape
+ * (ownerUserId === viewer.userId) as canMoveToken, checked inline in ws.ts.
+ */
+export function canManageInitiative(viewer: BoardViewer): boolean {
+  return viewer.isGm;
+}

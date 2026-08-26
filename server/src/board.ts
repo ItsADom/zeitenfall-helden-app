@@ -1,11 +1,22 @@
 // Virtual table (VTT) persistence — board load/create, tokens, tiles/
-// highlights/overlays/images, and per-viewer fog redaction. See
-// docs/concepts/virtual-table.md, "Realtime design". Initiative is still
-// inert (Phase 10 in the current plan numbering).
-import { cellKey, decodeCellSet, encodeCellSet, overlayCell, tokenCells } from 'shared';
+// highlights/overlays/images, initiative/rounds, and per-viewer fog
+// redaction. See docs/concepts/virtual-table.md, "Realtime design".
+import {
+  activeTurnOrder as activeTurnOrderPure,
+  cellKey,
+  computeBaseValues,
+  decodeCellSet,
+  deathCountdown as deathCountdownFor,
+  encodeCellSet,
+  nextTurn as nextTurnPure,
+  overlayCell,
+  tickDeathCountdowns as tickDeathCountdownsPure,
+  tokenCells,
+} from 'shared';
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
-import { hasPortrait } from './characterData.js';
+import { rollDie } from './dice.js';
+import { hasPortrait, loadAttributes, loadBaseValueInputs, loadResources } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -291,12 +302,17 @@ export function redactSnapshotForViewer(snapshot: BoardSnapshot, viewer: BoardVi
   const fog = fogSet(snapshot.board);
   const tiles = redactCells(JSON.parse(snapshot.board.tilesJson || '{}') as Record<string, string>, fog, viewer);
   const highlights = redactCells(JSON.parse(snapshot.board.highlightsJson || '{}') as Record<string, string>, fog, viewer);
+  const visibleTokenIds = new Set(snapshot.tokens.filter((t) => tokenVisibleTo(t, fog, viewer)).map((t) => t.id));
   return {
     ...snapshot,
     board: { ...snapshot.board, tilesJson: JSON.stringify(tiles), highlightsJson: JSON.stringify(highlights) },
-    tokens: snapshot.tokens.filter((t) => tokenVisibleTo(t, fog, viewer)),
+    tokens: snapshot.tokens.filter((t) => visibleTokenIds.has(t.id)),
     overlays: snapshot.overlays.filter((o) => overlayVisibleTo(o, fog, viewer)),
     images: redactImages(snapshot.images, viewer),
+    // Same guarantee as the token itself: an entry for a hidden-or-fogged
+    // token must not reach a player, or its presence in the roster alone
+    // would leak that the GM has that token in the fight.
+    initiative: snapshot.initiative.filter((i) => visibleTokenIds.has(i.tokenId)),
   };
 }
 
@@ -437,20 +453,210 @@ export interface BoardInitiativeRow {
   id: number;
   boardId: number;
   tokenId: number;
+  iniBasis: number;
   value: number;
-  rolled: boolean;
-  done: boolean;
+  activeThisRound: boolean;
   deathCountdown: number | null;
 }
 
-function loadInitiative(boardId: number): BoardInitiativeRow[] {
-  const rows = db
-    .prepare(
-      `SELECT id, board_id AS boardId, token_id AS tokenId, value, rolled, done, death_countdown AS deathCountdown
-       FROM board_initiative WHERE board_id = ?`,
-    )
-    .all(boardId) as (Omit<BoardInitiativeRow, 'rolled' | 'done'> & { rolled: number; done: number })[];
-  return rows.map((r) => ({ ...r, rolled: !!r.rolled, done: !!r.done }));
+const INITIATIVE_COLS = `id, board_id AS boardId, token_id AS tokenId, ini_basis AS iniBasis, value, active_this_round AS activeThisRound, death_countdown AS deathCountdown`;
+
+function toInitiative(r: Omit<BoardInitiativeRow, 'activeThisRound'> & { activeThisRound: number }): BoardInitiativeRow {
+  return { ...r, activeThisRound: !!r.activeThisRound };
+}
+
+export function loadInitiative(boardId: number): BoardInitiativeRow[] {
+  const rows = db.prepare(`SELECT ${INITIATIVE_COLS} FROM board_initiative WHERE board_id = ?`).all(boardId) as Parameters<
+    typeof toInitiative
+  >[0][];
+  return rows.map(toInitiative);
+}
+
+export function getInitiativeEntry(tokenId: number): BoardInitiativeRow | undefined {
+  const row = db.prepare(`SELECT ${INITIATIVE_COLS} FROM board_initiative WHERE token_id = ?`).get(tokenId) as
+    | Parameters<typeof toInitiative>[0]
+    | undefined;
+  return row && toInitiative(row);
+}
+
+/**
+ * Attributes/resources/base values, straight from the character's own
+ * sheet — never trust a client-supplied Initiative-Basis or LP. `lp` is the
+ * `aktuell` field as typed on the sheet, same as `overviewForChars` in
+ * characterData.ts reads it for the GM roster (not the capped/derived
+ * `nutzbar`, which is a maximum, not a current value).
+ */
+function characterCombatStats(characterId: number): { iniBasis: number; lp: number; todesschwelle: number } {
+  const attrs = loadAttributes(characterId);
+  const baseValues = computeBaseValues(attrs, loadBaseValueInputs(characterId));
+  const resources = loadResources(characterId);
+  return { iniBasis: baseValues.ini.ergebnis, lp: resources.le.aktuell, todesschwelle: baseValues.todesschwelle.ergebnis };
+}
+
+/** A character's basis always comes live from its sheet; a marker/monster's is whatever the GM last typed via setInitiativeBasis. */
+function iniBasisFor(token: BoardTokenRow, storedBasis: number): number {
+  return token.characterId != null ? characterCombatStats(token.characterId).iniBasis : storedBasis;
+}
+
+/**
+ * Rolls 1W6 per participant and resolves ties per the developer's rule: a
+ * tied VALUE is broken by the higher basis (that's just sort order, handled
+ * by initiativeOrder() — nothing to do here), but a tie in BOTH value and
+ * basis is genuinely ambiguous, so exactly that subset rerolls together,
+ * repeating until every value+basis pair in the whole group is unique. Two
+ * participants with different bases can never collide into the same tied
+ * group this way (their key differs by construction), so only the original
+ * tied subset ever needs to be rechecked — not the whole roster.
+ */
+function rollResolvingTies(participants: { tokenId: number; basis: number }[]): Map<number, number> {
+  const values = new Map<number, number>();
+  for (const p of participants) values.set(p.tokenId, p.basis + rollDie(6));
+  let pending = participants;
+  while (true) {
+    const groups = new Map<string, typeof participants>();
+    for (const p of pending) {
+      const key = `${values.get(p.tokenId)}:${p.basis}`;
+      const group = groups.get(key);
+      if (group) group.push(p);
+      else groups.set(key, [p]);
+    }
+    const tied = [...groups.values()].filter((g) => g.length > 1).flat();
+    if (tied.length === 0) break;
+    for (const p of tied) values.set(p.tokenId, p.basis + rollDie(6));
+    pending = tied;
+  }
+  return values;
+}
+
+/**
+ * Adds a token to the roster — unrolled (`value: 0`, `activeThisRound:
+ * false`) whether combat is running or not. Nobody rolls on add: the only
+ * two moments anything rolls are startCombat and a round wrap in
+ * advanceTurn, so a token added mid-combat simply waits, unrolled, for the
+ * next mass reroll rather than being spliced into the round in progress.
+ */
+export function addInitiativeEntry(boardId: number, token: BoardTokenRow): BoardInitiativeRow {
+  const existing = getInitiativeEntry(token.id);
+  if (existing) return existing;
+  db.prepare('INSERT INTO board_initiative (board_id, token_id) VALUES (?, ?)').run(boardId, token.id);
+  bumpRev(boardId);
+  return getInitiativeEntry(token.id)!;
+}
+
+/**
+ * Removing an ACTIVE combatant mid-round can leave `turn_index` pointing past
+ * the (now shorter) active order — clamped here rather than left to point at
+ * nothing. This does not try to preserve exactly whose turn it logically
+ * still is (the small-table, self-correcting philosophy this codebase
+ * already applies to drag conflicts) — the GM sorts out fairness by eye.
+ */
+export function removeInitiativeEntry(boardId: number, tokenId: number): void {
+  db.prepare('DELETE FROM board_initiative WHERE token_id = ?').run(tokenId);
+  const board = getBoardById(boardId)!;
+  if (board.round > 0) {
+    const activeCount = loadInitiative(boardId).filter((e) => e.activeThisRound).length;
+    if (board.turnIndex >= activeCount) {
+      db.prepare('UPDATE boards SET turn_index = ? WHERE id = ?').run(Math.max(0, activeCount - 1), boardId);
+    }
+  }
+  bumpRev(boardId);
+}
+
+/** Marker/monster only in practice — harmless no-op on a character entry, since iniBasisFor() ignores the stored column for those. */
+export function setInitiativeBasis(boardId: number, tokenId: number, basis: number): BoardInitiativeRow | undefined {
+  db.prepare('UPDATE board_initiative SET ini_basis = ? WHERE token_id = ?').run(basis, tokenId);
+  bumpRev(boardId);
+  return getInitiativeEntry(tokenId);
+}
+
+export interface InitiativeRoundState {
+  round: number;
+  turnIndex: number;
+  entries: BoardInitiativeRow[];
+}
+
+/**
+ * Rolls everyone currently in the roster (basis + fresh 1W6) and begins
+ * round 1 — the caller (ws.ts) has already checked the roster isn't empty
+ * and that combat isn't already running (round === 0).
+ */
+export function startCombat(boardId: number): InitiativeRoundState {
+  const entries = loadInitiative(boardId);
+  const tokensById = new Map(loadTokens(boardId).map((t) => [t.id, t]));
+  const bases = new Map(entries.map((e) => [e.tokenId, iniBasisFor(tokensById.get(e.tokenId)!, e.iniBasis)]));
+  const values = rollResolvingTies(entries.map((e) => ({ tokenId: e.tokenId, basis: bases.get(e.tokenId)! })));
+  const upd = db.prepare('UPDATE board_initiative SET ini_basis = ?, value = ?, active_this_round = 1, death_countdown = ? WHERE id = ?');
+  for (const e of entries) {
+    const token = tokensById.get(e.tokenId);
+    if (!token) continue;
+    let deathCountdown = e.deathCountdown;
+    if (token.characterId != null) {
+      const stats = characterCombatStats(token.characterId);
+      deathCountdown = deathCountdownFor(stats.lp, stats.todesschwelle, e.deathCountdown);
+    }
+    upd.run(bases.get(e.tokenId), values.get(e.tokenId), deathCountdown, e.id);
+  }
+  db.prepare('UPDATE boards SET round = 1, turn_index = 0, rev = rev + 1, updated_at = ? WHERE id = ?').run(Date.now(), boardId);
+  return { round: 1, turnIndex: 0, entries: loadInitiative(boardId) };
+}
+
+/** Full reset — deletes the whole roster and zeroes round/turn. The next startCombat begins fresh, never resumes. */
+export function endCombat(boardId: number): InitiativeRoundState {
+  db.prepare('DELETE FROM board_initiative WHERE board_id = ?').run(boardId);
+  db.prepare('UPDATE boards SET round = 0, turn_index = 0, rev = rev + 1, updated_at = ? WHERE id = ?').run(Date.now(), boardId);
+  return { round: 0, turnIndex: 0, entries: [] };
+}
+
+/**
+ * Advances the turn pointer. Within the round this is just an index bump;
+ * past the last combatant in the CURRENT round's active order it instead
+ * bumps the round — re-rolling the WHOLE roster (including anyone added
+ * mid-round, who was sitting unrolled) and ticking death countdowns, in that
+ * order (deathCountdown() first so a character who just dropped to/rose
+ * from 0 LP since the last round is caught before the tick runs). The caller
+ * (ws.ts) has already checked round > 0 and rights on the current combatant.
+ */
+export function advanceTurn(boardId: number): InitiativeRoundState {
+  const board = getBoardById(boardId)!;
+  const entries = loadInitiative(boardId);
+  const tokensById = new Map(loadTokens(boardId).map((t) => [t.id, t]));
+  const activeCount = activeTurnOrderPure(entries).length;
+  const next = nextTurnPure(board.turnIndex, activeCount);
+  if (!next.wrapsRound) {
+    db.prepare('UPDATE boards SET turn_index = ?, rev = rev + 1, updated_at = ? WHERE id = ?').run(next.turnIndex, Date.now(), boardId);
+    return { round: board.round, turnIndex: next.turnIndex, entries };
+  }
+  // A countdown that STARTS this wrap must not also be ticked this same
+  // wrap — otherwise a fresh Todesschwelle of e.g. 4 would show 3 on the
+  // very round it started, quietly shaving one round off (caught by the
+  // developer testing Rina: a Todesschwelle of 4 has to mean 4 full rounds
+  // downed — values 4,3,2,1 — before the tick that reaches 0 kills her, not
+  // 3,2,1,0). So only entries already running BEFORE this wrap get ticked;
+  // one freshly started here keeps its starting value untouched, and one
+  // that just cleared (LP rose above 0) has nothing to tick anyway.
+  const wasActive = new Set(entries.filter((e) => e.deathCountdown != null).map((e) => e.tokenId));
+  const preStarted = entries.map((e) => {
+    const token = tokensById.get(e.tokenId);
+    if (!token || token.characterId == null) return e;
+    const stats = characterCombatStats(token.characterId);
+    return { ...e, deathCountdown: deathCountdownFor(stats.lp, stats.todesschwelle, e.deathCountdown) };
+  });
+  const tickedRaw = tickDeathCountdownsPure(preStarted);
+  const ticked = {
+    entries: tickedRaw.entries.map((e, i) => (wasActive.has(e.tokenId) ? e : preStarted[i])),
+    died: tickedRaw.died.filter((tokenId) => wasActive.has(tokenId)),
+  };
+  const bases = new Map(ticked.entries.map((e) => [e.tokenId, iniBasisFor(tokensById.get(e.tokenId)!, e.iniBasis)]));
+  const values = rollResolvingTies(ticked.entries.map((e) => ({ tokenId: e.tokenId, basis: bases.get(e.tokenId)! })));
+  const upd = db.prepare('UPDATE board_initiative SET ini_basis = ?, value = ?, active_this_round = 1, death_countdown = ? WHERE id = ?');
+  for (const e of ticked.entries) {
+    const token = tokensById.get(e.tokenId);
+    if (!token) continue;
+    upd.run(bases.get(e.tokenId), values.get(e.tokenId), e.deathCountdown, e.id);
+  }
+  const round = board.round + 1;
+  db.prepare('UPDATE boards SET round = ?, turn_index = 0, rev = rev + 1, updated_at = ? WHERE id = ?').run(round, Date.now(), boardId);
+  return { round, turnIndex: 0, entries: loadInitiative(boardId) };
 }
 
 export interface BoardSnapshot {

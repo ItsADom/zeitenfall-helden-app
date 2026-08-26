@@ -143,52 +143,81 @@ export function shapeCells(shape: MeasureShape): CellCoord[] {
 }
 
 // --- Initiative and rounds ---------------------------------------------------
+//
+// Turn-pointer design (settled with the developer, revised from the earlier
+// done-checkbox version): the whole roster re-rolls — ini_basis + a FRESH 1W6,
+// never cumulative — at combat start and again every time the turn pointer
+// wraps past the last combatant. A participant added mid-combat sits in the
+// roster unrolled (`activeThisRound: false`) and simply waits for the next
+// round's mass reroll rather than being spliced into the round already in
+// progress. There is no "done" flag any more — whose turn it is is a single
+// index into the sorted active order, and either the GM or that combatant's
+// own owner can advance it.
 
 export interface InitiativeEntry {
   tokenId: number;
   value: number;
-  done: boolean;
+  /** The Initiative-Basis actually rolled with this round — snapshotted at roll time, see the tiebreak in initiativeOrder(). */
+  iniBasis: number;
+  /** Rolled into the CURRENT round's turn order — false for a fresh add mid-round, true for everyone once a round (re)rolls. */
+  activeThisRound: boolean;
   /** null = not dying; otherwise rounds left until death. */
   deathCountdown: number | null;
 }
 
-/** Value descending; ties keep their original relative order (stable sort). */
-export function initiativeOrder<T extends { value: number }>(entries: T[]): T[] {
+/**
+ * Value descending; a tied value is broken by the higher Initiative-Basis
+ * (settled with the developer). A genuine tie — same value AND same basis —
+ * is not resolved here at all: the roller (server/src/board.ts) rerolls
+ * exactly that subset until every value+basis pair is unique, so this sort
+ * never actually has to fall back past the basis compare in practice. The
+ * original-order fallback stays only as a last-resort safety net.
+ */
+export function initiativeOrder<T extends { value: number; iniBasis: number }>(entries: T[]): T[] {
   return entries
     .map((entry, index) => ({ entry, index }))
-    .sort((a, b) => b.entry.value - a.entry.value || a.index - b.index)
+    .sort((a, b) => b.entry.value - a.entry.value || b.entry.iniBasis - a.entry.iniBasis || a.index - b.index)
     .map(({ entry }) => entry);
 }
 
-/** The round cannot advance until every combatant's "done" box is checked. */
-export function canAdvanceRound(entries: { done: boolean }[]): boolean {
-  return entries.every((e) => e.done);
+/** The subset of the roster that takes a turn this round, in turn order. */
+export function activeTurnOrder<T extends InitiativeEntry>(entries: T[]): T[] {
+  return initiativeOrder(entries.filter((e) => e.activeThisRound));
 }
 
-export interface AdvanceRoundResult<T extends InitiativeEntry> {
-  round: number;
-  entries: T[];
-  /** tokenIds whose death countdown reached 0 this tick. */
-  died: number[];
+export interface NextTurnResult {
+  turnIndex: number;
+  /** true when advancing past the last combatant — the caller bumps the round and rerolls everyone instead of just moving the pointer. */
+  wrapsRound: boolean;
 }
 
-/** Bumps the round, clears every "done" flag, and ticks active death countdowns. */
-export function advanceRound<T extends InitiativeEntry>(round: number, entries: T[]): AdvanceRoundResult<T> {
+/** Pure pointer math — the caller decides what a wrap actually DOES (reroll, tick, bump). */
+export function nextTurn(turnIndex: number, activeCount: number): NextTurnResult {
+  if (activeCount <= 0 || turnIndex + 1 >= activeCount) return { turnIndex: 0, wrapsRound: true };
+  return { turnIndex: turnIndex + 1, wrapsRound: false };
+}
+
+/** Ticks every currently-active death countdown down by one; a countdown that isn't running is left alone. Called once per round wrap, never per turn. */
+export function tickDeathCountdowns<T extends { tokenId: number; deathCountdown: number | null }>(
+  entries: T[],
+): { entries: T[]; died: number[] } {
   const died: number[] = [];
   const next = entries.map((entry) => {
-    if (entry.deathCountdown == null) return { ...entry, done: false };
+    if (entry.deathCountdown == null) return entry;
     const deathCountdown = entry.deathCountdown - 1;
     if (deathCountdown <= 0) died.push(entry.tokenId);
-    return { ...entry, done: false, deathCountdown };
+    return { ...entry, deathCountdown };
   });
-  return { round: round + 1, entries: next, died };
+  return { entries: next, died };
 }
 
 /**
  * The Todesschwelle state machine: LP <= 0 with no counter running starts one
  * at the character's Todesschwelle; LP rising back above 0 clears it; any
  * other state (already dying, still healthy) is left unchanged — ticking is
- * advanceRound's job, not this function's.
+ * tickDeathCountdowns's job, not this function's. Applied BEFORE the tick on
+ * a round wrap, so a character who just dropped to/rose from 0 LP since the
+ * last round is caught before the tick runs.
  */
 export function deathCountdown(lp: number, todesschwelle: number, current: number | null): number | null {
   if (lp > 0) return null;

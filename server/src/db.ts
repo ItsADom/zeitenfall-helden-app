@@ -580,16 +580,25 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_board_images_board_id ON board_images(board_id);
 
+  -- Zeiger-Design (siehe boardProtocol.ts): die ganze Kampfliste würfelt
+  -- zusammen — ini_basis + ein FRISCHER 1W6, nie kumulativ — beim Kampfstart
+  -- und jedes Mal, wenn der Zug-Zeiger über den letzten Kämpfenden hinausläuft.
+  -- ini_basis ist von der SL eingetragen (Marke ohne Bogen); für eine
+  -- Charakter-Marke wird sie ignoriert und live aus dem Bogen gelesen.
+  -- active_this_round ist 0 für einen frischen Zugang mitten in der Runde —
+  -- der wartet bis zum nächsten Rundenwurf statt in die laufende Runde
+  -- eingefügt zu werden.
   CREATE TABLE IF NOT EXISTS board_initiative (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
     token_id INTEGER NOT NULL REFERENCES board_tokens(id) ON DELETE CASCADE,
+    ini_basis INTEGER NOT NULL DEFAULT 0,
     value INTEGER NOT NULL DEFAULT 0,
-    rolled INTEGER NOT NULL DEFAULT 0,     -- 1 = von Spielerhand gewürfelt, 0 = von der SL eingetragen
-    done INTEGER NOT NULL DEFAULT 0,
+    active_this_round INTEGER NOT NULL DEFAULT 0,
     death_countdown INTEGER                -- NULL = stirbt nicht; sonst verbleibende Runden
   );
   CREATE INDEX IF NOT EXISTS idx_board_initiative_board_id ON board_initiative(board_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_board_initiative_token ON board_initiative(token_id);
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).
@@ -1229,6 +1238,30 @@ db.exec('DROP TABLE IF EXISTS group_members');
   const cols = new Set((db.prepare('PRAGMA table_info(board_tokens)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('radius')) db.exec('ALTER TABLE board_tokens ADD COLUMN radius REAL NOT NULL DEFAULT 0');
   if (!cols.has('radius_color')) db.exec("ALTER TABLE board_tokens ADD COLUMN radius_color TEXT NOT NULL DEFAULT '#ffcc0033'");
+}
+
+// Migration: board_initiative auf das Zeiger-Design umgestellt (rolled/done
+// weg, ini_basis/active_this_round neu, siehe Kommentar an der Tabelle oben).
+// Phase 10 ist noch unveröffentlicht — nichts in dieser Tabelle ist echte
+// Spieldaten, deshalb DROP+CREATE statt spaltenweisem ALTER.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(board_initiative)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('rolled') || cols.has('done')) {
+    db.exec(`
+      DROP TABLE board_initiative;
+      CREATE TABLE board_initiative (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+        token_id INTEGER NOT NULL REFERENCES board_tokens(id) ON DELETE CASCADE,
+        ini_basis INTEGER NOT NULL DEFAULT 0,
+        value INTEGER NOT NULL DEFAULT 0,
+        active_this_round INTEGER NOT NULL DEFAULT 0,
+        death_countdown INTEGER
+      );
+      CREATE INDEX idx_board_initiative_board_id ON board_initiative(board_id);
+      CREATE UNIQUE INDEX idx_board_initiative_token ON board_initiative(token_id);
+    `);
+  }
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an

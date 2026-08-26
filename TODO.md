@@ -391,6 +391,17 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
+- [sketch] **VTT: a way to set a character token's own appearance (custom
+  image/icon), not just fall back to initials** (developer feedback,
+  Phase 10 initiative tracker). The initiative strip shows a real portrait
+  for a character with one uploaded (`client/src/pages/VirtualTable.tsx`,
+  `InitiativeStrip`'s `renderCard`), a dashed empty box otherwise — the
+  two-letter initials monogram used elsewhere on the map (`initials()`) reads
+  as stale/placeholder-ish for a token that's meant to represent a real
+  character across a whole session. No design decided yet on what a token's
+  own settable appearance would look like (a small icon picker? a distinct
+  upload separate from the character's sheet portrait?) — needs a concept
+  pass before building.
 - [sketch] **VTT: GM's cursor gets stuck as the "grabbing" hand, even while
   hovering a token** (developer feedback, Phase 9 fog testing). The GM
   reported the cursor never returns to the token's own `pointer`/pan tool's

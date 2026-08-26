@@ -9,7 +9,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import type { BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardInitiative, BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -235,7 +235,9 @@ interface DicePanelCtxValue {
   boardOverlays: BoardOverlay[];
   /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded); everyone gets the same mask, only its contents are redacted server-side. */
   boardFog: Set<string>;
-  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog einmalig. */
+  /** The initiative roster (board_initiative), already redacted for hidden/fogged tokens by the server. Sorted by the caller (initiativeOrder), not here. */
+  boardInitiative: BoardInitiative[];
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog/boardInitiative einmalig. */
   hydrateBoard: (
     board: BoardSettings,
     tokens: BoardToken[],
@@ -243,6 +245,7 @@ interface DicePanelCtxValue {
     highlights: Record<string, string>,
     overlays: BoardOverlay[],
     fog: string[],
+    initiative: BoardInitiative[],
   ) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
@@ -278,6 +281,18 @@ interface DicePanelCtxValue {
    */
   updateOverlay: (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => void;
   deleteOverlay: (overlayId: number) => void;
+  /** GM only (canManageInitiative). Adds a token to the roster, unrolled — it waits for the next roll (combat start, or a round wrap if combat is already running). */
+  addInitiative: (tokenId: number) => void;
+  /** GM only. */
+  removeInitiative: (tokenId: number) => void;
+  /** GM only — a marker/monster's Initiative-Basis (a character's always comes live from its sheet and ignores this). */
+  setInitiativeBasis: (tokenId: number, basis: number) => void;
+  /** GM only. Rolls the whole roster and begins round 1 — rejected server-side if the roster is empty or combat is already running. */
+  startCombat: () => void;
+  /** GM only. Clears the whole roster and resets round/turn back to 0. */
+  endCombat: () => void;
+  /** GM or the current combatant's own owner. Past the last combatant this bumps the round and rerolls everyone instead of just moving the pointer. */
+  nextTurn: () => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -338,6 +353,7 @@ export function useDicePanel(): DicePanelCtxValue {
       boardHighlights: {},
       boardOverlays: [],
       boardFog: new Set<string>(),
+      boardInitiative: [],
       hydrateBoard: () => {},
       createToken: () => {},
       updateToken: () => {},
@@ -350,6 +366,12 @@ export function useDicePanel(): DicePanelCtxValue {
       updateOverlay: () => {},
       deleteOverlay: () => {},
       paintFog: () => {},
+      addInitiative: () => {},
+      removeInitiative: () => {},
+      setInitiativeBasis: () => {},
+      startCombat: () => {},
+      endCombat: () => {},
+      nextTurn: () => {},
     }
   );
 }
@@ -392,6 +414,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardOverlays, setBoardOverlays] = useState<BoardOverlay[]>([]);
   /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
   const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
+  const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -703,6 +726,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
+      if (msg.type === 'board.initiative.updated') {
+        setBoardInitiative(msg.entries);
+        setBoardSettings((prev) => (prev ? { ...prev, round: msg.round, turnIndex: msg.turnIndex } : prev));
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -771,6 +799,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardTiles({});
       setBoardHighlights({});
       setBoardOverlays([]);
+      setBoardInitiative([]);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -1027,6 +1056,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       highlights: Record<string, string>,
       overlays: BoardOverlay[],
       fog: string[],
+      initiative: BoardInitiative[],
     ) => {
       setBoardSettings(board);
       setBoardTokens(tokens);
@@ -1034,6 +1064,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardHighlights(highlights);
       setBoardOverlays(overlays);
       setBoardFog(new Set(fog));
+      setBoardInitiative(initiative);
     },
     [],
   );
@@ -1126,6 +1157,34 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const addInitiativeAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.initiative.add', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+  const removeInitiativeAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.initiative.remove', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+  const setInitiativeBasisAction = useCallback(
+    (tokenId: number, basis: number) => {
+      sendMsg({ type: 'board.initiative.setBasis', reqId: crypto.randomUUID(), tokenId, basis });
+    },
+    [sendMsg],
+  );
+  const startCombatAction = useCallback(() => {
+    sendMsg({ type: 'board.combat.start', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const endCombatAction = useCallback(() => {
+    sendMsg({ type: 'board.combat.end', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const nextTurnAction = useCallback(() => {
+    sendMsg({ type: 'board.turn.next', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -1182,6 +1241,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardHighlights,
         boardOverlays,
         boardFog,
+        boardInitiative,
         hydrateBoard,
         createToken,
         updateToken: updateTokenAction,
@@ -1194,6 +1254,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         updateOverlay: updateOverlayAction,
         deleteOverlay: deleteOverlayAction,
         paintFog: paintFogAction,
+        addInitiative: addInitiativeAction,
+        removeInitiative: removeInitiativeAction,
+        setInitiativeBasis: setInitiativeBasisAction,
+        startCombat: startCombatAction,
+        endCombat: endCombatAction,
+        nextTurn: nextTurnAction,
       }}
     >
       {children}

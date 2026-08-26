@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardInitiative, BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
-import { cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
+import { activeTurnOrder, cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
@@ -17,8 +17,8 @@ import { generatedWaterTexture } from '../components/vttWater';
 
 // Phase 4 (docs/concepts/virtual-table.md): der Seitenrahmen. Phase 5 fügt
 // Token hinzu. Phase 6 fügt Bemalen hinzu — Farbe/Textur, Radierer, Delta-
-// Schreiben. Noch kein Autotiling (weiche Übergänge kommen erst mit Phase 7),
-// noch kein Nebel/Bilder/Initiative.
+// Schreiben. Phase 9 fügt Nebel hinzu, Phase 10 Initiative/Runden. Noch
+// keine Bilder auf dem Tisch (Phase 12).
 
 // Beschriftung bzw. Messform, ausgesondert aus BoardOverlay (der Vereinigung
 // aus beiden kinds) — jede Seite des Rendercodes arbeitet mit dem für sie
@@ -202,6 +202,7 @@ interface BoardSnapshotResponse {
   board: BoardSettings & { tilesJson: string; highlightsJson: string; fogJson: string };
   tokens: BoardToken[];
   overlays: BoardOverlay[];
+  initiative: BoardInitiative[];
 }
 
 // Wie viele Zellen EIN Texturbild abdeckt — an den Brettkoordinaten verankert,
@@ -498,7 +499,20 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
-  const { createToken, moveToken, deleteToken, paintTiles, paintHighlights, paintFog, createOverlay, updateOverlay, deleteOverlay } = useDicePanel();
+  const {
+    createToken,
+    moveToken,
+    deleteToken,
+    paintTiles,
+    paintHighlights,
+    paintFog,
+    createOverlay,
+    updateOverlay,
+    deleteOverlay,
+    boardInitiative,
+    addInitiative,
+  } = useDicePanel();
+  const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenId] = useState<number | null>(null);
@@ -1369,6 +1383,14 @@ function MapCanvas({
         </button>
       </div>
       {isGm && settingsOpen && <BoardSettingsPopover board={board} onClose={() => setSettingsOpen(false)} />}
+      <InitiativeStrip
+        entries={boardInitiative}
+        tokens={tokens}
+        round={board.round}
+        turnIndex={board.turnIndex}
+        isGm={isGm}
+        onSelectToken={(id) => setSelectedTokenId(id)}
+      />
       {tool === 'paint' && pickerOpen && (
         <TilePicker
           value={paintValue}
@@ -1430,6 +1452,7 @@ function MapCanvas({
             </button>
           </div>
         )}
+        <InitiativeTurnAction entries={boardInitiative} tokens={tokens} round={board.round} turnIndex={board.turnIndex} isGm={isGm} myUserId={user.id} />
         <svg viewBox={`${camera.x} ${camera.y} ${viewW} ${viewH}`} className="vtt-map-svg" shapeRendering="geometricPrecision">
           <defs>
             <pattern id="vtt-grid" width={CELL_PX} height={CELL_PX} patternUnits="userSpaceOnUse">
@@ -1902,12 +1925,19 @@ function MapCanvas({
           x={contextMenu.x}
           y={contextMenu.y}
           canEdit={canEditToken(contextMenu.token)}
+          // canManageInitiative (server) ist hart auf die Spielleitung
+          // verdrahtet — kein perm_*-Gate, siehe boardAccess.ts.
+          canAddInitiative={isGm && !boardInitiative.some((e) => e.tokenId === contextMenu.token.id)}
           onEdit={() => {
             setSelectedTokenId(contextMenu.token.id);
             setContextMenu(null);
           }}
           onDelete={() => {
             deleteToken(contextMenu.token.id);
+            setContextMenu(null);
+          }}
+          onAddInitiative={() => {
+            addInitiative(contextMenu.token.id);
             setContextMenu(null);
           }}
           onClose={() => setContextMenu(null)}
@@ -1940,24 +1970,28 @@ function MapCanvas({
   );
 }
 
-// Gerüst für ein Rechtsklick-Menü auf einer Marke — der Inhalt ist bewusst
-// noch nicht entschieden (siehe Konzeptgespräch: z. B. „Zu Kampf hinzufügen"
-// für Monster braucht erst die Initiative aus Phase 11). Vorbelegt mit den
-// beiden Aktionen, die es heute schon per Klick auf die Marke gibt —
-// zukünftige Einträge kommen einfach als weitere <button> in dieselbe Liste.
+// Rechtsklick-Menü auf einer Marke. „Zur Initiative" ist der Phase-10-Zusatz
+// (siehe canAddInitiative unten — GM-only, hart verdrahtet wie
+// canManageInitiative in boardAccess.ts, und nur solange die Marke noch
+// nicht im Kampf steht; Entfernen geschieht im Initiative-Panel selbst, nicht
+// hier, da es dort schon einen Löschen-Knopf pro Zeile gibt).
 function TokenContextMenu({
   x,
   y,
   canEdit,
+  canAddInitiative,
   onEdit,
   onDelete,
+  onAddInitiative,
   onClose,
 }: {
   x: number;
   y: number;
   canEdit: boolean;
+  canAddInitiative: boolean;
   onEdit: () => void;
   onDelete: () => void;
+  onAddInitiative: () => void;
   onClose: () => void;
 }) {
   useEffect(() => {
@@ -1973,6 +2007,7 @@ function TokenContextMenu({
       <div className="vtt-context-menu-backdrop" onPointerDown={onClose} onContextMenu={(e) => e.preventDefault()} />
       <div className="vtt-context-menu" style={{ left: x, top: y }} onPointerDown={(e) => e.stopPropagation()}>
         <button onClick={onEdit}>Bearbeiten</button>
+        {canAddInitiative && <button onClick={onAddInitiative}>Zur Initiative</button>}
         {canEdit && (
           <button onClick={onDelete} className="vtt-context-menu-danger">
             Löschen
@@ -2613,6 +2648,190 @@ function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClos
   );
 }
 
+/**
+ * Initiative und Runden (Phase 10, Zeiger-Design) — ein fester, immer
+ * sichtbarer Streifen zwischen Werkzeugkasten und Karte (kein Ein-/
+ * Ausklapp-Panel mehr). `round === 0` heißt „kein Kampf im Gange" — der
+ * Streifen zeigt dann nur die Vorbereitung (hinzugefügt, noch nicht
+ * gewürfelt). Ab Runde 1 läuft die Liste links→rechts, die AKTUELL Handelnde
+ * IMMER ganz links (die Anzeige rotiert die feste Wertreihenfolge um
+ * `turnIndex`, statt einen Zeiger in fester Reihenfolge zu markieren) — wer
+ * schon dran war diese Runde folgt rechts von einer Rundenbruch-Markierung,
+ * danach wer mitten im Kampf hinzugekommen und noch unrolled ist (wartet auf
+ * die nächste Runde, siehe activeThisRound in shared/src/boardProtocol.ts).
+ * Hinzufügen/Entfernen/Basis setzen/Kampf starten & beenden ist hart auf die
+ * Spielleitung verdrahtet (canManageInitiative); „Nächster Zug" zusätzlich
+ * auf die Besitzerin der gerade handelnden Marke (`myUserId` — derselbe
+ * Besitzer-Bypass wie serverseitig in ws.ts). Der Server prüft jede Aktion
+ * ohnehin nach — dieses Gating ist Bequemlichkeit, nicht die Durchsetzung.
+ */
+function InitiativeStrip({
+  entries,
+  tokens,
+  round,
+  turnIndex,
+  isGm,
+  onSelectToken,
+}: {
+  entries: BoardInitiative[];
+  tokens: BoardToken[];
+  round: number;
+  turnIndex: number;
+  isGm: boolean;
+  onSelectToken: (tokenId: number) => void;
+}) {
+  const { removeInitiative, setInitiativeBasis, startCombat, endCombat } = useDicePanel();
+  const tokensById = new Map(tokens.map((t) => [t.id, t]));
+  const inCombat = round > 0;
+  const active = inCombat ? activeTurnOrder(entries) : [];
+  const waiting = inCombat ? entries.filter((e) => !e.activeThisRound) : entries;
+  const idx = active.length > 0 ? Math.min(turnIndex, active.length - 1) : 0;
+  // Rotated so the current combatant renders first (leftmost) — everyone who
+  // hasn't gone yet this round follows, then a round-break marker, then
+  // everyone who already went (wrapped from the top of the sorted order).
+  const upcoming = active.slice(idx);
+  const alreadyWent = active.slice(0, idx);
+
+  const renderCard = (entry: BoardInitiative, opts: { current?: boolean; showValue?: boolean }) => {
+    const token = tokensById.get(entry.tokenId);
+    if (!token) return null;
+    const dying = entry.deathCountdown != null;
+    // Porträts nur für Charakter-Marken (nie für Marker/Monster) — siehe die
+    // gleiche Unterscheidung wie token.characterId überall sonst auf der
+    // Karte. Zeigt auch außerhalb der aktuellen Runde (schon dran gewesen,
+    // wartend), nicht nur bei der/dem Handelnden.
+    return (
+      <div className={`vtt-initiative-card${opts.current ? ' vtt-initiative-card-current' : ''}`} key={entry.tokenId}>
+        {token.characterId != null &&
+          (token.portrait ? (
+            <img className="vtt-initiative-portrait" src={`/api/characters/${token.characterId}/portrait`} alt="" />
+          ) : (
+            <div className="vtt-initiative-portrait vtt-initiative-portrait--empty" aria-hidden="true" />
+          ))}
+        <div className="vtt-initiative-card-body">
+          {/* Das Initialen-/Icon-Kürzel ist der Ersatz für ein fehlendes
+              Porträt (siehe Marken auf der Karte selbst) — bei einer
+              Charakter-Marke übernimmt die Porträt-Box daneben genau diese
+              Rolle schon, ein zusätzliches „KV Kyra Vollausstattung" wäre
+              doppelt gemoppelt. Nur Marker/Monster (kein Porträt-Feld) zeigen
+              das Kürzel noch vor dem Namen. */}
+          <button className="vtt-initiative-name" onClick={() => onSelectToken(entry.tokenId)} title="Marke bearbeiten">
+            {token.characterId == null && `${token.icon || initials(token.name)} `}
+            {token.name}
+          </button>
+          <div className="vtt-initiative-card-meta">
+            {opts.showValue ? (
+              <span className="vtt-initiative-value">{entry.value}</span>
+            ) : isGm && token.characterId == null ? (
+              <input
+                type="number"
+                className="vtt-initiative-value"
+                value={entry.iniBasis}
+                title="Initiative-Basis"
+                onChange={(e) => setInitiativeBasis(entry.tokenId, Number(e.target.value))}
+              />
+            ) : (
+              <span className="vtt-initiative-value muted" title="Wird beim Würfeln automatisch gesetzt">
+                —
+              </span>
+            )}
+            {dying && (
+              <span className={`vtt-initiative-death${entry.deathCountdown! <= 0 ? ' vtt-initiative-death-tot' : ''}`}>
+                {entry.deathCountdown! <= 0 ? '☠ Tot' : `☠ ${entry.deathCountdown}`}
+              </span>
+            )}
+          </div>
+        </div>
+        {isGm && (
+          <button className="small vtt-context-menu-danger vtt-initiative-remove" onClick={() => removeInitiative(entry.tokenId)} title="Aus dem Kampf entfernen">
+            ✕
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="vtt-initiative-strip">
+      <div className="vtt-initiative-strip-controls">
+        <strong>Runde {round}</strong>
+        {isGm && !inCombat && (
+          <button className="small" onClick={startCombat} disabled={entries.length === 0} title="Alle würfeln, Runde 1 beginnt">
+            Kampf starten →
+          </button>
+        )}
+        {isGm && inCombat && (
+          <button className="small" onClick={endCombat} title="Kampfliste leeren, Runde zurücksetzen">
+            Kampf beenden
+          </button>
+        )}
+      </div>
+      <div className="vtt-initiative-cards">
+        {entries.length === 0 && (
+          <span className="muted">
+            {isGm ? 'Noch niemand im Kampf — Rechtsklick auf eine Marke, „Zur Initiative".' : 'Noch kein Kampf im Gange.'}
+          </span>
+        )}
+        {inCombat && upcoming.map((entry, i) => renderCard(entry, { current: i === 0, showValue: true }))}
+        {inCombat && active.length > 0 && (
+          <div className="vtt-initiative-break" title="Rundenende — hier war die/der Letzte diese Runde dran">
+            ↻
+          </div>
+        )}
+        {inCombat && alreadyWent.map((entry) => renderCard(entry, { showValue: true }))}
+        {waiting.length > 0 && (
+          <>
+            {inCombat && <span className="vtt-initiative-waiting-label muted">Wartet auf nächste Runde</span>}
+            {waiting.map((entry) => renderCard(entry, { showValue: false }))}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The "Nächster Zug"/„Zug beenden"-Aktion, als schwebender Knopf über der
+ * Karte statt im Streifen (developer's layout call) — position: absolute in
+ * der (position: relative) .vtt-map-wrap, gleiche Technik wie .vtt-tool-badge
+ * daneben. Eigene Komponente statt Teil von InitiativeStrip, weil sie an
+ * einer ganz anderen Stelle im Baum hängt (im Karten-Wrap, nicht im
+ * Streifen), aber dieselben Daten braucht.
+ */
+function InitiativeTurnAction({
+  entries,
+  tokens,
+  round,
+  turnIndex,
+  isGm,
+  myUserId,
+}: {
+  entries: BoardInitiative[];
+  tokens: BoardToken[];
+  round: number;
+  turnIndex: number;
+  isGm: boolean;
+  myUserId: number;
+}) {
+  const { nextTurn } = useDicePanel();
+  if (round <= 0) return null;
+  const active = activeTurnOrder(entries);
+  if (active.length === 0) return null;
+  const idx = Math.min(turnIndex, active.length - 1);
+  const currentToken = tokens.find((t) => t.id === active[idx].tokenId);
+  const canAdvance = isGm || currentToken?.ownerUserId === myUserId;
+  return (
+    <button
+      className="vtt-turn-action"
+      onClick={nextTurn}
+      disabled={!canAdvance}
+      title={canAdvance ? 'Nächster Zug' : 'Nur die Spielleitung oder die aktuell Handelnde'}
+    >
+      Nächster Zug →
+    </button>
+  );
+}
+
 export default function VirtualTable() {
   const { id } = useParams();
   const groupId = Number(id);
@@ -2638,6 +2857,7 @@ export default function VirtualTable() {
           JSON.parse(snap.board.highlightsJson || '{}'),
           snap.overlays,
           JSON.parse(snap.board.fogJson || '[]'),
+          snap.initiative,
         ),
       )
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));

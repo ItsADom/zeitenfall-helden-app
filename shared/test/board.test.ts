@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import {
-  advanceRound,
-  canAdvanceRound,
+  activeTurnOrder,
   cellKey,
   decodeCellSet,
   deathCountdown,
   encodeCellSet,
   gridDistance,
   initiativeOrder,
+  nextTurn,
   overlayCell,
   parseCellKey,
   parseTileValue,
   shapeCells,
+  tickDeathCountdowns,
   tokenCells,
   type InitiativeEntry,
 } from '../src/board.js';
@@ -161,55 +162,68 @@ describe('shapeCells', () => {
 
 describe('initiativeOrder', () => {
   it('sorts by value descending', () => {
-    const entries = [{ value: 5 }, { value: 12 }, { value: 8 }];
+    const entries = [
+      { value: 5, iniBasis: 0 },
+      { value: 12, iniBasis: 0 },
+      { value: 8, iniBasis: 0 },
+    ];
     expect(initiativeOrder(entries).map((e) => e.value)).toEqual([12, 8, 5]);
   });
 
-  it('breaks ties by keeping original relative order (stable sort)', () => {
-    const a = { value: 10, id: 'a' };
-    const b = { value: 10, id: 'b' };
-    const c = { value: 15, id: 'c' };
-    expect(initiativeOrder([a, b, c]).map((e) => e.id)).toEqual(['c', 'a', 'b']);
+  it('breaks a tied value by the higher Initiative-Basis', () => {
+    const a = { value: 10, iniBasis: 3, id: 'a' };
+    const b = { value: 10, iniBasis: 7, id: 'b' };
+    const c = { value: 15, iniBasis: 1, id: 'c' };
+    expect(initiativeOrder([a, b, c]).map((e) => e.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('falls back to original relative order once value AND basis both tie', () => {
+    const a = { value: 10, iniBasis: 5, id: 'a' };
+    const b = { value: 10, iniBasis: 5, id: 'b' };
+    expect(initiativeOrder([a, b]).map((e) => e.id)).toEqual(['a', 'b']);
   });
 });
 
-describe('canAdvanceRound', () => {
-  it('is blocked while any entry is not done', () => {
-    expect(canAdvanceRound([{ done: true }, { done: false }])).toBe(false);
-  });
-
-  it('is allowed once every entry is done', () => {
-    expect(canAdvanceRound([{ done: true }, { done: true }])).toBe(true);
-  });
-
-  it('is allowed on an empty board', () => {
-    expect(canAdvanceRound([])).toBe(true);
+describe('activeTurnOrder', () => {
+  it('drops entries not yet rolled into the current round, value descending among the rest', () => {
+    const a = { value: 5, iniBasis: 0, activeThisRound: true, id: 'a' };
+    const b = { value: 12, iniBasis: 0, activeThisRound: false, id: 'b' };
+    const c = { value: 8, iniBasis: 0, activeThisRound: true, id: 'c' };
+    expect(activeTurnOrder([a, b, c]).map((e) => e.id)).toEqual(['c', 'a']);
   });
 });
 
-describe('advanceRound', () => {
-  const base: InitiativeEntry = { tokenId: 1, value: 10, done: true, deathCountdown: null };
-
-  it('bumps the round and clears every done flag', () => {
-    const res = advanceRound(3, [base, { ...base, tokenId: 2 }]);
-    expect(res.round).toBe(4);
-    expect(res.entries.every((e) => e.done === false)).toBe(true);
+describe('nextTurn', () => {
+  it('advances the pointer within the round', () => {
+    expect(nextTurn(0, 3)).toEqual({ turnIndex: 1, wrapsRound: false });
   });
+
+  it('wraps to the top and signals a round bump past the last combatant', () => {
+    expect(nextTurn(2, 3)).toEqual({ turnIndex: 0, wrapsRound: true });
+  });
+
+  it('wraps immediately on an empty active order', () => {
+    expect(nextTurn(0, 0)).toEqual({ turnIndex: 0, wrapsRound: true });
+  });
+});
+
+describe('tickDeathCountdowns', () => {
+  const base: InitiativeEntry = { tokenId: 1, value: 10, iniBasis: 0, activeThisRound: true, deathCountdown: null };
 
   it('ticks an active death countdown down by one', () => {
-    const res = advanceRound(1, [{ ...base, deathCountdown: 3 }]);
+    const res = tickDeathCountdowns([{ ...base, deathCountdown: 3 }]);
     expect(res.entries[0].deathCountdown).toBe(2);
     expect(res.died).toEqual([]);
   });
 
   it('reports a token whose countdown reaches zero this tick', () => {
-    const res = advanceRound(1, [{ ...base, tokenId: 42, deathCountdown: 1 }]);
+    const res = tickDeathCountdowns([{ ...base, tokenId: 42, deathCountdown: 1 }]);
     expect(res.entries[0].deathCountdown).toBe(0);
     expect(res.died).toEqual([42]);
   });
 
   it('leaves a token with no countdown untouched', () => {
-    const res = advanceRound(1, [{ ...base, deathCountdown: null }]);
+    const res = tickDeathCountdowns([{ ...base, deathCountdown: null }]);
     expect(res.entries[0].deathCountdown).toBeNull();
     expect(res.died).toEqual([]);
   });
