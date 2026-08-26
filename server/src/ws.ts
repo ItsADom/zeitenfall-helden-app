@@ -5,6 +5,7 @@ import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
 import type {
+  BoardImage,
   BoardInitiative,
   BoardOverlay,
   BoardToken,
@@ -28,6 +29,7 @@ import { performExpressionRoll, performProbeRoll, rollD20 } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
 import {
   canEditFog as boardCanEditFog,
+  canEditImages as boardCanEditImages,
   canEditTokens as boardCanEditTokens,
   canHighlightTiles as boardCanHighlightTiles,
   canLabel as boardCanLabel,
@@ -37,6 +39,7 @@ import {
   canPaint as boardCanPaint,
 } from './boardAccess.js';
 import {
+  type BoardImageRow,
   type BoardInitiativeRow,
   type BoardOverlayRow,
   type BoardRow,
@@ -44,12 +47,15 @@ import {
   type BoardViewer,
   addInitiativeEntry as addBoardInitiativeEntry,
   advanceTurn as advanceBoardTurn,
+  createImage as createBoardImage,
   createOverlay as createBoardOverlay,
   createToken as createBoardToken,
+  deleteImage as deleteBoardImage,
   deleteOverlay as deleteBoardOverlay,
   deleteToken as deleteBoardToken,
   endCombat as endBoardCombat,
   fogSet,
+  getImage as getBoardImage,
   getOrCreateBoard,
   getOverlay as getBoardOverlay,
   getToken as getBoardToken,
@@ -61,15 +67,18 @@ import {
   paintHighlights as paintBoardHighlights,
   paintTiles as paintBoardTiles,
   redactCells,
+  redactImages,
   removeInitiativeEntry as removeBoardInitiativeEntry,
   setFog as setBoardFog,
   setInitiativeBasis as setBoardInitiativeBasis,
   startCombat as startBoardCombat,
   tokenVisibleTo,
   updateBoardSettings,
+  updateImage as updateBoardImage,
   updateOverlay as updateBoardOverlay,
   updateToken as updateBoardToken,
 } from './board.js';
+import { ladeAsset, loescheAsset } from './assets/store.js';
 import {
   createPendingRequest,
   getPendingRequest,
@@ -184,6 +193,23 @@ function toWireOverlay(row: BoardOverlayRow): BoardOverlay {
     return { id: row.id, boardId: row.boardId, kind: 'measure', data: row.data as MeasureOverlayData, hidden: row.hidden };
   }
   return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as LabelOverlayData, hidden: row.hidden };
+}
+
+function toWireImage(row: BoardImageRow): BoardImage {
+  return {
+    id: row.id,
+    boardId: row.boardId,
+    assetSlug: row.assetSlug,
+    modus: row.modus,
+    x: row.x,
+    y: row.y,
+    w: row.w,
+    h: row.h,
+    rotation: row.rotation,
+    opacity: row.opacity,
+    z: row.z,
+    hidden: row.hidden,
+  };
 }
 
 function toWireInitiative(row: BoardInitiativeRow): BoardInitiative {
@@ -1564,6 +1590,103 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       } else {
         broadcastUngefiltert(meta.groupId, { type: 'board.overlay.deleted', overlayId: existing.id });
       }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.image.create': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      if (!boardCanEditImages(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, Bilder auf den Tisch zu legen' });
+        return;
+      }
+      const assetSlug = String(msg.assetSlug ?? '');
+      // The asset must exist, belong to THIS board, and have come through the
+      // upload endpoint (ownerType 'board') — a client can't place someone
+      // else's wiki/character picture just by knowing its slug.
+      const asset = ladeAsset(assetSlug);
+      if (!asset || asset.ownerType !== 'board' || asset.ownerId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Bild nicht gefunden' });
+        return;
+      }
+      const x = Number(msg.x);
+      const y = Number(msg.y);
+      const w = Number(msg.w);
+      const h = Number(msg.h);
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h) || w <= 0 || h <= 0) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Platzierung' });
+        return;
+      }
+      const modus = msg.modus === 'hintergrund' ? 'hintergrund' : 'objekt';
+      const rotation = Number.isFinite(Number(msg.rotation)) ? Number(msg.rotation) : 0;
+      const opacity = Number.isFinite(Number(msg.opacity)) ? Math.min(1, Math.max(0, Number(msg.opacity))) : 1;
+      const image = createBoardImage(board.id, { assetSlug, modus, x, y, w, h, rotation, opacity });
+      // Freshly placed, never hidden yet — a plain broadcastUngefiltert would
+      // also be correct today, but building it through the same visible/not
+      // check as everything else keeps this correct if create ever grows a
+      // hidden-at-creation option.
+      broadcastBuilt(meta.groupId, (v) => (redactImages([image], v).length > 0 ? { type: 'board.image.created', image: toWireImage(image) } : null));
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.image.update': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      const existing = getBoardImage(Number(msg.imageId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Bild nicht gefunden' });
+        return;
+      }
+      if (!boardCanEditImages(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, dieses Bild zu bearbeiten' });
+        return;
+      }
+      const p = msg.patch ?? {};
+      const patch: Parameters<typeof updateBoardImage>[1] = {};
+      if (p.modus === 'objekt' || p.modus === 'hintergrund') patch.modus = p.modus;
+      if (typeof p.x === 'number' && Number.isFinite(p.x)) patch.x = p.x;
+      if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = p.y;
+      if (typeof p.w === 'number' && Number.isFinite(p.w) && p.w > 0) patch.w = p.w;
+      if (typeof p.h === 'number' && Number.isFinite(p.h) && p.h > 0) patch.h = p.h;
+      if (typeof p.rotation === 'number' && Number.isFinite(p.rotation)) patch.rotation = p.rotation;
+      if (typeof p.opacity === 'number' && Number.isFinite(p.opacity)) patch.opacity = Math.min(1, Math.max(0, p.opacity));
+      if (typeof p.z === 'number' && Number.isFinite(p.z)) patch.z = Math.round(p.z);
+      // Same GM-only carve-out as a token's hidden flag (see board.token.update
+      // above) — the one all-or-nothing fog escape hatch for images.
+      if (typeof p.hidden === 'boolean' && meta.isGm) patch.hidden = p.hidden;
+      const updated = updateBoardImage(existing.id, patch);
+      if (updated) {
+        // Same visibility-transition shape as a token update: only `hidden`
+        // can flip visibility here, but computed generally via redactImages
+        // so this stays correct if that ever changes.
+        broadcastBuilt(meta.groupId, (v) => {
+          const wasVisible = redactImages([existing], v).length > 0;
+          const nowVisible = redactImages([updated], v).length > 0;
+          if (!nowVisible) return wasVisible ? { type: 'board.image.deleted', imageId: updated.id } : null;
+          if (wasVisible) return { type: 'board.image.updated', image: toWireImage(updated) };
+          return { type: 'board.image.created', image: toWireImage(updated) };
+        });
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.image.delete': {
+      const board = getOrCreateBoard(meta.groupId);
+      const viewer = { userId: meta.userId, isGm: meta.isGm };
+      const existing = getBoardImage(Number(msg.imageId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Bild nicht gefunden' });
+        return;
+      }
+      if (!boardCanEditImages(board, viewer, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, dieses Bild zu löschen' });
+        return;
+      }
+      deleteBoardImage(existing.id);
+      // Cross-database bookkeeping (SQLite has no cross-database CASCADE) —
+      // the board_images row is gone, now the bytes in helden-assets.db too.
+      loescheAsset(existing.assetSlug);
+      broadcastBuilt(meta.groupId, (v) => (redactImages([existing], v).length > 0 ? { type: 'board.image.deleted', imageId: existing.id } : null));
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

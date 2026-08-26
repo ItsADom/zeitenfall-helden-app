@@ -432,6 +432,30 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   happening before trying a third fix — or consider swapping to a custom
   (non-native) colour picker instead, which would sidestep the browser
   quirk entirely.
+- [sketch] **VTT: show a token's current owner, and allow changing it on the
+  fly** (developer feedback). `board_tokens.owner_user_id` already exists and
+  is read for the owner-bypass in `canEditTokens`/`canMoveToken`
+  (`server/src/boardAccess.ts`) and for the "GM or the current combatant's
+  own owner may advance the turn" check in `ws.ts`, but nothing in the UI
+  shows whose token it is, and it's set once at creation with no way to
+  reassign it later (e.g. a marker created by the GM handed off to a
+  player, or a player leaving the table). Needs a concept pass: where the
+  owner shows (token editor? a label on hover?), who may change it
+  (GM-only, or also the current owner handing it off?), and whether a
+  character token's owner should even be independently settable or always
+  implied by the character's `group_id`/player link.
+- [sketch] **VTT: reshape measure shapes via a drag handle** (raised
+  alongside Phase 12's image resize handle). Once set, a measure shape
+  currently can't be altered in size/shape — only moved (`startMeasureOverlayDrag`)
+  or deleted; the numeric size fields in `MeasureEditor` (`client/src/pages/
+  VirtualTable.tsx`) are the only way to resize, no drag. Phase 12 added a
+  corner drag handle for placed images (`startImageResize`/`onImageResizeMove`/
+  `onImageResizeUp`, same file) with shift/ctrl aspect-lock and
+  rotation-corrected delta math — a reusable pattern, but NOT a drop-in: a
+  measure shape's handle count varies by kind (ruler has 1 endpoint, circle
+  has 1 radius handle, rectangle has 2 corners, cone has length+spread — two
+  handles, not one). Needs a concept pass on handle placement/count per kind
+  before building, not just reusing the image's single-corner shape.
 - [ready] **Note field on Talente** (user feedback): `CharTalent`
   (`shared/src/types.ts:220`) has no `notiz` field, and neither table
   renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.

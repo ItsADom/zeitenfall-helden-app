@@ -440,14 +440,82 @@ export interface BoardImageRow {
   hidden: boolean;
 }
 
-function loadImages(boardId: number): BoardImageRow[] {
-  const rows = db
+const IMAGE_COLS = `id, board_id AS boardId, asset_slug AS assetSlug, modus, x, y, w, h, rotation, opacity, z, hidden`;
+
+function toImage(r: Omit<BoardImageRow, 'hidden'> & { hidden: number }): BoardImageRow {
+  return { ...r, hidden: !!r.hidden };
+}
+
+export function loadImages(boardId: number): BoardImageRow[] {
+  const rows = db.prepare(`SELECT ${IMAGE_COLS} FROM board_images WHERE board_id = ? ORDER BY z, id`).all(boardId) as Parameters<
+    typeof toImage
+  >[0][];
+  return rows.map(toImage);
+}
+
+export function getImage(imageId: number): BoardImageRow | undefined {
+  const row = db.prepare(`SELECT ${IMAGE_COLS} FROM board_images WHERE id = ?`).get(imageId) as Parameters<typeof toImage>[0] | undefined;
+  return row && toImage(row);
+}
+
+/** The placed instance for an asset slug, if any — used by the REST route serving an image's bytes, to gate on that instance's `hidden` flag. */
+export function getImageByAssetSlug(boardId: number, assetSlug: string): BoardImageRow | undefined {
+  return loadImages(boardId).find((i) => i.assetSlug === assetSlug);
+}
+
+export interface CreateImageInput {
+  assetSlug: string;
+  modus: 'objekt' | 'hintergrund';
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+  opacity: number;
+}
+
+export function createImage(boardId: number, input: CreateImageInput): BoardImageRow {
+  const z = (db.prepare('SELECT COALESCE(MAX(z), -1) + 1 AS n FROM board_images WHERE board_id = ?').get(boardId) as { n: number }).n;
+  const info = db
     .prepare(
-      `SELECT id, board_id AS boardId, asset_slug AS assetSlug, modus, x, y, w, h, rotation, opacity, z, hidden
-       FROM board_images WHERE board_id = ? ORDER BY z, id`,
+      `INSERT INTO board_images (board_id, asset_slug, modus, x, y, w, h, rotation, opacity, z)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .all(boardId) as (Omit<BoardImageRow, 'hidden'> & { hidden: number })[];
-  return rows.map((r) => ({ ...r, hidden: !!r.hidden }));
+    .run(boardId, input.assetSlug, input.modus, input.x, input.y, input.w, input.h, input.rotation, input.opacity, z);
+  bumpRev(boardId);
+  return getImage(info.lastInsertRowid as number)!;
+}
+
+export type ImagePatch = Partial<Pick<BoardImageRow, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>;
+
+/** Move/resize/rotate/opacity/z-order/hidden/modus — one patch, same shape as updateToken. */
+export function updateImage(imageId: number, patch: ImagePatch): BoardImageRow | undefined {
+  const existing = getImage(imageId);
+  if (!existing) return undefined;
+  const next = { ...existing, ...patch };
+  db.prepare(`UPDATE board_images SET modus = ?, x = ?, y = ?, w = ?, h = ?, rotation = ?, opacity = ?, z = ?, hidden = ? WHERE id = ?`).run(
+    next.modus,
+    next.x,
+    next.y,
+    next.w,
+    next.h,
+    next.rotation,
+    next.opacity,
+    next.z,
+    next.hidden ? 1 : 0,
+    imageId,
+  );
+  bumpRev(existing.boardId);
+  return getImage(imageId);
+}
+
+/** Only removes the board_images row — the caller (ws.ts) still has to call loescheAsset(existing.assetSlug) by hand, same cross-database bookkeeping as every other image delete path (see the plan's "Assets" section). */
+export function deleteImage(imageId: number): BoardImageRow | undefined {
+  const existing = getImage(imageId);
+  if (!existing) return undefined;
+  db.prepare('DELETE FROM board_images WHERE id = ?').run(imageId);
+  bumpRev(existing.boardId);
+  return existing;
 }
 
 export interface BoardInitiativeRow {

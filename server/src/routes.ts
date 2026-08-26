@@ -18,7 +18,8 @@ import {
 import type { SessionUser } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { wikiApi } from './wiki/router.js';
-import { loescheAssetsFuer } from './assets/store.js';
+import { ladeAsset, legeAssetAn, loescheAssetsFuer } from './assets/store.js';
+import { bildMasse } from './assets/masse.js';
 import {
   hatGruppenPortrait,
   ladeGruppenPortrait,
@@ -28,7 +29,8 @@ import {
 import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chimes.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
-import { loadBoardSnapshot, redactSnapshotForViewer } from './board.js';
+import { canEditImages as canEditBoardImages } from './boardAccess.js';
+import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, redactSnapshotForViewer } from './board.js';
 import { listRollableProbes } from './diceSource.js';
 import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
@@ -800,6 +802,88 @@ api.get('/groups/:id/board', requireAuth, (req, res) => {
     return;
   }
   res.json(redactSnapshotForViewer(loadBoardSnapshot(groupId), { userId: user.id, isGm: user.isGm }));
+});
+
+// Image upload for the virtual table (Phase 12, "Images on the table") —
+// bytes only. Placing the upload ON the board (x/y/w/h/modus) happens over
+// WS via board.image.create, same REST-carries-bytes/WS-carries-state split
+// as everything else (see "Server module layout" in the plan). Guarded by
+// canEditImages (perm_images), not just room membership — a player without
+// the right shouldn't even be able to fill the assets table. Own body parser
+// like the wiki's /bilder route, since express.json lets non-JSON through
+// and the image comes raw; 8 MB is generous for a hand-drawn map export.
+api.post(
+  '/groups/:id/board/images',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '8mb' }),
+  (req, res) => {
+    const groupId = Number(req.params.id);
+    const user = req.user!;
+    const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+    if (!exists || (!user.isGm && !isRoomMember(user.id, groupId))) {
+      res.status(404).json({ error: 'Gruppe nicht gefunden' });
+      return;
+    }
+    const board = getOrCreateBoard(groupId);
+    if (!canEditBoardImages(board, { userId: user.id, isGm: user.isGm }, groupId)) {
+      res.status(403).json({ error: 'Keine Berechtigung, Bilder auf den Tisch zu legen' });
+      return;
+    }
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    const slug = legeAssetAn({
+      ownerType: 'board',
+      ownerId: board.id,
+      titel: String(req.query.titel ?? 'Bild').slice(0, 120),
+      mime,
+      data: buf,
+      uploaderUserId: user.id,
+      uploaderName: user.displayName,
+    });
+    if (!slug) {
+      res.status(503).json({ error: 'Die Bilddatenbank ist nicht verfügbar' });
+      return;
+    }
+    // Real pixel dimensions, so the "Pixel pro Feld" alignment dialog has
+    // something to divide by without a second round-trip.
+    const { breite, hoehe } = bildMasse(buf, mime);
+    res.json({ slug, breite, hoehe });
+  },
+);
+
+// Serves one placed image's bytes. The slug carries randomness (same
+// capability pattern as the wiki's /bilder/:slug — the URL is only ever
+// handed to someone already allowed to see the board it's on), but a
+// mismatched slug (wrong board, or not placed at all) is refused explicitly
+// rather than trusted. `hidden` is the one all-or-nothing fog escape hatch
+// for images (see "Fog over images is cosmetic" in the plan) — withheld from
+// non-GM viewers entirely, same guarantee the snapshot/WS path already gives.
+api.get('/groups/:id/board/images/:slug', requireAuth, (req, res) => {
+  const groupId = Number(req.params.id);
+  const user = req.user!;
+  const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+  if (!exists || (!user.isGm && !isRoomMember(user.id, groupId))) {
+    res.status(404).end();
+    return;
+  }
+  const board = getBoard(groupId);
+  const placed = board && getImageByAssetSlug(board.id, String(req.params.slug));
+  if (!placed || (placed.hidden && !user.isGm)) {
+    res.status(404).end();
+    return;
+  }
+  const asset = ladeAsset(placed.assetSlug);
+  if (!asset || asset.ownerType !== 'board') {
+    res.status(404).end();
+    return;
+  }
+  res.type(asset.mime);
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.send(asset.data);
 });
 
 api.post('/groups/:id/tabs', requireAuth, (req, res) => {
@@ -1703,10 +1787,16 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     res.status(400).json({ error: 'Gruppe enthält noch Charaktere' });
     return;
   }
+  // Board-Id VOR dem Löschen holen: ON DELETE CASCADE räumt boards/
+  // board_images innerhalb von helden.db weg, aber deren Bild-Bytes liegen
+  // in helden-assets.db — dieselbe Zweite-Datei-Lücke wie beim Gruppenporträt
+  // gleich darunter, siehe die owner_type-Kommentare in assets/store.ts.
+  const board = getBoard(id);
   db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 0').run(id);
   // Gruppenporträt liegt in helden-assets.db — dieselbe Zweite-Datei-Lücke wie
   // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
   loescheAssetsFuer('group', id);
+  if (board) loescheAssetsFuer('board', board.id);
   res.json({ ok: true });
 });
 
@@ -1767,7 +1857,13 @@ api.put('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
 // (beide haben eine echte FK auf groups(id)) — keine Charakterdaten
 // betroffen, daher kein „enthält noch Charaktere"-Schutz nötig.
 api.delete('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
-  db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 1').run(Number(req.params.id));
+  const id = Number(req.params.id);
+  // Same cross-database gap as the permanent-group delete above — an event
+  // group can have its own board too (boards.group_id has no room-kind
+  // filter, see the plan).
+  const board = getBoard(id);
+  db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 1').run(id);
+  if (board) loescheAssetsFuer('board', board.id);
   res.json({ ok: true });
 });
 

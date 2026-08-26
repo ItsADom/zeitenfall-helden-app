@@ -1,5 +1,89 @@
 # Virtual table (VTT) — implementation plan
 
+> ## Progress (2026-08-26, later session): Phase 12 — images on the table
+>
+> **Committed on `feature/virtual-table`.** The `board_images` table, the
+> redaction plumbing (`redactImages`, snapshot inclusion), and `canEditImages`
+> already existed from earlier phases ("structurally ready before it's
+> needed" — same pattern as fog's `board_images.hidden` accounting noted in
+> Phase 9); this phase built the actual CRUD, upload, and client UI on top.
+>
+> **Design settled with the developer DURING this build, diverging from the
+> plan text below in a few places** (the plan's "objekt vs hintergrund at
+> upload time" and "Pixel pro Feld" alignment dialog are superseded by what's
+> described here):
+> - **Every image is always placed as `objekt`** (interactive, draggable,
+>   resizable). `hintergrund` (locked) is reached AFTERWARD, never chosen at
+>   upload time — a small lock icon at the image's top-left corner (rendered
+>   in its own always-topmost SVG layer, independent of the image's own
+>   z-position) toggles `objekt`/`hintergrund` with one click, for every
+>   placed image, always visible to anyone with `canImages`. Locking makes
+>   the image fully inert (`pointer-events: none` on its own render layer,
+>   which also moves from "above tiles, below tokens" to "below the grid" —
+>   see "Background ≠ backdrop" below) — clicking anywhere on a locked image
+>   except its lock icon does nothing.
+> - **No "Pixel pro Feld" field at upload.** The original plan asked the
+>   uploader to know their mapping tool's export scale up front and typed
+>   that into a dialog before the image ever appeared — feedback during
+>   testing was that this reads as homework before you even see the result.
+>   Replaced with: upload lands the image at a fixed default size
+>   (`DEFAULT_IMAGE_LONG_EDGE_CELLS = 4`, aspect-correct from the real pixel
+>   dimensions `bildMasse` already reads), then a **drag handle** at the
+>   selected image's bottom-right corner resizes it live — hold Shift or Ctrl
+>   to lock the aspect ratio. The resize delta is measured in screen pixels
+>   like every other drag here, then rotated by `-rotation` before being
+>   applied, so dragging "grows the corner you're holding" even on a rotated
+>   image instead of the wrong axis. `ImageEditor`'s width/height number
+>   fields (`ImageNumberField`) remain as the exact-value alternative, same
+>   split as `MeasureEditor`'s drag-vs-typed-number precedent.
+> - **This resize-handle pattern is reusable but not yet reused** — reshaping
+>   a measure shape (ruler/circle/rectangle/cone, each with a different
+>   handle count) is a separate, still-`[sketch]` TODO item, deliberately
+>   NOT built in this same pass (scope confirmed with the developer).
+>
+> **Mechanically**: `board.image.create`/`update`/`delete` in
+> `shared/src/boardProtocol.ts`, mirroring `board.token.*`'s shape exactly —
+> `hidden` (the one all-or-nothing fog escape hatch for images, "Fog over
+> images is cosmetic") is GM-only server-side, same carve-out as a token's
+> `hidden` field. `server/src/assets/store.ts` gained `OwnerTyp = 'board'`
+> (owner id is `boards.id`, many images per board, slug-addressed like the
+> wiki's images — NOT the single-role `setzeEinzelAsset` a portrait uses).
+> `POST /api/groups/:id/board/images` uploads bytes only (guarded by
+> `canEditImages`) and returns `{slug, breite, hoehe}`; placing/moving/
+> resizing/locking/deleting all go over WS like everything else, per the
+> plan's REST-carries-bytes/WS-carries-state split. `GET .../board/images/
+> :slug` serves the bytes, gated on the PLACED instance's `hidden` flag (not
+> just the asset's existence) — a stray/wrong-board slug or a hidden image is
+> refused as 404, same "not yours and doesn't exist must be indistinguishable"
+> shape as the wiki.
+>
+> **Cross-database cleanup** (SQLite has no cross-database CASCADE, per
+> CLAUDE.md): `board.image.delete` in `ws.ts` calls `loescheAsset(slug)` by
+> hand after removing the `board_images` row; both group-delete routes
+> (permanent and event/temp) now look up the group's board BEFORE deleting
+> the group row (the cascade would otherwise wipe `boards` first) and call
+> `loescheAssetsFuer('board', boardId)`; `assets/sweep.ts` gained a `'board'`
+> pass as the safety net under both hooks.
+>
+> **Verified live** (GM session, Seed-Testgruppe Alpha's dev board, a
+> synthetic 1×1 PNG dispatched through the file input's `change` event since
+> this session's browser automation can't drive a native OS file picker):
+> upload → `POST .../board/images` → 200, placed at the default 4×4 size;
+> `GET .../board/images/:slug` → 200 serving the bytes; resizing via the
+> `ImageEditor` number field round-tripped over WS and re-rendered
+> (160px→280px width); clicking the lock icon flipped the image into the
+> locked layer (`pointer-events: none`, confirmed via `getComputedStyle`, not
+> just the JSX prop — SVG serializes it as `pointer-events`, not
+> `pointerEvents`, which the first check got wrong); delete removed both the
+> `board_images` row and the asset itself (confirmed via a cache-busted
+> `fetch` → 404, since the first check was fooled by the route's own
+> `Cache-Control: private, max-age=86400` serving a stale 200 from the
+> browser's HTTP cache). The corner drag handle itself could not be
+> confirmed through this session's synthetic-drag automation (no
+> intermediate pointermove events arrived), so it's implemented and
+> type-checked but wants a real live drag test. Test image deleted
+> afterward — shared dev board left clean.
+>
 > ## Progress (2026-08-26, latest session): "Point at a cell" ping, built to spec after a concept pass
 >
 > **Committed on `feature/virtual-table`.** The rolz.org-style ping sketched
@@ -1433,16 +1517,19 @@ front-loaded: the phase that touches existing, released code comes first.
     , the "done" checkbox gating round advance, the Todesschwelle countdown. Reroll Initiative on every round.
 11. **"Center all on my view"** and polish. Just a single re-pan with feedback, no interlocking with GMs pan movements.
     display as fast movement, not just a "blink"
-12. **Images on the table.** `board_images`, upload with `OwnerTyp 'board'`, the
-    „Pixel pro Feld" alignment dialog, object vs Hintergrund, `perm_images`, and —
-    in the same commit, not a follow-up — every asset cleanup path plus the sweeper
-    entry. Deliberately last before the wrap-up phase, not right after labels: no
-    later phase depends on it (fog's per-viewer redaction already accounts for
-    `board_images.hidden` structurally, per the note in Phase 9, without needing
-    a real image to exercise it), so slotting it here avoids fog/initiative/polish
-    ever having to design around a half-built image feature. Includes the
-    explicit „Bilder sind für Spieler sichtbar" note in the GM's image dialog,
-    now that the dialog is what this phase builds.
+12. **Images on the table — done, per the "Progress" note at the top of this
+    file.** `board_images`, upload with `OwnerTyp 'board'`, `perm_images`, and
+    every asset cleanup path plus the sweeper entry, all in the same commit.
+    **Diverged from the plan text below during the build** (developer
+    feedback while testing): no „Pixel pro Feld" dialog at upload — an image
+    always lands as `objekt` at a fixed default size and gets resized via a
+    drag handle (Shift/Ctrl to lock aspect) or the editor's exact-number
+    fields; `hintergrund` (locked) is reached afterward via a lock icon on
+    the image, not chosen up front. Fog's per-viewer redaction already
+    accounted for `board_images.hidden` structurally, per the note in Phase
+    9, without needing a real image to exercise it — this phase is what
+    finally exercises it. Includes the explicit „Bilder sind für Spieler
+    sichtbar" note in the GM's image dialog.
 13. **Multiple scenes per group** (concept agreed 2026-08-25, **not started** —
     build after the table itself is finished). Raised as "should a board just be
     bigger (100×100) so the GM has room to sketch several areas at once, or

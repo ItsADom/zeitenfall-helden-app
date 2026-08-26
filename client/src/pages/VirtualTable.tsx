@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { BoardInitiative, BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { activeTurnOrder, cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
@@ -203,6 +203,7 @@ interface BoardSnapshotResponse {
   tokens: BoardToken[];
   overlays: BoardOverlay[];
   initiative: BoardInitiative[];
+  images: BoardImage[];
 }
 
 // Wie viele Zellen EIN Texturbild abdeckt — an den Brettkoordinaten verankert,
@@ -216,6 +217,11 @@ function textureHref(key: string): string {
   const mat = TILE_MATERIALS.find((m) => m.key === key);
   if (mat?.datei) return `/tiles/${mat.datei}`;
   return generatedWaterTexture(key === 'wasser-tief' ? 'wasser-tief' : 'wasser-seicht');
+}
+
+/** GET .../board/images/:slug — see the REST route in server/src/routes.ts. Cookie auth, same origin, so a plain <img>/SVG <image> href works without any fetch dance. */
+function imageHref(groupId: number, assetSlug: string): string {
+  return `/api/groups/${groupId}/board/images/${encodeURIComponent(assetSlug)}`;
 }
 
 // Eine Zeile je Gitterlinie, zu EINEM <path> zusammengefasst — billiger als
@@ -236,6 +242,9 @@ const CLICK_THRESHOLD_PX = 5;
 // "Point at a cell" ping (rolz.org-style) — how long the ring + name stay
 // visible after a broadcast, client-side only (nothing server/DB-timed).
 const CELL_PING_DURATION_MS = 1600;
+// A freshly uploaded image's long edge, in cells — a starting point to
+// resize from (drag handle, see startImageResize), not a measured scale.
+const DEFAULT_IMAGE_LONG_EDGE_CELLS = 4;
 
 interface Camera {
   x: number;
@@ -474,11 +483,13 @@ function MapCanvas({
   highlights,
   overlays,
   fog,
+  images,
   canCreateTokens,
   canEditToken,
   canMoveToken: canMoveTokenFn,
   canPaint,
   canLabel,
+  canImages,
   isGm,
 }: {
   groupId: number;
@@ -491,12 +502,15 @@ function MapCanvas({
   overlays: BoardOverlay[];
   /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded — see the "Nebel" tool below). */
   fog: Set<string>;
+  /** Placed images (Phase 12) — already redacted (hidden ones stripped) for a non-GM viewer. */
+  images: BoardImage[];
   /** Placing a brand-new marker has no owner yet to check against — board-wide only. */
   canCreateTokens: boolean;
   canEditToken: (t: BoardToken) => boolean;
   canMoveToken: (t: BoardToken) => boolean;
   canPaint: boolean;
   canLabel: boolean;
+  canImages: boolean;
   isGm: boolean;
 }) {
   const { cols, rows } = board;
@@ -512,6 +526,9 @@ function MapCanvas({
     createOverlay,
     updateOverlay,
     deleteOverlay,
+    createImage,
+    updateImage,
+    deleteImage,
     boardInitiative,
     addInitiative,
     centerView,
@@ -526,6 +543,9 @@ function MapCanvas({
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
   const [selectedOverlayId, setSelectedOverlayId] = useState<number | null>(null);
   const [overlayDragPos, setOverlayDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
+  const [imageDragPos, setImageDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
+  const [imageUploadOpen, setImageUploadOpen] = useState(false);
   // Rechtsklick auf eine Marke — Bildschirmkoordinaten (nicht Brett-Zelle),
   // damit das Menü als normales HTML-Overlay position: fixed neben dem
   // Zeiger sitzt, unabhängig von Kamera/Zoom. Inhalt bewusst noch offen
@@ -617,6 +637,23 @@ function MapCanvas({
     startClientY: number;
     startX: number;
     startY: number;
+    lastX: number;
+    lastY: number;
+    moved: number;
+  } | null>(null);
+  // Dieselbe Versatz-Mechanik wie overlayDragRef — ein Bild hat aber KEINE
+  // Zellmitte-Verankerung (x/y ist die obere linke Ecke, siehe board_images-
+  // Kommentar in db.ts), deshalb kein +0.5-Offset beim Umrechnen.
+  const imageDragRef = useRef<{
+    id: number;
+    el: SVGGElement;
+    startClientX: number;
+    startClientY: number;
+    startX: number;
+    startY: number;
+    w: number;
+    h: number;
+    rotation: number;
     lastX: number;
     lastY: number;
     moved: number;
@@ -1259,6 +1296,145 @@ function MapCanvas({
     setTimeout(() => setOverlayDragPos((prev) => (prev?.id === drag.id ? null : prev)), 200);
   };
 
+  // Drag-to-move for a placed 'objekt' image — same shape as
+  // startOverlayDrag/onOverlayPointerMove/onOverlayPointerUp above. A
+  // 'hintergrund' image never reaches this (locked, no pointer events — see
+  // its own render below), so there's no modus check here.
+  const startImageDrag = (e: React.PointerEvent, image: BoardImage) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    if (!canImages) {
+      setSelectedImageId(image.id);
+      return;
+    }
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    imageDragRef.current = {
+      id: image.id,
+      el: e.currentTarget as SVGGElement,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startX: image.x,
+      startY: image.y,
+      w: image.w,
+      h: image.h,
+      rotation: image.rotation,
+      lastX: image.x,
+      lastY: image.y,
+      moved: 0,
+    };
+  };
+  const onImagePointerMove = (e: React.PointerEvent) => {
+    const drag = imageDragRef.current;
+    const wrap = wrapRef.current;
+    if (!drag || !wrap) return;
+    const scale = boardScale(wrap) / CELL_PX;
+    const dxClient = e.clientX - drag.startClientX;
+    const dyClient = e.clientY - drag.startClientY;
+    drag.moved = Math.max(drag.moved, Math.abs(dxClient) + Math.abs(dyClient));
+    const x = Math.min(cols - drag.w, Math.max(0, drag.startX + dxClient * scale));
+    const y = Math.min(rows - drag.h, Math.max(0, drag.startY + dyClient * scale));
+    drag.lastX = x;
+    drag.lastY = y;
+    // Rotation lives in the SAME transform (rotate is centered on the
+    // image's own footprint) — writing translate alone here would drop it
+    // for the duration of the drag.
+    drag.el.setAttribute(
+      'transform',
+      `translate(${x * CELL_PX}, ${y * CELL_PX}) rotate(${drag.rotation}, ${(drag.w * CELL_PX) / 2}, ${(drag.h * CELL_PX) / 2})`,
+    );
+  };
+  const onImagePointerUp = () => {
+    const drag = imageDragRef.current;
+    imageDragRef.current = null;
+    if (!drag) return;
+    if (drag.moved < CLICK_THRESHOLD_PX) {
+      setSelectedImageId(drag.id);
+      return;
+    }
+    setImageDragPos({ id: drag.id, x: drag.lastX, y: drag.lastY });
+    updateImage(drag.id, { x: drag.lastX, y: drag.lastY });
+    setTimeout(() => setImageDragPos((prev) => (prev?.id === drag.id ? null : prev)), 200);
+  };
+
+  // Resize handle at the image's own bottom-right corner (grows/shrinks from
+  // the fixed top-left anchor, x/y untouched) — only on a selected, unlocked
+  // ('objekt') image; a locked one has no interaction at all besides its lock
+  // icon (see the render below). The drag delta is measured in screen/board
+  // pixels like every other drag here, then rotated by -rotation to turn it
+  // into LOCAL width/height change — otherwise dragging "right" on a rotated
+  // image would grow the wrong axis. Shift/Ctrl locks the aspect ratio,
+  // driven off the (already rotation-corrected) width delta.
+  const imageResizeRef = useRef<{
+    id: number;
+    gEl: SVGGElement;
+    imgEl: SVGImageElement;
+    handleEl: SVGElement;
+    startClientX: number;
+    startClientY: number;
+    startW: number;
+    startH: number;
+    rotation: number;
+    x: number;
+    y: number;
+    lastW: number;
+    lastH: number;
+  } | null>(null);
+  const startImageResize = (e: React.PointerEvent, image: BoardImage) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    const handle = e.currentTarget as SVGElement;
+    const g = handle.parentElement as unknown as SVGGElement | null;
+    const imgEl = g?.querySelector('image') as SVGImageElement | null;
+    if (!g || !imgEl) return;
+    handle.setPointerCapture(e.pointerId);
+    imageResizeRef.current = {
+      id: image.id,
+      gEl: g,
+      imgEl,
+      handleEl: handle,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startW: image.w,
+      startH: image.h,
+      rotation: image.rotation,
+      x: image.x,
+      y: image.y,
+      lastW: image.w,
+      lastH: image.h,
+    };
+  };
+  const onImageResizeMove = (e: React.PointerEvent) => {
+    const drag = imageResizeRef.current;
+    const wrap = wrapRef.current;
+    if (!drag || !wrap) return;
+    const scale = boardScale(wrap) / CELL_PX;
+    const dxCell = (e.clientX - drag.startClientX) * scale;
+    const dyCell = (e.clientY - drag.startClientY) * scale;
+    const rad = (-drag.rotation * Math.PI) / 180;
+    const dxLocal = dxCell * Math.cos(rad) - dyCell * Math.sin(rad);
+    const dyLocal = dxCell * Math.sin(rad) + dyCell * Math.cos(rad);
+    const MIN_IMG_SIZE = 0.2;
+    let w = Math.min(cols, Math.max(MIN_IMG_SIZE, drag.startW + dxLocal));
+    let h = Math.min(rows, Math.max(MIN_IMG_SIZE, drag.startH + dyLocal));
+    if (e.shiftKey || e.ctrlKey) {
+      const ratio = drag.startW / drag.startH;
+      h = Math.min(rows, Math.max(MIN_IMG_SIZE, w / ratio));
+    }
+    drag.lastW = w;
+    drag.lastH = h;
+    drag.gEl.setAttribute('transform', `translate(${drag.x * CELL_PX}, ${drag.y * CELL_PX}) rotate(${drag.rotation}, ${(w * CELL_PX) / 2}, ${(h * CELL_PX) / 2})`);
+    drag.imgEl.setAttribute('width', String(w * CELL_PX));
+    drag.imgEl.setAttribute('height', String(h * CELL_PX));
+    drag.handleEl.setAttribute('cx', String(w * CELL_PX));
+    drag.handleEl.setAttribute('cy', String(h * CELL_PX));
+  };
+  const onImageResizeUp = () => {
+    const drag = imageResizeRef.current;
+    imageResizeRef.current = null;
+    if (!drag) return;
+    updateImage(drag.id, { w: drag.lastW, h: drag.lastH });
+  };
+
   const placeMarker = () => {
     // camera/viewW sind Board-Pixel (CELL_PX-skaliert) — durch CELL_PX
     // geteilt ergibt das die Zellen-Koordinate, in der token.x/y stehen.
@@ -1270,6 +1446,12 @@ function MapCanvas({
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
   const selectedOverlay = overlays.find((o): o is LabelOverlay => o.kind === 'label' && o.id === selectedOverlayId) ?? null;
   const selectedMeasure = overlays.find((o): o is MeasureOverlay => o.kind === 'measure' && o.id === selectedOverlayId) ?? null;
+  const selectedImage = images.find((i) => i.id === selectedImageId) ?? null;
+  // Same view-center math as placeMarker above — a fresh image needs a
+  // default position too, and there's no drag-to-place gesture for an
+  // upload the way there is for a measure shape.
+  const viewCenterX = Math.min(cols - 1, Math.max(0, (camera.x + viewW / 2) / CELL_PX - 0.5));
+  const viewCenterY = Math.min(rows - 1, Math.max(0, (camera.y + viewH / 2) / CELL_PX - 0.5));
 
   // Eigener lokaler Entwurf während eines Strichs überlagert den Server-Stand
   // (siehe onPaintPointerMove/-Up) — sonst identisch mit `tiles`/`highlights`.
@@ -1357,6 +1539,7 @@ function MapCanvas({
                 if (tool !== 'paint') {
                   setTool('paint');
                   setPickerOpen(true);
+                  setImageUploadOpen(false);
                 } else {
                   setPickerOpen((v) => !v);
                 }
@@ -1380,6 +1563,7 @@ function MapCanvas({
                 if (tool !== 'highlight') {
                   setTool('highlight');
                   setPickerOpen(true);
+                  setImageUploadOpen(false);
                 } else {
                   setPickerOpen((v) => !v);
                 }
@@ -1398,6 +1582,7 @@ function MapCanvas({
                 if (tool !== 'fog') {
                   setTool('fog');
                   setPickerOpen(true);
+                  setImageUploadOpen(false);
                 } else {
                   setPickerOpen((v) => !v);
                 }
@@ -1423,6 +1608,7 @@ function MapCanvas({
               if (tool !== 'label') {
                 setTool('label');
                 setPickerOpen(true);
+                setImageUploadOpen(false);
               } else {
                 setPickerOpen((v) => !v);
               }
@@ -1432,14 +1618,24 @@ function MapCanvas({
             🏷 Beschriften
           </button>
         ) : canCreateTokens ? (
-          <button className="small" onClick={placeMarker} title="Marker auf dem Tisch platzieren">
+          <button
+            className="small"
+            onClick={() => {
+              placeMarker();
+              setImageUploadOpen(false);
+            }}
+            title="Marker auf dem Tisch platzieren"
+          >
             + Marker
           </button>
         ) : (
           canLabel && (
             <button
               className={`small${tool === 'label' ? ' active' : ''}`}
-              onClick={() => setTool((v) => (v === 'label' ? 'select' : 'label'))}
+              onClick={() => {
+                setTool((v) => (v === 'label' ? 'select' : 'label'));
+                setImageUploadOpen(false);
+              }}
               title="Beschriftung setzen — Klick aufs Brett legt eine neue an, mehrere hintereinander möglich"
             >
               🏷 Beschriftung
@@ -1459,6 +1655,7 @@ function MapCanvas({
             if (tool !== 'measure') {
               setTool('measure');
               setPickerOpen(true);
+              setImageUploadOpen(false);
             } else {
               setPickerOpen((v) => !v);
             }
@@ -1467,6 +1664,22 @@ function MapCanvas({
         >
           📏 Messen
         </button>
+        {/* Kein eigener 'tool'-Modus wie Bemalen/Messen — ein Bild wird nicht
+            durch Klicken aufs Brett platziert, sondern über den Dialog
+            hochgeladen und landet in der aktuellen Bildmitte (siehe
+            placeImage unten), gleiche Standardposition wie + Marker. */}
+        {canImages && (
+          <button
+            className={`small${imageUploadOpen ? ' active' : ''}`}
+            onClick={() => {
+              cancelTool();
+              setImageUploadOpen((v) => !v);
+            }}
+            title="Bild auf den Tisch legen"
+          >
+            🖼 Bild
+          </button>
+        )}
         <span className="muted">
           {cols} × {rows} Felder
         </span>
@@ -1555,6 +1768,16 @@ function MapCanvas({
           coneSpread={measureConeSpread}
           onConeSpreadChange={setMeasureConeSpread}
           onClose={() => setPickerOpen(false)}
+        />
+      )}
+      {imageUploadOpen && (
+        <ImagePicker
+          groupId={groupId}
+          images={images}
+          isGm={isGm}
+          centerX={viewCenterX}
+          centerY={viewCenterY}
+          onClose={() => setImageUploadOpen(false)}
         />
       )}
       <div
@@ -1690,6 +1913,25 @@ function MapCanvas({
               <feColorMatrix type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  .8 .8 .8 0 -.35" />
             </filter>
           </defs>
+
+          {/* Hintergrund-Bilder: UNTER Gitter+Kacheln (siehe "Background ≠
+              backdrop" im Plan) — behalten ihre eigene Fläche, werden nie
+              gestreckt. Vollständig regungslos, pointerEvents="none": das
+              einzige Interaktionsmittel ist das Schloss-Symbol in der obersten
+              Ebene ganz unten im <svg>, das unabhängig von dieser Schicht
+              immer klickbar bleibt. */}
+          {images
+            .filter((i) => i.modus === 'hintergrund')
+            .map((img) => (
+              <g
+                key={img.id}
+                transform={`translate(${img.x * CELL_PX}, ${img.y * CELL_PX}) rotate(${img.rotation}, ${(img.w * CELL_PX) / 2}, ${(img.h * CELL_PX) / 2})`}
+                pointerEvents="none"
+              >
+                <image href={imageHref(groupId, img.assetSlug)} width={img.w * CELL_PX} height={img.h * CELL_PX} opacity={img.opacity} preserveAspectRatio="none" />
+              </g>
+            ))}
+
           <rect x={0} y={0} width={totalW} height={totalH} fill="url(#vtt-grid)" />
 
           {/* Zell-Einheiten-Raum: 1 lokale Einheit wird zu CELL_PX Brett-
@@ -1725,6 +1967,46 @@ function MapCanvas({
           {[...highlightGroups].map(([fill, segs]) => (
             <path key={fill} d={segs.join('')} fill={fill} />
           ))}
+
+          {/* Objekt-Bilder: ÜBER Kacheln/Einfärbung, UNTER den Marken (siehe
+              "Images on the table" im Plan). Ziehen verschiebt (startImageDrag),
+              ein Klick ohne Zug wählt aus und öffnet ImageEditor — dieselbe
+              Klick-vs-Zug-Unterscheidung wie bei einer Beschriftung
+              (startOverlayDrag). Der Anfasser unten rechts erscheint nur am
+              ausgewählten Bild. */}
+          {images
+            .filter((i) => i.modus === 'objekt')
+            .map((img) => {
+              const pos = imageDragPos?.id === img.id ? imageDragPos : img;
+              return (
+                <g
+                  key={img.id}
+                  transform={`translate(${pos.x * CELL_PX}, ${pos.y * CELL_PX}) rotate(${img.rotation}, ${(img.w * CELL_PX) / 2}, ${(img.h * CELL_PX) / 2})`}
+                  onPointerDown={(e) => startImageDrag(e, img)}
+                  onPointerMove={onImagePointerMove}
+                  onPointerUp={onImagePointerUp}
+                  onPointerCancel={onImagePointerUp}
+                  style={{ cursor: canImages ? 'grab' : 'pointer' }}
+                >
+                  <image href={imageHref(groupId, img.assetSlug)} width={img.w * CELL_PX} height={img.h * CELL_PX} opacity={img.opacity} preserveAspectRatio="none" />
+                  {selectedImageId === img.id && canImages && (
+                    <circle
+                      cx={img.w * CELL_PX}
+                      cy={img.h * CELL_PX}
+                      r={7}
+                      fill="var(--accent)"
+                      stroke="var(--panel)"
+                      strokeWidth={2}
+                      style={{ cursor: 'nwse-resize' }}
+                      onPointerDown={(e) => startImageResize(e, img)}
+                      onPointerMove={onImageResizeMove}
+                      onPointerUp={onImageResizeUp}
+                      onPointerCancel={onImageResizeUp}
+                    />
+                  )}
+                </g>
+              );
+            })}
 
           {/* Messformen: eigene, gedämpfte Akzentfarbe statt Terrain-/
               Einfärbefarben (siehe MEASURE_FILL/-STROKE) — Werkzeug-Feedback,
@@ -2075,6 +2357,34 @@ function MapCanvas({
               </text>
             </g>
           ))}
+
+          {/* Schloss-Symbol je Bild — GANZ oben, unabhängig vom modus-
+              Rendering weiter oben (Hintergrund unter dem Gitter, Objekt
+              zwischen Kacheln/Marken), damit es immer erreichbar bleibt, auch
+              wenn ein 'hintergrund'-Bild sonst komplett regungslos ist
+              (pointerEvents="none" dort, siehe oben). Ein Klick schaltet nur
+              den modus um — Größe/Drehung/Deckkraft bleiben Sache des
+              ImageEditor bzw. des Anfassers am 'objekt'-Bild. Nicht rotiert
+              (bewusst vereinfacht): bei starker Drehung sitzt es nicht mehr
+              exakt auf der optischen Ecke, bleibt aber unter dem
+              unrotierten x/y auffindbar. */}
+          {canImages &&
+            images.map((img) => (
+              <g
+                key={`lock-${img.id}`}
+                transform={`translate(${img.x * CELL_PX + 12}, ${img.y * CELL_PX + 12})`}
+                onPointerDown={(e) => {
+                  e.stopPropagation();
+                  updateImage(img.id, { modus: img.modus === 'hintergrund' ? 'objekt' : 'hintergrund' });
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                <circle r={10} fill="var(--panel)" stroke="var(--border)" strokeWidth={1} opacity={0.92} />
+                <text textAnchor="middle" dominantBaseline="central" fontSize={12}>
+                  {img.modus === 'hintergrund' ? '🔒' : '🔓'}
+                </text>
+              </g>
+            ))}
         </svg>
       </div>
       {selectedToken && (
@@ -2125,6 +2435,19 @@ function MapCanvas({
             setSelectedOverlayId(null);
           }}
           onClose={() => setSelectedOverlayId(null)}
+        />
+      )}
+      {selectedImage && (
+        <ImageEditor
+          image={selectedImage}
+          isGm={isGm}
+          maxZ={images.reduce((m, i) => Math.max(m, i.z), 0)}
+          onChange={(patch) => updateImage(selectedImage.id, patch)}
+          onDelete={() => {
+            deleteImage(selectedImage.id);
+            setSelectedImageId(null);
+          }}
+          onClose={() => setSelectedImageId(null)}
         />
       )}
     </div>
@@ -2458,6 +2781,137 @@ function MeasureSizeField({ label, value, onCommit }: { label: string; value: nu
       />
       <span className="muted">Schritt</span>
     </label>
+  );
+}
+
+/** Same debounced-local-text idiom as MeasureSizeField, generalized for any of an image's numeric fields (w/h in cells, rotation in degrees). */
+function ImageNumberField({
+  label,
+  value,
+  min,
+  step,
+  suffix,
+  onCommit,
+}: {
+  label: string;
+  value: number;
+  min?: number;
+  step: number;
+  suffix?: string;
+  onCommit: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(timerRef.current ?? undefined), []);
+  return (
+    <label className="vtt-token-editor-row">
+      <span className="muted">{label}</span>
+      <input
+        type="number"
+        min={min}
+        step={step}
+        value={text}
+        style={{ width: '5em' }}
+        onChange={(e) => {
+          const v = e.target.value;
+          setText(v);
+          const n = Number(v);
+          if (!Number.isFinite(n) || (min != null && n < min)) return;
+          clearTimeout(timerRef.current ?? undefined);
+          timerRef.current = setTimeout(() => onCommit(n), FIELD_DEBOUNCE_MS);
+        }}
+      />
+      {suffix && <span className="muted">{suffix}</span>}
+    </label>
+  );
+}
+
+/**
+ * Placed-image editor — opened by clicking an 'objekt' image on the map
+ * (a 'hintergrund' one has no hit-testing by design, see the plan's
+ * "Background ≠ backdrop"; it's only reachable through the list in
+ * ImagePicker below). Position is set by dragging on the map (see
+ * startImageDrag); everything else — size, rotation, opacity, layering,
+ * objekt/hintergrund, and the GM-only hidden flag — is a field here, same
+ * split as MeasureEditor (drag moves/resizes broadly, fields set exact
+ * numbers).
+ */
+function ImageEditor({
+  image,
+  isGm,
+  maxZ,
+  onChange,
+  onDelete,
+  onClose,
+}: {
+  image: BoardImage;
+  isGm: boolean;
+  maxZ: number;
+  onChange: (patch: Partial<Pick<BoardImage, 'modus' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => void;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const [opacity, setOpacity] = useState(image.opacity);
+  const opacityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setOpacity(image.opacity);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image.id]);
+  useEffect(() => () => clearTimeout(opacityTimerRef.current ?? undefined), []);
+
+  return (
+    <div className="vtt-token-editor">
+      <div className="vtt-token-editor-head">
+        <strong>Bild</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      <ImageNumberField key={`${image.id}-w`} label="Breite" value={image.w} min={0.2} step={0.5} suffix="Felder" onCommit={(v) => onChange({ w: v })} />
+      <ImageNumberField key={`${image.id}-h`} label="Höhe" value={image.h} min={0.2} step={0.5} suffix="Felder" onCommit={(v) => onChange({ h: v })} />
+      <ImageNumberField key={`${image.id}-r`} label="Drehung" value={image.rotation} step={5} suffix="°" onCommit={(v) => onChange({ rotation: v })} />
+      <div className="vtt-tile-picker-row vtt-tile-picker-opacity-row">
+        <span className="muted">Deckkraft</span>
+        <input
+          type="range"
+          min={0.1}
+          max={1}
+          step={0.05}
+          value={opacity}
+          onChange={(e) => {
+            const v = Number(e.target.value);
+            setOpacity(v);
+            clearTimeout(opacityTimerRef.current ?? undefined);
+            opacityTimerRef.current = setTimeout(() => onChange({ opacity: v }), FIELD_DEBOUNCE_MS);
+          }}
+          className="vtt-tile-picker-opacity"
+        />
+        <span className="muted vtt-tile-picker-opacity-pct">{Math.round(opacity * 100)}%</span>
+      </div>
+      <div className="vtt-token-editor-row">
+        <button className="small" onClick={() => onChange({ z: maxZ + 1 })} title="Nach vorne">
+          Nach vorne
+        </button>
+        <button className="small" onClick={() => onChange({ z: -1 })} title="Nach hinten">
+          Nach hinten
+        </button>
+      </div>
+      {/* Der eine Alles-oder-nichts-Fluchtweg für Bilder — Nebel kann ein
+          Bild nicht pro Zelle verdecken (siehe „Fog over images is cosmetic"
+          im Plan), also entzieht dieses Feld es Spielern ganz. GM-only, wie
+          bei einer Marke. */}
+      {isGm && (
+        <label className="vtt-token-editor-row">
+          <span className="muted">Nur SL sichtbar</span>
+          <input type="checkbox" checked={image.hidden} onChange={(e) => onChange({ hidden: e.target.checked })} />
+        </label>
+      )}
+      <div className="vtt-token-editor-row">
+        <button className="small" onClick={onDelete}>
+          Löschen
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -2822,6 +3276,137 @@ function FogPicker({
   );
 }
 
+/**
+ * Upload + place a new image, and manage what's already on the board. The
+ * management list matters beyond convenience: a 'hintergrund' image has no
+ * hit-testing on the map by design (see ImageEditor's comment), so this list
+ * is the ONLY way to reach it afterward — to re-show it as 'objekt', hide it
+ * from players, or delete it.
+ *
+ * Grid alignment is computed, not eyeballed (per the plan): "Pixel pro Feld"
+ * plus the upload's real pixel dimensions (read server-side without
+ * decoding, see assets/masse.ts) derives w/h in cells directly, so an export
+ * from a mapping tool at a known scale lands aligned to the grid immediately.
+ */
+function ImagePicker({
+  groupId,
+  images,
+  isGm,
+  centerX,
+  centerY,
+  onClose,
+}: {
+  groupId: number;
+  images: BoardImage[];
+  isGm: boolean;
+  centerX: number;
+  centerY: number;
+  onClose: () => void;
+}) {
+  const { createImage, updateImage, deleteImage } = useDicePanel();
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // A resize handle (see startImageResize) makes getting the size exactly
+  // right a drag, not a typed number — so upload no longer asks for a
+  // "Pixel pro Feld" scale up front. It lands at a fixed, aspect-correct
+  // default size instead (long edge = DEFAULT_IMAGE_LONG_EDGE_CELLS), and
+  // gets resized/repositioned afterward like anything else on the board.
+  const onUpload = async (file: File) => {
+    setUploading(true);
+    setError('');
+    try {
+      const p = new URLSearchParams({ titel: file.name.slice(0, 60) });
+      const res = await fetch(`/api/groups/${groupId}/board/images?${p}`, {
+        method: 'POST',
+        headers: { 'Content-Type': file.type || 'image/jpeg' },
+        body: file,
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Hochladen fehlgeschlagen');
+      }
+      const data = (await res.json()) as { slug: string; breite: number; hoehe: number };
+      const scale = DEFAULT_IMAGE_LONG_EDGE_CELLS / Math.max(data.breite, data.hoehe, 1);
+      const w = data.breite > 0 ? data.breite * scale : DEFAULT_IMAGE_LONG_EDGE_CELLS;
+      const h = data.hoehe > 0 ? data.hoehe * scale : DEFAULT_IMAGE_LONG_EDGE_CELLS;
+      // Always placed unlocked — locking happens afterward via the lock icon
+      // on the image itself (or the toggle in the list below).
+      createImage({ assetSlug: data.slug, modus: 'objekt', x: centerX - w / 2, y: centerY - h / 2, w, h });
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Hochladen fehlgeschlagen');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <div className="vtt-tile-picker">
+      <div className="vtt-token-editor-head">
+        <strong>Bild</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      <p className="muted vtt-settings-fixed">
+        Landet in einer Standardgröße in der Bildmitte — Größe und Drehung lassen sich danach direkt am Bild ziehen (Anfasser unten
+        rechts nach Auswahl), oder über den Editor exakt eintippen.
+      </p>
+      <div className="vtt-token-editor-row">
+        <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void onUpload(file);
+        }} />
+      </div>
+      {error && <p className="error">{error}</p>}
+      {isGm && (
+        <p className="muted vtt-settings-fixed">
+          Bilder sind für Spieler sichtbar — auch unter Nebel, der Nebel verdeckt nur einzelne Felder, keine Bilder (siehe „Nur SL
+          sichtbar" am einzelnen Bild).
+        </p>
+      )}
+      {images.length > 0 && (
+        <div className="vtt-token-editor-row" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '4px' }}>
+          <span className="muted">Auf dem Tisch ({images.length})</span>
+          {images.map((img) => (
+            <div key={img.id} className="vtt-tile-picker-row" style={{ justifyContent: 'space-between' }}>
+              <span className="muted">
+                Bild #{img.id} — {img.modus === 'hintergrund' ? 'Hintergrund' : 'Objekt'}
+                {img.hidden ? ' · Nur SL' : ''}
+              </span>
+              <div className="seg">
+                <button
+                  className={img.modus === 'objekt' ? 'active' : ''}
+                  onClick={() => updateImage(img.id, { modus: img.modus === 'objekt' ? 'hintergrund' : 'objekt' })}
+                  title="Objekt/Hintergrund umschalten"
+                >
+                  ⇄
+                </button>
+                {isGm && (
+                  <button
+                    className={img.hidden ? 'active' : ''}
+                    onClick={() => updateImage(img.id, { hidden: !img.hidden })}
+                    title="Nur SL sichtbar umschalten"
+                  >
+                    👁
+                  </button>
+                )}
+                <button onClick={() => deleteImage(img.id)} title="Löschen">
+                  🗑
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClose: () => void }) {
   const { updateBoardSettings } = useDicePanel();
   const rows: { key: keyof BoardSettings; label: string }[] = [
@@ -3057,8 +3642,19 @@ export default function VirtualTable() {
   const { id } = useParams();
   const groupId = Number(id);
   const { user } = useAuth();
-  const { myGroups, selectRoom, setHidden, boardTokens, boardSettings, boardTiles, boardHighlights, boardOverlays, boardFog, hydrateBoard } =
-    useDicePanel();
+  const {
+    myGroups,
+    selectRoom,
+    setHidden,
+    boardTokens,
+    boardSettings,
+    boardTiles,
+    boardHighlights,
+    boardOverlays,
+    boardFog,
+    boardImages,
+    hydrateBoard,
+  } = useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
   const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat');
@@ -3079,6 +3675,7 @@ export default function VirtualTable() {
           snap.overlays,
           JSON.parse(snap.board.fogJson || '[]'),
           snap.initiative,
+          snap.images,
         ),
       )
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));
@@ -3126,6 +3723,7 @@ export default function VirtualTable() {
   const canMoveToken = (t: BoardToken) => user.isGm || boardSettings.permMove === 'all' || t.ownerUserId === user.id;
   const canPaint = user.isGm || boardSettings.permTiles === 'all';
   const canLabel = user.isGm || boardSettings.permLabels === 'all';
+  const canImages = user.isGm || boardSettings.permImages === 'all';
 
   return (
     <div className="vtt-page">
@@ -3152,11 +3750,13 @@ export default function VirtualTable() {
           highlights={boardHighlights}
           overlays={boardOverlays}
           fog={boardFog}
+          images={boardImages}
           canCreateTokens={canCreateTokens}
           canEditToken={canEditToken}
           canMoveToken={canMoveToken}
           canPaint={canPaint}
           canLabel={canLabel}
+          canImages={canImages}
           isGm={user.isGm}
         />
 

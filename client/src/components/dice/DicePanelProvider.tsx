@@ -9,7 +9,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import type { BoardInitiative, BoardOverlay, BoardSettings, BoardToken, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -235,6 +235,8 @@ interface DicePanelCtxValue {
   boardOverlays: BoardOverlay[];
   /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded); everyone gets the same mask, only its contents are redacted server-side. */
   boardFog: Set<string>;
+  /** Placed images (Phase 12, "Images on the table") — perm_images-gated, see canImages below. Hidden ones are already stripped server-side for a non-GM viewer. */
+  boardImages: BoardImage[];
   /** The initiative roster (board_initiative), already redacted for hidden/fogged tokens by the server. Sorted by the caller (initiativeOrder), not here. */
   boardInitiative: BoardInitiative[];
   /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog/boardInitiative einmalig. */
@@ -246,6 +248,7 @@ interface DicePanelCtxValue {
     overlays: BoardOverlay[],
     fog: string[],
     initiative: BoardInitiative[],
+    images: BoardImage[],
   ) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
@@ -301,6 +304,11 @@ interface DicePanelCtxValue {
   boardCellPing: { x: number; y: number; by: string; seq: number } | null;
   /** Available to everyone, not just the GM — broadcasts a cell (grid index, not board pixels); every viewer, sender included, shows the same pulsing ring + name. */
   pingCell: (x: number, y: number) => void;
+  /** Places an already-uploaded asset (see POST .../board/images) on the board — perm_images-gated (canEditImages). */
+  createImage: (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => void;
+  /** Move/resize/rotate/opacity/z-order/modus, and `hidden` (GM-only server-side — the one all-or-nothing fog escape hatch for images). */
+  updateImage: (imageId: number, patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => void;
+  deleteImage: (imageId: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -384,6 +392,10 @@ export function useDicePanel(): DicePanelCtxValue {
       centerView: () => {},
       boardCellPing: null,
       pingCell: () => {},
+      boardImages: [],
+      createImage: () => {},
+      updateImage: () => {},
+      deleteImage: () => {},
     }
   );
 }
@@ -424,6 +436,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
   const [boardHighlights, setBoardHighlights] = useState<Record<string, string>>({});
   const [boardOverlays, setBoardOverlays] = useState<BoardOverlay[]>([]);
+  const [boardImages, setBoardImages] = useState<BoardImage[]>([]);
   /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
   const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
   const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
@@ -731,6 +744,21 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'board.overlay.deleted') {
         setBoardOverlays((prev) => prev.filter((o) => o.id !== msg.overlayId));
+        return;
+      }
+      if (msg.type === 'board.image.created') {
+        // Filter-then-push, same dedupe shape as board.token.created — a
+        // viewer whose `hidden` image just got un-hidden gets 'created' too,
+        // even though the row already existed server-side.
+        setBoardImages((prev) => [...prev.filter((i) => i.id !== msg.image.id), msg.image]);
+        return;
+      }
+      if (msg.type === 'board.image.updated') {
+        setBoardImages((prev) => prev.map((i) => (i.id === msg.image.id ? msg.image : i)));
+        return;
+      }
+      if (msg.type === 'board.image.deleted') {
+        setBoardImages((prev) => prev.filter((i) => i.id !== msg.imageId));
         return;
       }
       if (msg.type === 'board.fog.updated') {
@@ -1085,6 +1113,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       overlays: BoardOverlay[],
       fog: string[],
       initiative: BoardInitiative[],
+      images: BoardImage[],
     ) => {
       setBoardSettings(board);
       setBoardTokens(tokens);
@@ -1093,6 +1122,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardOverlays(overlays);
       setBoardFog(new Set(fog));
       setBoardInitiative(initiative);
+      setBoardImages(images);
     },
     [],
   );
@@ -1174,6 +1204,24 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const deleteOverlayAction = useCallback(
     (overlayId: number) => {
       sendMsg({ type: 'board.overlay.delete', reqId: crypto.randomUUID(), overlayId });
+    },
+    [sendMsg],
+  );
+  const createImageAction = useCallback(
+    (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => {
+      sendMsg({ type: 'board.image.create', reqId: crypto.randomUUID(), ...input });
+    },
+    [sendMsg],
+  );
+  const updateImageAction = useCallback(
+    (imageId: number, patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => {
+      sendMsg({ type: 'board.image.update', reqId: crypto.randomUUID(), imageId, patch });
+    },
+    [sendMsg],
+  );
+  const deleteImageAction = useCallback(
+    (imageId: number) => {
+      sendMsg({ type: 'board.image.delete', reqId: crypto.randomUUID(), imageId });
     },
     [sendMsg],
   );
@@ -1282,6 +1330,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardOverlays,
         boardFog,
         boardInitiative,
+        boardImages,
         hydrateBoard,
         createToken,
         updateToken: updateTokenAction,
@@ -1304,6 +1353,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         centerView: centerViewAction,
         boardCellPing,
         pingCell: pingCellAction,
+        createImage: createImageAction,
+        updateImage: updateImageAction,
+        deleteImage: deleteImageAction,
       }}
     >
       {children}

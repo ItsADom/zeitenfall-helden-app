@@ -96,6 +96,40 @@ export interface BoardInitiative {
   deathCountdown: number | null;
 }
 
+export type ImageModus = 'objekt' | 'hintergrund';
+
+/**
+ * board_images row (Phase 12, "Images on the table"). Placed AFTER its bytes
+ * are uploaded through POST /api/groups/:id/board/images — that endpoint is
+ * REST because it carries bytes; everything about an already-placed image
+ * (move/resize/rotate/reorder/hide) goes over WS like every other board
+ * mutation. `w`/`h` are the image's OWN footprint in cells, never "the whole
+ * board" — a `hintergrund` image is not stretched, it just becomes locked
+ * and non-interactive, drawn below the tile layer (see "Background ≠
+ * backdrop" in the plan).
+ */
+export interface BoardImage {
+  id: number;
+  boardId: number;
+  assetSlug: string;
+  modus: ImageModus;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rotation: number;
+  opacity: number;
+  z: number;
+  /**
+   * GM-only: withheld from players entirely. The one all-or-nothing escape
+   * hatch for images — fog cannot redact an image's bytes per cell without
+   * decoding it (see "Fog over images is cosmetic" in the plan), so this
+   * flag is the mechanism for a prepared map section the GM wants to reveal
+   * later.
+   */
+  hidden: boolean;
+}
+
 export type TokenKind = 'character' | 'marker';
 
 export interface BoardToken {
@@ -250,7 +284,33 @@ export type BoardClientMessage =
   // cell with the 'select' tool active (client-side gate; the cell bounds
   // check below is the only server-side validation). x/y are cell indices,
   // not board pixels.
-  | { type: 'board.cell.ping'; reqId: string; x: number; y: number };
+  | { type: 'board.cell.ping'; reqId: string; x: number; y: number }
+  // Places an already-uploaded asset (see POST .../board/images) on the
+  // board. Guarded by perm_images (canEditImages), like every other
+  // board.image.* message. `modus` defaults to 'objekt'; `rotation`/
+  // `opacity` default to 0/1 if omitted.
+  | {
+      type: 'board.image.create';
+      reqId: string;
+      assetSlug: string;
+      modus?: ImageModus;
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      rotation?: number;
+      opacity?: number;
+    }
+  // Move/resize/rotate/opacity/z-order/hidden/modus — one patch message,
+  // same shape as board.token.update. `hidden` is GM-only server-side, same
+  // reasoning as a token's hidden flag.
+  | {
+      type: 'board.image.update';
+      reqId: string;
+      imageId: number;
+      patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>;
+    }
+  | { type: 'board.image.delete'; reqId: string; imageId: number };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
@@ -277,4 +337,7 @@ export type BoardServerMessage =
   /** `by` is the sender's display name, for the toast every viewer (including the sender) shows on receipt. */
   | { type: 'board.view.centered'; x: number; y: number; zoom: number; by: string }
   /** `by` is the sender's display name, shown next to the pulsing ring every viewer (including the sender) renders on receipt. */
-  | { type: 'board.cell.pinged'; x: number; y: number; by: string };
+  | { type: 'board.cell.pinged'; x: number; y: number; by: string }
+  | { type: 'board.image.created'; image: BoardImage }
+  | { type: 'board.image.updated'; image: BoardImage }
+  | { type: 'board.image.deleted'; imageId: number };
