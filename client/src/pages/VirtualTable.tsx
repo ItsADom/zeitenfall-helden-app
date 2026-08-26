@@ -647,6 +647,7 @@ function MapCanvas({
   const imageDragRef = useRef<{
     id: number;
     el: SVGGElement;
+    lockEl: SVGGElement | null;
     startClientX: number;
     startClientY: number;
     startX: number;
@@ -1301,6 +1302,11 @@ function MapCanvas({
   // 'hintergrund' image never reaches this (locked, no pointer events — see
   // its own render below), so there's no modus check here.
   const startImageDrag = (e: React.PointerEvent, image: BoardImage) => {
+    // Any OTHER tool (Bemalen/Hervorheben/Nebel/Messen/Beschriften) must be
+    // able to act on the cells an image covers — returning here WITHOUT
+    // stopPropagation lets the event keep bubbling up to onWrapPointerDown,
+    // same as if the image weren't there at all.
+    if (tool !== 'select') return;
     e.stopPropagation();
     if (e.button !== 0) return;
     if (!canImages) {
@@ -1308,9 +1314,19 @@ function MapCanvas({
       return;
     }
     (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    // The lock icon is a SEPARATE <g> in its own always-topmost layer (see
+    // the render below), not a child of this image's own <g> — unlike the
+    // resize handle, which IS a child and so moves for free when this
+    // group's transform is rewritten below. Looked up once here (by the
+    // data-lock-for attribute) and written to on every move, or it would
+    // stay frozen at the pre-drag position for the whole live drag (only
+    // catching up once the drag ends and img.x/y actually change in React
+    // state) — exactly the desync the developer flagged live-testing this.
+    const lockEl = wrapRef.current?.querySelector(`[data-lock-for="${image.id}"]`) as SVGGElement | null;
     imageDragRef.current = {
       id: image.id,
       el: e.currentTarget as SVGGElement,
+      lockEl,
       startClientX: e.clientX,
       startClientY: e.clientY,
       startX: image.x,
@@ -1335,6 +1351,7 @@ function MapCanvas({
     const y = Math.min(rows - drag.h, Math.max(0, drag.startY + dyClient * scale));
     drag.lastX = x;
     drag.lastY = y;
+    if (drag.lockEl) drag.lockEl.setAttribute('transform', `translate(${x * CELL_PX + 12}, ${y * CELL_PX + 12})`);
     // Rotation lives in the SAME transform (rotate is centered on the
     // image's own footprint) — writing translate alone here would drop it
     // for the duration of the drag.
@@ -1914,24 +1931,6 @@ function MapCanvas({
             </filter>
           </defs>
 
-          {/* Hintergrund-Bilder: UNTER Gitter+Kacheln (siehe "Background ≠
-              backdrop" im Plan) — behalten ihre eigene Fläche, werden nie
-              gestreckt. Vollständig regungslos, pointerEvents="none": das
-              einzige Interaktionsmittel ist das Schloss-Symbol in der obersten
-              Ebene ganz unten im <svg>, das unabhängig von dieser Schicht
-              immer klickbar bleibt. */}
-          {images
-            .filter((i) => i.modus === 'hintergrund')
-            .map((img) => (
-              <g
-                key={img.id}
-                transform={`translate(${img.x * CELL_PX}, ${img.y * CELL_PX}) rotate(${img.rotation}, ${(img.w * CELL_PX) / 2}, ${(img.h * CELL_PX) / 2})`}
-                pointerEvents="none"
-              >
-                <image href={imageHref(groupId, img.assetSlug)} width={img.w * CELL_PX} height={img.h * CELL_PX} opacity={img.opacity} preserveAspectRatio="none" />
-              </g>
-            ))}
-
           <rect x={0} y={0} width={totalW} height={totalH} fill="url(#vtt-grid)" />
 
           {/* Zell-Einheiten-Raum: 1 lokale Einheit wird zu CELL_PX Brett-
@@ -1960,33 +1959,46 @@ function MapCanvas({
               ohne die Fläche selbst zu verdunkeln. */}
           <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={1 / camera.zoom} fill="none" />
 
-          {/* Einfärbe-Ebene: ÜBER Kacheln+Gitter (bei 100 % Deckkraft deckt sie
-              beides sichtbar zu, siehe Spaltenkommentar an highlights_json in
-              db.ts), aber UNTER den Marken — eine Marke auf einem eingefärbten
-              Feld soll nicht darunter verschwinden. */}
-          {[...highlightGroups].map(([fill, segs]) => (
-            <path key={fill} d={segs.join('')} fill={fill} />
-          ))}
-
-          {/* Objekt-Bilder: ÜBER Kacheln/Einfärbung, UNTER den Marken (siehe
-              "Images on the table" im Plan). Ziehen verschiebt (startImageDrag),
-              ein Klick ohne Zug wählt aus und öffnet ImageEditor — dieselbe
-              Klick-vs-Zug-Unterscheidung wie bei einer Beschriftung
-              (startOverlayDrag). Der Anfasser unten rechts erscheint nur am
-              ausgewählten Bild. */}
-          {images
-            .filter((i) => i.modus === 'objekt')
+          {/* Bilder: EINE Ebene für 'objekt' UND 'hintergrund' gleichermaßen —
+              ÜBER den Kacheln, UNTER der Einfärbung (siehe "Images on the
+              table" im Plan, Nachtrag). `modus` ist ausschließlich eine
+              Zugriffsfrage (gesperrt/entsperrt, siehe die Schloss-Symbole
+              weiter unten), keine Ebenenfrage mehr — ein 'hintergrund'-Bild
+              rutscht NICHT mehr unters Gitter; das hätte sonst die
+              Einfärbe-Ebene daran gehindert, über ein Bild hinweg zu malen.
+              `z` sortiert innerhalb dieser einen Ebene (Nach vorne/hinten im
+              ImageEditor) — nötig, weil `images` sonst in Lade-/Erstellreihenfolge
+              bliebe und ein z-Update sichtbar wirkungslos wäre.
+              Zugverhalten NUR im 'select'-Werkzeug: in jedem anderen
+              Werkzeug (Bemalen/Hervorheben/…) lässt onPointerDown das
+              Ereignis unangetastet nach oben durchbubbeln, statt es per
+              stopPropagation abzufangen — sonst könnte ein Bild, das einen
+              Bereich abdeckt, genau dort nicht mehr bemalt/eingefärbt werden.
+              Ein gesperrtes Bild ist UNABHÄNGIG vom Werkzeug komplett
+              regungslos (pointerEvents="none") — einziges Interaktionsmittel
+              bleibt das Schloss-Symbol in der eigenen, immer obersten Ebene
+              ganz unten im <svg>. */}
+          {[...images]
+            .sort((a, b) => a.z - b.z)
             .map((img) => {
               const pos = imageDragPos?.id === img.id ? imageDragPos : img;
+              const transform = `translate(${pos.x * CELL_PX}, ${pos.y * CELL_PX}) rotate(${img.rotation}, ${(img.w * CELL_PX) / 2}, ${(img.h * CELL_PX) / 2})`;
+              if (img.modus === 'hintergrund') {
+                return (
+                  <g key={img.id} transform={transform} pointerEvents="none">
+                    <image href={imageHref(groupId, img.assetSlug)} width={img.w * CELL_PX} height={img.h * CELL_PX} opacity={img.opacity} preserveAspectRatio="none" />
+                  </g>
+                );
+              }
               return (
                 <g
                   key={img.id}
-                  transform={`translate(${pos.x * CELL_PX}, ${pos.y * CELL_PX}) rotate(${img.rotation}, ${(img.w * CELL_PX) / 2}, ${(img.h * CELL_PX) / 2})`}
+                  transform={transform}
                   onPointerDown={(e) => startImageDrag(e, img)}
                   onPointerMove={onImagePointerMove}
                   onPointerUp={onImagePointerUp}
                   onPointerCancel={onImagePointerUp}
-                  style={{ cursor: canImages ? 'grab' : 'pointer' }}
+                  style={{ cursor: tool === 'select' && canImages ? 'grab' : undefined }}
                 >
                   <image href={imageHref(groupId, img.assetSlug)} width={img.w * CELL_PX} height={img.h * CELL_PX} opacity={img.opacity} preserveAspectRatio="none" />
                   {selectedImageId === img.id && canImages && (
@@ -2007,6 +2019,14 @@ function MapCanvas({
                 </g>
               );
             })}
+
+          {/* Einfärbe-Ebene: ÜBER Kacheln+Gitter+Bildern (bei 100 % Deckkraft
+              deckt sie alles sichtbar zu, siehe Spaltenkommentar an
+              highlights_json in db.ts), aber UNTER den Marken — eine Marke
+              auf einem eingefärbten Feld soll nicht darunter verschwinden. */}
+          {[...highlightGroups].map(([fill, segs]) => (
+            <path key={fill} d={segs.join('')} fill={fill} />
+          ))}
 
           {/* Messformen: eigene, gedämpfte Akzentfarbe statt Terrain-/
               Einfärbefarben (siehe MEASURE_FILL/-STROKE) — Werkzeug-Feedback,
@@ -2369,22 +2389,31 @@ function MapCanvas({
               exakt auf der optischen Ecke, bleibt aber unter dem
               unrotierten x/y auffindbar. */}
           {canImages &&
-            images.map((img) => (
-              <g
-                key={`lock-${img.id}`}
-                transform={`translate(${img.x * CELL_PX + 12}, ${img.y * CELL_PX + 12})`}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  updateImage(img.id, { modus: img.modus === 'hintergrund' ? 'objekt' : 'hintergrund' });
-                }}
-                style={{ cursor: 'pointer' }}
-              >
-                <circle r={10} fill="var(--panel)" stroke="var(--border)" strokeWidth={1} opacity={0.92} />
-                <text textAnchor="middle" dominantBaseline="central" fontSize={12}>
-                  {img.modus === 'hintergrund' ? '🔒' : '🔓'}
-                </text>
-              </g>
-            ))}
+            images.map((img) => {
+              // Same live-drag-position override as the image's own render
+              // above — without this the icon stayed put at the pre-drag x/y
+              // while the image itself (driven by direct DOM writes in
+              // onImagePointerMove, not React state) visibly moved out from
+              // under it.
+              const pos = imageDragPos?.id === img.id ? imageDragPos : img;
+              return (
+                <g
+                  key={`lock-${img.id}`}
+                  data-lock-for={img.id}
+                  transform={`translate(${pos.x * CELL_PX + 12}, ${pos.y * CELL_PX + 12})`}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    updateImage(img.id, { modus: img.modus === 'hintergrund' ? 'objekt' : 'hintergrund' });
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <circle r={10} fill="var(--panel)" stroke="var(--border)" strokeWidth={1} opacity={0.92} />
+                  <text textAnchor="middle" dominantBaseline="central" fontSize={12}>
+                    {img.modus === 'hintergrund' ? '🔒' : '🔓'}
+                  </text>
+                </g>
+              );
+            })}
         </svg>
       </div>
       {selectedToken && (
@@ -2827,14 +2856,15 @@ function ImageNumberField({
 }
 
 /**
- * Placed-image editor — opened by clicking an 'objekt' image on the map
- * (a 'hintergrund' one has no hit-testing by design, see the plan's
- * "Background ≠ backdrop"; it's only reachable through the list in
- * ImagePicker below). Position is set by dragging on the map (see
- * startImageDrag); everything else — size, rotation, opacity, layering,
- * objekt/hintergrund, and the GM-only hidden flag — is a field here, same
- * split as MeasureEditor (drag moves/resizes broadly, fields set exact
- * numbers).
+ * Placed-image editor — opened by clicking an 'objekt' (unlocked) image on
+ * the map. A 'hintergrund' (locked) one has no hit-testing on its body by
+ * design — only its lock icon is clickable — so it's reached here only
+ * through the list in ImagePicker below (or by unlocking it first via its
+ * icon). Position is set by dragging on the map (see startImageDrag); size
+ * and rotation have their own drag handle too (see startImageResize);
+ * everything else — opacity, z-order, and the GM-only hidden flag — is a
+ * field here, same split as MeasureEditor (drag moves/resizes broadly,
+ * fields set exact numbers).
  */
 function ImageEditor({
   image,

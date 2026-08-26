@@ -84,6 +84,52 @@
 > type-checked but wants a real live drag test. Test image deleted
 > afterward — shared dev board left clean.
 >
+> **Follow-up fixes, same session, from live GM feedback right after the
+> above:**
+> - **Single image layer, not two.** The original two-tier render (locked
+>   `hintergrund` below the grid, unlocked `objekt` above tiles/below tokens)
+>   is GONE — every image now renders in ONE layer, above tiles, below the
+>   highlight/tint layer. Reasoning from the developer: the point of locking
+>   was only ever to stop ACCIDENTAL drags, never to make an image act as a
+>   literal backdrop under the tiles — and the old split meant the GM's
+>   highlight tool couldn't tint OVER an area an image covered (highlights
+>   rendered below objekt images). Fixed by moving the whole images block to
+>   right after the grid-lines path and before the highlight fills, and
+>   sorting `[...images].sort((a,b) => a.z - b.z)` at render time so the
+>   z-order field (Nach vorne/Nach hinten in `ImageEditor`) actually has
+>   something to affect — it previously updated the stored number with no
+>   visible effect, since `images` was never re-sorted after a z change (only
+>   the initial `ORDER BY z, id` load in `board.ts` was ever sorted).
+> - **Tools other than 'select' now paint/highlight/fog/measure THROUGH an
+>   image instead of being blocked by it.** `startImageDrag` unconditionally
+>   called `stopPropagation()`, which ate the click before it could reach
+>   `onWrapPointerDown` — harmless for a token-sized marker, a real problem
+>   for an image that can cover a whole room. Fixed by returning immediately,
+>   without `stopPropagation`, whenever `tool !== 'select'` — the event then
+>   bubbles to the wrap exactly as if the image weren't there. A locked
+>   (`hintergrund`) image was never affected by this (`pointer-events: none`
+>   regardless of tool), only unlocked ones.
+> - **The lock icon didn't move with the image during a drag.** The corner
+>   resize handle is a CHILD of the image's own `<g>`, so rewriting that
+>   group's `transform` during a drag (direct DOM write, no React state —
+>   see the "render locally, sync once on release" pattern used everywhere
+>   in this file) moved it for free. The lock icon is a SEPARATE `<g>` in its
+>   own always-topmost overlay layer (so it stays clickable regardless of
+>   z-order or highlight tint on top), so it never got that transform update
+>   — it sat frozen at the pre-drag position for the whole live drag, only
+>   snapping to the right place once the drag ended and `img.x`/`y` actually
+>   changed. Fixed by looking the lock `<g>` up once at drag start (a
+>   `data-lock-for={id}` attribute, queried via `wrapRef`) and writing its
+>   `transform` alongside the image's on every `onImagePointerMove`.
+>
+> **Re-verified live** (same board): a real drag (this time landing
+> precisely, unlike the earlier resize-handle attempt) moved the image AND
+> confirmed the lock icon followed it — the earlier "couldn't confirm the
+> drag" note above was a targeting problem with the tiny resize handle, not
+> a fundamental synthetic-pointer-event limitation. Painting a highlight
+> directly on top of a placed image now works and renders visibly above it.
+> Test image and highlight paint both cleaned up afterward.
+>
 > ## Progress (2026-08-26, latest session): "Point at a cell" ping, built to spec after a concept pass
 >
 > **Committed on `feature/virtual-table`.** The rolz.org-style ping sketched
