@@ -1,6 +1,96 @@
 # Virtual table (VTT) — implementation plan
 
-> ## Progress (2026-08-25, later session): Phases 1–7 done, Phase 8 sliced — labels done
+> ## Progress (2026-08-26): Phase 8 (slice 3/3) — measure shapes, client UI done
+>
+> **Committed on `feature/virtual-table`.** Picks up exactly where the prior
+> session's "safe stop" left off: server/protocol for measure shapes already
+> existed (commit `7727f86`), only the client half — toolbar tool, creation
+> gesture, rendering, editing — was missing. All four kinds (Lineal/Kreis/
+> Rechteck/Kegel) are now placeable, rendered, movable and deletable.
+>
+> **What got built, in `client/src/pages/VirtualTable.tsx`:**
+> - A "📏 Messen" toolbar tool, always enabled (no `perm_*` gate — `canMeasure()`
+>   is hard-coded `true` server-side, per the plan's requirements table).
+>   Dragging from point A to B on the board creates the shape on release —
+>   same "render locally, sync once on pointerup" shape every other VTT drag
+>   already uses (paint strokes, token/label moves).
+> - Per-kind construction (`buildMeasureData`): ruler is the two raw drag
+>   points; rectangle floors both ends to cell indices (so `shapeCells`' loop
+>   stays integer); circle/cone snap their origin to the nearest cell CENTER
+>   (`floor(x)+0.5`) and take radius/length as the Euclidean distance dragged
+>   out from there, angle from `atan2`. A near-zero drag on circle/cone/ruler
+>   is discarded (an accidental click would otherwise create an invisible
+>   shape); a single-cell rectangle is kept, since that's a meaningful result.
+> - Rendering: ruler is a `<line>` + a "N Schritt" distance label (Chebyshev,
+>   matching `gridDistance`, per the plan's explicit choice for ruler distance);
+>   circle/rectangle reuse `shared/src/board.ts`'s `shapeCells` to draw a
+>   unioned path of full cell squares, exactly like the tile/highlight layers;
+>   cone is a plain SVG pie-slice path (arc), spread fixed at 60° full-angle —
+>   still the plan's stated placeholder, not settled with the developer. All
+>   four share one muted accent color (`MEASURE_FILL`/`MEASURE_STROKE`) instead
+>   of a terrain/highlight palette — a measure shape is tool feedback, not
+>   painted map, so it deliberately sits outside "the map is exempt from
+>   theming" (still chrome, still themed).
+> - Selecting an existing shape (click, under the drag-threshold) opens a
+>   small `MeasureEditor` popover — a one-line stat readout (distance/radius/
+>   footprint) plus Delete. No text/geometry fields to hand-edit; repositioning
+>   happens by dragging the shape itself on the board (`startMeasureOverlayDrag`
+>   → `shiftMeasureData`, a rigid translation of every point field, rounded to
+>   whole cells for rectangle only so it stays cell-indexed, continuous for the
+>   others) — same live-drag-then-one-sync-message pattern as everything else,
+>   plus the same short optimistic-state window tokens/labels use so the shape
+>   doesn't flash back before the server echo lands.
+> - **Not built, deliberately deferred:** drag-to-resize (changing an existing
+>   circle's radius, a cone's length/angle, a rectangle's extent, or a ruler's
+>   endpoint by grabbing it) — only whole-shape reposition and delete exist.
+>   Recreating a shape is the workaround for now. The plan's own "still to
+>   build" list named this explicitly; splitting it off rather than attempting
+>   resize handles in the same pass keeps this slice bounded, same reasoning
+>   the labels/radius-rings slices used earlier in Phase 8.
+> - **Toolbar styling correction, folded in:** the shape-kind picker
+>   (Lineal/Kreis/Rechteck/Kegel) first landed as an inline row of buttons
+>   directly in the toolbar, which — unlike `TilePicker`/`HighlightPicker`,
+>   both already a floating flyout below the toolbar — made the bar keep
+>   growing/reflowing as tools activate. Caught during live verification (it
+>   also made scripted clicks on the toolbar unreliable, since button
+>   positions shifted underfoot) and converted to `MeasureKindPicker`, a
+>   flyout reusing the exact same `.vtt-tile-picker` styling/position and the
+>   existing `pickerOpen` state. **Written down as a standing rule in
+>   `TODO.md` (High-Prio)**: any future VTT toolbar addition's sub-options
+>   belong in a flyout, never inline buttons.
+> - A pre-existing small copy tweak from the previous "safe stop" session
+>   (Rauschkante button label „🌫 Rauschkante" → „Raue Kanten") is included in
+>   this commit too — it was sitting uncommitted and is unrelated design
+>   polish, not worth its own commit per CLAUDE.md's batching rule.
+>
+> **Bug caught and fixed during live verification:** the ruler's distance
+> label rendered a raw unrounded float (`gridDistance` returns exact
+> Chebyshev distance, e.g. „10.372771474878444 Schritt") in all three places
+> it's shown (live drag preview, persisted render, `MeasureEditor` summary).
+> Fixed to `.toFixed(1)` everywhere, matching how circle/cone radius/length
+> were already displayed.
+>
+> **Verified live** (`spielleiter`/`spielleiter`, group 11 "Seed-Testgruppe
+> Alpha", port 5180/3001): created one of each kind via real pointer drags
+> (dispatched as genuine `PointerEvent`s with the browser's actual primary
+> pointer id — a synthetic pointer id has no OS-registered active pointer, so
+> `setPointerCapture` throws `NotFoundError` and silently no-ops the whole
+> gesture; every existing VTT drag handler has this same constraint, not
+> something new here) and confirmed each round-tripped through `GET
+> .../board` with sane, server-clamped data; confirmed the toolbar no longer
+> grows when the Messen flyout opens; confirmed click-to-select opens
+> `MeasureEditor` with a correct summary; confirmed a whole-shape drag shifts
+> every point field by the identical delta (rigid translation) and persists
+> past the optimistic-state window; deleted all test shapes afterward so the
+> shared dev board is clean. tsc clean, `npm test -w shared` green (406/406).
+>
+> **Next action, if you're picking this up fresh:** Phase 8 is now fully
+> done (labels, radius rings, measure shapes). Resize-by-drag-handle for
+> measure shapes remains an explicitly deferred follow-up, not blocking.
+> Otherwise the plan's next phases (fog of war, images on the table,
+> initiative) are what's left — see the phase list further down.
+
+> ## Progress (2026-08-25, later session): Phases 1–7 done, Phase 8 sliced — labels done — superseded above
 >
 > **Committed on `feature/virtual-table`, on top of the Phase 1–5 note below:**
 > Phase 6 (tile painting — flat colour, texture catalogue, delta writes, the

@@ -73,6 +73,21 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## High-Prio
 
+- [ready] **VTT toolbar styling rule: dropdowns/flyouts over inline button
+  sprawl.** `TilePicker`/`HighlightPicker` already open as a floating panel
+  below the toolbar (`.vtt-tile-picker`, `position: absolute`) rather than as
+  inline buttons — Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel)
+  briefly broke that convention as an inline row during Phase 8 slice 3/3 and
+  has since been converted to the same flyout (`MeasureKindPicker`, reusing
+  `.vtt-tile-picker`/`pickerOpen`). Write this down as a standing rule for
+  every future VTT toolbar addition in `client/src/pages/VirtualTable.tsx`: a
+  tool's sub-options open as a flyout anchored below the toolbar, never as
+  additional always-visible buttons pushing the rest of the bar around — that
+  growth also makes the toolbar's button positions shift underfoot, which
+  broke a scripted/automated click sequence during testing. No further work
+  needed right now beyond keeping to it; re-open only if a future tool
+  reintroduces inline sub-buttons.
+
 ## Mid-Prio
 
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
