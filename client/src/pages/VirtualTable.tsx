@@ -2077,29 +2077,14 @@ function withOpacity(hex: string, opacityPct: number): string {
  * colour swatch appears on this page (token colour/ring, tile/highlight
  * picker, measure-shape colour), so the fix lands once, not four times.
  */
+// Two attempts at making a second click close the browser's native colour
+// dialog instead of reopening it (a tracked-ref version, then an
+// activeElement-check version) both failed live testing — see TODO.md for
+// the follow-up. Left as a thin, unstyled wrapper for now: still the one
+// place all four colour swatches on this page go through, so a future fix
+// (or swapping to a custom colour picker entirely) lands once.
 function ColorSwatchInput({ value, onChange, title }: { value: string; onChange: (v: string) => void; title?: string }) {
-  return (
-    <input
-      type="color"
-      value={value}
-      title={title}
-      onChange={(e) => onChange(e.target.value)}
-      // A self-tracked "is it open" ref drifts out of sync with reality —
-      // Chromium doesn't reliably blur the input when its native popup
-      // closes by other means (Escape, picking a colour), so a remembered
-      // flag can end up blocking the NEXT legitimate open. `activeElement`
-      // asks the browser directly instead: this input keeps DOM focus for
-      // as long as its popup is showing (the same reason blur() can close
-      // it), so it's already true exactly when a second mousedown means
-      // "close it", never stale.
-      onMouseDown={(e) => {
-        if (document.activeElement === e.currentTarget) {
-          e.preventDefault();
-          e.currentTarget.blur();
-        }
-      }}
-    />
-  );
+  return <input type="color" value={value} title={title} onChange={(e) => onChange(e.target.value)} />;
 }
 
 // Der Farbe/Deckkraft/Pipette/Radierer-Block ist identisch für die

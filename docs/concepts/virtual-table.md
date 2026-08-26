@@ -58,27 +58,28 @@
 >   when absent; an explicit `undefined` property still overwrites in a
 >   spread (and is dropped by `JSON.stringify` same as never having been
 >   set), which a merely-missing key does not.
-> - **Bug reported, one fix attempted and rejected by live testing, a second
->   fix in place — still unverified.** Not a measure-specific bug — every
->   plain `<input type="color">` on this page has it (token colour, token
->   ring colour, the tile/highlight custom-colour swatch, and now the
->   measure colour field): a second click while the browser's native colour
->   dialog is already open reopens it instead of closing it.
->   `ColorSwatchInput` centralises the fix for all four swatches, but the
->   FIRST attempt — a self-tracked "believed open" ref, `mousedown` +
->   `preventDefault()` + `blur()` to force-close on the second click — the
->   developer tried live and it did not work. Root suspicion: a manually
->   tracked ref drifts from reality, since Chromium doesn't reliably blur
->   the input when its popup closes by OTHER means (Escape, picking a
->   colour) — a stale "still open" flag then blocks the NEXT legitimate
->   open. **Replaced with a version that asks the browser directly**
->   instead of remembering: `document.activeElement === e.currentTarget`
->   on `mousedown` (the input keeps DOM focus for exactly as long as its
->   popup is showing — same reason `blur()` can close it — so this can't go
->   stale the way a remembered ref can). tsc clean; **still not verified
->   live** — a native OS/browser colour dialog isn't part of the DOM and
->   can't be driven or observed over CDP, so this needs the developer's own
->   click-twice check again before it counts as fixed.
+> - **Bug reported, two fix attempts, both rejected by live testing — parked
+>   as a Low-Prio TODO rather than a third guess.** Not a measure-specific
+>   bug — every plain `<input type="color">` on this page has it (token
+>   colour, token ring colour, the tile/highlight custom-colour swatch, and
+>   now the measure colour field): a second click while the browser's
+>   native colour dialog is already open reopens it instead of closing it.
+>   Tried, in order: a self-tracked "believed open" ref +
+>   `preventDefault()`/`blur()` on the second `mousedown`; then, after that
+>   failed live, a version asking the browser directly instead of
+>   remembering (`document.activeElement === e.currentTarget` on
+>   `mousedown`) — reasoned to be more robust (can't drift stale the way a
+>   remembered ref can), but it **also** failed the developer's live
+>   click-twice check. Both attempts were necessarily guesswork: a native
+>   OS/browser colour dialog isn't part of the DOM and can't be driven or
+>   observed over CDP, so neither could be verified by this session's
+>   automated tooling before asking the developer to check by hand — twice.
+>   **Confirmed minor/cosmetic by the developer, not blocking** — reverted
+>   `ColorSwatchInput` back to a plain, unstyled `<input type="color">` (no
+>   half-working event-handler complexity left in) and filed as a Low-Prio
+>   TODO. Whoever picks it up next should reproduce it live first, or
+>   consider a custom (non-native) colour picker instead, which would
+>   sidestep the browser quirk entirely rather than fight it.
 >
 > **Verified live** (same dev board as below) for everything CDP-testable:
 > continuous (non-snapped) origins on circle/cone/rectangle creation,

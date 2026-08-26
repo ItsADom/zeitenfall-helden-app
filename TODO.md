@@ -381,6 +381,21 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
+- [sketch] **Native colour swatch reopens on a second click instead of
+  closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
+  used by token colour/ring colour, the tile/highlight picker, and the
+  measure-shape colour field): clicking a `<input type="color">` swatch
+  while its native browser dialog is already open should close it, but the
+  browser reopens it instead. Two fix attempts (a tracked "believed open"
+  ref + `blur()`, then a `document.activeElement` check + `blur()`) both
+  failed live testing — a native colour dialog isn't part of the DOM, so it
+  can't be driven/observed by this session's automated browser tooling
+  either, which made both attempts guesswork. Confirmed minor/cosmetic by
+  the developer, not blocking. Whoever picks this up next needs to actually
+  reproduce it live (real browser, real clicks) to see what's really
+  happening before trying a third fix — or consider swapping to a custom
+  (non-native) colour picker instead, which would sidestep the browser
+  quirk entirely.
 - [ready] **Note field on Talente** (user feedback): `CharTalent`
   (`shared/src/types.ts:220`) has no `notiz` field, and neither table
   renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.
