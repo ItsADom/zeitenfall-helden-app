@@ -1,5 +1,49 @@
 # Virtual table (VTT) — implementation plan
 
+> ## Progress (2026-08-26, latest session): resize drag handle for measure shapes
+>
+> **Committed on `feature/virtual-table`.** Picks up the Low-Prio TODO left by
+> Phase 12 ("reshape measure shapes via a drag handle") — reuses the
+> corner-drag-handle *pattern* from the image resize handle
+> (`startImageResize`/`onImageResizeMove`/`onImageResizeUp`), but landed on a
+> simpler design than that TODO entry anticipated: **one handle per shape**,
+> not a per-kind-varying handle count.
+>
+> - `measureHandlePoint(data)` gives the handle's current position: for
+>   ruler/rectangle it's `data.to` (dragging it free-repositions that
+>   endpoint/corner — no longer constrained along the original direction the
+>   way `resizeRulerLength`/`resizeRectangle`'s typed-number fields are);
+>   for circle it's the point at `radius` distance east of `origin`; for cone
+>   it's the tip of the centerline (`origin + length` in direction `angle`).
+> - `resizeMeasureData(base, target)` is the inverse: ruler/rectangle just
+>   replace `to` with the dragged point; circle derives `radius` from the
+>   distance to `origin`; cone derives both `length` **and** `angle` from the
+>   dragged point relative to `origin` — the same math `buildMeasureData`
+>   already uses when a shape is first drawn, just re-run against an existing
+>   `origin` instead of a fresh one. This sidesteps the TODO's worry about
+>   cone needing two handles (length vs. spread): **spread stays a separate
+>   slider control** (`MeasureEditor`, unchanged) — the drag handle only
+>   covers length+direction, exactly mirroring how the shape was drawn in the
+>   first place.
+> - Mechanically identical drag idiom to every other VTT drag: client-pixel
+>   delta from pointerdown, scaled by `boardScale(wrap) / CELL_PX` into cell
+>   space, direct DOM writes during the drag (`writeMeasureVisual` for the
+>   shape, a manual `cx`/`cy` write for the handle itself) via
+>   `measureResizeRef`, one `updateOverlay()` call on pointerup — no
+>   intermediate `setState`. `e.stopPropagation()` in `startMeasureResize`
+>   keeps the same pointerdown from also being read as
+>   `startMeasureOverlayDrag` (whole-shape move), same as the image handle's
+>   relationship to `startImageDrag`.
+> - The handle renders only on the currently selected shape
+>   (`selectedOverlayId === o.id`), one shared `<circle>` after the per-kind
+>   JSX branch rather than duplicated four times, since `measureHandlePoint`
+>   already normalizes the "where" question across all four kinds.
+>
+> **Verified live by the developer** (real drags, not scripted): all four
+> shape kinds resize correctly via their handle; typed-number fields in
+> `MeasureEditor` and whole-shape move-drag both still work unaffected.
+> Client `tsc --noEmit` clean.
+>
 > ## Progress (2026-08-26, later session): Phase 12 — images on the table
 >
 > **Committed on `feature/virtual-table`.** The `board_images` table, the

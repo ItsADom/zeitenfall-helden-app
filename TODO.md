@@ -444,18 +444,31 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   (GM-only, or also the current owner handing it off?), and whether a
   character token's owner should even be independently settable or always
   implied by the character's `group_id`/player link.
-- [sketch] **VTT: reshape measure shapes via a drag handle** (raised
-  alongside Phase 12's image resize handle). Once set, a measure shape
-  currently can't be altered in size/shape — only moved (`startMeasureOverlayDrag`)
-  or deleted; the numeric size fields in `MeasureEditor` (`client/src/pages/
-  VirtualTable.tsx`) are the only way to resize, no drag. Phase 12 added a
-  corner drag handle for placed images (`startImageResize`/`onImageResizeMove`/
-  `onImageResizeUp`, same file) with shift/ctrl aspect-lock and
-  rotation-corrected delta math — a reusable pattern, but NOT a drop-in: a
-  measure shape's handle count varies by kind (ruler has 1 endpoint, circle
-  has 1 radius handle, rectangle has 2 corners, cone has length+spread — two
-  handles, not one). Needs a concept pass on handle placement/count per kind
-  before building, not just reusing the image's single-corner shape.
+- [sketch] **VTT: a step-counting trail while dragging a token** (developer
+  feedback, sketched with a reference image). While a token is being
+  dragged, show a numbered trail of cells along the path: cell **0** is
+  whichever cell's center sits closest to where the drag started, then 1,
+  2, 3, … outward along the path the drag has covered — a king-move
+  (8-directional) step count, the same metric `gridDistance` already uses
+  for the ruler's distance label, not a straight Euclidean line. The
+  reference image shows this as a row of bordered, numbered squares
+  overlaid on the grid.
+  Not concepted yet, needs a pass before building:
+  - Path source: rasterize a straight line from the start cell to the
+    current drag cell each frame (simplest, matches how the ruler already
+    works), or trace the actual pointer path if the drag wanders (more
+    "real" movement, more edge cases — doubling back, diagonal-adjacent
+    cells visited more than once).
+  - Lifetime: purely an ephemeral overlay for the duration of the drag
+    (gone on pointerup, like the paint-tool's live preview), or does it
+    persist briefly/until deselected as a readout of the move just made?
+  - Visibility: only the player dragging their own token, or does everyone
+    at the table see it live (same as every other token move today)?
+  - Interaction with fog: does the trail stop/hide once it crosses into
+    fogged territory for a given viewer, or is it drawn the same
+    everywhere since it's ephemeral tool feedback, not board state?
+  This would live alongside the existing token-drag code (`startTokenDrag`/
+  the token pointer-move handlers) in `client/src/pages/VirtualTable.tsx`.
 - [ready] **Note field on Talente** (user feedback): `CharTalent`
   (`shared/src/types.ts:220`) has no `notiz` field, and neither table
   renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.

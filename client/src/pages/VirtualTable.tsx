@@ -155,6 +155,43 @@ function resizeRectangle(
   return { ...base, to: { x: base.from.x + signX * width, y: base.from.y + signY * height } };
 }
 
+/**
+ * Wo der einzelne Ziehgriff einer Messform sitzt — EIN Griff je Form, nicht
+ * einer je Eckpunkt (siehe startMeasureResize): Lineal/Rechteck ziehen `to`
+ * frei (spiegelt genau resizeRulerLength/resizeRectangle, nur ohne die
+ * Richtung/das Vorzeichen festzuhalten — ein echter Ziehgriff darf auch die
+ * Richtung ändern). Kreis/Kegel sitzen auf der Kontur (Radius-Richtung 0°
+ * bzw. die eigene Blickrichtung `angle`) und ziehen von dort aus.
+ */
+function measureHandlePoint(data: MeasureOverlayData): { x: number; y: number } {
+  if (data.kind === 'ruler' || data.kind === 'rectangle') return data.to;
+  if (data.kind === 'circle') return { x: data.origin.x + data.radius, y: data.origin.y };
+  const rad = (data.angle * Math.PI) / 180;
+  return { x: data.origin.x + data.length * Math.cos(rad), y: data.origin.y + data.length * Math.sin(rad) };
+}
+
+/**
+ * Aus dem gezogenen Griffpunkt die neue Form ableiten — Gegenstück zu
+ * measureHandlePoint. Kreis/Kegel leiten Radius/Länge (+ bei Kegel: Winkel)
+ * aus dem Abstand zu `origin` ab, genau wie beim ERSTEN Ziehen einer neuen
+ * Form (buildMeasureData) — dieselbe Mathematik, nur mit einem bestehenden
+ * `origin` statt einem frischen. Dieselben Grenzen wie serverseitig
+ * (validateMeasureData: Radius/Länge auf 50 gedeckelt) — die Vorschau soll
+ * nicht über das hinauswachsen, was der Server ohnehin zurechtstutzen würde.
+ */
+function resizeMeasureData(base: MeasureOverlayData, target: { x: number; y: number }): MeasureOverlayData {
+  if (base.kind === 'ruler' || base.kind === 'rectangle') return { ...base, to: target };
+  if (base.kind === 'circle') {
+    const radius = Math.min(50, Math.max(0.15, Math.hypot(target.x - base.origin.x, target.y - base.origin.y)));
+    return { ...base, radius };
+  }
+  const dx = target.x - base.origin.x;
+  const dy = target.y - base.origin.y;
+  const length = Math.min(50, Math.max(0.15, Math.hypot(dx, dy)));
+  const angle = (Math.atan2(dy, dx) * 180) / Math.PI;
+  return { ...base, length, angle };
+}
+
 interface MeasureEls {
   pathEl?: SVGPathElement | null;
   lineEl?: SVGLineElement | null;
@@ -686,6 +723,20 @@ function MapCanvas({
     lastData: MeasureOverlayData;
     moved: number;
   } | null>(null);
+  // Ziehgriff (siehe measureHandlePoint/resizeMeasureData): startHandle ist die
+  // Griffposition BEI Zugbeginn, nicht origin/from — dieselbe "Versatz vom
+  // Startpunkt aus" Mathematik wie startImageResize, nur auf einen Punkt statt
+  // Breite/Höhe angewandt. handleEl wird direkt umgeschrieben (kein setState),
+  // damit der Griff dem Zug ruckelfrei folgt, genau wie measureElsRef' Formen.
+  const measureResizeRef = useRef<{
+    id: number;
+    base: MeasureOverlayData;
+    startClientX: number;
+    startClientY: number;
+    startHandle: { x: number; y: number };
+    handleEl: SVGCircleElement;
+    lastData: MeasureOverlayData;
+  } | null>(null);
   // Kurzes, optimistisches Zwischenergebnis nach dem Loslassen — dasselbe
   // Muster wie dragPos/overlayDragPos, damit die Form nicht einen Frame lang
   // zur alten Position zurückspringt, bevor das Server-Echo eintrifft.
@@ -1057,6 +1108,45 @@ function MapCanvas({
       setSelectedOverlayId(drag.id);
       return;
     }
+    setMeasureOverlayDraft({ id: drag.id, data: drag.lastData });
+    updateOverlay(drag.id, drag.lastData);
+    setTimeout(() => setMeasureOverlayDraft((prev) => (prev?.id === drag.id ? null : prev)), 200);
+  };
+
+  const startMeasureResize = (e: React.PointerEvent, overlay: MeasureOverlay) => {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    measureResizeRef.current = {
+      id: overlay.id,
+      base: overlay.data,
+      startClientX: e.clientX,
+      startClientY: e.clientY,
+      startHandle: measureHandlePoint(overlay.data),
+      handleEl: e.currentTarget as SVGCircleElement,
+      lastData: overlay.data,
+    };
+  };
+  const onMeasureResizeMove = (e: React.PointerEvent) => {
+    const drag = measureResizeRef.current;
+    const wrap = wrapRef.current;
+    if (!drag || !wrap) return;
+    const scale = boardScale(wrap) / CELL_PX;
+    const dxCell = (e.clientX - drag.startClientX) * scale;
+    const dyCell = (e.clientY - drag.startClientY) * scale;
+    const target = { x: drag.startHandle.x + dxCell, y: drag.startHandle.y + dyCell };
+    const data = resizeMeasureData(drag.base, target);
+    drag.lastData = data;
+    const els = measureElsRef.current.get(drag.id);
+    if (els) writeMeasureVisual(data, els);
+    const handlePoint = measureHandlePoint(data);
+    drag.handleEl.setAttribute('cx', String(handlePoint.x * CELL_PX));
+    drag.handleEl.setAttribute('cy', String(handlePoint.y * CELL_PX));
+  };
+  const onMeasureResizeUp = () => {
+    const drag = measureResizeRef.current;
+    measureResizeRef.current = null;
+    if (!drag) return;
     setMeasureOverlayDraft({ id: drag.id, data: drag.lastData });
     updateOverlay(drag.id, drag.lastData);
     setTimeout(() => setMeasureOverlayDraft((prev) => (prev?.id === drag.id ? null : prev)), 200);
@@ -2166,6 +2256,30 @@ function MapCanvas({
                       {labelEl}
                     </>
                   )}
+                  {/* Ziehgriff — nur an der ausgewählten Form, EIN Griff für
+                      jede Art (siehe measureHandlePoint/startMeasureResize).
+                      stopPropagation in startMeasureResize verhindert, dass
+                      derselbe Zug zusätzlich als Verschieben der ganzen Form
+                      ankommt (identischer Kniff wie startImageResize). */}
+                  {selectedOverlayId === o.id &&
+                    (() => {
+                      const handlePoint = measureHandlePoint(data);
+                      return (
+                        <circle
+                          cx={handlePoint.x * CELL_PX}
+                          cy={handlePoint.y * CELL_PX}
+                          r={7}
+                          fill="var(--accent)"
+                          stroke="var(--panel)"
+                          strokeWidth={2}
+                          style={{ cursor: data.kind === 'circle' ? 'ew-resize' : 'nwse-resize' }}
+                          onPointerDown={(e) => startMeasureResize(e, o)}
+                          onPointerMove={onMeasureResizeMove}
+                          onPointerUp={onMeasureResizeUp}
+                          onPointerCancel={onMeasureResizeUp}
+                        />
+                      );
+                    })()}
                 </g>
               );
             })}
