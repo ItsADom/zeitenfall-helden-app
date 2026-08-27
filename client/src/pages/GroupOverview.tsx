@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import type { Ability } from '@shared/abilities';
 import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost } from '../api';
+import { Dialog } from '../components/Dialog';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
 import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { GmNoteField, VITAL_LABELS, vitalClass } from '../components/gmRoster';
@@ -51,6 +53,70 @@ interface OverviewData {
 // Takt der stillen Auto-Aktualisierung, solange die Übersicht sichtbar offen ist.
 const POLL_MS = 15000;
 
+// Schnell-Nachschlag: Zauber UND Fähigkeiten in einer gemeinsamen Liste (nicht
+// getrennt nach Reitern) — reine Anzeige, lädt erst beim Öffnen.
+function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; charName: string; onClose: () => void }) {
+  const [abilities, setAbilities] = useState<Ability[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setAbilities(null);
+    setError('');
+    apiGet<{ abilities: Ability[] }>(`/api/characters/${charId}/abilities`)
+      .then((d) => setAbilities(d.abilities))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler beim Laden.'));
+  }, [charId]);
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Zauber & Fähigkeiten — ${charName}`}
+      footer={
+        <button className="small" onClick={onClose}>
+          Schließen
+        </button>
+      }
+    >
+      {error && <p className="error">{error}</p>}
+      {!error && !abilities && <p className="muted">Lade…</p>}
+      {abilities && abilities.length === 0 && <p className="muted">Noch keine Zauber oder Fähigkeiten eingetragen.</p>}
+      {abilities && abilities.length > 0 && (
+        <div className="table-wrap scroll-box">
+          <table className="sheet ability-lookup-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Art</th>
+                <th>Stufe</th>
+                <th>Probe</th>
+                <th>Kosten</th>
+              </tr>
+            </thead>
+            <tbody>
+              {abilities.map((a) => (
+                <tr key={a.uid}>
+                  <td>
+                    {a.name}
+                    {a.signatur && <span title="Signatur-Zauber"> ✦</span>}
+                  </td>
+                  <td className="muted">
+                    {a.magisch ? 'Zauber' : 'Fähigkeit'}
+                    {a.passiv ? ' (passiv)' : ''}
+                  </td>
+                  <td>{a.stufe}</td>
+                  <td className="muted">{a.probe}</td>
+                  <td className="muted">{a.kosten}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Dialog>
+  );
+}
+
 // Bedient feste UND Event-Gruppen mit derselben Seite — der Server liefert für
 // beide dasselbe Antwortformat inklusive group.isTemp, das entscheidet allein
 // über die abweichenden Texte/Aktionen unten. Kein kind-Prop mehr nötig.
@@ -65,6 +131,7 @@ export default function GroupOverviewPage() {
   // ist je Gruppe gemerkt (client-seitig — reine Anzeigehilfe, kein Serverstand).
   const [query, setQuery] = useState('');
   const [pinned, setPinned] = usePersistedState<number[]>(`gm-poll:${groupId}`, []);
+  const [lookupChar, setLookupChar] = useState<{ id: number; name: string } | null>(null);
   const pin = (tid: number) => {
     setPinned((p) => (p.includes(tid) ? p : [...p, tid]));
     setQuery('');
@@ -244,6 +311,13 @@ export default function GroupOverviewPage() {
                   Stufe {c.stufe}
                 </span>
                 <button
+                  className="small"
+                  title="Zauber & Fähigkeiten nachschlagen, ohne den Bogen zu öffnen"
+                  onClick={() => setLookupChar({ id: c.id, name: c.name })}
+                >
+                  🔍
+                </button>
+                <button
                   className="small gm-card-sp-reset"
                   title="Setzt die Schicksalspunkte dieses Charakters auf sein Maximum zurück"
                   onClick={() => void apiPost(`/api/characters/${c.id}/schicksalspunkte/reset`).then(() => loadOverview(true))}
@@ -359,6 +433,10 @@ export default function GroupOverviewPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {lookupChar && (
+        <AbilityLookupDialog charId={lookupChar.id} charName={lookupChar.name} onClose={() => setLookupChar(null)} />
       )}
     </>
   );

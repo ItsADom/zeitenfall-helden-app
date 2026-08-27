@@ -1249,6 +1249,16 @@ api.put('/characters/:id/abilities', requireAuth, (req, res) => {
   res.json({ abilities: loadAbilities(char.id) });
 });
 
+// Nur lesen, nur für die Spielleitung: die Gruppenübersicht bietet damit einen
+// Schnell-Nachschlag auf Zauber/Fähigkeiten eines Charakters, ohne dessen
+// ganzen Bogen zu öffnen. requireGm statt requireGmOrAdmin — eine Verwaltung
+// sieht keine Charakterbögen (siehe requireAdmin-Kommentar in auth.ts).
+api.get('/characters/:id/abilities', requireAuth, requireGm, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  res.json({ abilities: loadAbilities(char.id) });
+});
+
 // Element- oder Kategorie-Liste verwalten (mit Kaskade auf die Einträge).
 // Body: { kind: 'element'|'kategorie', order, renames:[{from,to}], removes:[name] }.
 api.put('/characters/:id/ability-lists/manage', requireAuth, (req, res) => {
