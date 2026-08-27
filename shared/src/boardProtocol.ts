@@ -156,6 +156,20 @@ export interface BoardImage {
 
 export type TokenKind = 'character' | 'marker';
 
+/**
+ * House-rule wound tracking (TODO.md "Wound tracking / count-display on VTT
+ * tokens") — separate from the LE resource, purely manual entry (+1/-1, no
+ * damage-number math), never touched by the character sheet. `small`/`big`
+ * per the confirmed rule: damage ≥ Wundschwelle is one small wound, damage
+ * ≥ 2×Wundschwelle is one big wound (two small ones internally count as one
+ * big one, three big-wound-equivalents means death) — none of that is
+ * computed here, this is just the raw counters.
+ */
+export interface TokenWounds {
+  small: number;
+  big: number;
+}
+
 export interface BoardToken {
   id: number;
   boardId: number;
@@ -182,6 +196,17 @@ export interface BoardToken {
   cover: string;
   /** Computed at read time from the linked character, never stored on the token row. */
   portrait: boolean;
+  /**
+   * Null for a marker/monster token (no linked character to hang wounds
+   * off), and ALSO null for a character token when the viewer is neither
+   * its owner nor the GM — this one field is redacted independently of the
+   * token's own visibility (see woundsVisibleTo in server/src/board.ts): the
+   * token itself can be perfectly visible to the whole room while its
+   * wounds stay private to owner+GM, following the same owner-bypass
+   * population as token edit rights, but as a display filter instead of an
+   * edit check.
+   */
+  wounds: TokenWounds | null;
   sort: number;
 }
 
@@ -222,6 +247,16 @@ export type BoardClientMessage =
   // developer: nobody needs to watch a token travel, only where it lands).
   | { type: 'board.token.move'; reqId: string; tokenId: number; x: number; y: number; final?: boolean }
   | { type: 'board.token.delete'; reqId: string; tokenId: number }
+  // Character tokens only (rejected for a marker — no linked character to
+  // hang wounds off). NOT gated by permTokens/canEditTokens like
+  // board.token.update above — same stricter owner-or-GM-only population as
+  // the wounds field's own visibility (see TokenWounds's doc comment), even
+  // on a board where "all" may otherwise edit tokens. Absolute values (same
+  // idiom as board.initiative.setBasis), so both the ±1 buttons and a typed
+  // edit reuse the one message. Answered with the normal board.token.updated
+  // broadcast, not a dedicated message type — wounds is just another
+  // (per-viewer-redacted) field on the token.
+  | { type: 'board.token.wounds.set'; reqId: string; tokenId: number; small: number; big: number }
   // GM only. Fog/measuring aren't here — fog has no toggle by design, measuring is always 'all'.
   // `cols`/`rows`: the grid size — governs grid-lines/fog/paint/cell-snapping
   // only, NEVER where tokens/images/overlays are allowed to exist (those stay

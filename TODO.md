@@ -16,30 +16,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ---
 
-## Virtual table
-
-- [ready] **Wound tracking / count-display on VTT tokens** (concept agreed):
-  not the existing LE resource — a separate house-rule wound mechanic.
-  Confirmed rule: damage that hits/exceeds the character's Wundschwelle
-  (`shared/src/rules.ts` `wundschwelle = ceil(KO/2)`) inflicts one small
-  wound; damage at least double the Wundschwelle inflicts one big wound; two
-  small wounds internally count as one big wound; three big-wound-
-  equivalents means death. **Decided:** persists as real character state (not
-  board/combat-scoped like the round tracker) — two new counters,
-  `small_wounds`/`big_wounds`, stored with the character. **Decided:** purely
-  manual entry — `+1`/`-1` buttons for each wound type (also covers healing),
-  no automatic damage-number-to-wound-type math. **Decided:** editable by the
-  token's owner and the GM (same population that can already edit/move that
-  token). **Decided:** VTT-only for this round — displayed as a small badge/
-  indicator on the character's token (visible to owner + GM only, following
-  the same owner-bypass pattern already used for token edit permissions —
-  extended here to a display filter rather than an edit check; today's
-  redaction only ever branches on `isGm`, per `server/src/board.ts:277-279`,
-  so this is a new per-owner visibility case). No character-sheet
-  integration — some players keep their own separate paper tracker for wound
-  count *and location*, which stays optional/out of scope; this feature only
-  covers the count, on the table.
-
 ## User feedback
 
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**

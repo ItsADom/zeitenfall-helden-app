@@ -136,7 +136,13 @@ db.exec(`
     ruf REAL NOT NULL DEFAULT 0, psycheAkt REAL NOT NULL DEFAULT 0, psycheMax REAL NOT NULL DEFAULT 0,
     psycheBase REAL NOT NULL DEFAULT 0, psycheBonus REAL NOT NULL DEFAULT 0,
     geldD REAL NOT NULL DEFAULT 0, geldS REAL NOT NULL DEFAULT 0, geldH REAL NOT NULL DEFAULT 0,
-    geldK REAL NOT NULL DEFAULT 0, bank REAL NOT NULL DEFAULT 0
+    geldK REAL NOT NULL DEFAULT 0, bank REAL NOT NULL DEFAULT 0,
+    -- House-rule wound tracking (TODO.md "Wound tracking / count-display on
+    -- VTT tokens") — separate from the LE resource. Purely manual entry
+    -- (+1/-1 on the VTT token, no damage-number math), VTT-only display: not
+    -- part of the character sheet, only ever shown to the token's owner and
+    -- the GM (see BoardToken.wounds's doc comment in shared/src/boardProtocol.ts).
+    small_wounds INTEGER NOT NULL DEFAULT 0, big_wounds INTEGER NOT NULL DEFAULT 0
   );
   CREATE TABLE IF NOT EXISTS char_attributes (
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
@@ -662,6 +668,12 @@ db.exec(`
   // außerhalb der App. Läuft am selben Reset wie Schicksalspunkte mit (siehe
   // routes.ts), deshalb kein eigenes Max-Feld — die Obergrenze (4) ist fix.
   if (!cols.has('trainingLeseHeute')) db.exec('ALTER TABLE char_meta ADD COLUMN trainingLeseHeute REAL NOT NULL DEFAULT 0');
+  // Migration: 'small_wounds'/'big_wounds' an bestehende char_meta ergänzen
+  // (VTT-Wundverfolgung, siehe Spaltenkommentar an der Tabelle oben). 0 ist
+  // für jeden bereits bestehenden Charakter der richtige Rückfall — niemand
+  // hatte vor dieser Spalte je eine eingetragene Wunde.
+  if (!cols.has('small_wounds')) db.exec('ALTER TABLE char_meta ADD COLUMN small_wounds INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('big_wounds')) db.exec('ALTER TABLE char_meta ADD COLUMN big_wounds INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.

@@ -359,6 +359,8 @@ interface DicePanelCtxValue {
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
   deleteToken: (tokenId: number) => void;
+  /** Character tokens only. Absolute values, not deltas — same idiom as setInitiativeBasis. Owner/GM-only server-side; a token with `wounds: null` never reaches anyone else in the first place. */
+  setTokenWounds: (tokenId: number, small: number, big: number) => void;
   updateBoardSettings: (
     patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
   ) => void;
@@ -480,6 +482,7 @@ export function useDicePanel(): DicePanelCtxValue {
       updateToken: () => {},
       moveToken: () => {},
       deleteToken: () => {},
+      setTokenWounds: () => {},
       updateBoardSettings: () => {},
       paintTiles: () => {},
       paintHighlights: () => {},
@@ -1423,6 +1426,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const setTokenWoundsAction = useCallback(
+    (tokenId: number, small: number, big: number) => {
+      sendMsg({ type: 'board.token.wounds.set', reqId: crypto.randomUUID(), tokenId, small, big });
+    },
+    [sendMsg],
+  );
+
   const deleteTokenAction = useCallback(
     (tokenId: number) => {
       sendMsg({ type: 'board.token.delete', reqId: crypto.randomUUID(), tokenId });
@@ -1628,6 +1638,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         updateToken: updateTokenAction,
         moveToken: moveTokenAction,
         deleteToken: deleteTokenAction,
+        setTokenWounds: setTokenWoundsAction,
         updateBoardSettings: updateBoardSettingsAction,
         paintTiles: paintTilesAction,
         paintHighlights: paintHighlightsAction,

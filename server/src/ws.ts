@@ -78,12 +78,14 @@ import {
   setFog as setBoardFog,
   setInitiativeBasis as setBoardInitiativeBasis,
   setRoundTrackerCount as setBoardRoundTrackerCount,
+  setTokenWounds as setBoardTokenWounds,
   startCombat as startBoardCombat,
   tokenVisibleTo,
   updateBoardSettings,
   updateImage as updateBoardImage,
   updateOverlay as updateBoardOverlay,
   updateToken as updateBoardToken,
+  woundsVisibleTo,
 } from './board.js';
 import { ladeAsset, loescheAsset } from './assets/store.js';
 import {
@@ -198,7 +200,8 @@ function tokenCellsIntersect(token: BoardTokenRow, cellSet: ReadonlySet<string>)
   return tokenCells(token).some((c) => cellSet.has(cellKey(c.x, c.y)));
 }
 
-function toWireToken(row: BoardTokenRow): BoardToken {
+/** `viewer` decides `wounds` (woundsVisibleTo) — every other field is public to whoever can already see the token at all. */
+function toWireToken(row: BoardTokenRow, viewer: BoardViewer): BoardToken {
   return {
     id: row.id,
     boardId: row.boardId,
@@ -218,6 +221,7 @@ function toWireToken(row: BoardTokenRow): BoardToken {
     statuses: row.statuses,
     cover: row.cover,
     portrait: row.portrait,
+    wounds: woundsVisibleTo(row, viewer),
     sort: row.sort,
   };
 }
@@ -1488,7 +1492,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       }
       const token = createBoardToken(board.id, input);
       const fogAtCreate = fogSet(board);
-      broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(token, fogAtCreate, v) ? { type: 'board.token.created', token: toWireToken(token) } : null));
+      broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(token, fogAtCreate, v) ? { type: 'board.token.created', token: toWireToken(token, v) } : null));
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1539,8 +1543,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           const wasVisible = tokenVisibleTo(existing, fog, v);
           const nowVisible = tokenVisibleTo(updated, fog, v);
           if (!nowVisible) return wasVisible ? { type: 'board.token.deleted', tokenId: updated.id } : null;
-          if (wasVisible) return { type: 'board.token.updated', token: toWireToken(updated) };
-          return { type: 'board.token.created', token: toWireToken(updated) };
+          if (wasVisible) return { type: 'board.token.updated', token: toWireToken(updated, v) };
+          return { type: 'board.token.created', token: toWireToken(updated, v) };
         });
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -1577,8 +1581,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         const wasVisible = tokenVisibleTo(existing, fogAtMove, v);
         const nowVisible = tokenVisibleTo(moved, fogAtMove, v);
         if (!nowVisible) return wasVisible ? { type: 'board.token.deleted', tokenId: moved.id } : null;
-        if (wasVisible) return { type: 'board.token.updated', token: toWireToken(moved) };
-        return { type: 'board.token.created', token: toWireToken(moved) };
+        if (wasVisible) return { type: 'board.token.updated', token: toWireToken(moved, v) };
+        return { type: 'board.token.created', token: toWireToken(moved, v) };
       });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -1601,6 +1605,45 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // — nothing else about it leaks (not even that an id existed) to one
       // who couldn't.
       broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(existing, fogAtDelete, v) ? { type: 'board.token.deleted', tokenId: existing.id } : null));
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // House-rule wound tracking (TODO.md "Wound tracking / count-display on
+    // VTT tokens") — character tokens only, absolute values so both the ±1
+    // buttons and a typed edit reuse this one message. Deliberately NOT
+    // boardCanEditTokens/permTokens like board.token.update above: the
+    // population here is the SAME as wounds' own visibility (owner + GM
+    // only), a stricter, always-private case even on a board where "all"
+    // may otherwise edit tokens (see TokenWounds's doc comment).
+    case 'board.token.wounds.set': {
+      const board = getOrCreateBoard(meta.groupId);
+      const existing = getBoardToken(Number(msg.tokenId));
+      if (!existing || existing.boardId !== board.id) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Marke nicht gefunden' });
+        return;
+      }
+      if (existing.characterId == null) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur Charakter-Marken tragen Wunden' });
+        return;
+      }
+      if (!meta.isGm && existing.ownerUserId !== meta.userId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Besitzerin oder die Spielleitung trägt Wunden ein' });
+        return;
+      }
+      const small = Number(msg.small);
+      const big = Number(msg.big);
+      if (!Number.isFinite(small) || !Number.isFinite(big)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Wert' });
+        return;
+      }
+      const updated = setBoardTokenWounds(existing.id, { small, big });
+      if (updated) {
+        const fog = fogSet(board);
+        // Same "whoever can see the token at all" filter as every other
+        // token field update — toWireToken's own woundsVisibleTo call is
+        // what keeps the actual counts private to owner+GM for everyone else.
+        broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(updated, fog, v) ? { type: 'board.token.updated', token: toWireToken(updated, v) } : null));
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -2014,7 +2057,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         }
         for (const token of loadBoardTokens(board.id)) {
           if (token.hidden || !tokenCellsIntersect(token, revealedSet)) continue;
-          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.token.created', token: toWireToken(token) }));
+          broadcastBuilt(meta.groupId, (v) => (v.isGm ? null : { type: 'board.token.created', token: toWireToken(token, v) }));
         }
         for (const overlay of loadBoardOverlays(board.id)) {
           if (overlay.kind !== 'label') continue;

@@ -6171,6 +6171,28 @@ tr:hover .probe-roll,
   border-color: var(--accent);
   color: var(--accent-dark);
 }
+/* House-rule wound tracking (TODO.md "Wound tracking / count-display on VTT
+   tokens") — only ever rendered when token.wounds is non-null, i.e. for the
+   token's owner or the GM (see TokenWounds's doc comment). */
+.vtt-token-editor-wounds {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vtt-wound-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.vtt-wound-row span:first-child {
+  flex: 1;
+}
+.vtt-wound-value {
+  min-width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
 /* Stacked, not side-by-side — the popover is only 260px wide and the
    longest label ("Marken anlegen/bearbeiten") doesn't fit next to the
    Spielleitung/Alle pill on one line. Side-by-side with the label allowed to

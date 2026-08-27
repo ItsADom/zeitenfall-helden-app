@@ -17,7 +17,7 @@ import {
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { rollDie } from './dice.js';
-import { hasPortrait, loadAttributes, loadBaseValueInputs, loadResources } from './characterData.js';
+import { hasPortrait, loadAttributes, loadBaseValueInputs, loadResources, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -96,6 +96,14 @@ export interface BoardTokenRow {
   coverAsset: string | null;
   /** Computed here from the linked character, never stored on the row itself. */
   portrait: boolean;
+  /**
+   * Computed here from the linked character (null for a marker/monster, no
+   * characterId to hang wounds off) — see the small_wounds/big_wounds column
+   * comment in db.ts. UNREDACTED at this layer, same as every other
+   * BoardTokenRow field — woundsVisibleTo below is the one place that
+   * decides who actually gets to see it.
+   */
+  wounds: Wounds | null;
   sort: number;
 }
 
@@ -103,13 +111,14 @@ const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, 
   name, color, icon, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
 
 function toToken(
-  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait'> & { hidden: number; statuses: string },
+  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'wounds'> & { hidden: number; statuses: string },
 ): BoardTokenRow {
   return {
     ...r,
     hidden: !!r.hidden,
     statuses: JSON.parse(r.statuses || '[]'),
     portrait: r.characterId != null && hasPortrait(r.characterId),
+    wounds: r.characterId != null ? loadWounds(r.characterId) : null,
   };
 }
 
@@ -216,6 +225,21 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
 }
 
 /**
+ * Writes through to the linked character's char_meta (see saveWounds in
+ * characterData.ts) — wounds are character state, not token state, same
+ * reasoning as `portrait`. Undefined for a marker/monster token (no
+ * characterId) or an unknown token; the caller (ws.ts) has already checked
+ * ownership/GM rights before calling this.
+ */
+export function setTokenWounds(tokenId: number, wounds: Wounds): BoardTokenRow | undefined {
+  const existing = getToken(tokenId);
+  if (!existing || existing.characterId == null) return undefined;
+  saveWounds(existing.characterId, wounds);
+  bumpRev(existing.boardId);
+  return getToken(tokenId);
+}
+
+/**
  * Position only, called once per drag (the client renders the whole drag
  * locally and sends just the dropped-at position — see VirtualTable.tsx) —
  * cheap enough to bump `rev` like every other persisted board mutation.
@@ -300,6 +324,20 @@ export function tokenVisibleTo(token: BoardTokenRow, fog: Set<string>, viewer: B
 }
 
 /**
+ * A new kind of visibility case, unlike everything above: not "is the whole
+ * token visible" (fog/hidden), but "is this one FIELD of an otherwise-
+ * visible token visible" — wounds are always private to the token's owner
+ * and the GM, regardless of fog, hidden, or perm_tokens (see BoardToken.
+ * wounds's doc comment in shared/src/boardProtocol.ts). Every caller that
+ * builds a wire token must run its `wounds` through this rather than
+ * forwarding the row's own value.
+ */
+export function woundsVisibleTo(token: Pick<BoardTokenRow, 'ownerUserId' | 'wounds'>, viewer: BoardViewer): Wounds | null {
+  if (viewer.isGm || token.ownerUserId === viewer.userId) return token.wounds;
+  return null;
+}
+
+/**
  * Invisible to a non-GM viewer if the cell it sits on is fogged — this is
  * the "GM plans maps secretly" case: a text label has no `hidden` flag of
  * its own (unlike a token), fog IS the only way to keep one from players.
@@ -335,7 +373,10 @@ export function redactSnapshotForViewer(snapshot: BoardSnapshot, viewer: BoardVi
   return {
     ...snapshot,
     board: { ...snapshot.board, tilesJson: JSON.stringify(tiles), highlightsJson: JSON.stringify(highlights) },
-    tokens: snapshot.tokens.filter((t) => visibleTokenIds.has(t.id)),
+    // Filter for whole-token visibility first, THEN redact the surviving
+    // tokens' wounds field — a token can stay visible to a non-owner player
+    // (fog/hidden don't touch it) while its wounds still must not.
+    tokens: snapshot.tokens.filter((t) => visibleTokenIds.has(t.id)).map((t) => ({ ...t, wounds: woundsVisibleTo(t, viewer) })),
     overlays: snapshot.overlays.filter((o) => overlayVisibleTo(o, fog, viewer)),
     images: redactImages(snapshot.images, viewer),
     // Same guarantee as the token itself: an entry for a hidden-or-fogged

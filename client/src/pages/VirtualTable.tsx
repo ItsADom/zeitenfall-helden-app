@@ -445,7 +445,7 @@ function TokenEditor({
   isGm: boolean;
   onClose: () => void;
 }) {
-  const { updateToken, deleteToken } = useDicePanel();
+  const { updateToken, deleteToken, setTokenWounds } = useDicePanel();
   const [name, setName] = useState(token.name);
   const [icon, setIcon] = useState(token.icon);
   const [color, setColor] = useState(token.color || DEFAULT_TOKEN_COLOR);
@@ -614,6 +614,35 @@ function TokenEditor({
           ) : null;
         })}
       </div>
+
+      {token.wounds && (
+        <div className="vtt-token-editor-wounds">
+          {/* Only ever present for the token's owner + the GM (see
+              TokenWounds's doc comment in shared/src/boardProtocol.ts) — a
+              non-owner player simply never receives this field, so no
+              further gate is needed here; presence alone means edit rights. */}
+          <div className="vtt-wound-row">
+            <span>Leichte Wunden</span>
+            <button className="small" onClick={() => setTokenWounds(token.id, Math.max(0, token.wounds!.small - 1), token.wounds!.big)}>
+              −
+            </button>
+            <span className="vtt-wound-value">{token.wounds.small}</span>
+            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small + 1, token.wounds!.big)}>
+              +
+            </button>
+          </div>
+          <div className="vtt-wound-row">
+            <span>Schwere Wunden</span>
+            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small, Math.max(0, token.wounds!.big - 1))}>
+              −
+            </button>
+            <span className="vtt-wound-value">{token.wounds.big}</span>
+            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small, token.wounds!.big + 1)}>
+              +
+            </button>
+          </div>
+        </div>
+      )}
 
       {canEdit && (
         <div className="vtt-token-editor-row">
@@ -2880,6 +2909,26 @@ function MapCanvas({
                   {t.statuses.length > 0 && (
                     <text y={r + 12} textAnchor="middle" fontSize={13}>
                       {t.statuses.map((s) => BOARD_STATUSES.find((b) => b.key === s)?.emoji ?? '').join('')}
+                    </text>
+                  )}
+                  {/* Wound badge — only ever present at all for the owner/GM
+                      (see TokenWounds's doc comment); hidden here too when
+                      both counts are 0, same "nothing to show" rule as the
+                      statuses row above. Above the token rather than below,
+                      so it never collides with statuses/name. */}
+                  {t.wounds && (t.wounds.small > 0 || t.wounds.big > 0) && (
+                    <text
+                      y={-r - 10}
+                      textAnchor="middle"
+                      fontSize={12}
+                      fontWeight={700}
+                      fill="var(--crit-line, #c0392b)"
+                      stroke="var(--panel)"
+                      strokeWidth={3}
+                      paintOrder="stroke"
+                    >
+                      {t.wounds.small > 0 ? `🩹${t.wounds.small} ` : ''}
+                      {t.wounds.big > 0 ? `💥${t.wounds.big}` : ''}
                     </text>
                   )}
                   <text y={r + 24} textAnchor="middle" fontSize={11} fontWeight={700} fill="var(--text)" stroke="var(--panel)" strokeWidth={3} paintOrder="stroke">
