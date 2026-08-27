@@ -3981,6 +3981,15 @@ li {
   font-size: 0.86em;
   color: var(--muted);
 }
+.magier-reichweite {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9em;
+}
+.magier-reichweite :is(input) {
+  width: 3.5em;
+}
 .attr-points-note {
   margin-top: 8px;
   color: var(--text);
@@ -4349,7 +4358,7 @@ body.resizing-dice {
   margin: 0 auto 10px;
 }
 .feed-entry {
-  font-size: 13px;
+  font-size: var(--feed-font-size, 13px);
   line-height: 1.5;
   margin-bottom: 4px;
 }
@@ -4911,6 +4920,17 @@ body.resizing-dice {
 }
 :root[data-dice-icons='off'] .feed-die-shape {
   display: none;
+}
+/* Schriftgröße im Chat (Einstellungen → Anzeige). 'normal' setzt keine eigene
+   Regel — der Fallback in .feed-entry trägt ihn bereits. */
+:root[data-chat-font='klein'] {
+  --feed-font-size: 11px;
+}
+:root[data-chat-font='gross'] {
+  --feed-font-size: 15px;
+}
+:root[data-chat-font='sehrgross'] {
+  --feed-font-size: 17px;
 }
 /* Das Attributskürzel an einer nicht-aufgehobenen 1/20. Es sitzt in einer ZWEITEN
    Rasterspalte, nicht im gestapelten Feld 1/1 — dort läge es mitten auf der

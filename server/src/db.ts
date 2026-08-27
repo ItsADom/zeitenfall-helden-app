@@ -631,6 +631,9 @@ db.exec(`
   // pro Charakter änderbar für Ausnahmen (z. B. Vorteile, die mehr gewähren).
   if (!cols.has('schicksalspunkteMax')) db.exec('ALTER TABLE char_meta ADD COLUMN schicksalspunkteMax REAL NOT NULL DEFAULT 1');
   if (!cols.has('schicksalspunkteAktuell')) db.exec('ALTER TABLE char_meta ADD COLUMN schicksalspunkteAktuell REAL NOT NULL DEFAULT 1');
+  // Additiver Bonus (m) auf die Zauber-Reichweite aus SPELL_REICHWEITE_REFERENZ
+  // (shared/src/abilities.ts) — reine Anzeige im Zauber-Tab, keine Formel liest ihn.
+  if (!cols.has('reichweiteBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN reichweiteBonus REAL NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.

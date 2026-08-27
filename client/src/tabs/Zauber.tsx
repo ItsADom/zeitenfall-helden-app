@@ -4,6 +4,7 @@ import {
   MAGIER_MAX_STUFE,
   MAGIER_STUFEN_REFERENZ,
   MAGIER_TALENT_NAMES,
+  SPELL_REICHWEITE_REFERENZ,
   magiepunkte,
   magierEligibility,
 } from '@shared/abilities';
@@ -59,6 +60,8 @@ function MagierPanel() {
   };
   const elig = magierEligibility(magierstufe, { ...istBase, magiepunkte: mp.summe });
   const ref = MAGIER_STUFEN_REFERENZ[magierstufe];
+  const reichweiteBasis = SPELL_REICHWEITE_REFERENZ[magierstufe];
+  const reichweiteBonus = Number(data.meta.reichweiteBonus) || 0;
 
   // Hält der Charakter Rang R? (Ränge ≤1 haben keine Voraussetzungen.)
   // Bewusst OHNE Psyche: die Psyche ist ein schwankender Momentwert und zählt
@@ -121,6 +124,13 @@ function MagierPanel() {
             <NumInput key={fieldKey} value={magierstufe} min={0} max={MAGIER_MAX_STUFE} onChange={setStufe} />
           </AlwaysEditable>
         </label>
+        {magierstufe >= 1 && reichweiteBasis != null && (
+          <div className="magier-reichweite muted">
+            Reichweite {reichweiteBasis} m + Bonus{' '}
+            <NumInput value={reichweiteBonus} onChange={(v) => update('meta', { ...data.meta, reichweiteBonus: v })} /> m ={' '}
+            <strong>{reichweiteBasis + reichweiteBonus} m</strong>
+          </div>
+        )}
         <label className="magier-override" title="Erlaubt Erhöhung ohne erfüllte Voraussetzungen. Ausschalten setzt die Stufe auf das legitim erreichbare Maximum zurück.">
           <input
             type="checkbox"

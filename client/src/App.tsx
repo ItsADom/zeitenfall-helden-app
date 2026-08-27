@@ -30,8 +30,8 @@ import WichtigerWurfOverlay from './components/dice/WichtigerWurfOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
-import { isKnownTheme, useAnimations, useDiceIcons, useMode, useTheme } from './theme';
-import type { Mode } from './theme';
+import { isKnownTheme, useAnimations, useChatFontSize, useDiceIcons, useMode, useTheme } from './theme';
+import type { ChatFontSize, Mode } from './theme';
 
 interface AuthContextValue {
   user: UserInfo;
@@ -53,6 +53,8 @@ export interface ThemeControls {
   setAnim: (on: boolean) => void;
   diceIcons: boolean;
   setDiceIcons: (on: boolean) => void;
+  chatFontSize: ChatFontSize;
+  setChatFontSize: (id: ChatFontSize) => void;
   // Farbwelt des gerade geöffneten Charakters. Solange gesetzt (und bekannt),
   // überschreibt sie die persönliche Vorgabe — für Farbe UND Animation. Die
   // Charakterseite setzt sie beim Öffnen und räumt sie beim Verlassen wieder ab.
@@ -80,6 +82,7 @@ export default function App() {
   const [mode, setMode] = useMode();
   const [anim, setAnim] = useAnimations();
   const [diceIcons, setDiceIcons] = useDiceIcons();
+  const [chatFontSize, setChatFontSize] = useChatFontSize();
   // Überschreibende Farbwelt eines geöffneten Charakters (null = persönliche
   // Vorgabe). Die angezeigte Farbwelt treibt data-theme UND die Kopf-Animation,
   // damit auf der Charakterseite beides zur Charakter-Farbwelt passt.
@@ -112,7 +115,9 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, refresh }}>
-      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, diceIcons, setDiceIcons, setOverrideTheme }}>
+      <ThemeControlsContext.Provider
+        value={{ theme, setTheme, mode, setMode, anim, setAnim, diceIcons, setDiceIcons, chatFontSize, setChatFontSize, setOverrideTheme }}
+      >
       <OverviewProvider>
       <RequestsProvider enabled={user.isGm || user.isAdmin}>
       {/* Für alle: das Wiki gehört jedem, und das Abzeichen zählt, was seit dem

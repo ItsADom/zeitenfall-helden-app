@@ -19,7 +19,7 @@ import { ExitGuard } from '../components/exitGuard';
 import { useEinstHeadHeight, useEinstNavHeight } from '../components/stickyChrome';
 import { useAuth, useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
-import { THEMES } from '../theme';
+import { CHAT_FONT_SIZES, THEMES } from '../theme';
 
 // Einstellungen: oben die persönliche Anzeige (sofort wirksam). Darunter je
 // Charakter — Farbwelt, Reiter (umbenennen/sortieren/anlegen/löschen),
@@ -365,6 +365,16 @@ export default function EinstellungenPage() {
           Farbton. Ausgeschaltet steht jeder Wurf wieder im schlichten Kästchen. Rote 20 und blaue 1 bleiben in
           beiden Fällen erhalten.
         </p>
+        <div className="set-row">
+          <span className="set-label">Schriftgröße im Chat</span>
+          <select value={tc.chatFontSize} onChange={(e) => tc.setChatFontSize(e.target.value as (typeof CHAT_FONT_SIZES)[number]['id'])}>
+            {CHAT_FONT_SIZES.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <TonPanel />

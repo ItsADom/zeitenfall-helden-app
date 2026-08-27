@@ -4,6 +4,7 @@
 // anywhere in this file, and there must never be. That is what makes markup
 // injection impossible by construction instead of by sanitising, and it is the
 // reason `dangerouslySetInnerHTML` does not appear anywhere in this app.
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { WikiBlock, WikiDoc, WikiInline } from '@shared/wikiMarkup';
 
@@ -71,6 +72,83 @@ function InlineListe({ kinder, ziele }: { kinder: WikiInline[]; ziele: LinkZiele
   );
 }
 
+// Plain-text content of a cell, for sort comparison only — never rendered
+// (rendering still goes through InlineListe, links and formatting intact).
+function inlineText(kinder: WikiInline[]): string {
+  return kinder
+    .map((k) => {
+      switch (k.typ) {
+        case 'text':
+        case 'code':
+        case 'wikilink':
+        case 'extlink':
+          return k.text;
+        case 'umbruch':
+          return ' ';
+        case 'fett':
+        case 'kursiv':
+          return inlineText(k.kinder);
+        default:
+          return '';
+      }
+    })
+    .join('');
+}
+
+// Click-header-to-sort, following the same state shape/CSS as the character
+// sheet's dynamic tables (Sektionen.tsx) — but over plain cell text/numbers
+// instead of typed DynColumn/DynRow, since wiki tables are just markup.
+function WikiTabelle({ kopf, zeilen, ziele }: { kopf: WikiInline[][]; zeilen: WikiInline[][][]; ziele: LinkZiele }) {
+  const [sort, setSort] = useState<{ index: number; dir: 1 | -1 } | null>(null);
+  const toggleSort = (i: number) =>
+    setSort((prev) => (prev?.index !== i ? { index: i, dir: 1 } : prev.dir === 1 ? { index: i, dir: -1 } : null));
+
+  const order = useMemo(() => {
+    const idx = zeilen.map((_, i) => i);
+    if (!sort) return idx;
+    return idx.slice().sort((a, b) => {
+      const va = inlineText(zeilen[a][sort.index] ?? []).trim();
+      const vb = inlineText(zeilen[b][sort.index] ?? []).trim();
+      const na = Number(va.replace(',', '.'));
+      const nb = Number(vb.replace(',', '.'));
+      const bothNumeric = va !== '' && vb !== '' && !Number.isNaN(na) && !Number.isNaN(nb);
+      const cmp = bothNumeric ? na - nb : va.localeCompare(vb, 'de', { numeric: true, sensitivity: 'base' });
+      return cmp * sort.dir;
+    });
+  }, [zeilen, sort]);
+
+  // Reuses the sheet table styling, and deliberately WITHOUT its own overflow:
+  // a box with overflow becomes a scroll container in both axes and steals
+  // the page's scrolling (see CLAUDE.md).
+  return (
+    <div className="table-wrap wiki-tabelle">
+      <table className="sheet">
+        <thead>
+          <tr>
+            {kopf.map((z, i) => (
+              <th key={i} className="sortable" title="Zum Sortieren klicken" onClick={() => toggleSort(i)}>
+                <InlineListe kinder={z} ziele={ziele} />
+                <span className="sort-caret">{sort?.index === i ? (sort.dir === 1 ? ' ▲' : ' ▼') : ''}</span>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {order.map((i) => (
+            <tr key={i}>
+              {zeilen[i].map((z, j) => (
+                <td key={j}>
+                  <InlineListe kinder={z} ziele={ziele} />
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function BlockKnoten({ block, ziele }: { block: WikiBlock; ziele: LinkZiele }) {
   switch (block.typ) {
     case 'absatz':
@@ -115,35 +193,7 @@ function BlockKnoten({ block, ziele }: { block: WikiBlock; ziele: LinkZiele }) {
         </pre>
       );
     case 'tabelle':
-      // Reuses the sheet table styling, and deliberately WITHOUT its own
-      // overflow: a box with overflow becomes a scroll container in both axes
-      // and steals the page's scrolling (see CLAUDE.md).
-      return (
-        <div className="table-wrap wiki-tabelle">
-          <table className="sheet">
-            <thead>
-              <tr>
-                {block.kopf.map((z, i) => (
-                  <th key={i}>
-                    <InlineListe kinder={z} ziele={ziele} />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {block.zeilen.map((r, i) => (
-                <tr key={i}>
-                  {r.map((z, j) => (
-                    <td key={j}>
-                      <InlineListe kinder={z} ziele={ziele} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
+      return <WikiTabelle kopf={block.kopf} zeilen={block.zeilen} ziele={ziele} />;
     case 'bild': {
       // The bytes come from helden-assets.db through the wiki's own route,
       // which repeats the page's visibility check — so a picture a reader may
