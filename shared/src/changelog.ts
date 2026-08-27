@@ -208,6 +208,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Wiki-Tabellen lassen sich jetzt per Klick auf eine Spaltenüberschrift sortieren.',
       'Der Zauber-Reiter zeigt jetzt neben der Magierstufe die zugehörige Zauber-Reichweite, dazu ein eigenes Bonus-Feld — die Summe wird direkt mit angezeigt.',
       'Fordert die Spielleitung eine Probe an, kann sie dabei eine Erleichterung/Erschwernis vorgeben — sie ersetzt beim Annehmen euren eigenen Modifikator für diesen einen Wurf, ihr seht den Wert direkt auf der Anfrage-Karte.',
+      'Unter „Stufe & Punkte" lässt sich jetzt eine absolvierte Trainings- oder Lesesitzung eintragen (bis zu vier, geteilter Zähler für beides) — reine Buchführung, der eigentliche Lernfortschritt bleibt bei euch. Wird von der Spielleitung mit „Neuer Spieltag" zurückgesetzt, genau wie die Schicksalspunkte.',
     ],
     changed: [
       'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',

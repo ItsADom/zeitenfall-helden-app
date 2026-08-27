@@ -134,22 +134,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   admin/management page (`Admin.tsx`) directly clickable into a character —
   build together with the route, since it's the natural entry point.
 
-- [ready] **Tracker for training/reading sessions** (concept agreed, and
-  simpler than first framed): "SP" here is Schicksalspunkte (fate points),
-  but only as a pointer to the *reset mechanism* — training/reading sessions
-  are otherwise a completely separate concept, not spent/refilled with SP
-  itself. **Decided:** a new, standalone per-character counter (used-today /
-  4, shared pool across training and reading, not two separate 4s), a simple
-  +1 button, no wiring to abilities/`fortschritt` at all — the actual
-  skill/spell progress those sessions represent is tracked by the player
-  themselves outside the app ("it is connected, but does not need to be
-  wired by the system"). **Decided:** resettable via the same existing GM
-  bulk-reset action that already resets Schicksalspunkte ("🍀 Neuer
-  Spieltag", `server/src/routes.ts:697`) — extend that route to also reset
-  this new field, plus a per-character reset mirroring Schicksalspunkte's own
-  (`GroupOverview.tsx:248-249`). UI can clone the existing clover-row pattern
-  (`sp-clover`) rather than invent a new counter widget.
-
 - [ready] **Group checks: give players the same per-member status view the GM
   already gets** (concept agreed, and a real gap once traced through — not
   actually about scroll/pinning as first read). When a GM requests a group
