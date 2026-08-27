@@ -380,7 +380,7 @@ export function setFog(boardId: number, delta: Record<string, boolean>): SetFogR
 }
 
 export type BoardSettingsPatch = Partial<
-  Pick<BoardRow, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>
+  Pick<BoardRow, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>
 >;
 
 export function updateBoardSettings(boardId: number, patch: BoardSettingsPatch): BoardRow {
@@ -391,15 +391,12 @@ export function updateBoardSettings(boardId: number, patch: BoardSettingsPatch):
     permTokens: patch.permTokens ?? (current.perm_tokens as string),
     permImages: patch.permImages ?? (current.perm_images as string),
     permMove: patch.permMove ?? (current.perm_move as string),
+    cols: patch.cols ?? (current.cols as number),
+    rows: patch.rows ?? (current.rows as number),
   };
-  db.prepare('UPDATE boards SET perm_tiles = ?, perm_labels = ?, perm_tokens = ?, perm_images = ?, perm_move = ? WHERE id = ?').run(
-    next.permTiles,
-    next.permLabels,
-    next.permTokens,
-    next.permImages,
-    next.permMove,
-    boardId,
-  );
+  db.prepare(
+    'UPDATE boards SET perm_tiles = ?, perm_labels = ?, perm_tokens = ?, perm_images = ?, perm_move = ?, cols = ?, rows = ? WHERE id = ?',
+  ).run(next.permTiles, next.permLabels, next.permTokens, next.permImages, next.permMove, next.cols, next.rows, boardId);
   bumpRev(boardId);
   return getBoardById(boardId)!;
 }

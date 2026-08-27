@@ -356,7 +356,9 @@ interface DicePanelCtxValue {
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
   deleteToken: (tokenId: number) => void;
-  updateBoardSettings: (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => void;
+  updateBoardSettings: (
+    patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
+  ) => void;
   /** value '' erases that cell. Sent once per stroke/fill, same "render locally, sync on release" shape as a token drag. */
   paintTiles: (cells: Record<string, string>) => void;
   /** Same shape as paintTiles, but for the GM-only highlight/tint layer — never touches boardTiles. */
@@ -1407,7 +1409,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateBoardSettingsAction = useCallback(
-    (patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>) => {
+    (
+      patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
+    ) => {
       sendMsg({ type: 'board.settings.update', reqId: crypto.randomUUID(), patch });
     },
     [sendMsg],

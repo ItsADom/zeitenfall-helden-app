@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { BoardImage, BoardInitiative, BoardOverlay, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
@@ -155,6 +155,67 @@ function resizeRectangle(
   const signX = base.to.x < base.from.x ? -1 : 1;
   const signY = base.to.y < base.from.y ? -1 : 1;
   return { ...base, to: { x: base.from.x + signX * width, y: base.from.y + signY * height } };
+}
+
+type CellBounds = { minX: number; minY: number; maxX: number; maxY: number };
+
+/**
+ * Grober Platzbedarf einer Messform in Zellen — kein exaktes Bounding-Box
+ * (der Kegel/Bogen wird großzügig als Quadrat um den Ursprung behandelt),
+ * genau genug für den einzigen Zweck: die Kamera darf bis dorthin schwenken.
+ */
+function measureOverlayBounds(data: MeasureOverlayData): CellBounds {
+  if (data.kind === 'ruler' || data.kind === 'rectangle') {
+    return {
+      minX: Math.min(data.from.x, data.to.x), minY: Math.min(data.from.y, data.to.y),
+      maxX: Math.max(data.from.x, data.to.x), maxY: Math.max(data.from.y, data.to.y),
+    };
+  }
+  if (data.kind === 'circle') {
+    return {
+      minX: data.origin.x - data.radius, minY: data.origin.y - data.radius,
+      maxX: data.origin.x + data.radius, maxY: data.origin.y + data.radius,
+    };
+  }
+  return {
+    minX: data.origin.x - data.length, minY: data.origin.y - data.length,
+    maxX: data.origin.x + data.length, maxY: data.origin.y + data.length,
+  };
+}
+
+/**
+ * Wie weit die Kamera schwenken darf, in Zellen — die Gitterfläche selbst
+ * (immer eingeschlossen, auch ganz leer) UND jede vorhandene Marke/jedes Bild/
+ * jede Messform, egal ob die gerade (mehr) innerhalb des Gitters liegt. Ein
+ * verkleinertes Gitter darf niemals etwas unerreichbar machen — siehe die
+ * "Bigger, GM-configurable drawing area"-Entscheidung: die Gittergröße
+ * bestimmt nur Gitterlinien/Nebel/Bemalen/Einrasten, nie wo Inhalt liegen darf.
+ */
+function computeContentBounds(cols: number, rows: number, tokens: BoardToken[], images: BoardImage[], overlays: BoardOverlay[]): CellBounds {
+  let minX = 0;
+  let minY = 0;
+  let maxX = cols;
+  let maxY = rows;
+  for (const t of tokens) {
+    minX = Math.min(minX, t.x);
+    minY = Math.min(minY, t.y);
+    maxX = Math.max(maxX, t.x + t.size);
+    maxY = Math.max(maxY, t.y + t.size);
+  }
+  for (const im of images) {
+    minX = Math.min(minX, im.x);
+    minY = Math.min(minY, im.y);
+    maxX = Math.max(maxX, im.x + im.w);
+    maxY = Math.max(maxY, im.y + im.h);
+  }
+  for (const o of overlays) {
+    const b = o.kind === 'label' ? { minX: o.data.x, minY: o.data.y, maxX: o.data.x, maxY: o.data.y } : measureOverlayBounds(o.data);
+    minX = Math.min(minX, b.minX);
+    minY = Math.min(minY, b.minY);
+    maxX = Math.max(maxX, b.maxX);
+    maxY = Math.max(maxY, b.maxY);
+  }
+  return { minX, minY, maxX, maxY };
 }
 
 /**
@@ -622,6 +683,14 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
+  // Reine Kamera-Schwenkgrenze — NICHT für Gitterlinien/Nebel/Bemalen/
+  // Einrasten, die bleiben strikt bei totalW/totalH (cols/rows). Fällt bei
+  // leerem Brett exakt auf [0,0,totalW,totalH] zurück, ändert also am
+  // heutigen Verhalten nichts, solange nichts über das Gitter hinausragt.
+  const contentBounds = useMemo(
+    () => computeContentBounds(cols, rows, tokens, images, overlays),
+    [cols, rows, tokens, images, overlays],
+  );
   const {
     createToken,
     updateToken,
@@ -934,24 +1003,34 @@ function MapCanvas({
     (x: number, y: number, zoom: number): Camera => {
       const vw = totalW / zoom;
       const vh = totalH / zoom;
-      const maxX = Math.max(0, totalW - vw);
-      const maxY = Math.max(0, totalH - vh);
+      // Schwenkbereich ist die Gitterfläche VEREINIGT mit allem, was gerade
+      // darüber hinausragt (contentBounds) — ein verkleinertes Gitter darf
+      // eine bestehende Marke/ein Bild/eine Messform nie unerreichbar machen.
+      // worldMin/-Max deckt sich mit 0/totalW, solange nichts hinausragt, und
+      // das Folgende ist dann bit-identisch zur alten, rein gitterbasierten
+      // Rechnung.
+      const worldMinX = Math.min(0, contentBounds.minX * CELL_PX);
+      const worldMinY = Math.min(0, contentBounds.minY * CELL_PX);
+      const worldMaxX = Math.max(totalW, contentBounds.maxX * CELL_PX);
+      const worldMaxY = Math.max(totalH, contentBounds.maxY * CELL_PX);
+      const maxX = Math.max(worldMinX, worldMaxX - vw);
+      const maxY = Math.max(worldMinY, worldMaxY - vh);
       // Overscroll allowance so an edge/corner can be centered on screen
       // (developer feedback) instead of always sitting flush against the
       // viewport border — half the viewport in each direction, so camera.x
       // reaching -marginX puts the map's left edge exactly at screen center,
       // and maxX+marginX does the same for the right edge (and analogous for
-      // y). Only applies once the map is actually larger than the viewport
-      // (maxX/maxY > 0) — a map that already fits is centered as before.
-      const marginX = maxX > 0 ? vw / 2 : 0;
-      const marginY = maxY > 0 ? vh / 2 : 0;
+      // y). Only applies once the (possibly content-widened) map is actually
+      // larger than the viewport — a map that already fits is centered.
+      const marginX = maxX > worldMinX ? vw / 2 : 0;
+      const marginY = maxY > worldMinY ? vh / 2 : 0;
       return {
         zoom,
-        x: maxX === 0 ? (totalW - vw) / 2 : Math.min(maxX + marginX, Math.max(-marginX, x)),
-        y: maxY === 0 ? (totalH - vh) / 2 : Math.min(maxY + marginY, Math.max(-marginY, y)),
+        x: maxX === worldMinX ? (worldMinX + worldMaxX - vw) / 2 : Math.min(maxX + marginX, Math.max(worldMinX - marginX, x)),
+        y: maxY === worldMinY ? (worldMinY + worldMaxY - vh) / 2 : Math.min(maxY + marginY, Math.max(worldMinY - marginY, y)),
       };
     },
-    [totalW, totalH],
+    [totalW, totalH, contentBounds],
   );
 
   const zoomBy = (factor: number) => {
@@ -3924,8 +4003,30 @@ function ImagePicker({
   );
 }
 
+// Reine Notbremse gegen einen Vertipper (siehe die serverseitige Prüfung in
+// ws.ts) — kein fachlicher Deckel, siehe TODO/Plan: eine echte Obergrenze ist
+// bewusst offen (Performance-Auswirkung schwer im Voraus abzuschätzen).
+const GRID_SIZE_MAX = 1000;
+
 function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClose: () => void }) {
   const { updateBoardSettings } = useDicePanel();
+  const [colsDraft, setColsDraft] = useState(String(board.cols));
+  const [rowsDraft, setRowsDraft] = useState(String(board.rows));
+  useEffect(() => {
+    setColsDraft(String(board.cols));
+    setRowsDraft(String(board.rows));
+  }, [board.cols, board.rows]);
+  const parsedCols = Math.round(Number(colsDraft));
+  const parsedRows = Math.round(Number(rowsDraft));
+  const colsValid = Number.isFinite(parsedCols) && parsedCols >= 1 && parsedCols <= GRID_SIZE_MAX;
+  const rowsValid = Number.isFinite(parsedRows) && parsedRows >= 1 && parsedRows <= GRID_SIZE_MAX;
+  const gridChanged = (colsValid && parsedCols !== board.cols) || (rowsValid && parsedRows !== board.rows);
+  const applyGridSize = () => {
+    const patch: { cols?: number; rows?: number } = {};
+    if (colsValid && parsedCols !== board.cols) patch.cols = parsedCols;
+    if (rowsValid && parsedRows !== board.rows) patch.rows = parsedRows;
+    if (Object.keys(patch).length > 0) updateBoardSettings(patch);
+  };
   const rows: { key: keyof BoardSettings; label: string }[] = [
     { key: 'permTokens', label: 'Marken anlegen/bearbeiten' },
     { key: 'permMove', label: 'Marken verschieben' },
@@ -3940,6 +4041,35 @@ function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClos
         <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
           ✕
         </button>
+      </div>
+      <div className="vtt-settings-row">
+        <span title="Gitterlinien/Nebel/Bemalen/Einrasten gelten nur innerhalb dieser Fläche. Marken, Bilder und Messformen bleiben davon unberührt — auch eine Verkleinerung versteckt oder löscht nie etwas, das gerade außerhalb liegt.">
+          Gittergröße (Spalten × Zeilen)
+        </span>
+        <span className="seg vtt-settings-gridsize">
+          <input
+            type="number"
+            min={1}
+            max={GRID_SIZE_MAX}
+            value={colsDraft}
+            onChange={(e) => setColsDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyGridSize()}
+            aria-label="Spalten"
+          />
+          <span aria-hidden>×</span>
+          <input
+            type="number"
+            min={1}
+            max={GRID_SIZE_MAX}
+            value={rowsDraft}
+            onChange={(e) => setRowsDraft(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && applyGridSize()}
+            aria-label="Zeilen"
+          />
+          <button className="small" disabled={!gridChanged} onClick={applyGridSize}>
+            Übernehmen
+          </button>
+        </span>
       </div>
       {rows.map((r) => {
         const value = board[r.key] as 'gm' | 'all';

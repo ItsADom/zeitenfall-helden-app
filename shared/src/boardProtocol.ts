@@ -199,10 +199,14 @@ export type BoardClientMessage =
   | { type: 'board.token.move'; reqId: string; tokenId: number; x: number; y: number; final?: boolean }
   | { type: 'board.token.delete'; reqId: string; tokenId: number }
   // GM only. Fog/measuring aren't here — fog has no toggle by design, measuring is always 'all'.
+  // `cols`/`rows`: the grid size — governs grid-lines/fog/paint/cell-snapping
+  // only, NEVER where tokens/images/overlays are allowed to exist (those stay
+  // wherever they are; a shrink never strands them, see the "Bigger,
+  // GM-configurable drawing area" plan).
   | {
       type: 'board.settings.update';
       reqId: string;
-      patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove'>>;
+      patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>;
     }
   // Painting a stroke/brush/rectangle — client accumulates cells locally
   // (same "one message on release" shape as a token drag, see above) and

@@ -6218,6 +6218,17 @@ tr:hover .probe-roll,
   color: #fff;
   font-weight: 700;
 }
+/* Gittergröße im Karten-Einstellungen-Popover: zwei schmale Zahlenfelder statt
+   des Spielleitung/Alle-Pillenpaars, deshalb eigene Klasse statt .seg. */
+.vtt-settings-gridsize {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vtt-settings-gridsize input[type='number'] {
+  width: 52px;
+  font-size: 11px;
+}
 
 /* ---------- VTT Phase 6: Bemalen ---------- */
 /* Aktiver Werkzeug-Knopf in der Kartenleiste (bislang nur „Bemalen") — gleiche

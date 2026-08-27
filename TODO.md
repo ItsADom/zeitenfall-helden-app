@@ -80,27 +80,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   count *and location*, which stays optional/out of scope; this feature only
   covers the count, on the table.
 
-- [ready] **Bigger, GM-configurable drawing area** (concept agreed): the grid
-  is currently hardcoded at 40×30 with no resize path anywhere at all
-  (`server/src/db.ts:501-502`, plain `DEFAULT` columns, never updated).
-  **Decided:** make `cols`/`rows` GM-configurable per board (e.g. in
-  `BoardSettingsPopover`, `client/src/pages/VirtualTable.tsx:3926`), not just
-  a bigger fixed constant. **Decided: decouple the grid from the pannable
-  viewport** — grid bounds should only govern where grid-lines/fog/paint/
-  cell-snapping apply, not where content is allowed to exist. Today
-  `server/src/ws.ts:1575` rejects any token position with
-  `x > board.cols || y > board.rows`, and the client's `clampCamera`/
-  `totalW`/`totalH` (`VirtualTable.tsx:621-623`) tie pan bounds directly to
-  `cols`/`rows` — both need to stop treating grid size as a hard placement/
-  viewport boundary. This is what makes shrinking safe: a smaller grid never
-  strands, hides, or deletes existing tokens/shapes/images — content beyond
-  the new smaller grid simply sits in ungridded space, still fully visible
-  and draggable, "out of bounds" only meaning "no grid there." **Open:** no
-  hard cap on cols/rows decided — performance impact (grid-line rendering,
-  pan/zoom math scaling with cols×rows) is hard to estimate in advance;
-  leave unbounded for now (maybe a loose sanity ceiling against fat-fingered
-  values) and revisit only if it turns out to matter in practice.
-
 ## User feedback
 
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**

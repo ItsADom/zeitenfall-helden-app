@@ -212,6 +212,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Wartet die Spielleitung auf eine angeforderte Probe von jemandem, der gerade nicht am Tisch sitzt, kann sie den Wurf jetzt direkt auslösen, statt weiter zu warten oder die Anfrage zurückzuziehen — der Eintrag ist dann sichtbar als „erzwungen" markiert.',
       'Talente haben jetzt ein eigenes Notizfeld, genau wie Ausrüstung und Waffen.',
       'Der Schaden einer Waffe lässt sich jetzt direkt würfeln, genau wie AT/PA/BL/FK — das Ergebnis zeigt gleich die Rüstungsdurchdringung (RD) der Waffe mit an.',
+      'Am virtuellen Tisch lässt sich die Gittergröße jetzt unter „Karten-Rechte" einstellen, statt fest bei 40×30 zu bleiben. Ein verkleinertes Gitter versteckt oder löscht nie etwas: Marken, Bilder und Messformen außerhalb bleiben voll sichtbar und verschiebbar, nur Gitterlinien, Nebel und Bemalen enden an der neuen Kante.',
     ],
     changed: [
       'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',

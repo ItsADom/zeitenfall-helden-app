@@ -285,18 +285,21 @@ function broadcastInitiative(groupId: number, boardId: number): void {
   }));
 }
 
-// Every field checked and clamped to the board — a hand-crafted WS message
-// could otherwise plant an out-of-bounds or non-finite coordinate. Returns
-// null for anything that doesn't match one of the four known shapes rather
-// than rejecting the whole message elsewhere, same tolerance style as
-// parseTileValue.
-function measurePoint(raw: unknown, board: BoardRow): CellCoord | null {
+// Every field checked for a non-finite coordinate — a hand-crafted WS message
+// could otherwise plant garbage. Returns null for anything that doesn't match
+// one of the four known shapes rather than rejecting the whole message
+// elsewhere, same tolerance style as parseTileValue. Deliberately NOT clamped
+// to the board's cols/rows (unlike an earlier version of this function) — a
+// measure shape is content, exactly like a token or image, and grid bounds
+// only govern grid-lines/fog/paint/cell-snapping, never where content may
+// exist (see the "Bigger, GM-configurable drawing area" plan).
+function measurePoint(raw: unknown): CellCoord | null {
   const p = raw as Record<string, unknown> | null;
   if (!p) return null;
   const x = Number(p.x);
   const y = Number(p.y);
   if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-  return { x: Math.min(board.cols, Math.max(0, x)), y: Math.min(board.rows, Math.max(0, y)) };
+  return { x, y };
 }
 // Optional, per-shape, never required — unset means the plain default look.
 // Same tolerant style as the rest of this validator: silently drop what
@@ -313,24 +316,24 @@ function measureLabelColor(d: Record<string, unknown>): { label: string | undefi
   const color = typeof d.color === 'string' && parseTileValue(d.color)?.kind === 'color' ? d.color : undefined;
   return { label, color };
 }
-function validateMeasureData(raw: unknown, board: BoardRow): MeasureOverlayData | null {
+function validateMeasureData(raw: unknown): MeasureOverlayData | null {
   const d = raw as Record<string, unknown> | null;
   if (!d || typeof d.kind !== 'string') return null;
   const extra = measureLabelColor(d);
   if (d.kind === 'ruler' || d.kind === 'rectangle') {
-    const from = measurePoint(d.from, board);
-    const to = measurePoint(d.to, board);
+    const from = measurePoint(d.from);
+    const to = measurePoint(d.to);
     if (!from || !to) return null;
     return { kind: d.kind, from, to, ...extra };
   }
   if (d.kind === 'circle') {
-    const origin = measurePoint(d.origin, board);
+    const origin = measurePoint(d.origin);
     const radius = Number(d.radius);
     if (!origin || !Number.isFinite(radius)) return null;
     return { kind: 'circle', origin, radius: Math.min(50, Math.max(0, radius)), ...extra };
   }
   if (d.kind === 'cone') {
-    const origin = measurePoint(d.origin, board);
+    const origin = measurePoint(d.origin);
     const angle = Number(d.angle);
     const length = Number(d.length);
     // Per-shape opening angle, not a fixed constant — clamped to a sane
@@ -1581,12 +1584,18 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       const board = getOrCreateBoard(meta.groupId);
       const p = msg.patch ?? {};
       const isPerm = (v: unknown): v is 'gm' | 'all' => v === 'gm' || v === 'all';
+      // Reine Notbremse gegen eine erfundene Nachricht (siehe die 10000-Zellen-
+      // Grenze bei board.tiles.paint) — kein fachlicher Deckel, siehe TODO/Plan:
+      // die tatsächliche Grenze ist unklar und bleibt bewusst offen.
+      const isGridSize = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= 1000;
       const patch: Parameters<typeof updateBoardSettings>[1] = {};
       if (isPerm(p.permTiles)) patch.permTiles = p.permTiles;
       if (isPerm(p.permLabels)) patch.permLabels = p.permLabels;
       if (isPerm(p.permTokens)) patch.permTokens = p.permTokens;
       if (isPerm(p.permImages)) patch.permImages = p.permImages;
       if (isPerm(p.permMove)) patch.permMove = p.permMove;
+      if (isGridSize(p.cols)) patch.cols = p.cols;
+      if (isGridSize(p.rows)) patch.rows = p.rows;
       const updated = updateBoardSettings(board.id, patch);
       broadcastUngefiltert(meta.groupId, {
         type: 'board.settings.updated',
@@ -1700,7 +1709,9 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         }
         const x = Number((msg.data as { x?: unknown })?.x);
         const y = Number((msg.data as { y?: unknown })?.y);
-        if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || y < 0 || x > board.cols || y > board.rows) {
+        // Nicht auf cols/rows geprüft — eine Beschriftung ist Inhalt wie eine
+        // Marke oder ein Bild, kein Gitter-Mechanismus (siehe measurePoint).
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
           send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Position' });
           return;
         }
@@ -1721,7 +1732,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, zu messen' });
           return;
         }
-        const data = validateMeasureData(msg.data, board);
+        const data = validateMeasureData(msg.data);
         if (!data) {
           send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Messform' });
           return;
@@ -1749,8 +1760,9 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         }
         const p = (msg.patch ?? {}) as Record<string, unknown>;
         const patch: Record<string, unknown> = {};
-        if (typeof p.x === 'number' && Number.isFinite(p.x)) patch.x = Math.min(board.cols, Math.max(0, p.x));
-        if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = Math.min(board.rows, Math.max(0, p.y));
+        // Nicht auf cols/rows geklemmt — siehe die create-Seite oben.
+        if (typeof p.x === 'number' && Number.isFinite(p.x)) patch.x = p.x;
+        if (typeof p.y === 'number' && Number.isFinite(p.y)) patch.y = p.y;
         if (typeof p.text === 'string') patch.text = p.text.slice(0, 80);
         const updated = updateBoardOverlay(existing.id, patch);
         if (updated) {
@@ -1777,7 +1789,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, zu messen' });
         return;
       }
-      const data = validateMeasureData(msg.patch, board);
+      const data = validateMeasureData(msg.patch);
       if (!data) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Messform' });
         return;
