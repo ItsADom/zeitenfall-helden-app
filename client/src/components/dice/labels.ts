@@ -68,6 +68,8 @@ export const VISIBILITY = {
 export const REQUEST = {
   /** Beim angefragten Spieler. */
   title: (gmName: string): string => `${gmName} bittet um eine Probe`,
+  /** Von der Spielleitung vorgegebener Modifikator — ersetzt den eigenen des Spielers. */
+  modifier: (m: number): string => `Modifikator der Spielleitung: ${m > 0 ? '+' : ''}${m}`,
   /** Bei der Spielleitung, solange noch nichts zurückkam. */
   waiting: (charName: string, probe: string): string => `${probe} — warte auf ${charName}…`,
   accept: 'Würfeln',

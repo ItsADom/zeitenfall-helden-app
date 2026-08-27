@@ -25,6 +25,8 @@ export function createPendingRequest(input: {
   targetCharName: string;
   /** Gesetzt, wenn dies EIN Zweig einer Gruppen-Sammelanfrage ist — siehe groupRolls.ts. */
   groupRequestId?: string;
+  /** Siehe PendingRollRequest.modifier — bereits geklemmt, hier nur durchgereicht. */
+  modifier?: number;
   onExpire: (request: PendingRollRequest) => void;
 }): PendingRollRequest {
   const now = Date.now();
@@ -39,6 +41,7 @@ export function createPendingRequest(input: {
     targetCharId: input.targetCharId,
     targetCharName: input.targetCharName,
     ...(input.groupRequestId ? { groupRequestId: input.groupRequestId } : {}),
+    ...(input.modifier != null ? { modifier: input.modifier } : {}),
     createdAt: now,
     expiresAt: now + PENDING_TTL_MS,
   };

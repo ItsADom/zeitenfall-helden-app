@@ -227,8 +227,12 @@ interface DicePanelCtxValue {
    * Leert sich bei jedem Raumwechsel/Reconnect neu.
    */
   presenceNotes: PresenceNote[];
-  /** Spielleitung fordert eine bestimmte Probe von einem Spieler an. */
-  requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => void;
+  /**
+   * Spielleitung fordert eine bestimmte Probe von einem Spieler an.
+   * `modifier` ist optional situativ von der Spielleitung vorgegeben — ersetzt
+   * beim Annehmen den eigenen Modifikator des Spielers vollständig.
+   */
+  requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource, modifier?: number) => void;
   acceptRequest: (requestId: string) => void;
   declineRequest: (requestId: string) => void;
   /** Spielleitung zieht eine eigene, noch offene Anfrage zurück. */
@@ -239,7 +243,7 @@ interface DicePanelCtxValue {
    * unter gemeinsamer groupRequestId, Ergebnisse erscheinen erst gemeinsam
    * im Feed, sobald alle geantwortet haben (siehe server/src/groupRolls.ts).
    */
-  requestGroupProbe: (groupId: number, source: ProbeSource) => void;
+  requestGroupProbe: (groupId: number, source: ProbeSource, modifier?: number) => void;
   /** Deckt eine Sammelanfrage vorzeitig auf — offene Zweige werden verworfen. */
   revealGroupRequest: (groupRequestId: string) => void;
   /** Verwirft eine Sammelanfrage komplett, auch bereits zurückgehaltene Ergebnisse. */
@@ -1130,7 +1134,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const requestProbe = useCallback(
-    (forGroupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => {
+    (forGroupId: number, targetUserId: number, targetCharId: number, source: ProbeSource, modifier?: number) => {
       // Wie beim Würfeln vom Bogen: erst in den Raum dieser Gruppe, dann
       // senden (die Nachricht wartet notfalls in der Outbox).
       if (groupIdRef.current !== forGroupId) {
@@ -1138,7 +1142,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         if (option) applyRoom(option);
       }
       melde();
-      sendMsg({ type: 'roll.pending.request', reqId: crypto.randomUUID(), source, targetUserId, targetCharId });
+      sendMsg({ type: 'roll.pending.request', reqId: crypto.randomUUID(), source, targetUserId, targetCharId, modifier });
     },
     [myGroups, applyRoom, sendMsg, melde],
   );
@@ -1169,13 +1173,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const requestGroupProbe = useCallback(
-    (forGroupId: number, source: ProbeSource) => {
+    (forGroupId: number, source: ProbeSource, modifier?: number) => {
       if (groupIdRef.current !== forGroupId) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
       melde();
-      sendMsg({ type: 'roll.group.request', reqId: crypto.randomUUID(), source });
+      sendMsg({ type: 'roll.group.request', reqId: crypto.randomUUID(), source, modifier });
     },
     [myGroups, applyRoom, sendMsg, melde],
   );

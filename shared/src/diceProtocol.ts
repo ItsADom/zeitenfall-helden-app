@@ -169,6 +169,14 @@ export interface PendingRollRequest {
   /** Angezeigt bei der Spielleitung, die auf mehrere Antworten warten kann. */
   targetCharName: string;
   /**
+   * Von der Spielleitung bei der Anfrage gesetzt (situative Erleichterung/
+   * Erschwernis) — ersetzt beim Annehmen den eigenen Modifikator des Spielers
+   * vollständig, statt sich dazuzuaddieren (siehe roll.pending.accept in
+   * ws.ts). Ungesetzt = die Spielleitung hat keinen vorgegeben, der Spieler
+   * würfelt mit seinem eigenen (wie bisher).
+   */
+  modifier?: number;
+  /**
    * Gesetzt, wenn diese Anfrage EIN Zweig einer Gruppen-Sammelanfrage ist
    * (siehe `roll.group.request`) — alle Zweige derselben Anfrage teilen diese
    * id. Annehmen/Ablehnen läuft für den Spieler genauso wie bei einer
@@ -303,7 +311,7 @@ export type ClientToServerMessage =
   // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true
   // verwerfen (nicht jeder W20-Wurf kennt Patzer). Nur der Werfer selbst.
   | { type: 'roll.confirm'; reqId: string; entryId: number; dieIndex: number; skip?: boolean }
-  | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number }
+  | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number; modifier?: number }
   | { type: 'roll.pending.accept'; reqId: string; requestId: string; modifier?: number }
   | { type: 'roll.pending.decline'; reqId: string; requestId: string }
   // Nur die Spielleitung, und nur für eine Anfrage, die sie selbst gestellt
@@ -313,7 +321,7 @@ export type ClientToServerMessage =
   // Fragt dieselbe Probe bei JEDEM gerade verbundenen Gruppenmitglied an
   // (außer der Spielleitung selbst) — server-seitig ein `roll.pending.request`
   // je Mitglied unter einer gemeinsamen groupRequestId, siehe dort.
-  | { type: 'roll.group.request'; reqId: string; source: ProbeSource }
+  | { type: 'roll.group.request'; reqId: string; source: ProbeSource; modifier?: number }
   // Deckt eine Gruppen-Sammelanfrage vorzeitig auf: noch offene Zweige werden
   // verworfen (wie roll.pending.cancel), bereits zurückgehaltene Ergebnisse
   // sofort veröffentlicht. Nur die anfragende Spielleitung.

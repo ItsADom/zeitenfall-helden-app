@@ -22,6 +22,9 @@ export default function RequestGroupProbePicker({ groupId, anyCharId }: { groupI
   const [open, setOpen] = useState(false);
   const [probes, setProbes] = useState<RollableProbe[] | null>(null);
   const [query, setQuery] = useState('');
+  // Siehe RequestProbePicker: situativer Modifikator, ersetzt beim Annehmen
+  // den eigenen des jeweiligen Spielers, gilt nur für diese eine Anfrage.
+  const [modifier, setModifier] = useState(0);
 
   useEffect(() => {
     if (!open || probes) return;
@@ -34,9 +37,10 @@ export default function RequestGroupProbePicker({ groupId, anyCharId }: { groupI
   const matches = q ? (probes ?? []).filter((p) => p.label.toLowerCase().includes(q)).slice(0, MAX_RESULTS) : [];
 
   const pick = (p: RollableProbe) => {
-    requestGroupProbe(groupId, p.source);
+    requestGroupProbe(groupId, p.source, modifier || undefined);
     setOpen(false);
     setQuery('');
+    setModifier(0);
   };
 
   if (!open) {
@@ -61,6 +65,14 @@ export default function RequestGroupProbePicker({ groupId, anyCharId }: { groupI
             if (e.key === 'Enter' && matches[0]) pick(matches[0]);
           }}
         />
+        <label className="gm-request-mod" title="Erleichterung (−) oder Erschwernis (+) für diese Anfrage — ersetzt beim Annehmen den eigenen Modifikator jedes Spielers">
+          Mod.
+          <input
+            type="number"
+            value={modifier}
+            onChange={(e) => setModifier(Math.trunc(Number(e.target.value)) || 0)}
+          />
+        </label>
         <button className="small" onClick={() => setOpen(false)} title="Schließen">
           ✕
         </button>

@@ -463,6 +463,13 @@ function clampModifier(raw: unknown): number {
   return Math.max(-MODIFIER_RANGE, Math.min(MODIFIER_RANGE, n));
 }
 
+// Wie clampModifier, aber "nicht angegeben" bleibt unterscheidbar von "0" —
+// für PendingRollRequest.modifier, wo undefined heißt "die Spielleitung hat
+// keinen vorgegeben", nicht "vorgegeben ist 0".
+function clampModifierOrUndefined(raw: unknown): number | undefined {
+  return raw == null ? undefined : clampModifier(raw);
+}
+
 /**
  * 'gm_player'-Sichtbarkeit für einen freien Wurf (kein Anfrage-Fluss): wer
  * neben dem Werfer selbst noch mitliest. Ein Spieler wählt das Gegenüber
@@ -830,6 +837,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         targetUserId: char.owner_user_id,
         targetCharId: char.id,
         targetCharName: char.chat_name || char.name,
+        modifier: clampModifierOrUndefined(msg.modifier),
         onExpire: (expired) => {
           for (const uid of [expired.targetUserId, expired.gmUserId]) {
             sendToUserInGroup(expired.groupId, uid, { type: 'roll.pending.expired', requestId: expired.id });
@@ -911,6 +919,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // (PendingRequestCard, acceptRequest/declineRequest) braucht dafür keine
       // Änderung.
       sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.created', request: group });
+      const groupModifier = clampModifierOrUndefined(msg.modifier);
       for (const m of members) {
         const sub = createPendingRequest({
           groupId: meta.groupId,
@@ -922,6 +931,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           targetCharId: m.charId,
           targetCharName: m.charName,
           groupRequestId: group.id,
+          modifier: groupModifier,
           onExpire: (expired) => {
             sendToUserInGroup(expired.groupId, expired.targetUserId, { type: 'roll.pending.expired', requestId: expired.id });
             const done = dropGroupMember(group.id, expired.targetCharId);
@@ -1152,7 +1162,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (!request.groupRequestId) {
         sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.pending.accepted', requestId: request.id });
       }
-      const modifier = clampModifier(msg.modifier);
+      // Ein von der Spielleitung bei der Anfrage vorgegebener Modifikator
+      // ersetzt den eigenen des Spielers vollständig (siehe
+      // PendingRollRequest.modifier) — sie adjudiziert die konkrete Situation.
+      const modifier = request.modifier != null ? request.modifier : clampModifier(msg.modifier);
       const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
       const roll: ProbeRollPayload = {
         mode: 'probe',

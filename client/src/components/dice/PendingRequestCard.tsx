@@ -37,6 +37,11 @@ export default function PendingRequestCard({ request }: { request: PendingRollRe
     <div className="feed-request">
       <div className="feed-request-title">{REQUEST.title(request.gmName)}</div>
       <div className="feed-request-probe">{request.label}</div>
+      {request.modifier != null && (
+        <div className="feed-request-mod" title="Ersetzt deinen eigenen Modifikator für diesen Wurf">
+          {REQUEST.modifier(request.modifier)}
+        </div>
+      )}
       <div className="feed-request-actions">
         <button className="small primary" onClick={() => acceptRequest(request.id)}>
           {REQUEST.accept}

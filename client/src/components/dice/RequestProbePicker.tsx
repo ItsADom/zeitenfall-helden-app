@@ -27,6 +27,18 @@ export default function RequestProbePicker({
   const [open, setOpen] = useState(false);
   const [probes, setProbes] = useState<RollableProbe[] | null>(null);
   const [query, setQuery] = useState('');
+  // Situative Erleichterung(-)/Erschwernis(+), von der Spielleitung schon bei
+  // der Anfrage vorgegeben — ersetzt beim Annehmen den eigenen Modifikator
+  // des Spielers vollständig (siehe PendingRollRequest.modifier). Wie
+  // ModifierPicker gilt sie nur für DIESE eine Anfrage, deshalb zurück auf 0
+  // nach dem Senden.
+  const [modifier, setModifier] = useState(0);
+  const pick = (source: RollableProbe['source']) => {
+    requestProbe(groupId, targetUserId, charId, source, modifier || undefined);
+    setOpen(false);
+    setQuery('');
+    setModifier(0);
+  };
 
   useEffect(() => {
     if (!open || probes) return;
@@ -57,13 +69,17 @@ export default function RequestProbePicker({
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setOpen(false);
-            if (e.key === 'Enter' && matches[0]) {
-              requestProbe(groupId, targetUserId, charId, matches[0].source);
-              setOpen(false);
-              setQuery('');
-            }
+            if (e.key === 'Enter' && matches[0]) pick(matches[0].source);
           }}
         />
+        <label className="gm-request-mod" title="Erleichterung (−) oder Erschwernis (+) für diese Anfrage — ersetzt beim Annehmen den eigenen Modifikator des Spielers">
+          Mod.
+          <input
+            type="number"
+            value={modifier}
+            onChange={(e) => setModifier(Math.trunc(Number(e.target.value)) || 0)}
+          />
+        </label>
         <button className="small" onClick={() => setOpen(false)} title="Schließen">
           ✕
         </button>
@@ -72,13 +88,7 @@ export default function RequestProbePicker({
         <ul className="gm-request-results">
           {matches.map((p, i) => (
             <li key={i}>
-              <button
-                onClick={() => {
-                  requestProbe(groupId, targetUserId, charId, p.source);
-                  setOpen(false);
-                  setQuery('');
-                }}
-              >
+              <button onClick={() => pick(p.source)}>
                 {p.label}
                 <span className="muted"> · {PROBE_KIND_LABEL[p.kind]} · {p.probeZahl}</span>
               </button>
