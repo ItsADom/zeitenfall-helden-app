@@ -134,23 +134,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   admin/management page (`Admin.tsx`) directly clickable into a character —
   build together with the route, since it's the natural entry point.
 
-- [ready] **Group checks: give players the same per-member status view the GM
-  already gets** (concept agreed, and a real gap once traced through — not
-  actually about scroll/pinning as first read). When a GM requests a group
-  check, only the GM's own connection receives the full `GroupRollRequest`
-  roster (`roll.group.created` sent only to `meta.userId`,
-  `server/src/ws.ts:913`; `GroupRequestCard.tsx` renders it in full, no role
-  branching) — each player instead only ever sees their own single
-  accept/decline card (`PendingRequestCard`), with zero visibility into who
-  else was asked or who's still pending. **Decided:** broadcast the same
-  roster (`roll.group.created`, the `roll.group.member` status updates, and
-  reconnect replay via `groupRollRequestsFor`, `server/src/groupRolls.ts:79-81`
-  — currently filtered to `gmUserId` only, needs to also match `member`) to
-  every member, not just the GM. Client-side, `GroupRequestCard.tsx` needs a
-  role branch (like `PendingRequestCard` already has) so **players see the
-  full roster but not the GM-only reveal/cancel buttons** — they can't force
-  the roll, only watch it.
-
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;

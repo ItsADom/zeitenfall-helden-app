@@ -216,6 +216,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
       'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
       'Der Würfel-Chat springt beim Ausklappen direkt ins Eingabefeld — Tippen geht ohne vorheriges Anklicken los.',
+      'Fordert die Spielleitung eine Probe von der ganzen Gruppe an, seht ihr jetzt dieselbe Übersicht wie sie — wer schon gewürfelt oder gepasst hat und wer noch fehlt —, statt nur eurer eigenen Karte zum Annehmen/Ablehnen.',
       'Das Gewicht steht nicht mehr auf jeder Ausrüstungs-Karte, nur noch beim Bearbeiten — übersichtlicher auf einen Blick.',
       '„Beidseitig getragen" (Handschuhe, Beinschienen o. Ä.) wird jetzt durchs Ziehen auf den kleinen „↔ beide"-Streifen einer seitengetrennten Körperzone gesetzt, nicht mehr über eine Checkbox beim Bearbeiten.',
     ],
