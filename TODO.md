@@ -232,19 +232,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   itself hold more/richer text. **Needs another pass with the original
   requesting player** before this can go to `[ready]`.
 
-- [ready] **GM force-rolling an AFK player's check** (concept agreed): today's
-  flow strictly requires the target player's own action — `roll.pending.accept`
-  hard-checks `request.targetUserId === meta.userId`
-  (`server/src/ws.ts:1129-1136`) with no bypass anywhere, and even a group
-  reveal simply skips non-responders (`revealGroupResults`,
-  `server/src/ws.ts:575-594`) rather than rolling for them. The only existing
-  "GM rolls directly" precedent (`roll.probe`, `ws.ts:713-728`) is gated to
-  characters the GM themself owns (NPCs), never a player's own character.
-  **Decided:** build a GM override that resolves the roll immediately,
-  bypassing the player's accept step. **Decided:** the resulting feed entry
-  is visibly marked as GM-forced (not indistinguishable from a roll the
-  player made themselves), so it's transparent when the player returns.
-
 - [ready] **Group ↔ player inventory, player ↔ player item transfer, and
   containers as a real, movable, worn concept** (concept agreed for the first
   two; houses is a much rougher sketch — see below). Confirmed starting
