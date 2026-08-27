@@ -321,6 +321,14 @@ function writeMeasureVisual(data: MeasureOverlayData, els: MeasureEls): void {
 
 interface GroupMeta {
   group: { id: number; name: string; isTemp: boolean };
+  /**
+   * Every room member (fixed group or additive event-group), available to
+   * ANY room member per GET /api/groups/:id (not just the GM) — reused here
+   * for the marker-owner reassignment picker (TODO.md "show a token's
+   * current owner, and allow changing it on the fly"), so the current
+   * owner handing a token off has the same name list the GM does.
+   */
+  members: { id: number; username: string; displayName: string }[];
 }
 interface BoardSnapshotResponse {
   board: BoardSettings & { tilesJson: string; highlightsJson: string; fogJson: string };
@@ -382,6 +390,63 @@ function chebyshevPath(from: CellCoord, to: CellCoord): CellCoord[] {
   return path;
 }
 
+/**
+ * Every cell in the axis-aligned box between `a` and `b` (inclusive), clamped
+ * to the board — the "Rechteck" paint mode (TODO.md "area-fill painting").
+ * Recomputed wholesale on every pointer-move rather than grown incrementally
+ * like the single-cell brush, so shrinking the drag correctly drops cells
+ * that were in a larger box a moment ago (see onPaintPointerMove).
+ */
+function rectCellsBetween(a: CellCoord, b: CellCoord, cols: number, rows: number): CellCoord[] {
+  const x0 = Math.max(0, Math.min(a.x, b.x));
+  const x1 = Math.min(cols - 1, Math.max(a.x, b.x));
+  const y0 = Math.max(0, Math.min(a.y, b.y));
+  const y1 = Math.min(rows - 1, Math.max(a.y, b.y));
+  const out: CellCoord[] = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) out.push({ x, y });
+  return out;
+}
+
+/**
+ * Classic 4-connected bucket fill (TODO.md "area-fill painting", "Füllen"
+ * mode) — every cell reachable from `start` through neighbors sharing the
+ * SAME current value, orthogonal only (no diagonal creep through a
+ * checkerboard). `getValue` reads whatever the click is filling (a tagged
+ * tile string, a highlight colour, or fog's '1'/'0' — see the three
+ * `paintValueAt`-shaped callers in MapCanvas), so this stays one algorithm
+ * shared by all three layers instead of three near-identical copies.
+ * Capped at `MAX_FILL_CELLS` — clicking a huge unpainted board is exactly
+ * "fill everything", same as a paint-bucket on a blank canvas, but a runaway
+ * fill still shouldn't hang the tab or build a message bigger than the
+ * server's own largest-ever-allowed-board cap (100×100, see board.tiles.paint
+ * in ws.ts).
+ */
+const MAX_FILL_CELLS = 10000;
+function floodFillKeys(start: CellCoord, cols: number, rows: number, getValue: (key: string) => string): string[] {
+  const startKey = cellKey(start.x, start.y);
+  const startValue = getValue(startKey);
+  const seen = new Set<string>([startKey]);
+  const stack: CellCoord[] = [start];
+  while (stack.length > 0 && seen.size < MAX_FILL_CELLS) {
+    const { x, y } = stack.pop()!;
+    const neighbors: CellCoord[] = [
+      { x: x + 1, y },
+      { x: x - 1, y },
+      { x, y: y + 1 },
+      { x, y: y - 1 },
+    ];
+    for (const n of neighbors) {
+      if (n.x < 0 || n.y < 0 || n.x >= cols || n.y >= rows) continue;
+      const key = cellKey(n.x, n.y);
+      if (seen.has(key)) continue;
+      if (getValue(key) !== startValue) continue;
+      seen.add(key);
+      stack.push(n);
+    }
+  }
+  return [...seen];
+}
+
 const CELL_PX = 40;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 3;
@@ -438,11 +503,16 @@ function TokenEditor({
   token,
   canEdit,
   isGm,
+  members,
+  myUserId,
   onClose,
 }: {
   token: BoardToken;
   canEdit: boolean;
   isGm: boolean;
+  /** For the marker-owner picker (TODO.md "show a token's current owner…") — every room member, see GroupMeta's doc comment. */
+  members: { id: number; username: string; displayName: string }[];
+  myUserId: number;
   onClose: () => void;
 }) {
   const { updateToken, deleteToken, setTokenWounds } = useDicePanel();
@@ -506,6 +576,35 @@ function TokenEditor({
           ✕
         </button>
       </div>
+
+      {/* Marker/monster tokens only — a character token's owner is implied
+          by whoever plays that character, never independently settable or
+          shown here (see BoardToken.ownerUserId's doc comment in
+          shared/src/boardProtocol.ts). GM or the CURRENT owner may hand it
+          off to someone else or release it; anyone who can see this token
+          at all can see who owns it. */}
+      {token.kind === 'marker' && (
+        <div className="vtt-token-editor-row">
+          <label>
+            Besitzer{' '}
+            {isGm || token.ownerUserId === myUserId ? (
+              <select
+                value={token.ownerUserId ?? ''}
+                onChange={(e) => updateToken(token.id, { ownerUserId: e.target.value === '' ? null : Number(e.target.value) })}
+              >
+                <option value="">— niemand —</option>
+                {members.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.displayName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <span>{members.find((m) => m.id === token.ownerUserId)?.displayName ?? '— niemand —'}</span>
+            )}
+          </label>
+        </div>
+      )}
 
       {canEdit && (
         <>
@@ -688,6 +787,7 @@ function MapCanvas({
   canLabel,
   canImages,
   isGm,
+  members,
 }: {
   groupId: number;
   board: BoardSettings;
@@ -709,6 +809,8 @@ function MapCanvas({
   canLabel: boolean;
   canImages: boolean;
   isGm: boolean;
+  /** For the marker-owner reassignment picker (TODO.md "show a token's current owner…") — see GroupMeta's doc comment. */
+  members: { id: number; username: string; displayName: string }[];
 }) {
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
@@ -825,6 +927,16 @@ function MapCanvas({
   // Ob der Nebel-Pinsel gerade verdeckt oder aufdeckt — zwei Zustände statt
   // einer Farbwahl wie bei Bemalen/Hervorheben, siehe FogPicker.
   const [fogMode, setFogMode] = usePersistedState<'hide' | 'reveal'>('vtt-fog-mode', 'hide');
+  // Area-fill painting (TODO.md "area-fill painting, not just cell-by-cell",
+  // concept agreed with the developer): a THIRD axis alongside `tool`/
+  // `paintValue` etc. — HOW a stroke fills cells, shared by Bemalen/
+  // Hervorheben/Nebel (same three layers `startPaint` already unifies) since
+  // the interaction concept is identical across all three, not a per-tool
+  // setting. 'cell' (default) is today's per-pointer-move single-cell brush,
+  // unchanged. 'rect' drags a box (see rectCellsBetween), 'fill' floods from
+  // one click (see floodFillKeys) — both additional modes, NOT a replacement
+  // for 'cell' (developer's call: fine detail work still needs the brush).
+  const [paintMode, setPaintMode] = usePersistedState<'cell' | 'rect' | 'fill'>('vtt-paint-mode', 'cell');
   // Während eines Bemal-/Einfärbe-/Nebel-Zugs lokal sichtbar (siehe onPaintPointerMove),
   // bevor EIN Delta beim Loslassen gesendet wird — dieselbe „lokal rendern,
   // beim Loslassen synchronisieren"-Form wie beim Verschieben einer Marke. Je
@@ -919,8 +1031,16 @@ function MapCanvas({
   // reveal choice rides along as '1'/'0' (see startPaint/onPaintPointerUp),
   // converted back to boolean only where paintFog/pendingFog actually need
   // it, so all three layers share one drag mechanism instead of a third
-  // near-identical copy.
-  const paintDragRef = useRef<{ layer: 'tile' | 'highlight' | 'fog'; value: string; touched: Record<string, string> } | null>(null);
+  // near-identical copy. `mode`/`start` carry paintMode's choice for the
+  // life of this one stroke — a mode change mid-drag (picker stays open)
+  // must not retroactively reshape an already-started stroke.
+  const paintDragRef = useRef<{
+    layer: 'tile' | 'highlight' | 'fog';
+    value: string;
+    mode: 'cell' | 'rect' | 'fill';
+    start: CellCoord;
+    touched: Record<string, string>;
+  } | null>(null);
   // Dieselbe Versatz-erhaltende Zug-Mechanik wie bei einer Marke (siehe
   // tokenDragRef/onTokenPointerMove) — direktes transform-Schreiben ohne
   // React dazwischen, EINE Netz-Nachricht erst beim Loslassen.
@@ -1231,7 +1351,14 @@ function MapCanvas({
     [mapMetrics, camera.x, camera.y, cols, rows],
   );
 
-  const applyPaintCell = (cell: { x: number; y: number }) => {
+  /** Reads the CURRENT server-confirmed value at a cell for one paint layer — the 'fill' mode's flood boundary check (see floodFillKeys). Deliberately `tiles`/`highlights`/`fog` (props), not a pending-merged view: a fill click only ever starts a FRESH stroke, and any earlier stroke's pending draft is already gone (or clearing within 200ms) by the time a new one begins. */
+  const paintValueAt = (layer: 'tile' | 'highlight' | 'fog', key: string): string => {
+    if (layer === 'tile') return tiles[key] ?? '';
+    if (layer === 'highlight') return highlights[key] ?? '';
+    return fog.has(key) ? '1' : '0';
+  };
+
+  const applyPaintCell = (cell: CellCoord) => {
     const drag = paintDragRef.current;
     if (!drag) return;
     const key = cellKey(cell.x, cell.y);
@@ -1240,6 +1367,26 @@ function MapCanvas({
     if (drag.layer === 'tile') setPendingPaint((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
     else if (drag.layer === 'highlight') setPendingHighlight((prev) => ({ ...(prev ?? {}), [key]: drag.value }));
     else setPendingFog((prev) => ({ ...(prev ?? {}), [key]: drag.value === '1' }));
+  };
+  /**
+   * 'rect'/'fill' modes (area-fill painting) both replace the drag's WHOLE
+   * touched set at once rather than growing it cell-by-cell like
+   * applyPaintCell — 'rect' because shrinking the drag box must drop cells
+   * that were in a larger box a moment ago, 'fill' because it's computed
+   * once and never grows. Same three-layer pending-preview branch as
+   * applyPaintCell, just wholesale instead of merged.
+   */
+  const setDragCells = (drag: NonNullable<typeof paintDragRef.current>, keys: string[]) => {
+    const touched: Record<string, string> = {};
+    for (const key of keys) touched[key] = drag.value;
+    drag.touched = touched;
+    if (drag.layer === 'tile') setPendingPaint(touched);
+    else if (drag.layer === 'highlight') setPendingHighlight(touched);
+    else {
+      const fogCells: Record<string, boolean> = {};
+      for (const key of keys) fogCells[key] = drag.value === '1';
+      setPendingFog(fogCells);
+    }
   };
   const startPaint = (e: React.PointerEvent, layer: 'tile' | 'highlight' | 'fog') => {
     const wrap = wrapRef.current;
@@ -1250,8 +1397,18 @@ function MapCanvas({
     // Nebel trägt keinen getaggten Wert wie Bemalen/Hervorheben — nur
     // verdecken/aufdecken, als '1'/'0' codiert (siehe paintDragRef-Kommentar).
     const value = layer === 'tile' ? paintValue : layer === 'highlight' ? highlightValue : fogMode === 'hide' ? '1' : '0';
-    paintDragRef.current = { layer, value, touched: {} };
-    applyPaintCell(cell);
+    const drag = { layer, value, mode: paintMode, start: cell, touched: {} as Record<string, string> };
+    paintDragRef.current = drag;
+    if (paintMode === 'fill') {
+      setDragCells(
+        drag,
+        floodFillKeys(cell, cols, rows, (key) => paintValueAt(layer, key)),
+      );
+    } else {
+      // 'cell' and 'rect' both start as exactly the clicked cell — 'rect'
+      // grows to the full box once the pointer moves past the start cell.
+      applyPaintCell(cell);
+    }
   };
   // Nur wenn sich die getroffene ZELLE ändert, nicht bei jedem rohen
   // pointermove — das hält die Update-Rate weit unter dem, was beim Ziehen
@@ -1264,6 +1421,16 @@ function MapCanvas({
     if (!drag || !wrap) return;
     const cell = cellAt(e, wrap);
     if (!cell) return;
+    if (drag.mode === 'rect') {
+      setDragCells(
+        drag,
+        rectCellsBetween(drag.start, cell, cols, rows).map((c) => cellKey(c.x, c.y)),
+      );
+      return;
+    }
+    // 'fill' is computed once at pointerdown — dragging further doesn't
+    // extend a bucket fill, same as every real paint-bucket tool.
+    if (drag.mode === 'fill') return;
     applyPaintCell(cell);
   };
   const onPaintPointerUp = () => {
@@ -2265,6 +2432,8 @@ function MapCanvas({
           onClose={() => setPickerOpen(false)}
           pipetteActive={pipetteArmed === 'tile'}
           onPipetteToggle={() => setPipetteArmed((v) => (v === 'tile' ? null : 'tile'))}
+          paintMode={paintMode}
+          onPaintModeChange={setPaintMode}
         />
       )}
       {tool === 'highlight' && pickerOpen && (
@@ -2274,9 +2443,13 @@ function MapCanvas({
           onClose={() => setPickerOpen(false)}
           pipetteActive={pipetteArmed === 'highlight'}
           onPipetteToggle={() => setPipetteArmed((v) => (v === 'highlight' ? null : 'highlight'))}
+          paintMode={paintMode}
+          onPaintModeChange={setPaintMode}
         />
       )}
-      {tool === 'fog' && pickerOpen && <FogPicker value={fogMode} onChange={setFogMode} onClose={() => setPickerOpen(false)} />}
+      {tool === 'fog' && pickerOpen && (
+        <FogPicker value={fogMode} onChange={setFogMode} onClose={() => setPickerOpen(false)} paintMode={paintMode} onPaintModeChange={setPaintMode} />
+      )}
       {tool === 'label' && pickerOpen && canCreateTokens && canLabel && (
         <LabelToolPicker
           onPlaceMarker={() => {
@@ -3043,7 +3216,14 @@ function MapCanvas({
         </svg>
       </div>
       {selectedToken && (
-        <TokenEditor token={selectedToken} canEdit={canEditToken(selectedToken)} isGm={isGm} onClose={() => setSelectedTokenId(null)} />
+        <TokenEditor
+          token={selectedToken}
+          canEdit={canEditToken(selectedToken)}
+          isGm={isGm}
+          members={members}
+          myUserId={user.id}
+          onClose={() => setSelectedTokenId(null)}
+        />
       )}
       {contextMenu && (
         <TokenContextMenu
@@ -3805,18 +3985,50 @@ function ColorOpacityFields({
   );
 }
 
+/**
+ * Area-fill painting (TODO.md "area-fill painting, not just cell-by-cell",
+ * concept agreed with the developer): a modifier row inside each of
+ * TilePicker/HighlightPicker/FogPicker, not a sibling flyout of its own —
+ * it changes HOW the same tool paints, not WHICH tool is active. Same `.seg`
+ * pill FogPicker's verdecken/aufdecken toggle already uses. 'Einzelfeld'
+ * (default) is the untouched per-pointer-move brush; 'Rechteck'/'Füllen' are
+ * ADDITIONAL modes, not a replacement (developer's call — fine detail work
+ * still needs the plain brush).
+ */
+function PaintModeRow({ value, onChange }: { value: 'cell' | 'rect' | 'fill'; onChange: (v: 'cell' | 'rect' | 'fill') => void }) {
+  return (
+    <div className="vtt-tile-picker-row">
+      <div className="seg">
+        <button className={value === 'cell' ? 'active' : ''} onClick={() => onChange('cell')} title="Einzelne Felder nacheinander bemalen">
+          Einzelfeld
+        </button>
+        <button className={value === 'rect' ? 'active' : ''} onClick={() => onChange('rect')} title="Ein Rechteck aufziehen und komplett füllen">
+          Rechteck
+        </button>
+        <button className={value === 'fill' ? 'active' : ''} onClick={() => onChange('fill')} title="Zusammenhängenden Bereich mit einem Klick füllen">
+          Füllen
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function TilePicker({
   value,
   onChange,
   onClose,
   pipetteActive,
   onPipetteToggle,
+  paintMode,
+  onPaintModeChange,
 }: {
   value: string;
   onChange: (v: string) => void;
   onClose: () => void;
   pipetteActive: boolean;
   onPipetteToggle: () => void;
+  paintMode: 'cell' | 'rect' | 'fill';
+  onPaintModeChange: (v: 'cell' | 'rect' | 'fill') => void;
 }) {
   const groups = new Map<string, typeof TILE_MATERIALS>();
   for (const m of TILE_MATERIALS) {
@@ -3827,6 +4039,7 @@ function TilePicker({
 
   return (
     <div className="vtt-tile-picker">
+      <PaintModeRow value={paintMode} onChange={onPaintModeChange} />
       <ColorOpacityFields
         value={value}
         onChange={onChange}
@@ -3866,15 +4079,20 @@ function HighlightPicker({
   onClose,
   pipetteActive,
   onPipetteToggle,
+  paintMode,
+  onPaintModeChange,
 }: {
   value: string;
   onChange: (v: string) => void;
   onClose: () => void;
   pipetteActive: boolean;
   onPipetteToggle: () => void;
+  paintMode: 'cell' | 'rect' | 'fill';
+  onPaintModeChange: (v: 'cell' | 'rect' | 'fill') => void;
 }) {
   return (
     <div className="vtt-tile-picker">
+      <PaintModeRow value={paintMode} onChange={onPaintModeChange} />
       <ColorOpacityFields
         value={value}
         onChange={onChange}
@@ -3898,10 +4116,14 @@ function FogPicker({
   value,
   onChange,
   onClose,
+  paintMode,
+  onPaintModeChange,
 }: {
   value: 'hide' | 'reveal';
   onChange: (v: 'hide' | 'reveal') => void;
   onClose: () => void;
+  paintMode: 'cell' | 'rect' | 'fill';
+  onPaintModeChange: (v: 'cell' | 'rect' | 'fill') => void;
 }) {
   return (
     <div className="vtt-tile-picker">
@@ -3911,6 +4133,7 @@ function FogPicker({
           ✕
         </button>
       </div>
+      <PaintModeRow value={paintMode} onChange={onPaintModeChange} />
       {/* .seg allein wäre als direktes Kind von .vtt-tile-picker (Flex-Spalte,
           align-items:stretch per Vorgabe) auf die volle Breite gestreckt und
           hätte hinter „Aufdecken" einen leeren Rest der Pille stehen lassen,
@@ -4534,6 +4757,7 @@ export default function VirtualTable() {
           canLabel={canLabel}
           canImages={canImages}
           isGm={user.isGm}
+          members={meta.members}
         />
 
         {chatCollapsed ? (

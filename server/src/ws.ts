@@ -1530,6 +1530,19 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // einschleusen, die BOARD_STATUS_BY_KEY/BOARD_COVER_BY_KEY nie kennen.
       if (Array.isArray(p.statuses)) patch.statuses = p.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
       if (typeof p.cover === 'string' && (p.cover === '' || p.cover in BOARD_COVER_BY_KEY)) patch.cover = p.cover;
+      // Owner reassignment (TODO.md "show a token's current owner, and
+      // allow changing it on the fly"). Marker/monster tokens ONLY — a
+      // character token's owner is implied by the character's own player
+      // link, never independently settable (see BoardToken.ownerUserId's
+      // doc comment). Bewusst NICHT über boardCanEditTokens/permTokens
+      // erreichbar wie der Rest dieses Patches — GM oder die AKTUELLE
+      // Besitzerin dürfen weiterreichen, sonst niemand, unabhängig davon,
+      // wer sonst diese Marke stylen darf. `null` gibt die Marke frei; ein
+      // anderer Wert muss ein echtes Mitglied dieses Raums sein.
+      if ('ownerUserId' in p && existing.kind === 'marker' && (meta.isGm || existing.ownerUserId === meta.userId)) {
+        if (p.ownerUserId === null) patch.ownerUserId = null;
+        else if (typeof p.ownerUserId === 'number' && isRoomMember(p.ownerUserId, meta.groupId)) patch.ownerUserId = p.ownerUserId;
+      }
       const updated = updateBoardToken(existing.id, patch);
       if (updated) {
         const fog = fogSet(board);

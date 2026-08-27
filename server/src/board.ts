@@ -198,6 +198,8 @@ export interface TokenPatch {
   radius?: number;
   radiusColor?: string;
   rotation?: number;
+  /** Marker/monster tokens only (ws.ts rejects it for `kind: 'character'`) — see BoardToken's ownerUserId doc comment in shared/src/boardProtocol.ts. `null` releases the token to nobody. */
+  ownerUserId?: number | null;
 }
 
 /** Everything about a token except its position — see moveToken below for that. */
@@ -206,7 +208,7 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
   if (!existing) return undefined;
   const next = { ...existing, ...patch };
   db.prepare(
-    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ? WHERE id = ?`,
+    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ?, owner_user_id = ? WHERE id = ?`,
   ).run(
     next.name,
     next.color,
@@ -218,6 +220,7 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
     next.radius,
     next.radiusColor,
     next.rotation,
+    next.ownerUserId,
     tokenId,
   );
   bumpRev(existing.boardId);

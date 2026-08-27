@@ -175,6 +175,17 @@ export interface BoardToken {
   boardId: number;
   kind: TokenKind;
   characterId: number | null;
+  /**
+   * Who controls this token. For `kind: 'character'` it's set at creation
+   * from the linked character's own player and never independently
+   * settable afterward (patching it is rejected server-side). For
+   * `kind: 'marker'` it starts `null` (unowned — nobody's created a marker
+   * "as" anyone) and, per TODO.md "show a token's current owner, and allow
+   * changing it on the fly", is reassignable afterward via board.token.
+   * update's patch — the GM or the token's CURRENT owner may hand it to
+   * someone else or release it back to `null` (e.g. a marker the GM created
+   * handed off to a player).
+   */
   ownerUserId: number | null;
   name: string;
   color: string;
@@ -236,11 +247,17 @@ export type BoardClientMessage =
     }
   // Everything about a token except its position — perm_tokens governs this
   // (create/delete/edit), perm_move governs only board.token.move below.
+  // `ownerUserId` (TODO.md "show a token's current owner, and allow
+  // changing it on the fly") is the one field in this patch NOT gated by
+  // perm_tokens/canEditTokens like the rest — server-side it's restricted to
+  // marker tokens (a character token's owner is implied by its player link)
+  // and to the GM or the token's CURRENT owner, regardless of who else may
+  // otherwise edit this token. `null` releases it to nobody.
   | {
       type: 'board.token.update';
       reqId: string;
       tokenId: number;
-      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>;
+      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>;
     }
   // One message per drag, sent on release — the client renders the whole
   // drag locally and never broadcasts a live position (settled with the

@@ -239,16 +239,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Mid-Prio
 
-- [sketch] **VTT: area-fill painting, not just cell-by-cell** (developer
-  feedback, Phase 9). Bemalen/Hervorheben/Nebel all paint one cell per
-  pointer-move step today (`startPaint`/`applyPaintCell` in
-  `client/src/pages/VirtualTable.tsx`, shared by all three layers as of the
-  fog tool). Not concepted yet: whether "whole area" means a drag-rectangle
-  fill (like the rectangle measure shape's drag), a flood-fill from a clicked
-  cell bounded by existing painted edges, or both as separate brush modes —
-  needs a decision with the developer before building, plus how it interacts
-  with the existing single-cell brush (replace it vs. an additional tool
-  mode).
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of
   talents/skills). Not concepted at all yet: how much a pet sheet shares with
@@ -567,18 +557,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   happening before trying a third fix — or consider swapping to a custom
   (non-native) colour picker instead, which would sidestep the browser
   quirk entirely.
-- [sketch] **VTT: show a token's current owner, and allow changing it on the
-  fly** (developer feedback). `board_tokens.owner_user_id` already exists and
-  is read for the owner-bypass in `canEditTokens`/`canMoveToken`
-  (`server/src/boardAccess.ts`) and for the "GM or the current combatant's
-  own owner may advance the turn" check in `ws.ts`, but nothing in the UI
-  shows whose token it is, and it's set once at creation with no way to
-  reassign it later (e.g. a marker created by the GM handed off to a
-  player, or a player leaving the table). Needs a concept pass: where the
-  owner shows (token editor? a label on hover?), who may change it
-  (GM-only, or also the current owner handing it off?), and whether a
-  character token's owner should even be independently settable or always
-  implied by the character's `group_id`/player link.
 - [sketch] **VTT: step-counting token-drag trail — built, wants a real live
   drag test.** Concept settled with the developer (straight king-move line
   from the drag's start cell, numbered 0/1/2/…; visible only to the person
