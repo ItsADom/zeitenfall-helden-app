@@ -73,6 +73,7 @@ function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; ch
       open
       onClose={onClose}
       title={`Zauber & Fähigkeiten — ${charName}`}
+      wide
       footer={
         <button className="small" onClick={onClose}>
           Schließen

@@ -3347,6 +3347,14 @@ li {
   flex-direction: column;
   overflow: hidden;
 }
+/* Opt-in via Dialog's `wide` prop — a multi-column table (e.g. the GM's
+   Zauber & Fähigkeiten lookup) doesn't fit the default 420px without its own
+   horizontal scrollbar; this gives it room instead. Still capped, and still
+   `width: 100%` below that cap, so it shrinks on a narrow viewport same as
+   the default panel. */
+.dialog-panel--wide {
+  max-width: 760px;
+}
 .dialog-head {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border-soft);

@@ -9,12 +9,15 @@ export function Dialog({
   title,
   footer,
   children,
+  wide,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   footer: React.ReactNode;
   children: React.ReactNode;
+  /** Wider panel (see `.dialog-panel--wide`) for content that doesn't fit the default 420px — a multi-column table, mainly. Omit for every normal dialog. */
+  wide?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -33,7 +36,7 @@ export function Dialog({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="dialog-panel" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={`dialog-panel${wide ? ' dialog-panel--wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="dialog-head">
           <h4>{title}</h4>
           <button type="button" className="dialog-close" onClick={onClose} aria-label="Schließen">
