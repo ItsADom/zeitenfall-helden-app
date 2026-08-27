@@ -204,6 +204,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Neuigkeiten im Wiki',
     added: [
       'Ein Benachrichtigungston für den Chat, einzustellen unter Einstellungen → Benachrichtigungston: fünf Klänge zur Auswahl (Tempelglocke, Silberglöckchen, Kristall, Holzgong, Fanfare), dazu ein Lautstärkeregler. Wer lieber etwas Eigenes hört, lädt eine eigene Tondatei hoch — sie wird auf fünf Sekunden gekürzt und gilt dann auf allen euren Geräten. Im Chat schaltet „/mute" den Ton schnell aus und wieder an.',
+      'Die Schriftgröße im Würfel-Chat lässt sich jetzt unter Einstellungen → Anzeige einstellen (Klein/Normal/Groß/Sehr groß).',
+      'Wiki-Tabellen lassen sich jetzt per Klick auf eine Spaltenüberschrift sortieren.',
+      'Der Zauber-Reiter zeigt jetzt neben der Magierstufe die zugehörige Zauber-Reichweite, dazu ein eigenes Bonus-Feld — die Summe wird direkt mit angezeigt.',
     ],
     changed: [
       'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',

@@ -103,15 +103,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Make wiki-tables sortable**: wiki tables render as a plain
-  `<table>` from parsed markdown (`client/src/wiki/Markup.tsx:117-146`), no
-  sort affordance. A proven click-header-to-sort pattern already exists for
-  character-sheet dynamic tables (`Sektionen.tsx:266-317,419-431` — `sort`
-  state, `toggleSort`, `.sortable`/`.sort-caret` CSS already styled) but is
-  tightly coupled to typed `DynColumn`/`DynRow` cells; wiki tables need their
-  own small comparator over plain string/number cell content, following the
-  same state+CSS shape rather than reusing the component directly.
-
 - [ready] **Group member portraits: clickable/enlargeable, and show the
   uncropped original on enlarge** (two related fixes, concept agreed):
   - `CharacterCard.tsx`'s portrait `<img>` (used on the group page's member
@@ -169,15 +160,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   (`GroupOverview.tsx:248-249`). UI can clone the existing clover-row pattern
   (`sp-clover`) rather than invent a new counter widget.
 
-- [ready] **Chat font size adjustable by player** (concept agreed): no
-  per-player display-preference mechanism exists to reuse (the app's
-  `DisplayMode` concept is about edit/readonly/print, not typography) — this
-  is net-new state, but follows the exact template other per-device dice-dock
-  settings already use (`usePersistedState` + a CSS custom property consumed
-  by `FeedEntryView.tsx`'s `.feed-text`, currently a hardcoded `font-size` in
-  `styles.css`). **Decided:** a few size presets (not a continuous slider),
-  living in the global `Einstellungen.tsx` settings page (not chat-local).
-
 - [ready] **Let GM set a modifier when requesting a check** (concept agreed):
   today `roll.pending.request` (`shared/src/diceProtocol.ts:306`) carries no
   modifier field — the GM's request pickers (`RequestProbePicker.tsx`/
@@ -203,15 +185,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   role branch (like `PendingRequestCard` already has) so **players see the
   full roster but not the GM-only reveal/cancel buttons** — they can't force
   the roll, only watch it.
-
-- [ready] **Spell range per mage level, override possible** (concept agreed):
-  no range field or per-level scaling exists in the data model at all today —
-  this is a new rule, not a hidden existing one. **Decided:** a fixed range-
-  by-rank reference table (a code constant, same status as the existing
-  `MAGIER_STUFEN_REFERENZ`, not GM-editable) plus an editable per-spell bonus-
-  range override field. **Decided:** purely a display feature, placed
-  somewhere near the mage-level section of the Zauber tab (`MagierPanel` in
-  `client/src/tabs/Zauber.tsx`) — no interaction with any roll/formula.
 
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
