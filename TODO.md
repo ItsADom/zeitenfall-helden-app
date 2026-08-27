@@ -134,16 +134,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   admin/management page (`Admin.tsx`) directly clickable into a character —
   build together with the route, since it's the natural entry point.
 
-- [ready] **Quick lookup for GM to see spells/skills without opening the
-  character sheet** (concept agreed): `GroupOverview.tsx`'s per-character
-  data (`OverviewChar`) has no abilities/spells today, but
-  `loadAbilities(charId)` (`server/src/characterData.ts:1065-1068`) already
-  queries everything needed and is already used elsewhere — this is a thin
-  new GM-gated route (e.g. `GET /api/characters/:id/abilities`, scoped to
-  characters in a group the GM oversees) plus a display-only dialog/popup
-  opened via a button from GM-overview, not new data-layer work. **Decided:**
-  one combined list (spells and skills together), not tabbed/split.
-
 - [ready] **Tracker for training/reading sessions** (concept agreed, and
   simpler than first framed): "SP" here is Schicksalspunkte (fate points),
   but only as a pointer to the *reset mechanism* — training/reading sessions
@@ -159,15 +149,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   this new field, plus a per-character reset mirroring Schicksalspunkte's own
   (`GroupOverview.tsx:248-249`). UI can clone the existing clover-row pattern
   (`sp-clover`) rather than invent a new counter widget.
-
-- [ready] **Let GM set a modifier when requesting a check** (concept agreed):
-  today `roll.pending.request` (`shared/src/diceProtocol.ts:306`) carries no
-  modifier field — the GM's request pickers (`RequestProbePicker.tsx`/
-  `RequestGroupProbePicker.tsx`) only pick a probe by name, and a modifier is
-  only ever attached later by the player at accept time. **Decided:** add a
-  modifier field to the request protocol/UI, and **the GM's requested
-  modifier replaces the player's own** when accepting (not additive, not
-  player-overridable) — the GM is adjudicating the specific situation.
 
 - [ready] **Group checks: give players the same per-member status view the GM
   already gets** (concept agreed, and a real gap once traced through — not

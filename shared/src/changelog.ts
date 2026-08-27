@@ -207,6 +207,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Schriftgröße im Würfel-Chat lässt sich jetzt unter Einstellungen → Anzeige einstellen (Klein/Normal/Groß/Sehr groß).',
       'Wiki-Tabellen lassen sich jetzt per Klick auf eine Spaltenüberschrift sortieren.',
       'Der Zauber-Reiter zeigt jetzt neben der Magierstufe die zugehörige Zauber-Reichweite, dazu ein eigenes Bonus-Feld — die Summe wird direkt mit angezeigt.',
+      'Fordert die Spielleitung eine Probe an, kann sie dabei eine Erleichterung/Erschwernis vorgeben — sie ersetzt beim Annehmen euren eigenen Modifikator für diesen einen Wurf, ihr seht den Wert direkt auf der Anfrage-Karte.',
     ],
     changed: [
       'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',
@@ -225,6 +226,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Der Zurücksetzen-Knopf bei Erleichterung/Erschwernis im Würfel-Chat verschwand je nach Wert und ließ das Menü springen — er bleibt jetzt an Ort und Stelle (nur ausgegraut bei ±0). Scrollen über dem Menü blätterte außerdem den Chat dahinter mit; das passiert jetzt nicht mehr.',
       'Eine Warnung zu einem falschen Würfel-Befehl blieb im Eingabefeld stehen, auch nachdem der Text schon wieder gelöscht war.',
       'Wer den Würfel-Chat auf mehreren Browser-Tabs gleichzeitig offen hatte, sah dort unterschiedliche Sichtbarkeits- und Würfel-Einstellungen — ein Tab überschrieb den anderen unbemerkt. Beide Tabs bleiben jetzt synchron.',
+    ],
+    admin: [
+      '(Spielleiter) Zauber & Fähigkeiten eines Charakters lassen sich jetzt direkt aus der Gruppenübersicht nachschlagen (🔍), ohne dessen Bogen zu öffnen.',
     ],
   },
   {
