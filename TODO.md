@@ -148,20 +148,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   — not something each player adds/removes individually — and rollable
   directly from there like any other talent.
 
-- [ready] **Weapon damage directly rollable, with RD shown alongside**
-  (concept agreed): AT/PA/BL/FK already roll via `ProbeSource` kind
-  `'weapon'` (`shared/src/diceProtocol.ts:24`), but `schaden` (damage) has no
-  equivalent — it's plain text today, and `computeProbeForCharacter`
-  (`server/src/diceSource.ts:119`) has no damage branch. **Decided:** add a
-  new `ProbeSource` kind for rolling a damage formula (not a fixed probe
-  number). **Decided what "RD" means here** — it's the weapon's *own*
-  Rüstungsdurchdringung stat (armor penetration), already a plain field on
-  the weapon card, **not** the target's armor value (that's RS, a separate
-  stat on worn armor items — no cross-character "show the target's defense"
-  concept exists or is needed here). The roll result should show the rolled/
-  calculated damage together with that weapon's RD value, so the player
-  doesn't have to mention RD manually every time.
-
 - [ready] **Dice formula overhaul** (concept agreed, several related asks
   bundled into one build): today three separate, inconsistent parsers handle
   formulas — `parseDiceExpression` (chat `/r`, `+`/`-` only, no `*`, rejects

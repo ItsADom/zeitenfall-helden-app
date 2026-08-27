@@ -203,6 +203,19 @@ interface DicePanelCtxValue {
    */
   /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — wie bei rollExpr. */
   rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility, targetUserId?: number) => void;
+  /**
+   * Schaden einer Waffenzeile würfeln. `ranged` unterscheidet Nah-/Fernkampf-
+   * Tabelle (siehe roll.weaponDamage im Protokoll) — kein Anfrage-Pendant,
+   * nur vom eigenen Bogen.
+   */
+  rollWeaponDamage: (
+    groupId: number,
+    charId: number,
+    sectionRowId: number,
+    ranged: boolean,
+    visibility: RollVisibility,
+    targetUserId?: number,
+  ) => void;
   /** Offenen Bestätigungswurf erledigen — werfen, oder mit skip verwerfen. */
   confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
   /** Offene „SL + Spieler"-Anfragen, die diesen Nutzer betreffen. */
@@ -419,6 +432,7 @@ export function useDicePanel(): DicePanelCtxValue {
       sendChat: () => {},
       rollExpr: () => {},
       rollProbe: () => {},
+      rollWeaponDamage: () => {},
       confirmDie: () => {},
       pendingRequests: [],
       groupRequests: [],
@@ -1139,6 +1153,26 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [myGroups, applyRoom, sendMsg, modifier, setModifier, melde],
   );
 
+  const rollWeaponDamage = useCallback(
+    (forGroupId: number, forCharId: number, sectionRowId: number, ranged: boolean, visibility: RollVisibility, targetUserId?: number) => {
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      melde();
+      sendMsg({
+        type: 'roll.weaponDamage',
+        reqId: crypto.randomUUID(),
+        charId: forCharId,
+        sectionRowId,
+        ranged,
+        visibility,
+        targetUserId,
+      });
+    },
+    [myGroups, applyRoom, sendMsg, melde],
+  );
+
   const confirmDie = useCallback(
     (entryId: number, dieIndex: number, skip = false) => {
       sendMsg({ type: 'roll.confirm', reqId: crypto.randomUUID(), entryId, dieIndex, skip });
@@ -1511,6 +1545,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         sendChat,
         rollExpr,
         rollProbe,
+        rollWeaponDamage,
         confirmDie,
         pendingRequests,
         groupRequests,

@@ -231,6 +231,13 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
         {/* „/master"/„/wild": derselbe Platz, den eine Probe für Erfolg/
             Fehlschlag nutzt, mit dem serverseitig nachgeschlagenen Text. */}
         {!isProbe && roll.outcomeLabel && <span className="feed-roll-outcome">{roll.outcomeLabel}</span>}
+        {/* Waffen-Schaden-Wurf: die RD der Waffe steht direkt neben dem
+            Ergebnis, damit sie niemand von Hand nachtragen muss. */}
+        {!isProbe && roll.rd && (
+          <span className="feed-roll-rd muted" title="Rüstungsdurchdringung">
+            RD {roll.rd}
+          </span>
+        )}
       </div>
       <Confirmations confirmations={roll.confirmations} />
       <PendingConfirmations entryId={entry.id} pending={roll.pending} mine={canConfirm} />

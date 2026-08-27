@@ -104,6 +104,16 @@ export interface ExpressionRollPayload {
    * bei einem gewöhnlichen freien Wurf.
    */
   outcomeLabel?: string;
+  /**
+   * Nur bei einem Waffen-Schaden-Wurf gesetzt (siehe roll.weaponDamage) — die
+   * Rüstungsdurchdringung der Waffe, damit sie neben dem Ergebnis steht, ohne
+   * dass die werfende Person sie von Hand nachtragen muss. Bleibt ein
+   * ExpressionRollPayload-Feld statt eines eigenen `mode`, weil ein Schaden-
+   * Wurf strukturell ein freier Ausdruck ist (Würfel + Summe, kein Zielwert)
+   * — FeedEntryView/RollView zeigt ihn dadurch automatisch wie jeden anderen
+   * Ausdruckswurf, nur mit dem zusätzlichen RD-Wert.
+   */
+  rd?: string;
 }
 
 export type RollPayload = ProbeRollPayload | ExpressionRollPayload;
@@ -313,6 +323,22 @@ export type ClientToServerMessage =
       charId: number;
       visibility: RollVisibility;
       modifier?: number;
+      targetUserId?: number;
+    }
+  // Schaden einer Waffenzeile würfeln — die Schaden-Formel (und die RD, siehe
+  // ProbeRollPayload.rd) kommt server-seitig aus der Waffenzeile, nie vom
+  // Client, genau wie probeZahl bei roll.probe. `ranged` unterscheidet die
+  // Tabelle (sec_waffenFernNeu/sec_waffenNahNeu) — dieselbe id existiert in
+  // beiden unabhängig voneinander. Nur vom eigenen Bogen (kein Anfrage-/
+  // Gruppen-/Kooperations-Pendant — Schaden würfelt man für sich, niemand
+  // fragt eine andere Person danach an).
+  | {
+      type: 'roll.weaponDamage';
+      reqId: string;
+      charId: number;
+      sectionRowId: number;
+      ranged: boolean;
+      visibility: RollVisibility;
       targetUserId?: number;
     }
   // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true

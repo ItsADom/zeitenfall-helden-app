@@ -5,6 +5,7 @@ import type { ColumnDef } from '@shared/sections';
 import { CollapseChevron, CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
+import WeaponDamageRollButton from '../components/dice/WeaponDamageRollButton';
 import { ListEditor, NumInput, TextInput } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useDisplayMode, useReadOnly } from '../components/displayMode';
@@ -220,6 +221,14 @@ function rollFor(row: Row, probe: 'at' | 'pa' | 'bl' | 'fk') {
   return sectionRowId ? { sectionRowId, probe } : undefined;
 }
 
+// Dieselbe Grund-Bedingung wie rollFor: keine gespeicherte Zeile, kein Würfel-
+// Knopf. Zusätzlich ohne Schaden-Text kein Knopf — sonst würfelt man gegen
+// eine leere Formel und bekommt nur eine Fehlermeldung.
+function damageRollFor(row: Row): number | undefined {
+  const sectionRowId = Number(row.id) || 0;
+  return sectionRowId && String(row.schaden ?? '').trim() ? sectionRowId : undefined;
+}
+
 /**
  * Fertige Probe im Kartenkopf — die Zahl, die am Tisch gewürfelt wird.
  * `roll` hängt den Würfel-Knopf an: eine einzelne Stelle für alle vier Chips
@@ -251,6 +260,8 @@ function CardHead({
   sub,
   schaden,
   rd,
+  damageRollId,
+  ranged,
   notiz,
   open,
   onToggle,
@@ -262,6 +273,9 @@ function CardHead({
   schaden: string;
   /** Rüstungsdurchdringung — steht mit im Schaden-Chip, eigener Wert wäre hier zu klein. */
   rd: string;
+  /** Gesetzt (siehe damageRollFor), wenn diese Zeile Schaden würfelbar ist. */
+  damageRollId?: number;
+  ranged: boolean;
   notiz: string;
   open: boolean;
   onToggle: () => void;
@@ -294,6 +308,9 @@ function CardHead({
           <span className="wpn-chip" title="Schaden">
             <span className="wpn-chip-label">Schaden</span>
             <span className="wpn-chip-val">{schaden}{rd && ` · RD ${rd}`}</span>
+            {damageRollId != null && (
+              <WeaponDamageRollButton sectionRowId={damageRollId} ranged={ranged} title={`${name || 'Waffe'} — Schaden`} />
+            )}
           </span>
         )}
         {children}
@@ -382,6 +399,8 @@ function NahCards({
                 sub={sub}
                 schaden={String(row.schaden ?? '')}
                 rd={String(row.rd ?? '')}
+                damageRollId={damageRollFor(row)}
+                ranged={false}
                 notiz={notiz}
                 open={open}
                 onToggle={() => toggle(i)}
@@ -493,6 +512,8 @@ function FernCards({
                 sub=""
                 schaden={String(row.schaden ?? '')}
                 rd={String(row.rd ?? '')}
+                damageRollId={damageRollFor(row)}
+                ranged
                 notiz={notiz}
                 open={open}
                 onToggle={() => toggle(i)}

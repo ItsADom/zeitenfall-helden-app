@@ -726,6 +726,53 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
+    case 'roll.weaponDamage': {
+      // Nur eigene Charaktere, und nur in der Gruppe dieses Feeds — derselbe
+      // Check wie bei roll.probe.
+      const charId = Number(msg.charId);
+      const char = db.prepare('SELECT id FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
+        | { id: number }
+        | undefined;
+      if (!char || !charBelongsToRoom(char.id, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
+        return;
+      }
+      // Die Schaden-Formel UND die RD werden IMMER hier aus der Waffenzeile
+      // gelesen, nie vom Client übernommen — derselbe Grund wie bei probeZahl.
+      const table = msg.ranged ? 'sec_waffenFernNeu' : 'sec_waffenNahNeu';
+      const row = db.prepare(`SELECT typ, schaden, rd FROM ${table} WHERE character_id = ? AND id = ?`).get(char.id, Number(msg.sectionRowId)) as
+        | { typ: string; schaden: string; rd: string }
+        | undefined;
+      if (!row) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Waffe nicht gefunden' });
+        return;
+      }
+      const expression = parseDiceExpression(String(row.schaden ?? ''));
+      if (!expression) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Waffe hinterlegt' });
+        return;
+      }
+      const resolved = resolveMessageVisibility(ws, meta, msg);
+      if (!resolved) return;
+      const { visibility, gmUserId } = resolved;
+      const result = performExpressionRoll(expression);
+      const roll: ExpressionRollPayload = {
+        mode: 'expr',
+        label: `${row.typ || 'Waffe'} (Schaden)`,
+        expression: result.expression,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        flagged: result.flagged,
+        ...(row.rd ? { rd: String(row.rd) } : {}),
+      };
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), gmUserId, visibility, roll);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
     case 'roll.probe': {
       const source = parseProbeSource(msg.source);
       if (!source) {

@@ -4982,6 +4982,10 @@ body.resizing-dice {
   font-size: 12px;
   font-weight: 600;
 }
+.feed-roll-rd {
+  margin-left: auto;
+  font-size: 12px;
+}
 .feed-roll--success .feed-roll-outcome {
   color: #3f7d3f;
 }
