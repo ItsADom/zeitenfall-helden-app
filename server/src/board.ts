@@ -815,6 +815,7 @@ function stepTurn(boardId: number): void {
   const tokensById = new Map(loadTokens(boardId).map((t) => [t.id, t]));
   rollRoster(entries, tokensById, true);
   db.prepare('UPDATE boards SET round = round + 1, turn_index = 0, rev = rev + 1, updated_at = ? WHERE id = ?').run(Date.now(), boardId);
+  decrementRoundTrackers(boardId);
 }
 
 /**
@@ -875,4 +876,56 @@ export function loadBoardSnapshot(groupId: number): BoardSnapshot {
     images: loadImages(board.id),
     initiative: loadInitiative(board.id),
   };
+}
+
+export interface BoardRoundTrackerRow {
+  id: number;
+  boardId: number;
+  creatorUserId: number;
+  label: string;
+  currentCount: number;
+}
+
+const ROUND_TRACKER_COLS = `id, board_id AS boardId, creator_user_id AS creatorUserId, label, current_count AS currentCount`;
+
+/**
+ * A viewer's own trackers only — this table has no redaction path at all
+ * (see the schema comment in db.ts): "fully private" means creator_user_id
+ * IS the visibility filter, not a flag checked afterward.
+ */
+export function loadRoundTrackers(boardId: number, userId: number): BoardRoundTrackerRow[] {
+  return db
+    .prepare(`SELECT ${ROUND_TRACKER_COLS} FROM board_round_trackers WHERE board_id = ? AND creator_user_id = ? ORDER BY id`)
+    .all(boardId, userId) as BoardRoundTrackerRow[];
+}
+
+export function createRoundTracker(boardId: number, userId: number, label: string, startCount: number): BoardRoundTrackerRow {
+  const info = db
+    .prepare(`INSERT INTO board_round_trackers (board_id, creator_user_id, label, current_count) VALUES (?, ?, ?, ?)`)
+    .run(boardId, userId, label, startCount);
+  return db.prepare(`SELECT ${ROUND_TRACKER_COLS} FROM board_round_trackers WHERE id = ?`).get(info.lastInsertRowid) as BoardRoundTrackerRow;
+}
+
+/** Owner-only — anyone can bump their own tracker up or down at any time, nobody else's. Undefined if the tracker doesn't exist or belongs to someone else. */
+export function setRoundTrackerCount(trackerId: number, userId: number, count: number): BoardRoundTrackerRow | undefined {
+  const row = db.prepare(`SELECT ${ROUND_TRACKER_COLS} FROM board_round_trackers WHERE id = ?`).get(trackerId) as BoardRoundTrackerRow | undefined;
+  if (!row || row.creatorUserId !== userId) return undefined;
+  db.prepare(`UPDATE board_round_trackers SET current_count = ? WHERE id = ?`).run(count, trackerId);
+  return { ...row, currentCount: count };
+}
+
+/** Owner-only delete. Returns whether a row was actually removed. */
+export function deleteRoundTracker(trackerId: number, userId: number): boolean {
+  const info = db.prepare(`DELETE FROM board_round_trackers WHERE id = ? AND creator_user_id = ?`).run(trackerId, userId);
+  return info.changes > 0;
+}
+
+/**
+ * Every tracker on the board (every owner) ticks down by 1, floored at 0,
+ * never auto-removed — called from stepTurn at the exact round-wrap point,
+ * same hook as the initiative reroll. SQLite's MAX(a, b) with two arguments
+ * is the scalar form, not the aggregate, so this is a plain per-row clamp.
+ */
+function decrementRoundTrackers(boardId: number): void {
+  db.prepare(`UPDATE board_round_trackers SET current_count = MAX(0, current_count - 1) WHERE board_id = ?`).run(boardId);
 }

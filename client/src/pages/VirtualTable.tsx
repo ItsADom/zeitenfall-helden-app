@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { BoardImage, BoardInitiative, BoardOverlay, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { activeTurnOrder, cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
@@ -328,6 +328,7 @@ interface BoardSnapshotResponse {
   overlays: BoardOverlay[];
   initiative: BoardInitiative[];
   images: BoardImage[];
+  roundTrackers: BoardRoundTracker[];
 }
 
 // Wie viele Zellen EIN Texturbild abdeckt — an den Brettkoordinaten verankert,
@@ -707,6 +708,10 @@ function MapCanvas({
     deleteImage,
     boardInitiative,
     addInitiative,
+    boardRoundTrackers,
+    createRoundTracker,
+    setRoundTrackerCount,
+    deleteRoundTracker,
     centerView,
     boardViewCenter,
     pingCell,
@@ -2217,6 +2222,12 @@ function MapCanvas({
         turnIndex={board.turnIndex}
         isGm={isGm}
         onSelectToken={(id) => setSelectedTokenId(id)}
+      />
+      <RoundTrackerStrip
+        trackers={boardRoundTrackers}
+        onCreate={createRoundTracker}
+        onSetCount={setRoundTrackerCount}
+        onDelete={deleteRoundTracker}
       />
       {tool === 'paint' && pickerOpen && (
         <TilePicker
@@ -4245,6 +4256,74 @@ function InitiativeStrip({
 }
 
 /**
+ * Personal round-duration countdowns (TODO.md "Round tracker for spell
+ * duration") — separate strip from InitiativeStrip above, same "list of
+ * small cards" shape but never shared with anyone else (see
+ * BoardRoundTracker's doc comment in shared/src/boardProtocol.ts): `trackers`
+ * here is ALWAYS just the viewer's own, GM included, no isGm distinction
+ * anywhere in this component. Available to every player, not gated behind
+ * combat being active — a duration can be tracked outside a fight too.
+ */
+function RoundTrackerStrip({
+  trackers,
+  onCreate,
+  onSetCount,
+  onDelete,
+}: {
+  trackers: BoardRoundTracker[];
+  onCreate: (label: string, startCount: number) => void;
+  onSetCount: (trackerId: number, count: number) => void;
+  onDelete: (trackerId: number) => void;
+}) {
+  const [newLabel, setNewLabel] = useState('');
+  const [newCount, setNewCount] = useState(3);
+  const addTracker = () => {
+    onCreate(newLabel.trim(), newCount);
+    setNewLabel('');
+    setNewCount(3);
+  };
+  return (
+    <div className="vtt-roundtracker-strip">
+      <div className="vtt-roundtracker-cards">
+        {trackers.length === 0 && <span className="muted">Keine eigenen Rundenzähler.</span>}
+        {trackers.map((t) => (
+          <div className="vtt-roundtracker-card" key={t.id}>
+            <span className="vtt-roundtracker-label" title={t.label || 'Rundenzähler'}>
+              {t.label || 'Rundenzähler'}
+            </span>
+            <button className="small" onClick={() => onSetCount(t.id, t.currentCount - 1)} title="Eine Runde weniger">
+              −
+            </button>
+            <span className="vtt-roundtracker-value">{t.currentCount}</span>
+            <button className="small" onClick={() => onSetCount(t.id, t.currentCount + 1)} title="Eine Runde mehr">
+              +
+            </button>
+            <button className="small vtt-context-menu-danger" onClick={() => onDelete(t.id)} title="Zähler löschen">
+              ✕
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="vtt-roundtracker-add">
+        <input
+          type="text"
+          placeholder="Neuer Zähler (z. B. Zauberdauer)"
+          value={newLabel}
+          onChange={(e) => setNewLabel(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') addTracker();
+          }}
+        />
+        <input type="number" className="vtt-roundtracker-start" value={newCount} onChange={(e) => setNewCount(Number(e.target.value))} title="Startwert" />
+        <button className="small" onClick={addTracker}>
+          + Zähler
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * The "Nächster Zug"/„Zug beenden"-Aktion, als schwebender Knopf über der
  * Karte statt im Streifen (developer's layout call) — position: absolute in
  * der (position: relative) .vtt-map-wrap, gleiche Technik wie .vtt-tool-badge
@@ -4323,6 +4402,7 @@ export default function VirtualTable() {
           JSON.parse(snap.board.fogJson || '[]'),
           snap.initiative,
           snap.images,
+          snap.roundTrackers,
         ),
       )
       .catch((e) => setError(e instanceof Error ? e.message : 'Fehler'));

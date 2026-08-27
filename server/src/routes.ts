@@ -31,7 +31,7 @@ import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chi
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
-import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, redactSnapshotForViewer } from './board.js';
+import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
 import { listRollableProbes } from './diceSource.js';
 import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
@@ -820,7 +820,13 @@ api.get('/groups/:id/board', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
-  res.json(redactSnapshotForViewer(loadBoardSnapshot(groupId), { userId: user.id, isGm: user.isGm }));
+  const snapshot = redactSnapshotForViewer(loadBoardSnapshot(groupId), { userId: user.id, isGm: user.isGm });
+  // Round trackers are fully private (see BoardRoundTracker's doc comment in
+  // shared/src/boardProtocol.ts) — never part of the shared/GM-redacted
+  // snapshot above, always just the caller's own rows, creatorUserId
+  // stripped same as the WS path's toWireRoundTracker.
+  const roundTrackers = loadRoundTrackers(snapshot.board.id, user.id).map((t) => ({ id: t.id, boardId: t.boardId, label: t.label, currentCount: t.currentCount }));
+  res.json({ ...snapshot, roundTrackers });
 });
 
 // Image upload for the virtual table (Phase 12, "Images on the table") —

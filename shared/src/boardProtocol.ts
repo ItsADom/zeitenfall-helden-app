@@ -96,6 +96,24 @@ export interface BoardInitiative {
   deathCountdown: number | null;
 }
 
+/**
+ * board_round_trackers row — a personal round-duration countdown (TODO.md
+ * "Round tracker for spell duration"), independent of the ordered
+ * board_initiative roster above. Fully private: never sent to any viewer but
+ * its own creator, GM included — so there is no ownerUserId on the wire at
+ * all, unlike BoardToken/BoardImage (a client only ever receives its own).
+ * Decrements by 1 (floored at 0, no auto-removal) at the same round-wrap
+ * point that rerolls initiative — see stepTurn in server/src/board.ts. The
+ * owner can also bump it up/down freely at any time (board.roundTracker.
+ * setCount), which covers recasting a spell to recharge its duration.
+ */
+export interface BoardRoundTracker {
+  id: number;
+  boardId: number;
+  label: string;
+  currentCount: number;
+}
+
 export type ImageModus = 'objekt' | 'hintergrund';
 
 /**
@@ -324,7 +342,16 @@ export type BoardClientMessage =
       imageId: number;
       patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>;
     }
-  | { type: 'board.image.delete'; reqId: string; imageId: number };
+  | { type: 'board.image.delete'; reqId: string; imageId: number }
+  // Round trackers (TODO.md "Round tracker for spell duration"). Available to
+  // everyone, not just the GM — same "socially self-regulating, no perm_*"
+  // shape as board.view.center, since this is personal record-keeping with
+  // no shared/GM visibility at all. `startCount`/`count` are absolute values
+  // (same idiom as board.initiative.setBasis's `basis`), so both the +1/-1
+  // buttons and a typed edit reuse the one setCount message.
+  | { type: 'board.roundTracker.create'; reqId: string; label: string; startCount: number }
+  | { type: 'board.roundTracker.setCount'; reqId: string; trackerId: number; count: number }
+  | { type: 'board.roundTracker.delete'; reqId: string; trackerId: number };
 
 export type BoardServerMessage =
   | { type: 'board.token.created'; token: BoardToken }
@@ -354,4 +381,13 @@ export type BoardServerMessage =
   | { type: 'board.cell.pinged'; x: number; y: number; by: string }
   | { type: 'board.image.created'; image: BoardImage }
   | { type: 'board.image.updated'; image: BoardImage }
-  | { type: 'board.image.deleted'; imageId: number };
+  | { type: 'board.image.deleted'; imageId: number }
+  /**
+   * The sender's own round trackers, whole-list-replace (same "always short,
+   * full state not a delta" shape as board.initiative.updated) — sent ONLY
+   * to the connections of the tracker owner, never broadcast, including the
+   * silent decrement every round-wrap triggers for everyone's trackers at
+   * once (see stepTurn in server/src/board.ts — each connected owner gets
+   * their own copy of this message, nobody else's).
+   */
+  | { type: 'board.roundTracker.updated'; trackers: BoardRoundTracker[] };

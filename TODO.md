@@ -37,27 +37,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   broadcast payload (`shared/src/boardProtocol.ts` `BoardOverlay`) so the
   client can track its own count too.
 
-- [ready] **Round tracker for spell duration etc.** (concept agreed): a
-  personal countdown, separate from the ordered initiative/turn list —
-  "really just some possibility to separately track different
-  round-sensitive data." The initiative system already separates *round*
-  from *turn*: `boards.round` (`server/src/db.ts:519-520`) increments only
-  when `nextTurn()` reports `wrapsRound` (`shared/src/board.ts:220`), inside
-  `advanceTurn()` (`server/src/board.ts:820`) — the exact hook point for this
-  feature, not per-combatant-turn. **Decided:** new `board_round_trackers`
-  table (board-scoped, one row per timer: `board_id`, `creator_user_id`,
-  `label`, `current_count`). Anyone (GM or player) can create one with a
-  label and a starting count. Decrements by 1 automatically at the
-  `advanceTurn()` round-wrap point, floors at 0 and stays visible there (no
-  auto-removal). Owner can freely bump the count up or down at any time
-  (covers recasting a spell to recharge its duration). **Decided: fully
-  private** — this is personal record-keeping, not shared table state, so a
-  tracker is never sent to any other viewer's connection, GM included (no
-  `hidden` flag, no per-viewer visibility logic needed at all — simpler than
-  first framed). Persisted in the DB (not localStorage) so it survives
-  refresh/reconnect. Multiple independent trackers per player, no cap
-  discussed/needed.
-
 - [ready] **Wound tracking / count-display on VTT tokens** (concept agreed):
   not the existing LE resource — a separate house-rule wound mechanic.
   Confirmed rule: damage that hits/exceeds the character's Wundschwelle

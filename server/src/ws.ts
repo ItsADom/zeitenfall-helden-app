@@ -8,6 +8,7 @@ import type {
   BoardImage,
   BoardInitiative,
   BoardOverlay,
+  BoardRoundTracker,
   BoardToken,
   CellCoord,
   ClientToServerMessage,
@@ -42,6 +43,7 @@ import {
   type BoardImageRow,
   type BoardInitiativeRow,
   type BoardOverlayRow,
+  type BoardRoundTrackerRow,
   type BoardRow,
   type BoardTokenRow,
   type BoardViewer,
@@ -49,9 +51,11 @@ import {
   advanceTurn as advanceBoardTurn,
   createImage as createBoardImage,
   createOverlay as createBoardOverlay,
+  createRoundTracker as createBoardRoundTracker,
   createToken as createBoardToken,
   deleteImage as deleteBoardImage,
   deleteOverlay as deleteBoardOverlay,
+  deleteRoundTracker as deleteBoardRoundTracker,
   deleteToken as deleteBoardToken,
   endCombat as endBoardCombat,
   fogSet,
@@ -62,6 +66,7 @@ import {
   labelVisibleTo,
   loadInitiative as loadBoardInitiative,
   loadOverlays as loadBoardOverlays,
+  loadRoundTrackers as loadBoardRoundTrackers,
   loadTokens as loadBoardTokens,
   moveToken as moveBoardToken,
   paintHighlights as paintBoardHighlights,
@@ -71,6 +76,7 @@ import {
   removeInitiativeEntry as removeBoardInitiativeEntry,
   setFog as setBoardFog,
   setInitiativeBasis as setBoardInitiativeBasis,
+  setRoundTrackerCount as setBoardRoundTrackerCount,
   startCombat as startBoardCombat,
   tokenVisibleTo,
   updateBoardSettings,
@@ -242,6 +248,11 @@ function toWireImage(row: BoardImageRow): BoardImage {
   };
 }
 
+/** No creatorUserId on the wire — a client only ever receives its OWN trackers (see BoardRoundTracker's doc comment). */
+function toWireRoundTracker(row: BoardRoundTrackerRow): BoardRoundTracker {
+  return { id: row.id, boardId: row.boardId, label: row.label, currentCount: row.currentCount };
+}
+
 function toWireInitiative(row: BoardInitiativeRow): BoardInitiative {
   return {
     id: row.id,
@@ -283,6 +294,19 @@ function broadcastInitiative(groupId: number, boardId: number): void {
       })
       .map(toWireInitiative),
   }));
+}
+
+/**
+ * A single user's own round trackers, whole-list-replace — sent ONLY to
+ * their own connections (sendToUserInGroup), never broadcast, since the
+ * table has no shared/GM visibility at all (see BoardRoundTracker's doc
+ * comment). Used both after that user's own create/setCount/delete, and
+ * from board.turn.next below for every connected owner at once when a round
+ * wrap silently decremented everybody's trackers server-side.
+ */
+function broadcastRoundTrackersToUser(groupId: number, boardId: number, userId: number): void {
+  const trackers = loadBoardRoundTrackers(boardId, userId).map(toWireRoundTracker);
+  sendToUserInGroup(groupId, userId, { type: 'board.roundTracker.updated', trackers });
 }
 
 // Every field checked for a non-finite coordinate — a hand-crafted WS message
@@ -2105,8 +2129,27 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung oder die aktuell Handelnde ist an der Reihe' });
         return;
       }
+      const roundBefore = board.round;
       advanceBoardTurn(board.id);
       broadcastInitiative(meta.groupId, board.id);
+      // A round wrap silently decremented EVERY connected user's round
+      // trackers server-side (stepTurn -> decrementRoundTrackers in
+      // board.ts) — each owner needs their own refreshed list, not just the
+      // caller who happened to advance the turn. Fully private, so this
+      // walks the room's connections directly rather than a single
+      // broadcast.
+      if (getOrCreateBoard(meta.groupId).round !== roundBefore) {
+        const room = rooms.get(meta.groupId);
+        if (room) {
+          const notified = new Set<number>();
+          for (const sock of room) {
+            const uid = socketMeta.get(sock)?.userId;
+            if (uid == null || notified.has(uid)) continue;
+            notified.add(uid);
+            broadcastRoundTrackersToUser(meta.groupId, board.id, uid);
+          }
+        }
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -2137,6 +2180,52 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // Ephemeral, same as board.view.center above — nothing written, same
       // broadcast reaches everyone including the sender.
       broadcastUngefiltert(meta.groupId, { type: 'board.cell.pinged', x, y, by: meta.displayName });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // Round trackers (TODO.md "Round tracker for spell duration"). Available
+    // to everyone, not just the GM — no perm_ setting or canManageInitiative gate at
+    // all, since a tracker is purely personal record-keeping (see
+    // BoardRoundTracker's doc comment in shared/src/boardProtocol.ts).
+    // create/setCount/delete all reply with the caller's OWN full list via
+    // broadcastRoundTrackersToUser rather than a per-item message — same
+    // "small list, full replace" shape as board.initiative.updated.
+    case 'board.roundTracker.create': {
+      const board = getOrCreateBoard(meta.groupId);
+      const label = typeof msg.label === 'string' ? msg.label.slice(0, 100) : '';
+      const startCount = Number(msg.startCount);
+      if (!Number.isFinite(startCount)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Startwert' });
+        return;
+      }
+      createBoardRoundTracker(board.id, meta.userId, label, Math.round(startCount));
+      broadcastRoundTrackersToUser(meta.groupId, board.id, meta.userId);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.roundTracker.setCount': {
+      const board = getOrCreateBoard(meta.groupId);
+      const count = Number(msg.count);
+      if (!Number.isFinite(count)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Wert' });
+        return;
+      }
+      const tracker = setBoardRoundTrackerCount(Number(msg.trackerId), meta.userId, Math.round(count));
+      if (!tracker) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Zähler nicht gefunden' });
+        return;
+      }
+      broadcastRoundTrackersToUser(meta.groupId, board.id, meta.userId);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'board.roundTracker.delete': {
+      const board = getOrCreateBoard(meta.groupId);
+      if (!deleteBoardRoundTracker(Number(msg.trackerId), meta.userId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Zähler nicht gefunden' });
+        return;
+      }
+      broadcastRoundTrackersToUser(meta.groupId, board.id, meta.userId);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

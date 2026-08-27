@@ -611,6 +611,23 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_board_initiative_board_id ON board_initiative(board_id);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_board_initiative_token ON board_initiative(token_id);
+
+  -- Personal round-duration countdowns (TODO.md "Round tracker for spell
+  -- duration"), separate from the ordered board_initiative roster above.
+  -- Fully private — never sent to any viewer but creator_user_id itself, GM
+  -- included — so there is no owner-bypass/redaction logic anywhere for this
+  -- table, unlike every other board_* row. Decrements by 1 (floored at 0, no
+  -- auto-removal) at the same round-wrap point that rerolls initiative, see
+  -- stepTurn in server/src/board.ts. current_count can also be bumped freely
+  -- by its owner at any time (e.g. recasting a spell recharges its duration).
+  CREATE TABLE IF NOT EXISTS board_round_trackers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+    creator_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    label TEXT NOT NULL DEFAULT '',
+    current_count INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_board_round_trackers_board_id ON board_round_trackers(board_id);
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).

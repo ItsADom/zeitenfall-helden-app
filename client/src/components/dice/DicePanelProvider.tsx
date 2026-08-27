@@ -10,7 +10,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import type { BoardImage, BoardInitiative, BoardOverlay, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
@@ -324,7 +324,9 @@ interface DicePanelCtxValue {
   boardImages: BoardImage[];
   /** The initiative roster (board_initiative), already redacted for hidden/fogged tokens by the server. Sorted by the caller (initiativeOrder), not here. */
   boardInitiative: BoardInitiative[];
-  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog/boardInitiative einmalig. */
+  /** The caller's OWN round trackers only (board_round_trackers) — fully private, see BoardRoundTracker's doc comment in shared/src/boardProtocol.ts. Never filtered/redacted client-side because the server never sends anyone else's. */
+  boardRoundTrackers: BoardRoundTracker[];
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog/boardInitiative/boardRoundTrackers einmalig. */
   hydrateBoard: (
     board: BoardSettings,
     tokens: BoardToken[],
@@ -334,6 +336,7 @@ interface DicePanelCtxValue {
     fog: string[],
     initiative: BoardInitiative[],
     images: BoardImage[],
+    roundTrackers: BoardRoundTracker[],
   ) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
@@ -387,6 +390,11 @@ interface DicePanelCtxValue {
   endCombat: () => void;
   /** GM or the current combatant's own owner. Past the last combatant this bumps the round and rerolls everyone instead of just moving the pointer. */
   nextTurn: () => void;
+  /** Available to everyone — no perm_ setting or GM gate, purely personal record-keeping. */
+  createRoundTracker: (label: string, startCount: number) => void;
+  /** Owner-only server-side; `count` is absolute, same idiom as setInitiativeBasis — covers both the +1/-1 buttons and a typed edit. */
+  setRoundTrackerCount: (trackerId: number, count: number) => void;
+  deleteRoundTracker: (trackerId: number) => void;
   /** Latest "center all on my view" broadcast (Phase 11) — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat of the same view. */
   boardViewCenter: { x: number; y: number; zoom: number; by: string; seq: number } | null;
   /** Available to everyone, not just the GM — broadcasts the caller's own camera; every viewer, sender included, eases to it and shows the same toast. */
@@ -466,6 +474,7 @@ export function useDicePanel(): DicePanelCtxValue {
       boardOverlays: [],
       boardFog: new Set<string>(),
       boardInitiative: [],
+      boardRoundTrackers: [],
       hydrateBoard: () => {},
       createToken: () => {},
       updateToken: () => {},
@@ -484,6 +493,9 @@ export function useDicePanel(): DicePanelCtxValue {
       startCombat: () => {},
       endCombat: () => {},
       nextTurn: () => {},
+      createRoundTracker: () => {},
+      setRoundTrackerCount: () => {},
+      deleteRoundTracker: () => {},
       boardViewCenter: null,
       centerView: () => {},
       boardCellPing: null,
@@ -542,6 +554,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
   const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
   const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
+  const [boardRoundTrackers, setBoardRoundTrackers] = useState<BoardRoundTracker[]>([]);
   /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
   const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
   const boardViewCenterSeqRef = useRef(0);
@@ -957,6 +970,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setBoardSettings((prev) => (prev ? { ...prev, round: msg.round, turnIndex: msg.turnIndex } : prev));
         return;
       }
+      if (msg.type === 'board.roundTracker.updated') {
+        // Always this connection's own trackers — the server never sends
+        // anyone else's (see BoardRoundTracker's doc comment) — so a plain
+        // replace is correct even for the silent per-round-wrap decrement.
+        setBoardRoundTrackers(msg.trackers);
+        return;
+      }
       if (msg.type === 'board.view.centered') {
         boardViewCenterSeqRef.current += 1;
         setBoardViewCenter({ x: msg.x, y: msg.y, zoom: msg.zoom, by: msg.by, seq: boardViewCenterSeqRef.current });
@@ -1354,6 +1374,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       fog: string[],
       initiative: BoardInitiative[],
       images: BoardImage[],
+      roundTrackers: BoardRoundTracker[],
     ) => {
       setBoardSettings(board);
       setBoardTokens(tokens);
@@ -1363,6 +1384,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardFog(new Set(fog));
       setBoardInitiative(initiative);
       setBoardImages(images);
+      setBoardRoundTrackers(roundTrackers);
     },
     [],
   );
@@ -1506,6 +1528,24 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const nextTurnAction = useCallback(() => {
     sendMsg({ type: 'board.turn.next', reqId: crypto.randomUUID() });
   }, [sendMsg]);
+  const createRoundTrackerAction = useCallback(
+    (label: string, startCount: number) => {
+      sendMsg({ type: 'board.roundTracker.create', reqId: crypto.randomUUID(), label, startCount });
+    },
+    [sendMsg],
+  );
+  const setRoundTrackerCountAction = useCallback(
+    (trackerId: number, count: number) => {
+      sendMsg({ type: 'board.roundTracker.setCount', reqId: crypto.randomUUID(), trackerId, count });
+    },
+    [sendMsg],
+  );
+  const deleteRoundTrackerAction = useCallback(
+    (trackerId: number) => {
+      sendMsg({ type: 'board.roundTracker.delete', reqId: crypto.randomUUID(), trackerId });
+    },
+    [sendMsg],
+  );
   const centerViewAction = useCallback(
     (x: number, y: number, zoom: number) => {
       sendMsg({ type: 'board.view.center', reqId: crypto.randomUUID(), x, y, zoom });
@@ -1581,6 +1621,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardOverlays,
         boardFog,
         boardInitiative,
+        boardRoundTrackers,
         boardImages,
         hydrateBoard,
         createToken,
@@ -1600,6 +1641,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         startCombat: startCombatAction,
         endCombat: endCombatAction,
         nextTurn: nextTurnAction,
+        createRoundTracker: createRoundTrackerAction,
+        setRoundTrackerCount: setRoundTrackerCountAction,
+        deleteRoundTracker: deleteRoundTrackerAction,
         boardViewCenter,
         centerView: centerViewAction,
         boardCellPing,

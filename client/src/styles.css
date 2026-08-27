@@ -6607,6 +6607,59 @@ input.vtt-initiative-value {
   color: var(--crit-line);
   font-weight: 700;
 }
+/* Personal round-duration countdowns (TODO.md "Round tracker for spell
+   duration") — own strip below InitiativeStrip, same "row of small cards"
+   idiom but always just the viewer's own (fully private, no isGm case). */
+.vtt-roundtracker-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border-strong);
+  font-size: 12.5px;
+  flex-wrap: wrap;
+}
+.vtt-roundtracker-cards {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.vtt-roundtracker-card {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-panel);
+  background: var(--surface-sunken);
+  white-space: nowrap;
+}
+.vtt-roundtracker-label {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vtt-roundtracker-value {
+  min-width: 20px;
+  text-align: center;
+  font-weight: 700;
+}
+.vtt-roundtracker-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.vtt-roundtracker-add input[type='text'] {
+  width: 180px;
+}
+.vtt-roundtracker-start {
+  width: 48px;
+  text-align: center;
+}
 /* Schwebender Knopf ÜBER der Karte statt im Streifen (developer's Layout-
    Entscheidung) — position: absolute in der (position: relative)
    .vtt-map-wrap, gleiche Technik wie .vtt-tool-badge daneben. */
