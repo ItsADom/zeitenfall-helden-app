@@ -85,6 +85,8 @@ export const REQUEST = {
   forceHint: 'Würfelt sofort für die abwesende Person — der Eintrag ist als erzwungen markiert',
   /** Kopf der Gruppen-Sammelanfrage-Karte, bei der Spielleitung. */
   groupTitle: (label: string): string => `Gruppenprobe: ${label}`,
+  /** Dieselbe Karte, bei jedem angefragten Mitglied. */
+  groupTitleFor: (gmName: string, label: string): string => `Gruppenprobe von ${gmName}: ${label}`,
   /** Gruppen-Sammelanfrage: deckt sofort auf, was schon da ist, statt weiter zu warten. */
   groupReveal: 'Jetzt auflösen',
   groupRevealHint: 'Deckt die Ergebnisse jetzt auf — wer noch nicht geantwortet hat, fällt aus der Anfrage',

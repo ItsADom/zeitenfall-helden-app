@@ -579,6 +579,15 @@ function resolveOwnCharacter(
 // aufgedeckt, nie geantwortet) wird stillschweigend übersprungen — bei
 // NIEMANDEM etwas Zurückgehaltenem (reines Verwerfen) bleibt auch die
 // Kopfzeile weg.
+// Statusänderung eines Mitglieds — an ALLE Beteiligten, nicht nur die
+// Spielleitung, damit auch Spieler die Sammelkarte live mitverfolgen können
+// (siehe TODO: „Group checks: give players the same per-member status view").
+function broadcastGroupMember(request: GroupRollRequest, charId: number, status: 'rolled' | 'passed'): void {
+  for (const uid of [request.gmUserId, ...request.members.map((m) => m.userId)]) {
+    sendToUserInGroup(request.groupId, uid, { type: 'roll.group.member', requestId: request.id, charId, status });
+  }
+}
+
 function revealGroupResults(request: GroupRollRequest, order: number[], held: Map<number, HeldResult>): void {
   if (held.size > 0) {
     insertFeedMessage(
@@ -911,14 +920,17 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         members: members.map(({ userId, charId, charName }) => ({ userId, charId, charName })),
         onExpire: ({ request, order, held }) => revealGroupResults(request, order, held),
       });
-      // Eine einzelne Karte für die Spielleitung (roll.group.created), mit der
-      // ganzen Mitgliederliste — statt eines eigenen roll.pending.created je
-      // Mitglied, das sonst bei jedem Mitglied einzeln aufgeräumt werden
-      // müsste. Jedes Mitglied bekommt trotzdem sein eigenes GEWÖHNLICHES
-      // roll.pending.created (nur an sich selbst) — die Spieler-Oberfläche
-      // (PendingRequestCard, acceptRequest/declineRequest) braucht dafür keine
-      // Änderung.
-      sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.created', request: group });
+      // Dieselbe Sammelkarte (roll.group.created) an ALLE Beteiligten — die
+      // Spielleitung UND jedes Mitglied, mit der ganzen Mitgliederliste, damit
+      // auch Spieler sehen, wer sonst noch gefragt ist und wer schon
+      // geantwortet hat (nicht nur die Spielleitung). Jedes Mitglied bekommt
+      // trotzdem zusätzlich sein eigenes GEWÖHNLICHES roll.pending.created (nur
+      // an sich selbst) — die Spieler-Oberfläche (PendingRequestCard,
+      // acceptRequest/declineRequest) läuft unverändert darüber, die Sammelkarte
+      // ist nur zusätzliche Übersicht (siehe GroupRequestCard's Rollen-Zweig).
+      for (const uid of [meta.userId, ...members.map((m) => m.userId)]) {
+        sendToUserInGroup(meta.groupId, uid, { type: 'roll.group.created', request: group });
+      }
       const groupModifier = clampModifierOrUndefined(msg.modifier);
       for (const m of members) {
         const sub = createPendingRequest({
@@ -1199,14 +1211,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           author: resolveAuthor(meta, request.targetCharId),
           roll,
         });
-        if (groupReq) {
-          sendToUserInGroup(meta.groupId, groupReq.gmUserId, {
-            type: 'roll.group.member',
-            requestId: groupReq.id,
-            charId: request.targetCharId,
-            status: 'rolled',
-          });
-        }
+        if (groupReq) broadcastGroupMember(groupReq, request.targetCharId, 'rolled');
         if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
       } else {
         insertFeedRoll(meta.groupId, resolveAuthor(meta, request.targetCharId), request.gmUserId, 'gm_player', roll);
@@ -1273,14 +1278,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (request.groupRequestId) {
         const groupReq = getGroupRollRequest(request.groupRequestId);
         const done = holdGroupResult(request.groupRequestId, request.targetCharId, { kind: 'roll', author, roll });
-        if (groupReq) {
-          sendToUserInGroup(meta.groupId, groupReq.gmUserId, {
-            type: 'roll.group.member',
-            requestId: groupReq.id,
-            charId: request.targetCharId,
-            status: 'rolled',
-          });
-        }
+        if (groupReq) broadcastGroupMember(groupReq, request.targetCharId, 'rolled');
         if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
       } else {
         insertFeedRoll(meta.groupId, author, request.gmUserId, 'gm_player', roll);
@@ -1304,14 +1302,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           kind: 'passed',
           author: resolveAuthor(meta, request.targetCharId),
         });
-        if (groupReq) {
-          sendToUserInGroup(meta.groupId, groupReq.gmUserId, {
-            type: 'roll.group.member',
-            requestId: groupReq.id,
-            charId: request.targetCharId,
-            status: 'passed',
-          });
-        }
+        if (groupReq) broadcastGroupMember(groupReq, request.targetCharId, 'passed');
         if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
       }
       sendToUserInGroup(request.groupId, request.targetUserId, { type: 'roll.pending.declined', requestId: request.id });

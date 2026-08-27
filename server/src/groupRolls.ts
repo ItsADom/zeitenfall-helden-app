@@ -75,9 +75,15 @@ export function getGroupRollRequest(id: string): GroupRollRequest | undefined {
   return groups.get(id)?.request;
 }
 
-/** Offene Sammelanfragen dieser Spielleitung — beim (Wieder-)Verbinden nachgereicht. */
-export function groupRollRequestsFor(groupId: number, gmUserId: number): GroupRollRequest[] {
-  return [...groups.values()].map((s) => s.request).filter((r) => r.groupId === groupId && r.gmUserId === gmUserId);
+/**
+ * Offene Sammelanfragen, an denen dieser Nutzer beteiligt ist (als
+ * Spielleitung ODER als angefragtes Mitglied) — beim (Wieder-)Verbinden
+ * nachgereicht. Vor „players see the roster too" nur die Spielleitung.
+ */
+export function groupRollRequestsFor(groupId: number, userId: number): GroupRollRequest[] {
+  return [...groups.values()]
+    .map((s) => s.request)
+    .filter((r) => r.groupId === groupId && (r.gmUserId === userId || r.members.some((m) => m.userId === userId)));
 }
 
 /**

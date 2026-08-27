@@ -786,7 +786,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'roll.group.created') {
         setGroupRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        meldeDringend(msg.request.id, msg.request.gmUserId === meineUserIdRef.current);
+        // Geht jetzt an alle Mitglieder, nicht mehr nur an die anfragende
+        // Spielleitung (siehe ws.ts) — ein angefragtes Mitglied bekommt aber
+        // ohnehin schon sein eigenes dringendes roll.pending.created für den
+        // eigenen Zweig; ohne diese Prüfung würde es hier zusätzlich klingeln.
+        const alreadyDringend =
+          msg.request.gmUserId === meineUserIdRef.current || msg.request.members.some((m) => m.userId === meineUserIdRef.current);
+        meldeDringend(msg.request.id, alreadyDringend);
         return;
       }
       if (msg.type === 'roll.group.member') {
