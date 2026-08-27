@@ -784,8 +784,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Wurf nicht gefunden' });
         return;
       }
-      // Nur der Werfer selbst bestätigt — auch die Spielleitung nicht.
-      if (loaded.entry.authorUserId !== meta.userId) {
+      // Nur der Werfer selbst bestätigt — AUSSER die Spielleitung hat den
+      // Wurf selbst erzwungen (roll.pending.force, AFK-Spieler): dann war die
+      // angefragte Person ohnehin nie da, um zu bestätigen, also darf die
+      // Spielleitung es an ihrer Stelle tun.
+      if (loaded.entry.authorUserId !== meta.userId && !(meta.isGm && loaded.entry.roll.mode === 'probe' && loaded.entry.roll.forcedByGm)) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur der Werfer kann bestätigen' });
         return;
       }

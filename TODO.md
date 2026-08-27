@@ -103,6 +103,24 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
+- [ready] **Two bug fixes built, need a live check** (2026-08-27, not yet
+  browser-verified this session — skipped on request, so still needs
+  someone actually clicking through it):
+  - Chat font size setting silently did nothing for roll/check entries
+    (`.feed-roll-head`/`.feed-roll-body` in `client/src/styles.css` hardcoded
+    `font-size: 13px`, ignoring the `--feed-font-size` variable the
+    Einstellungen dropdown sets) — plain messages scaled, checks didn't. Now
+    reads the same variable.
+  - GM couldn't confirm a pending Bestätigungswurf (natural 1/20) on a check
+    they force-rolled for an AFK player (`roll.pending.force`) — server
+    (`server/src/ws.ts`'s `roll.confirm`) rejected anyone but the original
+    roller, and the client hid the confirm/skip buttons from the GM too. Both
+    now allow the GM specifically when `roll.forcedByGm` is set (the player
+    can still confirm it themselves too if they come back).
+  - Needs: force-roll a check for an AFK player until it lands on a natural
+    1/20, confirm as the GM; check the four chat-font-size steps against a
+    roll entry, not just a plain message.
+
 - [ready] **Group member portraits: clickable/enlargeable, and show the
   uncropped original on enlarge** (two related fixes, concept agreed):
   - `CharacterCard.tsx`'s portrait `<img>` (used on the group page's member

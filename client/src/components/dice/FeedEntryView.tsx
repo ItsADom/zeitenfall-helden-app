@@ -135,6 +135,11 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
   const { roll } = entry;
   const isProbe = roll.mode === 'probe';
   const mine = entry.authorUserId === user.id;
+  // Ein erzwungener Wurf (siehe ForcedTag/roll.pending.force) hat nie einen
+  // wartenden Werfer, der bestätigen könnte — die Spielleitung darf hier
+  // einspringen (server erlaubt es serverseitig genauso, siehe roll.confirm
+  // in ws.ts).
+  const canConfirm = mine || (user.isGm && isProbe && !!roll.forcedByGm);
   // Solange Bestätigungen offen sind, steht das Ergebnis bewusst noch nicht
   // fest — eine ausstehende 20 könnte den Wurf ohnehin zum Patzer machen.
   const outcome = !roll.resolved
@@ -228,7 +233,7 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
         {!isProbe && roll.outcomeLabel && <span className="feed-roll-outcome">{roll.outcomeLabel}</span>}
       </div>
       <Confirmations confirmations={roll.confirmations} />
-      <PendingConfirmations entryId={entry.id} pending={roll.pending} mine={mine} />
+      <PendingConfirmations entryId={entry.id} pending={roll.pending} mine={canConfirm} />
     </div>
   );
 }

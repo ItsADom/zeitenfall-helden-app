@@ -4737,7 +4737,7 @@ body.resizing-dice {
   align-items: baseline;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 13px;
+  font-size: var(--feed-font-size, 13px);
 }
 .feed-roll-title {
   color: var(--muted);
@@ -4768,7 +4768,7 @@ body.resizing-dice {
   flex-wrap: wrap;
   gap: 6px;
   margin-top: 3px;
-  font-size: 13px;
+  font-size: var(--feed-font-size, 13px);
 }
 .feed-dice {
   display: inline-flex;
