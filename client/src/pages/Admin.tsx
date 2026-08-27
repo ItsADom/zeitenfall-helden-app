@@ -1042,9 +1042,10 @@ export default function AdminPage() {
                 {sec.rows.map((c) => (
               <tr key={c.id}>
                 <td>
-                  {/* Nur die Spielleitung darf den Bogen öffnen; für reine Admins
-                      ist der Name Text (kein Zugriff auf Charakterdaten). */}
-                  {me.isGm ? <Link to={`/charakter/${c.id}`}>{c.name}</Link> : c.name}
+                  {/* Spielleitung UND Verwaltung dürfen den Bogen öffnen — die
+                      Verwaltung landet dort read-only in der Einsicht-Sicht
+                      (access: 'inspect', ohne SL-Notizen), nie in „Bearbeiten". */}
+                  <Link to={`/charakter/${c.id}`}>{c.name}</Link>
                 </td>
                 <td>
                   <select value={c.owner_user_id} onChange={(e) => run(() => apiPut(`/api/characters/${c.id}`, { ownerUserId: Number(e.target.value) }))}>

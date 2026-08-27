@@ -186,7 +186,7 @@ export default function CharacterPage() {
   }
 
   // Kein Zugriff — nur im Ansehen-als-Modus erreichbar (sonst liefert der Server 404).
-  if (access !== 'edit' || !data) {
+  if ((access !== 'edit' && access !== 'inspect') || !data) {
     return (
       <>
         {viewAsBar}
@@ -195,6 +195,7 @@ export default function CharacterPage() {
       </>
     );
   }
+  const inspecting = access === 'inspect';
 
   const tabs = data.tabs;
   const setTabs = (fn: (t: DynTab[]) => DynTab[]) => setData((prev) => (prev ? { ...prev, tabs: fn(prev.tabs) } : prev));
@@ -275,15 +276,22 @@ export default function CharacterPage() {
   return (
     <CharCtx.Provider value={{ charId, data, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data.tableWidths ?? {}} save={saveTableWidths}>
-      <DisplayModeProvider mode={editing ? 'edit' : 'readonly'}>
+      <DisplayModeProvider mode={inspecting ? 'inspect' : editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
         {viewAsBar}
+        {inspecting && (
+          <div className="viewas-bar">
+            <span className="viewas-tag">VERWALTUNG</span>
+            <span className="muted">Einsicht — nur lesend, wie der Bogen für Besitzer/in aussieht.</span>
+          </div>
+        )}
         <div className="char-header" ref={charHeadRef}>
           {nameDraft === null ?
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
               <h1>{info.name}</h1>
-              {/* Im Ansehen-als-Modus bewusst ausgeblendet: die Vorschau ist rein lesend. */}
-              {!viewAs && editing && (
+              {/* Im Ansehen-als-Modus UND in der Verwaltungs-Einsicht bewusst
+                  ausgeblendet: beides ist rein lesend. */}
+              {!viewAs && !inspecting && editing && (
                 <button className="small" onClick={() => setNameDraft(info.name)} title="Namen ändern" aria-label="Namen ändern">
                   ✏️
                 </button>
@@ -317,9 +325,10 @@ export default function CharacterPage() {
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>
-          {/* Im Ansehen-als-Modus gibt es nichts zu bearbeiten — die Vorschau
-              ist rein lesend, ein Bearbeiten-Knopf wäre dort eine Falle. */}
-          {!viewAs && (
+          {/* Im Ansehen-als-Modus UND in der Verwaltungs-Einsicht gibt es
+              nichts zu bearbeiten — ein Bearbeiten-Knopf wäre dort eine Falle
+              (die Verwaltung hat serverseitig ohnehin keine Schreibrechte). */}
+          {!viewAs && !inspecting && (
             <button
               className={editing ? 'btn-action' : 'primary'}
               onClick={() => {

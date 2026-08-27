@@ -103,20 +103,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Admin inspect-only route** (concept agreed): the admin/GM role
-  split already exists end-to-end — `SessionUser.isAdmin`, `requireAdmin`/
-  `requireGmOrAdmin` (`server/src/auth.ts:5-11,108,119`), with an explicit
-  design comment that an admin "manages accounts but doesn't see character
-  sheets" (`auth.ts:105-107`). **Decided:** extend this so an admin *can*
-  inspect a character — full sheet, read-only, but at the same level a
-  normal player/owner would see (no GM-only notes/hidden content — admin
-  stays genuinely separate from GM). Follows the existing `characterAccess()`
-  tier pattern (`server/src/routes.ts:176-177`, today `'edit' | 'summary' |
-  null`) — add an inspect-style read-only tier rather than inventing a new
-  permission model. **Decided:** also make the character list on the
-  admin/management page (`Admin.tsx`) directly clickable into a character —
-  build together with the route, since it's the natural entry point.
-
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;

@@ -235,6 +235,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
     admin: [
       '(Spielleiter) Zauber & Fähigkeiten eines Charakters lassen sich jetzt direkt aus der Gruppenübersicht nachschlagen (🔍), ohne dessen Bogen zu öffnen.',
+      '(Verwaltung) Die Charakterliste in Kataloge & Nutzer ist jetzt anklickbar — die Verwaltung sieht den vollen Bogen (read-only, ohne Spielleitungs-Notizen), ohne auf die Spielleitung angewiesen zu sein.',
     ],
   },
   {

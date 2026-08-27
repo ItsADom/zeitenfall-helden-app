@@ -173,10 +173,19 @@ export function isRoomMember(userId: number, groupId: number): boolean {
   return isGroupMember(userId, groupId) || isTempGroupMember(userId, groupId);
 }
 
-type Access = 'edit' | 'summary' | null;
+// 'inspect': die Verwaltung (Admin) darf einen Bogen ansehen — vollständig,
+// aber read-only und ohne jede GM-Sonderrolle (siehe auth.ts: ein Admin
+// verwaltet Zugänge, ist aber ausdrücklich NICHT die Spielleitung). Anders als
+// 'summary' (nur die vom Besitzer freigegebenen Bereiche) zeigt 'inspect'
+// denselben vollen Bogen wie 'edit' — der Unterschied ist rein clientseitig
+// (kein Bearbeiten-Knopf, DisplayMode 'inspect' statt 'readonly'/'edit'); jeder
+// Schreib-Endpunkt prüft weiterhin explizit auf `=== 'edit'`, das schließt
+// 'inspect' automatisch aus, ohne dass ein einziger davon angefasst werden muss.
+type Access = 'edit' | 'summary' | 'inspect' | null;
 
-function characterAccess(user: { id: number; isGm: boolean }, char: CharRow): Access {
+function characterAccess(user: { id: number; isGm: boolean; isAdmin?: boolean }, char: CharRow): Access {
   if (user.isGm || char.owner_user_id === user.id) return 'edit';
+  if (user.isAdmin) return 'inspect';
   // Gruppenlose Charaktere (group_id NULL) sind für Nicht-Besitzer unsichtbar.
   if (char.group_id != null && isGroupMember(user.id, char.group_id)) return 'summary';
   return null;
@@ -206,15 +215,19 @@ function userInfo(u: SessionUser): UserInfo {
 
 // Ermittelt den „Blickwinkel"-Nutzer für einen Request: normal req.user, im
 // Ansehen-als-Modus (nur Spielleiter, nur wenn erlaubt) der gewählte Nutzer.
-function viewerFor(req: import('express').Request): { viewer: { id: number; isGm: boolean }; viewAs: { id: number; name: string } | null } {
+function viewerFor(
+  req: import('express').Request,
+): { viewer: { id: number; isGm: boolean; isAdmin?: boolean }; viewAs: { id: number; name: string } | null } {
   const asUserId = Number(req.query.asUser);
   if (DEV_VIEW_AS && req.user!.isGm && asUserId && asUserId !== req.user!.id) {
     const target = db.prepare('SELECT id, display_name, is_gm FROM users WHERE id = ?').get(asUserId) as
       | { id: number; display_name: string; is_gm: number }
       | undefined;
-    if (target) return { viewer: { id: target.id, isGm: !!target.is_gm }, viewAs: { id: target.id, name: target.display_name } };
+    // Die Vorschau simuliert immer eine gewöhnliche Spielersicht — nie mit
+    // Verwaltungsrechten, unabhängig davon, ob das Zielkonto zufällig Admin ist.
+    if (target) return { viewer: { id: target.id, isGm: !!target.is_gm, isAdmin: false }, viewAs: { id: target.id, name: target.display_name } };
   }
-  return { viewer: { id: req.user!.id, isGm: req.user!.isGm }, viewAs: null };
+  return { viewer: { id: req.user!.id, isGm: req.user!.isGm, isAdmin: req.user!.isAdmin }, viewAs: null };
 }
 
 const SECTION_IDS = new Set(['bio', 'meta', 'attributes', 'baseValues', 'resources', 'special', 'attrExtern', 'talents', 'languages', ...LIST_SECTION_IDS]);

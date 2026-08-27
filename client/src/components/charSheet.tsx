@@ -149,7 +149,7 @@ interface CharCtxValue {
 const CharCtx = createContext<CharCtxValue | null>(null);
 export const useChar = () => useContext(CharCtx)!;
 
-type Access = 'edit' | 'summary' | null;
+type Access = 'edit' | 'summary' | 'inspect' | null;
 
 // Der volle Ladezustand, inklusive dem, was nur die Seite selbst braucht
 // (info/access/summary für die Nicht-„edit"-Ansichten, loading/error für den
