@@ -53,6 +53,7 @@ import {
   createOverlay as createBoardOverlay,
   createRoundTracker as createBoardRoundTracker,
   createToken as createBoardToken,
+  countOverlaysByOwner as countBoardOverlaysByOwner,
   deleteImage as deleteBoardImage,
   deleteOverlay as deleteBoardOverlay,
   deleteRoundTracker as deleteBoardRoundTracker,
@@ -226,10 +227,13 @@ function toWireToken(row: BoardTokenRow): BoardToken {
 // it from validated fields, never from an unchecked client payload.
 function toWireOverlay(row: BoardOverlayRow): BoardOverlay {
   if (row.kind === 'measure') {
-    return { id: row.id, boardId: row.boardId, kind: 'measure', data: row.data as MeasureOverlayData, hidden: row.hidden };
+    return { id: row.id, boardId: row.boardId, kind: 'measure', data: row.data as MeasureOverlayData, hidden: row.hidden, ownerUserId: row.ownerUserId };
   }
-  return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as LabelOverlayData, hidden: row.hidden };
+  return { id: row.id, boardId: row.boardId, kind: 'label', data: row.data as LabelOverlayData, hidden: row.hidden, ownerUserId: row.ownerUserId };
 }
+
+/** "Limit active measure shapes per player" in TODO.md — one global cap across all shape kinds, GM exempt. */
+const MEASURE_OVERLAY_CAP = 3;
 
 function toWireImage(row: BoardImageRow): BoardImage {
   return {
@@ -1761,7 +1765,19 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültige Messform' });
           return;
         }
-        const overlay = createBoardOverlay(board.id, 'measure', data);
+        // Cap active measure shapes per player at MEASURE_OVERLAY_CAP (see
+        // "Limit active measure shapes per player" in TODO.md) — one global
+        // count across all shape kinds, not per-kind. GM exempt/unlimited,
+        // same "GM isn't bound by a player-facing limit" shape as everything
+        // else hard-coded to isGm rather than a perm_*. Deleting an existing
+        // shape stays unrestricted (board.overlay.delete below has no
+        // ownership gate), so a capped player can always free a slot
+        // themselves rather than being stuck.
+        if (!meta.isGm && countBoardOverlaysByOwner(board.id, meta.userId) >= MEASURE_OVERLAY_CAP) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: `Maximum von ${MEASURE_OVERLAY_CAP} Formen erreicht` });
+          return;
+        }
+        const overlay = createBoardOverlay(board.id, 'measure', data, meta.userId);
         broadcastUngefiltert(meta.groupId, { type: 'board.overlay.created', overlay: toWireOverlay(overlay) });
         send(ws, { type: 'ack', reqId: msg.reqId });
         return;

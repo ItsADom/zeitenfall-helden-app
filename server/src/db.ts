@@ -560,7 +560,12 @@ db.exec(`
     board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
     kind TEXT NOT NULL,                    -- 'label' | 'measure'
     data_json TEXT NOT NULL DEFAULT '{}',  -- Text/Anker, oder Form+Ursprung+Radius
-    hidden INTEGER NOT NULL DEFAULT 0
+    hidden INTEGER NOT NULL DEFAULT 0,
+    -- Wer's angelegt hat — NULL für jede vor dieser Spalte entstandene Zeile
+    -- (unbekannt, zählt für niemandes Kappung mit) und für 'label' immer NULL
+    -- (nur 'measure' zählt gegen das Limit, siehe "Limit active measure shapes
+    -- per player" in TODO.md). Gleiches Muster wie board_tokens.owner_user_id.
+    owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
   );
   CREATE INDEX IF NOT EXISTS idx_board_overlays_board_id ON board_overlays(board_id);
 
@@ -1285,6 +1290,16 @@ db.exec('DROP TABLE IF EXISTS group_members');
   // ein neutraler Rückfall für jede bereits bestehende Marke, kein Nachrechnen
   // nötig.
   if (!cols.has('rotation')) db.exec('ALTER TABLE board_tokens ADD COLUMN rotation REAL NOT NULL DEFAULT 0');
+}
+
+// Migration: 'owner_user_id' an bestehende board_overlays ergänzen ("Limit
+// active measure shapes per player" in TODO.md). NULL für jede schon
+// bestehende Zeile ist der richtige Rückfall, kein Nachrechnen möglich (wer's
+// angelegt hat, ist nirgends sonst gespeichert) — zählt einfach für niemandes
+// Kappung mit, genau wie ein Wert, den der Server künftig nicht kennt.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(board_overlays)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('owner_user_id')) db.exec('ALTER TABLE board_overlays ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
 }
 
 // Migration: board_initiative auf das Zeiger-Design umgestellt (rolled/done

@@ -407,27 +407,49 @@ export interface BoardOverlayRow {
   kind: string;
   data: unknown;
   hidden: boolean;
+  /** Who created it — null for a 'label' (never counted) and for any row from before this column existed (see the migration comment in db.ts). Only 'measure' rows ever get one, see createOverlay. */
+  ownerUserId: number | null;
+}
+
+const OVERLAY_COLS = `id, board_id AS boardId, kind, data_json AS dataJson, hidden, owner_user_id AS ownerUserId`;
+
+function toOverlay(r: { id: number; boardId: number; kind: string; dataJson: string; hidden: number; ownerUserId: number | null }): BoardOverlayRow {
+  return { id: r.id, boardId: r.boardId, kind: r.kind, data: JSON.parse(r.dataJson || '{}'), hidden: !!r.hidden, ownerUserId: r.ownerUserId };
 }
 
 export function loadOverlays(boardId: number): BoardOverlayRow[] {
-  const rows = db
-    .prepare(`SELECT id, board_id AS boardId, kind, data_json AS dataJson, hidden FROM board_overlays WHERE board_id = ?`)
-    .all(boardId) as { id: number; boardId: number; kind: string; dataJson: string; hidden: number }[];
-  return rows.map((r) => ({ id: r.id, boardId: r.boardId, kind: r.kind, data: JSON.parse(r.dataJson || '{}'), hidden: !!r.hidden }));
+  const rows = db.prepare(`SELECT ${OVERLAY_COLS} FROM board_overlays WHERE board_id = ?`).all(boardId) as Parameters<typeof toOverlay>[0][];
+  return rows.map(toOverlay);
 }
 
 export function getOverlay(overlayId: number): BoardOverlayRow | undefined {
-  const row = db
-    .prepare(`SELECT id, board_id AS boardId, kind, data_json AS dataJson, hidden FROM board_overlays WHERE id = ?`)
-    .get(overlayId) as { id: number; boardId: number; kind: string; dataJson: string; hidden: number } | undefined;
-  return row && { id: row.id, boardId: row.boardId, kind: row.kind, data: JSON.parse(row.dataJson || '{}'), hidden: !!row.hidden };
+  const row = db.prepare(`SELECT ${OVERLAY_COLS} FROM board_overlays WHERE id = ?`).get(overlayId) as Parameters<typeof toOverlay>[0] | undefined;
+  return row && toOverlay(row);
 }
 
-/** `data` is stored as-is — the caller (ws.ts) already validated its shape for `kind`. */
-export function createOverlay(boardId: number, kind: string, data: unknown): BoardOverlayRow {
+/**
+ * Active measure shapes this player currently has on the board — the count
+ * ws.ts's board.overlay.create caps at 3 (see "Limit active measure shapes
+ * per player" in TODO.md). No `kind = 'measure'` filter needed: owner_user_id
+ * is only ever set on a measure overlay in the first place (see
+ * createOverlay), never on a label, so counting by owner alone already means
+ * counting measure shapes only.
+ */
+export function countOverlaysByOwner(boardId: number, ownerUserId: number): number {
+  const row = db.prepare(`SELECT COUNT(*) AS n FROM board_overlays WHERE board_id = ? AND owner_user_id = ?`).get(boardId, ownerUserId) as { n: number };
+  return row.n;
+}
+
+/**
+ * `data` is stored as-is — the caller (ws.ts) already validated its shape
+ * for `kind`. `ownerUserId` is only ever passed for `kind: 'measure'` —
+ * a label is never capped, so it's never attributed to anyone (see
+ * BoardOverlayRow's doc comment).
+ */
+export function createOverlay(boardId: number, kind: string, data: unknown, ownerUserId: number | null = null): BoardOverlayRow {
   const info = db
-    .prepare(`INSERT INTO board_overlays (board_id, kind, data_json) VALUES (?, ?, ?)`)
-    .run(boardId, kind, JSON.stringify(data));
+    .prepare(`INSERT INTO board_overlays (board_id, kind, data_json, owner_user_id) VALUES (?, ?, ?, ?)`)
+    .run(boardId, kind, JSON.stringify(data), ownerUserId);
   bumpRev(boardId);
   return getOverlay(info.lastInsertRowid as number)!;
 }

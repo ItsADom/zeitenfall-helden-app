@@ -18,25 +18,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## Virtual table
 
-- [ready] **Limit active measure shapes per player** (concept agreed): GM's
-  concern is players drawing shapes for every possible spell area at once,
-  cluttering the map with multi-colored shapes/labels. `board_overlays`
-  (`server/src/db.ts:557-564`) currently has no owner concept at all — unlike
-  `board_tokens.owner_user_id` — and `canMeasure()` (`server/src/boardAccess.ts`)
-  is hard-coded `return true`, so today's measure shapes are fully anonymous
-  and unlimited. **Decided:** add `owner_user_id` to `board_overlays` (set from
-  `meta.userId` on create, mirroring the token pattern), one global cap of 3
-  active measure shapes per player across all shape kinds (not per-kind), GM
-  exempt/unlimited. On `board.overlay.create` (`server/src/ws.ts:~1590`),
-  count the caller's existing measure overlays first; if at cap, reject the
-  create (don't persist/broadcast) rather than auto-evicting the oldest.
-  Client shows a toast/message on rejection (e.g. "Maximum von 3 Formen
-  erreicht"). Deleting an existing shape is already unrestricted
-  (`ws.ts:1662-1686`, no ownership gating), so a capped player can always free
-  a slot themselves. `owner_user_id` needs to reach the client in the
-  broadcast payload (`shared/src/boardProtocol.ts` `BoardOverlay`) so the
-  client can track its own count too.
-
 - [ready] **Wound tracking / count-display on VTT tokens** (concept agreed):
   not the existing LE resource — a separate house-rule wound mechanic.
   Confirmed rule: damage that hits/exceeds the character's Wundschwelle

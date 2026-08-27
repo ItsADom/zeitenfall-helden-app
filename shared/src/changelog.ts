@@ -223,6 +223,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Fordert die Spielleitung eine Probe von der ganzen Gruppe an, seht ihr jetzt dieselbe Übersicht wie sie — wer schon gewürfelt oder gepasst hat und wer noch fehlt —, statt nur eurer eigenen Karte zum Annehmen/Ablehnen.',
       'Das Gewicht steht nicht mehr auf jeder Ausrüstungs-Karte, nur noch beim Bearbeiten — übersichtlicher auf einen Blick.',
       '„Beidseitig getragen" (Handschuhe, Beinschienen o. Ä.) wird jetzt durchs Ziehen auf den kleinen „↔ beide"-Streifen einer seitengetrennten Körperzone gesetzt, nicht mehr über eine Checkbox beim Bearbeiten.',
+      'Am virtuellen Tisch dürft ihr jetzt höchstens 3 Messformen gleichzeitig aktiv haben (Spielleitung ausgenommen) — löscht eine davon, um Platz für eine neue zu machen. Verhindert, dass der Tisch mit Messformen für jede denkbare Zauberreichweite zuwächst.',
     ],
     fixed: [
       'Lange Dialogfenster wurden auf niedrigen Bildschirmen unten abgeschnitten — bei der Befehlsübersicht („/commands") fehlte je nach Fenstergröße die halbe Liste. Dialoge scrollen jetzt.',

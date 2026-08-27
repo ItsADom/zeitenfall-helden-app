@@ -63,10 +63,16 @@ export type MeasureOverlayData =
   | { kind: 'rectangle'; from: CellCoord; to: CellCoord; label?: string; color?: string }
   | { kind: 'cone'; origin: CellCoord; angle: number; length: number; spread: number; label?: string; color?: string };
 
-/** board_overlays row — a discriminated union so `data`'s shape follows `kind`. */
+/**
+ * board_overlays row — a discriminated union so `data`'s shape follows
+ * `kind`. `ownerUserId` is only ever set on a 'measure' shape (a label is
+ * never capped, see "Limit active measure shapes per player" in TODO.md) —
+ * present on both variants anyway so a client can count its own active
+ * shapes without a kind-narrowing dance first.
+ */
 export type BoardOverlay =
-  | { id: number; boardId: number; kind: 'label'; data: LabelOverlayData; hidden: boolean }
-  | { id: number; boardId: number; kind: 'measure'; data: MeasureOverlayData; hidden: boolean };
+  | { id: number; boardId: number; kind: 'label'; data: LabelOverlayData; hidden: boolean; ownerUserId: number | null }
+  | { id: number; boardId: number; kind: 'measure'; data: MeasureOverlayData; hidden: boolean; ownerUserId: number | null };
 
 /**
  * board_initiative row — one per token in the current combat's roster.
