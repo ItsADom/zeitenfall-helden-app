@@ -440,10 +440,17 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
         <input
           value={draft}
           onChange={(e) => {
-            setDraft(e.target.value);
+            const v = e.target.value;
+            setDraft(v);
             setSuggestDismissed(false);
             setHighlight(0);
             historyIndexRef.current = -1;
+            // Ein alter Fehler-/Info-Hinweis bezieht sich auf den vorigen Text —
+            // beim Leeren des Eingabefelds war er sonst weiter sichtbar.
+            if (v === '') {
+              setError('');
+              setInfo('');
+            }
           }}
           onKeyDown={(e) => {
             if (showSuggestions && matches.length > 0) {

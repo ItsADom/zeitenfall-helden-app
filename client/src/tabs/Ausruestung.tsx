@@ -8,7 +8,6 @@ import {
   haltbarkeitPct,
   isPairedZone,
   itemsInContainer,
-  itemGewicht,
   lastInfo,
   makeItem,
   zoneView,
@@ -34,8 +33,11 @@ interface DropTarget {
   location: ItemLocation;
   zone?: string;
   containerUid?: string;
+  // Nur an einer seitengetrennten Zone gesetzt: Ziel ist der schmale "↔ beide"-
+  // Streifen der Zelle, nicht die Zelle selbst (siehe moveTo).
+  beidseitig?: boolean;
 }
-const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerUid ?? ''}`;
+const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerUid ?? ''}:${t.beidseitig ? 'both' : ''}`;
 
 export default function AusruestungTab() {
   const { data, update } = useChar();
@@ -81,10 +83,10 @@ export default function AusruestungTab() {
   const moveTo = (uid: string, t: DropTarget) => {
     if (!allowed(uid, t)) return;
     const zone = t.location === 'getragen' ? t.zone ?? '' : '';
-    // „Beidseitig" ergibt nur an einer seitengetrennten Zone Sinn. Zwischen zwei
-    // solchen Zonen (links↔rechts) bleibt es erhalten; woandershin gezogen fällt
-    // es weg, damit kein wirkungsloses Kennzeichen zurückbleibt.
-    const beidseitig = isPairedZone(zone) ? !!byUid.get(uid)?.beidseitig : false;
+    // „Beidseitig" wird ausschließlich durchs Ziehen auf den "↔ beide"-Streifen
+    // gesetzt (t.beidseitig) — jedes andere Ziel, auch die normale Zellfläche
+    // derselben seitengetrennten Zone, löscht es wieder. Kein Bewahren mehr.
+    const beidseitig = t.location === 'getragen' && isPairedZone(zone) ? !!t.beidseitig : false;
     patchItem(uid, {
       location: t.location,
       zone,
@@ -179,6 +181,7 @@ export default function AusruestungTab() {
             // zoneView: die hier abgelegten Gegenstände PLUS die beidseitig
             // getragenen der Gegenseite (gespiegelt). Ein Datensatz, zwei Zellen.
             const zi = zoneView(items, z);
+            const bothProps = dropProps({ location: 'getragen', zone: z, beidseitig: true });
             return (
               <div className="zone-cell" key={z}>
                 <div className="zone-name">{z}</div>
@@ -186,6 +189,15 @@ export default function AusruestungTab() {
                   {zi.map(chip)}
                   {zi.length === 0 && <span className="zone-empty">—</span>}
                 </div>
+                {isPairedZone(z) && (
+                  <div
+                    {...bothProps}
+                    className={`zone-both-strip ${bothProps.className}`}
+                    title="Hierher ziehen: beidseitig getragen (erscheint gespiegelt auf der Gegenseite)"
+                  >
+                    ↔ beide
+                  </div>
+                )}
               </div>
             );
           })}
@@ -278,7 +290,6 @@ function ItemChip({
   onRemove: () => void;
   children?: React.ReactNode;
 }) {
-  const w = itemGewicht(item);
   return (
     <span className={`chip-wrap${open ? ' open' : ''}`}>
       <span
@@ -292,7 +303,6 @@ function ItemChip({
       >
         <span className="chip-name">{item.name || '(ohne Name)'}</span>
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
-        {w > 0 && <span className="chip-kg"> · {kg(w)} kg</span>}
         {item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>}
         {(() => {
           const pct = haltbarkeitPct(item);
@@ -337,12 +347,6 @@ function ItemChip({
               }
             />
           </label>
-          {isPairedZone(item.zone) && (
-            <label className="chip-check" title="Als Paar auf beiden Seiten getragen — ein Gegenstand, in beiden Zellen gezeigt. Gewicht und RS zählen einmal.">
-              <input type="checkbox" checked={item.beidseitig} onChange={(e) => onPatch({ beidseitig: e.target.checked })} />
-              Beidseitig
-            </label>
-          )}
           <label className="chip-check">
             <input type="checkbox" checked={item.istBehaelter} onChange={(e) => onPatch({ istBehaelter: e.target.checked })} />
             Behälter

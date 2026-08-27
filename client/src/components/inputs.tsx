@@ -40,6 +40,8 @@ export function NumInput({
   width,
   max,
   min,
+  className,
+  onEnter,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -55,6 +57,9 @@ export function NumInput({
    * das nicht negativ werden darf.
    */
   min?: number;
+  className?: string;
+  /** Enter im Feld — z. B. AktuellFeld's Betragsfeld wirkt wie der Standard-Knopf. */
+  onEnter?: () => void;
 }) {
   const readOnly = useReadOnly();
   // Was gerade im Feld STEHT, solange getippt wird — nicht was der Charakter
@@ -85,6 +90,7 @@ export function NumInput({
   return (
     <input
       type="number"
+      className={className}
       value={draft ?? String(safe)}
       disabled={disabled}
       max={max}
@@ -95,6 +101,20 @@ export function NumInput({
       onFocus={() => safe === 0 && setDraft('')}
       onBlur={() => setDraft(null)}
       onChange={(e) => type(e.target.value)}
+      onKeyDown={
+        onEnter
+          ? (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                onEnter();
+                // Enter ist ein Commit wie Blur — sonst zeigt das Feld den
+                // getippten Entwurf weiter an, selbst wenn onEnter den Wert von
+                // außen (z. B. AktuellFeld's Reset auf 0) geändert hat.
+                setDraft(null);
+              }
+            }
+          : undefined
+      }
     />
   );
 }

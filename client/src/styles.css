@@ -2954,6 +2954,26 @@ li {
   font-size: 13px;
   padding: 4px 2px;
 }
+/* Schmaler Wurf-Streifen einer seitengetrennten Zone: hierher gezogen wird der
+   Gegenstand beidseitig getragen. Bewusst knapp, keine eigene Zeile im Raster
+   (siehe TODO.md — Platzgründe), lebt in der eigenen Zelle statt zwischen den
+   beiden Zellen des Paars, damit die responsive Spaltenzahl egal ist. */
+.zone-both-strip {
+  margin-top: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--surface-sunken);
+}
+.zone-both-strip.over {
+  border-color: var(--accent);
+  border-style: solid;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface-sunken));
+  color: var(--text);
+}
 
 /* Kopfzeile der Ausrüstung: maßgeblicher RS + Traglast nebeneinander. */
 .ausr-head {
@@ -3062,9 +3082,7 @@ li {
 }
 .chip-name {
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .chip-mult,
 .chip-kg {
@@ -4493,6 +4511,13 @@ body.resizing-dice {
 }
 .dice-flyout-item:hover {
   background: var(--surface-hover);
+}
+.dice-flyout-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.dice-flyout-item:disabled:hover {
+  background: none;
 }
 .dice-flyout-item.active {
   color: var(--accent);

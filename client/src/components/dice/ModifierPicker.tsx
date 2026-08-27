@@ -50,7 +50,10 @@ export default function ModifierPicker({ value, onChange }: { value: number; onC
         🎯 {label}
       </button>
       {open && (
-        <div className="dice-flyout mod-flyout" role="menu">
+        // onWheel: stopPropagation, damit ein Scroll-Gesture über dem Flyout nicht
+        // in den Chat-Feed darunter durchreicht (das Flyout hat keinen eigenen
+        // Scrollbereich, ein Wheel-Event würde sonst einfach durchbubbeln).
+        <div className="dice-flyout mod-flyout" role="menu" onWheel={(e) => e.stopPropagation()}>
           <label className="mod-flyout-row">
             <input
               type="number"
@@ -69,19 +72,20 @@ export default function ModifierPicker({ value, onChange }: { value: number; onC
           <p className="mod-flyout-hint muted">
             Erleichterung (−) oder Erschwernis (+) der Spielleitung, auf die geworfene Summe — gilt nur für den nächsten Wurf.
           </p>
-          {value !== 0 && (
-            <button
-              className="dice-flyout-item"
-              role="menuitem"
-              onClick={() => {
-                onChange(0);
-                setDraft('0');
-                closeNow();
-              }}
-            >
-              Zurücksetzen
-            </button>
-          )}
+          {/* Immer gerendert (nur bei 0 deaktiviert), sonst ändert sich die
+              Flyout-Höhe je nach Wert und das Layout "reformt" sich unterm Klick. */}
+          <button
+            className="dice-flyout-item"
+            role="menuitem"
+            disabled={value === 0}
+            onClick={() => {
+              onChange(0);
+              setDraft('0');
+              closeNow();
+            }}
+          >
+            Zurücksetzen
+          </button>
         </div>
       )}
     </div>

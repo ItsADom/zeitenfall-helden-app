@@ -17,62 +17,386 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 ---
 
 ## Virtual table
-- limit currently active measure shapes per players
-- round tracker (countdown) for spell duration tracking etc.
-   - visibility toggleable for GM per timer
-   - multiple creatable (locally rendered)
-- wound tracking/count-display
-- bigger drawing area (copuld be alread ymentioned)
+
+- [ready] **Limit active measure shapes per player** (concept agreed): GM's
+  concern is players drawing shapes for every possible spell area at once,
+  cluttering the map with multi-colored shapes/labels. `board_overlays`
+  (`server/src/db.ts:557-564`) currently has no owner concept at all — unlike
+  `board_tokens.owner_user_id` — and `canMeasure()` (`server/src/boardAccess.ts`)
+  is hard-coded `return true`, so today's measure shapes are fully anonymous
+  and unlimited. **Decided:** add `owner_user_id` to `board_overlays` (set from
+  `meta.userId` on create, mirroring the token pattern), one global cap of 3
+  active measure shapes per player across all shape kinds (not per-kind), GM
+  exempt/unlimited. On `board.overlay.create` (`server/src/ws.ts:~1590`),
+  count the caller's existing measure overlays first; if at cap, reject the
+  create (don't persist/broadcast) rather than auto-evicting the oldest.
+  Client shows a toast/message on rejection (e.g. "Maximum von 3 Formen
+  erreicht"). Deleting an existing shape is already unrestricted
+  (`ws.ts:1662-1686`, no ownership gating), so a capped player can always free
+  a slot themselves. `owner_user_id` needs to reach the client in the
+  broadcast payload (`shared/src/boardProtocol.ts` `BoardOverlay`) so the
+  client can track its own count too.
+
+- [ready] **Round tracker for spell duration etc.** (concept agreed): a
+  personal countdown, separate from the ordered initiative/turn list —
+  "really just some possibility to separately track different
+  round-sensitive data." The initiative system already separates *round*
+  from *turn*: `boards.round` (`server/src/db.ts:519-520`) increments only
+  when `nextTurn()` reports `wrapsRound` (`shared/src/board.ts:220`), inside
+  `advanceTurn()` (`server/src/board.ts:820`) — the exact hook point for this
+  feature, not per-combatant-turn. **Decided:** new `board_round_trackers`
+  table (board-scoped, one row per timer: `board_id`, `creator_user_id`,
+  `label`, `current_count`). Anyone (GM or player) can create one with a
+  label and a starting count. Decrements by 1 automatically at the
+  `advanceTurn()` round-wrap point, floors at 0 and stays visible there (no
+  auto-removal). Owner can freely bump the count up or down at any time
+  (covers recasting a spell to recharge its duration). **Decided: fully
+  private** — this is personal record-keeping, not shared table state, so a
+  tracker is never sent to any other viewer's connection, GM included (no
+  `hidden` flag, no per-viewer visibility logic needed at all — simpler than
+  first framed). Persisted in the DB (not localStorage) so it survives
+  refresh/reconnect. Multiple independent trackers per player, no cap
+  discussed/needed.
+
+- [ready] **Wound tracking / count-display on VTT tokens** (concept agreed):
+  not the existing LE resource — a separate house-rule wound mechanic.
+  Confirmed rule: damage that hits/exceeds the character's Wundschwelle
+  (`shared/src/rules.ts` `wundschwelle = ceil(KO/2)`) inflicts one small
+  wound; damage at least double the Wundschwelle inflicts one big wound; two
+  small wounds internally count as one big wound; three big-wound-
+  equivalents means death. **Decided:** persists as real character state (not
+  board/combat-scoped like the round tracker) — two new counters,
+  `small_wounds`/`big_wounds`, stored with the character. **Decided:** purely
+  manual entry — `+1`/`-1` buttons for each wound type (also covers healing),
+  no automatic damage-number-to-wound-type math. **Decided:** editable by the
+  token's owner and the GM (same population that can already edit/move that
+  token). **Decided:** VTT-only for this round — displayed as a small badge/
+  indicator on the character's token (visible to owner + GM only, following
+  the same owner-bypass pattern already used for token edit permissions —
+  extended here to a display filter rather than an edit check; today's
+  redaction only ever branches on `isGm`, per `server/src/board.ts:277-279`,
+  so this is a new per-owner visibility case). No character-sheet
+  integration — some players keep their own separate paper tracker for wound
+  count *and location*, which stays optional/out of scope; this feature only
+  covers the count, on the table.
+
+- [ready] **Bigger, GM-configurable drawing area** (concept agreed): the grid
+  is currently hardcoded at 40×30 with no resize path anywhere at all
+  (`server/src/db.ts:501-502`, plain `DEFAULT` columns, never updated).
+  **Decided:** make `cols`/`rows` GM-configurable per board (e.g. in
+  `BoardSettingsPopover`, `client/src/pages/VirtualTable.tsx:3926`), not just
+  a bigger fixed constant. **Decided: decouple the grid from the pannable
+  viewport** — grid bounds should only govern where grid-lines/fog/paint/
+  cell-snapping apply, not where content is allowed to exist. Today
+  `server/src/ws.ts:1575` rejects any token position with
+  `x > board.cols || y > board.rows`, and the client's `clampCamera`/
+  `totalW`/`totalH` (`VirtualTable.tsx:621-623`) tie pan bounds directly to
+  `cols`/`rows` — both need to stop treating grid size as a hard placement/
+  viewport boundary. This is what makes shrinking safe: a smaller grid never
+  strands, hides, or deletes existing tokens/shapes/images — content beyond
+  the new smaller grid simply sits in ungridded space, still fully visible
+  and draggable, "out of bounds" only meaning "no grid there." **Open:** no
+  hard cap on cols/rows decided — performance impact (grid-line rendering,
+  pan/zoom math scaling with cols×rows) is hard to estimate in advance;
+  leave unbounded for now (maybe a loose sanity ceiling against fat-fingered
+  values) and revisit only if it turns out to matter in practice.
 
 ## User feedback
 
-- move items between group inventory and player inventory
-  - needs a rather big overhaul of group page
-  - move items between group members also
-  - create plan on how to display complete houses as inventory
-- show spell range per mage level on Zauber tab
-  - override possible
-- procentual bonus selector for energien
-  - folds into the Filtern task
-  - let players select things like "Max AsE is always +50%", calculated after final sum
-- let admins get a route to inspect characters for debugging
-  - important: they should not see every group and have acccess to every chat like GM does and have no edit rights, just inspection.
-  - maybe make character list on management page generally clickable, so characters can be directly selected but not available by the usual workflow (e.g. character flyout in banner)
-- don't show weight directly on equipment chips
-- idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
-  - images of group members can't be clicked?
-- make wiki-tables sortable
-- special checks like "Erinnern (KK+KK)". not appearing on talent tab, but rollable
-- tracker for training/reading sessions (4 per day, resettable with SP)
-- chat font size adjustable by player
-- equipment toggle for "beidseitig" without edit-mode
-- change Erschwerung/Erleichterung in chat dock per scrolling
-  - let the reset button always be visible to avoid flyout reforming layout. just deactivate on 0.
-  - also avoid scrolling the chat in background with it
-- allow multiplication for check formulas
-  - also multiple rolls in a single command, like rolling "2w6+8" 3 times
-  - allow Attribut values in chat dicecode
-  - reset warning about not found check when chat input is empty
-- "Übersicht" number field between minus and plus don't use NumInput
-  - quick check if this occurs somewhere else
-- make favorites more customizable.
-  - allow to add text
-  - they should inherit the chosen visibility setting
-- group checks should stay visible while pending
-- quick lookup for GM to see spells and skills without opening character sheet
-  - via button from within GM-overview
-  - opens a dialog/popup with a display-only list
-- weapon damage directly rollable, RD showing with it
-- link containers to equipment, so a backpack has to (or can) actually be worn in Ausrüstung
-  - a not actively worn container does not increase Traglast
-  - containers will get their own weight value
-- let gm set Erschwerung/Erleichterung on check request
-- check if confirmations that get rolled together always get the same value or just coincidence on last occasions
-  - in general many 1s and 20s. check RNG
-- equipment item names should break line, not be trimmed
-- chat does not work reliable when a single user has it open on multiple browser-tabs (visibility setting resets etc. / could be a racing problem)
-- gm wants to be able to force rolls on characters, for example when they are afk
-- delete the chat warnings for wrng dicecodes etc. when chat input is emptied
+- [ready] **Make wiki-tables sortable**: wiki tables render as a plain
+  `<table>` from parsed markdown (`client/src/wiki/Markup.tsx:117-146`), no
+  sort affordance. A proven click-header-to-sort pattern already exists for
+  character-sheet dynamic tables (`Sektionen.tsx:266-317,419-431` — `sort`
+  state, `toggleSort`, `.sortable`/`.sort-caret` CSS already styled) but is
+  tightly coupled to typed `DynColumn`/`DynRow` cells; wiki tables need their
+  own small comparator over plain string/number cell content, following the
+  same state+CSS shape rather than reusing the component directly.
+
+- [ready] **Group member portraits: clickable/enlargeable, and show the
+  uncropped original on enlarge** (two related fixes, concept agreed):
+  - `CharacterCard.tsx`'s portrait `<img>` (used on the group page's member
+    grid) has no click handler at all today — confirmed not clickable,
+    unlike `Portrait.tsx`'s own lightbox elsewhere. Fix: wire the same
+    lightbox pattern onto that image with `stopPropagation` (the image sits
+    inside a card that otherwise navigates on click).
+  - **Decided:** also store the true pre-crop original. Today both the 512px
+    display image and the up-to-1600px "full" image are cropped from the
+    *same* user-chosen rect (`CropEditor.tsx`, `server/src/assets/
+    portraits.ts:28-38`) — no uncropped copy is ever kept. Add a new asset
+    role for the pre-crop original, capped at the existing upload limit
+    (portrait uploads are already capped at 3MB server-side,
+    `server/src/routes.ts` — no new/bigger limit needed, just persist what
+    was already accepted). Portraits uploaded before this change have no
+    original on file and fall back to the cropped version on enlarge.
+
+- [ready] **Admin inspect-only route** (concept agreed): the admin/GM role
+  split already exists end-to-end — `SessionUser.isAdmin`, `requireAdmin`/
+  `requireGmOrAdmin` (`server/src/auth.ts:5-11,108,119`), with an explicit
+  design comment that an admin "manages accounts but doesn't see character
+  sheets" (`auth.ts:105-107`). **Decided:** extend this so an admin *can*
+  inspect a character — full sheet, read-only, but at the same level a
+  normal player/owner would see (no GM-only notes/hidden content — admin
+  stays genuinely separate from GM). Follows the existing `characterAccess()`
+  tier pattern (`server/src/routes.ts:176-177`, today `'edit' | 'summary' |
+  null`) — add an inspect-style read-only tier rather than inventing a new
+  permission model. **Decided:** also make the character list on the
+  admin/management page (`Admin.tsx`) directly clickable into a character —
+  build together with the route, since it's the natural entry point.
+
+- [ready] **Quick lookup for GM to see spells/skills without opening the
+  character sheet** (concept agreed): `GroupOverview.tsx`'s per-character
+  data (`OverviewChar`) has no abilities/spells today, but
+  `loadAbilities(charId)` (`server/src/characterData.ts:1065-1068`) already
+  queries everything needed and is already used elsewhere — this is a thin
+  new GM-gated route (e.g. `GET /api/characters/:id/abilities`, scoped to
+  characters in a group the GM oversees) plus a display-only dialog/popup
+  opened via a button from GM-overview, not new data-layer work. **Decided:**
+  one combined list (spells and skills together), not tabbed/split.
+
+- [ready] **Tracker for training/reading sessions** (concept agreed, and
+  simpler than first framed): "SP" here is Schicksalspunkte (fate points),
+  but only as a pointer to the *reset mechanism* — training/reading sessions
+  are otherwise a completely separate concept, not spent/refilled with SP
+  itself. **Decided:** a new, standalone per-character counter (used-today /
+  4, shared pool across training and reading, not two separate 4s), a simple
+  +1 button, no wiring to abilities/`fortschritt` at all — the actual
+  skill/spell progress those sessions represent is tracked by the player
+  themselves outside the app ("it is connected, but does not need to be
+  wired by the system"). **Decided:** resettable via the same existing GM
+  bulk-reset action that already resets Schicksalspunkte ("🍀 Neuer
+  Spieltag", `server/src/routes.ts:697`) — extend that route to also reset
+  this new field, plus a per-character reset mirroring Schicksalspunkte's own
+  (`GroupOverview.tsx:248-249`). UI can clone the existing clover-row pattern
+  (`sp-clover`) rather than invent a new counter widget.
+
+- [ready] **Chat font size adjustable by player** (concept agreed): no
+  per-player display-preference mechanism exists to reuse (the app's
+  `DisplayMode` concept is about edit/readonly/print, not typography) — this
+  is net-new state, but follows the exact template other per-device dice-dock
+  settings already use (`usePersistedState` + a CSS custom property consumed
+  by `FeedEntryView.tsx`'s `.feed-text`, currently a hardcoded `font-size` in
+  `styles.css`). **Decided:** a few size presets (not a continuous slider),
+  living in the global `Einstellungen.tsx` settings page (not chat-local).
+
+- [ready] **Let GM set a modifier when requesting a check** (concept agreed):
+  today `roll.pending.request` (`shared/src/diceProtocol.ts:306`) carries no
+  modifier field — the GM's request pickers (`RequestProbePicker.tsx`/
+  `RequestGroupProbePicker.tsx`) only pick a probe by name, and a modifier is
+  only ever attached later by the player at accept time. **Decided:** add a
+  modifier field to the request protocol/UI, and **the GM's requested
+  modifier replaces the player's own** when accepting (not additive, not
+  player-overridable) — the GM is adjudicating the specific situation.
+
+- [ready] **Group checks: give players the same per-member status view the GM
+  already gets** (concept agreed, and a real gap once traced through — not
+  actually about scroll/pinning as first read). When a GM requests a group
+  check, only the GM's own connection receives the full `GroupRollRequest`
+  roster (`roll.group.created` sent only to `meta.userId`,
+  `server/src/ws.ts:913`; `GroupRequestCard.tsx` renders it in full, no role
+  branching) — each player instead only ever sees their own single
+  accept/decline card (`PendingRequestCard`), with zero visibility into who
+  else was asked or who's still pending. **Decided:** broadcast the same
+  roster (`roll.group.created`, the `roll.group.member` status updates, and
+  reconnect replay via `groupRollRequestsFor`, `server/src/groupRolls.ts:79-81`
+  — currently filtered to `gmUserId` only, needs to also match `member`) to
+  every member, not just the GM. Client-side, `GroupRequestCard.tsx` needs a
+  role branch (like `PendingRequestCard` already has) so **players see the
+  full roster but not the GM-only reveal/cancel buttons** — they can't force
+  the roll, only watch it.
+
+- [ready] **Spell range per mage level, override possible** (concept agreed):
+  no range field or per-level scaling exists in the data model at all today —
+  this is a new rule, not a hidden existing one. **Decided:** a fixed range-
+  by-rank reference table (a code constant, same status as the existing
+  `MAGIER_STUFEN_REFERENZ`, not GM-editable) plus an editable per-spell bonus-
+  range override field. **Decided:** purely a display feature, placed
+  somewhere near the mage-level section of the Zauber tab (`MagierPanel` in
+  `client/src/tabs/Zauber.tsx`) — no interaction with any roll/formula.
+
+- [ready] **Percentage bonus for energies, and what "Filtern" actually is**
+  (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
+  first real mechanic). Lore: Astralenergie is made of 8 base elements;
+  filtering shifts a mage's elemental balance to boost efficiency with one
+  element. The app doesn't track elements numerically, so the existing
+  "overcharge" mechanism (any pool's `aktuell` may already sit above its
+  computed max, freely typed, no clamp — `client/src/components/energie.ts`
+  `overfilled()`/`poolClass()` → `res-over` styling, `AktuellFeld.tsx`) is
+  reused as the *display*, but it isn't itself "Filtern" — filtering needs its
+  own gating. **Decided:** AsE only (not LE/AUS). **Decided:** a new
+  per-character stored value — "max Filterbonus %" — reflecting how well
+  *that* character can filter (set directly, not derived from a formula).
+  **Decided:** an all-or-nothing "gefiltert" toggle; when on, it raises AsE's
+  effective/displayed max by that stored percentage, computed after the
+  normal `computeResource()` result (i.e. a final multiplier, not baked into
+  `mods`/`permanent`). **Decided:** triggering/ending is entirely manual — a
+  player adds "Filtern" as an ordinary rollable ability/spell entry (same
+  pattern as the special-checks catalog below) and rolls for it in the
+  fiction; there's no in-app duration/expiry ("the point where a character
+  stops counting as filtered isn't clearly set either"), so the toggle is
+  just flipped off by the player/GM when the GM calls it.
+
+- [ready] **Special checks catalog** (e.g. "Erinnern (KK+KK)") — **concept
+  agreed, and this is new territory, not a hidden existing mechanism**: a
+  repo-wide search turned up zero trace of any such check anywhere in code —
+  today it only lives in GM memory/house-rules. **Decided:** a single
+  GM-maintained global catalog (named check + formula), shown identically on
+  every character's Talente tab as a shared, always-present reference section
+  — not something each player adds/removes individually — and rollable
+  directly from there like any other talent.
+
+- [ready] **Weapon damage directly rollable, with RD shown alongside**
+  (concept agreed): AT/PA/BL/FK already roll via `ProbeSource` kind
+  `'weapon'` (`shared/src/diceProtocol.ts:24`), but `schaden` (damage) has no
+  equivalent — it's plain text today, and `computeProbeForCharacter`
+  (`server/src/diceSource.ts:119`) has no damage branch. **Decided:** add a
+  new `ProbeSource` kind for rolling a damage formula (not a fixed probe
+  number). **Decided what "RD" means here** — it's the weapon's *own*
+  Rüstungsdurchdringung stat (armor penetration), already a plain field on
+  the weapon card, **not** the target's armor value (that's RS, a separate
+  stat on worn armor items — no cross-character "show the target's defense"
+  concept exists or is needed here). The roll result should show the rolled/
+  calculated damage together with that weapon's RD value, so the player
+  doesn't have to mention RD manually every time.
+
+- [ready] **Dice formula overhaul** (concept agreed, several related asks
+  bundled into one build): today three separate, inconsistent parsers handle
+  formulas — `parseDiceExpression` (chat `/r`, `+`/`-` only, no `*`, rejects
+  negative dice blocks; `shared/src/dice.ts:341-371`), `parseProbeExpr`
+  (Talent/Zauber/Waffen Proben, `expr.split('+')` only;
+  `shared/src/rules.ts:175-215`), and `evaluateEnergyFormula` (GM's
+  Spezialenergien-Katalog only, already a full recursive-descent grammar with
+  `+ - * / ()`; `rules.ts:332-460`). **Decided:** build one shared arithmetic
+  grammar (generalizing `evaluateEnergyFormula`'s existing `+ - * / ()`
+  approach) rather than patching each parser separately, so real calculations
+  with brackets/order-of-operations become possible everywhere, not just a
+  bolted-on `*`. **Decided:** for a dice block under multiplication, roll
+  first, then apply the arithmetic to the rolled result (not "double the die
+  count"). **Decided:** repeat-count syntax (e.g. rolling "2w6+8" three times
+  in one command) — exact syntax shape still open (prefix/suffix, interaction
+  with `#label`), but the *result* is settled: one grouped/summarized card,
+  not three separate feed entries — similar in spirit to how group-check
+  rolls already bundle. **Decided:** Attribut values in free-form chat
+  dicecode (e.g. typing "MU") resolve against the sender's currently-selected
+  character; with none selected (e.g. GM chat), left unavailable/literal —
+  this needs a new resolution step before/instead of the raw expression
+  parser, distinct from the existing named-Probe suggestion flow
+  (`probeExprZahl`/`/api/characters/:id/probes`). The stale "check not found"
+  warning sub-item is covered by the general stale-warning fix above.
+
+- [sketch] **Favorites: add a text field** (partially agreed, partially
+  still open): the "inherit the chosen visibility setting" half turned out to
+  probably just be a symptom of the multi-tab chat desync — now fixed (see
+  `usePersistedState` listening for the `storage` event) — so likely no
+  further work needed there; worth re-checking with the reporting player now
+  that it's live. The "allow to add text" half is still genuinely open —
+  unclear whether it means a new separate note/description field alongside
+  today's `label:expression` free text, or just letting the existing label
+  itself hold more/richer text. **Needs another pass with the original
+  requesting player** before this can go to `[ready]`.
+
+- [ready] **GM force-rolling an AFK player's check** (concept agreed): today's
+  flow strictly requires the target player's own action — `roll.pending.accept`
+  hard-checks `request.targetUserId === meta.userId`
+  (`server/src/ws.ts:1129-1136`) with no bypass anywhere, and even a group
+  reveal simply skips non-responders (`revealGroupResults`,
+  `server/src/ws.ts:575-594`) rather than rolling for them. The only existing
+  "GM rolls directly" precedent (`roll.probe`, `ws.ts:713-728`) is gated to
+  characters the GM themself owns (NPCs), never a player's own character.
+  **Decided:** build a GM override that resolves the roll immediately,
+  bypassing the player's accept step. **Decided:** the resulting feed entry
+  is visibly marked as GM-forced (not indistinguishable from a roll the
+  player made themselves), so it's transparent when the player returns.
+
+- [ready] **Group ↔ player inventory, player ↔ player item transfer, and
+  containers as a real, movable, worn concept** (concept agreed for the first
+  two; houses is a much rougher sketch — see below). Confirmed starting
+  point: **no group-level item storage exists at all today** — only
+  `char_items`, strictly `character_id`-scoped, saved as a full delete+
+  reinsert per character (`saveItems`, `characterData.ts:846-903`) with no
+  per-item CRUD or cross-character transfer primitive of any kind.
+   - **Decided: generalize item ownership.** Replace the hard `character_id`
+     FK with an `owner_type`/`owner_id` pair (mirroring the pattern
+     `assets/store.ts` already uses for images) — `'character'` or `'group'`
+     for now, extensible to `'room'` later for houses.
+   - **Decided: a new cross-owner move action** on any item chip (including
+     containers) reassigns `owner_type`/`owner_id`. Moving a container moves
+     every item whose `containerUid` points into it atomically, in the same
+     operation — nothing gets orphaned.
+   - **Decided: permission split.** Pulling an item *from* the shared group
+     inventory is open to any group member. Sending is restricted to your
+     own items — a player can give away or drop their own stuff, but can't
+     reach into another player's personal inventory directly (that needs the
+     GM, or that other player).
+   - **Decided: no confirmation step** — a move happens outright, same as a
+     normal drag-to-equip today.
+   - **Decided: items in the group pool are weightless** for everyone's
+     Traglast — nobody is personally hauling the shared stash.
+   - **Decided:** on any owner change, position-specific fields (`location`,
+     `zone`, `beidseitig`) reset to a safe default (`inventar`) rather than
+     trying to preserve a worn-state that can't carry over to the new owner
+     — no data is lost, just re-equip on arrival.
+   - **New UI needed:** a "Gruppen-Inventar" section on `Group.tsx`, using
+     the same specialized item-chip UI as `Ausruestung.tsx`/`Inventar.tsx`
+     (not the generic `Sektionen` dynamic-table component, which can't
+     represent weight/location/container relationships) — this is the "big
+     overhaul of group page" the original note anticipated.
+   - **[sketch] Houses** — much rougher than the above two: confirmed shared
+     group property, subdivided into rooms, with containers inside rooms
+     holding items ("all the stuff a real house has"). Structurally this
+     would reuse the same `owner_type`/`owner_id` generalization (a
+     lightweight `group_rooms` table, group-owned items optionally tagged
+     with a `room_id`), but still open: can a group own multiple houses, who
+     can create/name rooms, whether a room has any capacity/size concept.
+     Needs its own concept pass before it's buildable — do not treat as
+     `[ready]` just because the other two pieces in this entry are.
+
+- [ready] **Containers: bench-exclusion must cascade to contents, plus expose
+  weight/worn-state in the UI** (concept agreed after a few rounds — the
+  actual house rule turned out to differ from the first read). Confirmed
+  today: a container is just an `Item` with `istBehaelter: true`; its own
+  `location` (`shared/src/items.ts`) is completely independent of whether it
+  functions as a container. `zaehltZurLast()` (`items.ts:147-149`) already
+  excludes `bench` for an item's own weight — that part is correct and needs
+  no change. The actual bug: an item **inside** a container always counts
+  toward Traglast based on its own `location` (`'behaelter'`), regardless of
+  whether the *parent* container is benched — so a spare, unworn backpack's
+  contents still fully count today, when they shouldn't.
+   - **Decided: a container's weight-reduction discount to its contents is
+     NOT conditional on being worn** — carried (`getragen`) or merely held/
+     slung (`inventar`) make no difference, the discount always applies while
+     the container is with the character. Only `bench` (genuinely not with
+     you right now — the spare-backpack case) changes anything.
+   - **Decided: the fix is a cascade, not a new gate.** When a container sits
+     on the bench, its contents stop counting toward Traglast too (need to
+     walk up the `containerUid` chain, not just check each item's own
+     top-level `location`) — mirrors the `containerArt === 'quick'` branch's
+     existing worn-check (`itemLastAnteil`, `items.ts:165-179`), generalized
+     to also cover `containerArt === 'storage'` and to cascade through
+     nesting rather than only checking one level.
+   - **Decided: capacity/overfill checking stays location-independent** — a
+     benched container can still be over-stuffed beyond what it can
+     physically hold (e.g. its stated 120/60kg capacity); that check is
+     separate from, and unaffected by, the Traglast-contribution fix above.
+   - **Decided: containers get a real weight field in the UI.** `gewicht`
+     already exists generically on `Item` and already applies to containers
+     structurally, but no container-creation/edit UI exposes it
+     (`AddContainerDialog`, `Inventar.tsx`'s container header) — containers
+     are zero-weight today purely by UI omission, not a schema gap. Add the
+     field where containers are actually created/edited.
+   - Note: this pairs with the cross-owner move feature above — "make a
+     container's `location` editable" doesn't require migrating storage
+     containers into the worn/body-zone drag system; that's a separate,
+     optional nicety, not a prerequisite for either fix here.
+
+- [ready] **Investigate: are "confirmation" rolls independently random, or
+  suspiciously correlated?** (developer feedback: "many 1s and 20s" observed
+  across rolls that get confirmed together). This is a verification task, not
+  a design decision. Dice rolls already use `crypto.randomInt`
+  (`server/src/dice.ts:15,35`) — a proper CSPRNG, so a systemic bias is
+  unlikely — but worth specifically checking whether the confirmation-roll
+  code path draws a fresh, independent random value or accidentally
+  derives/reuses the original roll's value. If nothing's found, this is
+  likely gambler's-fallacy pattern-matching on a small sample, not a bug.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
@@ -500,9 +824,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
  - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
-- [sketch] **Filtering** (own-element AsE increase): a SEPARATE future concept from
-  overcharge — the character is filled with their own elemental energy → shown as
-  an AsE increase. Not started; do not conflate with the overcharge display above.
+- [ready] **Filtering** (own-element AsE increase): concept now agreed — see
+  "Percentage bonus for energies, and what 'Filtern' actually is" under User
+  feedback above. No longer a bare sketch.
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.

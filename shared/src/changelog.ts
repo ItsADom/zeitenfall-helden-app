@@ -210,12 +210,18 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
       'Die Zahl verschwindet schon, sobald du das Wiki öffnest — der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
       'Der Würfel-Chat springt beim Ausklappen direkt ins Eingabefeld — Tippen geht ohne vorheriges Anklicken los.',
+      'Das Gewicht steht nicht mehr auf jeder Ausrüstungs-Karte, nur noch beim Bearbeiten — übersichtlicher auf einen Blick.',
+      '„Beidseitig getragen" (Handschuhe, Beinschienen o. Ä.) wird jetzt durchs Ziehen auf den kleinen „↔ beide"-Streifen einer seitengetrennten Körperzone gesetzt, nicht mehr über eine Checkbox beim Bearbeiten.',
     ],
     fixed: [
       'Lange Dialogfenster wurden auf niedrigen Bildschirmen unten abgeschnitten — bei der Befehlsübersicht („/commands") fehlte je nach Fenstergröße die halbe Liste. Dialoge scrollen jetzt.',
       'Die Würfel-Favoriten ignorierten die im Chat-Dock eingestellte Erleichterung/Erschwernis — sie wirkt jetzt wie bei jedem anderen Wurf.',
       'Die Sichtbarkeitseinstellung (Öffentlich/Verborgen/SL+Spieler) galt bisher nur für Würfe, nicht für normale Chat-Nachrichten — sie gilt jetzt für beides, verborgene Nachrichten tragen dafür jetzt auch eine Markierung.',
       'Gegenstände in Schnellzugriff-Fächern (Gürtel, Bandelier) zählten nicht zur Traglast. Sie zählen jetzt mit ihrem vollen Gewicht und werden — wie der Behälter selbst — halbiert, solange er getragen wird.',
+      'Lange Namen auf Ausrüstungs-Karten wurden mitten im Wort abgeschnitten statt umzubrechen.',
+      'Der Zurücksetzen-Knopf bei Erleichterung/Erschwernis im Würfel-Chat verschwand je nach Wert und ließ das Menü springen — er bleibt jetzt an Ort und Stelle (nur ausgegraut bei ±0). Scrollen über dem Menü blätterte außerdem den Chat dahinter mit; das passiert jetzt nicht mehr.',
+      'Eine Warnung zu einem falschen Würfel-Befehl blieb im Eingabefeld stehen, auch nachdem der Text schon wieder gelöscht war.',
+      'Wer den Würfel-Chat auf mehreren Browser-Tabs gleichzeitig offen hatte, sah dort unterschiedliche Sichtbarkeits- und Würfel-Einstellungen — ein Tab überschrieb den anderen unbemerkt. Beide Tabs bleiben jetzt synchron.',
     ],
   },
   {
