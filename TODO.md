@@ -103,41 +103,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Two bug fixes built, need a live check** (2026-08-27, not yet
-  browser-verified this session — skipped on request, so still needs
-  someone actually clicking through it):
-  - Chat font size setting silently did nothing for roll/check entries
-    (`.feed-roll-head`/`.feed-roll-body` in `client/src/styles.css` hardcoded
-    `font-size: 13px`, ignoring the `--feed-font-size` variable the
-    Einstellungen dropdown sets) — plain messages scaled, checks didn't. Now
-    reads the same variable.
-  - GM couldn't confirm a pending Bestätigungswurf (natural 1/20) on a check
-    they force-rolled for an AFK player (`roll.pending.force`) — server
-    (`server/src/ws.ts`'s `roll.confirm`) rejected anyone but the original
-    roller, and the client hid the confirm/skip buttons from the GM too. Both
-    now allow the GM specifically when `roll.forcedByGm` is set (the player
-    can still confirm it themselves too if they come back).
-  - Needs: force-roll a check for an AFK player until it lands on a natural
-    1/20, confirm as the GM; check the four chat-font-size steps against a
-    roll entry, not just a plain message.
-
-- [ready] **Group member portraits: clickable/enlargeable, and show the
-  uncropped original on enlarge** (two related fixes, concept agreed):
-  - `CharacterCard.tsx`'s portrait `<img>` (used on the group page's member
-    grid) has no click handler at all today — confirmed not clickable,
-    unlike `Portrait.tsx`'s own lightbox elsewhere. Fix: wire the same
-    lightbox pattern onto that image with `stopPropagation` (the image sits
-    inside a card that otherwise navigates on click).
-  - **Decided:** also store the true pre-crop original. Today both the 512px
-    display image and the up-to-1600px "full" image are cropped from the
-    *same* user-chosen rect (`CropEditor.tsx`, `server/src/assets/
-    portraits.ts:28-38`) — no uncropped copy is ever kept. Add a new asset
-    role for the pre-crop original, capped at the existing upload limit
-    (portrait uploads are already capped at 3MB server-side,
-    `server/src/routes.ts` — no new/bigger limit needed, just persist what
-    was already accepted). Portraits uploaded before this change have no
-    original on file and fall back to the cropped version on enlarge.
-
 - [ready] **Admin inspect-only route** (concept agreed): the admin/GM role
   split already exists end-to-end — `SessionUser.isAdmin`, `requireAdmin`/
   `requireGmOrAdmin` (`server/src/auth.ts:5-11,108,119`), with an explicit
@@ -697,12 +662,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   way to pause mid-drag for a screenshot, so the trail's actual on-screen
   numbering/positioning during a real drag hasn't been eyeballed yet —
   needs a live check before this counts as done.
-- [ready] **Note field on Talente** (user feedback): `CharTalent`
-  (`shared/src/types.ts:220`) has no `notiz` field, and neither table
-  renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.
-  Add `notiz: string`, extend the `EMPTY` default, add a column to both
-  tables, reuse the existing `NoteField` component (`components/notes.tsx`)
-  already used for item and weapon-row notes.
 - [sketch] **Potion charges** (user feedback): no charge concept exists
   today — the closest precedent is `Item.anzahl` (plain stack count).
   Decided: a charge is a portion/dose — potions come in three fixed sizes

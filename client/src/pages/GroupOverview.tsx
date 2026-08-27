@@ -10,6 +10,7 @@ import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { GmNoteField, VITAL_LABELS, vitalClass } from '../components/gmRoster';
 import { Field } from '../components/inputs';
 import { usePersistedState } from '../components/persist';
+import { PortraitView } from '../components/PortraitView';
 
 // Spielleiter-Übersicht: alle Charaktere einer Gruppe als Karten, ihre
 // wichtigsten Kennwerte als Chips. Nur-Lesen (die Route dahinter ist requireGm).
@@ -297,7 +298,7 @@ export default function GroupOverviewPage() {
             <div className="gm-card" key={c.id}>
               <div className="gm-card-head">
                 {c.portrait ? (
-                  <img className="gm-card-portrait" src={`/api/characters/${c.id}/portrait`} alt="" />
+                  <PortraitView id={c.id} className="gm-card-portrait" alt={c.name} />
                 ) : (
                   <div className="gm-card-portrait gm-card-portrait--empty" aria-hidden="true" />
                 )}

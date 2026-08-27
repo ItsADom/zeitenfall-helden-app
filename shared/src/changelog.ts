@@ -210,6 +210,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Fordert die Spielleitung eine Probe an, kann sie dabei eine Erleichterung/Erschwernis vorgeben — sie ersetzt beim Annehmen euren eigenen Modifikator für diesen einen Wurf, ihr seht den Wert direkt auf der Anfrage-Karte.',
       'Unter „Stufe & Punkte" lässt sich jetzt eine absolvierte Trainings- oder Lesesitzung eintragen (bis zu vier, geteilter Zähler für beides) — reine Buchführung, der eigentliche Lernfortschritt bleibt bei euch. Wird von der Spielleitung mit „Neuer Spieltag" zurückgesetzt, genau wie die Schicksalspunkte.',
       'Wartet die Spielleitung auf eine angeforderte Probe von jemandem, der gerade nicht am Tisch sitzt, kann sie den Wurf jetzt direkt auslösen, statt weiter zu warten oder die Anfrage zurückzuziehen — der Eintrag ist dann sichtbar als „erzwungen" markiert.',
+      'Talente haben jetzt ein eigenes Notizfeld, genau wie Ausrüstung und Waffen.',
     ],
     changed: [
       'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe — der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',
@@ -229,6 +230,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Der Zurücksetzen-Knopf bei Erleichterung/Erschwernis im Würfel-Chat verschwand je nach Wert und ließ das Menü springen — er bleibt jetzt an Ort und Stelle (nur ausgegraut bei ±0). Scrollen über dem Menü blätterte außerdem den Chat dahinter mit; das passiert jetzt nicht mehr.',
       'Eine Warnung zu einem falschen Würfel-Befehl blieb im Eingabefeld stehen, auch nachdem der Text schon wieder gelöscht war.',
       'Wer den Würfel-Chat auf mehreren Browser-Tabs gleichzeitig offen hatte, sah dort unterschiedliche Sichtbarkeits- und Würfel-Einstellungen — ein Tab überschrieb den anderen unbemerkt. Beide Tabs bleiben jetzt synchron.',
+      'Porträts (Charaktere und Gruppen) lassen sich jetzt überall anklicken, wo sie zu sehen sind — nicht nur auf dem eigenen Bogen — und zeigen beim Vergrößern das unbeschnittene Originalbild, sofern eines hochgeladen wurde.',
     ],
     admin: [
       '(Spielleiter) Zauber & Fähigkeiten eines Charakters lassen sich jetzt direkt aus der Gruppenübersicht nachschlagen (🔍), ohne dessen Bogen zu öffnen.',

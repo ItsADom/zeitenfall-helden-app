@@ -210,6 +210,7 @@ db.exec(`
     at REAL NOT NULL DEFAULT 0, pa REAL NOT NULL DEFAULT 0, bl REAL NOT NULL DEFAULT 0,
     billiger TEXT NOT NULL DEFAULT '', spezialisierung TEXT NOT NULL DEFAULT '',
     waffenmeister TEXT NOT NULL DEFAULT '', berufsbonus TEXT NOT NULL DEFAULT '',
+    notiz TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (character_id, talent_id)
   );
 
@@ -920,6 +921,12 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(talents_catalog)').all() as { name: string }[]).map((c) => c.name));
   if (cols.has('klasse')) db.exec('ALTER TABLE talents_catalog DROP COLUMN klasse');
+}
+
+// Migration: 'notiz'-Spalte für char_talents (freies Notizfeld je Talent-Zeile).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_talents)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('notiz')) db.exec("ALTER TABLE char_talents ADD COLUMN notiz TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: Anmeldung soll Groß-/Kleinschreibung beim Benutzernamen ignorieren

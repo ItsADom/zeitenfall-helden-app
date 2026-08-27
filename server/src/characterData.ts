@@ -59,7 +59,13 @@ import type {
   VisibilitySection,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
-import { hatPortrait, ladePortrait, loeschePortrait, speicherePortrait } from './assets/portraits.js';
+import {
+  hatPortrait,
+  ladePortrait,
+  loeschePortrait,
+  speicherePortrait,
+  speicherePortraitOriginal,
+} from './assets/portraits.js';
 import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows, updateDynSection } from './dynSections.js';
 
 // --- Laden ---
@@ -122,7 +128,7 @@ export function loadTalents(charId: number): CharTalent[] {
   return (
     db
       .prepare(
-        `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus
+        `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz
          FROM char_talents WHERE character_id = ?`,
       )
       .all(charId) as CharTalent[]
@@ -1458,6 +1464,10 @@ export function savePortrait(charId: number, mime: string, data: Buffer, full = 
   speicherePortrait(charId, mime, data, full);
 }
 
+export function savePortraitOriginal(charId: number, mime: string, data: Buffer): void {
+  speicherePortraitOriginal(charId, mime, data);
+}
+
 export function deletePortrait(charId: number): void {
   loeschePortrait(charId);
 }
@@ -1626,17 +1636,17 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       // Eintippen; hier nochmal, weil die API auch direkt erreichbar ist.
       const next = rows.map((r) => [
         num(r.talentId), Math.min(100, num(r.taw)), num(r.at), num(r.pa), num(r.bl),
-        str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus),
+        str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus), str(r.notiz),
       ]);
       const cur = (db
-        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus FROM char_talents WHERE character_id = ? ORDER BY rowid')
+        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz FROM char_talents WHERE character_id = ? ORDER BY rowid')
         .all(charId) as Record<string, unknown>[])
-        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus]);
+        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus, r.notiz]);
       if (sameRows(cur, next)) return;
       db.prepare('DELETE FROM char_talents WHERE character_id = ?').run(charId);
       const stmt = db.prepare(
-        `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const v of next) stmt.run(charId, ...v);
       return;

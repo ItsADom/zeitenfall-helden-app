@@ -255,6 +255,7 @@ export interface CharTalent {
   spezialisierung: string;
   waffenmeister: string;
   berufsbonus: string;
+  notiz: string;
 }
 
 // Sprachen & Schriften

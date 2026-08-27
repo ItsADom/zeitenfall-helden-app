@@ -25,6 +25,7 @@ import {
   ladeGruppenPortrait,
   loescheGruppenPortrait,
   speichereGruppenPortrait,
+  speichereGruppenPortraitOriginal,
 } from './assets/portraits.js';
 import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chimes.js';
 import { db, initCharacterRows } from './db.js';
@@ -45,6 +46,7 @@ import {
   talentCatalogList,
   tagCatalogList,
   deletePortrait,
+  savePortraitOriginal,
   importFullCharacter,
   instantiateStandardSections,
   loadAbilities,
@@ -1383,6 +1385,27 @@ api.put(
   },
 );
 
+// Der unbeschnittene Original-Upload, wie ausgewählt bevor der CropEditor einen
+// Ausschnitt wählt — nur geschrieben, nie eigenständig gelesen: die Vergrößerungs-
+// Ansicht (`/portrait/full` oben) greift serverseitig darauf zu.
+api.put(
+  '/characters/:id/portrait/original',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const char = editableChar(req, res);
+    if (!char) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    savePortraitOriginal(char.id, mime, buf);
+    res.json({ ok: true });
+  },
+);
+
 api.get('/characters/:id/portrait', requireAuth, (req, res) => {
   const char = getChar(Number(req.params.id));
   if (!char || !characterAccess(req.user!, char)) {
@@ -1466,6 +1489,24 @@ api.put(
     }
     const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
     speichereGruppenPortrait(groupId, mime, buf, true);
+    res.json({ ok: true });
+  },
+);
+
+api.put(
+  '/groups/:id/portrait/original',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const groupId = editableGroup(req, res);
+    if (!groupId) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    speichereGruppenPortraitOriginal(groupId, mime, buf);
     res.json({ ok: true });
   },
 );

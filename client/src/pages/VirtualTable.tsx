@@ -13,6 +13,7 @@ import { useDicePanel } from '../components/dice/DicePanelProvider';
 import { tinteFuer } from '../components/dice/cinematic/kontrast';
 import FeedColumn from '../components/dice/FeedColumn';
 import { usePersistedState } from '../components/persist';
+import { PortraitView } from '../components/PortraitView';
 import VttRoster from '../components/VttRoster';
 import { generatedWaterTexture } from '../components/vttWater';
 
@@ -4027,7 +4028,7 @@ function InitiativeStrip({
       <div className={`vtt-initiative-card${opts.current ? ' vtt-initiative-card-current' : ''}`} key={entry.tokenId}>
         {token.characterId != null &&
           (token.portrait ? (
-            <img className="vtt-initiative-portrait" src={`/api/characters/${token.characterId}/portrait`} alt="" />
+            <PortraitView id={token.characterId} className="vtt-initiative-portrait" alt={token.name} />
           ) : (
             <div className="vtt-initiative-portrait vtt-initiative-portrait--empty" aria-hidden="true" />
           ))}
