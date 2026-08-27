@@ -23,9 +23,14 @@ export const CONTAINER_ARTEN: ContainerArt[] = ['quick', 'storage'];
 // Womit ein Behälter sein Fassungsvermögen misst:
 //   gewicht  Kapazität in kg — der übliche Fall (Rucksack, Gürteltasche).
 //   stueck   Kapazität in Stück (Summe der `anzahl` der Inhalte) — für Behälter,
-//            bei denen die Anzahl zählt statt das Gewicht (Köcher, Münzbeutel).
-//            Inhalt zählt dabei automatisch NICHT zur Traglast (siehe
+//            bei denen die Anzahl zählt statt das Gewicht (Köcher, Münzbeutel,
+//            aber auch Schnellzugriff-Behälter/„Quickslots", `containerArt ===
+//            'quick'`). Bei Stauraum-Behältern (`containerArt === 'storage'`)
+//            zählt der Inhalt dabei automatisch NICHT zur Traglast (siehe
 //            itemLastAnteil) — eine eigene Gewichtsreduktion ist dafür unnötig.
+//            Bei Schnellzugriff-Behältern gilt das NICHT: ihr Inhalt zählt voll
+//            (siehe itemLastAnteil) — hier misst „stueck" nur die Fach-Anzahl,
+//            keine Gewichtslosigkeit.
 export type KapazitaetArt = 'gewicht' | 'stueck';
 export const KAPAZITAET_ARTEN: KapazitaetArt[] = ['gewicht', 'stueck'];
 
@@ -79,8 +84,11 @@ export interface Item {
   kapazitaetArt: KapazitaetArt;
   // Gewichtsreduktion des Inhalts in Prozent (0–100). 100 % = der Inhalt zählt
   // gar nicht zur getragenen Last (Beutel des Fassungsvermögens / „bag of holding").
-  // Bei kapazitaetArt === 'stueck' wirkt IMMER wie 100 % — der Inhalt zählt nie
-  // zur Traglast, unabhängig vom gespeicherten Wert (siehe itemLastAnteil).
+  // Bei Stauraum-Behältern (containerArt === 'storage') mit kapazitaetArt ===
+  // 'stueck' wirkt das IMMER wie 100 %, unabhängig vom gespeicherten Wert —
+  // bei Schnellzugriff-Behältern (containerArt === 'quick') dagegen NIE: ihr
+  // Inhalt zählt immer voll, dieses Feld bleibt für sie ungenutzt (siehe
+  // itemLastAnteil).
   gewichtsreduktion: number;
   // Rüstungsschutz (nur bei Rüstungsteilen sinnvoll). Es wird NICHT summiert —
   // fürs Spiel zählt der höchste getragene Wert (siehe effektiverRs).
@@ -156,7 +164,17 @@ export function itemLastAnteil(item: Item, byUid: Map<string, Item>): number {
   if (item.location === 'getragen') return base * GETRAGEN_ANTEIL;
   if (item.location === 'behaelter') {
     const c = byUid.get(item.containerUid);
-    const red = c ? (c.kapazitaetArt === 'stueck' ? 100 : clampPct(c.gewichtsreduktion)) : 0;
+    if (!c) return base;
+    // Schnellzugriff-Behälter (Gürtel, Bandelier, „Quickslots"): der Inhalt
+    // zählt voll zum Behälter — anders als bei Stauraum-Köchern/-Beuteln ist
+    // die Anzahl-Kapazität hier keine Weightless-Zusage, nur eine Fach-Zählung
+    // (Spieler-Entscheidung 2026-08-24). Der Behälter selbst wird beim Tragen
+    // wie jeder andere Körper-Gegenstand halbiert (GETRAGEN_ANTEIL) — dieselbe
+    // Halbierung wirkt dann auf seinen Inhalt mit, solange er getragen wird.
+    if (c.containerArt === 'quick') {
+      return c.location === 'getragen' ? base * GETRAGEN_ANTEIL : base;
+    }
+    const red = c.kapazitaetArt === 'stueck' ? 100 : clampPct(c.gewichtsreduktion);
     return base * (1 - red / 100);
   }
   return base;

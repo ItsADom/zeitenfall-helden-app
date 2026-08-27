@@ -2,7 +2,19 @@ import { Dialog } from '../Dialog';
 
 // Statische Übersicht — neue Befehle in DicePanel.tsx's `send()` UND hier
 // eintragen, sonst driftet die Übersicht vom tatsächlichen Verhalten weg.
-const COMMANDS: { syntax: string; description: string }[] = [
+//
+// GM-only commands are LISTED rather than hidden, marked with `nurSl`. Someone
+// who just watched dice tumble across their whole screen will go looking for
+// how that happened, and an invisible command turns that into a question for
+// the Spielleitung. Hiding would buy nothing either way: the server is what
+// actually gates them, and the parser ships in everyone's bundle regardless.
+const COMMANDS: { syntax: string; description: string; nurSl?: true }[] = [
+  {
+    syntax: '/i <Ausdruck>  oder  /important <Ausdruck>',
+    nurSl: true,
+    description:
+      'Sagt einen großen Wurf an: bei allen am Tisch verdunkelt sich kurz der Bildschirm, eine Fanfare erklingt und die Würfel fallen sichtbar, bevor das Ergebnis im Chat landet. Ansonsten wie „/r", auch mit „#Titel". Immer öffentlich. Esc oder ein Klick überspringt die Anzeige — nur bei dir.',
+  },
   {
     syntax: '/r <Ausdruck>  oder  /roll <Ausdruck>',
     description:
@@ -12,6 +24,11 @@ const COMMANDS: { syntax: string; description: string }[] = [
     syntax: '/dicecode w  oder  /dicecode d',
     description:
       'Legt fest, ob Würfelausdrücke im Chat als „w" oder „d" angezeigt werden (z. B. „2w6" vs. „2d6") — beide Buchstaben bleiben als Eingabe immer gültig.',
+  },
+  {
+    syntax: '/mute',
+    description:
+      'Schaltet den Benachrichtigungsklang aus und wieder an — der Klang selbst und seine Lautstärke stehen in den Einstellungen. Der Chat-Reiter blinkt auch stummgeschaltet weiter, es geht also nichts verloren.',
   },
   {
     syntax: '/master',
@@ -57,6 +74,7 @@ export default function CommandsDialog({ open, onClose }: { open: boolean; onClo
           <div className="cmd-list-item" key={c.syntax}>
             <dt>
               <code>{c.syntax}</code>
+              {c.nurSl && <span className="cmd-nur-sl">nur Spielleitung</span>}
             </dt>
             <dd>{c.description}</dd>
           </div>

@@ -3,6 +3,7 @@
 
 import type { DieConfirmation, DiceExpression, PendingConfirmation } from './dice.js';
 import type { AttrRowCode, BaseValueKey } from './types.js';
+import type { BoardClientMessage, BoardServerMessage } from './boardProtocol.js';
 
 export type RollVisibility = 'public' | 'hidden' | 'gm_player';
 
@@ -76,6 +77,13 @@ export interface ProbeRollPayload {
   narrow: boolean;
   /** Sauber bestanden mit stehengebliebener 1 — Gegenstück zum Patzer. */
   criticalSuccess: boolean;
+  /**
+   * Gesetzt, wenn die Spielleitung diesen Wurf per `roll.pending.force`
+   * anstelle einer abwesenden Person ausgelöst hat (siehe ws.ts) — nie
+   * unauffällig: der Eintrag soll sich sichtbar von einem selbst geworfenen
+   * unterscheiden, damit es beim Zurückkommen transparent ist.
+   */
+  forcedByGm?: boolean;
 }
 
 export interface ExpressionRollPayload {
@@ -96,6 +104,16 @@ export interface ExpressionRollPayload {
    * bei einem gewöhnlichen freien Wurf.
    */
   outcomeLabel?: string;
+  /**
+   * Nur bei einem Waffen-Schaden-Wurf gesetzt (siehe roll.weaponDamage) — die
+   * Rüstungsdurchdringung der Waffe, damit sie neben dem Ergebnis steht, ohne
+   * dass die werfende Person sie von Hand nachtragen muss. Bleibt ein
+   * ExpressionRollPayload-Feld statt eines eigenen `mode`, weil ein Schaden-
+   * Wurf strukturell ein freier Ausdruck ist (Würfel + Summe, kein Zielwert)
+   * — FeedEntryView/RollView zeigt ihn dadurch automatisch wie jeden anderen
+   * Ausdruckswurf, nur mit dem zusätzlichen RD-Wert.
+   */
+  rd?: string;
 }
 
 export type RollPayload = ProbeRollPayload | ExpressionRollPayload;
@@ -130,6 +148,32 @@ export interface RollFeedEntry {
 
 export type FeedEntry = ChatFeedEntry | RollFeedEntry;
 
+/**
+ * Everything a client needs for ONE performance of the „großer Wurf" (see
+ * roll.expr.important and shared/src/diceCinematic.ts).
+ */
+export interface KinoAuftrag {
+  /**
+   * Drives the whole animation. The same number on every screen, therefore the
+   * same performance everywhere — flight paths, tumble axes, spark directions.
+   * Never the RESULT: the server rolls that exactly as it always does (see
+   * server/src/dice.ts).
+   */
+  seed: number;
+  /**
+   * The finished, already-persisted entry.
+   *
+   * It travels HERE rather than arriving via `feed.append`, because it may only
+   * surface in the chat AFTER the performance — every client appends it itself
+   * once its own cinematic is done (skipped, timed out, or run to the end). It
+   * therefore also carries everything the overlay shows: two sources for text
+   * that appears twice on screen seconds apart would drift sooner or later.
+   *
+   * Always `visibility: 'public'` — see roll.expr.important.
+   */
+  entry: RollFeedEntry;
+}
+
 export interface PendingRollRequest {
   id: string;
   groupId: number;
@@ -141,6 +185,14 @@ export interface PendingRollRequest {
   targetCharId: number;
   /** Angezeigt bei der Spielleitung, die auf mehrere Antworten warten kann. */
   targetCharName: string;
+  /**
+   * Von der Spielleitung bei der Anfrage gesetzt (situative Erleichterung/
+   * Erschwernis) — ersetzt beim Annehmen den eigenen Modifikator des Spielers
+   * vollständig, statt sich dazuzuaddieren (siehe roll.pending.accept in
+   * ws.ts). Ungesetzt = die Spielleitung hat keinen vorgegeben, der Spieler
+   * würfelt mit seinem eigenen (wie bisher).
+   */
+  modifier?: number;
   /**
    * Gesetzt, wenn diese Anfrage EIN Zweig einer Gruppen-Sammelanfrage ist
    * (siehe `roll.group.request`) — alle Zweige derselben Anfrage teilen diese
@@ -218,7 +270,18 @@ export interface CoopPoolRequest {
 // Every client→server message carries reqId so the UI can correlate an
 // error reply back to the control that sent it.
 export type ClientToServerMessage =
-  | { type: 'chat.send'; reqId: string; text: string; isMe: boolean; charId: number | null }
+  // visibility/targetUserId: same VisibilityPicker the dock uses for rolls —
+  // an ordinary chat line defaulted to 'public' regardless of the picker
+  // (see ws.ts); now it carries the same setting a roll would.
+  | {
+      type: 'chat.send';
+      reqId: string;
+      text: string;
+      isMe: boolean;
+      charId: number | null;
+      visibility?: RollVisibility;
+      targetUserId?: number;
+    }
   // `table`: „/master"/„/wild" — der Server würfelt die dazu passenden
   // Würfel und den Ergebnistext selbst (siehe ws.ts), `expression`/`label`
   // werden dann ignoriert. Nie vom Client übernommen, aus demselben Grund
@@ -238,6 +301,16 @@ export type ClientToServerMessage =
       charId: number | null;
       table?: 'master' | 'wild';
       targetUserId?: number;
+      /**
+       * „/i" — the roll is announced to the whole table (fanfare, dimmed
+       * screen, falling dice) before it appears in the chat. Spielleitung only;
+       * the server rejects it otherwise.
+       *
+       * Forces `visibility: 'public'` and ignores `targetUserId` — an
+       * announcement to everyone with a hidden result behind it would make no
+       * sense. Never combined with `table`.
+       */
+      important?: true;
     }
   // modifier: situative Erleichterung(-)/Erschwernis(+) der Spielleitung, vom
   // Spieler selbst eingetragen (Dock, neben VisibilityPicker) — wirkt auf die
@@ -252,20 +325,43 @@ export type ClientToServerMessage =
       modifier?: number;
       targetUserId?: number;
     }
+  // Schaden einer Waffenzeile würfeln — die Schaden-Formel (und die RD, siehe
+  // ProbeRollPayload.rd) kommt server-seitig aus der Waffenzeile, nie vom
+  // Client, genau wie probeZahl bei roll.probe. `ranged` unterscheidet die
+  // Tabelle (sec_waffenFernNeu/sec_waffenNahNeu) — dieselbe id existiert in
+  // beiden unabhängig voneinander. Nur vom eigenen Bogen (kein Anfrage-/
+  // Gruppen-/Kooperations-Pendant — Schaden würfelt man für sich, niemand
+  // fragt eine andere Person danach an).
+  | {
+      type: 'roll.weaponDamage';
+      reqId: string;
+      charId: number;
+      sectionRowId: number;
+      ranged: boolean;
+      visibility: RollVisibility;
+      targetUserId?: number;
+    }
   // Einen offenen Bestätigungswurf erledigen: werfen, oder mit skip:true
   // verwerfen (nicht jeder W20-Wurf kennt Patzer). Nur der Werfer selbst.
   | { type: 'roll.confirm'; reqId: string; entryId: number; dieIndex: number; skip?: boolean }
-  | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number }
+  | { type: 'roll.pending.request'; reqId: string; source: ProbeSource; targetUserId: number; targetCharId: number; modifier?: number }
   | { type: 'roll.pending.accept'; reqId: string; requestId: string; modifier?: number }
   | { type: 'roll.pending.decline'; reqId: string; requestId: string }
   // Nur die Spielleitung, und nur für eine Anfrage, die sie selbst gestellt
   // hat — Gegenstück zu roll.pending.decline (das ist der Spieler-Seite
   // vorbehalten).
   | { type: 'roll.pending.cancel'; reqId: string; requestId: string }
+  // Löst die Anfrage sofort aus, ohne auf die angefragte Person zu warten
+  // (z. B. abwesend am Tisch) — nur die Spielleitung, nur für eine eigene
+  // Anfrage. Der Modifikator kommt wie bei roll.pending.accept aus
+  // request.modifier, falls die Spielleitung schon bei der Anfrage einen
+  // vorgegeben hat, sonst 0 — es gibt niemanden mehr, der einen eigenen
+  // einträgt.
+  | { type: 'roll.pending.force'; reqId: string; requestId: string }
   // Fragt dieselbe Probe bei JEDEM gerade verbundenen Gruppenmitglied an
   // (außer der Spielleitung selbst) — server-seitig ein `roll.pending.request`
   // je Mitglied unter einer gemeinsamen groupRequestId, siehe dort.
-  | { type: 'roll.group.request'; reqId: string; source: ProbeSource }
+  | { type: 'roll.group.request'; reqId: string; source: ProbeSource; modifier?: number }
   // Deckt eine Gruppen-Sammelanfrage vorzeitig auf: noch offene Zweige werden
   // verworfen (wie roll.pending.cancel), bereits zurückgehaltene Ergebnisse
   // sofort veröffentlicht. Nur die anfragende Spielleitung.
@@ -289,7 +385,10 @@ export type ClientToServerMessage =
   | { type: 'roll.coop.start'; reqId: string; poolId: string }
   // Verwirft den Pool ohne zu würfeln. Nur die vorschlagende Person oder die
   // Spielleitung.
-  | { type: 'roll.coop.cancel'; reqId: string; poolId: string };
+  | { type: 'roll.coop.cancel'; reqId: string; poolId: string }
+  // Virtueller Tisch (docs/concepts/virtual-table.md) — rides this same
+  // socket rather than a second connection, see boardProtocol.ts.
+  | BoardClientMessage;
 
 export type ServerToClientMessage =
   | { type: 'feed.append'; entry: FeedEntry }
@@ -330,6 +429,18 @@ export type ServerToClientMessage =
   // eigenen Verbindungsabbruch (siehe RECONNECT_GRACE_MS in ws.ts). Wie
   // presence.snapshot rein lokal, kein Feed-Eintrag.
   | { type: 'presence.joined'; name: string }
+  // A „großer Wurf" („/i") has been announced: to EVERYONE in the room,
+  // unfiltered.
+  //
+  // Like presence.snapshot and wartung.angekuendigt, a pure LIVE event — not
+  // persisted, never replayed. Whoever connects afterwards sees the roll in the
+  // history like any other, but no cinematic. That split between "live" and
+  // "history" is exactly why this is its own message rather than a field on the
+  // entry: a stored flag would replay the performance on every page load.
+  //
+  // The entry rides along here instead of via feed.append — see
+  // KinoAuftrag.entry.
+  | ({ type: 'roll.important' } & KinoAuftrag)
   // The one message that goes to EVERY room rather than one: an admin has
   // triggered a redeploy, so this instance will restart shortly. Receiving it
   // is what licenses a client to show the waiting screen when the connection
@@ -337,4 +448,5 @@ export type ServerToClientMessage =
   // socket alone would pop the screen up on every Wi-Fi hiccup.
   | { type: 'wartung.angekuendigt'; durch: string }
   | { type: 'ack'; reqId: string }
-  | { type: 'error'; reqId: string; message: string };
+  | { type: 'error'; reqId: string; message: string }
+  | BoardServerMessage;

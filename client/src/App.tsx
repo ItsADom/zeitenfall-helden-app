@@ -10,6 +10,7 @@ import AdminPage from './pages/Admin';
 import GroupPage from './pages/Group';
 import GroupOverviewPage from './pages/GroupOverview';
 import CharacterPage from './pages/Character';
+import VirtualTablePage from './pages/VirtualTable';
 import ChangelogPage from './pages/Changelog';
 import HomePage from './pages/Home';
 import EinstellungenPage from './pages/Einstellungen';
@@ -25,11 +26,12 @@ import { RequestsProvider, PendingBadge } from './components/requests';
 import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProvider';
 import { WartungProvider } from './components/wartung';
 import { NeustartOverlay } from './components/NeustartOverlay';
+import WichtigerWurfOverlay from './components/dice/WichtigerWurfOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
-import { isKnownTheme, useAnimations, useDiceIcons, useMode, useTheme } from './theme';
-import type { Mode } from './theme';
+import { isKnownTheme, useAnimations, useChatFontSize, useDiceIcons, useMode, useTheme } from './theme';
+import type { ChatFontSize, Mode } from './theme';
 
 interface AuthContextValue {
   user: UserInfo;
@@ -51,6 +53,8 @@ export interface ThemeControls {
   setAnim: (on: boolean) => void;
   diceIcons: boolean;
   setDiceIcons: (on: boolean) => void;
+  chatFontSize: ChatFontSize;
+  setChatFontSize: (id: ChatFontSize) => void;
   // Farbwelt des gerade geöffneten Charakters. Solange gesetzt (und bekannt),
   // überschreibt sie die persönliche Vorgabe — für Farbe UND Animation. Die
   // Charakterseite setzt sie beim Öffnen und räumt sie beim Verlassen wieder ab.
@@ -78,6 +82,7 @@ export default function App() {
   const [mode, setMode] = useMode();
   const [anim, setAnim] = useAnimations();
   const [diceIcons, setDiceIcons] = useDiceIcons();
+  const [chatFontSize, setChatFontSize] = useChatFontSize();
   // Überschreibende Farbwelt eines geöffneten Charakters (null = persönliche
   // Vorgabe). Die angezeigte Farbwelt treibt data-theme UND die Kopf-Animation,
   // damit auf der Charakterseite beides zur Charakter-Farbwelt passt.
@@ -110,7 +115,9 @@ export default function App() {
 
   return (
     <AuthContext.Provider value={{ user, refresh }}>
-      <ThemeControlsContext.Provider value={{ theme, setTheme, mode, setMode, anim, setAnim, diceIcons, setDiceIcons, setOverrideTheme }}>
+      <ThemeControlsContext.Provider
+        value={{ theme, setTheme, mode, setMode, anim, setAnim, diceIcons, setDiceIcons, chatFontSize, setChatFontSize, setOverrideTheme }}
+      >
       <OverviewProvider>
       <RequestsProvider enabled={user.isGm || user.isAdmin}>
       {/* Für alle: das Wiki gehört jedem, und das Abzeichen zählt, was seit dem
@@ -164,7 +171,17 @@ export default function App() {
           <Route path="/einstellungen" element={<EinstellungenPage />} />
           <Route path="/gruppe/:id" element={<GroupPage />} />
           <Route path="/gruppe/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
+          {/* Virtueller Tisch: eine Seite für beide Gruppenarten (wie GroupPage
+              schon, siehe dort), die Route selbst unterscheidet nicht — group.isTemp
+              aus den geladenen Daten entscheidet über Beschriftung/Rücksprung. */}
+          <Route path="/gruppe/:id/tisch" element={<VirtualTablePage />} />
+          {/* Event-Gruppen bekamen bislang keine eigene Spielerseite — nur die
+              GM-Übersicht und den Chat-Dock-Raumwähler. GroupPage bedient beide
+              Gruppenarten schon serverseitig (group.isTemp), also reicht die
+              zweite Route auf dieselbe Komponente. */}
+          <Route path="/event/:id" element={<GroupPage />} />
           <Route path="/event/:id/uebersicht" element={user.isGm ? <GroupOverviewPage /> : <Navigate to="/charaktere" />} />
+          <Route path="/event/:id/tisch" element={<VirtualTablePage />} />
           <Route path="/charakter/:id" element={<CharacterPage />} />
           <Route path="/charakter/:id/zauber-faehigkeiten" element={<AbilityManagerPage />} />
           {/* Splat-Route: das Wiki bringt seine eigenen Unterrouten mit. Steht
@@ -175,6 +192,9 @@ export default function App() {
         </Routes>
       </main>
       <DicePanelDock />
+      {/* Over the dock (which it ends by flying into), but under the restart
+          screen: a redeploy beats any performance. */}
+      <WichtigerWurfOverlay />
       {/* Ganz zuletzt und außerhalb von <main>: der Wartebildschirm muss alles
           überdecken, den Würfel-Dock eingeschlossen. */}
       <NeustartOverlay />

@@ -4,14 +4,20 @@ import type {
   CoopPoolRequest,
   FeedEntry,
   GroupRollRequest,
+  KinoAuftrag,
   PendingRollRequest,
   ProbeSource,
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { apiGet, apiPut } from '../../api';
+import { useAuth } from '../../App';
 import { usePersistedState } from '../persist';
 import { useWartung } from '../wartung';
+import { spieleTon } from './ton';
+import { wichtigVorbereiten } from './chimes';
 
 const PAGE_SIZE = 30;
 // Wie viele Einträge ein echter Neuverbindungsaufbau initial lädt — bewusst
@@ -27,6 +33,38 @@ const INITIAL_LOAD_SIZE = 10;
 // ECHTE Neuverbindungsaufbau (Raumwechsel/Laden) ihn zurücksetzt — ein
 // bloßer Reconnect nach Netz-Aussetzer tut das nicht (siehe connect()).
 const MAX_LIVE_FEED = 100;
+// Wie lange der Chat-Reiter nach einer Anfrage pulsiert. Danach bleibt der
+// stille Punkt stehen: „hier ist etwas" muss bleiben, „schau JETZT hin" nicht —
+// ein Reiter, der nach zwanzig Minuten immer noch zuckt, ist genau der Grund,
+// aus dem Leute Benachrichtigungen dauerhaft abschalten.
+const PULS_MS = 8000;
+// Anfragen, für die in DIESEM Tab schon geläutet hat. In sessionStorage, nicht
+// bloß in einem Ref: der Server reicht offene Anfragen bei jedem Verbinden noch
+// einmal nach (ws.ts, „Offene Anfragen nachreichen"), und ein Neuladen der
+// Seite baut ein Ref frisch auf — es hätte also erneut geläutet für etwas, das
+// man vor dem Neuladen schon gehört hat. sessionStorage endet mit dem Tab, was
+// genau die richtige Lebensdauer ist.
+const ANGEKUENDIGT_KEY = 'chat:angekuendigt';
+// Deckel, damit der Eintrag über eine lange Sitzung nicht unbegrenzt wächst.
+// Anfragen laufen ohnehin ab; die jüngsten paar Dutzend reichen völlig.
+const ANGEKUENDIGT_MAX = 80;
+
+function ladeAngekuendigt(): string[] {
+  try {
+    const roh = JSON.parse(sessionStorage.getItem(ANGEKUENDIGT_KEY) ?? '[]') as unknown;
+    return Array.isArray(roh) ? roh.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function merkeAngekuendigt(ids: Set<string>): void {
+  try {
+    sessionStorage.setItem(ANGEKUENDIGT_KEY, JSON.stringify([...ids].slice(-ANGEKUENDIGT_MAX)));
+  } catch {
+    // Merken ist optional — schlimmstenfalls läutet es nach einem Neuladen einmal mehr.
+  }
+}
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 // Wie lange eine „wer ist da"-Notiz stehen bleibt, bevor sie von selbst
@@ -61,6 +99,20 @@ function trimFeed(entries: FeedEntry[], allow: boolean): FeedEntry[] {
 export interface PresenceNote {
   key: string;
   text: string;
+}
+
+/**
+ * A „großer Wurf" currently being announced.
+ *
+ * Purely local, exactly like PresenceNote: it comes off the socket, is never
+ * part of the feed and is never persisted. `lauf` counts performances and is
+ * used as the overlay's React key, so a second announcement REMOUNTS it rather
+ * than reconciling one mid-animation — the same reason App.tsx keys BannerFx.
+ * That guarantees the WebGL context of the old run is torn down.
+ */
+export interface KinoLauf {
+  auftrag: KinoAuftrag;
+  lauf: number;
 }
 
 export interface DiceGroupOption {
@@ -103,6 +155,17 @@ interface DicePanelCtxValue {
   loadingMore: boolean;
   collapsed: boolean;
   toggle: () => void;
+  /** Ungesehenes im Chat, seit der Dock zuletzt offen war — der Punkt am eingeklappten Reiter. */
+  ungelesen: boolean;
+  /** Zusätzlich zum Punkt: eine Anfrage will beantwortet werden. Verfällt nach PULS_MS von selbst. */
+  pulsiert: boolean;
+  /** Benachrichtigungsklang (`/mute`, Einstellungen) — rein client-seitig, wie diceCode. */
+  ton: TonWahl;
+  setTon: (t: TonWahl) => void;
+  /** Zuletzt gewählter Klang ungleich „aus" — damit `/mute` zurückschalten kann. */
+  tonZuletzt: TonWahl;
+  lautstaerke: number;
+  setLautstaerke: (v: number) => void;
   hidden: boolean;
   setHidden: (h: boolean) => void;
   /** Letzte Ablehnung vom Server (Ratenlimit, falsche Gruppe, abgelaufene Anfrage, …) — verschwindet von selbst. */
@@ -123,7 +186,8 @@ interface DicePanelCtxValue {
   setDiceCode: (c: 'w' | 'd') => void;
   /** Explicit room switch (from the room selector) — the only thing that changes what's displayed and who you post as. */
   selectRoom: (groupId: number) => void;
-  sendChat: (raw: string) => void;
+  /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — siehe chat.send im Protokoll. */
+  sendChat: (raw: string, visibility?: RollVisibility, targetUserId?: number) => void;
   /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — siehe roll.expr im Protokoll. */
   rollExpr: (
     expression: string,
@@ -139,6 +203,19 @@ interface DicePanelCtxValue {
    */
   /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — wie bei rollExpr. */
   rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility, targetUserId?: number) => void;
+  /**
+   * Schaden einer Waffenzeile würfeln. `ranged` unterscheidet Nah-/Fernkampf-
+   * Tabelle (siehe roll.weaponDamage im Protokoll) — kein Anfrage-Pendant,
+   * nur vom eigenen Bogen.
+   */
+  rollWeaponDamage: (
+    groupId: number,
+    charId: number,
+    sectionRowId: number,
+    ranged: boolean,
+    visibility: RollVisibility,
+    targetUserId?: number,
+  ) => void;
   /** Offenen Bestätigungswurf erledigen — werfen, oder mit skip verwerfen. */
   confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
   /** Offene „SL + Spieler"-Anfragen, die diesen Nutzer betreffen. */
@@ -163,19 +240,29 @@ interface DicePanelCtxValue {
    * Leert sich bei jedem Raumwechsel/Reconnect neu.
    */
   presenceNotes: PresenceNote[];
-  /** Spielleitung fordert eine bestimmte Probe von einem Spieler an. */
-  requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => void;
+  /**
+   * Spielleitung fordert eine bestimmte Probe von einem Spieler an.
+   * `modifier` ist optional situativ von der Spielleitung vorgegeben — ersetzt
+   * beim Annehmen den eigenen Modifikator des Spielers vollständig.
+   */
+  requestProbe: (groupId: number, targetUserId: number, targetCharId: number, source: ProbeSource, modifier?: number) => void;
   acceptRequest: (requestId: string) => void;
   declineRequest: (requestId: string) => void;
   /** Spielleitung zieht eine eigene, noch offene Anfrage zurück. */
   cancelRequest: (requestId: string) => void;
+  /**
+   * Spielleitung löst eine eigene, noch offene Anfrage sofort aus — für eine
+   * gerade abwesende Person am Tisch. Der Feed-Eintrag ist sichtbar als
+   * erzwungen markiert (RollFeedEntry.roll.forcedByGm).
+   */
+  forceRequest: (requestId: string) => void;
   /**
    * Spielleitung fordert dieselbe Probe von JEDEM gerade verbundenen
    * Gruppenmitglied an — ein normales `roll.pending.request` je Mitglied
    * unter gemeinsamer groupRequestId, Ergebnisse erscheinen erst gemeinsam
    * im Feed, sobald alle geantwortet haben (siehe server/src/groupRolls.ts).
    */
-  requestGroupProbe: (groupId: number, source: ProbeSource) => void;
+  requestGroupProbe: (groupId: number, source: ProbeSource, modifier?: number) => void;
   /** Deckt eine Sammelanfrage vorzeitig auf — offene Zweige werden verworfen. */
   revealGroupRequest: (groupRequestId: string) => void;
   /** Verwirft eine Sammelanfrage komplett, auch bereits zurückgehaltene Ergebnisse. */
@@ -198,6 +285,131 @@ interface DicePanelCtxValue {
    * `max` weglassen, um nur `aktuell` zu setzen.
    */
   setSchicksalspunkte: (aktuell: number, max?: number) => void;
+  /**
+   * „/i": wie rollExpr, aber als Ansage an den ganzen Tisch.
+   *
+   * Its own method rather than a sixth argument to rollExpr: the invariants
+   * (always public, never a table, never a counterpart) then live in ONE place
+   * instead of at every call site, and rollExpr's three existing callers stay
+   * untouched. The context already prefers narrow, purpose-named methods —
+   * requestGroupProbe, proposeCoopPool, startCoopPool.
+   */
+  rollWichtig: (expression: string, label?: string) => void;
+  /** Runs while a „großer Wurf" is being shown. Null the rest of the time. */
+  kino: KinoLauf | null;
+  /**
+   * Called by the overlay when its performance is over — normally, skipped,
+   * timed out or after an error. Appends the held-back entry to the feed.
+   * Idempotent: whichever of those happens first wins, the rest are no-ops.
+   */
+  kinoBeenden: (entryId: number) => void;
+
+  // --- Virtueller Tisch (docs/concepts/virtual-table.md) ---
+  // Reitet denselben Socket wie Chat/Würfel statt eines zweiten (siehe
+  // "Realtime design" im Plan). Anders als der Feed oben gibt es hierfür
+  // keine REST-Historie über diesen Kontext — die Seite selbst holt den
+  // vollständigen Schnappschuss (GET .../board) und übergibt ihn per
+  // hydrateBoard(); von da an halten die WS-Deltas unten ihn aktuell.
+  boardTokens: BoardToken[];
+  boardSettings: BoardSettings | null;
+  /** cellKey (shared/src/board.ts) -> tagged tile value (parseTileValue) — sparse, unpainted cells simply absent. */
+  boardTiles: Record<string, string>;
+  /** cellKey -> #rrggbb(aa) tint, GM-only layer ABOVE boardTiles — see paintHighlights below. */
+  boardHighlights: Record<string, string>;
+  /** Persistent, movable labels (board_overlays, kind 'label') — perm_labels-gated, see canLabel below. */
+  boardOverlays: BoardOverlay[];
+  /** cellKey -> hidden. GM-only to edit (canEditFog, hard-coded); everyone gets the same mask, only its contents are redacted server-side. */
+  boardFog: Set<string>;
+  /** Placed images (Phase 12, "Images on the table") — perm_images-gated, see canImages below. Hidden ones are already stripped server-side for a non-GM viewer. */
+  boardImages: BoardImage[];
+  /** The initiative roster (board_initiative), already redacted for hidden/fogged tokens by the server. Sorted by the caller (initiativeOrder), not here. */
+  boardInitiative: BoardInitiative[];
+  /** The caller's OWN round trackers only (board_round_trackers) — fully private, see BoardRoundTracker's doc comment in shared/src/boardProtocol.ts. Never filtered/redacted client-side because the server never sends anyone else's. */
+  boardRoundTrackers: BoardRoundTracker[];
+  /** Nach dem eigenen REST-Fetch der Seite aufrufen — füllt boardTokens/boardSettings/boardTiles/boardHighlights/boardOverlays/boardFog/boardInitiative/boardRoundTrackers einmalig. */
+  hydrateBoard: (
+    board: BoardSettings,
+    tokens: BoardToken[],
+    tiles: Record<string, string>,
+    highlights: Record<string, string>,
+    overlays: BoardOverlay[],
+    fog: string[],
+    initiative: BoardInitiative[],
+    images: BoardImage[],
+    roundTrackers: BoardRoundTracker[],
+  ) => void;
+  createToken: (input: {
+    kind: 'character' | 'marker';
+    characterId?: number;
+    name?: string;
+    color?: string;
+    icon?: string;
+    x: number;
+    y: number;
+    size?: number;
+    radius?: number;
+    radiusColor?: string;
+    statuses?: string[];
+    cover?: string;
+  }) => void;
+  updateToken: (
+    tokenId: number,
+    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>,
+  ) => void;
+  /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
+  moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
+  deleteToken: (tokenId: number) => void;
+  /** Character tokens only. Absolute values, not deltas — same idiom as setInitiativeBasis. Owner/GM-only server-side; a token with `wounds: null` never reaches anyone else in the first place. */
+  setTokenWounds: (tokenId: number, small: number, big: number) => void;
+  updateBoardSettings: (
+    patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
+  ) => void;
+  /** value '' erases that cell. Sent once per stroke/fill, same "render locally, sync on release" shape as a token drag. */
+  paintTiles: (cells: Record<string, string>) => void;
+  /** Same shape as paintTiles, but for the GM-only highlight/tint layer — never touches boardTiles. */
+  paintHighlights: (cells: Record<string, string>) => void;
+  createOverlay(kind: 'label', data: LabelOverlayData): void;
+  createOverlay(kind: 'measure', data: MeasureOverlayData): void;
+  /** GM only (canEditFog). true hides a cell, false reveals it — same "one delta on release" shape as paintTiles, just boolean instead of a tagged value. */
+  paintFog: (cells: Record<string, boolean>) => void;
+  /**
+   * A label patches individual fields (position from a drag, or text from
+   * editing — see the protocol comment); a measure shape has no field that
+   * survives a drag the way a label's text does, so a move/resize sends its
+   * whole new `data` instead of a partial patch.
+   */
+  updateOverlay: (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => void;
+  deleteOverlay: (overlayId: number) => void;
+  /** GM only (canManageInitiative). Before combat (round 0), always unrolled — waits for startCombat, `mode` ignored. Mid-combat, `mode` picks Normal (last this round, default) vs Überraschung (first, interrupts now) — see board.initiative.add in shared/src/boardProtocol.ts. */
+  addInitiative: (tokenId: number, mode?: 'normal' | 'surprise') => void;
+  /** GM only. */
+  removeInitiative: (tokenId: number) => void;
+  /** GM only — a marker/monster's Initiative-Basis (a character's always comes live from its sheet and ignores this). */
+  setInitiativeBasis: (tokenId: number, basis: number) => void;
+  /** GM only. Rolls the whole roster and begins round 1 — rejected server-side if the roster is empty or combat is already running. */
+  startCombat: () => void;
+  /** GM only. Clears the whole roster and resets round/turn back to 0. */
+  endCombat: () => void;
+  /** GM or the current combatant's own owner. Past the last combatant this bumps the round and rerolls everyone instead of just moving the pointer. */
+  nextTurn: () => void;
+  /** Available to everyone — no perm_ setting or GM gate, purely personal record-keeping. */
+  createRoundTracker: (label: string, startCount: number) => void;
+  /** Owner-only server-side; `count` is absolute, same idiom as setInitiativeBasis — covers both the +1/-1 buttons and a typed edit. */
+  setRoundTrackerCount: (trackerId: number, count: number) => void;
+  deleteRoundTracker: (trackerId: number) => void;
+  /** Latest "center all on my view" broadcast (Phase 11) — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat of the same view. */
+  boardViewCenter: { x: number; y: number; zoom: number; by: string; seq: number } | null;
+  /** Available to everyone, not just the GM — broadcasts the caller's own camera; every viewer, sender included, eases to it and shows the same toast. */
+  centerView: (x: number, y: number, zoom: number) => void;
+  /** Latest "point at a cell" ping — ephemeral, not board state. `seq` changes on every broadcast so an effect keyed on it fires even for a repeat ping on the same cell. */
+  boardCellPing: { x: number; y: number; by: string; seq: number } | null;
+  /** Available to everyone, not just the GM — broadcasts a cell (grid index, not board pixels); every viewer, sender included, shows the same pulsing ring + name. */
+  pingCell: (x: number, y: number) => void;
+  /** Places an already-uploaded asset (see POST .../board/images) on the board — perm_images-gated (canEditImages). */
+  createImage: (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => void;
+  /** Move/resize/rotate/opacity/z-order/modus, and `hidden` (GM-only server-side — the one all-or-nothing fog escape hatch for images). */
+  updateImage: (imageId: number, patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => void;
+  deleteImage: (imageId: number) => void;
 }
 
 const DicePanelCtx = createContext<DicePanelCtxValue | null>(null);
@@ -214,6 +426,13 @@ export function useDicePanel(): DicePanelCtxValue {
       loadingMore: false,
       collapsed: true,
       toggle: () => {},
+      ungelesen: false,
+      pulsiert: false,
+      ton: CHIME_STANDARD,
+      setTon: () => {},
+      tonZuletzt: CHIME_STANDARD,
+      lautstaerke: 0.6,
+      setLautstaerke: () => {},
       hidden: false,
       setHidden: () => {},
       serverError: null,
@@ -225,6 +444,7 @@ export function useDicePanel(): DicePanelCtxValue {
       sendChat: () => {},
       rollExpr: () => {},
       rollProbe: () => {},
+      rollWeaponDamage: () => {},
       confirmDie: () => {},
       pendingRequests: [],
       groupRequests: [],
@@ -234,6 +454,7 @@ export function useDicePanel(): DicePanelCtxValue {
       acceptRequest: () => {},
       declineRequest: () => {},
       cancelRequest: () => {},
+      forceRequest: () => {},
       requestGroupProbe: () => {},
       revealGroupRequest: () => {},
       cancelGroupRequest: () => {},
@@ -245,6 +466,47 @@ export function useDicePanel(): DicePanelCtxValue {
       refreshRooms: () => {},
       loadMore: () => {},
       setSchicksalspunkte: () => {},
+      rollWichtig: () => {},
+      kino: null,
+      kinoBeenden: () => {},
+      boardTokens: [],
+      boardSettings: null,
+      boardTiles: {},
+      boardHighlights: {},
+      boardOverlays: [],
+      boardFog: new Set<string>(),
+      boardInitiative: [],
+      boardRoundTrackers: [],
+      hydrateBoard: () => {},
+      createToken: () => {},
+      updateToken: () => {},
+      moveToken: () => {},
+      deleteToken: () => {},
+      setTokenWounds: () => {},
+      updateBoardSettings: () => {},
+      paintTiles: () => {},
+      paintHighlights: () => {},
+      createOverlay: () => {},
+      updateOverlay: () => {},
+      deleteOverlay: () => {},
+      paintFog: () => {},
+      addInitiative: () => {},
+      removeInitiative: () => {},
+      setInitiativeBasis: () => {},
+      startCombat: () => {},
+      endCombat: () => {},
+      nextTurn: () => {},
+      createRoundTracker: () => {},
+      setRoundTrackerCount: () => {},
+      deleteRoundTracker: () => {},
+      boardViewCenter: null,
+      centerView: () => {},
+      boardCellPing: null,
+      pingCell: () => {},
+      boardImages: [],
+      createImage: () => {},
+      updateImage: () => {},
+      deleteImage: () => {},
     }
   );
 }
@@ -258,21 +520,69 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [collapsed, setCollapsed] = usePersistedState<boolean>('dice:collapsed', true);
+  // Bewusst NICHT persistiert: es gibt kein „zuletzt gesehen"-Datum, gegen das
+  // sich ein nach dem Neuladen wieder auftauchender Punkt begründen ließe. Ein
+  // frischer Start beginnt sauber.
+  const [ungelesen, setUngelesen] = useState(false);
+  const [pulsiert, setPulsiert] = useState(false);
+  const pulsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hidden, setHidden] = useState(false);
   const [modifier, setModifier] = usePersistedState<number>('dice:modifier', 0);
   const [diceCode, setDiceCode] = usePersistedState<'w' | 'd'>('dice:code', 'w');
+  // Wie diceCode eine reine Anzeige-/Geräte-Vorliebe: WELCHER Klang und wie laut
+  // hängt am Ohr vor dem Rechner (Kopfhörer am Tisch vs. Handy quer im Raum),
+  // nicht am Konto. Die hochgeladene DATEI liegt dagegen am Konto, damit sie
+  // niemand zweimal hochladen muss.
+  const [tonRoh, setTonRoh] = usePersistedState<TonWahl>('chat:ton', CHIME_STANDARD);
+  const [tonZuletzt, setTonZuletzt] = usePersistedState<TonWahl>('chat:ton-zuletzt', CHIME_STANDARD);
+  const [lautstaerke, setLautstaerke] = usePersistedState<number>('chat:ton-vol', 0.6);
   const [pendingRequests, setPendingRequests] = useState<PendingRollRequest[]>([]);
   const [groupRequests, setGroupRequests] = useState<GroupRollRequest[]>([]);
   const [coopPools, setCoopPools] = useState<CoopPoolRequest[]>([]);
   const [presenceNotes, setPresenceNotes] = useState<PresenceNote[]>([]);
+  const [kino, setKino] = useState<KinoLauf | null>(null);
+  // Read from ws.onmessage and from kinoBeenden, both of which may only touch
+  // refs and setters (see the ref rationale below), so the running performance
+  // is tracked in a ref alongside the state.
+  const kinoRef = useRef<KinoLauf | null>(null);
+  const kinoLaufRef = useRef(0);
   const [persistedRoom, setPersistedRoom] = usePersistedState<number | null>('dice:room', null);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [boardTokens, setBoardTokens] = useState<BoardToken[]>([]);
+  const [boardSettings, setBoardSettings] = useState<BoardSettings | null>(null);
+  const [boardTiles, setBoardTiles] = useState<Record<string, string>>({});
+  const [boardHighlights, setBoardHighlights] = useState<Record<string, string>>({});
+  const [boardOverlays, setBoardOverlays] = useState<BoardOverlay[]>([]);
+  const [boardImages, setBoardImages] = useState<BoardImage[]>([]);
+  /** cellKey -> hidden — the fog mask itself is public (see board.fog.updated), only its CONTENTS get redacted server-side. */
+  const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
+  const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
+  const [boardRoundTrackers, setBoardRoundTrackers] = useState<BoardRoundTracker[]>([]);
+  /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
+  const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
+  const boardViewCenterSeqRef = useRef(0);
+  /** "Point at a cell" ping — ephemeral, never board state (see board.cell.ping in shared/src/boardProtocol.ts). Same `seq`-per-broadcast idiom as boardViewCenter above. */
+  const [boardCellPing, setBoardCellPing] = useState<{ x: number; y: number; by: string; seq: number } | null>(null);
+  const boardCellPingSeqRef = useRef(0);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
+  const { user } = useAuth();
 
   const wsRef = useRef<WebSocket | null>(null);
   const groupIdRef = useRef<number | null>(null);
+  // WARUM Refs: connect() ist useCallback(…, []), seine ws.onmessage-Closure
+  // entsteht also GENAU EINMAL und sähe sonst für immer die Werte des ersten
+  // Renders. Ohne das wäre `collapsed` dort dauerhaft true und der Klang
+  // erklänge auch bei weit offenem Dock. groupIdRef daneben gibt es aus
+  // demselben Grund.
+  const collapsedRef = useRef(collapsed);
+  const tonRef = useRef<TonWahl>(alsTonWahl(tonRoh, true));
+  const lautstaerkeRef = useRef(lautstaerke);
+  const meineUserIdRef = useRef<number | null>(null);
+  // Siehe ANGEKUENDIGT_KEY: verhindert, dass ein Raumwechsel, ein
+  // Verbindungsabriss oder ein Neuladen für dieselbe Anfrage noch einmal läutet.
+  const angekuendigtRef = useRef<Set<string>>(new Set(ladeAngekuendigt()));
   const bufferingRef = useRef(false);
   const liveBufferRef = useRef<FeedEntry[]>([]);
   const reconnectDelayRef = useRef(RECONNECT_BASE_MS);
@@ -284,6 +594,139 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   // Nachrichten, die abgeschickt wurden, während die Verbindung (noch) nicht
   // stand — vor allem beim Würfeln vom Bogen, das erst den Raum wechselt.
   const outboxRef = useRef<ClientToServerMessage[]>([]);
+
+  // Gegen Müll in localStorage. „eigen" bleibt hier absichtlich gültig: ob die
+  // Datei wirklich existiert, weiß nur die Einstellungen-Seite, und die setzt
+  // die Auswahl beim Löschen selbst zurück.
+  const ton = alsTonWahl(tonRoh, true);
+
+  // Im Effekt statt beim Rendern: ein Ref während des Renderns zu beschreiben
+  // ist genau das, was React abrät, und der Gewinn wäre hier ohnehin keiner.
+  useEffect(() => {
+    collapsedRef.current = collapsed;
+    tonRef.current = ton;
+    lautstaerkeRef.current = lautstaerke;
+    meineUserIdRef.current = user?.id ?? null;
+  }, [collapsed, ton, lautstaerke, user?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
+    };
+  }, []);
+
+  /**
+   * Der Punkt am eingeklappten Reiter. Nichts weiter — kein Ton, kein Puls.
+   * Für alles, was man später nachlesen kann: eigene Würfe, fremder Chat.
+   */
+  const melde = useCallback(() => {
+    if (!collapsedRef.current) return;
+    setUngelesen(true);
+  }, []);
+
+  /**
+   * Zusätzlich Puls und Klang: etwas WILL beantwortet werden (Proben-, Gruppen-
+   * oder Kooperationsanfrage).
+   *
+   * Der Klang kommt IMMER, auch bei offenem Dock im Vordergrund: eine Anfrage
+   * an den Tisch ist eine Aufforderung, keine Randnotiz — sie soll auch dann
+   * ankommen, wenn man gerade woanders im Chat liest. Der Puls dagegen sitzt am
+   * eingeklappten Reiter und ergibt nur dort Sinn.
+   *
+   * Zwei Fälle bleiben stumm (Punkt gibt es trotzdem):
+   *   `vonMir`  — man hat selbst geklickt und weiß es. Die Gruppenanfrage geht
+   *               an die anfragende Spielleitung zurück (ws.ts), der
+   *               Kooperations-Pool sogar an den ganzen Raum inklusive der
+   *               vorschlagenden Person; ohne das läutete der eigene Klick.
+   *   bekannt   — dieselbe Anfrage wurde beim Verbinden nur nachgereicht.
+   */
+  const meldeDringend = useCallback((id: string, vonMir: boolean) => {
+    melde();
+    if (vonMir || angekuendigtRef.current.has(id)) return;
+    angekuendigtRef.current.add(id);
+    merkeAngekuendigt(angekuendigtRef.current);
+    if (collapsedRef.current) {
+      setPulsiert(true);
+      if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
+      pulsTimerRef.current = setTimeout(() => setPulsiert(false), PULS_MS);
+    }
+    spieleTon(tonRef.current, lautstaerkeRef.current);
+  }, [melde]);
+
+  /**
+   * Appends an entry that was held back for a cinematic.
+   *
+   * Deliberately NOT a blind merge. While the performance was running, a
+   * feed.update for this very id may already have arrived: someone who
+   * reconnected mid-cinematic has the entry from the history and can have
+   * thrown its confirmation already. mergeFeed replaces by id, so appending our
+   * older copy on top would silently undo the newer one.
+   */
+  const haengeEintragAn = useCallback((entry: FeedEntry) => {
+    setFeed((prev) => (prev.some((e) => e.id === entry.id) ? prev : trimFeed(mergeFeed(prev, [entry]), trimOverrideRef.current)));
+  }, []);
+
+  /**
+   * A „großer Wurf" has been announced. Called from ws.onmessage, so it may
+   * touch only setters and refs.
+   */
+  const starteKino = useCallback(
+    (auftrag: KinoAuftrag) => {
+      // A second announcement while one is still running: end the running one
+      // at once (its entry goes into the feed) and start the new one. The
+      // server's per-group cooldown makes this practically impossible — this is
+      // the belt to that pair of braces.
+      const laufend = kinoRef.current;
+      if (laufend) haengeEintragAn(laufend.auftrag.entry);
+      kinoLaufRef.current += 1;
+      const lauf: KinoLauf = { auftrag, lauf: kinoLaufRef.current };
+      kinoRef.current = lauf;
+      setKino(lauf);
+    },
+    [haengeEintragAn],
+  );
+
+  const kinoBeenden = useCallback(
+    (entryId: number) => {
+      const laufend = kinoRef.current;
+      // Guarded by id: a late call from a performance that has already been
+      // superseded must not clear the new one.
+      if (!laufend || laufend.auftrag.entry.id !== entryId) return;
+      kinoRef.current = null;
+      haengeEintragAn(laufend.auftrag.entry);
+      setKino(null);
+    },
+    [haengeEintragAn],
+  );
+
+  /**
+   * Auf- und Zuklappen — und der einzige Weg, auf dem der Dock noch aufgeht
+   * (die sieben `setCollapsed(false)`-Stellen sind ersatzlos entfallen).
+   *
+   * Das Aufräumen steht deshalb hier und nicht in einem Effekt: es gibt nichts
+   * abzugleichen, nur ein „gesehen". Und ausdrücklich NICHT im State-Updater —
+   * React ruft den im StrictMode doppelt auf, Seiteneffekte gehören da nicht hin.
+   */
+  const toggle = useCallback(() => {
+    if (collapsed) {
+      setUngelesen(false);
+      setPulsiert(false);
+      if (pulsTimerRef.current) clearTimeout(pulsTimerRef.current);
+    }
+    setCollapsed((v) => !v);
+  }, [collapsed, setCollapsed]);
+
+  /**
+   * Auswahl des Benachrichtigungsklangs. Merkt sich jede Wahl außer „aus"
+   * getrennt mit, damit `/mute` weiß, wohin es zurückschalten soll.
+   */
+  const setTon = useCallback(
+    (t: TonWahl) => {
+      if (t !== 'aus') setTonZuletzt(t);
+      setTonRoh(t);
+    },
+    [setTonRoh, setTonZuletzt],
+  );
 
   const sendMsg = useCallback((msg: ClientToServerMessage) => {
     const ws = wsRef.current;
@@ -330,6 +773,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
           bufferingRef.current = false;
           liveBufferRef.current = [];
           setConnected(true);
+      // Render the fanfare while the room is quiet. Worth doing for EVERYONE,
+      // not just whoever types „/i": players never type it, and a buffer that
+      // is not ready yet would make the announcement start visibly late.
+      // Idle-time work, so it never competes with the history fetch below.
+      const vorbereiten = () => wichtigVorbereiten();
+      if (typeof requestIdleCallback === 'function') requestIdleCallback(vorbereiten);
+      else setTimeout(vorbereiten, 2000);
           reconnectDelayRef.current = RECONNECT_BASE_MS;
           // Was während des Verbindungsaufbaus aufgelaufen ist, jetzt abschicken.
           const queued = outboxRef.current;
@@ -349,9 +799,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (msg.type === 'roll.pending.created') {
-        // Eine Anfrage will gesehen werden — Dock aufklappen.
+        // Eine Anfrage will beantwortet werden — aber NICHT, indem der Dock
+        // sich über den Bogen schiebt, in dem gerade jemand liest.
         setPendingRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        setCollapsed(false);
+        meldeDringend(msg.request.id, msg.request.gmUserId === meineUserIdRef.current);
         return;
       }
       if (
@@ -367,7 +818,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'roll.group.created') {
         setGroupRequests((prev) => [...prev.filter((r) => r.id !== msg.request.id), msg.request]);
-        setCollapsed(false);
+        // Geht jetzt an alle Mitglieder, nicht mehr nur an die anfragende
+        // Spielleitung (siehe ws.ts) — ein angefragtes Mitglied bekommt aber
+        // ohnehin schon sein eigenes dringendes roll.pending.created für den
+        // eigenen Zweig; ohne diese Prüfung würde es hier zusätzlich klingeln.
+        const alreadyDringend =
+          msg.request.gmUserId === meineUserIdRef.current || msg.request.members.some((m) => m.userId === meineUserIdRef.current);
+        meldeDringend(msg.request.id, alreadyDringend);
         return;
       }
       if (msg.type === 'roll.group.member') {
@@ -387,10 +844,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (msg.type === 'roll.coop.created') {
-        // An ALLE in der Gruppe (nicht nur die vorschlagende Person) — Dock
-        // aufklappen, damit ein neuer Pool nicht unbemerkt bleibt.
+        // An ALLE in der Gruppe (nicht nur die vorschlagende Person) — damit ein
+        // neuer Pool nicht unbemerkt bleibt.
         setCoopPools((prev) => [...prev.filter((p) => p.id !== msg.pool.id), msg.pool]);
-        setCollapsed(false);
+        meldeDringend(msg.pool.id, msg.pool.initiatorUserId === meineUserIdRef.current);
         return;
       }
       if (msg.type === 'roll.coop.updated') {
@@ -425,6 +882,114 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         addPresenceNote(`${msg.name} ist beigetreten.`);
         return;
       }
+      if (msg.type === 'roll.important') {
+        // The entry deliberately does NOT go into the feed here — the overlay
+        // hands it back through kinoBeenden when its performance is over. See
+        // KinoAuftrag.entry.
+        starteKino(msg);
+        return;
+      }
+      if (msg.type === 'board.token.created') {
+        setBoardTokens((prev) => [...prev.filter((t) => t.id !== msg.token.id), msg.token]);
+        return;
+      }
+      if (msg.type === 'board.token.updated') {
+        // Auch die Live-Position während eines Ziehens läuft hier durch —
+        // der ziehende Client selbst rendert währenddessen aus seinem eigenen
+        // Drag-Zustand, nicht aus boardTokens (siehe VirtualTable.tsx).
+        setBoardTokens((prev) => prev.map((t) => (t.id === msg.token.id ? msg.token : t)));
+        return;
+      }
+      if (msg.type === 'board.token.deleted') {
+        setBoardTokens((prev) => prev.filter((t) => t.id !== msg.tokenId));
+        return;
+      }
+      if (msg.type === 'board.settings.updated') {
+        setBoardSettings(msg.board);
+        return;
+      }
+      if (msg.type === 'board.tiles.painted') {
+        setBoardTiles((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(msg.cells)) {
+            if (value === '') delete next[key];
+            else next[key] = value;
+          }
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'board.highlights.painted') {
+        setBoardHighlights((prev) => {
+          const next = { ...prev };
+          for (const [key, value] of Object.entries(msg.cells)) {
+            if (value === '') delete next[key];
+            else next[key] = value;
+          }
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'board.overlay.created') {
+        setBoardOverlays((prev) => [...prev, msg.overlay]);
+        return;
+      }
+      if (msg.type === 'board.overlay.updated') {
+        setBoardOverlays((prev) => prev.map((o) => (o.id === msg.overlay.id ? msg.overlay : o)));
+        return;
+      }
+      if (msg.type === 'board.overlay.deleted') {
+        setBoardOverlays((prev) => prev.filter((o) => o.id !== msg.overlayId));
+        return;
+      }
+      if (msg.type === 'board.image.created') {
+        // Filter-then-push, same dedupe shape as board.token.created — a
+        // viewer whose `hidden` image just got un-hidden gets 'created' too,
+        // even though the row already existed server-side.
+        setBoardImages((prev) => [...prev.filter((i) => i.id !== msg.image.id), msg.image]);
+        return;
+      }
+      if (msg.type === 'board.image.updated') {
+        setBoardImages((prev) => prev.map((i) => (i.id === msg.image.id ? msg.image : i)));
+        return;
+      }
+      if (msg.type === 'board.image.deleted') {
+        setBoardImages((prev) => prev.filter((i) => i.id !== msg.imageId));
+        return;
+      }
+      if (msg.type === 'board.fog.updated') {
+        setBoardFog((prev) => {
+          const next = new Set(prev);
+          for (const [key, hidden] of Object.entries(msg.cells)) {
+            if (hidden) next.add(key);
+            else next.delete(key);
+          }
+          return next;
+        });
+        return;
+      }
+      if (msg.type === 'board.initiative.updated') {
+        setBoardInitiative(msg.entries);
+        setBoardSettings((prev) => (prev ? { ...prev, round: msg.round, turnIndex: msg.turnIndex } : prev));
+        return;
+      }
+      if (msg.type === 'board.roundTracker.updated') {
+        // Always this connection's own trackers — the server never sends
+        // anyone else's (see BoardRoundTracker's doc comment) — so a plain
+        // replace is correct even for the silent per-round-wrap decrement.
+        setBoardRoundTrackers(msg.trackers);
+        return;
+      }
+      if (msg.type === 'board.view.centered') {
+        boardViewCenterSeqRef.current += 1;
+        setBoardViewCenter({ x: msg.x, y: msg.y, zoom: msg.zoom, by: msg.by, seq: boardViewCenterSeqRef.current });
+        return;
+      }
+      if (msg.type === 'board.cell.pinged') {
+        boardCellPingSeqRef.current += 1;
+        setBoardCellPing({ x: msg.x, y: msg.y, by: msg.by, seq: boardCellPingSeqRef.current });
+        return;
+      }
       if (msg.type === 'wartung.angekuendigt') {
         // Nur weiterreichen — der Wartebildschirm gehört nicht zum Würfel-Dock.
         // Der Socket ist bloß der Kanal, der ohnehin schon steht.
@@ -444,6 +1009,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // append und update laufen beide durch mergeFeed (dedupliziert nach id),
       // ein Update ersetzt den vorhandenen Eintrag also einfach.
       if (msg.type !== 'feed.append' && msg.type !== 'feed.update') return;
+      // Nur bei NEUEN Einträgen und nur von anderen: ein Update ist die
+      // Änderung an etwas, das schon dasteht, und der eigene Beitrag ist keine
+      // Neuigkeit. Rein der Punkt — Chat allein soll nie läuten.
+      //
+      // Gemessen an authorUserId, nicht an `isMe`: das Feld trägt nur
+      // ChatFeedEntry, ein RollFeedEntry hat es nicht (siehe diceProtocol.ts).
+      if (msg.type === 'feed.append' && msg.entry.authorUserId !== meineUserIdRef.current) melde();
       if (bufferingRef.current) {
         liveBufferRef.current.push(msg.entry);
       } else {
@@ -479,6 +1051,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setPendingRequests([]);
       setGroupRequests([]);
       setCoopPools([]);
+      // Gehört zum vorherigen Raum — die Seite ruft nach dem Wechsel ihr
+      // eigenes GET .../board neu auf und hydriert erneut (siehe hydrateBoard).
+      setBoardTokens([]);
+      setBoardSettings(null);
+      setBoardTiles({});
+      setBoardHighlights({});
+      setBoardOverlays([]);
+      setBoardInitiative([]);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -523,18 +1103,50 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const sendChat = useCallback(
-    (raw: string) => {
+    (raw: string, visibility?: RollVisibility, targetUserId?: number) => {
       const isMe = raw.startsWith('/me ');
       const text = isMe ? raw.slice(4).trim() : raw.trim();
       if (!text) return;
-      sendMsg({ type: 'chat.send', reqId: crypto.randomUUID(), text, isMe, charId });
+      sendMsg({ type: 'chat.send', reqId: crypto.randomUUID(), text, isMe, charId, visibility, targetUserId });
     },
     [charId, sendMsg],
   );
 
   const rollExpr = useCallback(
     (expression: string, visibility: RollVisibility, label = '', table?: 'master' | 'wild', targetUserId?: number) => {
-      sendMsg({ type: 'roll.expr', reqId: crypto.randomUUID(), label, expression, visibility, charId, table, targetUserId });
+      // Situative Erschwernis/Erleichterung gilt für den nächsten Wurf, Bogen
+      // wie Chat (siehe ModifierPicker) — freie Ausdrücke (getippt oder aus
+      // den Würfel-Favoriten) sind da keine Ausnahme. Tabellenwürfe (/master,
+      // /wild) sind ein Lookup, kein Ergebnis mit Summe, und bleiben außen vor.
+      const finalExpression = !table && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
+      sendMsg({
+        type: 'roll.expr',
+        reqId: crypto.randomUUID(),
+        label,
+        expression: finalExpression,
+        visibility,
+        charId,
+        table,
+        targetUserId,
+      });
+      if (!table && modifier !== 0) setModifier(0);
+    },
+    [charId, sendMsg, modifier, setModifier],
+  );
+
+  const rollWichtig = useCallback(
+    (expression: string, label = '') => {
+      // No visibility, no table, no counterpart: „/i" is always a public
+      // announcement, and the server enforces that regardless (see ws.ts).
+      sendMsg({
+        type: 'roll.expr',
+        reqId: crypto.randomUUID(),
+        label,
+        expression,
+        visibility: 'public',
+        charId,
+        important: true,
+      });
     },
     [charId, sendMsg],
   );
@@ -548,7 +1160,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false); // Ergebnis soll man auch sehen
+      melde(); // das Ergebnis soll man finden — aber selbst hinsehen dürfen
       sendMsg({
         type: 'roll.probe',
         reqId: crypto.randomUUID(),
@@ -563,7 +1175,27 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // Klick unbemerkt weiterwirkt, wäre schlimmer als ihn neu einzutippen.
       if (modifier !== 0) setModifier(0);
     },
-    [myGroups, applyRoom, sendMsg, modifier, setModifier],
+    [myGroups, applyRoom, sendMsg, modifier, setModifier, melde],
+  );
+
+  const rollWeaponDamage = useCallback(
+    (forGroupId: number, forCharId: number, sectionRowId: number, ranged: boolean, visibility: RollVisibility, targetUserId?: number) => {
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      melde();
+      sendMsg({
+        type: 'roll.weaponDamage',
+        reqId: crypto.randomUUID(),
+        charId: forCharId,
+        sectionRowId,
+        ranged,
+        visibility,
+        targetUserId,
+      });
+    },
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const confirmDie = useCallback(
@@ -574,17 +1206,17 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const requestProbe = useCallback(
-    (forGroupId: number, targetUserId: number, targetCharId: number, source: ProbeSource) => {
+    (forGroupId: number, targetUserId: number, targetCharId: number, source: ProbeSource, modifier?: number) => {
       // Wie beim Würfeln vom Bogen: erst in den Raum dieser Gruppe, dann
       // senden (die Nachricht wartet notfalls in der Outbox).
       if (groupIdRef.current !== forGroupId) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false);
-      sendMsg({ type: 'roll.pending.request', reqId: crypto.randomUUID(), source, targetUserId, targetCharId });
+      melde();
+      sendMsg({ type: 'roll.pending.request', reqId: crypto.randomUUID(), source, targetUserId, targetCharId, modifier });
     },
-    [myGroups, applyRoom, sendMsg, setCollapsed],
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const acceptRequest = useCallback(
@@ -612,16 +1244,24 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const forceRequest = useCallback(
+    (requestId: string) => {
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      sendMsg({ type: 'roll.pending.force', reqId: crypto.randomUUID(), requestId });
+    },
+    [sendMsg],
+  );
+
   const requestGroupProbe = useCallback(
-    (forGroupId: number, source: ProbeSource) => {
+    (forGroupId: number, source: ProbeSource, modifier?: number) => {
       if (groupIdRef.current !== forGroupId) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false);
-      sendMsg({ type: 'roll.group.request', reqId: crypto.randomUUID(), source });
+      melde();
+      sendMsg({ type: 'roll.group.request', reqId: crypto.randomUUID(), source, modifier });
     },
-    [myGroups, applyRoom, sendMsg, setCollapsed],
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const revealGroupRequest = useCallback(
@@ -649,10 +1289,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
       }
-      setCollapsed(false);
+      melde();
       sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source });
     },
-    [myGroups, applyRoom, sendMsg, setCollapsed],
+    [myGroups, applyRoom, sendMsg, melde],
   );
 
   const joinCoopPoolAction = useCallback(
@@ -727,6 +1367,208 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [charId],
   );
 
+  const hydrateBoard = useCallback(
+    (
+      board: BoardSettings,
+      tokens: BoardToken[],
+      tiles: Record<string, string>,
+      highlights: Record<string, string>,
+      overlays: BoardOverlay[],
+      fog: string[],
+      initiative: BoardInitiative[],
+      images: BoardImage[],
+      roundTrackers: BoardRoundTracker[],
+    ) => {
+      setBoardSettings(board);
+      setBoardTokens(tokens);
+      setBoardTiles(tiles);
+      setBoardHighlights(highlights);
+      setBoardOverlays(overlays);
+      setBoardFog(new Set(fog));
+      setBoardInitiative(initiative);
+      setBoardImages(images);
+      setBoardRoundTrackers(roundTrackers);
+    },
+    [],
+  );
+
+  const createToken = useCallback(
+    (input: {
+      kind: 'character' | 'marker';
+      characterId?: number;
+      name?: string;
+      color?: string;
+      icon?: string;
+      x: number;
+      y: number;
+      size?: number;
+      radius?: number;
+      radiusColor?: string;
+      statuses?: string[];
+      cover?: string;
+    }) => {
+      sendMsg({ type: 'board.token.create', reqId: crypto.randomUUID(), ...input });
+    },
+    [sendMsg],
+  );
+
+  const updateTokenAction = useCallback(
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>) => {
+      sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
+    },
+    [sendMsg],
+  );
+
+  const moveTokenAction = useCallback(
+    (tokenId: number, x: number, y: number, final?: boolean) => {
+      sendMsg({ type: 'board.token.move', reqId: crypto.randomUUID(), tokenId, x, y, final });
+    },
+    [sendMsg],
+  );
+
+  const setTokenWoundsAction = useCallback(
+    (tokenId: number, small: number, big: number) => {
+      sendMsg({ type: 'board.token.wounds.set', reqId: crypto.randomUUID(), tokenId, small, big });
+    },
+    [sendMsg],
+  );
+
+  const deleteTokenAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.token.delete', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+
+  const updateBoardSettingsAction = useCallback(
+    (
+      patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
+    ) => {
+      sendMsg({ type: 'board.settings.update', reqId: crypto.randomUUID(), patch });
+    },
+    [sendMsg],
+  );
+
+  const paintTilesAction = useCallback(
+    (cells: Record<string, string>) => {
+      sendMsg({ type: 'board.tiles.paint', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const paintHighlightsAction = useCallback(
+    (cells: Record<string, string>) => {
+      sendMsg({ type: 'board.highlights.paint', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const createOverlayAction = useCallback(
+    (kind: 'label' | 'measure', data: LabelOverlayData | MeasureOverlayData) => {
+      // Die Überladungen im Interface halten Aufrufer bei kind<->data
+      // ehrlich; hier innen reicht die vereinigte Form.
+      sendMsg({ type: 'board.overlay.create', reqId: crypto.randomUUID(), kind, data } as ClientToServerMessage);
+    },
+    [sendMsg],
+  );
+
+  const updateOverlayAction = useCallback(
+    (overlayId: number, patch: Partial<LabelOverlayData> | MeasureOverlayData) => {
+      sendMsg({ type: 'board.overlay.update', reqId: crypto.randomUUID(), overlayId, patch });
+    },
+    [sendMsg],
+  );
+
+  const deleteOverlayAction = useCallback(
+    (overlayId: number) => {
+      sendMsg({ type: 'board.overlay.delete', reqId: crypto.randomUUID(), overlayId });
+    },
+    [sendMsg],
+  );
+  const createImageAction = useCallback(
+    (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => {
+      sendMsg({ type: 'board.image.create', reqId: crypto.randomUUID(), ...input });
+    },
+    [sendMsg],
+  );
+  const updateImageAction = useCallback(
+    (imageId: number, patch: Partial<Pick<BoardImage, 'modus' | 'x' | 'y' | 'w' | 'h' | 'rotation' | 'opacity' | 'z' | 'hidden'>>) => {
+      sendMsg({ type: 'board.image.update', reqId: crypto.randomUUID(), imageId, patch });
+    },
+    [sendMsg],
+  );
+  const deleteImageAction = useCallback(
+    (imageId: number) => {
+      sendMsg({ type: 'board.image.delete', reqId: crypto.randomUUID(), imageId });
+    },
+    [sendMsg],
+  );
+
+  const paintFogAction = useCallback(
+    (cells: Record<string, boolean>) => {
+      sendMsg({ type: 'board.fog.set', reqId: crypto.randomUUID(), cells });
+    },
+    [sendMsg],
+  );
+
+  const addInitiativeAction = useCallback(
+    (tokenId: number, mode?: 'normal' | 'surprise') => {
+      sendMsg({ type: 'board.initiative.add', reqId: crypto.randomUUID(), tokenId, mode });
+    },
+    [sendMsg],
+  );
+  const removeInitiativeAction = useCallback(
+    (tokenId: number) => {
+      sendMsg({ type: 'board.initiative.remove', reqId: crypto.randomUUID(), tokenId });
+    },
+    [sendMsg],
+  );
+  const setInitiativeBasisAction = useCallback(
+    (tokenId: number, basis: number) => {
+      sendMsg({ type: 'board.initiative.setBasis', reqId: crypto.randomUUID(), tokenId, basis });
+    },
+    [sendMsg],
+  );
+  const startCombatAction = useCallback(() => {
+    sendMsg({ type: 'board.combat.start', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const endCombatAction = useCallback(() => {
+    sendMsg({ type: 'board.combat.end', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const nextTurnAction = useCallback(() => {
+    sendMsg({ type: 'board.turn.next', reqId: crypto.randomUUID() });
+  }, [sendMsg]);
+  const createRoundTrackerAction = useCallback(
+    (label: string, startCount: number) => {
+      sendMsg({ type: 'board.roundTracker.create', reqId: crypto.randomUUID(), label, startCount });
+    },
+    [sendMsg],
+  );
+  const setRoundTrackerCountAction = useCallback(
+    (trackerId: number, count: number) => {
+      sendMsg({ type: 'board.roundTracker.setCount', reqId: crypto.randomUUID(), trackerId, count });
+    },
+    [sendMsg],
+  );
+  const deleteRoundTrackerAction = useCallback(
+    (trackerId: number) => {
+      sendMsg({ type: 'board.roundTracker.delete', reqId: crypto.randomUUID(), trackerId });
+    },
+    [sendMsg],
+  );
+  const centerViewAction = useCallback(
+    (x: number, y: number, zoom: number) => {
+      sendMsg({ type: 'board.view.center', reqId: crypto.randomUUID(), x, y, zoom });
+    },
+    [sendMsg],
+  );
+  const pingCellAction = useCallback(
+    (x: number, y: number) => {
+      sendMsg({ type: 'board.cell.ping', reqId: crypto.randomUUID(), x, y });
+    },
+    [sendMsg],
+  );
+
   return (
     <DicePanelCtx.Provider
       value={{
@@ -738,7 +1580,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         hasMore,
         loadingMore,
         collapsed,
-        toggle: () => setCollapsed((v) => !v),
+        toggle,
+        ungelesen,
+        pulsiert,
+        ton,
+        setTon,
+        tonZuletzt,
+        lautstaerke,
+        setLautstaerke,
         hidden,
         setHidden,
         serverError,
@@ -750,6 +1599,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         sendChat,
         rollExpr,
         rollProbe,
+        rollWeaponDamage,
         confirmDie,
         pendingRequests,
         groupRequests,
@@ -759,6 +1609,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         acceptRequest,
         declineRequest,
         cancelRequest,
+        forceRequest,
         requestGroupProbe,
         revealGroupRequest,
         cancelGroupRequest,
@@ -770,6 +1621,47 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         refreshRooms,
         loadMore,
         setSchicksalspunkte,
+        rollWichtig,
+        kino,
+        kinoBeenden,
+        boardTokens,
+        boardSettings,
+        boardTiles,
+        boardHighlights,
+        boardOverlays,
+        boardFog,
+        boardInitiative,
+        boardRoundTrackers,
+        boardImages,
+        hydrateBoard,
+        createToken,
+        updateToken: updateTokenAction,
+        moveToken: moveTokenAction,
+        deleteToken: deleteTokenAction,
+        setTokenWounds: setTokenWoundsAction,
+        updateBoardSettings: updateBoardSettingsAction,
+        paintTiles: paintTilesAction,
+        paintHighlights: paintHighlightsAction,
+        createOverlay: createOverlayAction,
+        updateOverlay: updateOverlayAction,
+        deleteOverlay: deleteOverlayAction,
+        paintFog: paintFogAction,
+        addInitiative: addInitiativeAction,
+        removeInitiative: removeInitiativeAction,
+        setInitiativeBasis: setInitiativeBasisAction,
+        startCombat: startCombatAction,
+        endCombat: endCombatAction,
+        nextTurn: nextTurnAction,
+        createRoundTracker: createRoundTrackerAction,
+        setRoundTrackerCount: setRoundTrackerCountAction,
+        deleteRoundTracker: deleteRoundTrackerAction,
+        boardViewCenter,
+        centerView: centerViewAction,
+        boardCellPing,
+        pingCell: pingCellAction,
+        createImage: createImageAction,
+        updateImage: updateImageAction,
+        deleteImage: deleteImageAction,
       }}
     >
       {children}

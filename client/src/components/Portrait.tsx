@@ -33,10 +33,10 @@ export function Portrait({
   const src = `${base}?v=${version}`;
   const fullSrc = `${base}/full?v=${version}`;
 
-  const putBlob = async (path: string, blob: Blob) => {
+  const putBlob = async (path: string, blob: Blob, contentType = 'image/jpeg') => {
     const res = await fetch(path, {
       method: 'PUT',
-      headers: { 'Content-Type': 'image/jpeg' },
+      headers: { 'Content-Type': contentType },
       body: blob,
       credentials: 'same-origin',
     });
@@ -47,12 +47,17 @@ export function Portrait({
   };
 
   const confirmCrop = async (display: Blob, full: Blob) => {
+    const original = cropFile;
     setCropFile(null);
     setError('');
     setBusy(true);
     try {
       await putBlob(base, display);
       await putBlob(`${base}/full`, full);
+      // Unbeschnittenes Original für die Vergrößerungs-Ansicht — best effort:
+      // ein Fehler hier soll den bereits erfolgreichen Anzeige-/Master-Upload
+      // nicht als Ganzes fehlschlagen lassen.
+      if (original) await putBlob(`${base}/original`, original, original.type || 'image/jpeg').catch(() => {});
       setHasImage(true);
       setVersion((v) => v + 1);
     } catch (e) {

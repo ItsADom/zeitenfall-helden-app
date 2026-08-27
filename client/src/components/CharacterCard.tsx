@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import ClickableCard from './ClickableCard';
+import { PortraitView } from './PortraitView';
 
 // Karte, die auf einen Charakter verlinkt — ganzflächig klickbar, nicht nur der
 // Name. Von /charaktere (Charaktere.tsx) UND der Gruppenseite (Group.tsx)
@@ -29,7 +30,7 @@ export default function CharacterCard({
     <ClickableCard to={to} className={hasPortrait ? 'card--char' : undefined}>
       {hasPortrait &&
         (portrait ? (
-          <img className="gm-card-portrait" src={`/api/characters/${id}/portrait`} alt="" />
+          <PortraitView id={id} className="gm-card-portrait" alt={name} />
         ) : (
           <div className="gm-card-portrait gm-card-portrait--empty" aria-hidden="true" />
         ))}

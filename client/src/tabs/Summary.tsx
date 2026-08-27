@@ -3,6 +3,7 @@ import { RESOURCE_COLUMN_LABELS as RC, VISIBILITY_LABELS } from '@shared/types';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
 import { MaximumWert } from '../components/MaximumWert';
+import { PortraitView } from '../components/PortraitView';
 import type { DynColumn, DynRow, DynSection } from '@shared/dynamicSections';
 
 interface Info {
@@ -105,7 +106,7 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
         <div className="person-layout">
           {summary.portrait && (
             <div className="portrait">
-              <img className="portrait-img" src={`/api/characters/${info.id}/portrait`} alt="Porträt" />
+              <PortraitView id={info.id} className="portrait-img" alt={`Porträt von ${info.name}`} />
             </div>
           )}
           <div className="grid3 person-fields">

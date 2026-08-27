@@ -1,6 +1,7 @@
 import express, { Router } from 'express';
 import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
 import type { UserInfo } from 'shared';
+import { MAX_CHIME_BYTES, istWavKopf } from 'shared';
 import { instanceGate, mayEnter } from './accessGate.js';
 import {
   createSession,
@@ -17,15 +18,20 @@ import {
 import type { SessionUser } from './auth.js';
 import { createAttemptLimiter, clientIp } from './rateLimit.js';
 import { wikiApi } from './wiki/router.js';
-import { loescheAssetsFuer } from './assets/store.js';
+import { ladeAsset, legeAssetAn, loescheAssetsFuer } from './assets/store.js';
+import { bildMasse } from './assets/masse.js';
 import {
   hatGruppenPortrait,
   ladeGruppenPortrait,
   loescheGruppenPortrait,
   speichereGruppenPortrait,
+  speichereGruppenPortraitOriginal,
 } from './assets/portraits.js';
+import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chimes.js';
 import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
+import { canEditImages as canEditBoardImages } from './boardAccess.js';
+import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
 import { listRollableProbes } from './diceSource.js';
 import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
@@ -40,6 +46,7 @@ import {
   talentCatalogList,
   tagCatalogList,
   deletePortrait,
+  savePortraitOriginal,
   importFullCharacter,
   instantiateStandardSections,
   loadAbilities,
@@ -166,10 +173,19 @@ export function isRoomMember(userId: number, groupId: number): boolean {
   return isGroupMember(userId, groupId) || isTempGroupMember(userId, groupId);
 }
 
-type Access = 'edit' | 'summary' | null;
+// 'inspect': die Verwaltung (Admin) darf einen Bogen ansehen — vollständig,
+// aber read-only und ohne jede GM-Sonderrolle (siehe auth.ts: ein Admin
+// verwaltet Zugänge, ist aber ausdrücklich NICHT die Spielleitung). Anders als
+// 'summary' (nur die vom Besitzer freigegebenen Bereiche) zeigt 'inspect'
+// denselben vollen Bogen wie 'edit' — der Unterschied ist rein clientseitig
+// (kein Bearbeiten-Knopf, DisplayMode 'inspect' statt 'readonly'/'edit'); jeder
+// Schreib-Endpunkt prüft weiterhin explizit auf `=== 'edit'`, das schließt
+// 'inspect' automatisch aus, ohne dass ein einziger davon angefasst werden muss.
+type Access = 'edit' | 'summary' | 'inspect' | null;
 
-function characterAccess(user: { id: number; isGm: boolean }, char: CharRow): Access {
+function characterAccess(user: { id: number; isGm: boolean; isAdmin?: boolean }, char: CharRow): Access {
   if (user.isGm || char.owner_user_id === user.id) return 'edit';
+  if (user.isAdmin) return 'inspect';
   // Gruppenlose Charaktere (group_id NULL) sind für Nicht-Besitzer unsichtbar.
   if (char.group_id != null && isGroupMember(user.id, char.group_id)) return 'summary';
   return null;
@@ -199,15 +215,19 @@ function userInfo(u: SessionUser): UserInfo {
 
 // Ermittelt den „Blickwinkel"-Nutzer für einen Request: normal req.user, im
 // Ansehen-als-Modus (nur Spielleiter, nur wenn erlaubt) der gewählte Nutzer.
-function viewerFor(req: import('express').Request): { viewer: { id: number; isGm: boolean }; viewAs: { id: number; name: string } | null } {
+function viewerFor(
+  req: import('express').Request,
+): { viewer: { id: number; isGm: boolean; isAdmin?: boolean }; viewAs: { id: number; name: string } | null } {
   const asUserId = Number(req.query.asUser);
   if (DEV_VIEW_AS && req.user!.isGm && asUserId && asUserId !== req.user!.id) {
     const target = db.prepare('SELECT id, display_name, is_gm FROM users WHERE id = ?').get(asUserId) as
       | { id: number; display_name: string; is_gm: number }
       | undefined;
-    if (target) return { viewer: { id: target.id, isGm: !!target.is_gm }, viewAs: { id: target.id, name: target.display_name } };
+    // Die Vorschau simuliert immer eine gewöhnliche Spielersicht — nie mit
+    // Verwaltungsrechten, unabhängig davon, ob das Zielkonto zufällig Admin ist.
+    if (target) return { viewer: { id: target.id, isGm: !!target.is_gm, isAdmin: false }, viewAs: { id: target.id, name: target.display_name } };
   }
-  return { viewer: { id: req.user!.id, isGm: req.user!.isGm }, viewAs: null };
+  return { viewer: { id: req.user!.id, isGm: req.user!.isGm, isAdmin: req.user!.isAdmin }, viewAs: null };
 }
 
 const SECTION_IDS = new Set(['bio', 'meta', 'attributes', 'baseValues', 'resources', 'special', 'attrExtern', 'talents', 'languages', ...LIST_SECTION_IDS]);
@@ -298,6 +318,66 @@ api.put('/me/dice-shortcuts', requireAuth, (req, res) => {
   const text = String((req.body as { text?: unknown })?.text ?? '').slice(0, 8000);
   db.prepare('UPDATE users SET dice_shortcuts = ? WHERE id = ?').run(text, req.user!.id);
   res.json({ diceShortcuts: text });
+});
+
+// --- Eigener Benachrichtigungston (WAV-Blob) ---
+// Immer nur das EIGENE Konto: die Route trägt keine Nutzer-Id, also gibt es
+// nichts, womit man den Ton eines anderen anfragen könnte.
+//
+// Die Bytes kommen fertig normalisiert aus dem Browser (mono, 16 Bit,
+// höchstens MAX_CHIME_SEKUNDEN — siehe client/src/components/dice/wavEncode.ts).
+// Der Server dekodiert nichts; er prüft nur, dass es wirklich das Format ist,
+// das wir selbst erzeugen, und liefert es genau als solches wieder aus.
+
+api.get('/me/chime/info', requireAuth, (req, res) => {
+  // Eigene JSON-Route statt eines HEAD auf /me/chime: die Mehrheit hat keinen
+  // eigenen Ton, und ein 404 bei jedem Seitenaufbau wäre nur Rauschen in der
+  // Konsole.
+  res.json(chimeInfo(req.user!.id));
+});
+
+api.get('/me/chime', requireAuth, (req, res) => {
+  const ton = ladeChime(req.user!.id);
+  if (!ton) {
+    res.status(404).end();
+    return;
+  }
+  res.type(ton.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  // Wir haben diese Bytes zwar selbst erzeugt, aber sie sind trotzdem durch
+  // fremde Hände gegangen — der Browser soll den Typ nicht neu erraten dürfen.
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.send(ton.data);
+});
+
+api.put(
+  '/me/chime',
+  requireAuth,
+  express.raw({ type: 'audio/wav', limit: MAX_CHIME_BYTES }),
+  (req, res) => {
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Klang empfangen' });
+      return;
+    }
+    // Die Längenbegrenzung kann nur der Browser prüfen (dort liegt der Decoder).
+    // Das Format kann der Server prüfen, und tut es: gespeichert wird nur, was
+    // als RIFF/WAVE erkennbar ist.
+    if (!istWavKopf(buf)) {
+      res.status(400).json({ error: 'Nur WAV-Daten aus der App werden angenommen.' });
+      return;
+    }
+    if (!speichereChime(req.user!.id, buf)) {
+      res.status(503).json({ error: 'Die Klangdatenbank ist gerade nicht verfügbar.' });
+      return;
+    }
+    res.json({ ok: true, bytes: buf.length });
+  },
+);
+
+api.delete('/me/chime', requireAuth, (req, res) => {
+  loescheChime(req.user!.id);
+  res.json({ ok: true });
 });
 
 api.put('/me/password', requireAuth, (req, res) => {
@@ -491,38 +571,61 @@ api.get('/groups/mine', requireAuth, (req, res) => {
   );
 });
 
+// Bedient feste UND Event-Gruppen (isRoomMember statt isGroupMember, dieselbe
+// UNION aus fester und additiver Mitgliedschaft wie beim Schicksalspunkte-Reset
+// oben). „Gemeinsame Inhalte" (Tabs/Sektionen) bekommen Event-Gruppen bewusst
+// NICHT — siehe Kommentar bei editableGroup weiter unten —, deshalb bleiben
+// die Tabs für is_temp-Gruppen leer statt nachgezogen zu werden.
 api.get('/groups/:id', requireAuth, (req, res) => {
   const groupId = Number(req.params.id);
   const user = req.user!;
-  const group = db.prepare('SELECT * FROM groups WHERE id = ?').get(groupId) as { id: number; name: string } | undefined;
-  if (!group || (!user.isGm && !isGroupMember(user.id, groupId))) {
+  const group = db.prepare('SELECT *, is_temp AS isTemp FROM groups WHERE id = ?').get(groupId) as
+    | { id: number; name: string; isTemp: number }
+    | undefined;
+  if (!group || (!user.isGm && !isRoomMember(user.id, groupId))) {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
   const members = db
     .prepare(
       `SELECT DISTINCT u.id, u.username, u.display_name AS displayName
-       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?`,
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?
+       UNION
+       SELECT DISTINCT u.id, u.username, u.display_name AS displayName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id
+       JOIN temp_group_members tgm ON tgm.character_id = c.id WHERE tgm.temp_group_id = ?`,
     )
-    .all(groupId);
+    .all(groupId, groupId);
   const chars = db
     .prepare(
       `SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
-       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ? ORDER BY c.name`,
+       FROM characters c JOIN users u ON u.id = c.owner_user_id WHERE c.group_id = ?
+       UNION
+       SELECT c.id, c.name, c.owner_user_id AS ownerUserId, u.display_name AS ownerName
+       FROM characters c JOIN users u ON u.id = c.owner_user_id
+       JOIN temp_group_members tgm ON tgm.character_id = c.id WHERE tgm.temp_group_id = ?
+       ORDER BY name`,
     )
-    .all(groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
+    .all(groupId, groupId) as { id: number; name: string; ownerUserId: number; ownerName: string }[];
   const characters = chars.map((c) => {
-    const access = characterAccess(user, getChar(c.id)!);
+    // Wer in dieser Auflistung steht, ist Mitglied dieses Raums (fest oder
+    // additiv über die Event-Gruppe) — also mindestens „summary" füreinander,
+    // auch wenn characterAccess (rein permanente Gruppe) allein null ergäbe.
+    const access = characterAccess(user, getChar(c.id)!) ?? (user.isGm || isRoomMember(user.id, groupId) ? 'summary' : null);
     return { ...c, access, portrait: hasPortrait(c.id) };
   });
-  // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
-  // die es vor diesem Feature schon gab, ihre Inhalte
-  instantiateGroupTabs(groupId);
+  let tabs: ReturnType<typeof loadDynTabs> = [];
+  if (!group.isTemp) {
+    // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
+    // die es vor diesem Feature schon gab, ihre Inhalte
+    instantiateGroupTabs(groupId);
+    tabs = loadDynTabs(groupId, GROUP_DYN);
+  }
   res.json({
-    group: { ...group, portrait: hatGruppenPortrait(groupId) },
+    group: { ...group, isTemp: !!group.isTemp, portrait: hatGruppenPortrait(groupId) },
     members,
     characters,
-    tabs: loadDynTabs(groupId, GROUP_DYN),
+    tabs,
   });
 });
 
@@ -626,8 +729,10 @@ api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res
        WHERE tgm.temp_group_id = ?`,
     )
     .all(groupId, groupId) as { charId: number; ownerUserId: number; max: number }[];
+  // trainingLeseHeute läuft am selben Reset mit — kein eigener Knopf, siehe
+  // TODO-Konzept: dieselbe „Neuer Spieltag"-Aktion setzt beides zurück.
   db.prepare(
-    `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax
+    `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax, trainingLeseHeute = 0
      WHERE character_id IN (
        SELECT id FROM characters WHERE group_id = ?
        UNION
@@ -652,7 +757,9 @@ api.post('/characters/:id/schicksalspunkte/reset', requireAuth, requireGm, (req,
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
-  db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax WHERE character_id = ?').run(charId);
+  db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax, trainingLeseHeute = 0 WHERE character_id = ?').run(
+    charId,
+  );
   if (char.groupId !== null) {
     const max = (
       db.prepare('SELECT schicksalspunkteMax AS max FROM char_meta WHERE character_id = ?').get(charId) as { max: number }
@@ -694,6 +801,114 @@ api.get('/groups/:id/feed', requireAuth, (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 30, 1), 100);
   const { entries, hasMore } = loadFeedPage(groupId, { userId: req.user!.id }, before, limit);
   res.json({ entries, hasMore });
+});
+
+// Virtual-table snapshot (docs/concepts/virtual-table.md). isRoomMember, same
+// reasoning as the feed above — an event group's additive members read the
+// board same as a permanent group's exclusive ones. Creates the board on
+// first access (getOrCreateBoard), same idempotent-nachziehen shape as
+// instantiateGroupTabs. redactSnapshotForViewer strips fogged tiles/
+// highlights, hidden-or-fogged tokens, fogged labels and hidden images for
+// anyone but the GM — the same redaction every live WS delta applies (see
+// board.ts/ws.ts, "Realtime design"), so this REST fetch (initial load, and
+// every reconnect refetch on a `rev` gap) never ships hidden state either.
+api.get('/groups/:id/board', requireAuth, (req, res) => {
+  const groupId = Number(req.params.id);
+  const user = req.user!;
+  const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+  if (!exists || (!user.isGm && !isRoomMember(user.id, groupId))) {
+    res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    return;
+  }
+  const snapshot = redactSnapshotForViewer(loadBoardSnapshot(groupId), { userId: user.id, isGm: user.isGm });
+  // Round trackers are fully private (see BoardRoundTracker's doc comment in
+  // shared/src/boardProtocol.ts) — never part of the shared/GM-redacted
+  // snapshot above, always just the caller's own rows, creatorUserId
+  // stripped same as the WS path's toWireRoundTracker.
+  const roundTrackers = loadRoundTrackers(snapshot.board.id, user.id).map((t) => ({ id: t.id, boardId: t.boardId, label: t.label, currentCount: t.currentCount }));
+  res.json({ ...snapshot, roundTrackers });
+});
+
+// Image upload for the virtual table (Phase 12, "Images on the table") —
+// bytes only. Placing the upload ON the board (x/y/w/h/modus) happens over
+// WS via board.image.create, same REST-carries-bytes/WS-carries-state split
+// as everything else (see "Server module layout" in the plan). Guarded by
+// canEditImages (perm_images), not just room membership — a player without
+// the right shouldn't even be able to fill the assets table. Own body parser
+// like the wiki's /bilder route, since express.json lets non-JSON through
+// and the image comes raw; 8 MB is generous for a hand-drawn map export.
+api.post(
+  '/groups/:id/board/images',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '8mb' }),
+  (req, res) => {
+    const groupId = Number(req.params.id);
+    const user = req.user!;
+    const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+    if (!exists || (!user.isGm && !isRoomMember(user.id, groupId))) {
+      res.status(404).json({ error: 'Gruppe nicht gefunden' });
+      return;
+    }
+    const board = getOrCreateBoard(groupId);
+    if (!canEditBoardImages(board, { userId: user.id, isGm: user.isGm }, groupId)) {
+      res.status(403).json({ error: 'Keine Berechtigung, Bilder auf den Tisch zu legen' });
+      return;
+    }
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    const slug = legeAssetAn({
+      ownerType: 'board',
+      ownerId: board.id,
+      titel: String(req.query.titel ?? 'Bild').slice(0, 120),
+      mime,
+      data: buf,
+      uploaderUserId: user.id,
+      uploaderName: user.displayName,
+    });
+    if (!slug) {
+      res.status(503).json({ error: 'Die Bilddatenbank ist nicht verfügbar' });
+      return;
+    }
+    // Real pixel dimensions, so the "Pixel pro Feld" alignment dialog has
+    // something to divide by without a second round-trip.
+    const { breite, hoehe } = bildMasse(buf, mime);
+    res.json({ slug, breite, hoehe });
+  },
+);
+
+// Serves one placed image's bytes. The slug carries randomness (same
+// capability pattern as the wiki's /bilder/:slug — the URL is only ever
+// handed to someone already allowed to see the board it's on), but a
+// mismatched slug (wrong board, or not placed at all) is refused explicitly
+// rather than trusted. `hidden` is the one all-or-nothing fog escape hatch
+// for images (see "Fog over images is cosmetic" in the plan) — withheld from
+// non-GM viewers entirely, same guarantee the snapshot/WS path already gives.
+api.get('/groups/:id/board/images/:slug', requireAuth, (req, res) => {
+  const groupId = Number(req.params.id);
+  const user = req.user!;
+  const exists = db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId);
+  if (!exists || (!user.isGm && !isRoomMember(user.id, groupId))) {
+    res.status(404).end();
+    return;
+  }
+  const board = getBoard(groupId);
+  const placed = board && getImageByAssetSlug(board.id, String(req.params.slug));
+  if (!placed || (placed.hidden && !user.isGm)) {
+    res.status(404).end();
+    return;
+  }
+  const asset = ladeAsset(placed.assetSlug);
+  if (!asset || asset.ownerType !== 'board') {
+    res.status(404).end();
+    return;
+  }
+  res.type(asset.mime);
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  res.send(asset.data);
 });
 
 api.post('/groups/:id/tabs', requireAuth, (req, res) => {
@@ -1059,6 +1274,16 @@ api.put('/characters/:id/abilities', requireAuth, (req, res) => {
   res.json({ abilities: loadAbilities(char.id) });
 });
 
+// Nur lesen, nur für die Spielleitung: die Gruppenübersicht bietet damit einen
+// Schnell-Nachschlag auf Zauber/Fähigkeiten eines Charakters, ohne dessen
+// ganzen Bogen zu öffnen. requireGm statt requireGmOrAdmin — eine Verwaltung
+// sieht keine Charakterbögen (siehe requireAdmin-Kommentar in auth.ts).
+api.get('/characters/:id/abilities', requireAuth, requireGm, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  res.json({ abilities: loadAbilities(char.id) });
+});
+
 // Element- oder Kategorie-Liste verwalten (mit Kaskade auf die Einträge).
 // Body: { kind: 'element'|'kategorie', order, renames:[{from,to}], removes:[name] }.
 api.put('/characters/:id/ability-lists/manage', requireAuth, (req, res) => {
@@ -1179,6 +1404,27 @@ api.put(
   },
 );
 
+// Der unbeschnittene Original-Upload, wie ausgewählt bevor der CropEditor einen
+// Ausschnitt wählt — nur geschrieben, nie eigenständig gelesen: die Vergrößerungs-
+// Ansicht (`/portrait/full` oben) greift serverseitig darauf zu.
+api.put(
+  '/characters/:id/portrait/original',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const char = editableChar(req, res);
+    if (!char) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    savePortraitOriginal(char.id, mime, buf);
+    res.json({ ok: true });
+  },
+);
+
 api.get('/characters/:id/portrait', requireAuth, (req, res) => {
   const char = getChar(Number(req.params.id));
   if (!char || !characterAccess(req.user!, char)) {
@@ -1262,6 +1508,24 @@ api.put(
     }
     const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
     speichereGruppenPortrait(groupId, mime, buf, true);
+    res.json({ ok: true });
+  },
+);
+
+api.put(
+  '/groups/:id/portrait/original',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const groupId = editableGroup(req, res);
+    if (!groupId) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    speichereGruppenPortraitOriginal(groupId, mime, buf);
     res.json({ ok: true });
   },
 );
@@ -1557,6 +1821,11 @@ api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
     return;
   }
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  // SQLite kennt kein CASCADE über Datenbankgrenzen: der eigene
+  // Benachrichtigungston liegt in helden-assets.db und muss hier von Hand
+  // mitgelöscht werden. Der wöchentliche Kehrbesen (assets/sweep.ts) ist das
+  // Netz darunter, nicht der Mechanismus.
+  loescheAssetsFuer('user', id);
   res.json({ ok: true });
 });
 
@@ -1592,10 +1861,16 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     res.status(400).json({ error: 'Gruppe enthält noch Charaktere' });
     return;
   }
+  // Board-Id VOR dem Löschen holen: ON DELETE CASCADE räumt boards/
+  // board_images innerhalb von helden.db weg, aber deren Bild-Bytes liegen
+  // in helden-assets.db — dieselbe Zweite-Datei-Lücke wie beim Gruppenporträt
+  // gleich darunter, siehe die owner_type-Kommentare in assets/store.ts.
+  const board = getBoard(id);
   db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 0').run(id);
   // Gruppenporträt liegt in helden-assets.db — dieselbe Zweite-Datei-Lücke wie
   // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
   loescheAssetsFuer('group', id);
+  if (board) loescheAssetsFuer('board', board.id);
   res.json({ ok: true });
 });
 
@@ -1656,7 +1931,13 @@ api.put('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
 // (beide haben eine echte FK auf groups(id)) — keine Charakterdaten
 // betroffen, daher kein „enthält noch Charaktere"-Schutz nötig.
 api.delete('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
-  db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 1').run(Number(req.params.id));
+  const id = Number(req.params.id);
+  // Same cross-database gap as the permanent-group delete above — an event
+  // group can have its own board too (boards.group_id has no room-kind
+  // filter, see the plan).
+  const board = getBoard(id);
+  db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 1').run(id);
+  if (board) loescheAssetsFuer('board', board.id);
   res.json({ ok: true });
 });
 

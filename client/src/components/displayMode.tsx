@@ -6,7 +6,7 @@
 // TextInput); lesen die beiden den Modus selbst, legt ein einziger Provider das
 // ganze Blatt um.
 //
-// Drei Modi, aber nur zwei Verhaltensweisen:
+// Vier Modi, aber nur zwei Verhaltensweisen:
 //
 //   edit      Eingabefelder — der Normalzustand beim Bearbeiten.
 //   readonly  fester Text. Der VOREINGESTELLTE Zustand eines Charakterblatts:
@@ -15,6 +15,11 @@
 //   print     fester Text. Getrennt von `readonly`, weil der Druck zusätzlich
 //             eingeklappte Tabellen aufklappt (siehe tableLayout) und die
 //             Ausnahme-Inseln unten NICHT gelten dürfen.
+//   inspect   fester Text, wie `readonly` — aber OHNE die AlwaysEditable-
+//             Ausnahme (Seitenleisten-Pools). Für die Verwaltung, die einen
+//             Bogen einsehen, aber unter keinen Umständen verändern darf, auch
+//             nicht die „laufenden Werte", die Besitzer/Spielleitung mitten im
+//             Spiel anfassen dürfen — siehe access: 'inspect' in routes.ts.
 //
 // Warum fester Text und nicht bloß `disabled`: ein gesperrtes Eingabefeld ist
 // blass und schwer zu lesen, und im Druck kommt es gar nicht erst an — die
@@ -23,7 +28,7 @@
 // beide Probleme nicht.
 import { createContext, useContext } from 'react';
 
-export type DisplayMode = 'edit' | 'readonly' | 'print';
+export type DisplayMode = 'edit' | 'readonly' | 'print' | 'inspect';
 
 // Ohne Provider bearbeitbar: die Gruppenseite und die Verwaltung bringen keinen
 // mit und sollen weiterarbeiten wie bisher.
@@ -53,6 +58,6 @@ export const useReadOnly = (): boolean => useContext(DisplayModeCtx) !== 'edit';
  */
 export function AlwaysEditable({ children }: { children: React.ReactNode }) {
   const mode = useDisplayMode();
-  if (mode === 'print') return <>{children}</>;
+  if (mode === 'print' || mode === 'inspect') return <>{children}</>;
   return <DisplayModeCtx.Provider value="edit">{children}</DisplayModeCtx.Provider>;
 }

@@ -23,6 +23,11 @@ export function fegeVerwaisteBilder(): void {
     fegeVerwaisteAssets('wiki', ids('SELECT id FROM wiki_pages'));
     fegeVerwaisteAssets('character', ids('SELECT id FROM characters'));
     fegeVerwaisteAssets('group', ids('SELECT id FROM groups'));
+    // Nutzer besitzen kein Bild, aber ihren eigenen Benachrichtigungston.
+    fegeVerwaisteAssets('user', ids('SELECT id FROM users'));
+    // Sicherheitsnetz hinter den Lösch-Hooks in board.ts/routes.ts, siehe die
+    // owner_type-Kommentar in assets/store.ts.
+    fegeVerwaisteAssets('board', ids('SELECT id FROM boards'));
   } catch (err) {
     console.error('[assets] Aufräumen verwaister Bilder fehlgeschlagen:', err);
   }

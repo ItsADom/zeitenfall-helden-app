@@ -1,16 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAttrPoint, Resources, SpecialResource } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
-import type { Item } from '@shared/items';
-import type { Ability } from '@shared/abilities';
-import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
 import { apiGet, apiPut } from '../api';
-import { useAuth, useThemeControls } from '../App';
+import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
+import type { Catalogs, FullData, LanguageCatalogRow, RaceCatalogRow, TalentCatalogRow } from '../components/charSheet';
+import { CharCtx, useCharSheet, useChar } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
-import type { Row } from '../components/inputs';
 import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
 import { TableLayoutProvider } from '../components/tableLayout';
 import ContentTabView from '../tabs/Sektionen';
@@ -24,151 +21,46 @@ import FaehigkeitenTab from '../tabs/Faehigkeiten';
 import SprachenTab from '../tabs/Sprachen';
 import SummaryView from '../tabs/Summary';
 
+// pages/Character.tsx bleibt die Seite: Reiterleiste/-reihenfolge, Druckmodus,
+// „Ansehen als", Namensbearbeitung, Tabellenbreiten, Scroll-Erinnerung, die
+// klebenden Höhenmessungen. Laden, Katalog, entprelltes Speichern und die
+// Würfel-Kontexte sitzen in components/charSheet.tsx (useCharSheet) — extrahiert,
+// damit die virtuelle Tischplatte dieselbe Seitenleiste einbinden kann, ohne
+// die Pool-Rechnung und den Speicherpfad ein zweites Mal zu bauen.
+//
+// useChar()/CharCtx selbst bleiben unverändert re-exportiert, damit die gute
+// Handvoll Reiter- und Seitenleisten-Dateien, die nur `useChar` importieren,
+// keine Änderung brauchen.
+export { useChar };
+export type { Catalogs, FullData, LanguageCatalogRow, RaceCatalogRow, TalentCatalogRow };
+
 // Eingebaute Reiter, deren Anzeigetext vom Schlüssel abweicht (siehe
 // MOVABLE_BUILTIN_TAB_KEYS in tabOrder.ts).
 const BUILTIN_TAB_LABELS: Record<string, string> = {
   WaffenNeu: 'Waffen',
 };
 
-export interface FullData {
-  // Fast alle Bio-Felder sind Freitext; rasseId ist die einzige Zahl (Verweis
-  // in races_catalog, null = keine Rasse gewählt).
-  bio: Record<string, string> & { rasseId: number | null };
-  meta: Record<string, number>;
-  attributes: Attributes;
-  baseValues: BaseValueInputs;
-  resources: Resources;
-  // Spezialenergien (light): frei benannte Vorräte, vom Spieler selbst gepflegt.
-  // Eigene Liste, damit die festen Energie-Spalten sie nicht verformen.
-  special: SpecialResource[];
-  // Externe Attributspunkte: nur in Einstellungen editiert (eigene Route),
-  // hier rein lesend für die Ungenutzt-Berechnung im Heldenbrief.
-  attrExtern: ExternalAttrPoint[];
-  talents: CharTalent[];
-  languages: CharLanguage[];
-  lists: Record<string, Row[]>;
-  tabs: DynTab[];
-  visibility: Record<string, boolean>;
-  // Spaltenbreiten der fest eingebauten Tabellen, je Tabellen-Schlüssel in
-  // Prozent. Die selbst angelegten Tabellen führen ihre Breiten dagegen in der
-  // Spaltendefinition mit (DynColumn.width).
-  tableWidths: Record<string, number[]>;
-  // Selbst gewählte Reihenfolge der Reiter als Liste von Schlüsseln. Leer =
-  // Voreinstellung; unbekannte Schlüssel werden beim Anzeigen aussortiert.
-  tabOrder: string[];
-  portrait: boolean;
-  // Einheitliches Gegenstands-Modell (Cluster 5): eine Liste plus die selbst
-  // verwalteten Kategorien. Speichert über eigene Routen, nicht /section/:s.
-  items: Item[];
-  itemCategories: string[];
-  // Zauber & Fähigkeiten (Cluster 6): ein Bestand, aus dem die Reiter „Zauber"
-  // und „Fähigkeiten" nur anzeigen. Gepflegt wird in der Werkstatt; im Reiter
-  // ändert sich einzig der Fortschritt. Speichert über eine eigene Route.
-  abilities: Ability[];
-  abilityLists: { element: string[]; kategorie: string[] };
-  // Geldbeutel (Geld-Umbau): eine Liste, jeder Beutel an ein Katalog-
-  // Währungssystem gebunden. Speichert über eine eigene Route, nicht /section/:s.
-  pouches: CoinPouch[];
-}
-
-export interface TalentCatalogRow {
-  id: number;
-  kategorie: string;
-  gruppe: string;
-  name: string;
-  probe: string;
-  ableiten: string;
-  skill100: string;
-  sort: number;
-}
-export interface LanguageCatalogRow {
-  id: number;
-  kind: string;
-  familie: string;
-  name: string;
-  komplexitaet: string;
-  sort: number;
-}
-export interface RaceCatalogRow {
-  id: number;
-  gruppe: string;
-  name: string;
-  beschreibung: string;
-  spezialisierung: string;
-  talente: string;
-  le: number | null;
-  au: number | null;
-  ae: number | null;
-  mr: number | null;
-  ak: number | null;
-  gs: number | null;
-  psyche: number | null;
-  resilienz: number | null;
-  notiz: string;
-  sort: number;
-}
-export interface SpecialEnergyCatalogRow {
-  id: number;
-  name: string;
-  formula: string;
-  beschreibung: string;
-  sort: number;
-}
-export interface Catalogs {
-  talents: TalentCatalogRow[];
-  languages: LanguageCatalogRow[];
-  races: RaceCatalogRow[];
-  specialEnergies: SpecialEnergyCatalogRow[];
-  currencies: CurrencySystem[];
-}
-
-interface CharacterInfo {
-  id: number;
-  name: string;
-  ownerUserId: number;
-  ownerName: string;
-  // NULL, solange der Charakter keiner Gruppe angehört (Selbst-Anlage vor der
-  // Freigabe) — der Server liefert das schon immer so, der Typ hier log früher.
-  groupId: number | null;
-  groupName: string;
-  // Event-Gruppen: rein additiv zur festen Gruppe oben, nur-lesen hier (GM-only
-  // verwaltet unter /verwaltung).
-  tempGroups: { id: number; name: string }[];
-  // Farbwelt des Charakters ('' = keine → Betrachter behält seine Vorgabe).
-  theme?: string;
-}
-
-interface CharCtxValue {
-  charId: number;
-  data: FullData;
-  catalogs: Catalogs;
-  update: (section: string, value: unknown) => void;
-  /**
-   * Gesetzt, wenn von diesem Bogen aus gewürfelt werden darf: eigener
-   * Charakter (nie ein fremder — dafür gibt es den SL-Anfrage-Fluss) UND in
-   * einer Gruppe (ohne Gruppe kein Feed, in den der Wurf posten könnte).
-   * null = die Reiter blenden ihre Würfel-Knöpfe aus.
-   */
-  rollCtx: { groupId: number; charId: number } | null;
-  /**
-   * Gegenstück für die Spielleitung auf einem FREMDEN Bogen: sie würfelt
-   * nicht selbst, sondern fragt die Probe beim Spieler an („SL + Spieler").
-   * null auf dem eigenen Bogen und ohne Gruppe.
-   */
-  requestCtx: { groupId: number; charId: number; targetUserId: number } | null;
-}
-const CharCtx = createContext<CharCtxValue | null>(null);
-export const useChar = () => useContext(CharCtx)!;
-
 export default function CharacterPage() {
   const { id } = useParams();
   const charId = Number(id);
   const { user } = useAuth();
-  const [info, setInfo] = useState<CharacterInfo | null>(null);
-  const [access, setAccess] = useState<'edit' | 'summary' | null>(null);
-  const [data, setData] = useState<FullData | null>(null);
-  const [summary, setSummary] = useState<unknown>(null);
-  const [catalogs, setCatalogs] = useState<Catalogs | null>(null);
+
+  // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID. Steuert
+  // welchen Blickwinkel useCharSheet lädt (?asUser=…) — deshalb hier oben, vor
+  // dem Hook-Aufruf.
+  const canViewAs = !!user.isGm && !!user.devViewAs;
+  const [viewAs, setViewAs] = useState(0);
+  const [viewUsers, setViewUsers] = useState<{ id: number; displayName: string }[]>([]);
+
+  useEffect(() => {
+    if (canViewAs) apiGet<{ id: number; displayName: string }[]>('/api/admin/users').then(setViewUsers).catch(() => {});
+  }, [canViewAs]);
+
+  const {
+    info, setInfo, access, summary, data, setData, catalogs, loading, error,
+    update, flush, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
+  } = useCharSheet(charId, viewAs || undefined);
+
   // Aktiver Reiter: normalerweise der Heldenbrief, aber ein ?tab=-Parameter
   // (z. B. beim Zurückkommen aus der Zauber-Verwaltung) landet direkt dort.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -187,10 +79,7 @@ export default function CharacterPage() {
     next.set('tab', key);
     setSearchParams(next, { replace: true });
   };
-  const [error, setError] = useState('');
-  const [saveState, setSaveState] = useState('');
   const [printing, setPrinting] = useState(false);
-  const [loading, setLoading] = useState(true);
   // Nur-Lesen ist der Normalfall: das Blatt öffnet sich zum Ansehen, Bearbeiten
   // wird bewusst eingeschaltet. Absichtlich NICHT gemerkt — jedes Öffnen fängt
   // wieder geschützt an, sonst wäre der Schutz nach dem ersten Mal weg.
@@ -200,15 +89,6 @@ export default function CharacterPage() {
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [nameError, setNameError] = useState('');
 
-  // Entwickler-Vorschau „Ansehen als": 0 = normal, sonst die Nutzer-ID.
-  const canViewAs = !!user.isGm && !!user.devViewAs;
-  const [viewAs, setViewAs] = useState(0);
-  const [viewUsers, setViewUsers] = useState<{ id: number; displayName: string }[]>([]);
-
-  useEffect(() => {
-    if (canViewAs) apiGet<{ id: number; displayName: string }[]>('/api/admin/users').then(setViewUsers).catch(() => {});
-  }, [canViewAs]);
-
   // Die Reiterleiste klebt oben und bricht je nach Anzahl der Reiter um. Was
   // darunter ebenfalls kleben soll, muss ihre tatsächliche Höhe kennen.
   const tabsRef = useTabsHeight();
@@ -217,60 +97,6 @@ export default function CharacterPage() {
   // Kopf- und Reiterleiste. Ihre Höhe wird gemessen, damit die darunter
   // klebenden Leisten (Reiter, Tabellenköpfe, Talentsuche) korrekt versetzt sind.
   const charHeadRef = useCharHeadHeight();
-
-  // Wird bei einer stillen Aktualisierung hochgezählt und geht in den React-Key
-  // des aktiven Inhalts-Tabs ein — so übernimmt ContentTabView (hält Zeilen in
-  // eigenem State) die frischen Serverdaten. Die berechneten Tabs lesen ohnehin
-  // aus dem Kontext und aktualisieren sich von selbst.
-  const [reloadTick, setReloadTick] = useState(0);
-
-  // Lädt den Charakter. quiet=true: stille Hintergrund-Aktualisierung ohne
-  // Lade-Spinner — die bisherige Anzeige bleibt stehen, bis neue Daten da sind.
-  const loadCharacter = useCallback(
-    (quiet = false) => {
-      if (!quiet) {
-        setLoading(true);
-        setData(null);
-        setSummary(null);
-      }
-      setError('');
-      const q = viewAs ? `?asUser=${viewAs}` : '';
-      return apiGet<{ character: CharacterInfo; access: 'edit' | 'summary' | null; data?: FullData; summary?: unknown }>(
-        `/api/characters/${charId}${q}`,
-      )
-        .then((res) => {
-          setInfo(res.character);
-          setAccess(res.access);
-          setData(res.data ?? null);
-          setSummary(res.summary ?? null);
-          if (quiet) setReloadTick((t) => t + 1);
-        })
-        .catch((e) => {
-          // Fehler einer stillen Aktualisierung nicht anzeigen — der alte Stand
-          // bleibt stehen, es wird beim nächsten Fokus erneut versucht.
-          if (!quiet) setError(e instanceof Error ? e.message : 'Fehler');
-        })
-        .finally(() => {
-          if (!quiet) setLoading(false);
-        });
-    },
-    [charId, viewAs],
-  );
-
-  useEffect(() => {
-    void loadCharacter();
-    apiGet<Catalogs>('/api/catalogs').then(setCatalogs);
-  }, [loadCharacter]);
-
-  // Der Charakter bringt seine eigene Farbwelt mit — sie gilt für JEDEN, der ihn
-  // öffnet (Spieler, Spielleiter, Gruppenmitglied), für Farbe UND Kopf-Animation.
-  // App wendet die überschreibende Farbwelt an; beim Verlassen wird sie
-  // abgeräumt und die persönliche Vorgabe des Betrachters greift wieder.
-  const { setOverrideTheme } = useThemeControls();
-  useEffect(() => {
-    setOverrideTheme(info?.theme ?? null);
-    return () => setOverrideTheme(null);
-  }, [info?.theme, setOverrideTheme]);
 
   const viewAsBar = canViewAs ? (
     <div className="viewas-bar">
@@ -290,114 +116,21 @@ export default function CharacterPage() {
     </div>
   ) : null;
 
-  // Automatisches Speichern geänderter Sektionen (entprellt)
-  const dirty = useRef(new Set<string>());
-  const saving = useRef(false); // läuft gerade ein Speichern der festen Sektionen?
-  const dynDirty = useRef(false); // hat der aktive Inhalts-Tab ungespeicherte Zeilen?
-  const timer = useRef<number | undefined>(undefined);
-  const dataRef = useRef<FullData | null>(null);
-  dataRef.current = data;
-
-  const flush = useCallback(async () => {
-    const sections = [...dirty.current];
-    dirty.current.clear();
-    const d = dataRef.current;
-    if (!d || sections.length === 0) return;
-    saving.current = true;
-    setSaveState('Speichere…');
-    try {
-      for (const s of sections) {
-        if (s === 'visibility') await apiPut(`/api/characters/${charId}/visibility`, d.visibility);
-        else if (s === 'items') await apiPut(`/api/characters/${charId}/items`, d.items);
-        else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
-        else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities`, d.abilities);
-        else if (s === 'pouches') await apiPut(`/api/characters/${charId}/pouches`, d.pouches);
-        else {
-          const value =
-            s === 'bio' ? d.bio
-            : s === 'meta' ? d.meta
-            : s === 'attributes' ? d.attributes
-            : s === 'baseValues' ? d.baseValues
-            : s === 'resources' ? d.resources
-            : s === 'special' ? d.special
-            : s === 'talents' ? d.talents
-            : s === 'languages' ? d.languages
-            : d.lists[s];
-          await apiPut(`/api/characters/${charId}/section/${s}`, value);
-        }
-      }
-      setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
-    } catch (e) {
-      dirty.current = new Set([...dirty.current, ...sections]);
-      setSaveState(`Fehler beim Speichern: ${e instanceof Error ? e.message : e}`);
-    } finally {
-      saving.current = false;
-    }
-  }, [charId]);
-
-  const update = useCallback(
-    (section: string, value: unknown) => {
-      setData((prev) => {
-        if (!prev) return prev;
-        if (section === 'bio') return { ...prev, bio: value as FullData['bio'] };
-        if (section === 'meta') return { ...prev, meta: value as FullData['meta'] };
-        if (section === 'attributes') return { ...prev, attributes: value as Attributes };
-        if (section === 'baseValues') return { ...prev, baseValues: value as BaseValueInputs };
-        if (section === 'resources') return { ...prev, resources: value as Resources };
-        if (section === 'special') return { ...prev, special: value as SpecialResource[] };
-        if (section === 'talents') return { ...prev, talents: value as CharTalent[] };
-        if (section === 'languages') return { ...prev, languages: value as CharLanguage[] };
-        if (section === 'visibility') return { ...prev, visibility: value as FullData['visibility'] };
-        if (section === 'items') return { ...prev, items: value as Item[] };
-        if (section === 'itemCategories') return { ...prev, itemCategories: value as string[] };
-        if (section === 'abilities') return { ...prev, abilities: value as Ability[] };
-        if (section === 'pouches') return { ...prev, pouches: value as CoinPouch[] };
-        return { ...prev, lists: { ...prev.lists, [section]: value as Row[] } };
-      });
-      dirty.current.add(section);
-      window.clearTimeout(timer.current);
-      timer.current = window.setTimeout(() => void flush(), 1500);
-    },
-    [flush],
-  );
-
   // Spaltenbreiten einer eingebauten Tabelle sichern. Wie beim Namen bewusst
   // sofort statt über das entprellte Sammel-Speichern: es passiert genau einmal,
   // beim Klick auf „Fertig". Der Server normalisiert und antwortet mit dem
   // gespeicherten Satz — den übernehmen wir, damit Anzeige und Datenbank
   // garantiert dasselbe zeigen.
-  const saveTableWidths = useCallback(
-    (key: string, widths: number[]) => {
-      setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: widths } } : prev));
-      setSaveState('Speichere…');
-      apiPut<{ widths: number[] }>(`/api/characters/${charId}/table-widths`, { key, widths })
-        .then((res) => {
-          setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: res.widths } } : prev));
-          setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
-        })
-        .catch((e) => setSaveState(`Fehler beim Speichern: ${e instanceof Error ? e.message : e}`));
-    },
-    [charId],
-  );
-
-  // Kehrt der Tab/das Fenster in den Vordergrund zurück, still nachladen — so
-  // sieht man Änderungen anderer (Spielleiter ⇄ Spieler), ohne neu zu laden.
-  // Bewusst NICHT während eigener ungespeicherter Änderungen (feste Sektionen:
-  // dirty/saving; aktiver Inhalts-Tab: dynDirty) — sonst würde der eigene Stand
-  // vom Serverstand überschrieben.
-  useEffect(() => {
-    const maybeReload = () => {
-      if (document.visibilityState !== 'visible') return;
-      if (dirty.current.size > 0 || saving.current || dynDirty.current) return;
-      void loadCharacter(true);
-    };
-    window.addEventListener('focus', maybeReload);
-    document.addEventListener('visibilitychange', maybeReload);
-    return () => {
-      window.removeEventListener('focus', maybeReload);
-      document.removeEventListener('visibilitychange', maybeReload);
-    };
-  }, [loadCharacter]);
+  const saveTableWidths = (key: string, widths: number[]) => {
+    setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: widths } } : prev));
+    setSaveState('Speichere…');
+    apiPut<{ widths: number[] }>(`/api/characters/${charId}/table-widths`, { key, widths })
+      .then((res) => {
+        setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: res.widths } } : prev));
+        setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
+      })
+      .catch((e) => setSaveState(`Fehler beim Speichern: ${e instanceof Error ? e.message : e}`));
+  };
 
   // Reiter aus der URL übernehmen — für Zurück/Vorwärts und Deep-Links (z. B. der
   // „Einstellungen"-Zurücklink, der auf ?tab=… zeigt).
@@ -453,7 +186,7 @@ export default function CharacterPage() {
   }
 
   // Kein Zugriff — nur im Ansehen-als-Modus erreichbar (sonst liefert der Server 404).
-  if (access !== 'edit') {
+  if ((access !== 'edit' && access !== 'inspect') || !data) {
     return (
       <>
         {viewAsBar}
@@ -462,14 +195,15 @@ export default function CharacterPage() {
       </>
     );
   }
+  const inspecting = access === 'inspect';
 
-  const tabs = data!.tabs;
+  const tabs = data.tabs;
   const setTabs = (fn: (t: DynTab[]) => DynTab[]) => setData((prev) => (prev ? { ...prev, tabs: fn(prev.tabs) } : prev));
 
   // Eingebaute und selbst angelegte Reiter in einer Liste — nur so lassen sie
   // sich gemeinsam sortieren. Was der Charakter nicht (mehr) hat, fällt hier
   // heraus; was neu ist, hängt sich hinten an.
-  const order = orderTabKeys(defaultTabKeys(tabs.map((t) => t.id)), data!.tabOrder ?? []);
+  const order = orderTabKeys(defaultTabKeys(tabs.map((t) => t.id)), data.tabOrder ?? []);
   const tabByKey = (key: string) => {
     const tid = dynTabId(key);
     return tid === null ? null : (tabs.find((t) => t.id === tid) ?? null);
@@ -539,28 +273,25 @@ export default function CharacterPage() {
     URL.revokeObjectURL(url);
   };
 
-  // Würfeln nur vom eigenen Bogen und nur mit Gruppe — ein Spielleiter, der
-  // einen fremden Bogen offen hat, würfelt hier NICHT für den Spieler (dafür
-  // ist der SL-Anfrage-Fluss da), und ohne Gruppe gibt es keinen Feed.
-  const rollCtx = info.groupId != null && info.ownerUserId === user.id ? { groupId: info.groupId, charId } : null;
-  // Spielleitung auf einem fremden Bogen: anfragen statt würfeln.
-  const requestCtx =
-    info.groupId != null && user.isGm && info.ownerUserId !== user.id
-      ? { groupId: info.groupId, charId, targetUserId: info.ownerUserId }
-      : null;
-
   return (
-    <CharCtx.Provider value={{ charId, data: data!, catalogs, update, rollCtx, requestCtx }}>
-      <TableLayoutProvider widths={data!.tableWidths ?? {}} save={saveTableWidths}>
-      <DisplayModeProvider mode={editing ? 'edit' : 'readonly'}>
+    <CharCtx.Provider value={{ charId, data, catalogs, update, rollCtx, requestCtx }}>
+      <TableLayoutProvider widths={data.tableWidths ?? {}} save={saveTableWidths}>
+      <DisplayModeProvider mode={inspecting ? 'inspect' : editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
         {viewAsBar}
+        {inspecting && (
+          <div className="viewas-bar">
+            <span className="viewas-tag">VERWALTUNG</span>
+            <span className="muted">Einsicht — nur lesend, wie der Bogen für Besitzer/in aussieht.</span>
+          </div>
+        )}
         <div className="char-header" ref={charHeadRef}>
           {nameDraft === null ?
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
               <h1>{info.name}</h1>
-              {/* Im Ansehen-als-Modus bewusst ausgeblendet: die Vorschau ist rein lesend. */}
-              {!viewAs && editing && (
+              {/* Im Ansehen-als-Modus UND in der Verwaltungs-Einsicht bewusst
+                  ausgeblendet: beides ist rein lesend. */}
+              {!viewAs && !inspecting && editing && (
                 <button className="small" onClick={() => setNameDraft(info.name)} title="Namen ändern" aria-label="Namen ändern">
                   ✏️
                 </button>
@@ -594,9 +325,10 @@ export default function CharacterPage() {
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>
-          {/* Im Ansehen-als-Modus gibt es nichts zu bearbeiten — die Vorschau
-              ist rein lesend, ein Bearbeiten-Knopf wäre dort eine Falle. */}
-          {!viewAs && (
+          {/* Im Ansehen-als-Modus UND in der Verwaltungs-Einsicht gibt es
+              nichts zu bearbeiten — ein Bearbeiten-Knopf wäre dort eine Falle
+              (die Verwaltung hat serverseitig ohnehin keine Schreibrechte). */}
+          {!viewAs && !inspecting && (
             <button
               className={editing ? 'btn-action' : 'primary'}
               onClick={() => {
@@ -652,7 +384,7 @@ export default function CharacterPage() {
             key={`${activeContentTab.id}:${reloadTick}`}
             basePath={`/api/characters/${charId}`}
             tab={activeContentTab}
-            attributes={data!.attributes}
+            attributes={data.attributes}
             isFirst
             isLast
             showTabControls={false}
@@ -689,7 +421,7 @@ export default function CharacterPage() {
                   <ContentTabView
                     basePath={`/api/characters/${charId}`}
                     tab={dyn}
-                    attributes={data!.attributes}
+                    attributes={data.attributes}
                     isFirst
                     isLast
                     showVisibility={false}

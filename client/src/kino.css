@@ -1,0 +1,192 @@
+/* „Der große Wurf" (/i) — the full-screen announcement overlay.
+ *
+ * Its own stylesheet rather than more lines in styles.css (5837), following the
+ * precedent set by wiki.css: every rule is prefixed `.dice-kino` and uses only
+ * the existing colour tokens, so nothing here can leak into the rest of the app.
+ */
+
+.dice-kino {
+  position: fixed;
+  inset: 0;
+  /* Above the dock (150) AND above .dialog-backdrop (200): a great roll is an
+     event for the whole table that nobody opened themselves, so it covers an
+     open dialog too. Below .wartung-schirm (300): a restart beats any
+     performance. */
+  z-index: 250;
+  display: grid;
+  place-items: center;
+  /* Dark in BOTH light and dark mode — a dim that is not dark is not a dim, and
+     every die pigment is designed to sit on dark ground here. Deliberately no
+     backdrop-filter: blurring behind a transparent canvas that repaints every
+     frame makes the compositor re-blur continuously, which is a real cost on
+     integrated graphics. */
+  background: color-mix(in srgb, var(--bg) 18%, #000);
+  /* Invisible until the fanfare has called. The three opening beats are
+     deliberately sequential (see PHASES), so for the first seconds this element
+     exists without being seen — and must therefore also not be FELT: an
+     invisible sheet over the whole page that swallows clicks would let someone
+     dismiss a performance they cannot see yet. */
+  opacity: 0;
+  pointer-events: none;
+  /* Durations come from the component, which owns the timeline — see the two
+     custom properties it sets. The fallbacks keep the rule sane on its own. */
+  transition: opacity var(--kino-auf, 700ms) ease;
+  cursor: pointer;
+  /* The overlay itself never scrolls, and a touch drag on it must not pan the
+     page underneath. No body scroll lock: that shifts the layout by the
+     scrollbar width, and Dialog.tsx deliberately has none either. */
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* The screen going dark, at PHASES.dim. */
+.dice-kino--an {
+  opacity: 0.94;
+  pointer-events: auto;
+}
+
+/* The closing stretch. Listed AFTER --an on purpose: both classes are present
+   during the last beat and this one has to win. */
+.dice-kino--aus {
+  opacity: 0;
+  transition-duration: var(--kino-zu, 400ms);
+}
+
+/* A surviving natural 20. The die itself goes red in the scene; this is the
+   part WebGL cannot do — the whole screen leaning into the fumble.
+
+   Two beats rather than one: a single dip reads as a rendering glitch, two read
+   as intent. Uses --crit-line, the same token .feed-die--20 uses, so the screen
+   and the chat entry that follows it agree. */
+@keyframes kinoPatzer {
+  0% {
+    background: color-mix(in srgb, var(--bg) 18%, #000);
+  }
+  18% {
+    background: color-mix(in srgb, var(--crit-line) 26%, #000);
+  }
+  42% {
+    background: color-mix(in srgb, var(--bg) 18%, #000);
+  }
+  60% {
+    background: color-mix(in srgb, var(--crit-line) 18%, #000);
+  }
+  100% {
+    background: color-mix(in srgb, var(--bg) 18%, #000);
+  }
+}
+
+.dice-kino--patzer {
+  animation: kinoPatzer 1700ms ease-in-out 1;
+}
+
+/* Paired with its keyframes, as every animation in this app is. The class is
+   already withheld from a reduced-motion viewer (they get the still card
+   instead), so this is belt to that pair of braces — and it keeps the rule
+   true for anyone who adds a code path later. */
+@media (prefers-reduced-motion: reduce) {
+  .dice-kino--patzer {
+    animation: none;
+    background: color-mix(in srgb, var(--crit-line) 20%, #000);
+  }
+}
+
+/* The WebGL canvas. Sized by CSS and read back by the stage, so the renderer
+   never has to guess at a layout it does not own. */
+.dice-kino-buehne {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* The still card: reduced motion, and the fallback when the stage cannot be
+   built (a stale chunk after a redeploy is the realistic case). Borrows the
+   waiting screen's visual language deliberately — it is the same kind of
+   object. */
+.dice-kino-karte {
+  position: relative;
+  max-width: min(28rem, 88vw);
+  padding: 1.4rem 1.6rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.dice-kino-karte h2 {
+  margin: 0 0 0.2rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.15rem;
+}
+
+.dice-kino-karte-wer {
+  margin: 0 0 0.9rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.dice-kino-karte-wuerfel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  justify-content: center;
+  margin: 0 0 0.7rem;
+}
+
+.dice-kino-karte-zahl {
+  min-width: 2rem;
+  padding: 0.25rem 0.45rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  background: var(--surface-head);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+}
+
+.dice-kino-karte-summe {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dice-kino-hinweis {
+  position: absolute;
+  bottom: 1.4rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--panel);
+  opacity: 0.42;
+  pointer-events: none;
+}
+
+/* Reduced motion removes the MOTION, never the information: the announcement
+   still happens and the result still arrives, it simply does not move. */
+@media (prefers-reduced-motion: reduce) {
+  .dice-kino {
+    transition: none;
+  }
+}
+
+/* The „nur Spielleitung" marker in the /commands overview. Listed rather than
+   hidden — see the reasoning in CommandsDialog.tsx. */
+.cmd-nur-sl {
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-head);
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  vertical-align: 0.1em;
+}

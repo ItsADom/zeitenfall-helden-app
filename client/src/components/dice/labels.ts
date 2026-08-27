@@ -68,6 +68,8 @@ export const VISIBILITY = {
 export const REQUEST = {
   /** Beim angefragten Spieler. */
   title: (gmName: string): string => `${gmName} bittet um eine Probe`,
+  /** Von der Spielleitung vorgegebener Modifikator — ersetzt den eigenen des Spielers. */
+  modifier: (m: number): string => `Modifikator der Spielleitung: ${m > 0 ? '+' : ''}${m}`,
   /** Bei der Spielleitung, solange noch nichts zurückkam. */
   waiting: (charName: string, probe: string): string => `${probe} — warte auf ${charName}…`,
   accept: 'Würfeln',
@@ -78,8 +80,13 @@ export const REQUEST = {
   /** Bei der Spielleitung, für eine eigene noch offene Anfrage. */
   cancel: 'Zurückziehen',
   cancelHint: 'Zieht die Anfrage zurück, bevor der Spieler reagiert hat',
+  /** Bei der Spielleitung: löst die Anfrage sofort aus, ohne auf die Person zu warten. */
+  force: 'Erzwingen',
+  forceHint: 'Würfelt sofort für die abwesende Person — der Eintrag ist als erzwungen markiert',
   /** Kopf der Gruppen-Sammelanfrage-Karte, bei der Spielleitung. */
   groupTitle: (label: string): string => `Gruppenprobe: ${label}`,
+  /** Dieselbe Karte, bei jedem angefragten Mitglied. */
+  groupTitleFor: (gmName: string, label: string): string => `Gruppenprobe von ${gmName}: ${label}`,
   /** Gruppen-Sammelanfrage: deckt sofort auf, was schon da ist, statt weiter zu warten. */
   groupReveal: 'Jetzt auflösen',
   groupRevealHint: 'Deckt die Ergebnisse jetzt auf — wer noch nicht geantwortet hat, fällt aus der Anfrage',
@@ -105,4 +112,30 @@ export const COOP = {
   verdictFailure: (rolledSum: number, targetSum: number): string => `Fehlschlag (${rolledSum} > ${targetSum})`,
   /** Ein bestätigter kritischer Fehlschlag ohne rettenden kritischen Erfolg — entscheidet unabhängig von den Summen. */
   verdictFailureRescueless: 'Fehlschlag (kritischer Fehlschlag, nicht gerettet)',
+};
+
+/**
+ * „/i" — der große Wurf: die Ansage an den ganzen Tisch.
+ *
+ * Wie alles andere hier reiner Text. WANN eine Vorstellung läuft und was in ihr
+ * passiert, entscheidet shared/src/diceCinematic.ts.
+ */
+export const WICHTIG = {
+  /**
+   * Einmaliger Hinweis beim ersten „/i" — danach nie wieder. Die Spielleitung
+   * soll einmal erfahren, dass der Sichtbarkeits-Schalter hier übergangen wird,
+   * statt sich später zu wundern, warum er nichts bewirkt hat.
+   */
+  hinweisSichtbarkeit:
+    'Ein großer Wurf ist immer öffentlich — „Verdeckt" und „SL+Spieler" gelten dafür nicht. Alle am Tisch sehen die Würfel fallen.',
+  /** Ein Spieler hat „/i" versucht. Der Server lehnt es ohnehin ab; das hier erspart nur den Weg dorthin. */
+  nurSl: '„/i" ist der Spielleitung vorbehalten.',
+  /** Kein gültiger Würfelausdruck hinter „/i". */
+  keinAusdruck: (eingabe: string): string => `„${eingabe}" ist kein gültiger Würfelausdruck (z. B. 2w6+5).`,
+  /** Beschriftung des Overlays für Vorleseprogramme — es zeigt selbst keinen Text. */
+  overlayLabel: (name: string): string => `Großer Wurf von ${name}`,
+  /** Kleiner Hinweis in der Ecke, sobald die Würfel liegen. */
+  ueberspringen: 'Esc oder Klick überspringt',
+  /** prefers-reduced-motion: Kopfzeile der Ergebniskarte statt der Animation. */
+  karteTitel: 'Großer Wurf',
 };

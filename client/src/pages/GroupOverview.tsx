@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { AttrRowCode, ResourceKey } from '@shared/types';
+import type { Ability } from '@shared/abilities';
+import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
-import { apiDelete, apiGet, apiPost, apiPut } from '../api';
-import { depletionClass, overfilled } from '../components/energie';
+import { apiDelete, apiGet, apiPost } from '../api';
+import { Dialog } from '../components/Dialog';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
 import RequestProbePicker from '../components/dice/RequestProbePicker';
+import { GmNoteField, VITAL_LABELS, vitalClass } from '../components/gmRoster';
 import { Field } from '../components/inputs';
+import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
+import { PortraitView } from '../components/PortraitView';
 
 // Spielleiter-Übersicht: alle Charaktere einer Gruppe als Karten, ihre
 // wichtigsten Kennwerte als Chips. Nur-Lesen (die Route dahinter ist requireGm).
@@ -48,47 +52,69 @@ interface OverviewData {
   characters: OverviewChar[];
 }
 
-// Kürzel wie in der Seitenleiste (RES_ABBR): LP/AUS/ASP, plus Psyche.
-const VITAL_LABELS: Record<string, string> = { le: 'LP', aus: 'AUS', ase: 'ASP', psyche: 'Psyche', schicksalspunkte: '🍀 SP' };
-
 // Takt der stillen Auto-Aktualisierung, solange die Übersicht sichtbar offen ist.
 const POLL_MS = 15000;
 
-// Färbung eines Vital-Chips: Überladung hat Vorrang, sonst Zehrung — aber
-// Zehrung nur für die vitalen Pools (LE/AUS), wie im Heldenbrief. Psyche/AsE
-// bekommen kein Dauer-Rot, nur die Überladungs-Färbung.
-function vitalClass(key: string, aktuell: number, max: number): string {
-  if (overfilled(aktuell, max)) return 'res-over';
-  if (key === 'le' || key === 'aus') return depletionClass(key as ResourceKey, aktuell, max);
-  return '';
-}
+// Schnell-Nachschlag: Zauber UND Fähigkeiten in einer gemeinsamen Liste (nicht
+// getrennt nach Reitern) — reine Anzeige, lädt erst beim Öffnen.
+function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; charName: string; onClose: () => void }) {
+  const [abilities, setAbilities] = useState<Ability[] | null>(null);
+  const [error, setError] = useState('');
 
-// Freitext-GM-Notiz je Charakter: eigene, kleine Save-Debounce-Logik statt der
-// TextInput/NumInput-Displaymode-Kopplung, weil das hier GM-only und außerhalb
-// des normalen section-save-Wegs ist. `initial` wird nur beim ersten Rendern
-// übernommen, damit ein stiller Poll währenddessen nicht mittippt.
-function GmNoteField({ charId, initial }: { charId: number; initial: string }) {
-  const [value, setValue] = useState(initial);
-  const timer = useRef<number | undefined>(undefined);
-
-  const onChange = (v: string) => {
-    setValue(v);
-    window.clearTimeout(timer.current);
-    timer.current = window.setTimeout(() => {
-      void apiPut(`/api/characters/${charId}/gm-notiz`, { notiz: v });
-    }, 1200);
-  };
-
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => {
+    setAbilities(null);
+    setError('');
+    apiGet<{ abilities: Ability[] }>(`/api/characters/${charId}/abilities`)
+      .then((d) => setAbilities(d.abilities))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler beim Laden.'));
+  }, [charId]);
 
   return (
-    <textarea
-      className="gm-note"
-      placeholder="Notiz (nur für den Spielleiter)…"
-      rows={2}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Zauber & Fähigkeiten — ${charName}`}
+      wide
+      footer={
+        <button className="small" onClick={onClose}>
+          Schließen
+        </button>
+      }
+    >
+      {error && <p className="error">{error}</p>}
+      {!error && !abilities && <p className="muted">Lade…</p>}
+      {abilities && abilities.length === 0 && <p className="muted">Noch keine Zauber oder Fähigkeiten eingetragen.</p>}
+      {abilities && abilities.length > 0 && (
+        <div className="table-wrap scroll-box">
+          <table className="sheet ability-lookup-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Probe</th>
+                <th>Kosten</th>
+                <th>Effekt/Notiz</th>
+              </tr>
+            </thead>
+            <tbody>
+              {abilities.map((a) => (
+                <tr key={a.uid}>
+                  <td>
+                    {a.name}
+                    {a.signatur && <span title="Signatur-Zauber"> ✦</span>}
+                  </td>
+                  <td className="muted">{a.probe}</td>
+                  <td className="muted">{a.kosten}</td>
+                  <td className="ability-lookup-effekt">
+                    {a.effekt}
+                    <CollapsedText text={a.notiz} className="abil-note muted" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Dialog>
   );
 }
 
@@ -106,6 +132,7 @@ export default function GroupOverviewPage() {
   // ist je Gruppe gemerkt (client-seitig — reine Anzeigehilfe, kein Serverstand).
   const [query, setQuery] = useState('');
   const [pinned, setPinned] = usePersistedState<number[]>(`gm-poll:${groupId}`, []);
+  const [lookupChar, setLookupChar] = useState<{ id: number; name: string } | null>(null);
   const pin = (tid: number) => {
     setPinned((p) => (p.includes(tid) ? p : [...p, tid]));
     setQuery('');
@@ -192,9 +219,19 @@ export default function GroupOverviewPage() {
   return (
     <>
       <p className="muted">
-        {data.group.isTemp ? <Link to="/verwaltung">← Zur Verwaltung</Link> : <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>}
+        {data.group.isTemp ? (
+          <>
+            <Link to={`/event/${groupId}`}>← Zum Event</Link> · <Link to="/verwaltung">Zur Verwaltung</Link>
+          </>
+        ) : (
+          <Link to={`/gruppe/${groupId}`}>← Zur Gruppe</Link>
+        )}
       </p>
       <h1>{data.group.isTemp ? `Event: ${data.group.name}` : `Übersicht: ${data.group.name}`}</h1>
+
+      <p>
+        <Link to={`/${data.group.isTemp ? 'event' : 'gruppe'}/${groupId}/tisch`}>Virtueller Tisch →</Link>
+      </p>
 
       <div className="gm-overview-actions">
         <button
@@ -261,7 +298,7 @@ export default function GroupOverviewPage() {
             <div className="gm-card" key={c.id}>
               <div className="gm-card-head">
                 {c.portrait ? (
-                  <img className="gm-card-portrait" src={`/api/characters/${c.id}/portrait`} alt="" />
+                  <PortraitView id={c.id} className="gm-card-portrait" alt={c.name} />
                 ) : (
                   <div className="gm-card-portrait gm-card-portrait--empty" aria-hidden="true" />
                 )}
@@ -274,6 +311,13 @@ export default function GroupOverviewPage() {
                 <span className="gm-stufe" title="Stufe">
                   Stufe {c.stufe}
                 </span>
+                <button
+                  className="small"
+                  title="Zauber & Fähigkeiten nachschlagen, ohne den Bogen zu öffnen"
+                  onClick={() => setLookupChar({ id: c.id, name: c.name })}
+                >
+                  🔍
+                </button>
                 <button
                   className="small gm-card-sp-reset"
                   title="Setzt die Schicksalspunkte dieses Charakters auf sein Maximum zurück"
@@ -390,6 +434,10 @@ export default function GroupOverviewPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {lookupChar && (
+        <AbilityLookupDialog charId={lookupChar.id} charName={lookupChar.name} onClose={() => setLookupChar(null)} />
       )}
     </>
   );

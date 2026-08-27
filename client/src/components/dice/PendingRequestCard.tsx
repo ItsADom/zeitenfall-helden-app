@@ -14,10 +14,11 @@ import { REQUEST } from './labels';
 // bekommt seine eigene (normale) Karte, exakt wie bei einer Einzelanfrage.
 export default function PendingRequestCard({ request }: { request: PendingRollRequest }) {
   const { user } = useAuth();
-  const { acceptRequest, declineRequest, cancelRequest } = useDicePanel();
+  const { acceptRequest, declineRequest, cancelRequest, forceRequest } = useDicePanel();
   const mine = request.targetUserId === user.id;
   // Die Spielleitung, die die Anfrage selbst gestellt hat — darf sie
-  // zurückziehen, bevor der Spieler reagiert (z. B. falsche Probe erwischt).
+  // zurückziehen, bevor der Spieler reagiert (z. B. falsche Probe erwischt),
+  // oder direkt auslösen, wenn die Person gerade nicht am Tisch ist.
   const mayCancel = !mine && request.gmUserId === user.id;
 
   if (!mine) {
@@ -25,9 +26,14 @@ export default function PendingRequestCard({ request }: { request: PendingRollRe
       <div className="feed-request feed-request--waiting">
         <span className="feed-request-title muted">{REQUEST.waiting(request.targetCharName, request.label)}</span>
         {mayCancel && (
-          <button className="small" title={REQUEST.cancelHint} onClick={() => cancelRequest(request.id)}>
-            {REQUEST.cancel}
-          </button>
+          <div className="feed-request-actions">
+            <button className="small" title={REQUEST.forceHint} onClick={() => forceRequest(request.id)}>
+              {REQUEST.force}
+            </button>
+            <button className="small" title={REQUEST.cancelHint} onClick={() => cancelRequest(request.id)}>
+              {REQUEST.cancel}
+            </button>
+          </div>
         )}
       </div>
     );
@@ -37,6 +43,11 @@ export default function PendingRequestCard({ request }: { request: PendingRollRe
     <div className="feed-request">
       <div className="feed-request-title">{REQUEST.title(request.gmName)}</div>
       <div className="feed-request-probe">{request.label}</div>
+      {request.modifier != null && (
+        <div className="feed-request-mod" title="Ersetzt deinen eigenen Modifikator für diesen Wurf">
+          {REQUEST.modifier(request.modifier)}
+        </div>
+      )}
       <div className="feed-request-actions">
         <button className="small primary" onClick={() => acceptRequest(request.id)}>
           {REQUEST.accept}

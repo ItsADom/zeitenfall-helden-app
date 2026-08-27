@@ -16,26 +16,226 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ---
 
+## Virtual table
+
+- [ready] **Multiple scenes per group** (concept agreed 2026-08-25, full plan
+  in `docs/concepts/virtual-table.md` Phase 13 — build after that plan
+  itself, not from scratch here): a group gets several named boards to
+  switch between (not one bigger shared canvas — that would still share one
+  token set/fog/round counter across unrelated areas). **Data model:** drop
+  `idx_boards_group_id`'s uniqueness, add `boards.name TEXT NOT NULL DEFAULT
+  ''`; "current" scene is `groups.active_board_id INTEGER REFERENCES
+  boards(id) ON DELETE SET NULL` (a FK, not a boolean flag on `boards` —
+  ambiguous if two ever end up marked active). Migration: every existing
+  group has exactly one board (today's unique constraint guaranteed it) — set
+  `active_board_id` to it for all of them in the same pass that drops the
+  constraint. `getOrCreateBoard` keeps auto-creating on first access, just
+  also names it (e.g. „Szene 1") and sets it active. **Server (`board.ts`,
+  next to the existing token/overlay CRUD):** `listScenes(groupId)`,
+  `createScene(groupId, name)`, `renameScene(boardId, name)`,
+  `deleteScene(boardId)`, `setActiveScene(groupId, boardId)`. Deleting the
+  *active* scene auto-switches to another remaining one first (lowest id),
+  then deletes; a group's last remaining scene cannot be deleted (same
+  reasoning as a board always existing today). **Rights:** hard-coded
+  GM-only, same shape as `canEditFog` — not a new `perm_*`, scene management
+  is prep work, never a player case. **Realtime, decided live-for-the-room
+  with a fade (not a GM-private-preview-then-present):** GM picks a scene
+  from a GM-only toolbar picker (players never see it) →
+  `board.scene.switch {reqId, boardId}` → server validates the id belongs to
+  this group, calls `setActiveScene`, broadcasts `board.scene.switched`
+  carrying a **full snapshot** of the new scene (board settings + tokens +
+  tiles + highlights + overlays — same shape as the REST snapshot response),
+  not just a bare id, so nobody races a follow-up REST fetch. Client plays a
+  short fade-out on `.vtt-map-wrap`/`.vtt-map-svg` (~250–300 ms opacity
+  transition), swaps in the new scene's state once faded, fades back in —
+  purely a client-side CSS transition around the existing hydrate call.
+  **Per-scene camera:** `usePersistedState`'s existing pan/zoom camera key
+  (`vtt-camera:${groupId}` today) switches to keying by `boardId` instead, so
+  each scene remembers its own last view independently. **Still open, low
+  stakes:** `perm_*` columns live on `boards` already, so they're naturally
+  per-scene at zero migration cost — whether a GM wants to reconfigure
+  rights per scene or find that mildly annoying is untested, not worth
+  designing around before it's felt.
+
 ## User feedback
 
-- move items between group inventory and player inventory
-  - needs a rather big overhaul of group page
-- show spell range per mage level on Zauber tab
-  - override possible
-- procentual bonus selecotr for energien
-  - folds into the Filtern task
-  - let players select things like "Max AsE is always +50%"
-- let admins get a route to inspect characters for debugging
-  - important: they should not see every group and have acccess to every chat like GM does and have no edit rights, just inspection.
-  - maybe make character list on management page generally clickable, so characters can be directly selected but not available by the usual workflow (e.g. character flyout in banner)
-- don't show weight directly on equipment chips
-   - also keep "RS X" on equipment together, no line break between RS and number
-- idea for character and group portraits: instead of getting just a bigger scaled image on click, show the uncropped variant on enlarge.
+- [ready] **Percentage bonus for energies, and what "Filtern" actually is**
+  (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
+  first real mechanic). Lore: Astralenergie is made of 8 base elements;
+  filtering shifts a mage's elemental balance to boost efficiency with one
+  element. The app doesn't track elements numerically, so the existing
+  "overcharge" mechanism (any pool's `aktuell` may already sit above its
+  computed max, freely typed, no clamp — `client/src/components/energie.ts`
+  `overfilled()`/`poolClass()` → `res-over` styling, `AktuellFeld.tsx`) is
+  reused as the *display*, but it isn't itself "Filtern" — filtering needs its
+  own gating. **Decided:** AsE only (not LE/AUS). **Decided:** a new
+  per-character stored value — "max Filterbonus %" — reflecting how well
+  *that* character can filter (set directly, not derived from a formula).
+  **Decided:** an all-or-nothing "gefiltert" toggle; when on, it raises AsE's
+  effective/displayed max by that stored percentage, computed after the
+  normal `computeResource()` result (i.e. a final multiplier, not baked into
+  `mods`/`permanent`). **Decided:** triggering/ending is entirely manual — a
+  player adds "Filtern" as an ordinary rollable ability/spell entry (same
+  pattern as the special-checks catalog below) and rolls for it in the
+  fiction; there's no in-app duration/expiry ("the point where a character
+  stops counting as filtered isn't clearly set either"), so the toggle is
+  just flipped off by the player/GM when the GM calls it.
+
+- [ready] **Special checks catalog** (e.g. "Erinnern (KK+KK)") — **concept
+  agreed, and this is new territory, not a hidden existing mechanism**: a
+  repo-wide search turned up zero trace of any such check anywhere in code —
+  today it only lives in GM memory/house-rules. **Decided:** a single
+  GM-maintained global catalog (named check + formula), shown identically on
+  every character's Talente tab as a shared, always-present reference section
+  — not something each player adds/removes individually — and rollable
+  directly from there like any other talent.
+
+- [ready] **Dice formula overhaul** (concept agreed, several related asks
+  bundled into one build): today three separate, inconsistent parsers handle
+  formulas — `parseDiceExpression` (chat `/r`, `+`/`-` only, no `*`, rejects
+  negative dice blocks; `shared/src/dice.ts:341-371`), `parseProbeExpr`
+  (Talent/Zauber/Waffen Proben, `expr.split('+')` only;
+  `shared/src/rules.ts:175-215`), and `evaluateEnergyFormula` (GM's
+  Spezialenergien-Katalog only, already a full recursive-descent grammar with
+  `+ - * / ()`; `rules.ts:332-460`). **Decided:** build one shared arithmetic
+  grammar (generalizing `evaluateEnergyFormula`'s existing `+ - * / ()`
+  approach) rather than patching each parser separately, so real calculations
+  with brackets/order-of-operations become possible everywhere, not just a
+  bolted-on `*`. **Decided:** for a dice block under multiplication, roll
+  first, then apply the arithmetic to the rolled result (not "double the die
+  count"). **Decided:** repeat-count syntax (e.g. rolling "2w6+8" three times
+  in one command) — exact syntax shape still open (prefix/suffix, interaction
+  with `#label`), but the *result* is settled: one grouped/summarized card,
+  not three separate feed entries — similar in spirit to how group-check
+  rolls already bundle. **Decided:** Attribut values in free-form chat
+  dicecode (e.g. typing "MU") resolve against the sender's currently-selected
+  character; with none selected (e.g. GM chat), left unavailable/literal —
+  this needs a new resolution step before/instead of the raw expression
+  parser, distinct from the existing named-Probe suggestion flow
+  (`probeExprZahl`/`/api/characters/:id/probes`). The stale "check not found"
+  warning sub-item is covered by the general stale-warning fix above.
+
+- [sketch] **Favorites: add a text field** (partially agreed, partially
+  still open): the "inherit the chosen visibility setting" half turned out to
+  probably just be a symptom of the multi-tab chat desync — now fixed (see
+  `usePersistedState` listening for the `storage` event) — so likely no
+  further work needed there; worth re-checking with the reporting player now
+  that it's live. The "allow to add text" half is still genuinely open —
+  unclear whether it means a new separate note/description field alongside
+  today's `label:expression` free text, or just letting the existing label
+  itself hold more/richer text. **Needs another pass with the original
+  requesting player** before this can go to `[ready]`.
+
+- [ready] **Group ↔ player inventory, player ↔ player item transfer, and
+  containers as a real, movable, worn concept** (concept agreed for the first
+  two; houses is a much rougher sketch — see below). Confirmed starting
+  point: **no group-level item storage exists at all today** — only
+  `char_items`, strictly `character_id`-scoped, saved as a full delete+
+  reinsert per character (`saveItems`, `characterData.ts:846-903`) with no
+  per-item CRUD or cross-character transfer primitive of any kind.
+   - **Decided: generalize item ownership.** Replace the hard `character_id`
+     FK with an `owner_type`/`owner_id` pair (mirroring the pattern
+     `assets/store.ts` already uses for images) — `'character'` or `'group'`
+     for now, extensible to `'room'` later for houses.
+   - **Decided: a new cross-owner move action** on any item chip (including
+     containers) reassigns `owner_type`/`owner_id`. Moving a container moves
+     every item whose `containerUid` points into it atomically, in the same
+     operation — nothing gets orphaned.
+   - **Decided: permission split.** Pulling an item *from* the shared group
+     inventory is open to any group member. Sending is restricted to your
+     own items — a player can give away or drop their own stuff, but can't
+     reach into another player's personal inventory directly (that needs the
+     GM, or that other player).
+   - **Decided: no confirmation step** — a move happens outright, same as a
+     normal drag-to-equip today.
+   - **Decided: items in the group pool are weightless** for everyone's
+     Traglast — nobody is personally hauling the shared stash.
+   - **Decided:** on any owner change, position-specific fields (`location`,
+     `zone`, `beidseitig`) reset to a safe default (`inventar`) rather than
+     trying to preserve a worn-state that can't carry over to the new owner
+     — no data is lost, just re-equip on arrival.
+   - **New UI needed:** a "Gruppen-Inventar" section on `Group.tsx`, using
+     the same specialized item-chip UI as `Ausruestung.tsx`/`Inventar.tsx`
+     (not the generic `Sektionen` dynamic-table component, which can't
+     represent weight/location/container relationships) — this is the "big
+     overhaul of group page" the original note anticipated.
+   - **[sketch] Houses** — much rougher than the above two: confirmed shared
+     group property, subdivided into rooms, with containers inside rooms
+     holding items ("all the stuff a real house has"). Structurally this
+     would reuse the same `owner_type`/`owner_id` generalization (a
+     lightweight `group_rooms` table, group-owned items optionally tagged
+     with a `room_id`), but still open: can a group own multiple houses, who
+     can create/name rooms, whether a room has any capacity/size concept.
+     Needs its own concept pass before it's buildable — do not treat as
+     `[ready]` just because the other two pieces in this entry are.
+
+- [ready] **Containers: bench-exclusion must cascade to contents, plus expose
+  weight/worn-state in the UI** (concept agreed after a few rounds — the
+  actual house rule turned out to differ from the first read). Confirmed
+  today: a container is just an `Item` with `istBehaelter: true`; its own
+  `location` (`shared/src/items.ts`) is completely independent of whether it
+  functions as a container. `zaehltZurLast()` (`items.ts:147-149`) already
+  excludes `bench` for an item's own weight — that part is correct and needs
+  no change. The actual bug: an item **inside** a container always counts
+  toward Traglast based on its own `location` (`'behaelter'`), regardless of
+  whether the *parent* container is benched — so a spare, unworn backpack's
+  contents still fully count today, when they shouldn't.
+   - **Decided: a container's weight-reduction discount to its contents is
+     NOT conditional on being worn** — carried (`getragen`) or merely held/
+     slung (`inventar`) make no difference, the discount always applies while
+     the container is with the character. Only `bench` (genuinely not with
+     you right now — the spare-backpack case) changes anything.
+   - **Decided: the fix is a cascade, not a new gate.** When a container sits
+     on the bench, its contents stop counting toward Traglast too (need to
+     walk up the `containerUid` chain, not just check each item's own
+     top-level `location`) — mirrors the `containerArt === 'quick'` branch's
+     existing worn-check (`itemLastAnteil`, `items.ts:165-179`), generalized
+     to also cover `containerArt === 'storage'` and to cascade through
+     nesting rather than only checking one level.
+   - **Decided: capacity/overfill checking stays location-independent** — a
+     benched container can still be over-stuffed beyond what it can
+     physically hold (e.g. its stated 120/60kg capacity); that check is
+     separate from, and unaffected by, the Traglast-contribution fix above.
+   - **Decided: containers get a real weight field in the UI.** `gewicht`
+     already exists generically on `Item` and already applies to containers
+     structurally, but no container-creation/edit UI exposes it
+     (`AddContainerDialog`, `Inventar.tsx`'s container header) — containers
+     are zero-weight today purely by UI omission, not a schema gap. Add the
+     field where containers are actually created/edited.
+   - Note: this pairs with the cross-owner move feature above — "make a
+     container's `location` editable" doesn't require migrating storage
+     containers into the worn/body-zone drag system; that's a separate,
+     optional nicety, not a prerequisite for either fix here.
+
+- [ready] **Investigate: are "confirmation" rolls independently random, or
+  suspiciously correlated?** (developer feedback: "many 1s and 20s" observed
+  across rolls that get confirmed together). This is a verification task, not
+  a design decision. Dice rolls already use `crypto.randomInt`
+  (`server/src/dice.ts:15,35`) — a proper CSPRNG, so a systemic bias is
+  unlikely — but worth specifically checking whether the confirmation-roll
+  code path draws a fresh, independent random value or accidentally
+  derives/reuses the original roll's value. If nothing's found, this is
+  likely gambler's-fallacy pattern-matching on a small sample, not a bug.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
 ## High-Prio
+
+- [ready] **VTT toolbar styling rule: dropdowns/flyouts over inline button
+  sprawl.** `TilePicker`/`HighlightPicker` already open as a floating panel
+  below the toolbar (`.vtt-tile-picker`, `position: absolute`) rather than as
+  inline buttons — Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel)
+  briefly broke that convention as an inline row during Phase 8 slice 3/3 and
+  has since been converted to the same flyout (`MeasureKindPicker`, reusing
+  `.vtt-tile-picker`/`pickerOpen`). Write this down as a standing rule for
+  every future VTT toolbar addition in `client/src/pages/VirtualTable.tsx`: a
+  tool's sub-options open as a flyout anchored below the toolbar, never as
+  additional always-visible buttons pushing the rest of the bar around — that
+  growth also makes the toolbar's button positions shift underfoot, which
+  broke a scripted/automated click sequence during testing. No further work
+  needed right now beyond keeping to it; re-open only if a future tool
+  reintroduces inline sub-buttons.
 
 ## Mid-Prio
 
@@ -89,43 +289,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - Still open: where the bio markdown source is stored (new column/table) and
      the exact link/entry point from the sheet. The library question is settled
      — there is no library, and the existing renderer is the answer.
-- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
-  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
-  player requests, roll log, explicit room switching) shipped on
-  `feature/dice-rolls-chat`; the rules/mechanics are documented in
-  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
-  docked-only panel would collide with a possible future virtual-table
-  feature, now sketched out in `docs/concepts/VTT-concept.md` and
-  `docs/concepts/virtual-table.md`. Not a rework: any page can call
-  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
-  full-page chat view is additive — reuses `FeedEntryView` for individual
-  messages/rolls, no duplicate connection. **Settled:** that dedicated page
-  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
-  showing the same feed twice on the same page would be redundant.
-    - as we have a group that is streaming, this topic will need a higher prio. should ship shortly
-- [ready] **Chat dock: notify instead of force-open** (user feedback, concept
-  agreed): today `DicePanelProvider.tsx` calls `setCollapsed(false)` at six
-  sites — three incoming events (`roll.pending.created:346`,
-  `roll.group.created:362`, `roll.coop.created:385`) and three of the
-  player's own actions (`rollProbe:537`, `requestProbe:570`,
-  `requestGroupProbe:607`, `proposeCoopPool:638`) — so the dock yanks itself
-  open even when the player triggered the roll themselves. **Decided:** none
-  of the six force-open anymore; all six instead light up a plain
-  badge/dot on the collapsed `🎲 Chat` tab. The badge clears the moment the
-  dock is opened (no per-room last-seen tracking, unlike the wiki's "N
-  Änderungen" pill — simpler is enough here). **Decided:** the three
-  roll-initiating incoming events (`roll.pending.created`,
-  `roll.group.created`, `roll.coop.created` — anything that asks the group
-  for a roll) additionally pulsate the tab and play a short sound, since
-  those are actionable and easy to miss; the three self-triggered actions
-  stay a plain badge only. **Decided:** a `/mute` chat command toggles the
-  sound on/off, same shape as `/koop` (no argument, flips a persisted
-  boolean, echoes the new state back as an info line) — same purely-client
-  pattern as the existing `/dicecode` command, never sent over the
-  connection. Add it to `CommandsDialog` alongside `/dicecode` for
-  discoverability. **Open before building:** no audio has ever shipped in
-  this app — needs an actual short sound-effect asset (source/license still
-  to be picked, not something to invent unasked).
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
@@ -353,12 +516,58 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
-- [ready] **Note field on Talente** (user feedback): `CharTalent`
-  (`shared/src/types.ts:220`) has no `notiz` field, and neither table
-  renderer in `Talente.tsx` (`KampfTable`/`NormalTable`) has a notes column.
-  Add `notiz: string`, extend the `EMPTY` default, add a column to both
-  tables, reuse the existing `NoteField` component (`components/notes.tsx`)
-  already used for item and weapon-row notes.
+- [sketch] **VTT: a way to set a character token's own appearance (custom
+  image/icon), not just fall back to initials** (developer feedback,
+  Phase 10 initiative tracker). The initiative strip shows a real portrait
+  for a character with one uploaded (`client/src/pages/VirtualTable.tsx`,
+  `InitiativeStrip`'s `renderCard`), a dashed empty box otherwise — the
+  two-letter initials monogram used elsewhere on the map (`initials()`) reads
+  as stale/placeholder-ish for a token that's meant to represent a real
+  character across a whole session. No design decided yet on what a token's
+  own settable appearance would look like (a small icon picker? a distinct
+  upload separate from the character's sheet portrait?) — needs a concept
+  pass before building.
+- [sketch] **VTT: GM's cursor gets stuck as the "grabbing" hand, even while
+  hovering a token** (developer feedback, Phase 9 fog testing). The GM
+  reported the cursor never returns to the token's own `pointer`/pan tool's
+  `grab` cursor once something has been dragged — a player's session behaves
+  correctly. `.vtt-map-wrap` sets `cursor: grab` / `:active { cursor: grabbing
+  }` in `client/src/styles.css`; each token `<g>` overrides that to `pointer`
+  inline (`client/src/pages/VirtualTable.tsx`), identically for every role —
+  nothing in the code branches on `isGm` for this, so the asymmetry isn't
+  obviously explained by a role-specific code path. Likely candidate: a
+  stuck `:active` pseudo-class from a pointer-capture/mouseup mismatch during
+  one of the GM-only paint/highlight/fog drags, but this is a live-browser
+  cursor-rendering quirk that can't be diagnosed from network/DOM inspection
+  (same class of problem as the color-swatch-reopen bug below — needs
+  someone actually reproducing it live, cursor state included, before
+  attempting a fix).
+- [sketch] **Native colour swatch reopens on a second click instead of
+  closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
+  used by token colour/ring colour, the tile/highlight picker, and the
+  measure-shape colour field): clicking a `<input type="color">` swatch
+  while its native browser dialog is already open should close it, but the
+  browser reopens it instead. Two fix attempts (a tracked "believed open"
+  ref + `blur()`, then a `document.activeElement` check + `blur()`) both
+  failed live testing — a native colour dialog isn't part of the DOM, so it
+  can't be driven/observed by this session's automated browser tooling
+  either, which made both attempts guesswork. Confirmed minor/cosmetic by
+  the developer, not blocking. Whoever picks this up next needs to actually
+  reproduce it live (real browser, real clicks) to see what's really
+  happening before trying a third fix — or consider swapping to a custom
+  (non-native) colour picker instead, which would sidestep the browser
+  quirk entirely.
+- [sketch] **VTT: step-counting token-drag trail — built, wants a real live
+  drag test.** Concept settled with the developer (straight king-move line
+  from the drag's start cell, numbered 0/1/2/…; visible only to the person
+  dragging; gone the instant the token is dropped) and implemented in
+  `client/src/pages/VirtualTable.tsx` (`chebyshevPath`, `tokenTrailActive`/
+  `trailElsRef`, wired into `startTokenDrag`/`onTokenPointerMove`/
+  `onTokenPointerUp`). A CDP-driven drag confirmed the move itself still
+  works with no console errors, but this session's automated tooling has no
+  way to pause mid-drag for a screenshot, so the trail's actual on-screen
+  numbering/positioning during a real drag hasn't been eyeballed yet —
+  needs a live check before this counts as done.
 - [sketch] **Potion charges** (user feedback): no charge concept exists
   today — the closest precedent is `Item.anzahl` (plain stack count).
   Decided: a charge is a portion/dose — potions come in three fixed sizes
@@ -370,6 +579,25 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   more than Haltbarkeit can today. Needs a concept pass on whether a
   partially-drunk potion has to split off the stack into its own row, or
   charges only make sense while `anzahl === 1`.
+- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
+  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
+  player requests, roll log, explicit room switching) shipped on
+  `feature/dice-rolls-chat`; the rules/mechanics are documented in
+  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
+  docked-only panel would collide with a possible future virtual-table
+  feature, planned in `docs/concepts/virtual-table.md` (revisited 2026-08-24
+  and ready to build from). Not a rework: any page can call
+  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
+  full-page chat view is additive — reuses `FeedEntryView` for individual
+  messages/rolls, no duplicate connection. **Settled:** that dedicated page
+  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
+  showing the same feed twice on the same page would be redundant. **Also
+  settled:** the great-roll overlay (`WichtigerWurfOverlay`) is mounted globally
+  in `App.tsx` and covers whatever page is open, so a dedicated chat page must
+  not try to own or duplicate it — it already works there. The overlay pulls its
+  dice toward `.dice-dock`/`.dice-dock-tab` and falls back to the bottom-right
+  corner when neither is on screen, which is exactly the case a dock-less chat
+  page would create.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -387,9 +615,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
  - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
-- [sketch] **Filtering** (own-element AsE increase): a SEPARATE future concept from
-  overcharge — the character is filled with their own elemental energy → shown as
-  an AsE increase. Not started; do not conflate with the overcharge display above.
+- [ready] **Filtering** (own-element AsE increase): concept now agreed — see
+  "Percentage bonus for energies, and what 'Filtern' actually is" under User
+  feedback above. No longer a bare sketch.
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.
@@ -398,6 +626,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   „Fold ammunition damage into the Fernkampf damage formula" under the Weapon
   tab rework, Mid-Prio) — currently blocking that item.
   This feature will need the players to keep their own list of ammunitions and damage values for them, which then feeds the damage formula. ranged weapons then pick which ammunition is used.
+  Ammunition can have bonus on AT too.
 - [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
   - Andergast as colorless
   - Orkland dark green, Bornland lighter green
@@ -473,15 +702,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   `.wpn-card` / `Ausruestung.tsx`'s `.item-chip` styling used elsewhere. Needs
   a concept pass: restyle as themed table variant, or restructure as cards
   (one per attribute row)?
-- [ready] **New-tab category picker** (concept agreed — convenience seeding only):
-  right now creating a tab (character sheet via Einstellungen `addTab`, and group
-  tabs via the group page's `+ Tab` button) just gives an empty "Neuer Tab" with
-  no content. Offer the same table/notepad choice that already exists one level
-  down for sections (`Sektionen.tsx` `addSection('table' | 'notes')`) at tab-
-  creation time instead: "Tabelle" / "Notizfeld" / "Leer" pre-seeds the new tab
-  with one starter section of that type (or none). Purely a convenience default —
-  the tab behaves like any other afterward, sections of either type can still be
-  freely added/removed. Applies to both character tabs and group tabs.
 
 ## Unsorted ideas (treat all as [sketch])
 

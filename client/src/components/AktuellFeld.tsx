@@ -51,19 +51,7 @@ export function AktuellFeld({
           <button className="small" title="Schaden abziehen" onClick={() => apply(-1)}>
             −
           </button>
-          <input
-            className="akt-amount"
-            type="number"
-            min={0}
-            value={amount}
-            onChange={(e) => setAmount(Math.max(0, Number(e.target.value) || 0))}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                apply(-1);
-              }
-            }}
-          />
+          <NumInput className="akt-amount" min={0} value={amount} onChange={setAmount} onEnter={() => apply(-1)} />
           <button className="small" title="Heilung addieren" onClick={() => apply(1)}>
             +
           </button>

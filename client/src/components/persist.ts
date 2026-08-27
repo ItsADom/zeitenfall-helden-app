@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Zustand, der in localStorage gemerkt wird — überlebt Tab-Wechsel und Reload.
 // storageKey eindeutig pro Verwendung; JSON-serialisierbare Werte.
@@ -12,6 +12,25 @@ export function usePersistedState<T>(storageKey: string, initial: T): [T, (v: T 
     }
     return initial;
   });
+
+  // Ein zweiter Tab derselben Person schreibt denselben Schlüssel — ohne das hier
+  // hält dieser Tab seinen eigenen (jetzt veralteten) React-State, obwohl
+  // localStorage längst den neuen Wert trägt ("Sichtbarkeit setzt sich zurück").
+  // Das native "storage"-Event feuert per Spezifikation nur in ANDEREN Tabs, nie
+  // in dem, der geschrieben hat — kein Echo-Risiko.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== storageKey) return;
+      if (e.newValue == null) return;
+      try {
+        setState(JSON.parse(e.newValue) as T);
+      } catch {
+        // Kaputter Inhalt aus einem anderen Tab — laufenden State behalten
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [storageKey]);
 
   const set = (v: T | ((prev: T) => T)) => {
     setState((prev) => {

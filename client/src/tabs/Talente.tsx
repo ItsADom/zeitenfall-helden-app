@@ -5,6 +5,7 @@ import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { CollapsiblePanel } from '../components/collapse';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { Field, NumInput, TextInput } from '../components/inputs';
+import { NoteField } from '../components/notes';
 import { ColumnDivider, TableTools, useTableLayout } from '../components/tableLayout';
 import { usePersistedState } from '../components/persist';
 import { useSearchHeight } from '../components/stickyChrome';
@@ -12,7 +13,7 @@ import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
 const EMPTY: Omit<CharTalent, 'talentId'> = {
-  taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '',
+  taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '',
 };
 
 // Ab 100 TaW freigeschaltete Meisterschaft; Text erscheint beim Überfahren des Sterns
@@ -82,8 +83,8 @@ export default function TalenteTab() {
   );
 }
 
-const KAMPF_HEADS = ['Talent', 'TaW', 'AT', 'PA', 'BL', 'Spezialisierung', 'Waffenmeister', 'Verwandte Fertigkeiten (+5)'];
-const KAMPF_WIDTHS = [300, 70, 70, 70, 70, 220, 220, 340];
+const KAMPF_HEADS = ['Talent', 'TaW', 'AT', 'PA', 'BL', 'Spezialisierung', 'Waffenmeister', 'Verwandte Fertigkeiten (+5)', 'Notiz'];
+const KAMPF_WIDTHS = [300, 70, 70, 70, 70, 220, 220, 340, 200];
 
 function KampfTable({
   entries,
@@ -115,7 +116,7 @@ function KampfTable({
           onClick={() => toggleGroup(e.gruppe)}
           title={groupCollapsed ? 'Waffengruppe ausklappen' : 'Waffengruppe einklappen'}
         >
-          <td colSpan={9}>
+          <td colSpan={10}>
             <span className="sticky-label">
               <span className="chev" aria-hidden>{groupCollapsed ? '▸' : '▾'}</span> {e.gruppe}
             </span>
@@ -151,6 +152,9 @@ function KampfTable({
         </td>
         <td className="muted" title={e.ableiten}>
           {e.ableiten}
+        </td>
+        <td>
+          <NoteField value={v?.notiz ?? ''} onChange={(x) => setValue(e.id, { notiz: x })} />
         </td>
       </tr>,
     );
@@ -202,8 +206,8 @@ function NormalTable({
   searching: boolean;
 }) {
   const { data } = useChar();
-  const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)'];
-  const layout = useTableLayout(`talente:${kat}`, heads.length, { defaults: [220, 95, 95, 70, 100, 140, 170, 260] });
+  const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)', 'Notiz'];
+  const layout = useTableLayout(`talente:${kat}`, heads.length, { defaults: [220, 95, 95, 70, 100, 140, 170, 260, 200] });
   return (
     <CollapsiblePanel
       collapseKey={`talente:${kat}`}
@@ -267,6 +271,9 @@ function NormalTable({
                   </td>
                   <td className="muted" title={e.ableiten}>
                     {e.ableiten}
+                  </td>
+                  <td>
+                    <NoteField value={v?.notiz ?? ''} onChange={(x) => setValue(e.id, { notiz: x })} />
                   </td>
                 </tr>
               );

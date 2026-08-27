@@ -157,6 +157,18 @@ export const MAGIER_STUFEN_REFERENZ: Record<number, MagierStufenReferenz> = {
   5: { aspProRunde: 30, erschoepfungAb: 80, ueberladenToedlichAb: 150, zauberStufenGrenze: 10 },
 };
 
+// Reichweite je Magierstufe in Metern, ohne jeden Bonus — reine Anzeige-
+// Referenz (siehe MagierPanel), keine Rolle in irgendeiner Formel. Kein
+// gleichmäßiger Sprung pro Stufe (Rang 5 springt überproportional), deshalb
+// eine Tabelle statt einer Formel. Stand der Hausregel; kann sich noch ändern.
+export const SPELL_REICHWEITE_REFERENZ: Record<number, number> = {
+  1: 25,
+  2: 50,
+  3: 75,
+  4: 100,
+  5: 200,
+};
+
 // Ist-Werte für den Voraussetzungs-Check (der Client liest sie zusammen).
 export interface MagierIstWerte {
   koerper: number;

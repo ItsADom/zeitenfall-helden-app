@@ -37,6 +37,7 @@ export const THEME_STORAGE_KEY = 'theme';
 export const MODE_STORAGE_KEY = 'theme-mode';
 export const ANIM_STORAGE_KEY = 'theme-anim';
 export const DICE_ICONS_STORAGE_KEY = 'dice-icons';
+export const CHAT_FONT_STORAGE_KEY = 'chat-font-size';
 
 export type Mode = 'light' | 'dark';
 
@@ -103,4 +104,28 @@ export function useDiceIcons(): [boolean, (on: boolean) => void] {
   }, [on]);
 
   return [on, setOn];
+}
+
+// Schriftgröße im Chat-Feed (Nachrichten UND Würfe, beide über .feed-entry).
+// Feste Stufen statt eines Reglers — reicht für „ich sehe das schlecht auf dem
+// Handy" und bleibt so einfach wie die anderen Anzeige-Schalter hier.
+export type ChatFontSize = 'klein' | 'normal' | 'gross' | 'sehrgross';
+export const CHAT_FONT_SIZES: { id: ChatFontSize; label: string }[] = [
+  { id: 'klein', label: 'Klein' },
+  { id: 'normal', label: 'Normal' },
+  { id: 'gross', label: 'Groß' },
+  { id: 'sehrgross', label: 'Sehr groß' },
+];
+const isKnownChatFont = (id: string): id is ChatFontSize => CHAT_FONT_SIZES.some((s) => s.id === id);
+
+export function useChatFontSize(): [ChatFontSize, (id: ChatFontSize) => void] {
+  const [size, setSizeRaw] = usePersistedState<ChatFontSize>(CHAT_FONT_STORAGE_KEY, 'normal');
+  const active = isKnownChatFont(size) ? size : 'normal';
+  const setSize = (id: ChatFontSize) => setSizeRaw(isKnownChatFont(id) ? id : 'normal');
+
+  useEffect(() => {
+    document.documentElement.dataset.chatFont = active;
+  }, [active]);
+
+  return [active, setSize];
 }

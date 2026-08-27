@@ -140,7 +140,6 @@ export const COMING_SOON: string[] = [
   'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
   'Eigene Bögen für Tiere und Begleiter.',
-  'Ein virtueller Spieltisch für Kampf und Erkundung: Karte, Marker und Initiative-Leiste.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
 ];
@@ -199,6 +198,65 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-28',
+    version: '0.8',
+    title: 'Der virtuelle Tisch',
+    features: [
+      {
+        title: 'Der virtuelle Tisch',
+        added: [
+          'Der virtuelle Tisch ist da: eine gemeinsame Karte für Kampf und Erkundung, auf der jeder Schritt, jeder Zauber und jeder Hinterhalt sichtbar wird, statt nur in Worten am Tisch zu passieren. Erreichbar über „Virtueller Tisch" in jeder Gruppe.',
+          'Die Karte hat ein frei wählbares Gitter (Größe unter „Karten-Rechte" einstellbar), lässt sich zoomen und schwenken und wird mit Boden-, Wasser- und weiteren Texturen bemalt, dazu eine eigene Hervorhebungs-Ebene für farbige Markierungen.',
+          'Jeder Charakter bekommt eine eigene Marke auf der Karte (Name und Porträt automatisch übernommen), die Spielleitung platziert Monster und sonstige Marker frei. Zustände wie vergiftet, betäubt oder liegend erscheinen als kleines Abzeichen, „tot" und „bewusstlos" als Überlagerung, ein Reichweitenring markiert Zauber-Flächen, Fackelschein oder Sichtweite. Eine Marke (Marker/Monster) zeigt außerdem ihre Besitzerin im Editor an; die Spielleitung oder die aktuelle Besitzerin kann sie jederzeit an jemand anderen weitergeben oder wieder freigeben.',
+          'Nebel des Krieges: die Spielleitung verdeckt und deckt Felder frei auf, ihr seht immer nur, was gerade sichtbar ist.',
+          'Messen und Beschriften: Lineal, Kreis, Rechteck und Kegel für Reichweiten und Flächenzauber, dazu frei platzierbare Textmarken. Jede von euch darf bis zu 3 Messformen gleichzeitig aktiv haben (die Spielleitung unbegrenzt), damit die Karte nicht mit Formen für jede denkbare Zauberreichweite zuwächst.',
+          'Initiative und Runden: die ganze Kampfliste würfelt gemeinsam (Initiative-Basis + 1W6), die Zugreihenfolge sortiert sich von selbst, und die Todesschwelle zählt automatisch mit.',
+          'Bilder: eigene Kartenausschnitte oder Objekte hochladen, entweder als bewegliches Objekt oder als gesperrter Hintergrund.',
+          'Eigene Rundenzähler, z. B. für die Dauer eines Zaubers: beliebig viele, mit Label und Startwert, ±1 jederzeit von Hand, automatisch −1 bei jedem Rundenwechsel. Rein persönlich, nur ihr selbst seht eure eigenen Zähler.',
+          'Charakter-Marken können leichte und schwere Wunden führen, ±1 von Hand direkt an der Marke, als kleines Abzeichen sichtbar. Rein privat: nur Besitzer der Marke und die Spielleitung sehen die Zählung.',
+        ],
+      },
+      {
+        title: 'Wiki, Proben & Bogen',
+        added: [
+          'Ein Benachrichtigungston für den Chat, einzustellen unter Einstellungen → Benachrichtigungston: fünf Klänge zur Auswahl (Tempelglocke, Silberglöckchen, Kristall, Holzgong, Fanfare), dazu ein Lautstärkeregler. Wer lieber etwas Eigenes hört, lädt eine eigene Tondatei hoch: sie wird auf fünf Sekunden gekürzt und gilt dann auf allen euren Geräten. Im Chat schaltet „/mute" den Ton schnell aus und wieder an.',
+          'Die Schriftgröße im Würfel-Chat lässt sich jetzt unter Einstellungen → Anzeige einstellen (Klein/Normal/Groß/Sehr groß).',
+          'Wiki-Tabellen lassen sich jetzt per Klick auf eine Spaltenüberschrift sortieren.',
+          'Der Zauber-Reiter zeigt jetzt neben der Magierstufe die zugehörige Zauber-Reichweite, dazu ein eigenes Bonus-Feld: die Summe wird direkt mit angezeigt.',
+          'Fordert die Spielleitung eine Probe an, kann sie dabei eine Erleichterung/Erschwernis vorgeben: sie ersetzt beim Annehmen euren eigenen Modifikator für diesen einen Wurf, ihr seht den Wert direkt auf der Anfrage-Karte.',
+          'Unter „Stufe & Punkte" lässt sich jetzt eine absolvierte Trainings- oder Lesesitzung eintragen (bis zu vier, geteilter Zähler für beides): reine Buchführung, der eigentliche Lernfortschritt bleibt bei euch. Wird von der Spielleitung mit „Neuer Spieltag" zurückgesetzt, genau wie die Schicksalspunkte.',
+          'Wartet die Spielleitung auf eine angeforderte Probe von jemandem, der gerade nicht am Tisch sitzt, kann sie den Wurf jetzt direkt auslösen, statt weiter zu warten oder die Anfrage zurückzuziehen; der Eintrag ist dann sichtbar als „erzwungen" markiert.',
+          'Talente haben jetzt ein eigenes Notizfeld, genau wie Ausrüstung und Waffen.',
+          'Der Schaden einer Waffe lässt sich jetzt direkt würfeln, genau wie AT/PA/BL/FK: das Ergebnis zeigt gleich die Rüstungsdurchdringung (RD) der Waffe mit an.',
+        ],
+        changed: [
+          'Der Würfel-Chat öffnet sich nicht mehr von selbst. Stattdessen bekommt der 🎲-Reiter unten rechts einen Punkt, sobald es etwas Neues gibt; bittet euch jemand um eine Probe, eine Gruppen- oder eine Kooperationsprobe, pulsiert er zusätzlich und gibt einen kurzen Ton. Das galt bisher auch für eure eigenen Würfe: der Chat schob sich mitten beim Lesen über den Bogen, obwohl ihr genau wusstet, dass ihr gerade gewürfelt habt.',
+          'Die Zahl neben „Wiki" zählt jetzt geänderte Seiten statt einzelner Bearbeitungen: wer fünfmal an derselben Seite speichert, löst eine Meldung aus und nicht mehr fünf.',
+          'Die Zahl verschwindet schon, sobald du das Wiki öffnest: der Umweg über „Letzte Änderungen" entfällt. Welche Seiten sich geändert haben, bleibt trotzdem sichtbar: auf der Wiki-Startseite und in den Kategorien ist jede davon blau abgesetzt und trägt die Marke „neu", bis du sie öffnest. „Alle gelesen" neben dem Listenfilter räumt alle Marken auf einmal weg.',
+          'Der Würfel-Chat springt beim Ausklappen direkt ins Eingabefeld: Tippen geht ohne vorheriges Anklicken los.',
+          'Fordert die Spielleitung eine Probe von der ganzen Gruppe an, seht ihr jetzt dieselbe Übersicht wie sie (wer schon gewürfelt oder gepasst hat und wer noch fehlt), statt nur eurer eigenen Karte zum Annehmen/Ablehnen.',
+          'Das Gewicht steht nicht mehr auf jeder Ausrüstungs-Karte, nur noch beim Bearbeiten: übersichtlicher auf einen Blick.',
+          '„Beidseitig getragen" (Handschuhe, Beinschienen o. Ä.) wird jetzt durchs Ziehen auf den kleinen „↔ beide"-Streifen einer seitengetrennten Körperzone gesetzt, nicht mehr über eine Checkbox beim Bearbeiten.',
+        ],
+        fixed: [
+          'Lange Dialogfenster wurden auf niedrigen Bildschirmen unten abgeschnitten: bei der Befehlsübersicht („/commands") fehlte je nach Fenstergröße die halbe Liste. Dialoge scrollen jetzt.',
+          'Die Würfel-Favoriten ignorierten die im Chat-Dock eingestellte Erleichterung/Erschwernis: sie wirkt jetzt wie bei jedem anderen Wurf.',
+          'Die Sichtbarkeitseinstellung (Öffentlich/Verborgen/SL+Spieler) galt bisher nur für Würfe, nicht für normale Chat-Nachrichten: sie gilt jetzt für beides, verborgene Nachrichten tragen dafür jetzt auch eine Markierung.',
+          'Gegenstände in Schnellzugriff-Fächern (Gürtel, Bandelier) zählten nicht zur Traglast. Sie zählen jetzt mit ihrem vollen Gewicht und werden, wie der Behälter selbst, halbiert, solange er getragen wird.',
+          'Lange Namen auf Ausrüstungs-Karten wurden mitten im Wort abgeschnitten statt umzubrechen.',
+          'Der Zurücksetzen-Knopf bei Erleichterung/Erschwernis im Würfel-Chat verschwand je nach Wert und ließ das Menü springen: er bleibt jetzt an Ort und Stelle (nur ausgegraut bei ±0). Scrollen über dem Menü blätterte außerdem den Chat dahinter mit; das passiert jetzt nicht mehr.',
+          'Eine Warnung zu einem falschen Würfel-Befehl blieb im Eingabefeld stehen, auch nachdem der Text schon wieder gelöscht war.',
+          'Wer den Würfel-Chat auf mehreren Browser-Tabs gleichzeitig offen hatte, sah dort unterschiedliche Sichtbarkeits- und Würfel-Einstellungen: ein Tab überschrieb den anderen unbemerkt. Beide Tabs bleiben jetzt synchron.',
+          'Porträts (Charaktere und Gruppen) lassen sich jetzt überall anklicken, wo sie zu sehen sind (nicht nur auf dem eigenen Bogen), und zeigen beim Vergrößern das unbeschnittene Originalbild, sofern eines hochgeladen wurde.',
+        ],
+        admin: [
+          '(Spielleiter) Zauber & Fähigkeiten eines Charakters lassen sich jetzt direkt aus der Gruppenübersicht nachschlagen (🔍), ohne dessen Bogen zu öffnen: Name, Probe, Kosten und der eigentliche Effekt samt Notiz auf einen Blick.',
+          '(Verwaltung) Die Charakterliste in Kataloge & Nutzer ist jetzt anklickbar: die Verwaltung sieht den vollen Bogen (read-only, ohne Spielleitungs-Notizen), ohne auf die Spielleitung angewiesen zu sein.',
+        ],
+      },
+    ],
+  },
   {
     date: '2026-08-23',
     version: '0.7.1',

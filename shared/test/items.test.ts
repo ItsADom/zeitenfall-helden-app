@@ -107,6 +107,27 @@ describe('getrageneLast', () => {
     ];
     expect(getrageneLast(items)).toBe(0.5);
   });
+
+  it('Schnellzugriff-Behälter (Quickslots): Inhalt zählt voll, halbiert sich mit dem Behälter beim Tragen', () => {
+    const gurt = item({
+      uid: 'gurt',
+      name: 'Bandelier',
+      gewicht: 1,
+      location: 'getragen',
+      istBehaelter: true,
+      containerArt: 'quick',
+      kapazitaetArt: 'stueck',
+    });
+    const items = [
+      gurt, // 0.5 zählt (getragen, halbiert)
+      item({ anzahl: 1, gewicht: 2, location: 'behaelter', containerUid: 'gurt' }), // 1 (halbiert mit dem Behälter)
+    ];
+    expect(getrageneLast(items)).toBe(1.5);
+
+    // Abgelegter (nicht getragener) Quickslot-Behälter: Inhalt zählt voll, keine Halbierung.
+    const bench = items.map((it) => (it.uid === 'gurt' ? { ...it, location: 'bench' as ItemLocation } : it));
+    expect(getrageneLast(bench)).toBe(2); // 0 (Behälter abgelegt) + 2 (Inhalt voll)
+  });
 });
 
 describe('lastInfo', () => {

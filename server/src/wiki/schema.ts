@@ -129,13 +129,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_wiki_weiterleitung ON wiki_pages (weiterleitung);
 `);
 
-// Wasserstand je Nutzer für „N Änderungen seit deinem letzten Besuch".
+// Wasserstände je Nutzer für „was habe ich im Wiki noch nicht gesehen".
 //
-// Bewusst eine REVISIONS-ID und kein Zeitstempel: created_at kommt aus
+// Bewusst REVISIONS-IDs und keine Zeitstempel: created_at kommt aus
 // datetime('now') und ist auf die Sekunde genau. Fünf Änderungen innerhalb
 // derselben Sekunde sind im Spiel völlig normal (Speichern, Tippfehler,
 // Speichern) — mit einem Zeitstempel als Grenze fielen davon vier unter den
 // Tisch oder blieben ewig ungelesen. Eine id ist eindeutig und monoton.
+//
+// ZWEI Wasserstände, weil sich Zahl und Seitenmarke unabhängig leeren (siehe
+// neuigkeiten.ts): gesehen_rev quittiert die Zahl neben „Wiki", alles_gelesen_rev
+// ist der Boden, ab dem eine Seite ohne eigene Zeile in wiki_seite_gelesen als
+// gelesen gilt.
 //
 // Die erste Fassung dieser Tabelle hatte gesehen_bis TEXT. Sie wurde nie
 // beschrieben (der Zähler entsteht erst hier), deshalb wird sie ersetzt statt
@@ -146,10 +151,37 @@ db.exec(`
   db.exec(`
     CREATE TABLE IF NOT EXISTS wiki_gelesen (
       user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
-      gesehen_rev INTEGER NOT NULL DEFAULT 0
+      gesehen_rev INTEGER NOT NULL DEFAULT 0,
+      alles_gelesen_rev INTEGER NOT NULL DEFAULT 0
     );
   `);
+  if (spalten.length > 0 && !spalten.includes('alles_gelesen_rev')) {
+    db.exec('ALTER TABLE wiki_gelesen ADD COLUMN alles_gelesen_rev INTEGER NOT NULL DEFAULT 0');
+  }
 }
+
+// Der DEFAULT 0 der Spalte oben ist für Bestandszeilen die FALSCHE Antwort: mit
+// 0 bekäme jeder, der bisher auf dem Laufenden war, beim ersten Start
+// schlagartig das ganze Wiki als „neu" markiert. Richtig ist der Stand, den er
+// bereits quittiert hat.
+//
+// Steht bewusst außerhalb des ALTER-Zweigs und läuft bei jedem Start: es ist
+// idempotent (nach „Alle gelesen" sind beide Werte gleich und ungleich 0) und
+// deckt damit auch ab, was ein user_version-Schritt nicht sähe — ein Rollback
+// auf alten Code und zurück, oder eine Sicherung aus der Zeit davor.
+db.exec('UPDATE wiki_gelesen SET alles_gelesen_rev = gesehen_rev WHERE alles_gelesen_rev = 0 AND gesehen_rev > 0');
+
+db.exec(`
+  -- Bis wohin dieser Nutzer DIESE Seite gesehen hat. Eine fehlende Zeile heißt
+  -- „nur der Boden aus wiki_gelesen.alles_gelesen_rev gilt" — deshalb darf
+  -- „Alle gelesen" die Zeilen löschen, statt für jede Seite eine anzulegen.
+  CREATE TABLE IF NOT EXISTS wiki_seite_gelesen (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    page_id INTEGER NOT NULL REFERENCES wiki_pages(id) ON DELETE CASCADE,
+    gesehen_rev INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id, page_id)
+  );
+`);
 
 /**
  * Two search indexes, because a player's snippet must never quote GM-only

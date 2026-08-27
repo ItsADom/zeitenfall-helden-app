@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import type { WikiSeiteInfo } from '@shared/wikiTypen';
 import { useAuth } from '../App';
 import { CollapsedText } from '../components/notes';
-import { ladeListe, neuIndizieren } from './api';
+import { ladeListe, markiereAlleGelesen, neuIndizieren } from './api';
+import { useWikiNews } from './news';
 
 // The wiki's front door: every article, with a quick filter over the loaded
 // list and the categories as chips.
@@ -13,9 +14,15 @@ import { ladeListe, neuIndizieren } from './api';
 // searches the full text of every page. Category pages and redirects are not
 // in this list — the first belong in the category directory, the second are
 // signposts whose card would say nothing but the name of somewhere else.
+//
+// Hier steht auch die zweite Hälfte der Neuigkeiten-Anzeige: die Zahl neben
+// „Wiki" ist schon weg, sobald man hier ankommt (siehe news.tsx), die Marken
+// bleiben. Sie verschwinden beim Öffnen der jeweiligen Seite — oder alle auf
+// einmal über „Alle gelesen".
 
 export default function WikiUebersicht() {
   const { user } = useAuth();
+  const { refresh: abzeichenNeuLaden } = useWikiNews();
   const [seiten, setSeiten] = useState<WikiSeiteInfo[] | null>(null);
   const [fehler, setFehler] = useState('');
   const [filter, setFilter] = useState('');
@@ -50,6 +57,20 @@ export default function WikiUebersicht() {
 
   useEffect(laden, [laden]);
 
+  // Marken erst hier wegnehmen, dann melden: der Knopf soll sofort reagieren.
+  // `laden()` holt die Liste anschließend ohnehin frisch, und `refresh()` bringt
+  // die Zahl in Einklang — sie kann in dem Moment nur noch 0 sein.
+  const alleAlsGelesen = async () => {
+    setSeiten((bisher) => bisher?.map((s) => (s.neu ? { ...s, neu: false } : s)) ?? bisher);
+    try {
+      await markiereAlleGelesen();
+    } catch {
+      // Fehlgeschlagen: das folgende Laden holt die Marken zurück.
+    }
+    laden();
+    abzeichenNeuLaden();
+  };
+
   // Someone else may have written a page while this tab sat open — the wiki
   // lives in its own tab, so coming back to it is the natural refresh moment.
   useEffect(() => {
@@ -78,6 +99,9 @@ export default function WikiUebersicht() {
       (!q || s.titel.toLowerCase().includes(q) || s.auszug.toLowerCase().includes(q)),
   );
   const kategorien = [...new Set((seiten ?? []).flatMap((s) => s.tags))].sort((a, b) => a.localeCompare(b, 'de'));
+  // Bezieht sich bewusst auf die GANZE Liste, nicht auf `gefiltert`: der Knopf
+  // räumt alles auf, auch was der Filter gerade ausblendet.
+  const hatNeue = (seiten ?? []).some((s) => s.neu);
 
   return (
     <div className="wiki">
@@ -109,6 +133,13 @@ export default function WikiUebersicht() {
             </button>
           )}
         </form>
+        {/* Nur da, wenn es etwas wegzuräumen gibt — ein Knopf ohne Wirkung ist
+            nur Rauschen. */}
+        {hatNeue && (
+          <button className="small wiki-alles-gelesen" onClick={() => void alleAlsGelesen()} title={'Alle „neu"-Marken entfernen'}>
+            Alle gelesen
+          </button>
+        )}
         {kategorien.length > 0 && (
           <div className="wiki-tags">
             <button className={`wiki-tag${kategorie === null ? ' active' : ''}`} onClick={() => setKategorie(null)}>
@@ -145,11 +176,15 @@ export default function WikiUebersicht() {
       ) : (
         <div className="cardlist">
           {gefiltert.map((s) => (
-            <Link className="card wiki-karte" key={s.slug} to={`/wiki/${s.slug}`}>
+            <Link
+              className={`card wiki-karte${s.neu ? ' wiki-karte-neu' : ''}`}
+              key={s.slug}
+              to={`/wiki/${s.slug}`}
+            >
               <h3>
                 {s.titel}
-                {/* Von jemand anderem geändert, seit du zuletzt in die
-                    Änderungen geschaut hast. */}
+                {/* Von jemand anderem geändert, seit du diese Seite zuletzt
+                    aufgeschlagen hast. */}
                 {s.neu && <span className="wiki-marke wiki-marke-neu">neu</span>}
                 {s.gmOnly && <span className="wiki-marke">nur SL</span>}
                 {s.geschuetzt && <span className="wiki-marke">geschützt</span>}

@@ -585,6 +585,121 @@ pending-request flow rather than rolling immediately.
    needs its own shape); move the feature out of the changelog's
    `COMING_SOON` into a real entry; z-index/mobile polish on the fixed dock.
 
+## Later addition: „der große Wurf" (`/i`)
+
+Built on top of everything above, after the fact. Only the parts that are not
+obvious from the code are recorded here; the rules of the mechanic are
+unchanged, because it does not have any of its own — it is the ordinary
+expression roll with a performance in front of it.
+
+- **`/i <Ausdruck>` / `/important <Ausdruck>`** is the Spielleitung's version of
+  `/r`. Gated server-side in `ws.ts` (`roll.expr` + `important`), like every
+  other GM-only message; the client check is only there to save a round trip.
+  Always `visibility: 'public'` — an announcement to the whole table with a
+  hidden result behind it makes no sense, so the picker is overridden and the
+  dock says so once.
+- **The entry is persisted but NOT broadcast.** It travels inside the transient
+  `roll.important` message and each client appends it itself when *its own*
+  cinematic ends. That is what lets one player skip the animation without
+  affecting anybody else's timing, and it is why `writeFeedRoll` exists next to
+  `insertFeedRoll` in `feed.ts`. Anyone who reconnects mid-performance picks the
+  entry up through the ordinary history endpoint — the reconnect path is the
+  safety net for a cinematic that never finishes.
+- **The append is deliberately not a blind merge.** While a performance runs, a
+  `feed.update` for that same id can already have arrived (someone who
+  reconnected has the entry and can have thrown its confirmation). `mergeFeed`
+  replaces by id, so appending the older copy on top would silently undo the
+  newer one. See `haengeEintragAn` in `DicePanelProvider`.
+- **Nothing new is stored.** No `important` column: a stored flag would replay
+  the performance on every page load, and nothing ever needs to ask after the
+  fact whether a roll was announced. The seed is meaningless outside the seconds
+  it drives. The whole feature is additive on the wire and additive in the
+  client — no migration at all.
+- **Determinism** lives in `shared/src/diceCinematic.ts`, whose header states
+  the three rules that hold it together (integer-only PRNG, closed-form
+  functions of elapsed time, world units rather than pixels). What is
+  deliberately *not* synchronised is the wall-clock start: the requirement is
+  that everyone sees the same animation, not that they see it in the same
+  millisecond.
+- **three.js is lazy, and that has to be defended.** Only `preload.ts` and the
+  overlay's effect may reference `cinematic/stage`, and only through `import()`.
+  A static import of anything that transitively imports three moves ~132 KB
+  gzipped into the chunk every page load fetches, and nothing fails to warn you
+  — it happened once already, via a colour helper. That is why `kontrast.ts`
+  exists separately from `faces.ts`.
+- **Face recovery** groups triangles by ANGULAR similarity of their normals, not
+  by rounding a normal into a map key: the latter splits components that land on
+  a rounding boundary and yields 17 faces for a dodecahedron. The d10 is
+  hand-built and its kite faces are planar at exactly one band-to-apex ratio,
+  with a winding that must be right or its ten faces collapse into five against
+  their own antipodes.
+- **The camera angle is a correctness constraint, not a look.** A die at rest
+  lies with the rolled face pointing straight up — that is what "the die shows a
+  7" physically means — so a camera anywhere near level with the table sees that
+  face edge-on and the numbers a player actually reads are the SIDE faces. This
+  shipped at 12° and did exactly that: the roll was right and the picture
+  disagreed with it. `CAMERA_TILT` therefore lives in `shared` beside the
+  layout, at 64°, and the gathered dice are laid out on the plane perpendicular
+  to it (`stagePoint`) so the grid is not squashed by the tilt.
+- **The dice are numbered like real dice, and that is derived, not assumed.**
+  Opposite faces sum to `sides + 1` — 7 on a d6, 21 on a d20 — worked out from
+  the geometry by pairing each face with its antipode. Numbering faces in stored
+  order looks equivalent and is not: it gives the right pairing only if the sort
+  is a clean reversal under negation, which holds in exact arithmetic and fails
+  in floats, and the d10 and d12 shipped with opposite pairs summing to 10, 11
+  AND 12. The cube is additionally chiral and gets the Western arrangement
+  (1-2-3 counter-clockwise about their corner); one opposite pair is swapped to
+  mirror it, which cannot disturb the sums. Not generalised past the cube — d20s
+  and d10s are sold in both handednesses, so a rule there would be invented
+  rather than honoured. A tetrahedron has no opposite faces at all and simply
+  counts up.
+- **The d4 is deliberately not a real d4.** A real one carries three numbers per
+  face, rests on a face and is read at the apex or along the bottom edge. Ours
+  puts one number per face and turns that face up like every other die, so it
+  balances on a point. It is legible and consistent with the rest; it is not
+  what a d4 looks like. Flagged here so the next person knows it was a choice.
+- **The d10 shows 1-10, not the 0-9 a real one does.** A real d10 reads 0 for
+  ten and its opposite faces sum to 9. This app's dice are 1..N throughout, so a
+  face reading 0 would be the animation contradicting the roll in the chat
+  beneath it. Opposite faces therefore sum to 11.
+- **A face's UV basis comes from the face, never from a world axis.** The first
+  version built it from whichever coordinate axis the normal leaned on least,
+  which knows nothing about the face's shape — so a number landed at whatever
+  angle the arithmetic produced, on a d20 consistently about 90° out from any
+  edge. It is now taken from one EDGE of the face: perpendicular to it, pointing
+  toward the centre, so that edge ends up at the bottom and the number's
+  baseline runs parallel to it, exactly as a die is printed. One rule covers
+  every shape — a triangle stands on its base, a square sits square, a pentagon
+  rests on a side. (Aiming at a vertex instead would work for the odd-sided
+  faces and stand the d6 on its corner.) Perpendicular to the edge rather than
+  merely "toward the centre", because those coincide only on a regular polygon:
+  on the d10's kites the centre is off to one side and aiming at it tilted every
+  number by 7°. Which edge is free, but it must be the same free choice on every
+  machine, hence the lexicographically smallest midpoint. **An IRREGULAR face
+  takes the other branch entirely**: a kite's symmetry axis runs corner to
+  corner, so there is no edge to stand a number on, and standing it on one
+  anyway put every d10 numeral 66° off its own face. It goes up the axis, sharp
+  end first, which is how a real d10 carries its digits.
+- **The gather squares the numbers up; the table beat does not.** A die on the
+  table lands however it lands, random roll and all. Held up to be read it is
+  turned BOTH ways — face to the viewer and number the right way up — because
+  `quaternionFromTo` only aims an axis and leaves the roll to the shortest arc,
+  which is upside down half the time. On a d20 that is not merely untidy: an
+  inverted 6 with its underline above it is exactly a 9, and that was reported
+  from play. `uprightFaceQuaternion` pins both axes, which is why `Solid` has to
+  carry `faceUps` — the direction a number is printed in is not recoverable from
+  outside `geometry.ts`, since the UV basis is chosen per face.
+- **The three opening beats are sequential on purpose.** Fanfare, then blackout,
+  then dice — each finishing before the next begins. They used to overlap, which
+  collapsed the announcement into one instant in which nothing read as causing
+  anything else. The consequence is that for the first beat and a half the
+  overlay is present but invisible, so it must also be intangible: it takes no
+  clicks and answers no Escape until the screen has gone dark.
+- **Cancelled crits get no effect**, because `findCritTriggers` has already
+  declared them meaningless and the feed row says „· aufgehoben" underneath. The
+  filter lives in `shared` (`effectTriggers`) and is tested, because it encodes a
+  rules decision rather than a taste one.
+
 ## Open items
 
 None remaining — the items originally flagged here (Group.tsx "posting as"

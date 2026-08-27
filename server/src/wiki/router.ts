@@ -12,7 +12,7 @@ import { requireAuth, requireGm } from '../auth.js';
 import { bildFuer, bilderFuerSeite, legeBildAn, loescheBild, markiereBildGmOnly } from './bilder.js';
 import { WikiGeschuetzt, WikiKonflikt, WikiTitelVergeben, WikiUnloeschbar } from './seiten.js';
 import { folgeWeiterleitung, ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
-import { anzahlNeu, merkeGesehen, neueSeiten } from './neuigkeiten.js';
+import { anzahlNeu, merkeAllesGelesen, merkeGesehen, merkeSeiteGelesen, neueSeiten } from './neuigkeiten.js';
 import { kategorieAnsicht, kategorien, neuIndizieren, sucheSeiten } from './suche.js';
 import { endgueltigLoeschen, loescheSeite, papierkorb, setzeFlag, stelleSeiteHer } from './verwaltung.js';
 import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
@@ -37,9 +37,17 @@ wikiApi.get('/neuigkeiten', requireAuth, (req, res) => {
   res.json({ anzahl: anzahlNeu(leser(req)) });
 });
 
-/** „Ich habe es gesehen" — sent when the change log is opened. */
+/**
+ * „Die Zahl habe ich gesehen" — sent as soon as the reader is anywhere in the
+ * wiki. Clears the badge only; which pages changed stays marked.
+ */
 wikiApi.post('/gelesen', requireAuth, (req, res) => {
   res.json({ gesehenRev: merkeGesehen(req.user!.id) });
+});
+
+/** „Alle gelesen" — the button next to the list filter. Clears every marker. */
+wikiApi.post('/alle-gelesen', requireAuth, (req, res) => {
+  res.json({ gesehenRev: merkeAllesGelesen(req.user!.id) });
 });
 
 wikiApi.post('/seiten', requireAuth, (req, res) => {
@@ -76,6 +84,10 @@ wikiApi.get('/seiten/:slug', requireAuth, (req, res) => {
   // gets reached and repaired.
   const folgen = !/^(0|nein|false)$/i.test(String(req.query.folgen ?? ''));
   const ziel = folgen ? folgeWeiterleitung(user, seite) : null;
+  // Aufgeschlagen heißt gelesen. Gezählt wird die Seite, die wirklich gerendert
+  // wird — bei einer gefolgten Weiterleitung also das Ziel und nicht der
+  // Wegweiser, der ohnehin in keiner Kartenliste steht.
+  merkeSeiteGelesen(user.id, (ziel ?? seite).id);
   // A hit through the alias table answers under the canonical slug so the
   // client can replace the URL instead of keeping a stale one.
   if (ziel) {
@@ -103,6 +115,9 @@ wikiApi.get('/seiten/:slug/quelle', requireAuth, (req, res) => {
     res.status(403).json({ error: 'Diese Seite ist geschützt' });
     return;
   }
+  // Wer den Editor öffnet, hat die Seite gesehen — sonst bliebe eine fremde
+  // Änderung markiert, während man selbst schon im Text steht.
+  merkeSeiteGelesen(user.id, seite.id);
   res.json({ seite: ladeSeite(user, seite, 'bearbeiten'), kanonisch: seite.slug });
 });
 

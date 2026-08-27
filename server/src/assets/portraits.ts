@@ -36,6 +36,11 @@ import { assetsDb } from './db.js';
 // ändern müsste.
 const ROLLE = 'portrait';
 const ROLLE_FULL = 'portrait-full';
+// Der unbeschnittene Original-Upload, wie er ausgewählt wurde — bevor der
+// CropEditor einen Ausschnitt wählt. Nur die Vergrößerungs-Ansicht will das:
+// `ladePortrait(..., full: true)` greift zuerst hierauf zu und fällt auf
+// ROLLE_FULL zurück, wenn (noch) kein Original vorliegt (ältere Porträts).
+const ROLLE_ORIGINAL = 'portrait-original';
 
 export interface PortraitDaten {
   mime: string;
@@ -56,6 +61,8 @@ export function hatPortrait(charId: number): boolean {
 /** `full`: das große Master-Bild statt der 512px-Anzeigegröße — kennt keine Rückfallebene. */
 export function ladePortrait(charId: number, full = false): PortraitDaten | undefined {
   if (full) {
+    const original = einzelAsset('character', charId, ROLLE_ORIGINAL);
+    if (original) return { mime: original.mime, data: original.data };
     const asset = einzelAsset('character', charId, ROLLE_FULL);
     return asset ? { mime: asset.mime, data: asset.data } : undefined;
   }
@@ -83,9 +90,21 @@ export function speicherePortrait(charId: number, mime: string, data: Buffer, fu
   ).run(charId, mime, data);
 }
 
+/** Der unbeschnittene Original-Upload — wie `speicherePortrait(..., full: true)`, aber ohne Rückfalltabelle. */
+export function speicherePortraitOriginal(charId: number, mime: string, data: Buffer): void {
+  setzeEinzelAsset(ROLLE_ORIGINAL, {
+    ownerType: 'character',
+    ownerId: charId,
+    titel: `Porträt-Original ${charId}`,
+    mime,
+    data,
+  });
+}
+
 export function loeschePortrait(charId: number): void {
   loescheEinzelAsset('character', charId, ROLLE);
   loescheEinzelAsset('character', charId, ROLLE_FULL);
+  loescheEinzelAsset('character', charId, ROLLE_ORIGINAL);
   // Auch aus der Rückfallebene — sonst taucht das alte Bild beim nächsten
   // Laden wieder auf, und „gelöscht" hätte nicht gestimmt.
   db.prepare('DELETE FROM char_portraits WHERE character_id = ?').run(charId);
@@ -101,6 +120,10 @@ export function hatGruppenPortrait(groupId: number): boolean {
 }
 
 export function ladeGruppenPortrait(groupId: number, full = false): PortraitDaten | undefined {
+  if (full) {
+    const original = einzelAsset(GRUPPE, groupId, ROLLE_ORIGINAL);
+    if (original) return { mime: original.mime, data: original.data };
+  }
   const asset = einzelAsset(GRUPPE, groupId, full ? ROLLE_FULL : ROLLE);
   return asset ? { mime: asset.mime, data: asset.data } : undefined;
 }
@@ -115,9 +138,20 @@ export function speichereGruppenPortrait(groupId: number, mime: string, data: Bu
   });
 }
 
+export function speichereGruppenPortraitOriginal(groupId: number, mime: string, data: Buffer): void {
+  setzeEinzelAsset(ROLLE_ORIGINAL, {
+    ownerType: GRUPPE,
+    ownerId: groupId,
+    titel: `Gruppenporträt-Original ${groupId}`,
+    mime,
+    data,
+  });
+}
+
 export function loescheGruppenPortrait(groupId: number): void {
   loescheEinzelAsset(GRUPPE, groupId, ROLLE);
   loescheEinzelAsset(GRUPPE, groupId, ROLLE_FULL);
+  loescheEinzelAsset(GRUPPE, groupId, ROLLE_ORIGINAL);
 }
 
 /**
