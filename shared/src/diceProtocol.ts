@@ -77,6 +77,13 @@ export interface ProbeRollPayload {
   narrow: boolean;
   /** Sauber bestanden mit stehengebliebener 1 — Gegenstück zum Patzer. */
   criticalSuccess: boolean;
+  /**
+   * Gesetzt, wenn die Spielleitung diesen Wurf per `roll.pending.force`
+   * anstelle einer abwesenden Person ausgelöst hat (siehe ws.ts) — nie
+   * unauffällig: der Eintrag soll sich sichtbar von einem selbst geworfenen
+   * unterscheiden, damit es beim Zurückkommen transparent ist.
+   */
+  forcedByGm?: boolean;
 }
 
 export interface ExpressionRollPayload {
@@ -318,6 +325,13 @@ export type ClientToServerMessage =
   // hat — Gegenstück zu roll.pending.decline (das ist der Spieler-Seite
   // vorbehalten).
   | { type: 'roll.pending.cancel'; reqId: string; requestId: string }
+  // Löst die Anfrage sofort aus, ohne auf die angefragte Person zu warten
+  // (z. B. abwesend am Tisch) — nur die Spielleitung, nur für eine eigene
+  // Anfrage. Der Modifikator kommt wie bei roll.pending.accept aus
+  // request.modifier, falls die Spielleitung schon bei der Anfrage einen
+  // vorgegeben hat, sonst 0 — es gibt niemanden mehr, der einen eigenen
+  // einträgt.
+  | { type: 'roll.pending.force'; reqId: string; requestId: string }
   // Fragt dieselbe Probe bei JEDEM gerade verbundenen Gruppenmitglied an
   // (außer der Spielleitung selbst) — server-seitig ein `roll.pending.request`
   // je Mitglied unter einer gemeinsamen groupRequestId, siehe dort.

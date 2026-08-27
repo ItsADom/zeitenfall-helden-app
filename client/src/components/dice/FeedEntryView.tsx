@@ -28,6 +28,16 @@ function VisibilityTag({ visibility }: { visibility: RollVisibility }) {
   return <span className="feed-vis-tag">{visibility === 'hidden' ? VISIBILITY.hidden : VISIBILITY.gmPlayer}</span>;
 }
 
+// Nie unauffällig lassen, welcher Wurf von der Spielleitung ausgelöst wurde,
+// nicht von der Person selbst — siehe roll.pending.force in ws.ts.
+function ForcedTag() {
+  return (
+    <span className="feed-forced-tag" title="Die Spielleitung hat diesen Wurf ausgelöst, ohne auf die Person zu warten">
+      🎯 erzwungen
+    </span>
+  );
+}
+
 // Bestätigungswürfe: je natürlicher 20/1 ein eigener Wurf, dieselbe ≥10-
 // Schwelle für beide, nur gegensätzlich gedeutet — bei der 20 heißt ≥10
 // „bestätigt" (Patzer), bei der 1 heißt ≥10 „bestätigt" (krit. Erfolg). Der
@@ -169,6 +179,7 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
         <strong>{entry.authorName}</strong>
         {title && <span className="feed-roll-title">{title}</span>}
         <span className="feed-roll-notation muted">({notation})</span>
+        {isProbe && roll.forcedByGm && <ForcedTag />}
         <VisibilityTag visibility={entry.visibility} />
       </div>
       <div className="feed-roll-body">

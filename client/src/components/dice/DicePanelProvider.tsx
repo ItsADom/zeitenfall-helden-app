@@ -238,6 +238,12 @@ interface DicePanelCtxValue {
   /** Spielleitung zieht eine eigene, noch offene Anfrage zurück. */
   cancelRequest: (requestId: string) => void;
   /**
+   * Spielleitung löst eine eigene, noch offene Anfrage sofort aus — für eine
+   * gerade abwesende Person am Tisch. Der Feed-Eintrag ist sichtbar als
+   * erzwungen markiert (RollFeedEntry.roll.forcedByGm).
+   */
+  forceRequest: (requestId: string) => void;
+  /**
    * Spielleitung fordert dieselbe Probe von JEDEM gerade verbundenen
    * Gruppenmitglied an — ein normales `roll.pending.request` je Mitglied
    * unter gemeinsamer groupRequestId, Ergebnisse erscheinen erst gemeinsam
@@ -422,6 +428,7 @@ export function useDicePanel(): DicePanelCtxValue {
       acceptRequest: () => {},
       declineRequest: () => {},
       cancelRequest: () => {},
+      forceRequest: () => {},
       requestGroupProbe: () => {},
       revealGroupRequest: () => {},
       cancelGroupRequest: () => {},
@@ -1172,6 +1179,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const forceRequest = useCallback(
+    (requestId: string) => {
+      setPendingRequests((prev) => prev.filter((r) => r.id !== requestId));
+      sendMsg({ type: 'roll.pending.force', reqId: crypto.randomUUID(), requestId });
+    },
+    [sendMsg],
+  );
+
   const requestGroupProbe = useCallback(
     (forGroupId: number, source: ProbeSource, modifier?: number) => {
       if (groupIdRef.current !== forGroupId) {
@@ -1499,6 +1514,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         acceptRequest,
         declineRequest,
         cancelRequest,
+        forceRequest,
         requestGroupProbe,
         revealGroupRequest,
         cancelGroupRequest,

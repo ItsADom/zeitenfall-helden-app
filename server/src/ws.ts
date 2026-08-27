@@ -1214,6 +1214,80 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
+    case 'roll.pending.force': {
+      const request = getPendingRequest(String(msg.requestId));
+      // Nur die Spielleitung, die die Anfrage selbst gestellt hat — wie
+      // roll.pending.cancel, nicht wie roll.pending.accept (das ist der
+      // angefragten Person vorbehalten und bleibt für alle ANDEREN Anfragen
+      // weiter möglich).
+      if (!request || request.gmUserId !== meta.userId || request.groupId !== meta.groupId) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Anfrage nicht gefunden' });
+        return;
+      }
+      const computed = computeProbeForCharacter(request.targetCharId, request.source);
+      if (!computed) {
+        removePendingRequest(request.id);
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es keine Probe' });
+        return;
+      }
+      removePendingRequest(request.id);
+      // Dieselben Aufräum-Events wie ein normales Annehmen — die Karte
+      // verschwindet bei beiden Seiten, egal ob die angefragte Person gerade
+      // verbunden ist oder es erst beim nächsten Reconnect sieht.
+      sendToUserInGroup(request.groupId, request.targetUserId, { type: 'roll.pending.accepted', requestId: request.id });
+      if (!request.groupRequestId) {
+        sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.pending.accepted', requestId: request.id });
+      }
+      // Kein msg.modifier hier — es gibt niemanden mehr, der bei der
+      // Annahme selbst noch einen einträgt. Nur der schon bei der Anfrage
+      // vorgegebene Modifikator (falls gesetzt) wirkt noch.
+      const modifier = request.modifier ?? 0;
+      const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
+      const roll: ProbeRollPayload = {
+        mode: 'probe',
+        source: request.source,
+        label: computed.label,
+        n: computed.n,
+        probeZahl: computed.probeZahl,
+        modifier,
+        ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        criticalFailureCount: result.criticalFailureCount,
+        criticalFailure: result.criticalFailure,
+        success: result.success,
+        narrow: result.narrow,
+        criticalSuccess: result.criticalSuccess,
+        forcedByGm: true,
+      };
+      // Die anfragende Person ist hier die Spielleitung, nicht die angefragte
+      // — resolveAuthor(meta, …) würde also fälschlich auf „kein Charakter"
+      // zurückfallen (die Ownership-Prüfung darin greift nur bei der eigenen
+      // Verbindung des Charakter-Inhabers). Der Autor steht schon vollständig
+      // in der Anfrage selbst.
+      const author = { userId: request.targetUserId, charId: request.targetCharId, name: request.targetCharName };
+      if (request.groupRequestId) {
+        const groupReq = getGroupRollRequest(request.groupRequestId);
+        const done = holdGroupResult(request.groupRequestId, request.targetCharId, { kind: 'roll', author, roll });
+        if (groupReq) {
+          sendToUserInGroup(meta.groupId, groupReq.gmUserId, {
+            type: 'roll.group.member',
+            requestId: groupReq.id,
+            charId: request.targetCharId,
+            status: 'rolled',
+          });
+        }
+        if (done && groupReq) revealGroupResults(groupReq, done.order, done.held);
+      } else {
+        insertFeedRoll(meta.groupId, author, request.gmUserId, 'gm_player', roll);
+      }
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
     case 'roll.pending.decline': {
       const request = getPendingRequest(String(msg.requestId));
       if (!request || request.targetUserId !== meta.userId || request.groupId !== meta.groupId) {

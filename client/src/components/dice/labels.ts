@@ -80,6 +80,9 @@ export const REQUEST = {
   /** Bei der Spielleitung, für eine eigene noch offene Anfrage. */
   cancel: 'Zurückziehen',
   cancelHint: 'Zieht die Anfrage zurück, bevor der Spieler reagiert hat',
+  /** Bei der Spielleitung: löst die Anfrage sofort aus, ohne auf die Person zu warten. */
+  force: 'Erzwingen',
+  forceHint: 'Würfelt sofort für die abwesende Person — der Eintrag ist als erzwungen markiert',
   /** Kopf der Gruppen-Sammelanfrage-Karte, bei der Spielleitung. */
   groupTitle: (label: string): string => `Gruppenprobe: ${label}`,
   /** Gruppen-Sammelanfrage: deckt sofort auf, was schon da ist, statt weiter zu warten. */
