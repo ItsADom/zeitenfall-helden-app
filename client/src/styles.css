@@ -3355,6 +3355,17 @@ li {
 .dialog-panel--wide {
   max-width: 760px;
 }
+/* GM's Zauber & Fähigkeiten lookup (GroupOverview.tsx) — Name/Probe/Kosten
+   stay compact (their content is always short), Effekt/Notiz gets whatever
+   width is left over. Reuses .abil-note from the sheet's own ability tab for
+   the notiz line (font-size, pre-wrap); .ability-lookup-effekt only sets the
+   column's own sizing, not effekt's font — that stayed the table's default,
+   unlike .abil-tab .abil-effekt which this table intentionally doesn't share
+   a container class with. */
+.ability-lookup-table .ability-lookup-effekt {
+  width: 45%;
+  white-space: pre-wrap;
+}
 .dialog-head {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border-soft);

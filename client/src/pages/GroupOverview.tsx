@@ -9,6 +9,7 @@ import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker'
 import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { GmNoteField, VITAL_LABELS, vitalClass } from '../components/gmRoster';
 import { Field } from '../components/inputs';
+import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
 import { PortraitView } from '../components/PortraitView';
 
@@ -89,10 +90,9 @@ function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; ch
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Art</th>
-                <th>Stufe</th>
                 <th>Probe</th>
                 <th>Kosten</th>
+                <th>Effekt/Notiz</th>
               </tr>
             </thead>
             <tbody>
@@ -102,13 +102,12 @@ function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; ch
                     {a.name}
                     {a.signatur && <span title="Signatur-Zauber"> ✦</span>}
                   </td>
-                  <td className="muted">
-                    {a.magisch ? 'Zauber' : 'Fähigkeit'}
-                    {a.passiv ? ' (passiv)' : ''}
-                  </td>
-                  <td>{a.stufe}</td>
                   <td className="muted">{a.probe}</td>
                   <td className="muted">{a.kosten}</td>
+                  <td className="ability-lookup-effekt">
+                    {a.effekt}
+                    <CollapsedText text={a.notiz} className="abil-note muted" />
+                  </td>
                 </tr>
               ))}
             </tbody>
