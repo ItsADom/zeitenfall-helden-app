@@ -714,8 +714,10 @@ api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res
        WHERE tgm.temp_group_id = ?`,
     )
     .all(groupId, groupId) as { charId: number; ownerUserId: number; max: number }[];
+  // trainingLeseHeute läuft am selben Reset mit — kein eigener Knopf, siehe
+  // TODO-Konzept: dieselbe „Neuer Spieltag"-Aktion setzt beides zurück.
   db.prepare(
-    `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax
+    `UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax, trainingLeseHeute = 0
      WHERE character_id IN (
        SELECT id FROM characters WHERE group_id = ?
        UNION
@@ -740,7 +742,9 @@ api.post('/characters/:id/schicksalspunkte/reset', requireAuth, requireGm, (req,
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
-  db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax WHERE character_id = ?').run(charId);
+  db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax, trainingLeseHeute = 0 WHERE character_id = ?').run(
+    charId,
+  );
   if (char.groupId !== null) {
     const max = (
       db.prepare('SELECT schicksalspunkteMax AS max FROM char_meta WHERE character_id = ?').get(charId) as { max: number }

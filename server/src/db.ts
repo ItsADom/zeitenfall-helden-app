@@ -634,6 +634,11 @@ db.exec(`
   // Additiver Bonus (m) auf die Zauber-Reichweite aus SPELL_REICHWEITE_REFERENZ
   // (shared/src/abilities.ts) — reine Anzeige im Zauber-Tab, keine Formel liest ihn.
   if (!cols.has('reichweiteBonus')) db.exec('ALTER TABLE char_meta ADD COLUMN reichweiteBonus REAL NOT NULL DEFAULT 0');
+  // Trainings-/Lesesitzungen: ein gemeinsamer Zähler (nicht zwei getrennte),
+  // rein manuell vom Spieler gepflegt — der eigentliche Lernfortschritt bleibt
+  // außerhalb der App. Läuft am selben Reset wie Schicksalspunkte mit (siehe
+  // routes.ts), deshalb kein eigenes Max-Feld — die Obergrenze (4) ist fix.
+  if (!cols.has('trainingLeseHeute')) db.exec('ALTER TABLE char_meta ADD COLUMN trainingLeseHeute REAL NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.
