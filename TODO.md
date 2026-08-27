@@ -16,6 +16,47 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ---
 
+## Virtual table
+
+- [ready] **Multiple scenes per group** (concept agreed 2026-08-25, full plan
+  in `docs/concepts/virtual-table.md` Phase 13 — build after that plan
+  itself, not from scratch here): a group gets several named boards to
+  switch between (not one bigger shared canvas — that would still share one
+  token set/fog/round counter across unrelated areas). **Data model:** drop
+  `idx_boards_group_id`'s uniqueness, add `boards.name TEXT NOT NULL DEFAULT
+  ''`; "current" scene is `groups.active_board_id INTEGER REFERENCES
+  boards(id) ON DELETE SET NULL` (a FK, not a boolean flag on `boards` —
+  ambiguous if two ever end up marked active). Migration: every existing
+  group has exactly one board (today's unique constraint guaranteed it) — set
+  `active_board_id` to it for all of them in the same pass that drops the
+  constraint. `getOrCreateBoard` keeps auto-creating on first access, just
+  also names it (e.g. „Szene 1") and sets it active. **Server (`board.ts`,
+  next to the existing token/overlay CRUD):** `listScenes(groupId)`,
+  `createScene(groupId, name)`, `renameScene(boardId, name)`,
+  `deleteScene(boardId)`, `setActiveScene(groupId, boardId)`. Deleting the
+  *active* scene auto-switches to another remaining one first (lowest id),
+  then deletes; a group's last remaining scene cannot be deleted (same
+  reasoning as a board always existing today). **Rights:** hard-coded
+  GM-only, same shape as `canEditFog` — not a new `perm_*`, scene management
+  is prep work, never a player case. **Realtime, decided live-for-the-room
+  with a fade (not a GM-private-preview-then-present):** GM picks a scene
+  from a GM-only toolbar picker (players never see it) →
+  `board.scene.switch {reqId, boardId}` → server validates the id belongs to
+  this group, calls `setActiveScene`, broadcasts `board.scene.switched`
+  carrying a **full snapshot** of the new scene (board settings + tokens +
+  tiles + highlights + overlays — same shape as the REST snapshot response),
+  not just a bare id, so nobody races a follow-up REST fetch. Client plays a
+  short fade-out on `.vtt-map-wrap`/`.vtt-map-svg` (~250–300 ms opacity
+  transition), swaps in the new scene's state once faded, fades back in —
+  purely a client-side CSS transition around the existing hydrate call.
+  **Per-scene camera:** `usePersistedState`'s existing pan/zoom camera key
+  (`vtt-camera:${groupId}` today) switches to keying by `boardId` instead, so
+  each scene remembers its own last view independently. **Still open, low
+  stakes:** `perm_*` columns live on `boards` already, so they're naturally
+  per-scene at zero migration cost — whether a GM wants to reconfigure
+  rights per scene or find that mildly annoying is untested, not worth
+  designing around before it's felt.
+
 ## User feedback
 
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
