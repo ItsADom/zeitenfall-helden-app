@@ -2302,7 +2302,7 @@ function MapCanvas({
             }}
             title="Marker oder Beschriftung auf dem Tisch platzieren"
           >
-            🏷 Beschriften
+            🏷 Text & Marker
           </button>
         ) : canCreateTokens ? (
           <button
