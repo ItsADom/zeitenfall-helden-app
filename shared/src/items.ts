@@ -53,6 +53,33 @@ export const BODY_ZONES = [
 ] as const;
 export type BodyZone = (typeof BODY_ZONES)[number];
 
+// Bonus, den ein Gegenstand verleiht, solange er getragen wird (location ===
+// 'getragen', siehe wornBoni in Kürze) — sieben Zielräume ohne gemeinsamen
+// Schlüsseltyp heute, daher eine Discriminated Union statt eines flachen
+// Strings. `code` bedeutet je nach `kind` etwas anderes:
+//   attr       AttrCode (MU/KL/…)
+//   baseValue  BaseValueKey (at/pa/bl/…)
+//   resource   ResourceKey (le/aus/ase) — hebt NUR das Maximum an, nie `aktuell`
+//   talent     talentId (aus talents_catalog); WELCHE Spalte sagt `feld`
+//   spezial    special_energies_catalog.id — wirkt nur, wenn der Katalog-
+//              Eintrag eine Formel trägt (siehe SpecialResource), sonst tote Zeile
+//   psyche     kein Ziel-Code nötig, code bleibt ''
+//   traglast   kein Ziel-Code nötig, code bleibt '' — wert in kg
+// Negative Werte sind erlaubt (ein verfluchter Gegenstand ist derselbe Mechanismus).
+export type ItemBonusKind = 'attr' | 'baseValue' | 'resource' | 'talent' | 'spezial' | 'psyche' | 'traglast';
+export const ITEM_BONUS_KINDS: ItemBonusKind[] = ['attr', 'baseValue', 'resource', 'talent', 'spezial', 'psyche', 'traglast'];
+
+// Nur bei kind === 'talent' relevant: welche der vier Spalten der Bonus trifft.
+export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl';
+export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl'];
+
+export interface ItemBonus {
+  kind: ItemBonusKind;
+  code: string; // Bedeutung je nach kind, siehe oben; '' bei psyche/traglast
+  feld: TalentBonusFeld | ''; // nur bei kind === 'talent', sonst ''
+  wert: number;
+}
+
 export interface Item {
   id: number;
   // Stabile, client-vergebene Kennung. Anders als die DB-`id` (wird beim Speichern
@@ -98,6 +125,9 @@ export interface Item {
   haltbarkeitMax: number;
   haltbarkeitAktuell: number;
   notiz: string;
+  // Boni, die dieser Gegenstand verleiht, solange location === 'getragen' ist
+  // (siehe ItemBonus oben). Leer für die allermeisten Items.
+  bonusse: ItemBonus[];
 }
 
 // Haltbarkeit als Prozentsatz (0–100), oder null wenn nicht verfolgt (max = 0).
@@ -121,7 +151,8 @@ export function makeItem(over: Partial<Item>): Item {
   return {
     id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
-    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '', ...over,
+    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
+    bonusse: [], ...over,
   };
 }
 

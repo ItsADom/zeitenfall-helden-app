@@ -450,6 +450,22 @@ db.exec(`
     haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT ''
   );
+  -- Boni, die ein Gegenstand verleiht, solange er getragen wird (siehe ItemBonus
+  -- in shared/src/items.ts) — eigene Kind-Tabelle wie char_pouch_coins zu
+  -- char_pouches, NICHT JSON-in-TEXT wie char_abilities.kategorien. Referenziert
+  -- char_items.id (die DB-Zeilen-id, NICHT die client-vergebene uid) — saveItems
+  -- löscht+fügt die ganze Item-Liste in einer Transaktion neu ein, die Bonus-
+  -- Zeilen sterben per CASCADE mit und werden gegen die frische id neu angelegt.
+  CREATE TABLE IF NOT EXISTS char_item_bonuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES char_items(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'attr',
+    code TEXT NOT NULL DEFAULT '',
+    feld TEXT NOT NULL DEFAULT '',
+    wert REAL NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_bonuses_item ON char_item_bonuses(item_id);
   -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
   CREATE TABLE IF NOT EXISTS char_item_categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

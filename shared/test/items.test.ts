@@ -5,6 +5,7 @@ import {
   containerFuellungAnzeige,
   containerFuellungStueck,
   containers,
+  duplicateItem,
   effektiverRs,
   getrageneLast,
   haltbarkeitPct,
@@ -12,6 +13,7 @@ import {
   itemsInContainer,
   itemsInZone,
   lastInfo,
+  makeItem,
   makeUid,
   zaehltZurLast,
   zoneView,
@@ -52,6 +54,7 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     haltbarkeitMax: 0,
     haltbarkeitAktuell: 0,
     notiz: '',
+    bonusse: [],
     ...partial,
   };
 }
@@ -185,6 +188,23 @@ describe('makeUid', () => {
     const b = makeUid();
     expect(a).toBeTruthy();
     expect(a).not.toBe(b);
+  });
+});
+
+describe('bonusse (Item-Boni-Datenmodell)', () => {
+  it('makeItem startet mit einer leeren Bonusliste', () => {
+    expect(makeItem({ name: 'Ring' }).bonusse).toEqual([]);
+  });
+
+  it('duplicateItem kopiert die Bonusliste mit, statt sie zu leeren', () => {
+    const ring = item({
+      name: 'Ring der Stärke',
+      bonusse: [{ kind: 'attr', code: 'KK', feld: '', wert: 1 }],
+    });
+    const copy = duplicateItem(ring);
+    expect(copy.bonusse).toEqual(ring.bonusse);
+    expect(copy.id).toBe(0);
+    expect(copy.uid).not.toBe(ring.uid);
   });
 });
 

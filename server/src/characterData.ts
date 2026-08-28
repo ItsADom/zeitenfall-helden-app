@@ -30,8 +30,10 @@ import {
   DYN_SLOTS_KEY,
   INVENTAR_KATEGORIEN,
   isPairedZone,
+  ITEM_BONUS_KINDS,
   ITEM_LOCATIONS,
   makeUid,
+  TALENT_BONUS_FELDER,
   listSectionById,
   readSlots,
   normalizeColumns,
@@ -54,10 +56,13 @@ import type {
   EnergyFormulaVars,
   ExternalAttrPoint,
   Item,
+  ItemBonus,
+  ItemBonusKind,
   ItemLocation,
   ResourceInput,
   Resources,
   SpecialResource,
+  TalentBonusFeld,
   VisibilitySection,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
@@ -854,6 +859,8 @@ const MAX_ITEMS = 2000;
 const MAX_ITEM_TEXT = 4000;
 const MAX_CATEGORIES = 200;
 const MAX_CATEGORY_LEN = 200;
+const MAX_BONUSSE_PRO_ITEM = 20;
+const MAX_BONUS_CODE = 64;
 
 const clampMin = (v: unknown, min = 0): number => {
   const n = Number(v);
@@ -886,6 +893,27 @@ export function loadItems(charId: number): Item[] {
     haltbarkeit_aktuell: number;
     notiz: string;
   }[];
+  // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
+  // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
+  // Bonus verlieren oder Items mit mehreren Boni vervielfachen.
+  const bonusRows = db
+    .prepare(
+      `SELECT ib.item_id, ib.kind, ib.code, ib.feld, ib.wert FROM char_item_bonuses ib
+       JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ? ORDER BY ib.pos, ib.id`,
+    )
+    .all(charId) as { item_id: number; kind: string; code: string; feld: string; wert: number }[];
+  const bonusesByItem = new Map<number, ItemBonus[]>();
+  for (const r of bonusRows) {
+    if (!(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
+    const list = bonusesByItem.get(r.item_id) ?? [];
+    list.push({
+      kind: r.kind as ItemBonusKind,
+      code: r.code,
+      feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+      wert: Number(r.wert) || 0,
+    });
+    bonusesByItem.set(r.item_id, list);
+  }
   return rows.map((r) => ({
     id: r.id,
     uid: r.uid || makeUid(),
@@ -906,6 +934,7 @@ export function loadItems(charId: number): Item[] {
     haltbarkeitMax: r.haltbarkeit_max,
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
     notiz: r.notiz,
+    bonusse: bonusesByItem.get(r.id) ?? [],
   }));
 }
 
@@ -931,6 +960,9 @@ export function saveItems(charId: number, raw: unknown): void {
       `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    const insBonus = db.prepare(
+      'INSERT INTO char_item_bonuses (item_id, pos, kind, code, feld, wert) VALUES (?, ?, ?, ?, ?, ?)',
+    );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
       const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
@@ -951,28 +983,48 @@ export function saveItems(charId: number, raw: unknown): void {
       const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
       const haltbarkeitMax = clampMin(o.haltbarkeitMax);
       const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
-      ins.run(
-        charId,
-        i,
-        uid,
-        String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
-        clampMin(o.anzahl),
-        clampMin(o.gewicht),
-        String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
-        loc,
-        zone,
-        beidseitig,
-        containerUid,
-        o.istBehaelter ? 1 : 0,
-        art,
-        clampMin(o.kapazitaet),
-        kapArt,
-        clampPct(o.gewichtsreduktion),
-        clampMin(o.rs),
-        haltbarkeitMax,
-        haltbarkeitAktuell,
-        String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+      const itemId = Number(
+        ins.run(
+          charId,
+          i,
+          uid,
+          String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
+          clampMin(o.anzahl),
+          clampMin(o.gewicht),
+          String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
+          loc,
+          zone,
+          beidseitig,
+          containerUid,
+          o.istBehaelter ? 1 : 0,
+          art,
+          clampMin(o.kapazitaet),
+          kapArt,
+          clampPct(o.gewichtsreduktion),
+          clampMin(o.rs),
+          haltbarkeitMax,
+          haltbarkeitAktuell,
+          String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+        ).lastInsertRowid,
       );
+      // Ungültige kind-Werte werden verworfen statt zu werfen (wie savePouches
+      // mit veralteten Katalog-Verweisen umgeht) — ein Bonus mit unbekanntem
+      // kind ist Datenmüll aus einem älteren/fremden Client, kein Grund, das
+      // ganze Speichern abzubrechen. Ein wert von 0 bleibt erhalten (keine
+      // Datenverlust-Regel) — der Spieler hat die Zeile bewusst angelegt, auch
+      // wenn noch kein Wert eingetragen ist.
+      const bonusRaw = Array.isArray(o.bonusse) ? (o.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
+      bonusRaw.forEach((b, bi) => {
+        const bo = (b ?? {}) as Record<string, unknown>;
+        const kindRaw = String(bo.kind ?? '');
+        if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) return;
+        const kind = kindRaw as ItemBonusKind;
+        const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(bo.feld)) ? String(bo.feld) : '';
+        const code = kind === 'psyche' || kind === 'traglast' ? '' : String(bo.code ?? '').slice(0, MAX_BONUS_CODE);
+        const wert = Number(bo.wert);
+        if (!Number.isFinite(wert)) return;
+        insBonus.run(itemId, bi, kind, code, feld, wert);
+      });
     });
   });
   tx();
