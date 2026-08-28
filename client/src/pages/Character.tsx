@@ -355,7 +355,7 @@ export default function CharacterPage() {
                   </Link>
                 : <Link
                     className="wiki-rotlink"
-                    to={`/wiki/neu?titel=${encodeURIComponent(info.name)}`}
+                    to={`/wiki/neu?titel=${encodeURIComponent(info.name)}&kategorie=${encodeURIComponent('Spielercharakter')}`}
                     title="Wiki-Seite anlegen"
                   >
                     Wiki

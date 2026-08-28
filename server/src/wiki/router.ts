@@ -75,7 +75,7 @@ wikiApi.post('/seiten', requireAuth, (req, res) => {
     return;
   }
   try {
-    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel);
+    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel, (req.body ?? {}).tags);
     res.json({ slug: seite.slug });
   } catch (err) {
     if (err instanceof WikiTitelVergeben) {

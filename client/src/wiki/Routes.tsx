@@ -30,6 +30,7 @@ function NeueSeite() {
       <NeueSeiteDialog
         open={offen}
         titelVorgabe={params.get('titel') ?? ''}
+        kategorieVorgabe={params.get('kategorie') ?? ''}
         onClose={() => {
           setOffen(false);
           navigate('/wiki');

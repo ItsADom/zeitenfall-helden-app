@@ -46,7 +46,8 @@ export const ladeVerweise = (slug: string) =>
     `/api/wiki/seiten/${encodeURIComponent(slug)}/verweise`,
   );
 
-export const legeSeiteAn = (titel: string) => apiPost<{ slug: string }>('/api/wiki/seiten', { titel });
+export const legeSeiteAn = (titel: string, tags?: string) =>
+  apiPost<{ slug: string }>('/api/wiki/seiten', { titel, tags });
 
 export interface SpeichernEingabe {
   titel: string;
