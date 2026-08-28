@@ -205,7 +205,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Freie Würfe im Chat („/r") verstehen jetzt echte Rechnung mit Klammern und Vorrang („2*(1w6+3)"), nicht mehr nur Addition/Subtraktion.',
       'Ein vorangestelltes „Nx" wiederholt einen Wurf N-mal auf einmal, als eine gemeinsame Karte mit Gesamtsumme (oder Erfolgsquote bei einer Probe) — sowohl bei freien Ausdrücken („3x2w6+8") als auch bei einer benannten Probe („2xAthletik").',
       'Hast du gerade einen Charakter ausgewählt, lösen sich Attribut-Kürzel wie „MU" in einem freien Wurf jetzt gegen dessen Werte auf.',
-      'Der Charakterbogen zeigt jetzt neben Spieler/Gruppe einen Link zur Wiki-Seite des Charakters — gibt es noch keine, legt der Link sie direkt an.',
+      'Der Charakterbogen zeigt jetzt neben Spieler/Gruppe einen Link zur Wiki-Seite des Charakters — gibt es noch keine, legt der Link sie direkt an, schon mit der Kategorie „Spielercharakter" versehen.',
     ],
   },
   {
