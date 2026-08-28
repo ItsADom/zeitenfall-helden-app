@@ -1,11 +1,12 @@
 # Item edit dialog + "Bonus while worn" — build plan
 
-Approved build plan from a planning session (2026-08-21). Not yet implemented —
-see `TODO.md`'s Mid-Prio entry "Editing dialogs for items/weapons/abilities,
-with item bonuses while worn", which stays the source of truth for readiness
-tag and status until this lands. Kept as a separate file because the plan is
-long enough (data model, compute plumbing across 7 call sites, UI layer,
-sequencing, verification) that it doesn't fit inline in `TODO.md`.
+Approved build plan from a planning session (2026-08-21), revised 2026-08-28
+against the current tree. Not yet implemented — see `TODO.md`'s Mid-Prio entry
+"Editing dialogs for items/weapons/abilities, with item bonuses while worn",
+which stays the source of truth for readiness tag and status until this lands.
+Kept as a separate file because the plan is long enough (a general calculation
+rule, data model, compute plumbing across ~10 call sites, UI layer, sequencing,
+verification) that it doesn't fit inline in `TODO.md`.
 
 ---
 
@@ -16,7 +17,7 @@ Player feedback asked for two things that turned out to be one initiative:
 1. **Item bonuses while carried** — a worn item (a ring, an amulet, a masterwork
    tool) should actually raise the stat it buffs, instead of the player doing the
    arithmetic by hand. No equip-effect mechanism exists anywhere today; the one
-   precedent, `effektiverRs()` (`shared/src/items.ts:168`), is hardcoded to pull
+   precedent, `effektiverRs()` (`shared/src/items.ts:206`), is hardcoded to pull
    only `rs` from worn items.
 2. **Leave inline table editing behind for items** — an item can carry *several*
    bonuses, and a repeatable list of target+amount rows does not fit the chip /
@@ -27,53 +28,121 @@ Player feedback asked for two things that turned out to be one initiative:
 (`WaffenNeu.tsx`) and abilities (`AbilityManager.tsx`) is tracked in the same
 TODO entry and gets its own plan once the pattern is proven here.
 
-Decisions already taken (recorded in `TODO.md`, Mid-Prio):
+Decisions already taken:
 
 - Bonuses apply **only while `location === 'getragen'`**, matching `effektiverRs()`.
 - **Structured** target + amount, not free-form text.
 - **Multiple bonuses per item** — hence the dialog.
-- Targets cover **attributes, TaW/AT/PA/BL, base values, resources**.
+- Targets cover **attributes, TaW/AT/PA/BL, base values, resources, special
+  energies, Psyche and Traglast** (the last three added 2026-08-28).
 - Same-target bonuses from several worn items **sum** (no max-only cap like `rs`).
 - Grouped `<select><optgroup>` picker — no new combobox component.
-- **Hybrid editing**: Anzahl / Haltbarkeit-aktuell / delete / drag stay inline;
-  structural fields plus the bonus list move into a dialog.
+- **Hybrid editing**: Anzahl / Haltbarkeit-aktuell / duplicate / delete / drag
+  stay inline; structural fields plus the bonus list move into a dialog.
 - Effective values render with a **marker + tooltip naming the contributing items**.
 - Bonuses **flow into dice rolls**, not just the displayed number.
+- **A resource bonus raises the maximum, never `aktuell`** (2026-08-28).
+
+### Already done since the first draft — do not re-do
+
+- **The `diceSource` mod fix** (originally section 0 of this plan) landed as
+  `a7326c6` on 2026-08-21. `diceSource.ts` now resolves everything from
+  `computeBaseValues(...).ergebnis` (`:99`, `:192`, `:205`), the same numbers the
+  sheet shows. No prerequisite commit, no changelog line for it.
+- **The `.dialog-body` scroll caveat** is fixed: `.dialog-body`
+  (`styles.css:3404`) has `overflow-y: auto` + `min-height: 0` and
+  `.dialog-panel` has `max-height: 100%`. A `.dialog-panel--wide` (760px) opt-in
+  now exists too, and is probably what the bonus editor wants.
+- **"Create equipment directly in the Ausrüstung tab"** landed as `8b520d4`.
+  `AddItemDialog` is already mounted at `Ausruestung.tsx:263` behind
+  `addItemOpen` — the edit-mode mount has a local pattern to copy.
 
 ---
 
-## 0. Prerequisite fix (own commit, before anything else)
+## 1. The general rule: always calculate with full values
 
-The client computes weapon probes from `computeBaseValues(...).ergebnis` (base
-**+ mod**, `WaffenNeu.tsx:61-62`), while the server rolls from
-`computeBaseValueBases()` **raw, without mods** (`diceSource.ts:133`). A
-character with any Mod. on AT/PA/BL/FK already sees one number on the sheet and
-rolls another.
+**Every calculation reads the complete, bonus-inclusive value unless the rule
+being implemented explicitly says otherwise.** This is a standing rule for the
+whole app, not a detail of this feature. It exists because the feature exposed
+two bugs that predate it and share one cause — a code path that pulled a raw
+stored number where the sheet shows a derived one:
 
-Fix `diceSource.ts` to use `computeBaseValues` and read `.ergebnis`. This is
-unrelated to item boni and predates this work, but the two paths must agree
-before boni are layered on either.
+- `diceSource.ts` rolled weapon probes off the raw base value while the sheet
+  displayed base + mod (fixed in `a7326c6`).
+- `board.ts:653 characterCombatStats` still computes the VTT initiative basis
+  and Todesschwelle from un-bonused inputs; `overviewForChars`
+  (`characterData.ts:1952`) still reports `sr.max` for special energies — the
+  stored snapshot that `SpecialResource`'s own doc comment says is *not* the
+  source of truth once the catalog entry carries a formula.
 
-**This changes roll results** for characters with a non-zero Mod., so it needs a
-`fixed` changelog line of its own.
+Both are wrong today, before a single item bonus exists. Adding boni on top of
+scattered raw reads would multiply that class of bug across every new target, so
+**this plan closes the pattern rather than adding to it.** Concretely:
+
+### Server: one loader, and raw reads that say they are raw
+
+Add to `characterData.ts`:
+
+```ts
+export interface CharStats {
+  attrs: Attributes;              // mit Boni
+  baseInputs: BaseValueInputs;    // mods mit Boni
+  resources: Resources;           // maxPlus/permanent mit Boni
+  special: SpecialResource[];     // bonus mit Boni
+  talente: CharTalent[];          // taw/at/pa/bl mit Boni
+  psycheBonus: number;            // gespeichert + Item
+  traglastBonus: number;          // gespeichert + Item
+  boni: StatBoni;                 // nur für Herkunft/Tooltips
+}
+export function loadStats(charId: number): CharStats;
+```
+
+Then **rename the raw loaders** — `loadAttributes` → `loadAttributesRaw`,
+`loadBaseValueInputs` → `loadBaseValueInputsRaw`, `loadResources` →
+`loadResourcesRaw`. TypeScript then points at every existing caller and each one
+gets consciously classified: a save/edit path keeps the raw loader, a
+calculation path moves to `loadStats`. That is the type-level safety net this
+plan used to get for free from a required `Item` field (see section 2, it no
+longer does), and it is what stops the *next* `board.ts` from happening.
+
+### Client: one derived object on the context, `data` stays raw
+
+`CharCtx` (`Character.tsx:152`) gains a memoized `stats` alongside `data`, built
+once from `data.items`. Reads go through `stats`; **editing keeps binding to
+`data`** — layered for display, never written back, the same non-destructive
+contract `attrMax` already has with `akt`/`mod`. Every consumer then destructures
+`const { data, stats } = useChar()` instead of computing its own.
+
+### Bonus fields are additive, never overwritten
+
+`psycheBonus`, `traglastBonus` and `SpecialResource.bonus` are **player-editable
+stored fields**. Item boni are added on top when reading; a write into any of
+them would destroy what the player typed. Same rule as `attrs.mod`.
 
 ---
 
-## 1. Data model
+## 2. Data model
 
 ### `ItemBonus` (new, `shared/src/items.ts`)
 
-Four key-spaces with no shared type today, so a discriminated union rather than
+Seven key-spaces with no shared type today, so a discriminated union rather than
 one flat string enum:
 
 ```ts
-export type ItemBonusKind = 'attr' | 'baseValue' | 'resource' | 'talent';
-export const ITEM_BONUS_KINDS = ['attr', 'baseValue', 'resource', 'talent'] as const;
+export type ItemBonusKind =
+  | 'attr'       // code = AttrCode
+  | 'baseValue'  // code = BaseValueKey
+  | 'resource'   // code = ResourceKey (le | aus | ase)
+  | 'talent'     // code = talentId, feld = taw | at | pa | bl
+  | 'spezial'    // code = special_energies_catalog.id
+  | 'psyche'     // code = '' (Einzelwert)
+  | 'traglast';  // code = '' (Einzelwert, kg)
+export const ITEM_BONUS_KINDS = [...] as const;
 export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl';
 
 export interface ItemBonus {
   kind: ItemBonusKind;
-  code: string;               // AttrCode | BaseValueKey | ResourceKey | talentId
+  code: string;               // je nach kind, leer bei psyche/traglast
   feld: TalentBonusFeld | ''; // nur bei kind === 'talent'
   wert: number;               // darf negativ sein (verfluchte Gegenstände)
 }
@@ -82,13 +151,42 @@ export interface ItemBonus {
 `Item` gains one field: `bonusse: ItemBonus[]`. Negative values are allowed
 deliberately — a cursed item is the same mechanism.
 
+**Where each target lands** (all additive, all on top of the stored value):
+
+| kind | Fold into | Note |
+|---|---|---|
+| `attr` | `attrs[code].mod` | every formula reads through `attrMax`, so it ripples |
+| `baseValue` | `baseInputs.mods[code]` | covers all 12 keys incl. `ini`, `todesschwelle`, `gs` |
+| `resource` | `permanent` (+ `maxPlus`, see below) | never `aktuell` |
+| `talent` | the talent row's `taw`/`at`/`pa`/`bl` | display-only copy, stored value untouched |
+| `spezial` | `SpecialResource.bonus` | **only meaningful when the catalog entry has a formula** — see caveat |
+| `psyche` | the `bonus` argument of `psycheMax(attrs, base, bonus)` | |
+| `traglast` | the `bonus` argument of `lastInfo(items, attrs, bonus)` | kg; `lastInfo` already receives `items` |
+
+**Special-energy caveat.** `SpecialResource.bonus` is only used when the catalog
+entry carries a formula; without one, `max` is free-edited by the player and
+`bonus` is unused (`types.ts:130-155`). So the `spezial` optgroup must offer
+**only catalog entries that have a formula** — a bonus on a formula-less energy
+would silently do nothing. The `SpecialResource.bonus` doc comment already
+anticipates exactly this feature ("ein Talent/Gegenstand, der NUR diese eine
+Energie anhebt"), so the slot is the intended one.
+
+**Resource bonuses raise the maximum only.** A `+2 LE` ring raises what the
+player can fill up to; it never heals 2 points into `aktuell`. Today
+`computeResource` derives `ergebnis = vor + raceBase + permanent + kauf` (the
+actual pool) and `max = … + kaufMax + maxPlus` (the Ausbaugrenze), with
+`nutzbar = min(ergebnis, max)`. **The bonus belongs in `permanent`** — the pool
+side, which is the side that survives. While the Ausbaugrenze still exists the
+same value must also go into `maxPlus`, or the cap eats the bonus; that second
+write is **temporary scaffolding, to be deleted together with the hard caps**
+(planned) and needs a comment saying so. Do not build the feature around the cap.
+
 ### Storage: new child table
 
-Follow the `char_pouches` → `char_pouch_coins` precedent (`db.ts:286-300`,
-`characterData.ts:925-999`), **not** the JSON-in-TEXT shape of
-`char_abilities.kategorien` — whose cost is visible at
-`characterData.ts:1199-1217`, where a rename must load, parse, rewrite and
-re-stringify every row.
+Follow the `char_pouches` → `char_pouch_coins` precedent (`db.ts:324`,
+`characterData.ts:935-999`), **not** the JSON-in-TEXT shape of
+`char_abilities.kategorien` — whose cost is visible where a rename must load,
+parse, rewrite and re-stringify every row.
 
 New table in the big `db.exec` block of `server/src/db.ts`. A new table is free:
 `CREATE TABLE IF NOT EXISTS`, no `user_version` bump, no `ALTER TABLE`, and no
@@ -107,6 +205,7 @@ CREATE TABLE IF NOT EXISTS char_item_bonuses (
 CREATE INDEX IF NOT EXISTS idx_item_bonuses_item ON char_item_bonuses(item_id);
 ```
 
+`db.pragma('foreign_keys = ON')` (`db.ts:13`) is confirmed, so the cascade fires.
 Keyed on `char_items.id` (fresh `lastInsertRowid`), exactly like
 `char_pouch_coins` keys on the pouch rowid — **not** on `uid`. `saveItems`
 already DELETE-all-then-reinserts in one transaction, so children die by
@@ -114,120 +213,130 @@ already DELETE-all-then-reinserts in one transaction, so children die by
 
 ### Load / save — `server/src/characterData.ts`
 
-- `loadItems` (`:782-829`): second query for all bonus rows of the character's
-  items, grouped into a `Map<number, ItemBonus[]>` in JS — same two-query-then-
-  group shape as `loadPouches` (`:925-949`). Validate `kind` against
-  `ITEM_BONUS_KINDS` and coerce `wert` via `Number()`, mirroring how `loadItems`
-  already re-validates `ITEM_LOCATIONS` / `CONTAINER_ARTEN` / `KAPAZITAET_ARTEN`.
-- `saveItems` (`:842-898`): capture `Number(ins.run(...).lastInsertRowid)` and
-  insert bonus rows with `pos = index`, following `savePouches` (`:966-983`).
-  Add `MAX_BONUSSE_PRO_ITEM` (~20) next to the existing `MAX_ITEMS` /
-  `MAX_ITEM_TEXT` caps (`:772-773`); drop rows failing validation rather than
-  throwing, matching how `savePouches` skips stale FK targets (`:962-963`).
-- **No route change** — `PUT /api/characters/:id/items` (`routes.ts:867`) already
-  ships the whole array, and `update('items', …)` (`Character.tsx:343`, flushed
-  at `:303`) already sends everything.
+- `loadItems` (`:792`): second query for all bonus rows of the character's items,
+  grouped into a `Map<number, ItemBonus[]>` in JS — same two-query-then-group
+  shape as `loadPouches` (`:935`). Validate `kind` against `ITEM_BONUS_KINDS` and
+  coerce `wert` via `Number()`, mirroring how `loadItems` already re-validates
+  `ITEM_LOCATIONS` / `CONTAINER_ARTEN` / `KAPAZITAET_ARTEN`.
+- `saveItems` (`:852`): capture `Number(ins.run(...).lastInsertRowid)` and insert
+  bonus rows with `pos = index`, following `savePouches` (`:966`). Add
+  `MAX_BONUSSE_PRO_ITEM` (~20) next to the existing `MAX_ITEMS` / `MAX_ITEM_TEXT`
+  caps (`:782-783`); drop rows failing validation rather than throwing, matching
+  how `savePouches` skips stale FK targets.
+- **No route change** — `PUT /api/characters/:id/items` already ships the whole
+  array, and `update('items', …)` already sends everything.
 
 ### Type-completeness touch points
 
-`Item` is constructed literally in several places; a required new field makes
-TypeScript point at each. That is the safety net — each gets `bonusse: []`:
-`client/src/tabs/Inventar.tsx:59-63` (`newItem`), both commit paths in
-`client/src/components/itemDialogs.tsx`, `server/src/characterData.ts:534` and
-`:593` (migration constructors), `shared/test/items.test.ts:40-55` (fixture).
+`makeItem()` (`shared/src/items.ts:120`) now centralizes construction, so a
+required new field **no longer** makes TypeScript point at every literal — it
+points at four places: `makeItem` itself, `characterData.ts:544` and `:603`
+(migration constructors), `itemDialogs.tsx:63`, and the `item()` fixture at
+`shared/test/items.test.ts:53`. Each gets `bonusse: []`. The real safety net for
+this feature is the loader rename in section 1, not the `Item` field.
+
+`duplicateItem()` (`items.ts:133`) spreads, so a duplicate carries its bonuses.
+That is correct behaviour — assert it in a test so nobody "fixes" it.
 
 ---
 
-## 2. Compute plumbing
+## 3. Compute plumbing
 
 ### The core trick: derive, don't re-plumb
 
 `rules.ts` needs **no signature changes at all**. Every formula already reads
-attributes through one choke point, and base values already carry a per-key mod
-record:
+attributes through one choke point (`attrMax`, `rules.ts:16`), base values
+already carry a per-key mod record, and Psyche / Traglast / special energies each
+already take an additive `bonus` argument. So each call site swaps its *inputs*
+for a derived copy with boni folded into the existing slots.
+
+Pure functions in `shared/src/items.ts`, next to `effektiverRs()`:
 
 ```ts
-export function attrMax(attrs: Attributes, code: AttrCode | 'SO'): number {
-  const a = attrs[code];
-  return (a?.akt ?? 0) + (a?.mod ?? 0);
-}
-```
-
-So each call site swaps its *inputs* for a derived copy with boni folded into the
-existing `mod` / `mods` slots. Five pure functions in `shared/src/items.ts`, next
-to `effektiverRs()`:
-
-```ts
-export interface WornBoni {
+export interface StatBoni {
   attrs:      Partial<Record<AttrCode, number>>;
   baseValues: Partial<Record<BaseValueKey, number>>;
   resources:  Partial<Record<ResourceKey, number>>;
+  spezial:    Record<number, number>;   // catalog_id -> Summe
+  psyche:     number;
+  traglast:   number;
   talente:    Record<number, Partial<Record<TalentBonusFeld, number>>>;
-  quellen:    Record<string, string[]>;   // Zielschlüssel -> Item-Namen (Tooltip)
+  quellen:    Record<string, string[]>; // Zielschlüssel -> Item-Namen (Tooltip)
 }
 
-export function wornBoni(items: readonly Item[]): WornBoni;
-export function attrsMitBoni(attrs: Attributes, b: WornBoni): Attributes;
-export function baseInputsMitBoni(inputs: BaseValueInputs, b: WornBoni): BaseValueInputs;
-export function resourceInputMitBoni(input: ResourceInput, key: ResourceKey, b: WornBoni): ResourceInput;
-export function talentMitBoni(talent: CharTalent, b: WornBoni): CharTalent;
+export function wornBoni(items: readonly Item[]): StatBoni;
+export function attrsMitBoni(attrs: Attributes, b: StatBoni): Attributes;
+export function baseInputsMitBoni(inputs: BaseValueInputs, b: StatBoni): BaseValueInputs;
+export function resourceInputMitBoni(input: ResourceInput, key: ResourceKey, b: StatBoni): ResourceInput;
+export function specialMitBoni(sr: SpecialResource, b: StatBoni): SpecialResource;
+export function talentMitBoni(talent: CharTalent, b: StatBoni): CharTalent;
 ```
 
 `wornBoni` filters to `location === 'getragen'` and **sums** same-target rows,
 collecting `quellen` in the same pass so the tooltip needs no second walk. All
 pure, all taking `readonly Item[]`, matching the module's existing style.
 
-**Resource boni need both slots.** `computeResource` derives
-`ergebnis = vor + permanent + kauf` and `max = … + kaufMax + maxPlus`, with
-`nutzbar = min(ergebnis, max)`. To actually raise what a player can use, a `+N`
-resource bonus must go into **both `permanent` and `maxPlus`** — adding to only
-one leaves `nutzbar` pinned by the other. This is the one non-obvious line in the
-feature and needs a comment.
+**The type is deliberately named `StatBoni`, not `WornBoni`, and the accumulator
+is deliberately separate from the item-only producer.** `docs/concepts/perk-trees.md`
+(lines 72-88) plans to reuse this exact target union — "the only difference is
+the condition" — so `wornBoni(items)` is one producer of a `StatBoni`, and a
+future `perkBoni(perks)` is another, merged by a `mergeBoni()`. Renaming across
+~10 call sites later is the thing being avoided; the shape costs nothing now.
+Perks additionally want `talent-kat` (a whole category) and `talent-frei` (a
+stored allocation), which this plan does **not** build — they extend the union
+when perks get built.
 
-### Client — 3 sites, no new data loading
+### Client — the context does it once
 
-All three already read the same `data` object from one shared `CharCtx`
-(`Character.tsx:152`), with `data.items` already alongside `attributes` /
-`baseValues` / `resources` (`:62`). Each adds `items` to its destructure and
-computes `const b = wornBoni(items)` once:
+`Character.tsx`'s `CharCtx` computes `stats` (section 1) from `data.items` and
+exposes it. Consumers then read `stats` instead of recomputing:
 
-- `client/src/tabs/Heldenbrief.tsx:97` — add `items`; `:123` and `:349` swap in
-  `attrsMitBoni` / `baseInputsMitBoni` / `resourceInputMitBoni`.
-- `client/src/components/CharacterSidebar.tsx:124` — same swap in `SidebarPools`.
-- `client/src/tabs/WaffenNeu.tsx:60` — derived attrs/inputs, plus `talentMitBoni`
+- `client/src/tabs/Heldenbrief.tsx` — five spots, not two: `:168` (`bv`),
+  `:231-236` (`energyFormulaVars`, three `computeResource` calls plus
+  `psycheMax`), `:433` (resource table), `:487` (Psyche row), `:587`
+  (`evaluateEnergyFormula` for special energies).
+- `client/src/components/CharacterSidebar.tsx:135` (`SidebarPools`) — resources
+  at `:153` and `psycheMax` at `:139`.
+- `client/src/tabs/WaffenNeu.tsx:62` — derived attrs/inputs, plus `talentMitBoni`
   on the talent looked up in `probesFor` / `fkProbeFor`.
+- `client/src/tabs/Zauber.tsx:52` — `psycheMax`.
+- `client/src/tabs/Ausruestung.tsx:144` — `lastInfo(items, attrs, traglastBonus)`
+  gains the item traglast bonus. It already receives `items`, so it can fold its
+  own boni internally; do it there so every caller gets it.
+- `client/src/tabs/Talente.tsx` — shows effective values through `talentMitBoni`
+  while **the input still binds to the stored raw value**.
 
-Talent display (`Talente.tsx`) shows effective values through `talentMitBoni`
-while **the input still binds to the stored raw value** — layered for display,
-never written back, the same non-destructive contract `attrMax` has with
-`akt`/`mod`.
+`client/src/tabs/Waffen.tsx:11` also calls `computeBaseValues` but nothing
+imports the file — confirm it is dead and delete it rather than wiring it.
 
-### Server — 4 genuinely separate sites
+### Server — six sites, all through `loadStats`
 
-No shared assembler; each is its own purpose-built path. The fix at each is the
-same two lines (`loadItems(charId)` + derived inputs). `loadItems` is exported
-from `characterData.ts:782`, so three of the four need no import.
+Once section 1's `loadStats` exists, each site is a one-line swap. Sites that
+must be migrated:
 
 | Site | File | What changes |
 |---|---|---|
-| `saveSection`, `resources` branch | `characterData.ts:1518-1552` | Clamp `aktuell` against the **bonus-aware** `nutzbar` |
-| `buildSummary` | `characterData.ts:1735-1818` | Derived inputs for attribute / basiswerte / ressourcen / talente / waffen |
-| `overviewForChars` | `characterData.ts:1850-1927` | Derived inputs inside the per-character loop (one more `loadItems` per iteration, same shape as the existing per-character queries) |
-| `computeProbeForCharacter` | `diceSource.ts:68-148` | Add `loadItems` to the existing `characterData.js` import (no cycle — `characterData` does not import `diceSource`), derive attrs/base inputs, apply `talentMitBoni` to the `char_talents` row |
+| `saveSection`, `resources` branch | `characterData.ts:1571-1600` | Clamp `aktuell` against the **bonus-aware** `nutzbar` |
+| `buildSummary` | `characterData.ts:1802` | Derived inputs for attribute / basiswerte / ressourcen / spezial / psyche / talente / waffen |
+| `overviewForChars` | `characterData.ts:1915` | Derived inputs in the per-character loop. **Also fix the pre-existing bug at `:1952`**: it reports `sr.max`, the stored snapshot, instead of the live formula maximum |
+| `computeProbeForCharacter` | `diceSource.ts:120-215` | Six branches now (attribute / talent / ability / sprache / weapon / baseValue), not two lines. The `ability` branch carries a weapon term |
+| `characterCombatStats` | `board.ts:653` | **Currently wrong** — VTT initiative basis and Todesschwelle are un-bonused. `lp` reads `resources.le.aktuell`, a *current* value, which boni correctly do not touch |
+| `chatAttrResolver` | `ws.ts:621` | Typing `MU` in a free `/r` roll resolves via `attrMax` on raw attrs. Boni apply, same as a talent probe — otherwise the two disagree |
 
-**The `saveSection` clamp is not optional.** If boni raise a resource's max and
-the clamp doesn't know, a player wearing a bonus item has `aktuell` silently
-written down to the un-bonused ceiling on the next save — data-loss-shaped, not a
-display glitch.
+**The `saveSection` clamp is not optional.** If boni raise a resource's maximum
+and the clamp doesn't know, a player wearing a bonus item can never save
+`aktuell` above the un-bonused ceiling — data-loss-shaped, not a display glitch.
+(The reverse direction, `aktuell` dropping when the item comes off, is correct
+game behaviour: the buffer is gone.) This clamp goes away with the hard caps.
 
 Wiring `computeProbeForCharacter` also fixes the GM's "Probe anfordern" list for
-free, since `listRollableProbes` (`diceSource.ts:165+`) reuses it.
+free, since `listRollableProbes` (`diceSource.ts:230+`) reuses it.
 
 ---
 
-## 3. UI layer
+## 4. UI layer
 
-### 3a. Dialog gains edit mode — `client/src/components/itemDialogs.tsx`
+### 4a. Dialog gains edit mode — `client/src/components/itemDialogs.tsx`
 
 `AddItemDialog` takes an optional `item?: Item`; when set, it is the edit case.
 
@@ -244,13 +353,13 @@ Seeding on `open` (rather than replacing `reset()`) is required because
 `AddItemDialog` itself stays mounted.
 
 **A separate `commitEdit()` — do not reuse `commit()`.** Three lines in the
-existing `commit()` (`:50-72`) are harmless when creating and destructive when
+existing `commit()` (`:61-70`) are harmless when creating and destructive when
 patching:
 
 - `haltbarkeit` is one field writing **both** `haltbarkeitMax` and
   `haltbarkeitAktuell` — editing a sword at 40/100 would reset it to 100/100.
   Edit mode needs the two-field treatment `ItemChip` already uses
-  (`Ausruestung.tsx:292-309`).
+  (`Ausruestung.tsx:331-347`).
 - `containerArt: 'quick'` and `kapazitaetArt: 'stueck'` are written
   **unconditionally** — patching a storage backpack would convert it.
 - `istBehaelter: ausr && quickslots > 0` would clear the flag on a storage
@@ -260,86 +369,110 @@ patching:
 edits. Fields the dialog never shows (`location`, `zone`, `beidseitig`,
 `containerUid`, `uid`, `id`) survive because `patchItem` merges (`{...it, ...patch}`).
 
-Title and primary-button copy swap on mode (currently hard-coded at `:78` / `:86`).
+Title and primary-button copy swap on mode (currently hard-coded).
 
 **Bonus rows editor.** A new block wrapped in `.dlg-fade-group` +
 `.dlg-group-label` (the existing device for an optional extra field group,
-`styles.css:3295-3307`), built on the `.cat-editor` / `.cat-row` pattern from
-`client/src/pages/Einstellungen.tsx:500-527` — div-based, raw `<input>`,
+`styles.css:3512-3520`), built on the `.cat-editor` / `.cat-row` pattern from
+`client/src/pages/Einstellungen.tsx:572-600` — div-based, raw `<input>`,
 `ConfirmDeleteButton` per row, capped add button. That is the closest existing
 match to "add row / remove row / two fields per row" and its CSS is three rules
-(`styles.css:3328-3341`).
+(`styles.css:3557-3570`).
 
 Per row: one grouped `<select>` whose value encodes kind and code together
-(`attr:MU`, `baseValue:at`, `resource:le`, `talent:42`) under four `<optgroup>`s
-(Attribut / Basiswert / Energie / Talent), then a `feld` `<select>` shown **only**
-when kind is `talent`, then a number input, then delete. Talent options come from
-`catalogs.talents`, so the dialog needs that passed in.
+(`attr:MU`, `baseValue:at`, `resource:le`, `talent:42`, `spezial:7`, `psyche:`,
+`traglast:`) under six `<optgroup>`s (Attribut / Basiswert / Energie /
+Spezialenergie / Talent / Sonstiges), then a `feld` `<select>` shown **only** when
+kind is `talent`, then a number input, then delete. Talent options come from
+`catalogs.talents` and special-energy options from `catalogs.specialEnergies`
+**filtered to entries with a formula** (see section 2), so the dialog needs both
+passed in.
 
-**CSS caveat:** `.dialog-panel` is `max-width: 420px` and `.dialog-body` has **no
-`max-height` / `overflow-y`** (`styles.css:3149-3203`) — an unbounded list would
-grow the panel off-screen. Add `max-height` + `overflow-y: auto` to
-`.dialog-body`, and scope `.cat-row input { width: 18em }` down for the dialog.
+The bonus row is wide; consider `Dialog`'s existing `wide` prop
+(`.dialog-panel--wide`, 760px) rather than fighting the 420px default. Scope
+`.cat-row input { width: 18em }` down for the dialog either way.
 
-### 3b. Ausrüstung — `client/src/tabs/Ausruestung.tsx`
+### 4b. Ausrüstung — `client/src/tabs/Ausruestung.tsx`
 
-- **Shrink `.chip-editor`** (`:286-349`) to the high-frequency fields only:
-  Anzahl and Haltbarkeit-aktuell. Everything else (Name, RS, Haltbarkeit-max,
-  Beidseitig, container fields, Notiz) moves to the dialog.
+- **Shrink `.chip-editor`** (`:327-383`) to the high-frequency fields only:
+  Anzahl and Haltbarkeit-aktuell, plus the existing duplicate and delete buttons.
+  Everything else (Name, kg/St., RS, Haltbarkeit-max, Behälter-Felder, Notiz)
+  moves to the dialog.
   **Caution:** `.chip-editor` is deliberately shared with `WaffenNeu.tsx`'s weapon
-  cards (`styles.css:5027, 5133-5182`) — change the JSX here, not the shared CSS.
-- **Add a second `.chip-btn`** next to the existing one (`:280-284`), gated the
-  same `{!ro && …}` way using the `ro` prop already threaded in at `:39`. No new
+  cards — change the JSX here, not the shared CSS.
+- **Add a second `.chip-btn`** next to the existing one (`:320-324`), gated the
+  same `{!ro && …}` way using the `ro` prop already threaded in at `:276`. No new
   CSS — `.chip-btn` already covers it.
-- **State** `const [editUid, setEditUid] = useState<string | null>(null)`,
-  the same "which target is the dialog open for" shape as `Inventar.tsx`'s
-  `addItemFor` (`:44`). Mount the dialog with
+- **State** `const [editUid, setEditUid] = useState<string | null>(null)`, the
+  same shape as the `addItemOpen` state already at `:49`. Mount a second
+  `AddItemDialog` (or reuse the one at `:263` with an `item` prop) with
   `open={editUid !== null}` and `onSubmit={(patch) => patchItem(editUid!, patch)}`.
 - **Bonus marker on the chip**: a `.chip-bonus` span (styled like the existing
-  `.chip-rs`) shown when `item.bonusse.length > 0`, with the list in its `title`.
+  `.chip-rs` at `styles.css:3116`) shown when `item.bonusse.length > 0`, with the
+  list in its `title`.
 
-### 3c. Inventar — `client/src/tabs/Inventar.tsx`
+### 4c. Inventar — `client/src/tabs/Inventar.tsx`
 
 Same dialog, reachable from here too, so a ring's bonus can be set before it is
 ever worn. Add a per-row "Bearbeiten" button; this means **bumping `cols`**
-(`:130`, currently `ro ? 6 : 7`) and adding a matching `<col>` to the `colgroup`
-(`:119-129`) — every `colSpan` in the file derives from `cols`.
+(`:129`, currently `ro ? 6 : 7`) and adding a matching `<col>` to the `colgroup`
+(`:118-127`) — every `colSpan` in the file derives from `cols`.
 
-### 3d. Showing that a value is item-derived
+### 4d. Showing that a value is item-derived
 
 A small shared component (e.g. `client/src/components/BonusWert.tsx`) rendering
 the effective number plus a marker span carrying `title={quellen.join(', ')}`,
-used by Heldenbrief's attribute / basiswerte / resource tables, the Talente
-tables, and `SidebarPools`. One new `.bonus-mark` CSS rule, tinted with
-`var(--accent)` like `.chip-rs`.
+used by Heldenbrief's attribute / basiswerte / resource / Psyche /
+Spezialenergie tables, the Talente tables, the Traglast readout, and
+`SidebarPools`. One new `.bonus-mark` CSS rule, tinted with `var(--accent)` like
+`.chip-rs`. It sits next to the existing `MaximumWert.tsx`, which already does
+the "show a derived number with an explanatory title" job for the Ausbaugrenze.
 
 ---
 
-## 4. Sequencing
+## 5. Sequencing
 
 One coherent change per commit (functional work, so it commits as it lands —
 `CLAUDE.md`):
 
-1. `diceSource.ts` mod fix (section 0) — standalone, own changelog `fixed` line.
+1. **`loadStats` + the raw-loader rename** (section 1), migrating the existing
+   server sites to it. Fixes `board.ts` and `overviewForChars`' special-energy max
+   on its own, before any bonus exists — own commit, own `fixed` changelog lines.
 2. `ItemBonus` type, `char_item_bonuses` table, load/save, type touch points.
-3. `wornBoni` + the four derive helpers + unit tests — pure, no callers yet.
+3. `StatBoni` + `wornBoni` + the derive helpers + unit tests — pure, no callers yet.
 4. Dialog edit mode + bonus rows editor.
 5. Ausrüstung + Inventar wiring (chip-editor shrink, Bearbeiten buttons, marker).
-6. Client compute wiring (3 sites) + `BonusWert` display.
-7. Server compute wiring (4 sites).
+6. Client `stats` on `CharCtx` + `BonusWert` display.
+7. Server bonus wiring (feed `wornBoni` into `loadStats`).
 8. Docs: `TODO.md` prune + changelog.
 
+Step 1 is worth doing even if the rest slips — it is a bug fix, not scaffolding.
 Steps 3 and 4 are independent and can land in either order.
 
-**Adjacent, deliberately not included:** the separate `[ready]` TODO item
-"Create equipment directly in the Ausrüstung tab" becomes nearly free once the
-dialog is mounted there in step 5 (one `!ro`-gated "+ Gegenstand" button seeding
-`location: 'bench'`). Worth doing right after, but it is its own entry and its
-own commit.
+### Interaction with other planned work
+
+- **Group ↔ player inventory** (`TODO.md`, Mid-Prio). That entry replaces
+  `char_items.character_id` with an `owner_type`/`owner_id` pair. SQLite cannot
+  alter a foreign key in place — that is a full table rebuild, and with
+  `foreign_keys = ON` dropping `char_items` cascades every `char_item_bonuses`
+  row away. Either land the owner generalization **first**, or write its
+  migration to carry the children across (`db.ts:791` already does the
+  `foreign_keys = OFF` dance for another migration). Second, that entry wants a
+  per-item cross-owner transfer primitive to replace the whole-array reinsert
+  this plan's insert path leans on — a transfer that moves a row without its
+  bonus rows is a data-loss bug. Rules-wise there is no conflict: an owner change
+  resets `location` to `inventar`, and boni only fire at `getragen`, so a
+  group-owned item grants nobody anything.
+- **Perk trees** (`docs/concepts/perk-trees.md`) — reuses this target union
+  wholesale; see the `StatBoni` naming note in section 3.
+- **Hard caps going away** — removes the `maxPlus` half of the resource write and
+  the `saveSection` clamp (sections 2 and 3). Both are marked in-code as temporary.
+- **Containers: bench-exclusion cascade** (`TODO.md`) touches `zaehltZurLast` /
+  `itemLastAnteil` in the same file but a different function — no conflict.
 
 ---
 
-## 5. Verification
+## 6. Verification
 
 **Automated**
 
@@ -351,11 +484,13 @@ npm test
 npx tsc --noEmit -p server/tsconfig.json
 ```
 
-New unit tests in `shared/test/items.test.ts` (the `item()` fixture at `:40-55`
+New unit tests in `shared/test/items.test.ts` (the `item()` fixture at `:38-56`
 already exists): boni sum across several worn items; a non-`getragen` item
 contributes nothing; negative values subtract; `quellen` names the right items;
-`resourceInputMitBoni` raises `nutzbar` (the both-slots rule); `talentMitBoni`
-leaves the stored talent untouched.
+`resourceInputMitBoni` raises the maximum and leaves `aktuell` alone;
+`talentMitBoni` leaves the stored talent untouched; `duplicateItem` carries
+bonuses; a `spezial` bonus on a formula-less catalog entry is rejected at the
+picker.
 
 **Manual end-to-end** — run `npm run dev:server` + `npm run dev:client`, and per
 the project's own note, test two roles at once by using `localhost` for one and
@@ -366,16 +501,21 @@ the project's own note, test two roles at once by using `localhost` for one and
 2. Drag it to a body zone → MU shows the effective value with the marker, tooltip
    names the ring. Sidebar agrees.
 3. Roll a talent whose probe uses MU in the dice panel → the rolled `probeZahl`
-   matches the sheet (this exercises `diceSource.ts`).
+   matches the sheet. Type `MU` as a free roll → same number (`ws.ts`).
 4. Add a `+2 LE` bonus, fill LE to the new max, then unequip → confirm `aktuell`
    clamps sanely and nothing is silently zeroed (the `saveSection` path).
-5. Edit a **storage container** through the dialog → confirm it stays a storage
+5. Add a `+1 INI` bonus, place the character's token on the VTT and roll
+   initiative → the basis matches the sheet (`board.ts`).
+6. Add a bonus on a formula-driven special energy and on Psyche → both maxima
+   rise on the sheet and in the GM overview.
+7. Add a `+5 kg` Traglast bonus → the Ausrüstung load bar reflects it.
+8. Edit a **storage container** through the dialog → confirm it stays a storage
    container and its capacity unit is unchanged (the `commit()` landmines).
-6. Edit an item with partial durability → confirm current durability is not reset
+9. Edit an item with partial durability → confirm current durability is not reset
    to max.
-7. As GM, open the group overview → bonused vitals show; open another player's
-   character (summary access) → their bonused values show.
-8. Flip the sheet to read-only → "Bearbeiten" buttons disappear, drag still works.
+10. As GM, open the group overview → bonused vitals show; open another player's
+    character (summary access) → their bonused values show.
+11. Flip the sheet to read-only → "Bearbeiten" buttons disappear, drag still works.
 
 **Data safety** — verify the new table against a throwaway DB before touching the
 dev database (`HELDEN_DB` pointed at a scratch file, then `npm run seed`), and
@@ -385,18 +525,15 @@ assets on startup. Point **both** at scratch files or neither.
 
 ---
 
-## 6. Docs
+## 7. Docs
 
 - **`TODO.md`**: remove the "Editing dialogs for items/weapons/abilities, with
   item bonuses while worn" entry's item-bonus half and its plumbing plan; keep
   the weapons/abilities dialog half as the remaining open work, re-tagged to
   reflect that the item dialog pattern now exists as precedent.
-- **Changelog** (`shared/src/changelog.ts`): the top entry is already versioned
-  (`0.6.0`), so per the working agreement this needs a **fresh draft entry above
-  it** with today's date and **no `version` field** (an unversioned entry is
-  invisible to players and unmirrored to Discord until someone numbers it).
-  Bullets: `added` for item bonuses and the edit dialog, `fixed` for the weapon-
-  probe mod discrepancy from section 0.
-- **Version**: this is a new player-facing capability (players must learn a new
-  concept), so it argues for a **minor** bump when released — but assigning the
-  number is the developer's call, never mine.
+- **Changelog** (`shared/src/changelog.ts`): fold player-facing notes into the
+  top unversioned entry per `CLAUDE.md`. `added` for item bonuses and the edit
+  dialog; `fixed` for the step-1 bugs (VTT initiative basis ignored base-value
+  modifiers, GM overview showed a stale maximum for formula-driven special
+  energies). Versioning is deliberately out of scope for this plan — it depends on
+  when the work actually lands.
