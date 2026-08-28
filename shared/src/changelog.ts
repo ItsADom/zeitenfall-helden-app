@@ -200,6 +200,13 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-28',
+    title: 'Navigation',
+    changed: [
+      'Das „Gruppen"-Menü in der Kopfleiste führt beim Überfahren jetzt direkt zu Spieltisch oder Gruppenseite der jeweiligen Gruppe, statt nur zur Gruppenseite.',
+    ],
+  },
+  {
+    date: '2026-08-28',
     version: '0.8',
     title: 'Der virtuelle Tisch',
     features: [

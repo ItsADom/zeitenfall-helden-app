@@ -712,6 +712,15 @@ header.topbar .nav-menu.open {
   text-transform: uppercase;
   color: var(--muted);
 }
+.nav-flyout-head.active {
+  color: var(--accent);
+}
+/* Untereintrag einer Gruppe (Spieltisch/Gruppenseite/Übersicht) — exakt wie
+   .nav-flyout-item, nur eingerückt, damit die Zugehörigkeit zum Kopf darüber
+   sichtbar bleibt. */
+.nav-flyout-subitem {
+  padding-left: 18px;
+}
 /* Höhere Spezifität als `header.topbar a` (sonst erbte der Eintrag den weißen
    Kopfleisten-Text und wäre auf dem Panel unlesbar). */
 header.topbar .nav-flyout-item,
