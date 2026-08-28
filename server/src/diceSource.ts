@@ -20,7 +20,7 @@ import {
   weaponProbes,
 } from 'shared';
 import { db } from './db.js';
-import { loadAttributes, loadBaseValueInputs } from './characterData.js';
+import { loadStats } from './characterData.js';
 
 export interface ComputedProbe {
   n: number;
@@ -96,7 +96,7 @@ function resolveAbilityWeaponProbes(
   weapon: Extract<ProbeSource, { kind: 'ability' }>['weapon'],
 ): { at: number; pa: number; bl: number } | null {
   if (!weapon) return null;
-  const bv = computeBaseValues(attrs, loadBaseValueInputs(characterId));
+  const bv = computeBaseValues(attrs, loadStats(characterId).baseInputs);
   const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
   let talentId: number;
   let weaponMod = { at: 0, pa: 0, bl: 0 };
@@ -117,7 +117,8 @@ function resolveAbilityWeaponProbes(
 }
 
 export function computeProbeForCharacter(characterId: number, source: ProbeSource): ComputedProbe | null {
-  const attrs = loadAttributes(characterId);
+  const stats = loadStats(characterId);
+  const attrs = stats.attrs;
   switch (source.kind) {
     case 'attribute': {
       // Eigenschaftsprobe: ein einzelner W20 gegen den Attributswert
@@ -189,7 +190,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const talent = db
         .prepare('SELECT at, pa, bl FROM char_talents WHERE character_id = ? AND talent_id = ?')
         .get(characterId, talentId) as { at: number; pa: number; bl: number } | undefined;
-      const bv = computeBaseValues(attrs, loadBaseValueInputs(characterId));
+      const bv = computeBaseValues(attrs, stats.baseInputs);
       const label = String(row.typ ?? '');
       if (source.probe === 'fk') {
         const probeZahl = weaponProbe(Number(row.atMod) || 0, bv.fk.ergebnis, talent?.at ?? 0);
@@ -202,7 +203,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       return { n: 1, probeZahl, label: `${label} (${source.probe.toUpperCase()})` };
     }
     case 'baseValue': {
-      const bv = computeBaseValues(attrs, loadBaseValueInputs(characterId));
+      const bv = computeBaseValues(attrs, stats.baseInputs);
       return { n: 1, probeZahl: bv[source.key].ergebnis, label: BASE_VALUE_LABELS[source.key].label };
     }
     default:

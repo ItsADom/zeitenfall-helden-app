@@ -17,6 +17,7 @@ import {
   levelForAp,
   computeBaseValues,
   computeResource,
+  evaluateEnergyFormula,
   psycheMax,
   dynTabId,
   dynTabKey,
@@ -50,6 +51,7 @@ import type {
   ContainerArt,
   KapazitaetArt,
   DynColumn,
+  EnergyFormulaVars,
   ExternalAttrPoint,
   Item,
   ItemLocation,
@@ -70,7 +72,7 @@ import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows,
 
 // --- Laden ---
 
-export function loadAttributes(charId: number): Attributes {
+export function loadAttributesRaw(charId: number): Attributes {
   const rows = db.prepare('SELECT attr, akt, mod FROM char_attributes WHERE character_id = ?').all(charId) as {
     attr: string;
     akt: number;
@@ -82,7 +84,7 @@ export function loadAttributes(charId: number): Attributes {
   return out;
 }
 
-export function loadBaseValueInputs(charId: number): BaseValueInputs {
+export function loadBaseValueInputsRaw(charId: number): BaseValueInputs {
   const rows = db.prepare('SELECT key, mod, base FROM char_base_values WHERE character_id = ?').all(charId) as {
     key: string;
     mod: number;
@@ -103,7 +105,7 @@ export function loadBaseValueInputs(charId: number): BaseValueInputs {
   return { mods, gsBase, resilienzBase, mrBase, akBase };
 }
 
-export function loadResources(charId: number): Resources {
+export function loadResourcesRaw(charId: number): Resources {
   const rows = db
     .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
     .all(charId) as ({ key: string } & Resources['le'])[];
@@ -146,6 +148,75 @@ export function loadSpecialResources(charId: number): SpecialResource[] {
   return db
     .prepare('SELECT catalog_id AS catalogId, name, max, bonus, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
     .all(charId) as SpecialResource[];
+}
+
+// Live-Maximum einer Spezialenergie: hat der Katalog-Eintrag eine Formel, ist
+// das gespeicherte `max` nur ein ungenutzter Snapshot (siehe SpecialResource in
+// shared/src/types.ts) — dasselbe evaluateEnergyFormula(...) + bonus wie im
+// Heldenbrief (Heldenbrief.tsx computedMax), nur serverseitig, damit GM-Übersicht
+// und Gruppen-Karten nicht den veralteten Snapshot statt des echten Werts zeigen.
+function spezialenergieMax(sr: SpecialResource, formelnById: Map<number, string>, vars: EnergyFormulaVars): number {
+  const formula = sr.catalogId != null ? (formelnById.get(sr.catalogId) ?? '') : '';
+  if (!formula) return sr.max;
+  const formulaMax = evaluateEnergyFormula(formula, vars);
+  return formulaMax != null ? formulaMax + sr.bonus : sr.max;
+}
+
+function ladeSpezialenergieFormeln(): Map<number, string> {
+  const rows = db.prepare('SELECT id, formula FROM special_energies_catalog').all() as { id: number; formula: string }[];
+  return new Map(rows.map((r) => [r.id, r.formula]));
+}
+
+// Eingaben für eine Berechnung, EINMAL geladen (Attribute/Basiswerte/Ressourcen/
+// Spezialenergien/Talente/Psyche/Traglast) — Gegenstück zu den *Raw-Ladern oben,
+// die absichtlich roh bleiben (Bearbeiten-Pfad, siehe loadFullCharacter). Jeder
+// NEUE Rechen-Aufrufort verwendet diese Funktion statt einzelner *Raw-Aufrufe,
+// damit ein Bonus, der an einer Stelle einfließt (z. B. ein getragener
+// Gegenstand), automatisch überall ankommt — Regel: eine Berechnung liest immer
+// den vollen Wert, nie den rohen, sofern nicht ausdrücklich anders verlangt.
+// Item-Boni fließen hier noch NICHT ein (kein ItemBonus-Mechanismus vorhanden) —
+// das kommt mit dem Rest von docs/concepts/item-bonus-while-worn.md; diese
+// Funktion ist bereits der einzige Ort, an dem das später passiert.
+export interface CharStats {
+  attrs: Attributes;
+  baseInputs: BaseValueInputs;
+  resources: Resources;
+  special: SpecialResource[];
+  talente: CharTalent[];
+  psycheBonus: number;
+  traglastBonus: number;
+}
+
+export function loadStats(charId: number): CharStats {
+  const meta = loadSingleRow('char_meta', charId) as { psycheBase?: number; psycheBonus?: number; traglastBonus?: number };
+  const attrs = loadAttributesRaw(charId);
+  const baseInputs = loadBaseValueInputsRaw(charId);
+  const resources = loadResourcesRaw(charId);
+  const psycheBonus = meta.psycheBonus ?? 0;
+  const traglastBonus = meta.traglastBonus ?? 0;
+
+  const vars: EnergyFormulaVars = {
+    attrs,
+    leMax: computeResource(attrs, 'le', resources.le).nutzbar,
+    auMax: computeResource(attrs, 'aus', resources.aus).nutzbar,
+    aseMax: computeResource(attrs, 'ase', resources.ase).nutzbar,
+    psycheMax: psycheMax(attrs, meta.psycheBase ?? 0, psycheBonus),
+  };
+  const formelnById = ladeSpezialenergieFormeln();
+  const special = loadSpecialResources(charId).map((sr) => ({
+    ...sr,
+    max: spezialenergieMax(sr, formelnById, vars),
+  }));
+
+  return {
+    attrs,
+    baseInputs,
+    resources,
+    special,
+    talente: loadTalents(charId),
+    psycheBonus,
+    traglastBonus,
+  };
 }
 
 export function loadExternalAttrPoints(charId: number): ExternalAttrPoint[] {
@@ -752,13 +823,13 @@ function ensureAttrPointsMigration(charId: number, meta: Record<string, unknown>
 
 export function loadFullCharacter(charId: number) {
   const meta = loadSingleRow('char_meta', charId);
-  const attributes = loadAttributes(charId);
+  const attributes = loadAttributesRaw(charId);
   return {
     bio: loadSingleRow('char_bio', charId),
     meta,
     attributes,
-    baseValues: loadBaseValueInputs(charId),
-    resources: loadResources(charId),
+    baseValues: loadBaseValueInputsRaw(charId),
+    resources: loadResourcesRaw(charId),
     special: loadSpecialResources(charId),
     attrExtern: ensureAttrPointsMigration(charId, meta, attributes),
     talents: loadTalents(charId),
@@ -1568,7 +1639,10 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     }
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
-      const attributes = loadAttributes(charId);
+      // Bonusfähige Attribute, nicht die rohen — die Kappung muss dieselbe
+      // Ausbaugrenze sehen, die ein getragener Gegenstand anhebt (siehe
+      // docs/concepts/item-bonus-while-worn.md, "immer der volle Wert").
+      const attributes = loadStats(charId).attrs;
       const stmt = db.prepare(
         'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
@@ -1801,10 +1875,9 @@ interface CatalogTalent {
 
 export function buildSummary(charId: number) {
   const visibility = loadVisibility(charId);
-  const attributes = loadAttributes(charId);
-  const resources = loadResources(charId);
-  const baseInputs = loadBaseValueInputs(charId);
-  const baseValues = computeBaseValues(attributes, baseInputs);
+  const stats = loadStats(charId);
+  const { attrs: attributes, resources } = stats;
+  const baseValues = computeBaseValues(attributes, stats.baseInputs);
   const bio = loadSingleRow('char_bio', charId);
   const lists = loadAllLists(charId);
 
@@ -1841,7 +1914,7 @@ export function buildSummary(charId: number) {
   if (visibility.talente) {
     const catalog = db.prepare('SELECT * FROM talents_catalog').all() as CatalogTalent[];
     const byId = new Map(catalog.map((c) => [c.id, c]));
-    sections.talente = loadTalents(charId)
+    sections.talente = stats.talente
       .filter((t) => t.taw !== 0 || t.at !== 0 || t.pa !== 0 || t.bl !== 0)
       .map((t) => {
         const cat = byId.get(t.talentId);
@@ -1857,7 +1930,7 @@ export function buildSummary(charId: number) {
       });
   }
   if (visibility.waffen) {
-    const talents = new Map(loadTalents(charId).map((t) => [t.talentId, t]));
+    const talents = new Map(stats.talente.map((t) => [t.talentId, t]));
     const base = { at: baseValues.at.ergebnis, pa: baseValues.pa.ergebnis, bl: baseValues.bl.ergebnis };
     sections.waffen = {
       nah: lists.waffenNah.map((w) => {
@@ -1914,14 +1987,13 @@ export function buildGroupOverview(groupId: number) {
 
 function overviewForChars(chars: { id: number; name: string; ownerUserId: number; ownerName: string }[]) {
   return chars.map((c) => {
-    const attributes = loadAttributes(c.id);
-    const resources = loadResources(c.id);
-    const baseValues = computeBaseValues(attributes, loadBaseValueInputs(c.id));
+    const stats = loadStats(c.id);
+    const { attrs: attributes, resources } = stats;
+    const baseValues = computeBaseValues(attributes, stats.baseInputs);
     const meta = loadSingleRow('char_meta', c.id) as {
       stufe?: number;
       psycheAkt?: number;
       psycheBase?: number;
-      psycheBonus?: number;
       schicksalspunkteAktuell?: number;
       schicksalspunkteMax?: number;
     };
@@ -1944,12 +2016,15 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
     vitals.push({
       key: 'psyche',
       aktuell: meta.psycheAkt ?? 0,
-      max: psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0),
+      max: psycheMax(attributes, meta.psycheBase ?? 0, stats.psycheBonus),
     });
     // Spezialenergien reihen sich als weitere Vital-Chips ein — der Schlüssel ist
     // der frei gewählte Name (dient zugleich als Chip-Beschriftung). Kein eigener
     // Chip-Typ nötig: sie färben wie die anderen (Überladung), zeigen aktuell/max.
-    for (const sr of loadSpecialResources(c.id)) {
+    // stats.special trägt bereits das LIVE-Maximum (Formel + Bonus) statt des
+    // gespeicherten Snapshots — vorher zeigte diese Übersicht bei Formel-
+    // Energien einen veralteten Wert (siehe loadStats/spezialenergieMax).
+    for (const sr of stats.special) {
       vitals.push({ key: sr.name, aktuell: sr.aktuell, max: sr.max });
     }
     // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die

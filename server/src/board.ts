@@ -17,7 +17,7 @@ import {
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { rollDie } from './dice.js';
-import { hasPortrait, loadAttributes, loadBaseValueInputs, loadResources, loadWounds, saveWounds, type Wounds } from './characterData.js';
+import { hasPortrait, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -651,10 +651,9 @@ export function getInitiativeEntry(tokenId: number): BoardInitiativeRow | undefi
  * `nutzbar`, which is a maximum, not a current value).
  */
 function characterCombatStats(characterId: number): { iniBasis: number; lp: number; todesschwelle: number } {
-  const attrs = loadAttributes(characterId);
-  const baseValues = computeBaseValues(attrs, loadBaseValueInputs(characterId));
-  const resources = loadResources(characterId);
-  return { iniBasis: baseValues.ini.ergebnis, lp: resources.le.aktuell, todesschwelle: baseValues.todesschwelle.ergebnis };
+  const stats = loadStats(characterId);
+  const baseValues = computeBaseValues(stats.attrs, stats.baseInputs);
+  return { iniBasis: baseValues.ini.ergebnis, lp: stats.resources.le.aktuell, todesschwelle: baseValues.todesschwelle.ergebnis };
 }
 
 /** A character's basis always comes live from its sheet; a marker/monster's is whatever the GM last typed via setInitiativeBasis. */

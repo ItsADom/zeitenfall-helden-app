@@ -207,6 +207,9 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Hast du gerade einen Charakter ausgewählt, lösen sich Attribut-Kürzel wie „MU" in einem freien Wurf jetzt gegen dessen Werte auf.',
       'Der Charakterbogen zeigt jetzt neben Spieler/Gruppe einen Link zur Wiki-Seite des Charakters — gibt es noch keine, legt der Link sie direkt an, schon mit der Kategorie „Spielercharakter" versehen.',
     ],
+    fixed: [
+      '(Spielleiter) Die Gruppenübersicht zeigte bei formelbasierten Spezialenergien (z. B. Wut, Chi) einen veralteten, gespeicherten Höchstwert statt des live berechneten — jetzt korrekt.',
+    ],
   },
   {
     date: '2026-08-28',

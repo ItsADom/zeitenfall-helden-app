@@ -46,7 +46,7 @@ import {
 } from 'shared';
 import crypto from 'node:crypto';
 import { getSessionToken, userForToken } from './auth.js';
-import { loadAttributes } from './characterData.js';
+import { loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
@@ -618,7 +618,7 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
  */
 function chatAttrResolver(charId: number | null): (name: string) => number | null {
   if (charId === null) return () => null;
-  const attrs = loadAttributes(charId);
+  const attrs = loadStats(charId).attrs;
   return (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? attrMax(attrs, name as AttrRowCode) : null);
 }
 
