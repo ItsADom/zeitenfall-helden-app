@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
+import { attrsMitBoni, talentBonusKey, talentMitBoni } from '@shared/items';
 import { CollapsiblePanel } from '../components/collapse';
+import { BonusWert } from '../components/BonusWert';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { Field, NumInput, TextInput } from '../components/inputs';
 import { NoteField } from '../components/notes';
@@ -97,6 +99,7 @@ function KampfTable({
   setValue: (id: number, patch: Partial<CharTalent>) => void;
   searching: boolean;
 }) {
+  const { stats } = useChar();
   const layout = useTableLayout('talente:kampf', KAMPF_HEADS.length, { defaults: KAMPF_WIDTHS });
   // Einklappen je Waffengruppe (Hiebwaffen, Schwerter …), gemerkt; Suche zeigt alles
   const [collapsedList, setCollapsedList] = usePersistedState<string[]>('talc:kampf', []);
@@ -126,11 +129,14 @@ function KampfTable({
     }
     if (groupCollapsed) continue;
     const v = values.get(e.id);
+    // Nur fürs Meisterschafts-Schwellwert-Symbol — die Eingaben binden weiter
+    // an v (roh), siehe talentMitBoni-Vertrag in shared/src/items.ts.
+    const effTaw = talentMitBoni(v ?? { talentId: e.id, ...EMPTY }, stats).taw;
     rows.push(
       <tr key={e.id}>
         <td title={e.name}>
           {e.name}
-          <Mastery taw={v?.taw ?? 0} skill100={e.skill100} />
+          <Mastery taw={effTaw} skill100={e.skill100} />
         </td>
         <td className="num">
           <NumInput value={v?.taw ?? 0} max={100} onChange={(x) => setValue(e.id, { taw: x })} />
@@ -205,7 +211,8 @@ function NormalTable({
   setValue: (id: number, patch: Partial<CharTalent>) => void;
   searching: boolean;
 }) {
-  const { data } = useChar();
+  const { data, stats } = useChar();
+  const attributesEff = attrsMitBoni(data.attributes, stats);
   const heads = ['Talent', 'Probe', 'Probe (Zahl)', 'TaW', 'Erleichterung', 'Spezialisierung', 'Berufsbonus', 'Ableiten (+10)', 'Notiz'];
   const layout = useTableLayout(`talente:${kat}`, heads.length, { defaults: [220, 95, 95, 70, 100, 140, 170, 260, 200] });
   return (
@@ -238,19 +245,24 @@ function NormalTable({
             {entries.map((e) => {
               const v = values.get(e.id);
               const taw = v?.taw ?? 0;
+              // effTaw fließt NUR in die Anzeige (Meisterschaft, Probe-Zahl,
+              // Erleichterung) — die NumInput unten bindet weiter an taw (roh).
+              const effTaw = talentMitBoni(v ?? { talentId: e.id, ...EMPTY }, stats).taw;
               const probe = e.probe ? (e.probe.split('/') as [AttrCode, AttrCode, AttrCode]) : null;
               const name = `${e.gruppe ? `${e.gruppe}: ` : ''}${e.name}`;
               return (
                 <tr key={e.id}>
                   <td title={name}>
                     {name}
-                    <Mastery taw={taw} skill100={e.skill100} />
+                    <Mastery taw={effTaw} skill100={e.skill100} />
                   </td>
                   <td className="muted">{e.probe || '—'}</td>
                   <td className="computed">
                     {probe ? (
                       <>
-                        {talentProbeZahl(data.attributes, probe, taw)}
+                        <BonusWert quellen={stats.quellen[talentBonusKey(e.id, 'taw')]}>
+                          {talentProbeZahl(attributesEff, probe, effTaw)}
+                        </BonusWert>
                         {/* Kampftalente haben keine Formel und damit keine Probe —
                             sie werden über den Waffen-Reiter gewürfelt. */}
                         <ProbeRollButton source={{ kind: 'talent', talentId: e.id }} title={e.name} />
@@ -262,7 +274,7 @@ function NormalTable({
                   <td className="num">
                     <NumInput value={taw} max={100} onChange={(x) => setValue(e.id, { taw: x })} />
                   </td>
-                  <td className="computed">{erleichterung(taw)}</td>
+                  <td className="computed">{erleichterung(effTaw)}</td>
                   <td>
                     <TextInput value={v?.spezialisierung ?? ''} onChange={(x) => setValue(e.id, { spezialisierung: x })} />
                   </td>

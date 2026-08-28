@@ -10,11 +10,13 @@ import {
   itemsInContainer,
   lastInfo,
   makeItem,
+  TRAGLAST_BONUS_KEY,
   zoneView,
 } from '@shared/items';
 import type { AttrCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { ATTR_LABELS, BASE_VALUE_LABELS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from '../components/charSheet';
+import { BonusWert } from '../components/BonusWert';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useReadOnly } from '../components/displayMode';
 import { AddItemDialog } from '../components/itemDialogs';
@@ -70,7 +72,7 @@ interface DropTarget {
 const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerUid ?? ''}:${t.beidseitig ? 'both' : ''}`;
 
 export default function AusruestungTab() {
-  const { data, update, catalogs } = useChar();
+  const { data, update, catalogs, stats } = useChar();
   const ro = useReadOnly();
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
@@ -195,7 +197,8 @@ export default function AusruestungTab() {
             <div className="last-fill" style={{ width: `${pct}%` }} />
           </div>
           <div className="last-num">
-            <strong>{kg(load.getragen)}</strong> / {kg(load.max)} kg
+            <strong>{kg(load.getragen)}</strong> /{' '}
+            <BonusWert quellen={stats.quellen[TRAGLAST_BONUS_KEY]}>{kg(load.max)}</BonusWert> kg
             {load.ueberladen && <span className="last-warn"> · überladen</span>}
             {!ro && (
               <label className="last-bonus" title="Zusatz auf die maximale Traglast (kg). Additiv, darf negativ sein.">

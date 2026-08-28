@@ -1,6 +1,7 @@
 import { ATTR_CODES, ATTR_LABELS, RESOURCE_KEYS } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
 import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
+import { attrsMitBoni, resourceInputMitBoni } from '@shared/items';
 import { pouchUeberfuellt } from '@shared/currency';
 import { BOARD_STATUS_BY_KEY } from '@shared/boardStatus';
 import { useChar } from '../pages/Character';
@@ -132,11 +133,12 @@ function PoolHead({ label, title, prozent }: { label: string; title?: string; pr
 
 // Energien + Psyche — die laufenden Pools mit Schnell-Schaden/-Heilung.
 function SidebarPools() {
-  const { data, update } = useChar();
+  const { data, stats, update } = useChar();
   const { attributes, resources, special, meta } = data;
+  const attributesEff = attrsMitBoni(attributes, stats);
 
   const psycheAkt = meta.psycheAkt ?? 0;
-  const psycheMaxWert = psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0);
+  const psycheMaxWert = psycheMax(attributesEff, meta.psycheBase ?? 0, (meta.psycheBonus ?? 0) + stats.psyche);
   const psyche = psycheProzent(psycheAkt, psycheMaxWert);
 
   const setAktuell = (key: ResourceKey, v: number) =>
@@ -150,7 +152,7 @@ function SidebarPools() {
       <h4>Energien</h4>
       <div className="side-pools">
         {RESOURCE_KEYS.map((key) => {
-          const r = computeResource(attributes, key, resources[key]);
+          const r = computeResource(attributesEff, key, resourceInputMitBoni(resources[key], key, stats));
           const akt = resources[key].aktuell;
           const cls = poolClass(key, akt, r.nutzbar);
           const prozent = r.nutzbar > 0 ? Math.round((akt / r.nutzbar) * 100) : null;
@@ -194,9 +196,9 @@ function SidebarPools() {
 // einen Klick. Deshalb bewusst NUR öffentlich — wer verborgen würfeln will,
 // nimmt die Attributs-Tabelle im Heldenbrief (dort sitzt die volle Auswahl).
 function SidebarAttribute() {
-  const { data, rollCtx } = useChar();
+  const { data, stats, rollCtx } = useChar();
   const { rollProbe } = useDicePanel();
-  const { attributes } = data;
+  const attributes = attrsMitBoni(data.attributes, stats);
   return (
     <div className="side-block">
       <h4>Attribute</h4>

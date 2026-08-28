@@ -6,10 +6,11 @@
 // bauen. Seiten-Belange (Reiterleiste, Reihenfolge, Druckmodus, „Ansehen
 // als"-Auswahl, Namensbearbeitung, Tabellenbreiten, Scroll-Erinnerung)
 // bleiben bewusst in pages/Character.tsx — das hier ist nur der Datenteil.
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAttrPoint, Resources, SpecialResource } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
-import type { Item } from '@shared/items';
+import type { Item, StatBoni } from '@shared/items';
+import { wornBoni } from '@shared/items';
 import type { Ability } from '@shared/abilities';
 import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { apiGet, apiPut } from '../api';
@@ -130,6 +131,14 @@ export interface CharacterInfo {
 interface CharCtxValue {
   charId: number;
   data: FullData;
+  /**
+   * Boni aller getragenen Items, EINMAL aus data.items berechnet (wornBoni,
+   * siehe shared/src/items.ts) — Reiter überlagern damit ihre eigenen
+   * Attribute/Basiswerte/Ressourcen/Talente über die *MitBoni-Helfer, statt
+   * jeder für sich data.items neu zu durchlaufen. `data` selbst bleibt roh
+   * (siehe FullData) — Eingabefelder binden weiter dorthin, nie hierher.
+   */
+  stats: StatBoni;
   catalogs: Catalogs;
   update: (section: string, value: unknown) => void;
   /**
@@ -165,6 +174,7 @@ export interface CharSheetState {
   summary: unknown;
   data: FullData | null;
   setData: React.Dispatch<React.SetStateAction<FullData | null>>;
+  stats: StatBoni;
   catalogs: Catalogs | null;
   loading: boolean;
   error: string;
@@ -348,8 +358,12 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
       ? { groupId: info.groupId, charId, targetUserId: info.ownerUserId }
       : null;
 
+  // Einmal pro data.items-Wechsel berechnet, nicht in jedem Reiter neu — siehe
+  // CharCtxValue.stats.
+  const stats = useMemo(() => wornBoni(data?.items ?? []), [data?.items]);
+
   return {
-    charId, info, setInfo, access, summary, data, setData, catalogs, loading, error,
+    charId, info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
     update, flush, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
   };
 }
@@ -378,7 +392,7 @@ export function CharSheetProvider({ charId, children }: { charId: number; childr
     return <p className="muted">Lade…</p>;
   }
   const ctx: CharCtxValue = {
-    charId, data: sheet.data, catalogs: sheet.catalogs, update: sheet.update,
+    charId, data: sheet.data, stats: sheet.stats, catalogs: sheet.catalogs, update: sheet.update,
     rollCtx: sheet.rollCtx, requestCtx: sheet.requestCtx,
   };
   return <CharCtx.Provider value={ctx}>{children}</CharCtx.Provider>;

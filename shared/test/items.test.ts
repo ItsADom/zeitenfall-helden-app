@@ -155,6 +155,25 @@ describe('lastInfo', () => {
     expect(lastInfo([], attrs(), -10).max).toBe(18); // 28 − 10
     expect(lastInfo([], attrs(), -100).max).toBe(0); // gekappt bei 0
   });
+
+  it('addiert einen Item-Traglast-Bonus zusätzlich zum gespeicherten Bonus', () => {
+    const belt = item({
+      location: 'getragen',
+      name: 'Gürtel der Kraft',
+      bonusse: [{ kind: 'traglast', code: '', feld: '', wert: 5 }],
+    });
+    expect(lastInfo([belt], attrs(), 12).max).toBe(45); // 28 + 12 (gespeichert) + 5 (Item)
+  });
+
+  it('ein Item-Attribut-Bonus hebt die Traglast-Formel selbst mit an', () => {
+    const gauntlets = item({
+      location: 'getragen',
+      name: 'Handschuhe der Kraft',
+      bonusse: [{ kind: 'attr', code: 'KK', feld: '', wert: 4 }],
+    });
+    // maximaleLast = (KO+KK)*2, siehe attrs()-Fixture (ko=8, kk=6) -> ohne Bonus 28
+    expect(lastInfo([gauntlets], attrs()).max).toBe(36); // KK 6+4=10 -> (8+10)*2
+  });
 });
 
 describe('effektiverRs', () => {

@@ -1437,6 +1437,13 @@ table.sheet tbody tr:hover td.res-over {
   color: var(--muted);
   text-decoration-thickness: 1px;
 }
+/* Item-bonusierter Wert (BonusWert.tsx) — dieselbe Färbung wie .chip-rs/
+   .chip-bonus, damit "von einem Gegenstand angehoben" überall gleich aussieht. */
+.bonus-mark {
+  color: var(--accent);
+  font-weight: 700;
+  cursor: help;
+}
 
 /* Gruppenkopf über den Energien-Spalten (Maximum / Ausbaugrenze) */
 table.sheet th.group {

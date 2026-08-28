@@ -225,11 +225,16 @@ export interface LastInfo {
 }
 
 // Traglast-Übersicht für die Ladungsanzeige: getragen / Maximum + Überladung.
-// `bonus` (kg) ist der additive Zusatz auf die berechnete maximale Last; er darf
-// negativ sein, das Maximum wird aber nie unter 0 gedrückt.
+// `bonus` (kg) ist der gespeicherte, freie Zusatz (char_meta.traglastBonus) auf
+// die berechnete maximale Last; er darf negativ sein, das Maximum wird aber nie
+// unter 0 gedrückt. Item-Boni fließen HIER intern ein (traglast-Ziel plus, über
+// attrsMitBoni, jeder Attribut-Bonus, der die Formel selbst anhebt) — lastInfo
+// bekommt `items` ohnehin schon fürs Gewicht, wornBoni also gleich mit
+// berechnen statt jeden Aufrufer zu zwingen, das selbst zu tun.
 export function lastInfo(items: readonly Item[], attrs: Attributes, bonus = 0): LastInfo {
+  const boni = wornBoni(items);
   const getragen = getrageneLast(items);
-  const max = Math.max(0, maximaleLast(attrs) + (Number(bonus) || 0));
+  const max = Math.max(0, maximaleLast(attrsMitBoni(attrs, boni)) + (Number(bonus) || 0) + boni.traglast);
   return { getragen, max, ueberladen: getragen > max };
 }
 
@@ -263,6 +268,19 @@ export interface StatBoni {
   quellen: Record<string, string[]>;
 }
 
+// Zielschlüssel für `quellen`, EINMAL definiert statt an jeder addQuelle()-
+// Stelle und jeder BonusWert-Aufrufstelle im Client neu zusammengebaut —
+// sonst laufen Erzeuger (wornBoni) und Verbraucher (Heldenbrief & Co.)
+// irgendwann auseinander. talent braucht `feld` mit im Schlüssel: derselbe
+// Talent-Bonus kann TaW UND AT zugleich anheben, das sind zwei Ziele.
+export const attrBonusKey = (code: AttrCode): string => `attr:${code}`;
+export const baseValueBonusKey = (key: BaseValueKey): string => `baseValue:${key}`;
+export const resourceBonusKey = (key: ResourceKey): string => `resource:${key}`;
+export const talentBonusKey = (talentId: number, feld: TalentBonusFeld): string => `talent:${talentId}:${feld}`;
+export const spezialBonusKey = (catalogId: number): string => `spezial:${catalogId}`;
+export const PSYCHE_BONUS_KEY = 'psyche';
+export const TRAGLAST_BONUS_KEY = 'traglast';
+
 function leererStatBoni(): StatBoni {
   return { attrs: {}, baseValues: {}, resources: {}, spezial: {}, psyche: 0, traglast: 0, talente: {}, quellen: {} };
 }
@@ -290,15 +308,15 @@ export function wornBoni(items: readonly Item[]): StatBoni {
       switch (b.kind) {
         case 'attr':
           addNum(boni.attrs as Record<string, number>, b.code, wert);
-          addQuelle(`attr:${b.code}`, item.name);
+          addQuelle(attrBonusKey(b.code as AttrCode), item.name);
           break;
         case 'baseValue':
           addNum(boni.baseValues as Record<string, number>, b.code, wert);
-          addQuelle(`baseValue:${b.code}`, item.name);
+          addQuelle(baseValueBonusKey(b.code as BaseValueKey), item.name);
           break;
         case 'resource':
           addNum(boni.resources as Record<string, number>, b.code, wert);
-          addQuelle(`resource:${b.code}`, item.name);
+          addQuelle(resourceBonusKey(b.code as ResourceKey), item.name);
           break;
         case 'talent': {
           const talentId = Number(b.code);
@@ -306,23 +324,23 @@ export function wornBoni(items: readonly Item[]): StatBoni {
           const rec = boni.talente[talentId] ?? {};
           rec[b.feld] = (rec[b.feld] ?? 0) + wert;
           boni.talente[talentId] = rec;
-          addQuelle(`talent:${talentId}:${b.feld}`, item.name);
+          addQuelle(talentBonusKey(talentId, b.feld), item.name);
           break;
         }
         case 'spezial': {
           const catalogId = Number(b.code);
           if (!Number.isFinite(catalogId)) break;
           boni.spezial[catalogId] = (boni.spezial[catalogId] ?? 0) + wert;
-          addQuelle(`spezial:${catalogId}`, item.name);
+          addQuelle(spezialBonusKey(catalogId), item.name);
           break;
         }
         case 'psyche':
           boni.psyche += wert;
-          addQuelle('psyche', item.name);
+          addQuelle(PSYCHE_BONUS_KEY, item.name);
           break;
         case 'traglast':
           boni.traglast += wert;
-          addQuelle('traglast', item.name);
+          addQuelle(TRAGLAST_BONUS_KEY, item.name);
           break;
       }
     }

@@ -59,7 +59,7 @@ export default function CharacterPage() {
   }, [canViewAs]);
 
   const {
-    info, setInfo, access, summary, data, setData, catalogs, loading, error,
+    info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
     update, flush, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
   } = useCharSheet(charId, viewAs || undefined);
 
@@ -298,7 +298,7 @@ export default function CharacterPage() {
   };
 
   return (
-    <CharCtx.Provider value={{ charId, data, catalogs, update, rollCtx, requestCtx }}>
+    <CharCtx.Provider value={{ charId, data, stats, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data.tableWidths ?? {}} save={saveTableWidths}>
       <DisplayModeProvider mode={inspecting ? 'inspect' : editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
