@@ -3119,6 +3119,10 @@ li {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+.chip-bonus {
+  color: var(--accent);
+  font-weight: 700;
+}
 .chip-haltbarkeit {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
