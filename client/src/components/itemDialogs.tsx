@@ -230,20 +230,30 @@ export function AddItemDialog({
       kategorie: ausr ? AUSRUESTUNG_KATEGORIE : kategorie,
       anzahl,
       gewicht,
-      rs: ausr ? rs : 0,
-      haltbarkeitMax: ausr ? haltbarkeitMax : 0,
-      haltbarkeitAktuell: ausr ? haltbarkeitAktuell : 0,
       notiz,
       bonusse,
     };
-    if (!isStorageContainer) {
-      // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-Behälter
-      // (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt der vollen
-      // Behälter-Konfiguration.
-      patch.istBehaelter = ausr && quickslots > 0;
-      patch.containerArt = 'quick';
-      patch.kapazitaetArt = 'stueck';
-      patch.kapazitaet = ausr ? quickslots : 0;
+    // RS/Haltbarkeit/Quickslots-Behälter nur einbeziehen, wenn ihr Feld auch
+    // sichtbar war (ausr) — sonst würde das Umschalten auf „Allgemein" beim
+    // Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung" weg
+    // geändert wurde (z. B. durch Umkategorisieren per Ziehen im Inventar-
+    // Reiter), dessen RS/Haltbarkeit/Behälter-Status stillschweigend auf 0
+    // zurücksetzen, obwohl niemand diese Felder je zu Gesicht bekam. Beim
+    // Anlegen macht das Weglassen keinen Unterschied: makeItem() setzt
+    // ohnehin dieselben Nullwerte für alles, was `fields` nicht mitbringt.
+    if (ausr) {
+      patch.rs = rs;
+      patch.haltbarkeitMax = haltbarkeitMax;
+      patch.haltbarkeitAktuell = haltbarkeitAktuell;
+      if (!isStorageContainer) {
+        // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-
+        // Behälter (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt
+        // der vollen Behälter-Konfiguration.
+        patch.istBehaelter = quickslots > 0;
+        patch.containerArt = 'quick';
+        patch.kapazitaetArt = 'stueck';
+        patch.kapazitaet = quickslots;
+      }
     }
     if (item) onSave?.(patch);
     else onAdd?.(patch);
