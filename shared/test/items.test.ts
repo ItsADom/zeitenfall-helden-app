@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  attrsMitBoni,
+  baseInputsMitBoni,
   containerEffektiveFuellung,
   containerFuellung,
   containerFuellungAnzeige,
@@ -15,12 +17,16 @@ import {
   lastInfo,
   makeItem,
   makeUid,
+  resourceInputMitBoni,
+  specialMitBoni,
+  talentMitBoni,
+  wornBoni,
   zaehltZurLast,
   zoneView,
 } from '../src/items.js';
 import type { Item, ItemLocation } from '../src/items.js';
-import type { AttrCode, Attributes } from '../src/types.js';
-import { ATTR_ROW_CODES } from '../src/types.js';
+import type { AttrCode, Attributes, BaseValueInputs, CharTalent, ResourceInput, SpecialResource } from '../src/types.js';
+import { ATTR_ROW_CODES, BASE_VALUE_KEYS } from '../src/types.js';
 
 // Attribute-Fixture: alle Codes auf 10, KO/KK gesetzt, damit maximaleLast
 // = (KO+KK)×2 = (8+6)×2 = 28 kg ergibt.
@@ -205,6 +211,163 @@ describe('bonusse (Item-Boni-Datenmodell)', () => {
     expect(copy.bonusse).toEqual(ring.bonusse);
     expect(copy.id).toBe(0);
     expect(copy.uid).not.toBe(ring.uid);
+  });
+});
+
+function baseInputs(): BaseValueInputs {
+  const mods = Object.fromEntries(BASE_VALUE_KEYS.map((k) => [k, 0])) as BaseValueInputs['mods'];
+  return { mods, gsBase: 0, resilienzBase: 0, mrBase: 0, akBase: 0 };
+}
+
+function resourceInput(over: Partial<ResourceInput> = {}): ResourceInput {
+  return { permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '', raceBase: 0, ...over };
+}
+
+function talent(over: Partial<CharTalent> = {}): CharTalent {
+  return { talentId: 1, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '', ...over };
+}
+
+function specialResource(over: Partial<SpecialResource> = {}): SpecialResource {
+  return { catalogId: null, name: 'x', max: 0, bonus: 0, aktuell: 0, ...over };
+}
+
+describe('wornBoni', () => {
+  it('summiert gleiches Ziel über mehrere getragene Items', () => {
+    const ring = item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 1 }] });
+    const amulett = item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 2 }] });
+    const boni = wornBoni([ring, amulett]);
+    expect(boni.attrs.MU).toBe(3);
+  });
+
+  it('ein nicht getragenes Item trägt nichts bei', () => {
+    const ringImRucksack = item({
+      location: 'behaelter',
+      name: 'Ring',
+      bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 5 }],
+    });
+    const boni = wornBoni([ringImRucksack]);
+    expect(boni.attrs.MU).toBeUndefined();
+  });
+
+  it('negative Werte ziehen ab (verfluchter Gegenstand)', () => {
+    const fluch = item({ location: 'getragen', name: 'Fluchring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: -3 }] });
+    expect(wornBoni([fluch]).attrs.MU).toBe(-3);
+  });
+
+  it('quellen nennt die richtigen Items je Ziel, ohne Dopplung', () => {
+    const ring = item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 1 }] });
+    const amulett = item({
+      location: 'getragen',
+      name: 'Amulett',
+      bonusse: [
+        { kind: 'attr', code: 'MU', feld: '', wert: 2 },
+        { kind: 'baseValue', code: 'at', feld: '', wert: 1 },
+      ],
+    });
+    const boni = wornBoni([ring, amulett]);
+    expect(boni.quellen['attr:MU']).toEqual(['Ring', 'Amulett']);
+    expect(boni.quellen['baseValue:at']).toEqual(['Amulett']);
+  });
+
+  it('ein wert:0-Bonus trägt weder zur Summe noch zu quellen bei', () => {
+    const leer = item({ location: 'getragen', name: 'Unbestimmt', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 0 }] });
+    const boni = wornBoni([leer]);
+    expect(boni.attrs.MU).toBeUndefined();
+    expect(boni.quellen['attr:MU']).toBeUndefined();
+  });
+
+  it('talent-Boni landen unter der talentId, getrennt nach Feld', () => {
+    const ring = item({
+      location: 'getragen',
+      name: 'Kampfring',
+      bonusse: [
+        { kind: 'talent', code: '42', feld: 'taw', wert: 2 },
+        { kind: 'talent', code: '42', feld: 'at', wert: 1 },
+      ],
+    });
+    const boni = wornBoni([ring]);
+    expect(boni.talente[42]).toEqual({ taw: 2, at: 1 });
+  });
+
+  it('spezial-, psyche- und traglast-Boni landen in ihren eigenen Feldern', () => {
+    const amulett = item({
+      location: 'getragen',
+      name: 'Amulett',
+      bonusse: [
+        { kind: 'spezial', code: '7', feld: '', wert: 4 },
+        { kind: 'psyche', code: '', feld: '', wert: 5 },
+        { kind: 'traglast', code: '', feld: '', wert: 6 },
+      ],
+    });
+    const boni = wornBoni([amulett]);
+    expect(boni.spezial[7]).toBe(4);
+    expect(boni.psyche).toBe(5);
+    expect(boni.traglast).toBe(6);
+  });
+});
+
+describe('attrsMitBoni', () => {
+  it('legt den Bonus auf mod, akt bleibt unangetastet', () => {
+    const attrsFixture = attrs();
+    const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 3 }] })]);
+    const out = attrsMitBoni(attrsFixture, boni);
+    expect(out.MU).toEqual({ akt: attrsFixture.MU.akt, mod: attrsFixture.MU.mod + 3 });
+    expect(out.KL).toEqual(attrsFixture.KL);
+  });
+});
+
+describe('baseInputsMitBoni', () => {
+  it('addiert auf mods[key], andere Keys bleiben unverändert', () => {
+    const inputs = baseInputs();
+    const boni = wornBoni([item({ location: 'getragen', name: 'Stiefel', bonusse: [{ kind: 'baseValue', code: 'gs', feld: '', wert: 2 }] })]);
+    const out = baseInputsMitBoni(inputs, boni);
+    expect(out.mods.gs).toBe(2);
+    expect(out.mods.at).toBe(0);
+  });
+});
+
+describe('resourceInputMitBoni', () => {
+  it('hebt das nutzbare Maximum an, ohne aktuell zu verändern', () => {
+    const input = resourceInput({ aktuell: 5 });
+    const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'resource', code: 'le', feld: '', wert: 2 }] })]);
+    const out = resourceInputMitBoni(input, 'le', boni);
+    expect(out.permanent).toBe(2);
+    expect(out.maxPlus).toBe(2);
+    expect(out.aktuell).toBe(5);
+  });
+
+  it('ohne Bonus wird dieselbe Referenz zurückgegeben', () => {
+    const input = resourceInput();
+    expect(resourceInputMitBoni(input, 'le', wornBoni([]))).toBe(input);
+  });
+});
+
+describe('specialMitBoni', () => {
+  it('addiert auf bonus, wenn catalogId trifft', () => {
+    const sr = specialResource({ catalogId: 7, bonus: 1 });
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'spezial', code: '7', feld: '', wert: 4 }] })]);
+    expect(specialMitBoni(sr, boni).bonus).toBe(5);
+  });
+
+  it('ohne passenden catalogId bleibt bonus unverändert', () => {
+    const sr = specialResource({ catalogId: 9, bonus: 1 });
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'spezial', code: '7', feld: '', wert: 4 }] })]);
+    expect(specialMitBoni(sr, boni).bonus).toBe(1);
+  });
+});
+
+describe('talentMitBoni', () => {
+  it('legt den Bonus auf die Anzeige, das gespeicherte Talent bleibt unangetastet', () => {
+    const t = talent({ talentId: 42, taw: 8 });
+    const boni = wornBoni([item({ location: 'getragen', name: 'Kampfring', bonusse: [{ kind: 'talent', code: '42', feld: 'taw', wert: 2 }] })]);
+    const out = talentMitBoni(t, boni);
+    expect(out.taw).toBe(10);
+    expect(t.taw).toBe(8);
+  });
+
+  it('ohne Bonus wird dieselbe Referenz zurückgegeben', () => {
+    const t = talent({ talentId: 1 });
+    expect(talentMitBoni(t, wornBoni([]))).toBe(t);
   });
 });
 
