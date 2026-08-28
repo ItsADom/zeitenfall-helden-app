@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { TALENT_KATEGORIE_LABELS } from '@shared/types';
 import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
-import { attrsMitBoni, talentBonusKey, talentMitBoni } from '@shared/items';
+import { attrsMitBoni, talentBonusKey, talentMitBoni, talentProbeBonus } from '@shared/items';
 import { CollapsiblePanel } from '../components/collapse';
 import { BonusWert } from '../components/BonusWert';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
@@ -260,8 +260,15 @@ function NormalTable({
                   <td className="computed">
                     {probe ? (
                       <>
-                        <BonusWert quellen={stats.quellen[talentBonusKey(e.id, 'taw')]}>
-                          {talentProbeZahl(attributesEff, probe, effTaw)}
+                        <BonusWert
+                          quellen={[
+                            ...new Set([
+                              ...(stats.quellen[talentBonusKey(e.id, 'taw')] ?? []),
+                              ...(stats.quellen[talentBonusKey(e.id, 'probe')] ?? []),
+                            ]),
+                          ]}
+                        >
+                          {talentProbeZahl(attributesEff, probe, effTaw) + talentProbeBonus(e.id, stats)}
                         </BonusWert>
                         {/* Kampftalente haben keine Formel und damit keine Probe —
                             sie werden über den Waffen-Reiter gewürfelt. */}

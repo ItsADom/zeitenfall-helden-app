@@ -41,6 +41,13 @@ import {
   normalizeWidths,
   talentProbeZahl,
   weaponProbes,
+  wornBoni,
+  attrsMitBoni,
+  baseInputsMitBoni,
+  resourceInputMitBoni,
+  specialMitBoni,
+  talentMitBoni,
+  talentProbeBonus,
 } from 'shared';
 import type {
   Ability,
@@ -62,6 +69,7 @@ import type {
   ResourceInput,
   Resources,
   SpecialResource,
+  StatBoni,
   TalentBonusFeld,
   VisibilitySection,
 } from 'shared';
@@ -179,9 +187,10 @@ function ladeSpezialenergieFormeln(): Map<number, string> {
 // damit ein Bonus, der an einer Stelle einfließt (z. B. ein getragener
 // Gegenstand), automatisch überall ankommt — Regel: eine Berechnung liest immer
 // den vollen Wert, nie den rohen, sofern nicht ausdrücklich anders verlangt.
-// Item-Boni fließen hier noch NICHT ein (kein ItemBonus-Mechanismus vorhanden) —
-// das kommt mit dem Rest von docs/concepts/item-bonus-while-worn.md; diese
-// Funktion ist bereits der einzige Ort, an dem das später passiert.
+// Item-Boni fließen HIER ein (wornBoni + die *MitBoni-Helfer aus shared/items.ts)
+// — jeder Aufrufer, der schon auf loadStats umgestellt ist (saveSection,
+// buildSummary, overviewForChars, board.ts, diceSource.ts, ws.ts), bekommt sie
+// dadurch automatisch, ohne selbst etwas zu wissen.
 export interface CharStats {
   attrs: Attributes;
   baseInputs: BaseValueInputs;
@@ -190,15 +199,27 @@ export interface CharStats {
   talente: CharTalent[];
   psycheBonus: number;
   traglastBonus: number;
+  // Roher StatBoni-Akkumulator, nur für Aufrufer, die die Boni selbst noch auf
+  // einen Wert anwenden müssen, den loadStats nicht schon zurückgibt — z. B.
+  // saveSection()'s resources-Zweig, der `input` frisch aus dem Request-Body
+  // baut statt aus loadResourcesRaw, und dieselbe Ausbaugrenze für die
+  // aktuell-Kappung sehen muss wie das Sheet.
+  boni: StatBoni;
 }
 
 export function loadStats(charId: number): CharStats {
   const meta = loadSingleRow('char_meta', charId) as { psycheBase?: number; psycheBonus?: number; traglastBonus?: number };
-  const attrs = loadAttributesRaw(charId);
-  const baseInputs = loadBaseValueInputsRaw(charId);
-  const resources = loadResourcesRaw(charId);
-  const psycheBonus = meta.psycheBonus ?? 0;
-  const traglastBonus = meta.traglastBonus ?? 0;
+  const boni = wornBoni(loadItems(charId));
+  const attrs = attrsMitBoni(loadAttributesRaw(charId), boni);
+  const baseInputs = baseInputsMitBoni(loadBaseValueInputsRaw(charId), boni);
+  const rawResources = loadResourcesRaw(charId);
+  const resources: Resources = {
+    le: resourceInputMitBoni(rawResources.le, 'le', boni),
+    aus: resourceInputMitBoni(rawResources.aus, 'aus', boni),
+    ase: resourceInputMitBoni(rawResources.ase, 'ase', boni),
+  };
+  const psycheBonus = (meta.psycheBonus ?? 0) + boni.psyche;
+  const traglastBonus = (meta.traglastBonus ?? 0) + boni.traglast;
 
   const vars: EnergyFormulaVars = {
     attrs,
@@ -208,19 +229,39 @@ export function loadStats(charId: number): CharStats {
     psycheMax: psycheMax(attrs, meta.psycheBase ?? 0, psycheBonus),
   };
   const formelnById = ladeSpezialenergieFormeln();
-  const special = loadSpecialResources(charId).map((sr) => ({
-    ...sr,
-    max: spezialenergieMax(sr, formelnById, vars),
-  }));
+  const special = loadSpecialResources(charId).map((sr) => {
+    const srMitBonus = specialMitBoni(sr, boni);
+    return { ...srMitBonus, max: spezialenergieMax(srMitBonus, formelnById, vars) };
+  });
+
+  // Ein Item-Bonus kann ein Talent treffen, das der Charakter nie angerührt hat
+  // (kein char_talents-Eintrag) — ein „ungelernter Versuch" ist trotzdem
+  // würfelbar (siehe computeProbeForCharacter), und der Client synthetisiert
+  // für genau diesen Fall schon eine leere Zeile (Talente.tsx, EMPTY). Ohne
+  // dasselbe hier würde ein Wurf den Bonus nicht sehen, den das Blatt (und
+  // buildSummary) längst anzeigen — das Sheet/Wurf-Auseinanderlaufen, das
+  // dieser Plan eigentlich schließt.
+  const geladeneTalente = loadTalents(charId).map((t) => talentMitBoni(t, boni));
+  const bekannteIds = new Set(geladeneTalente.map((t) => t.talentId));
+  const boniNurTalente = Object.keys(boni.talente)
+    .map(Number)
+    .filter((id) => !bekannteIds.has(id))
+    .map((talentId) =>
+      talentMitBoni(
+        { talentId, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '' },
+        boni,
+      ),
+    );
 
   return {
     attrs,
     baseInputs,
     resources,
     special,
-    talente: loadTalents(charId),
+    talente: [...geladeneTalente, ...boniNurTalente],
     psycheBonus,
     traglastBonus,
+    boni,
   };
 }
 
@@ -1694,7 +1735,7 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       // Bonusfähige Attribute, nicht die rohen — die Kappung muss dieselbe
       // Ausbaugrenze sehen, die ein getragener Gegenstand anhebt (siehe
       // docs/concepts/item-bonus-while-worn.md, "immer der volle Wert").
-      const attributes = loadStats(charId).attrs;
+      const stats = loadStats(charId);
       const stmt = db.prepare(
         'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
@@ -1717,7 +1758,13 @@ export function saveSection(charId: number, section: string, data: unknown): voi
         // kappt bereits beim Eintippen; hier nochmal, weil die API auch ohne
         // sie erreichbar ist und die Regel nicht an einem Eingabefeld hängen
         // darf. Nach unten wird nicht gekappt — ein Vorrat darf ins Minus.
-        const { nutzbar } = computeResource(attributes, key, input);
+        // `input` ist roh (das Body-gebaute, ungebonuste) — die Kappung selbst
+        // muss trotzdem den Item-Bonus auf DIESE Ressource sehen (loadStats()
+        // liefert ihn nur auf loadResourcesRaw() angewendet, nicht auf diesen
+        // frischen `input`), sonst könnte eine getragene +2-LE-Ausrüstung nie
+        // eingefüllt werden — sonst genau der Datenverlust, den die Kappung
+        // eigentlich verhindern soll.
+        const { nutzbar } = computeResource(stats.attrs, key, resourceInputMitBoni(input, key, stats.boni));
         stmt.run(
           input.permanent,
           input.kauf,
@@ -1967,7 +2014,11 @@ export function buildSummary(charId: number) {
     const catalog = db.prepare('SELECT * FROM talents_catalog').all() as CatalogTalent[];
     const byId = new Map(catalog.map((c) => [c.id, c]));
     sections.talente = stats.talente
-      .filter((t) => t.taw !== 0 || t.at !== 0 || t.pa !== 0 || t.bl !== 0)
+      // Auch ein Talent zeigen, das nur über einen Item-„Probe"-Bonus wirkt
+      // (siehe talentProbeBonus) — sonst würde eine an sich ungelernte Fähigkeit,
+      // die ein Gegenstand trotzdem würfelbar erleichtert, in der Übersicht
+      // spurlos verschwinden, obwohl der Bogen selbst die Zahl längst zeigt.
+      .filter((t) => t.taw !== 0 || t.at !== 0 || t.pa !== 0 || t.bl !== 0 || talentProbeBonus(t.talentId, stats.boni) !== 0)
       .map((t) => {
         const cat = byId.get(t.talentId);
         const probe = cat?.probe ? (cat.probe.split('/') as AttrCode[]) : null;
@@ -1976,7 +2027,10 @@ export function buildSummary(charId: number) {
           kategorie: cat?.kategorie ?? '',
           probe: cat?.probe ?? '',
           taw: t.taw,
-          probeZahl: probe && probe.length === 3 ? talentProbeZahl(attributes, probe as [AttrCode, AttrCode, AttrCode], t.taw) : null,
+          probeZahl:
+            probe && probe.length === 3
+              ? talentProbeZahl(attributes, probe as [AttrCode, AttrCode, AttrCode], t.taw) + talentProbeBonus(t.talentId, stats.boni)
+              : null,
           spezialisierung: t.spezialisierung,
         };
       });

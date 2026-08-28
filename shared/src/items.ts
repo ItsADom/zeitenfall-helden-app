@@ -70,9 +70,19 @@ export type BodyZone = (typeof BODY_ZONES)[number];
 export type ItemBonusKind = 'attr' | 'baseValue' | 'resource' | 'talent' | 'spezial' | 'psyche' | 'traglast';
 export const ITEM_BONUS_KINDS: ItemBonusKind[] = ['attr', 'baseValue', 'resource', 'talent', 'spezial', 'psyche', 'traglast'];
 
-// Nur bei kind === 'talent' relevant: welche der vier Spalten der Bonus trifft.
-export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl';
-export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl'];
+// Nur bei kind === 'talent' relevant: was der Bonus trifft. Kampftalente
+// führen TaW/AT/PA/BL als vier UNABHÄNGIGE Werte (siehe Talente.tsx
+// KampfTable) — es gibt nirgends eine Formel, die TaW in AT/PA/BL umrechnet,
+// also zielt ein Bonus dort auf at/pa/bl (die tatsächlich in eine Kampfprobe
+// einfließen), nie auf taw (reine Anzeige/Meisterschaftsschwelle dort).
+// Normale Talente kennen nur taw/probe: 'taw' hebt den Talentwert selbst an
+// (wirkt auf die Probe nur GROB, über erleichterung() — alle 5 TaW +1), 'probe'
+// ist eine direkte, unskalierte Erschwernis/Erleichterung auf die Probe-Zahl
+// selbst (negativ erlaubt) — siehe talentProbeBonus() unten, NICHT Teil von
+// talentMitBoni(), weil CharTalent kein `probe`-Feld hat, das überschrieben
+// werden könnte.
+export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl' | 'probe';
+export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl', 'probe'];
 
 export interface ItemBonus {
   kind: ItemBonusKind;
@@ -406,6 +416,8 @@ export function specialMitBoni(sr: SpecialResource, boni: StatBoni): SpecialReso
 // Waffen-Aufteilung). Das gespeicherte Talent selbst bleibt unangetastet,
 // exakt wie attrsMitBoni es mit akt/mod hält: nichts hiervon wird je
 // zurückgeschrieben, die Eingabefelder binden weiter an den rohen Wert.
+// Absichtlich OHNE `probe` — dafür gibt es kein CharTalent-Feld zum
+// Überschreiben, siehe talentProbeBonus() direkt darunter.
 export function talentMitBoni(talent: CharTalent, boni: StatBoni): CharTalent {
   const bonus = boni.talente[talent.talentId];
   if (!bonus) return talent;
@@ -416,6 +428,16 @@ export function talentMitBoni(talent: CharTalent, boni: StatBoni): CharTalent {
     pa: talent.pa + (bonus.pa ?? 0),
     bl: talent.bl + (bonus.bl ?? 0),
   };
+}
+
+// Direkte, unskalierte Probe-Erschwernis/-Erleichterung eines normalen
+// Talents — additiv auf talentProbeZahl(...)'s Ergebnis, NICHT auf taw davor
+// (also ohne den erleichterung()-Deckel von "alle 5 TaW +1"). Getrennt von
+// talentMitBoni, weil kein CharTalent-Feld existiert, das diesen Wert trüge;
+// jeder Aufrufer von talentProbeZahl für ein normales Talent addiert das
+// Ergebnis hier separat.
+export function talentProbeBonus(talentId: number, boni: StatBoni): number {
+  return boni.talente[talentId]?.probe ?? 0;
 }
 
 // --- Sichten auf denselben Bestand ---

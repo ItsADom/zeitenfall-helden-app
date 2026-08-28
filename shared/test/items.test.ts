@@ -20,6 +20,7 @@ import {
   resourceInputMitBoni,
   specialMitBoni,
   talentMitBoni,
+  talentProbeBonus,
   wornBoni,
   zaehltZurLast,
   zoneView,
@@ -387,6 +388,46 @@ describe('talentMitBoni', () => {
   it('ohne Bonus wird dieselbe Referenz zurückgegeben', () => {
     const t = talent({ talentId: 1 });
     expect(talentMitBoni(t, wornBoni([]))).toBe(t);
+  });
+
+  it('feld "probe" fließt NICHT in taw/at/pa/bl ein — dafür gibt es kein CharTalent-Feld', () => {
+    const t = talent({ talentId: 42, taw: 8 });
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: 2 }] })]);
+    const out = talentMitBoni(t, boni);
+    expect(out.taw).toBe(8);
+    expect(out.at).toBe(0);
+  });
+});
+
+describe('talentProbeBonus', () => {
+  it('liefert den direkten Probe-Bonus eines Talents', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: 2 }] })]);
+    expect(talentProbeBonus(42, boni)).toBe(2);
+  });
+
+  it('summiert über mehrere getragene Items', () => {
+    const a = item({ location: 'getragen', name: 'A', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: 1 }] });
+    const b = item({ location: 'getragen', name: 'B', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: -3 }] });
+    expect(talentProbeBonus(42, wornBoni([a, b]))).toBe(-2);
+  });
+
+  it('ohne Bonus 0', () => {
+    expect(talentProbeBonus(42, wornBoni([]))).toBe(0);
+  });
+
+  it('taw- und probe-Boni auf demselben Talent bleiben unabhängig', () => {
+    const boni = wornBoni([
+      item({
+        location: 'getragen',
+        name: 'Ring',
+        bonusse: [
+          { kind: 'talent', code: '42', feld: 'taw', wert: 5 },
+          { kind: 'talent', code: '42', feld: 'probe', wert: 2 },
+        ],
+      }),
+    ]);
+    expect(talentMitBoni(talent({ talentId: 42, taw: 8 }), boni).taw).toBe(13);
+    expect(talentProbeBonus(42, boni)).toBe(2);
   });
 });
 

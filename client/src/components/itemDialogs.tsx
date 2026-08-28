@@ -53,6 +53,14 @@ function BonusRowsEditor({
   // anzubieten.
   const formelSpezialEnergien = specialEnergies.filter((e) => e.formula.trim());
   const patchRow = (i: number, patch: Partial<ItemBonus>) => onChange(bonusse.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  // Kampftalente führen TaW/AT/PA/BL als vier UNABHÄNGIGE Werte (siehe
+  // Talente.tsx KampfTable) — es gibt nirgends eine Formel, die TaW in
+  // AT/PA/BL umrechnet. Ein TaW-Bonus auf ein Kampftalent würde also nur die
+  // Anzeige/Meisterschaftsschwelle heben, nie eine Probe — deshalb fällt die
+  // Option dort weg; AT/PA/BL bleiben die Ziele, die eine Kampfprobe wirklich
+  // treffen.
+  const istKampftalent = (talentId: string): boolean =>
+    talents.find((t) => String(t.id) === talentId)?.kategorie === 'kampf';
 
   return (
     <div className="dlg-fade-group">
@@ -66,7 +74,8 @@ function BonusRowsEditor({
               value={bonusOptionValue(b.kind, b.code)}
               onChange={(e) => {
                 const { kind, code } = parseBonusOptionValue(e.target.value);
-                patchRow(i, { kind, code, feld: kind === 'talent' ? 'taw' : '' });
+                const feld = kind === 'talent' ? (istKampftalent(code) ? 'at' : 'taw') : '';
+                patchRow(i, { kind, code, feld });
               }}
             >
               <optgroup label="Attribut">
@@ -115,10 +124,22 @@ function BonusRowsEditor({
             </select>
             {b.kind === 'talent' && (
               <select value={b.feld} onChange={(e) => patchRow(i, { feld: e.target.value as TalentBonusFeld })}>
-                <option value="taw">TaW</option>
-                <option value="at">AT</option>
-                <option value="pa">PA</option>
-                <option value="bl">BL</option>
+                {istKampftalent(b.code) ? (
+                  <>
+                    <option value="at">AT</option>
+                    <option value="pa">PA</option>
+                    <option value="bl">BL</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="taw" title="Hebt den Talentwert selbst an — wirkt auf die Probe nur grob (alle 5 TaW +1).">
+                      TaW
+                    </option>
+                    <option value="probe" title="Direkte Erschwernis/Erleichterung auf die Probe-Zahl, unabhängig vom TaW.">
+                      Probe
+                    </option>
+                  </>
+                )}
               </select>
             )}
             <NumInput value={b.wert} onChange={(v) => patchRow(i, { wert: v })} />
@@ -148,6 +169,8 @@ export function AddItemDialog({
   specialEnergies,
   onAdd,
   onSave,
+  onDuplicate,
+  onDelete,
 }: {
   open: boolean;
   onClose: () => void;
@@ -161,6 +184,10 @@ export function AddItemDialog({
   onAdd?: (fields: Partial<Item>) => void;
   /** Bearbeiten-Modus (`item` gesetzt) — nur die tatsächlich geänderten Felder. */
   onSave?: (patch: Partial<Item>) => void;
+  /** Bearbeiten-Modus: Duplizieren-Knopf im Fuß, falls gesetzt. */
+  onDuplicate?: () => void;
+  /** Bearbeiten-Modus: Löschen-Knopf im Fuß, falls gesetzt. */
+  onDelete?: () => void;
 }) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
@@ -268,6 +295,34 @@ export function AddItemDialog({
       wide
       footer={
         <>
+          {item && (onDuplicate || onDelete) && (
+            <span className="dlg-foot-left">
+              {onDuplicate && (
+                <button
+                  type="button"
+                  className="small"
+                  title="Duplizieren — legt eine exakte Kopie daneben an"
+                  onClick={() => {
+                    onDuplicate();
+                    close();
+                  }}
+                >
+                  ⧉ Duplizieren
+                </button>
+              )}
+              {onDelete && (
+                <ConfirmDeleteButton
+                  title="Gegenstand entfernen"
+                  onConfirm={() => {
+                    onDelete();
+                    close();
+                  }}
+                >
+                  🗑 Löschen
+                </ConfirmDeleteButton>
+              )}
+            </span>
+          )}
           <button type="button" className="small" onClick={close}>
             Abbrechen
           </button>

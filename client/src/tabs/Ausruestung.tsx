@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ContainerArt, Item, ItemBonus, ItemLocation, KapazitaetArt } from '@shared/items';
+import type { Item, ItemBonus, ItemLocation } from '@shared/items';
 import {
   BODY_ZONES,
   containerFuellungAnzeige,
@@ -17,7 +17,6 @@ import type { AttrCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { ATTR_LABELS, BASE_VALUE_LABELS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from '../components/charSheet';
 import { BonusWert } from '../components/BonusWert';
-import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useReadOnly } from '../components/displayMode';
 import { AddItemDialog } from '../components/itemDialogs';
 import { NumInput } from '../components/inputs';
@@ -77,7 +76,6 @@ export default function AusruestungTab() {
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
   const [over, setOver] = useState<string | null>(null);
-  const [openUid, setOpenUid] = useState<string | null>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editUid, setEditUid] = useState<string | null>(null);
 
@@ -156,14 +154,8 @@ export default function AusruestungTab() {
     <ItemChip
       key={it.uid}
       item={it}
-      ro={ro}
-      open={openUid === it.uid}
-      onToggleOpen={() => setOpenUid((u) => (u === it.uid ? null : it.uid))}
       onEdit={() => setEditUid(it.uid)}
       bonusTitle={it.bonusse.length > 0 ? it.bonusse.map((b) => bonusLabel(b, catalogs.talents, catalogs.specialEnergies)).join(', ') : ''}
-      onPatch={(p) => patchItem(it.uid, p)}
-      onDuplicate={() => duplicateItemAt(it.uid)}
-      onRemove={() => removeItem(it.uid)}
     >
       {it.istBehaelter && it.containerArt === 'quick' && (
         <div className="quick-contents">
@@ -313,6 +305,8 @@ export default function AusruestungTab() {
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
         onSave={(patch) => editUid && patchItem(editUid, patch)}
+        onDuplicate={() => editUid && duplicateItemAt(editUid)}
+        onDelete={() => editUid && removeItem(editUid)}
       />
     </>
   );
@@ -320,31 +314,19 @@ export default function AusruestungTab() {
 
 function ItemChip({
   item,
-  ro,
-  open,
-  onToggleOpen,
   onEdit,
   bonusTitle,
-  onPatch,
-  onDuplicate,
-  onRemove,
   children,
 }: {
   item: Item;
-  ro: boolean;
-  open: boolean;
-  onToggleOpen: () => void;
-  /** Öffnet AddItemDialog im Bearbeiten-Modus — Name/kg/RS/Haltbarkeit-Max/Notiz/Boni. */
+  /** Öffnet AddItemDialog im Bearbeiten-Modus — Name/kg/RS/Haltbarkeit/Behälter/Notiz/Boni, plus Duplizieren/Löschen im Fuß. Auch im Nur-Lesen-Modus, wie Ziehen. */
   onEdit: () => void;
   /** Zusammenfassung der Boni fürs Tooltip, '' wenn keine — steuert den Marker. */
   bonusTitle: string;
-  onPatch: (patch: Partial<Item>) => void;
-  onDuplicate: () => void;
-  onRemove: () => void;
   children?: React.ReactNode;
 }) {
   return (
-    <span className={`chip-wrap${open ? ' open' : ''}`}>
+    <span className="chip-wrap">
       <span
         className={`item-chip${item.istBehaelter ? ' is-container' : ''}`}
         draggable
@@ -352,7 +334,8 @@ function ItemChip({
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', item.uid);
         }}
-        title={item.notiz || undefined}
+        onClick={onEdit}
+        title={`Klicken zum Bearbeiten, Ziehen zum Verschieben${item.notiz ? ` — ${item.notiz}` : ''}`}
       >
         <span className="chip-name">{item.name || '(ohne Name)'}</span>
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
@@ -373,66 +356,7 @@ function ItemChip({
         {item.beidseitig && (
           <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>
         )}
-        {!ro && (
-          <>
-            <button className="chip-btn" title="Anzahl, Haltbarkeit, Behälter" onClick={onToggleOpen}>
-              {open ? '▾' : '✎︎'}
-            </button>
-            <button className="chip-btn" title="Gegenstand bearbeiten (Name, RS, Haltbarkeit-Maximum, Notiz, Boni …)" onClick={onEdit}>
-              ⚙︎
-            </button>
-          </>
-        )}
       </span>
-      {!ro && open && (
-        <div className="chip-editor">
-          <label>Anzahl<NumInput value={item.anzahl} min={0} onChange={(v) => onPatch({ anzahl: v })} /></label>
-          <label title="Haltbarkeit wie LP — 0 Maximum heißt „nicht verfolgt“, die %-Anzeige bleibt dann aus. Maximum ändert sich im Bearbeiten-Dialog (⚙︎).">
-            Haltbarkeit
-            <NumInput
-              value={item.haltbarkeitAktuell}
-              min={0}
-              max={item.haltbarkeitMax}
-              onChange={(v) => onPatch({ haltbarkeitAktuell: v })}
-            />
-            / {item.haltbarkeitMax}
-          </label>
-          <label className="chip-check">
-            <input type="checkbox" checked={item.istBehaelter} onChange={(e) => onPatch({ istBehaelter: e.target.checked })} />
-            Behälter
-          </label>
-          {item.istBehaelter && (
-            <>
-              <label>
-                Art
-                <select value={item.containerArt} onChange={(e) => onPatch({ containerArt: e.target.value as ContainerArt })}>
-                  <option value="storage">Stauraum (Inventar)</option>
-                  <option value="quick">Schnellzugriff (inline)</option>
-                </select>
-              </label>
-              <label title="Womit das Fassungsvermögen gemessen wird.">
-                Kap. in
-                <select value={item.kapazitaetArt} onChange={(e) => onPatch({ kapazitaetArt: e.target.value as KapazitaetArt })}>
-                  <option value="gewicht">kg</option>
-                  <option value="stueck">Stück</option>
-                </select>
-              </label>
-              <label>Kap.<NumInput value={item.kapazitaet} min={0} onChange={(v) => onPatch({ kapazitaet: v })} /></label>
-              {item.kapazitaetArt !== 'stueck' && (
-                <label title="Gewichtsreduktion des Inhalts. 100 % = zählt gar nicht (Beutel des Fassungsvermögens).">
-                  −%<NumInput value={item.gewichtsreduktion} min={0} max={100} onChange={(v) => onPatch({ gewichtsreduktion: v })} />
-                </label>
-              )}
-            </>
-          )}
-          <button type="button" className="small chip-dup" title="Duplizieren — legt eine exakte Kopie daneben an" onClick={onDuplicate}>
-            ⧉ Duplizieren
-          </button>
-          <ConfirmDeleteButton className="small chip-del" title="Gegenstand entfernen" onConfirm={onRemove}>
-            🗑 Löschen
-          </ConfirmDeleteButton>
-        </div>
-      )}
       {children}
     </span>
   );

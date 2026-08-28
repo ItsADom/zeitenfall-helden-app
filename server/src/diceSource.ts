@@ -15,12 +15,14 @@ import {
   probeExprZahl,
   schreibenProbe,
   sprechenProbe,
+  talentProbeBonus,
   talentProbeZahl,
   weaponProbe,
   weaponProbes,
 } from 'shared';
 import { db } from './db.js';
 import { loadStats } from './characterData.js';
+import type { CharStats } from './characterData.js';
 
 export interface ComputedProbe {
   n: number;
@@ -90,13 +92,15 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
 // Bonus dann 0. Beide Fälle rechnen über dieselbe weaponProbes()-Formel wie
 // der Waffen-Reiter, mit der AT/PA/BL-SPALTE des Talents (char_talents.at/
 // pa/bl), NICHT dem TaW — genau die Aufteilung, die auch echte Waffen nutzen.
+// `stats` statt eines eigenen loadStats()-Aufrufs: computeProbeForCharacter
+// hat es schon geladen, und stats.talente trägt bereits Item-Boni (talentMitBoni).
 function resolveAbilityWeaponProbes(
   characterId: number,
-  attrs: Attributes,
+  stats: CharStats,
   weapon: Extract<ProbeSource, { kind: 'ability' }>['weapon'],
 ): { at: number; pa: number; bl: number } | null {
   if (!weapon) return null;
-  const bv = computeBaseValues(attrs, loadStats(characterId).baseInputs);
+  const bv = computeBaseValues(stats.attrs, stats.baseInputs);
   const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
   let talentId: number;
   let weaponMod = { at: 0, pa: 0, bl: 0 };
@@ -110,9 +114,7 @@ function resolveAbilityWeaponProbes(
   } else {
     talentId = weapon.talentId;
   }
-  const talent = db
-    .prepare('SELECT at, pa, bl FROM char_talents WHERE character_id = ? AND talent_id = ?')
-    .get(characterId, talentId) as { at: number; pa: number; bl: number } | undefined;
+  const talent = stats.talente.find((t) => t.talentId === talentId);
   return weaponProbes(weaponMod, base, { at: talent?.at ?? 0, pa: talent?.pa ?? 0, bl: talent?.bl ?? 0 });
 }
 
@@ -126,23 +128,23 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       return { n: 1, probeZahl: attrMax(attrs, source.attr), label: ATTR_LABELS[source.attr], attrParts: [source.attr] };
     }
     case 'talent': {
-      const row = db
-        // Vom KATALOG aus, nicht von char_talents: der Bogen zeigt für jedes
-        // Talent eine Probe-Zahl, auch für ungelernte (kein char_talents-
-        // Eintrag = TaW 0). Ein Wurf darauf ist ein regulärer ungelernter
-        // Versuch und muss möglich sein.
-        .prepare(
-          `SELECT tc.probe, tc.name, COALESCE(ct.taw, 0) AS taw
-           FROM talents_catalog tc
-           LEFT JOIN char_talents ct ON ct.talent_id = tc.id AND ct.character_id = ?
-           WHERE tc.id = ?`,
-        )
-        .get(characterId, source.talentId) as { taw: number; probe: string; name: string } | undefined;
+      // Vom KATALOG aus, nicht von char_talents: der Bogen zeigt für jedes
+      // Talent eine Probe-Zahl, auch für ungelernte. Ein Wurf darauf ist ein
+      // regulärer ungelernter Versuch und muss möglich sein. Der TaW kommt aus
+      // stats.talente statt einem eigenen JOIN — das trägt schon Item-Boni
+      // (auch auf ein nie angerührtes Talent, siehe loadStats) und fällt für
+      // ein wirklich ungelerntes auf 0 zurück, wie vorher COALESCE(ct.taw, 0).
+      const row = db.prepare(`SELECT probe, name FROM talents_catalog WHERE id = ?`).get(source.talentId) as
+        | { probe: string; name: string }
+        | undefined;
       // Kampftalente haben keine Formel — sie werden über den Waffen-Reiter gewürfelt.
       if (!row || !row.probe) return null;
       const parts = row.probe.split('/').map((p) => p.trim().toUpperCase());
       if (parts.length !== 3) return null;
-      const probeZahl = talentProbeZahl(attrs, parts as [AttrCode, AttrCode, AttrCode], row.taw);
+      const taw = stats.talente.find((t) => t.talentId === source.talentId)?.taw ?? 0;
+      // + talentProbeBonus: eine direkte Probe-Erschwernis/-Erleichterung
+      // (feld 'probe'), unskaliert und getrennt vom TaW-Weg über erleichterung().
+      const probeZahl = talentProbeZahl(attrs, parts as [AttrCode, AttrCode, AttrCode], taw) + talentProbeBonus(source.talentId, stats.boni);
       return { n: 3, probeZahl, label: row.name, attrParts: parts as AttrCode[] };
     }
     case 'ability': {
@@ -155,7 +157,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const hasWeaponTerm = parts.some((p) => p === 'AT' || p === 'PA' || p === 'BL');
       // Ohne AT/PA/BL im Ausdruck reicht der attributbasierte Weg — kein
       // Waffen-Bezug nötig, `source.weapon` wird ignoriert, falls doch gesetzt.
-      const weapon = hasWeaponTerm ? resolveAbilityWeaponProbes(characterId, attrs, source.weapon) : null;
+      const weapon = hasWeaponTerm ? resolveAbilityWeaponProbes(characterId, stats, source.weapon) : null;
       if (hasWeaponTerm && !weapon) return null;
       const probeZahl = abilityProbeZahl(attrs, row.probe, weapon);
       if (probeZahl === null) return null;
@@ -187,9 +189,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
         | undefined;
       if (!row) return null;
       const talentId = Number(row.talentId) || 0;
-      const talent = db
-        .prepare('SELECT at, pa, bl FROM char_talents WHERE character_id = ? AND talent_id = ?')
-        .get(characterId, talentId) as { at: number; pa: number; bl: number } | undefined;
+      const talent = stats.talente.find((t) => t.talentId === talentId);
       const bv = computeBaseValues(attrs, stats.baseInputs);
       const label = String(row.typ ?? '');
       if (source.probe === 'fk') {
