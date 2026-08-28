@@ -201,8 +201,20 @@ interface DicePanelCtxValue {
    * (ein Wurf ist eine bewusste Handlung — anders als bloßes Blättern) und
    * klappt den Dock auf, damit Ergebnis und Reaktion sichtbar sind.
    */
-  /** targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung gewählt — wie bei rollExpr. */
-  rollProbe: (groupId: number, charId: number, source: ProbeSource, visibility: RollVisibility, targetUserId?: number) => void;
+  /**
+   * targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung
+   * gewählt — wie bei rollExpr. `repeat`: führendes "Nx" im Chat ("2xAthletik")
+   * — dieselbe Wiederholung/Gruppierung wie bei einem freien Ausdruck, siehe
+   * MAX_REPEAT_COUNT in shared/src/dice.ts. Unbesetzt/1 = ein einzelner Wurf.
+   */
+  rollProbe: (
+    groupId: number,
+    charId: number,
+    source: ProbeSource,
+    visibility: RollVisibility,
+    targetUserId?: number,
+    repeat?: number,
+  ) => void;
   /**
    * Schaden einer Waffenzeile würfeln. `ranged` unterscheidet Nah-/Fernkampf-
    * Tabelle (siehe roll.weaponDamage im Protokoll) — kein Anfrage-Pendant,
@@ -1152,7 +1164,14 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const rollProbe = useCallback(
-    (forGroupId: number, forCharId: number, source: ProbeSource, visibility: RollVisibility, targetUserId?: number) => {
+    (
+      forGroupId: number,
+      forCharId: number,
+      source: ProbeSource,
+      visibility: RollVisibility,
+      targetUserId?: number,
+      repeat?: number,
+    ) => {
       // Ein Wurf vom Bogen gehört in den Raum DIESER Gruppe, als DIESER
       // Charakter — notfalls wird dorthin gewechselt (die Nachricht wartet
       // dann in der Outbox auf die neue Verbindung).
@@ -1169,6 +1188,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         visibility,
         modifier,
         targetUserId,
+        ...(repeat && repeat > 1 ? { repeat } : {}),
       });
       // Gilt nur für DIESEN einen Wurf — mehrere modifizierte Würfe hinter-
       // einander sind selten, ein vergessener Modifikator, der beim nächsten

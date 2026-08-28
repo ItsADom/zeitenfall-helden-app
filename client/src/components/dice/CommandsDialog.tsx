@@ -18,7 +18,7 @@ const COMMANDS: { syntax: string; description: string; nurSl?: true }[] = [
   {
     syntax: '/r <Ausdruck>  oder  /roll <Ausdruck>',
     description:
-      'Würfelt frei, z. B. „2w6+5". Mehrere Würfelarten dürfen gemischt werden („1w6+1w20"), ein Titel lässt sich mit „#" anhängen („5w10+6#Glück"). Tippst du stattdessen einen Namen, schlägt der Chat passende Proben deines Charakters vor.',
+      'Würfelt frei, z. B. „2w6+5", auch mit echter Rechnung („2*(1w6+3)"). Mehrere Würfelarten dürfen gemischt werden („1w6+1w20"), ein Titel lässt sich mit „#" anhängen („5w10+6#Glück"), ein vorangestelltes „Nx" wiederholt den ganzen Wurf N-mal als eine gemeinsame Karte („3x2w6+8"). Tippst du stattdessen einen Namen, schlägt der Chat passende Proben deines Charakters vor — auch die lassen sich mit „Nx" wiederholt würfeln („2xAthletik"); ist einer ausgewählt, lösen sich auch Attributs-Kürzel wie „MU" im Ausdruck gegen dessen Werte auf.',
   },
   {
     syntax: '/dicecode w  oder  /dicecode d',

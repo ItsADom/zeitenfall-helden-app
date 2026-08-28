@@ -23,12 +23,13 @@
 // nothing is pending. Until then its success/failure is deliberately not
 // decided, since a confirmed 20 would override it anyway.
 
+import { countDice, diceSidesFor, parseFormula, type FormulaNode } from './formula.js';
+
 export const MAX_DICE_COUNT = 20;
-export const MAX_DICE_SIDES = 1000;
-// Bound on a free-roll's "+N"/"-N" modifier — without this an absurdly long
-// digit string parses to Infinity, which JSON.stringify silently turns into
-// null, corrupting the stored/broadcast roll.
-export const MAX_DICE_MODIFIER = 1000;
+export const MAX_DICE_GROUPS = 6;
+// A leading "Nx" repeats the whole roll N times as one grouped/summarized
+// feed card (chat-only — see TODO.md "Dice formula overhaul").
+export const MAX_REPEAT_COUNT = 10;
 
 /**
  * Knapper Erfolg: ein Wurf aus MEHREREN Würfeln gilt noch als gelungen, wenn
@@ -307,67 +308,50 @@ export function computeCoopVerdict(rolls: CoopRollLike[]): CoopVerdict {
   };
 }
 
-/** Ein Würfel-Block innerhalb eines (ggf. gemischten) Ausdrucks, z. B. "2w6". */
-export interface DiceGroup {
-  count: number;
-  sides: number;
-}
+// Ein freier Würfel-Ausdruck ist ab jetzt derselbe Baum wie überall sonst
+// (siehe formula.ts) — der Name bleibt "DiceExpression" für Bestandscode/
+// -Kommentare in diesem Modul, ist aber nur noch ein Alias.
+export type DiceExpression = FormulaNode;
 
 /**
- * Ein oder mehrere addierte Würfel-Blöcke plus ein gemeinsamer flacher
- * Modifikator, z. B. "1w6+1w20+3" → groups: [{1,6},{1,20}], modifier: 3.
- * `dice`-Arrays, die zu diesem Ausdruck gehören, liegen immer in derselben
- * Reihenfolge flach hintereinander — Gruppe 0 zuerst, dann Gruppe 1, usw.
+ * Ein `sides`-Wert je Würfel, parallel zum flachen `dice`-Array — für
+ * findCritTriggers/Anzeige. Rein strukturell (kein Würfeln nötig), deshalb
+ * auch am Bestätigungswurf-Zeitpunkt aus dem gespeicherten Ausdruck erneut
+ * ableitbar, ohne den Wurf selbst zu wiederholen.
  */
-export interface DiceExpression {
-  groups: DiceGroup[];
-  modifier: number;
-}
-
-export const MAX_DICE_GROUPS = 6;
-
-/** Ein `sides`-Wert je Würfel, parallel zum flachen `dice`-Array — für findCritTriggers/Anzeige. */
 export function diceSidesForExpression(expression: DiceExpression): number[] {
-  return expression.groups.flatMap((g) => Array(g.count).fill(g.sides) as number[]);
+  return diceSidesFor(expression);
 }
 
 /**
- * Parses "2w6+5", "w20", "1W20-1", "2d6+5" (case-insensitive "w"/"d") and,
- * gemischt, "1w6+1w20", "2w6+1w4+3". Mehrere Würfel-Blöcke werden addiert
- * ("+NwS"); ein Block lässt sich nicht abziehen ("-NwS" ist ungültig — ein
- * negativer Würfel-Pool ergibt keinen Sinn), nur der flache Zahlenanteil darf
- * negativ sein.
+ * Parses "2w6+5", "w20", "1W20-1", "2d6+5" (case-insensitive "w"/"d"), real
+ * Klammer-/Vorrangs-Arithmetik ("2*(1w6+3)") und gemischte Pools
+ * ("1w6+1w20"). Ein Würfel-Block unter Multiplikation wird zuerst geworfen,
+ * die Arithmetik wirkt danach auf das Ergebnis — fällt aus der normalen
+ * Auswertungsreihenfolge heraus, siehe formula.ts. Muss mindestens einen
+ * Würfel-Block enthalten ("5" allein ist kein Wurf) und hält sich an dieselben
+ * Gesamt-Obergrenzen wie zuvor (Würfelzahl, Anzahl Blöcke).
  */
 export function parseDiceExpression(expr: string): DiceExpression | null {
-  const cleaned = expr.replace(/\s+/g, '');
-  if (cleaned === '') return null;
-  const normalized = cleaned[0] === '+' || cleaned[0] === '-' ? cleaned : `+${cleaned}`;
-  const terms = normalized.match(/[+-][^+-]+/g);
-  if (!terms || terms.join('') !== normalized) return null; // muss die ganze Eingabe abdecken, kein Müll dazwischen
+  const ast = parseFormula(expr.trim());
+  if (!ast) return null;
+  const { totalDice, groups } = countDice(ast);
+  if (totalDice < 1 || totalDice > MAX_DICE_COUNT) return null;
+  if (groups > MAX_DICE_GROUPS) return null;
+  return ast;
+}
 
-  const groups: DiceGroup[] = [];
-  let modifier = 0;
-  let totalCount = 0;
-  for (const term of terms) {
-    const negative = term[0] === '-';
-    const body = term.slice(1);
-    const diceMatch = /^(\d*)[wWdD](\d+)$/.exec(body);
-    if (diceMatch) {
-      if (negative) return null;
-      const count = diceMatch[1] === '' ? 1 : parseInt(diceMatch[1], 10);
-      const sides = parseInt(diceMatch[2], 10);
-      if (sides < 2 || sides > MAX_DICE_SIDES) return null;
-      totalCount += count;
-      groups.push({ count, sides });
-      continue;
-    }
-    if (!/^\d+$/.test(body)) return null;
-    modifier += (negative ? -1 : 1) * parseInt(body, 10);
-  }
-  if (groups.length === 0 || groups.length > MAX_DICE_GROUPS) return null;
-  if (totalCount < 1 || totalCount > MAX_DICE_COUNT) return null;
-  if (!Number.isFinite(modifier) || modifier < -MAX_DICE_MODIFIER || modifier > MAX_DICE_MODIFIER) return null;
-  return { groups, modifier };
+// Ein führendes "Nx" wiederholt den ganzen Wurf N-mal als eine gemeinsame,
+// zusammengefasste Feed-Karte (Chat-only, siehe TODO.md). Wird VOR dem
+// eigentlichen Ausdruck abgetrennt — unabhängig vom Label-Trenner "#", der am
+// Ende steht (siehe splitInlineTitle in FeedColumn.tsx), und unabhängig von
+// "*", das schon die Bedeutung "geworfenes Ergebnis skalieren" trägt.
+export function stripRepeatPrefix(text: string): { repeat: number; rest: string } {
+  const m = /^(\d+)[xX](.*)$/.exec(text.trim());
+  if (!m) return { repeat: 1, rest: text };
+  const repeat = parseInt(m[1], 10);
+  if (repeat < 1 || repeat > MAX_REPEAT_COUNT) return { repeat: 1, rest: text };
+  return { repeat, rest: m[2] };
 }
 
 export interface ExpressionRollResult {
@@ -386,14 +370,20 @@ export interface ExpressionRollResult {
  * concept — the crit/confirmation mechanic still applies to jedem W20-Anteil
  * (auch innerhalb eines gemischten Pools), aber nur um den Eintrag zu
  * markieren, nie um ein Ergebnis zu überschreiben.
+ *
+ * `rawSum` kommt von außen (aus `evaluateRolled` beim ersten Wurf, oder aus
+ * dem gespeicherten Eintrag bei einem nachgereichten Bestätigungswurf) statt
+ * hier aus `dice` neu berechnet zu werden — anders als beim alten rein
+ * additiven Modell lässt sich die Summe bei echter Arithmetik (*, /, Klammern)
+ * nicht mehr allein aus den flachen Würfelwerten zurückgewinnen.
  */
 export function resolveExpressionRoll(
   expression: DiceExpression,
   dice: number[],
   rolled: RolledConfirmation[],
+  rawSum: number,
 ): ExpressionRollResult {
   const triggers = findCritTriggers(dice, diceSidesForExpression(expression));
-  const rawSum = dice.reduce((a, b) => a + b, 0) + expression.modifier;
   const { confirmations, pending, adjustedSum } = applyConfirmations(triggers, rolled, rawSum);
   return {
     expression,

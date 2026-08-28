@@ -4,6 +4,7 @@
 // crypto module.
 import crypto from 'node:crypto';
 import {
+  evaluateRolled,
   resolveExpressionRoll,
   resolveProbeRoll,
   type DiceExpression,
@@ -43,9 +44,17 @@ export function performProbeRoll(n: number, probeZahl: number, modifier = 0): Pr
   return resolveProbeRoll(dice, [], probeZahl, modifier);
 }
 
-export function performExpressionRoll(expression: DiceExpression): ExpressionRollResult {
-  // Gruppen der Reihe nach würfeln und flach aneinanderhängen — dieselbe
-  // Reihenfolge, die diceSidesForExpression beim Auflösen erwartet.
-  const dice = expression.groups.flatMap((g) => Array.from({ length: g.count }, () => rollDie(g.sides)));
-  return resolveExpressionRoll(expression, dice, []);
+/**
+ * `resolveId` resolves bare attribute-code identifiers in a free chat roll
+ * (e.g. typing "MU") against the sender's selected character — unset (GM
+ * chat, or no character selected) means every identifier fails, same as
+ * today's "not a valid expression" outcome for any other unresolvable token.
+ */
+export function performExpressionRoll(
+  expression: DiceExpression,
+  resolveId: (name: string) => number | null = () => null,
+): ExpressionRollResult | null {
+  const rolled = evaluateRolled(expression, resolveId, rollDie);
+  if (!rolled) return null;
+  return resolveExpressionRoll(expression, rolled.dice, [], rolled.total);
 }

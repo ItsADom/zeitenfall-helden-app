@@ -90,31 +90,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   — not something each player adds/removes individually — and rollable
   directly from there like any other talent.
 
-- [ready] **Dice formula overhaul** (concept agreed, several related asks
-  bundled into one build): today three separate, inconsistent parsers handle
-  formulas — `parseDiceExpression` (chat `/r`, `+`/`-` only, no `*`, rejects
-  negative dice blocks; `shared/src/dice.ts:341-371`), `parseProbeExpr`
-  (Talent/Zauber/Waffen Proben, `expr.split('+')` only;
-  `shared/src/rules.ts:175-215`), and `evaluateEnergyFormula` (GM's
-  Spezialenergien-Katalog only, already a full recursive-descent grammar with
-  `+ - * / ()`; `rules.ts:332-460`). **Decided:** build one shared arithmetic
-  grammar (generalizing `evaluateEnergyFormula`'s existing `+ - * / ()`
-  approach) rather than patching each parser separately, so real calculations
-  with brackets/order-of-operations become possible everywhere, not just a
-  bolted-on `*`. **Decided:** for a dice block under multiplication, roll
-  first, then apply the arithmetic to the rolled result (not "double the die
-  count"). **Decided:** repeat-count syntax (e.g. rolling "2w6+8" three times
-  in one command) — exact syntax shape still open (prefix/suffix, interaction
-  with `#label`), but the *result* is settled: one grouped/summarized card,
-  not three separate feed entries — similar in spirit to how group-check
-  rolls already bundle. **Decided:** Attribut values in free-form chat
-  dicecode (e.g. typing "MU") resolve against the sender's currently-selected
-  character; with none selected (e.g. GM chat), left unavailable/literal —
-  this needs a new resolution step before/instead of the raw expression
-  parser, distinct from the existing named-Probe suggestion flow
-  (`probeExprZahl`/`/api/characters/:id/probes`). The stale "check not found"
-  warning sub-item is covered by the general stale-warning fix above.
-
 - [sketch] **Favorites: add a text field** (partially agreed, partially
   still open): the "inherit the chosen visibility setting" half turned out to
   probably just be a symptom of the multi-tab chat desync — now fixed (see

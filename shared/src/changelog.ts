@@ -200,6 +200,15 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-28',
+    title: 'Würfelformeln',
+    added: [
+      'Freie Würfe im Chat („/r") verstehen jetzt echte Rechnung mit Klammern und Vorrang („2*(1w6+3)"), nicht mehr nur Addition/Subtraktion.',
+      'Ein vorangestelltes „Nx" wiederholt einen Wurf N-mal auf einmal, als eine gemeinsame Karte mit Gesamtsumme (oder Erfolgsquote bei einer Probe) — sowohl bei freien Ausdrücken („3x2w6+8") als auch bei einer benannten Probe („2xAthletik").',
+      'Hast du gerade einen Charakter ausgewählt, lösen sich Attribut-Kürzel wie „MU" in einem freien Wurf jetzt gegen dessen Werte auf.',
+    ],
+  },
+  {
+    date: '2026-08-28',
     title: 'Navigation',
     changed: [
       'Das „Gruppen"-Menü in der Kopfleiste führt beim Überfahren jetzt direkt zu Spieltisch oder Gruppenseite der jeweiligen Gruppe, statt nur zur Gruppenseite.',

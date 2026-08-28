@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { computeCoopVerdict, parseDiceExpression } from '@shared/dice';
+import { computeCoopVerdict, parseDiceExpression, stripRepeatPrefix } from '@shared/dice';
 import type { FeedEntry, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
@@ -61,6 +61,30 @@ function CoopVerdictLine({ entries }: { entries: FeedEntry[] }) {
   return (
     <div className={`feed-coop-verdict${verdict.provisional ? ' feed-coop-verdict--provisional' : verdict.success ? ' feed-coop-verdict--success' : ' feed-coop-verdict--failure'}`}>
       {text}
+    </div>
+  );
+}
+
+// Summenzeile für einen per führendem "Nx" wiederholten Wurf (siehe
+// stripRepeatPrefix) — dieselbe optische Rolle wie CoopVerdictLine. Ein freier
+// Ausdruck hat kein Ziel, gegen das man gewinnen könnte, nur eine Summe über
+// alle Wiederholungen; eine wiederholte Probe dagegen hat pro Wurf ein eigenes
+// Erfolg/Fehlschlag, also zählt die Zeile die stattdessen — unabhängig
+// voneinander bewertet, nicht gepoolt wie bei einer Kooperationsprobe.
+function RepeatTotalLine({ entries }: { entries: FeedEntry[] }) {
+  const rollEntries = entries.filter((e): e is FeedEntry & { kind: 'roll' } => e.kind === 'roll');
+  if (rollEntries.length === 0) return null;
+  const first = rollEntries[0].roll;
+  if (first.mode === 'expr') {
+    const total = rollEntries.reduce((sum, e) => sum + (e.roll as { adjustedSum: number }).adjustedSum, 0);
+    return <div className="feed-coop-verdict">{rollEntries.length}× gewürfelt — Summe: {total}</div>;
+  }
+  const rolls = rollEntries.map((e) => e.roll).filter((r): r is ProbeRollPayload => r.mode === 'probe');
+  if (rolls.some((r) => !r.resolved)) return <div className="feed-coop-verdict feed-coop-verdict--provisional">{COOP.verdictProvisional}</div>;
+  const successes = rolls.filter((r) => r.success).length;
+  return (
+    <div className="feed-coop-verdict">
+      {rolls.length}× gewürfelt — {successes} von {rolls.length} bestanden
     </div>
   );
 }
@@ -147,10 +171,16 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
 
   const rollMatch = /^\/(?:r|roll)\s+(.*)$/i.exec(draft);
   const rollRest = rollMatch ? rollMatch[1] : null;
-  const isValidDice = rollRest !== null && parseDiceExpression(splitInlineTitle(rollRest).expr) !== null;
+  const isValidDice =
+    rollRest !== null && parseDiceExpression(stripRepeatPrefix(splitInlineTitle(rollRest).expr).rest) !== null;
   const koopMatch = /^\/(?:koop|coop)\s+(.*)$/i.exec(draft);
   const koopMode = koopMatch !== null;
-  const searchText = koopMode ? koopMatch[1].trim() : rollRest !== null && !isValidDice ? rollRest.trim() : '';
+  // Ein führendes "Nx" gilt genauso für eine benannte Probe ("2xAthletik") wie
+  // für einen freien Ausdruck — abgetrennt VOR dem Namensabgleich, sonst würde
+  // "2x" selbst als Teil des gesuchten Namens versucht.
+  const probeSearch = rollRest !== null && !isValidDice ? stripRepeatPrefix(rollRest.trim()) : null;
+  const searchText = koopMode ? koopMatch[1].trim() : (probeSearch?.rest ?? '');
+  const probeRepeat = probeSearch?.repeat ?? 1;
   const suggestCharId = koopMode ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
   const showSuggestions = !suggestDismissed && suggestCharId !== null && searchText.length >= MIN_SEARCH_LEN;
 
@@ -184,7 +214,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     setDraft('');
     setSuggestDismissed(false);
     if (koopMode) proposeCoopPool(groupId, p.source);
-    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility);
+    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility, undefined, probeRepeat);
   };
 
   useEffect(() => {
@@ -294,7 +324,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       const { expr, label } = splitInlineTitle(roll[1]);
-      if (!parseDiceExpression(expr)) {
+      if (!parseDiceExpression(stripRepeatPrefix(expr).rest)) {
         setError(
           charId !== null
             ? `„${roll[1]}" ist weder ein gültiger Würfelausdruck (z. B. 2w6+5) noch eine gefundene Probe — weitertippen für Vorschläge.`
@@ -302,6 +332,9 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
         );
         return;
       }
+      // Das führende "Nx" bleibt im Ausdruck erhalten — der Server wiederholt
+      // den Wurf selbst (siehe roll.expr in ws.ts), diese Prüfung hier ist nur
+      // die Syntax-Vorschau.
       rollExpr(expr, visibility, label, undefined, visibilityTarget ?? undefined);
       pushHistory(text);
     } else {
@@ -365,6 +398,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
               chunk.kind === 'group' ? (
                 <div className="feed-group-block" key={`group-${chunk.groupRollId}`}>
                   {chunk.entries[0]?.coop === true && <CoopVerdictLine entries={chunk.entries} />}
+                  {chunk.entries[0]?.repeat === true && <RepeatTotalLine entries={chunk.entries} />}
                   {chunk.entries.map((entry) => (
                     <FeedEntryView key={entry.id} entry={entry} grouped />
                   ))}

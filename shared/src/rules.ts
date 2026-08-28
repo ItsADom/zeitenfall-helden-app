@@ -9,6 +9,7 @@ import type {
   Resources,
 } from './types.js';
 import { ATTR_ROW_CODES } from './types.js';
+import { evaluateStatic, parseFormula } from './formula.js';
 
 const ceil = Math.ceil;
 
@@ -318,8 +319,9 @@ export function wurfweiten(attrs: Attributes, stufen = 4): number[] {
 // die GM-Formeln für Spezialenergien echte Arithmetik (+ - * / Klammern) über
 // einem größeren Variablensatz: die acht Attribute UND die bereits berechneten
 // Maxima von LE/AUS/AsE/Psyche (Aliase Lp/Adp/Asp/Psyche — GM-Sprache, siehe
-// server/data/specialEnergies.json). Deshalb ein eigener kleiner Parser statt
-// parseProbeExpr zu verbiegen; beide bleiben unabhängig.
+// server/data/specialEnergies.json). Läuft über die geteilte Grammatik in
+// formula.ts (dieselbe, die auch Chat-Würfe und Waffenschaden auswertet);
+// parseProbeExpr bleibt bewusst unabhängig, siehe dort.
 export interface EnergyFormulaVars {
   attrs: Attributes;
   /** Nutzbares Maximum (Resources[key].nutzbar), NICHT die rohe Ausbaugrenze. */
@@ -327,105 +329,6 @@ export interface EnergyFormulaVars {
   auMax: number;
   aseMax: number;
   psycheMax: number;
-}
-
-type EnergyToken = { t: 'num'; v: number } | { t: 'id'; v: string } | { t: 'op'; v: '+' | '-' | '*' | '/' | '(' | ')' };
-
-function tokenizeEnergyFormula(expr: string): EnergyToken[] | null {
-  const toks: EnergyToken[] = [];
-  let i = 0;
-  while (i < expr.length) {
-    const c = expr[i];
-    if (/\s/.test(c)) {
-      i++;
-      continue;
-    }
-    if ('+-*/()'.includes(c)) {
-      toks.push({ t: 'op', v: c as '+' | '-' | '*' | '/' | '(' | ')' });
-      i++;
-      continue;
-    }
-    if (/[0-9.]/.test(c)) {
-      let j = i;
-      while (j < expr.length && /[0-9.]/.test(expr[j])) j++;
-      const v = Number(expr.slice(i, j));
-      if (Number.isNaN(v)) return null;
-      toks.push({ t: 'num', v });
-      i = j;
-      continue;
-    }
-    if (/[A-Za-zÄÖÜäöü]/.test(c)) {
-      let j = i;
-      while (j < expr.length && /[A-Za-zÄÖÜäöü]/.test(expr[j])) j++;
-      toks.push({ t: 'id', v: expr.slice(i, j).toUpperCase() });
-      i = j;
-      continue;
-    }
-    return null;
-  }
-  return toks;
-}
-
-// Rekursiver Abstieg statt Shunting-Yard, weil die Grammatik winzig bleibt:
-// Summe → Produkt (('+'|'-') Produkt)*, Produkt → Primär (('*'|'/') Primär)*,
-// Primär → Zahl | Bezeichner | '(' Summe ')' | '-' Primär (unäres Minus).
-function parseEnergyAst(toks: EnergyToken[], resolve: (id: string) => number | null): number | null {
-  let pos = 0;
-  const peek = () => toks[pos];
-  const next = () => toks[pos++];
-
-  function primary(): number | null {
-    const t = peek();
-    if (!t) return null;
-    if (t.t === 'num') {
-      next();
-      return t.v;
-    }
-    if (t.t === 'id') {
-      next();
-      return resolve(t.v);
-    }
-    if (t.t === 'op' && t.v === '(') {
-      next();
-      const v = sum();
-      const close = next();
-      if (v === null || !close || close.t !== 'op' || close.v !== ')') return null;
-      return v;
-    }
-    if (t.t === 'op' && t.v === '-') {
-      next();
-      const v = primary();
-      return v === null ? null : -v;
-    }
-    return null;
-  }
-
-  function product(): number | null {
-    let v = primary();
-    if (v === null) return null;
-    for (let t = peek(); t && t.t === 'op' && (t.v === '*' || t.v === '/'); t = peek()) {
-      next();
-      const rhs = primary();
-      if (rhs === null) return null;
-      v = t.v === '*' ? v * rhs : v / rhs;
-    }
-    return v;
-  }
-
-  function sum(): number | null {
-    let v = product();
-    if (v === null) return null;
-    for (let t = peek(); t && t.t === 'op' && (t.v === '+' || t.v === '-'); t = peek()) {
-      next();
-      const rhs = product();
-      if (rhs === null) return null;
-      v = t.v === '+' ? v + rhs : v - rhs;
-    }
-    return v;
-  }
-
-  const result = sum();
-  return pos === toks.length ? result : null;
 }
 
 const ENERGY_ATTR_ALIASES = new Set(['MU', 'KL', 'IN', 'CH', 'FF', 'GE', 'KO', 'KK']);
@@ -441,20 +344,17 @@ const ENERGY_POOL_ALIASES: Record<string, keyof Omit<EnergyFormulaVars, 'attrs'>
   PSYCHE: 'psycheMax',
 };
 
-// Wertet eine GM-Formel (z. B. "(KO+KK)/4", "Asp/8") aus, `null` bei leerer
-// oder unbekannter Formel/Variable. Rundet am Ende AUF (wie MR/Resilienz/AK) —
-// eine einzige Stelle statt pro Division, damit Rundungsfehler sich nicht
-// aufschaukeln.
+// Wertet eine GM-Formel (z. B. "(KO+KK)/4", "Asp/8") aus, `null` bei leerer,
+// kaputter oder unbekannter Formel/Variable. Dünner Wrapper um die geteilte
+// Grammatik (formula.ts) — rundet dort schon AUF (wie MR/Resilienz/AK).
 export function evaluateEnergyFormula(formula: string, vars: EnergyFormulaVars): number | null {
   const trimmed = formula.trim();
   if (!trimmed) return null;
-  const toks = tokenizeEnergyFormula(trimmed);
-  if (!toks || toks.length === 0) return null;
-  const resolve = (id: string): number | null => {
+  const ast = parseFormula(trimmed);
+  if (!ast) return null;
+  return evaluateStatic(ast, (id) => {
     if (ENERGY_ATTR_ALIASES.has(id)) return attrMax(vars.attrs, id as AttrCode);
     const poolKey = ENERGY_POOL_ALIASES[id];
     return poolKey ? vars[poolKey] : null;
-  };
-  const result = parseEnergyAst(toks, resolve);
-  return result === null ? null : ceil(result);
+  });
 }

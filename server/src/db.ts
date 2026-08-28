@@ -1173,6 +1173,16 @@ if (hasTable('sec_techniken')) {
   if (!cols.has('is_coop')) db.exec('ALTER TABLE group_feed ADD COLUMN is_coop INTEGER NOT NULL DEFAULT 0');
 }
 
+// Migration: is_repeat an group_feed ergänzen — markiert jeden Eintrag eines
+// per führendem "Nx" wiederholten freien Wurfs (server/src/ws.ts, roll.expr),
+// unterscheidet ihn von einer gewöhnlichen Gruppenprobe, die denselben
+// group_roll_id-Mechanismus nutzt. 0 bei jeder bestehenden Zeile ist der
+// richtige Wert (Wiederholungs-Würfe gab es vorher nicht), kein Nachziehen nötig.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('is_repeat')) db.exec('ALTER TABLE group_feed ADD COLUMN is_repeat INTEGER NOT NULL DEFAULT 0');
+}
+
 // Migration: Event-Gruppen (bisher eine eigene temp_groups-Tabelle mit eigener
 // id-Folge) in groups zusammenführen, per is_temp unterschieden — damit
 // group_feed (und jede künftige Chat/Würfel-Tabelle) mit einer einzigen FK auf
