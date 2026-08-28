@@ -21,6 +21,10 @@ export interface SeiteAntwort {
 
 export const ladeListe = () => apiGet<{ seiten: WikiSeiteInfo[] }>('/api/wiki/seiten');
 
+/** Existence check for slugs outside a page load — e.g. a character sheet's own-page link. */
+export const ladeZiele = (slugs: string[]) =>
+  apiGet<{ ziele: Record<string, string | null> }>(`/api/wiki/ziele?slugs=${slugs.map(encodeURIComponent).join(',')}`);
+
 /**
  * `folgen: false` stops on a redirect page instead of being sent to its target
  * — the „(weitergeleitet von …)" note links here, and it is the only way to

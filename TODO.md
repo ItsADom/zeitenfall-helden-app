@@ -229,41 +229,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   character, not multiple independent characters. Still needs a concept
   pass with the GM (data model + how much duplicates vs. derives from a
   base sheet) before building.
-- [ready] **Expanded bio page** (concept agreed): a dedicated route (e.g.
-  `/charakter/:id/bio`), linked from the character sheet — deliberately outside
-  the existing `char_tabs`/`char_sections` tab system, new territory for the app.
-   - Background story via a markdown content editor: plain textarea for the
-     markdown source + a write/preview toggle button rendering it (no rich-text
-     editor library — matches the app's existing plain-textarea pattern, e.g.
-     `sidebarNotiz` in `components/inputs.tsx`). Needs a markdown renderer added.
-   - GM-only tagging: block-level for now — a marker wraps a whole
-     paragraph/block as GM-only (e.g. a fenced ` ```gm ... ``` ` block), hidden
-     from other players, always shown to the GM. Inline span-level tagging
-     (mid-sentence) is a later idea, not built now.
-   - Image gallery: new table for multiple images per character — separate from
-     today's single-portrait `char_portraits` BLOB (`db.ts:257-262`, one row per
-     character) — each image with an optional caption, reorderable, upload/delete;
-     mirrors the existing portrait upload flow but many-of instead of one-of.
-   - Existing `char_bio` fields (Heldenbrief) stay as they are, always public —
-     the new markdown content is the only place with GM-only tagging.
-   - Still open before a build plan: markdown library choice, where the markdown
-     source is stored (new column/table), exact link/entry point from the sheet.
-   - Images: `helden-assets.db` **already exists** — the wiki built it, keyed by
-     `owner_type`/`owner_id` and generic from the start precisely so the bio
-     gallery plugs in without a schema change. Use `assets/store.ts` with
-     `owner_type='character'`, `rolle='galerie'`; the weekly backup schedule,
-     the cleanup hook and the orphan sweeper are all in place. Note the catch it
-     was built around: SQLite has no cross-database CASCADE, so any new delete
-     path must call `loescheAssetsFuer()` by hand — the weekly sweeper is the
-     safety net, not the mechanism.
-   - The markup renderer also already exists and is shared, not wiki-private:
-     `shared/src/wikiMarkup.ts` (source → typed AST) plus `client/src/wiki/
-     Markup.tsx` (AST → React elements, no HTML string anywhere), including the
-     ` ```gm ` block. The bio page should import those rather than grow a second
-     parser — that was the whole reason they live in `shared`.
-   - Still open: where the bio markdown source is stored (new column/table) and
-     the exact link/entry point from the sheet. The library question is settled
-     — there is no library, and the existing renderer is the answer.
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
@@ -554,25 +519,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   more than Haltbarkeit can today. Needs a concept pass on whether a
   partially-drunk potion has to split off the stack into its own row, or
   charges only make sense while `anzahl === 1`.
-- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
-  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
-  player requests, roll log, explicit room switching) shipped on
-  `feature/dice-rolls-chat`; the rules/mechanics are documented in
-  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
-  docked-only panel would collide with a possible future virtual-table
-  feature, planned in `docs/concepts/virtual-table.md` (revisited 2026-08-24
-  and ready to build from). Not a rework: any page can call
-  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
-  full-page chat view is additive — reuses `FeedEntryView` for individual
-  messages/rolls, no duplicate connection. **Settled:** that dedicated page
-  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
-  showing the same feed twice on the same page would be redundant. **Also
-  settled:** the great-roll overlay (`WichtigerWurfOverlay`) is mounted globally
-  in `App.tsx` and covers whatever page is open, so a dedicated chat page must
-  not try to own or duplicate it — it already works there. The overlay pulls its
-  dice toward `.dice-dock`/`.dice-dock-tab` and falls back to the bottom-right
-  corner when neither is on screen, which is exactly the case a dock-less chat
-  page would create.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -590,9 +536,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
  - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
-- [ready] **Filtering** (own-element AsE increase): concept now agreed — see
-  "Percentage bonus for energies, and what 'Filtern' actually is" under User
-  feedback above. No longer a bare sketch.
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.
@@ -700,8 +643,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   *mid-sentence* as GM-only is the open piece, and it is harder than it looks:
   the server strips GM regions from the response before sending, so an inline
   marker has to survive that removal without leaving a hole that reads as a
-  typo. Same decision as the bio page's, and it should stay one decision for
-  both.
+  typo.
 
 - **wiki: Steckbriefe, dann Vorlagen** (concept settled, deliberately deferred —
   the navigation/category/redirect round shipped without it). Two steps, in this
