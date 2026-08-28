@@ -40,7 +40,7 @@ interface DropTarget {
 const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerUid ?? ''}:${t.beidseitig ? 'both' : ''}`;
 
 export default function AusruestungTab() {
-  const { data, update } = useChar();
+  const { data, update, catalogs } = useChar();
   const ro = useReadOnly();
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
@@ -265,6 +265,8 @@ export default function AusruestungTab() {
         onClose={() => setAddItemOpen(false)}
         categories={catOptions}
         initialMode="ausruestung"
+        talents={catalogs.talents}
+        specialEnergies={catalogs.specialEnergies}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'bench' })])}
       />
     </>
