@@ -138,6 +138,16 @@ not general DSA5 knowledge.
 
 ## Codebase constraints & gotchas (don't relearn these)
 
+- **VTT toolbar sub-options open as a flyout, never as inline buttons.**
+  `TilePicker`/`HighlightPicker` open as a floating panel below the toolbar
+  (`.vtt-tile-picker`, `position: absolute`) rather than as inline buttons —
+  Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel) briefly broke that
+  convention as an inline row and was converted to the same flyout pattern
+  (`MeasureKindPicker`, reusing `.vtt-tile-picker`/`pickerOpen`). Additional
+  always-visible buttons push the rest of the toolbar around, which also
+  shifts button positions underfoot and breaks scripted/automated click
+  sequences during testing. Every future `client/src/pages/VirtualTable.tsx`
+  toolbar addition should follow the flyout pattern.
 - **A table must not get its own scroll area.** `overflow-x: auto` silently makes
   a box a scroll container in BOTH axes, so a sticky `thead` inside can only stick
   to the box, never the page. Tables drop their own overflow; this only works

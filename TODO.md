@@ -59,6 +59,10 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
+- move training/reading tracker to Überblick sidebar
+- edit dialogs should show every field even in read-only mode, not a subset
+- item-bonues: show the amount of bonus, not just which item contributes
+
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;
@@ -218,16 +222,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
      containers into the worn/body-zone drag system; that's a separate,
      optional nicety, not a prerequisite for either fix here.
 
-- [ready] **Investigate: are "confirmation" rolls independently random, or
-  suspiciously correlated?** (developer feedback: "many 1s and 20s" observed
-  across rolls that get confirmed together). This is a verification task, not
-  a design decision. Dice rolls already use `crypto.randomInt`
-  (`server/src/dice.ts:15,35`) — a proper CSPRNG, so a systemic bias is
-  unlikely — but worth specifically checking whether the confirmation-roll
-  code path draws a fresh, independent random value or accidentally
-  derives/reuses the original roll's value. If nothing's found, this is
-  likely gambler's-fallacy pattern-matching on a small sample, not a bug.
-
 - [ready] **Hidden/revealable Ausrüstung stats** (concept agreed, from a GM/
   player Discord discussion 2026-08-28 — prep an item's stats ahead of time,
   then reveal them narratively: "you pick up a sword, it has some strange
@@ -286,23 +280,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
-
-## High-Prio
-
-- [ready] **VTT toolbar styling rule: dropdowns/flyouts over inline button
-  sprawl.** `TilePicker`/`HighlightPicker` already open as a floating panel
-  below the toolbar (`.vtt-tile-picker`, `position: absolute`) rather than as
-  inline buttons — Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel)
-  briefly broke that convention as an inline row during Phase 8 slice 3/3 and
-  has since been converted to the same flyout (`MeasureKindPicker`, reusing
-  `.vtt-tile-picker`/`pickerOpen`). Write this down as a standing rule for
-  every future VTT toolbar addition in `client/src/pages/VirtualTable.tsx`: a
-  tool's sub-options open as a flyout anchored below the toolbar, never as
-  additional always-visible buttons pushing the rest of the bar around — that
-  growth also makes the toolbar's button positions shift underfoot, which
-  broke a scripted/automated click sequence during testing. No further work
-  needed right now beyond keeping to it; re-open only if a future tool
-  reintroduces inline sub-buttons.
 
 ## Mid-Prio
 
