@@ -8,7 +8,8 @@
 //                                                                  bzw. inline bei Schnellzugriff-Behältern
 //   inventar   mitgeführt an oberster Stelle (Behälter selbst;  → Inventar
 //              plus ein loser Alt-Topf aus der Migration)
-import type { Attributes } from './types.js';
+import type { AttrCode, Attributes, BaseValueInputs, BaseValueKey, CharTalent, ResourceInput, ResourceKey, SpecialResource } from './types.js';
+import { ATTR_ROW_CODES } from './types.js';
 import { maximaleLast } from './rules.js';
 
 export type ItemLocation = 'inventar' | 'getragen' | 'behaelter' | 'bench';
@@ -52,6 +53,43 @@ export const BODY_ZONES = [
   'Füße',
 ] as const;
 export type BodyZone = (typeof BODY_ZONES)[number];
+
+// Bonus, den ein Gegenstand verleiht, solange er getragen wird (location ===
+// 'getragen', siehe wornBoni in Kürze) — sieben Zielräume ohne gemeinsamen
+// Schlüsseltyp heute, daher eine Discriminated Union statt eines flachen
+// Strings. `code` bedeutet je nach `kind` etwas anderes:
+//   attr       AttrCode (MU/KL/…)
+//   baseValue  BaseValueKey (at/pa/bl/…)
+//   resource   ResourceKey (le/aus/ase) — hebt NUR das Maximum an, nie `aktuell`
+//   talent     talentId (aus talents_catalog); WELCHE Spalte sagt `feld`
+//   spezial    special_energies_catalog.id — wirkt nur, wenn der Katalog-
+//              Eintrag eine Formel trägt (siehe SpecialResource), sonst tote Zeile
+//   psyche     kein Ziel-Code nötig, code bleibt ''
+//   traglast   kein Ziel-Code nötig, code bleibt '' — wert in kg
+// Negative Werte sind erlaubt (ein verfluchter Gegenstand ist derselbe Mechanismus).
+export type ItemBonusKind = 'attr' | 'baseValue' | 'resource' | 'talent' | 'spezial' | 'psyche' | 'traglast';
+export const ITEM_BONUS_KINDS: ItemBonusKind[] = ['attr', 'baseValue', 'resource', 'talent', 'spezial', 'psyche', 'traglast'];
+
+// Nur bei kind === 'talent' relevant: was der Bonus trifft. Kampftalente
+// führen TaW/AT/PA/BL als vier UNABHÄNGIGE Werte (siehe Talente.tsx
+// KampfTable) — es gibt nirgends eine Formel, die TaW in AT/PA/BL umrechnet,
+// also zielt ein Bonus dort auf at/pa/bl (die tatsächlich in eine Kampfprobe
+// einfließen), nie auf taw (reine Anzeige/Meisterschaftsschwelle dort).
+// Normale Talente kennen nur taw/probe: 'taw' hebt den Talentwert selbst an
+// (wirkt auf die Probe nur GROB, über erleichterung() — alle 5 TaW +1), 'probe'
+// ist eine direkte, unskalierte Erschwernis/Erleichterung auf die Probe-Zahl
+// selbst (negativ erlaubt) — siehe talentProbeBonus() unten, NICHT Teil von
+// talentMitBoni(), weil CharTalent kein `probe`-Feld hat, das überschrieben
+// werden könnte.
+export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl' | 'probe';
+export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl', 'probe'];
+
+export interface ItemBonus {
+  kind: ItemBonusKind;
+  code: string; // Bedeutung je nach kind, siehe oben; '' bei psyche/traglast
+  feld: TalentBonusFeld | ''; // nur bei kind === 'talent', sonst ''
+  wert: number;
+}
 
 export interface Item {
   id: number;
@@ -98,6 +136,9 @@ export interface Item {
   haltbarkeitMax: number;
   haltbarkeitAktuell: number;
   notiz: string;
+  // Boni, die dieser Gegenstand verleiht, solange location === 'getragen' ist
+  // (siehe ItemBonus oben). Leer für die allermeisten Items.
+  bonusse: ItemBonus[];
 }
 
 // Haltbarkeit als Prozentsatz (0–100), oder null wenn nicht verfolgt (max = 0).
@@ -121,7 +162,8 @@ export function makeItem(over: Partial<Item>): Item {
   return {
     id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
-    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '', ...over,
+    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
+    bonusse: [], ...over,
   };
 }
 
@@ -193,11 +235,16 @@ export interface LastInfo {
 }
 
 // Traglast-Übersicht für die Ladungsanzeige: getragen / Maximum + Überladung.
-// `bonus` (kg) ist der additive Zusatz auf die berechnete maximale Last; er darf
-// negativ sein, das Maximum wird aber nie unter 0 gedrückt.
+// `bonus` (kg) ist der gespeicherte, freie Zusatz (char_meta.traglastBonus) auf
+// die berechnete maximale Last; er darf negativ sein, das Maximum wird aber nie
+// unter 0 gedrückt. Item-Boni fließen HIER intern ein (traglast-Ziel plus, über
+// attrsMitBoni, jeder Attribut-Bonus, der die Formel selbst anhebt) — lastInfo
+// bekommt `items` ohnehin schon fürs Gewicht, wornBoni also gleich mit
+// berechnen statt jeden Aufrufer zu zwingen, das selbst zu tun.
 export function lastInfo(items: readonly Item[], attrs: Attributes, bonus = 0): LastInfo {
+  const boni = wornBoni(items);
   const getragen = getrageneLast(items);
-  const max = Math.max(0, maximaleLast(attrs) + (Number(bonus) || 0));
+  const max = Math.max(0, maximaleLast(attrsMitBoni(attrs, boni)) + (Number(bonus) || 0) + boni.traglast);
   return { getragen, max, ueberladen: getragen > max };
 }
 
@@ -205,6 +252,192 @@ export function lastInfo(items: readonly Item[], attrs: Attributes, bonus = 0): 
 // (es wird nicht summiert — Spieler-Regel 2026-08-10).
 export function effektiverRs(items: readonly Item[]): number {
   return items.reduce((m, it) => (it.location === 'getragen' ? Math.max(m, Number(it.rs) || 0) : m), 0);
+}
+
+// --- Item-Boni ---
+//
+// Summierte Boni aus allen GETRAGENEN Items, über den vollen Zielraum von
+// ItemBonus. Bewusst NICHT „WornBoni" genannt und der Sammler (dieser Typ)
+// bewusst getrennt vom Erzeuger (wornBoni): perk-trees.md plant, denselben
+// Zielraum für Heldenpunkte-Perks wiederzuverwenden („nur die Bedingung ist
+// anders") — wornBoni(items) wird dann EIN Erzeuger von StatBoni neben einem
+// künftigen perkBoni(perks), zusammengeführt über ein mergeBoni(). Das spart
+// die Umbenennung über ~10 Aufrufstellen, die sonst später fällig würde.
+export interface StatBoni {
+  attrs: Partial<Record<AttrCode, number>>;
+  baseValues: Partial<Record<BaseValueKey, number>>;
+  resources: Partial<Record<ResourceKey, number>>;
+  spezial: Record<number, number>; // special_energies_catalog.id -> Summe
+  psyche: number;
+  traglast: number;
+  talente: Record<number, Partial<Record<TalentBonusFeld, number>>>;
+  // Zielschlüssel ("attr:MU", "talent:42:taw", "psyche", …) -> Namen der
+  // beitragenden Items, fürs Tooltip. NUR von Boni ungleich 0 befüllt — ein
+  // angelegter, aber noch leerer Bonus (wert: 0) trägt zahlenmäßig nichts bei
+  // und soll auch nicht als Quelle auftauchen.
+  quellen: Record<string, string[]>;
+}
+
+// Zielschlüssel für `quellen`, EINMAL definiert statt an jeder addQuelle()-
+// Stelle und jeder BonusWert-Aufrufstelle im Client neu zusammengebaut —
+// sonst laufen Erzeuger (wornBoni) und Verbraucher (Heldenbrief & Co.)
+// irgendwann auseinander. talent braucht `feld` mit im Schlüssel: derselbe
+// Talent-Bonus kann TaW UND AT zugleich anheben, das sind zwei Ziele.
+export const attrBonusKey = (code: AttrCode): string => `attr:${code}`;
+export const baseValueBonusKey = (key: BaseValueKey): string => `baseValue:${key}`;
+export const resourceBonusKey = (key: ResourceKey): string => `resource:${key}`;
+export const talentBonusKey = (talentId: number, feld: TalentBonusFeld): string => `talent:${talentId}:${feld}`;
+export const spezialBonusKey = (catalogId: number): string => `spezial:${catalogId}`;
+export const PSYCHE_BONUS_KEY = 'psyche';
+export const TRAGLAST_BONUS_KEY = 'traglast';
+
+function leererStatBoni(): StatBoni {
+  return { attrs: {}, baseValues: {}, resources: {}, spezial: {}, psyche: 0, traglast: 0, talente: {}, quellen: {} };
+}
+
+// Summiert die Boni aller getragenen Items zu EINEM StatBoni. Reine Funktion,
+// kein State — jeder Aufrufer (Client wie Server) ruft sie selbst mit der
+// jeweils aktuellen Item-Liste auf, es gibt keinen globalen Cache.
+export function wornBoni(items: readonly Item[]): StatBoni {
+  const boni = leererStatBoni();
+  const quellenSets = new Map<string, Set<string>>();
+  const addQuelle = (key: string, name: string) => {
+    const set = quellenSets.get(key) ?? new Set<string>();
+    set.add(name.trim() || '(ohne Name)');
+    quellenSets.set(key, set);
+  };
+  const addNum = (rec: Record<string, number>, key: string, wert: number) => {
+    rec[key] = (rec[key] ?? 0) + wert;
+  };
+
+  for (const item of items) {
+    if (item.location !== 'getragen') continue;
+    for (const b of item.bonusse) {
+      const wert = Number(b.wert) || 0;
+      if (wert === 0) continue;
+      switch (b.kind) {
+        case 'attr':
+          addNum(boni.attrs as Record<string, number>, b.code, wert);
+          addQuelle(attrBonusKey(b.code as AttrCode), item.name);
+          break;
+        case 'baseValue':
+          addNum(boni.baseValues as Record<string, number>, b.code, wert);
+          addQuelle(baseValueBonusKey(b.code as BaseValueKey), item.name);
+          break;
+        case 'resource':
+          addNum(boni.resources as Record<string, number>, b.code, wert);
+          addQuelle(resourceBonusKey(b.code as ResourceKey), item.name);
+          break;
+        case 'talent': {
+          const talentId = Number(b.code);
+          if (!Number.isFinite(talentId) || !b.feld) break;
+          const rec = boni.talente[talentId] ?? {};
+          rec[b.feld] = (rec[b.feld] ?? 0) + wert;
+          boni.talente[talentId] = rec;
+          addQuelle(talentBonusKey(talentId, b.feld), item.name);
+          break;
+        }
+        case 'spezial': {
+          const catalogId = Number(b.code);
+          if (!Number.isFinite(catalogId)) break;
+          boni.spezial[catalogId] = (boni.spezial[catalogId] ?? 0) + wert;
+          addQuelle(spezialBonusKey(catalogId), item.name);
+          break;
+        }
+        case 'psyche':
+          boni.psyche += wert;
+          addQuelle(PSYCHE_BONUS_KEY, item.name);
+          break;
+        case 'traglast':
+          boni.traglast += wert;
+          addQuelle(TRAGLAST_BONUS_KEY, item.name);
+          break;
+      }
+    }
+  }
+  for (const [key, set] of quellenSets) boni.quellen[key] = [...set];
+  return boni;
+}
+
+// Attribute mit Item-Boni überlagert: der Bonus fließt in `mod`, NICHT `akt`
+// — derselbe nicht-destruktive Vertrag wie attrMax() ihn schon mit akt/mod
+// hat. Jede Formel liest Attribute über attrMax() und damit automatisch
+// bonusiert; nichts davon wird je zurückgeschrieben.
+export function attrsMitBoni(attrs: Attributes, boni: StatBoni): Attributes {
+  const out = {} as Attributes;
+  for (const code of ATTR_ROW_CODES) {
+    const bonus = (boni.attrs as Record<string, number>)[code] ?? 0;
+    out[code] = bonus ? { akt: attrs[code].akt, mod: attrs[code].mod + bonus } : attrs[code];
+  }
+  return out;
+}
+
+// Basiswerte-Mods mit Item-Boni überlagert — deckt alle zwölf BaseValueKeys ab
+// (inkl. Initiative, Todesschwelle, GS), da computeBaseValues() ohnehin jeden
+// Key über dasselbe `mods`-Feld liest.
+export function baseInputsMitBoni(inputs: BaseValueInputs, boni: StatBoni): BaseValueInputs {
+  const bonusKeys = Object.keys(boni.baseValues);
+  if (bonusKeys.length === 0) return inputs;
+  const mods = { ...inputs.mods };
+  for (const key of bonusKeys) {
+    const bonus = (boni.baseValues as Record<string, number>)[key] ?? 0;
+    if (bonus) mods[key as BaseValueKey] = (mods[key as BaseValueKey] ?? 0) + bonus;
+  }
+  return { ...inputs, mods };
+}
+
+// Ressourcen-Eingabe (LE/AUS/AsE) mit Item-Boni überlagert. Der Bonus geht in
+// `permanent` — die Seite, die den tatsächlichen Vorrat bildet (ergebnis =
+// vor + raceBase + permanent + kauf, siehe computeResource) und die einzige,
+// die eine spätere Entfernung der Ausbaugrenze überlebt. Der Parallel-Eintrag
+// in `maxPlus` ist NUR nötig, solange die Ausbaugrenze (max = … + kaufMax +
+// maxPlus, nutzbar = min(ergebnis, max)) noch existiert — ohne ihn würde der
+// Hard-Cap den frischen Bonus sofort wieder wegkappen. Fällt die Ausbaugrenze
+// (geplant, siehe TODO.md), fällt dieser zweite Schreibzugriff ersatzlos weg.
+export function resourceInputMitBoni(input: ResourceInput, key: ResourceKey, boni: StatBoni): ResourceInput {
+  const bonus = boni.resources[key] ?? 0;
+  if (!bonus) return input;
+  return { ...input, permanent: input.permanent + bonus, maxPlus: input.maxPlus + bonus };
+}
+
+// Spezialenergie mit Item-Bonus überlagert — wirkt nur, wenn der Katalog-
+// Eintrag eine Formel trägt (siehe SpecialResource-Dokumentation): ohne
+// Formel bleibt `bonus` ungenutzt, ein Item-Bonus auf so eine Energie liefe
+// dann ins Leere. Die Dialog-Auswahl (spätere UI) filtert das bereits weg —
+// diese Funktion bleibt trotzdem defensiv, falls doch mal ein toter Verweis
+// gespeichert wurde (z. B. weil der Katalog-Eintrag nachträglich seine Formel
+// verlor).
+export function specialMitBoni(sr: SpecialResource, boni: StatBoni): SpecialResource {
+  const bonus = sr.catalogId != null ? (boni.spezial[sr.catalogId] ?? 0) : 0;
+  return bonus ? { ...sr, bonus: sr.bonus + bonus } : sr;
+}
+
+// Talent mit Item-Boni überlagert — NUR fürs Anzeigen (Probe-Berechnung,
+// Waffen-Aufteilung). Das gespeicherte Talent selbst bleibt unangetastet,
+// exakt wie attrsMitBoni es mit akt/mod hält: nichts hiervon wird je
+// zurückgeschrieben, die Eingabefelder binden weiter an den rohen Wert.
+// Absichtlich OHNE `probe` — dafür gibt es kein CharTalent-Feld zum
+// Überschreiben, siehe talentProbeBonus() direkt darunter.
+export function talentMitBoni(talent: CharTalent, boni: StatBoni): CharTalent {
+  const bonus = boni.talente[talent.talentId];
+  if (!bonus) return talent;
+  return {
+    ...talent,
+    taw: talent.taw + (bonus.taw ?? 0),
+    at: talent.at + (bonus.at ?? 0),
+    pa: talent.pa + (bonus.pa ?? 0),
+    bl: talent.bl + (bonus.bl ?? 0),
+  };
+}
+
+// Direkte, unskalierte Probe-Erschwernis/-Erleichterung eines normalen
+// Talents — additiv auf talentProbeZahl(...)'s Ergebnis, NICHT auf taw davor
+// (also ohne den erleichterung()-Deckel von "alle 5 TaW +1"). Getrennt von
+// talentMitBoni, weil kein CharTalent-Feld existiert, das diesen Wert trüge;
+// jeder Aufrufer von talentProbeZahl für ein normales Talent addiert das
+// Ergebnis hier separat.
+export function talentProbeBonus(talentId: number, boni: StatBoni): number {
+  return boni.talente[talentId]?.probe ?? 0;
 }
 
 // --- Sichten auf denselben Bestand ---

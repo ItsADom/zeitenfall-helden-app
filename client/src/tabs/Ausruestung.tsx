@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ContainerArt, Item, ItemLocation, KapazitaetArt } from '@shared/items';
+import type { Item, ItemBonus, ItemLocation } from '@shared/items';
 import {
   BODY_ZONES,
   containerFuellungAnzeige,
@@ -10,13 +10,44 @@ import {
   itemsInContainer,
   lastInfo,
   makeItem,
+  TRAGLAST_BONUS_KEY,
   zoneView,
 } from '@shared/items';
-import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
+import type { AttrCode, BaseValueKey, ResourceKey } from '@shared/types';
+import { ATTR_LABELS, BASE_VALUE_LABELS, RESOURCE_LABELS } from '@shared/types';
+import type { SpecialEnergyCatalogRow, TalentCatalogRow } from '../components/charSheet';
+import { BonusWert } from '../components/BonusWert';
 import { useReadOnly } from '../components/displayMode';
 import { AddItemDialog } from '../components/itemDialogs';
-import { NumInput, TextInput } from '../components/inputs';
+import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
+
+// Kurzbeschreibung eines Bonus fürs Chip-Tooltip (siehe .chip-bonus) — dieselbe
+// Zielraum-Aufschlüsselung wie im Bonus-Editor des Dialogs (itemDialogs.tsx),
+// nur als lesbarer Text statt als <select>.
+function bonusLabel(b: ItemBonus, talents: TalentCatalogRow[], specialEnergies: SpecialEnergyCatalogRow[]): string {
+  const sign = b.wert > 0 ? '+' : '';
+  switch (b.kind) {
+    case 'attr':
+      return `${ATTR_LABELS[b.code as AttrCode] ?? b.code} ${sign}${b.wert}`;
+    case 'baseValue':
+      return `${BASE_VALUE_LABELS[b.code as BaseValueKey]?.label ?? b.code} ${sign}${b.wert}`;
+    case 'resource':
+      return `${RESOURCE_LABELS[b.code as ResourceKey]?.label ?? b.code} ${sign}${b.wert}`;
+    case 'talent': {
+      const t = talents.find((x) => x.id === Number(b.code));
+      return `${t?.name ?? '?'}${b.feld ? ` (${b.feld.toUpperCase()})` : ''} ${sign}${b.wert}`;
+    }
+    case 'spezial': {
+      const e = specialEnergies.find((x) => x.id === Number(b.code));
+      return `${e?.name ?? '?'} ${sign}${b.wert}`;
+    }
+    case 'psyche':
+      return `Psyche ${sign}${b.wert}`;
+    case 'traglast':
+      return `Traglast ${sign}${b.wert} kg`;
+  }
+}
 
 // Ausrüstung (Cluster 5b): verfolgt, WAS der Charakter trägt — nicht das Inventar
 // gespiegelt. Körperzonen zeigen getragene Ausrüstung; Schnellzugriff-Behälter
@@ -40,13 +71,13 @@ interface DropTarget {
 const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerUid ?? ''}:${t.beidseitig ? 'both' : ''}`;
 
 export default function AusruestungTab() {
-  const { data, update } = useChar();
+  const { data, update, catalogs, stats } = useChar();
   const ro = useReadOnly();
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
   const [over, setOver] = useState<string | null>(null);
-  const [openUid, setOpenUid] = useState<string | null>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
+  const [editUid, setEditUid] = useState<string | null>(null);
 
   const setItems = (next: Item[]) => update('items', next);
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
@@ -123,12 +154,8 @@ export default function AusruestungTab() {
     <ItemChip
       key={it.uid}
       item={it}
-      ro={ro}
-      open={openUid === it.uid}
-      onToggleOpen={() => setOpenUid((u) => (u === it.uid ? null : it.uid))}
-      onPatch={(p) => patchItem(it.uid, p)}
-      onDuplicate={() => duplicateItemAt(it.uid)}
-      onRemove={() => removeItem(it.uid)}
+      onEdit={() => setEditUid(it.uid)}
+      bonusTitle={it.bonusse.length > 0 ? it.bonusse.map((b) => bonusLabel(b, catalogs.talents, catalogs.specialEnergies)).join(', ') : ''}
     >
       {it.istBehaelter && it.containerArt === 'quick' && (
         <div className="quick-contents">
@@ -162,7 +189,8 @@ export default function AusruestungTab() {
             <div className="last-fill" style={{ width: `${pct}%` }} />
           </div>
           <div className="last-num">
-            <strong>{kg(load.getragen)}</strong> / {kg(load.max)} kg
+            <strong>{kg(load.getragen)}</strong> /{' '}
+            <BonusWert quellen={stats.quellen[TRAGLAST_BONUS_KEY]}>{kg(load.max)}</BonusWert> kg
             {load.ueberladen && <span className="last-warn"> · überladen</span>}
             {!ro && (
               <label className="last-bonus" title="Zusatz auf die maximale Traglast (kg). Additiv, darf negativ sein.">
@@ -265,7 +293,20 @@ export default function AusruestungTab() {
         onClose={() => setAddItemOpen(false)}
         categories={catOptions}
         initialMode="ausruestung"
+        talents={catalogs.talents}
+        specialEnergies={catalogs.specialEnergies}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'bench' })])}
+      />
+      <AddItemDialog
+        open={editUid !== null}
+        onClose={() => setEditUid(null)}
+        categories={catOptions}
+        item={editUid !== null ? byUid.get(editUid) : undefined}
+        talents={catalogs.talents}
+        specialEnergies={catalogs.specialEnergies}
+        onSave={(patch) => editUid && patchItem(editUid, patch)}
+        onDuplicate={() => editUid && duplicateItemAt(editUid)}
+        onDelete={() => editUid && removeItem(editUid)}
       />
     </>
   );
@@ -273,25 +314,19 @@ export default function AusruestungTab() {
 
 function ItemChip({
   item,
-  ro,
-  open,
-  onToggleOpen,
-  onPatch,
-  onDuplicate,
-  onRemove,
+  onEdit,
+  bonusTitle,
   children,
 }: {
   item: Item;
-  ro: boolean;
-  open: boolean;
-  onToggleOpen: () => void;
-  onPatch: (patch: Partial<Item>) => void;
-  onDuplicate: () => void;
-  onRemove: () => void;
+  /** Öffnet AddItemDialog im Bearbeiten-Modus — Name/kg/RS/Haltbarkeit/Behälter/Notiz/Boni, plus Duplizieren/Löschen im Fuß. Auch im Nur-Lesen-Modus, wie Ziehen. */
+  onEdit: () => void;
+  /** Zusammenfassung der Boni fürs Tooltip, '' wenn keine — steuert den Marker. */
+  bonusTitle: string;
   children?: React.ReactNode;
 }) {
   return (
-    <span className={`chip-wrap${open ? ' open' : ''}`}>
+    <span className="chip-wrap">
       <span
         className={`item-chip${item.istBehaelter ? ' is-container' : ''}`}
         draggable
@@ -299,11 +334,15 @@ function ItemChip({
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', item.uid);
         }}
-        title={item.notiz || undefined}
+        onClick={onEdit}
+        title={`Klicken zum Bearbeiten, Ziehen zum Verschieben${item.notiz ? ` — ${item.notiz}` : ''}`}
       >
         <span className="chip-name">{item.name || '(ohne Name)'}</span>
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
         {item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>}
+        {bonusTitle && (
+          <span className="chip-bonus" title={`Boni beim Tragen: ${bonusTitle}`}> ✦</span>
+        )}
         {(() => {
           const pct = haltbarkeitPct(item);
           if (pct === null) return null;
@@ -317,73 +356,7 @@ function ItemChip({
         {item.beidseitig && (
           <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>
         )}
-        {!ro && (
-          <button className="chip-btn" title="Details bearbeiten" onClick={onToggleOpen}>
-            {open ? '▾' : '✎︎'}
-          </button>
-        )}
       </span>
-      {!ro && open && (
-        <div className="chip-editor">
-          <label>Name<TextInput value={item.name} onChange={(v) => onPatch({ name: v })} /></label>
-          <label>Anzahl<NumInput value={item.anzahl} min={0} onChange={(v) => onPatch({ anzahl: v })} /></label>
-          <label>kg/St.<NumInput value={item.gewicht} min={0} onChange={(v) => onPatch({ gewicht: v })} /></label>
-          <label>RS<NumInput value={item.rs} min={0} onChange={(v) => onPatch({ rs: v })} /></label>
-          <label title="Haltbarkeit wie LP — 0 Maximum heißt „nicht verfolgt“, die %-Anzeige bleibt dann aus.">
-            Haltbarkeit
-            <NumInput
-              value={item.haltbarkeitAktuell}
-              min={0}
-              max={item.haltbarkeitMax}
-              onChange={(v) => onPatch({ haltbarkeitAktuell: v })}
-            />
-            /
-            <NumInput
-              value={item.haltbarkeitMax}
-              min={0}
-              onChange={(v) =>
-                // Neu eingeschaltet (war 0/0) → auf voll starten, statt sofort bei 0 %.
-                onPatch(item.haltbarkeitMax === 0 && item.haltbarkeitAktuell === 0 ? { haltbarkeitMax: v, haltbarkeitAktuell: v } : { haltbarkeitMax: v })
-              }
-            />
-          </label>
-          <label className="chip-check">
-            <input type="checkbox" checked={item.istBehaelter} onChange={(e) => onPatch({ istBehaelter: e.target.checked })} />
-            Behälter
-          </label>
-          {item.istBehaelter && (
-            <>
-              <label>
-                Art
-                <select value={item.containerArt} onChange={(e) => onPatch({ containerArt: e.target.value as ContainerArt })}>
-                  <option value="storage">Stauraum (Inventar)</option>
-                  <option value="quick">Schnellzugriff (inline)</option>
-                </select>
-              </label>
-              <label title="Womit das Fassungsvermögen gemessen wird.">
-                Kap. in
-                <select value={item.kapazitaetArt} onChange={(e) => onPatch({ kapazitaetArt: e.target.value as KapazitaetArt })}>
-                  <option value="gewicht">kg</option>
-                  <option value="stueck">Stück</option>
-                </select>
-              </label>
-              <label>Kap.<NumInput value={item.kapazitaet} min={0} onChange={(v) => onPatch({ kapazitaet: v })} /></label>
-              {item.kapazitaetArt !== 'stueck' && (
-                <label title="Gewichtsreduktion des Inhalts. 100 % = zählt gar nicht (Beutel des Fassungsvermögens).">
-                  −%<NumInput value={item.gewichtsreduktion} min={0} max={100} onChange={(v) => onPatch({ gewichtsreduktion: v })} />
-                </label>
-              )}
-            </>
-          )}
-          <label className="chip-notiz">Notiz<TextInput value={item.notiz} onChange={(v) => onPatch({ notiz: v })} /></label>
-          <button type="button" className="small chip-dup" title="Duplizieren — legt eine exakte Kopie daneben an" onClick={onDuplicate}>
-            ⧉ Duplizieren
-          </button>
-          <ConfirmDeleteButton className="small chip-del" title="Gegenstand entfernen" onConfirm={onRemove}>
-            🗑 Löschen
-          </ConfirmDeleteButton>
-        </div>
-      )}
       {children}
     </span>
   );

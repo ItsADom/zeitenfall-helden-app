@@ -9,6 +9,7 @@ import {
   magierEligibility,
 } from '@shared/abilities';
 import { psycheMax, psycheProzent } from '@shared/rules';
+import { attrsMitBoni } from '@shared/items';
 import { AlwaysEditable } from '../components/displayMode';
 import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
@@ -28,7 +29,7 @@ export default function ZauberTab() {
 }
 
 function MagierPanel() {
-  const { data, update, catalogs } = useChar();
+  const { data, update, catalogs, stats } = useChar();
   const magierstufe = Math.max(0, Math.floor(Number(data.meta.magierstufe) || 0));
   // „Überschreiben" erlaubt Ausnahme-Erhöhungen ohne erfüllte Voraussetzungen
   // (z. B. ein Fluch, der die Stufe anhebt). Nur in der Sitzung, nichts gespeichert.
@@ -49,7 +50,7 @@ function MagierPanel() {
   const psyche =
     psycheProzent(
       Number(data.meta.psycheAkt) || 0,
-      psycheMax(data.attributes, Number(data.meta.psycheBase) || 0, Number(data.meta.psycheBonus) || 0),
+      psycheMax(attrsMitBoni(data.attributes, stats), Number(data.meta.psycheBase) || 0, (Number(data.meta.psycheBonus) || 0) + stats.psyche),
     ) ?? 0;
   const istBase = {
     koerper: tawByName(MAGIER_TALENT_NAMES.koerper),

@@ -395,11 +395,17 @@ function slugFuerTitel(titel: string, istVergeben: (slug: string) => boolean = s
   return istVergeben(wunsch) ? freierSlug(titel, istVergeben) : wunsch;
 }
 
-export function legeSeiteAn(autor: { id: number; name: string }, titelRoh: string): WikiSeiteRow {
+/**
+ * `tagsRoh` pre-sets categories at creation time — e.g. the character sheet's
+ * red link hands over "Spielercharakter" so a new character page starts
+ * already filed, instead of the author having to remember to tag it.
+ */
+export function legeSeiteAn(autor: { id: number; name: string }, titelRoh: string, tagsRoh?: unknown): WikiSeiteRow {
   const titel = kappe(titelRoh, WIKI_LIMITS.TITEL_MAX).trim();
   if (!titel) throw new Error('Titel fehlt');
   const { namensraum } = teileTitel(titel);
   const kategorieKey = kategorieKeyFuerTitel(titel);
+  const tags = namensraum === 'kategorie' ? [] : normalizeWikiTags(tagsRoh);
 
   const anlegen = db.transaction((): WikiSeiteRow => {
     // Two pages describing one category would eventually contradict each other.
@@ -418,7 +424,7 @@ export function legeSeiteAn(autor: { id: number; name: string }, titelRoh: strin
     const pageId = Number(info.lastInsertRowid);
     const revId = schreibeLog({ pageId, art: 'angelegt', titel, text: '', autor });
     db.prepare('UPDATE wiki_pages SET aktuelle_rev = ? WHERE id = ?').run(revId, pageId);
-    schreibeAbgeleitetes(pageId, titel, '', [], slug);
+    schreibeAbgeleitetes(pageId, titel, '', tags, slug);
     return db.prepare('SELECT * FROM wiki_pages WHERE id = ?').get(pageId) as WikiSeiteRow;
   });
   return anlegen();

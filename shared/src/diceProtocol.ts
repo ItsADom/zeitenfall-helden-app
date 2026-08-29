@@ -41,6 +41,8 @@ export interface ChatFeedEntry {
   groupRollId?: string;
   /** Siehe RollFeedEntry.coop. */
   coop?: true;
+  /** Siehe RollFeedEntry.repeat — nie tatsächlich gesetzt (nur roll-Einträge), rein für den Vereinigungstyp. */
+  repeat?: true;
 }
 
 export interface ProbeRollPayload {
@@ -144,6 +146,14 @@ export interface RollFeedEntry {
    * Verdikt-Zeile über den einzelnen Würfen (computeCoopVerdict).
    */
   coop?: true;
+  /**
+   * Gesetzt auf JEDEM Eintrag eines per führendem "Nx" wiederholten freien
+   * Wurfs (siehe roll.expr in ws.ts) — unterscheidet diese Art Gruppierung
+   * von einer gewöhnlichen Gruppenprobe, die denselben groupRollId-
+   * Mechanismus nutzt. FeedColumn.tsx zeigt bei `repeat: true` zusätzlich
+   * eine Summenzeile über den einzelnen Würfen.
+   */
+  repeat?: true;
 }
 
 export type FeedEntry = ChatFeedEntry | RollFeedEntry;
@@ -324,6 +334,13 @@ export type ClientToServerMessage =
       visibility: RollVisibility;
       modifier?: number;
       targetUserId?: number;
+      /**
+       * Chat-typed "Nx<Probe>" ("2xAthletik") — rolls the same Probe `repeat`
+       * times as one grouped/summarized card, same MAX_REPEAT_COUNT cap and
+       * groupRollId mechanism as a repeated free expression (roll.expr).
+       * Unset/1 = a single roll, unchanged from before this existed.
+       */
+      repeat?: number;
     }
   // Schaden einer Waffenzeile würfeln — die Schaden-Formel (und die RD, siehe
   // ProbeRollPayload.rd) kommt server-seitig aus der Waffenzeile, nie vom

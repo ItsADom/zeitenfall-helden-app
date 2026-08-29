@@ -8,7 +8,7 @@ import {
   RESOURCE_KEYS,
   RESOURCE_LABELS,
 } from '@shared/types';
-import type { AttrRowCode, BaseValueKey, ResourceKey, SpecialResource } from '@shared/types';
+import type { AttrCode, AttrRowCode, BaseValueKey, ResourceKey, SpecialResource } from '@shared/types';
 import { Fragment, useRef, useState } from 'react';
 import {
   attrPointsActualTotal,
@@ -21,9 +21,21 @@ import {
   psycheMax,
   psycheMuAnteil,
 } from '@shared/rules';
+import {
+  attrBonusKey,
+  attrsMitBoni,
+  baseInputsMitBoni,
+  baseValueBonusKey,
+  PSYCHE_BONUS_KEY,
+  resourceBonusKey,
+  resourceInputMitBoni,
+  specialMitBoni,
+  spezialBonusKey,
+} from '@shared/items';
 import { useReadOnly } from '../components/displayMode';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { NumInput, TextInput } from '../components/inputs';
+import { BonusWert } from '../components/BonusWert';
 import { GeldPanel } from '../components/GeldPanel';
 import { MaximumWert } from '../components/MaximumWert';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
@@ -126,9 +138,13 @@ function TrainingLeseTracker({ value, onChange, readOnly }: { value: number; onC
 }
 
 export default function HeldenbriefTab() {
-  const { charId, data, catalogs, update } = useChar();
+  const { charId, data, stats, catalogs, update } = useChar();
   const readOnly = useReadOnly();
   const { attributes, baseValues, resources, special, bio, meta, attrExtern, pouches } = data;
+  // Item-Boni überlagert — NUR fürs Anzeigen/Rechnen. Editierbare Felder binden
+  // weiter an attributes/baseValues/resources (roh); siehe attrsMitBoni.
+  const attributesEff = attrsMitBoni(attributes, stats);
+  const baseValuesEff = baseInputsMitBoni(baseValues, stats);
 
   // Aktuell gewählte Rasse (für Anzeige UND um Basis-Zellen zu sperren, siehe unten).
   const selectedRace = catalogs.races.find((r) => r.id === bio.rasseId) ?? null;
@@ -165,7 +181,7 @@ export default function HeldenbriefTab() {
     });
   };
 
-  const bv = computeBaseValues(attributes, baseValues);
+  const bv = computeBaseValues(attributesEff, baseValuesEff);
 
   // Ungenutzte Attributspunkte: theoretisch verfügbar (Stufe + externe Quellen,
   // siehe Einstellungen) minus tatsächlich gesetzte Summe. Eine Erhöhung, die
@@ -229,11 +245,11 @@ export default function HeldenbriefTab() {
   // gekappt), nicht die rohe Summe — dieselbe Zahl, die in der Energien-Tabelle
   // oben als „Maximum" steht.
   const energyFormulaVars = {
-    attrs: attributes,
-    leMax: computeResource(attributes, 'le', resources.le).nutzbar,
-    auMax: computeResource(attributes, 'aus', resources.aus).nutzbar,
-    aseMax: computeResource(attributes, 'ase', resources.ase).nutzbar,
-    psycheMax: psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0),
+    attrs: attributesEff,
+    leMax: computeResource(attributesEff, 'le', resourceInputMitBoni(resources.le, 'le', stats)).nutzbar,
+    auMax: computeResource(attributesEff, 'aus', resourceInputMitBoni(resources.aus, 'aus', stats)).nutzbar,
+    aseMax: computeResource(attributesEff, 'ase', resourceInputMitBoni(resources.ase, 'ase', stats)).nutzbar,
+    psycheMax: psycheMax(attributesEff, meta.psycheBase ?? 0, (meta.psycheBonus ?? 0) + stats.psyche),
   };
   const setBio = (key: string, v: string) => update('bio', { ...bio, [key]: v });
   const setMeta = (key: string, v: number) => update('meta', { ...meta, [key]: v });
@@ -330,7 +346,11 @@ export default function HeldenbriefTab() {
                     <NumInput value={attributes[code].mod} onChange={(v) => setAttr(code, 'mod', v)} />
                   </td>
                   <td className="computed">
-                    {attributes[code].akt + attributes[code].mod}
+                    {/* SO (Sozialstatus) hat keine attr-Boni-Zielspalte (ATTR_CODES
+                        schließt es aus) — quellen bleibt für SO immer leer. */}
+                    <BonusWert quellen={stats.quellen[attrBonusKey(code as AttrCode)]}>
+                      {attributesEff[code].akt + attributesEff[code].mod}
+                    </BonusWert>
                     <ProbeRollButton source={{ kind: 'attribute', attr: code }} title={ATTR_LABELS[code]} />
                   </td>
                 </tr>
@@ -379,7 +399,7 @@ export default function HeldenbriefTab() {
                     <NumInput value={baseValues.mods[key]} onChange={(v) => setBvMod(key, v)} />
                   </td>
                   <td className="computed">
-                    {bv[key].ergebnis}
+                    <BonusWert quellen={stats.quellen[baseValueBonusKey(key)]}>{bv[key].ergebnis}</BonusWert>
                     {(key === 'ausweichen' || key === 'ini') && (
                       <ProbeRollButton source={{ kind: 'baseValue', key }} title={BASE_VALUE_LABELS[key].label} />
                     )}
@@ -430,12 +450,13 @@ export default function HeldenbriefTab() {
           </thead>
           <tbody>
             {RESOURCE_KEYS.map((key) => {
-              const r = computeResource(attributes, key, resources[key]);
+              const r = computeResource(attributesEff, key, resourceInputMitBoni(resources[key], key, stats));
               const akt = resources[key].aktuell;
               // Zehrung UND Überladung messen am nutzbaren Maximum — über der
               // Ausbaugrenze liegende Rohsummen sind kein Vorrat.
               const cls = poolClass(key, akt, r.nutzbar);
               const ratio = r.nutzbar > 0 ? akt / r.nutzbar : 1;
+              const quellen = stats.quellen[resourceBonusKey(key)];
               return (
                 <tr key={key}>
                   <td title={RESOURCE_LABELS[key].label}>{RESOURCE_LABELS[key].label}</td>
@@ -448,7 +469,9 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].kauf} onChange={(v) => setResource(key, 'kauf', v)} />
                   </td>
                   <td className="computed">
-                    <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} />
+                    <BonusWert quellen={quellen}>
+                      <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} />
+                    </BonusWert>
                   </td>
                   <td>
                     <NumInput value={resources[key].maxPlus} onChange={(v) => setResource(key, 'maxPlus', v)} />
@@ -456,7 +479,9 @@ export default function HeldenbriefTab() {
                   <td>
                     <NumInput value={resources[key].kaufMax} onChange={(v) => setResource(key, 'kaufMax', v)} />
                   </td>
-                  <td className="computed">{r.max ?? '—'}</td>
+                  <td className="computed">
+                    <BonusWert quellen={quellen}>{r.max ?? '—'}</BonusWert>
+                  </td>
                   <td
                     className={cls || undefined}
                     title={
@@ -483,9 +508,10 @@ export default function HeldenbriefTab() {
               const pBase = meta.psycheBase ?? 0;
               const pRaceLocked = selectedRace?.psyche != null;
               const pBonus = meta.psycheBonus ?? 0;
-              const pMuAnteil = psycheMuAnteil(attributes);
-              const pMax = psycheMax(attributes, pBase, pBonus);
+              const pMuAnteil = psycheMuAnteil(attributesEff);
+              const pMax = psycheMax(attributesEff, pBase, pBonus + stats.psyche);
               const pAkt = meta.psycheAkt ?? 0;
+              const pQuellen = stats.quellen[PSYCHE_BONUS_KEY];
               return (
                 <tr>
                   <td title="Psyche">Psyche</td>
@@ -509,7 +535,9 @@ export default function HeldenbriefTab() {
                       {pRaceLocked ? <span className="cell-value">{pBase}</span> : <NumInput value={pBase} onChange={(v) => setMeta('psycheBase', v)} />}
                     </div>
                   </td>
-                  <td className="computed">{pMax}</td>
+                  <td className="computed">
+                    <BonusWert quellen={pQuellen}>{pMax}</BonusWert>
+                  </td>
                   <td className="computed">—</td>
                   <td className="computed">—</td>
                   <td className="computed">—</td>
@@ -585,8 +613,13 @@ export default function HeldenbriefTab() {
                   // freien max deckt das Feld selbst denselben Zweck ab.
                   const formula = catEntry?.formula ?? '';
                   const formulaMax = formula ? evaluateEnergyFormula(formula, energyFormulaVars) : null;
-                  const computedMax = formulaMax != null ? formulaMax + s.bonus : null;
+                  // s.bonus ist der rohe, gespeicherte Wert (bindet die NumInput
+                  // unten weiter unverändert); specialMitBoni legt den Item-Bonus
+                  // fürs RECHNEN oben drauf, ohne ihn zurückzuschreiben.
+                  const effectiveBonus = specialMitBoni(s, stats).bonus;
+                  const computedMax = formulaMax != null ? formulaMax + effectiveBonus : null;
                   const max = computedMax ?? s.max;
+                  const spezialQuellen = s.catalogId != null ? stats.quellen[spezialBonusKey(s.catalogId)] : undefined;
                   return (
                     <tr key={i}>
                       <td title={s.catalogId == null ? 'Altbestand (frei benannt)' : catEntry?.beschreibung}>
@@ -600,7 +633,11 @@ export default function HeldenbriefTab() {
                         )}
                       </td>
                       <td className={computedMax != null ? 'computed' : undefined} title={formula || undefined}>
-                        {computedMax != null ? computedMax : <NumInput value={s.max} onChange={(v) => setSpecialField(i, 'max', v)} />}
+                        {computedMax != null ? (
+                          <BonusWert quellen={spezialQuellen}>{computedMax}</BonusWert>
+                        ) : (
+                          <NumInput value={s.max} onChange={(v) => setSpecialField(i, 'max', v)} />
+                        )}
                       </td>
                       {/* Aktuell darf über dem Maximum stehen (Überladung) — nicht
                           kappen, nur färben wie bei den festen Energien. */}

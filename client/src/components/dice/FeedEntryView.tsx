@@ -1,5 +1,6 @@
-import type { DiceExpression, DieConfirmation, PendingConfirmation } from '@shared/dice';
+import type { DieConfirmation, PendingConfirmation } from '@shared/dice';
 import { diceSidesForExpression } from '@shared/dice';
+import { formulaToText, type FormulaNode } from '@shared/formula';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
@@ -11,14 +12,12 @@ function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-// Probe-Notation (immer W20) UND ein echter, ggf. gemischter DiceExpression —
-// beide haben Gruppen + einen flachen Modifikator gemeinsam. `code` ist reine
+// Probe-Notation (immer W20) UND ein echter, ggf. gemischter Ausdrucksbaum —
+// beide laufen hier über denselben Pretty-Printer. `code` ist reine
 // Anzeige-Vorliebe (`/dicecode`, siehe DicePanelProvider) — „w" und „d" bleiben
 // als EINGABE immer beide gültig, das hier bestimmt nur, was ausgegeben wird.
-function exprText(e: DiceExpression, code: 'w' | 'd'): string {
-  const groupsText = e.groups.map((g) => `${g.count}${code}${g.sides}`).join('+');
-  const mod = e.modifier === 0 ? '' : e.modifier > 0 ? `+${e.modifier}` : `${e.modifier}`;
-  return `${groupsText}${mod}`;
+function exprText(e: FormulaNode, code: 'w' | 'd'): string {
+  return formulaToText(e, code);
 }
 
 // „Verborgen" bzw. „SL + Spieler" sichtbar markieren — wer den Eintrag sieht,
@@ -163,7 +162,7 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
   // Probe zählt nur Anzahl/Seiten (immer W20), der Erleichterung/Erschwernis-
   // Modifikator steht schon separat daneben.
   const notation = isProbe
-    ? exprText({ groups: [{ count: roll.n, sides: 20 }], modifier: 0 }, diceCode)
+    ? exprText({ kind: 'dice', count: roll.n, sides: 20 }, diceCode)
     : exprText(roll.expression, diceCode);
   // Pro Würfel der passende Seitenzahl — bei einem gemischten Ausdruck
   // (z. B. „1w6+1w20") ist das NICHT für alle Würfel dasselbe.

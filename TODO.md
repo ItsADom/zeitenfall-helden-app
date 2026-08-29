@@ -90,31 +90,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   — not something each player adds/removes individually — and rollable
   directly from there like any other talent.
 
-- [ready] **Dice formula overhaul** (concept agreed, several related asks
-  bundled into one build): today three separate, inconsistent parsers handle
-  formulas — `parseDiceExpression` (chat `/r`, `+`/`-` only, no `*`, rejects
-  negative dice blocks; `shared/src/dice.ts:341-371`), `parseProbeExpr`
-  (Talent/Zauber/Waffen Proben, `expr.split('+')` only;
-  `shared/src/rules.ts:175-215`), and `evaluateEnergyFormula` (GM's
-  Spezialenergien-Katalog only, already a full recursive-descent grammar with
-  `+ - * / ()`; `rules.ts:332-460`). **Decided:** build one shared arithmetic
-  grammar (generalizing `evaluateEnergyFormula`'s existing `+ - * / ()`
-  approach) rather than patching each parser separately, so real calculations
-  with brackets/order-of-operations become possible everywhere, not just a
-  bolted-on `*`. **Decided:** for a dice block under multiplication, roll
-  first, then apply the arithmetic to the rolled result (not "double the die
-  count"). **Decided:** repeat-count syntax (e.g. rolling "2w6+8" three times
-  in one command) — exact syntax shape still open (prefix/suffix, interaction
-  with `#label`), but the *result* is settled: one grouped/summarized card,
-  not three separate feed entries — similar in spirit to how group-check
-  rolls already bundle. **Decided:** Attribut values in free-form chat
-  dicecode (e.g. typing "MU") resolve against the sender's currently-selected
-  character; with none selected (e.g. GM chat), left unavailable/literal —
-  this needs a new resolution step before/instead of the raw expression
-  parser, distinct from the existing named-Probe suggestion flow
-  (`probeExprZahl`/`/api/characters/:id/probes`). The stale "check not found"
-  warning sub-item is covered by the general stale-warning fix above.
-
 - [sketch] **Favorites: add a text field** (partially agreed, partially
   still open): the "inherit the chosen visibility setting" half turned out to
   probably just be a symptom of the multi-tab chat desync — now fixed (see
@@ -168,6 +143,42 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
      can create/name rooms, whether a room has any capacity/size concept.
      Needs its own concept pass before it's buildable — do not treat as
      `[ready]` just because the other two pieces in this entry are.
+   - **[ready] GM-wide prep pool** (from the same Discord discussion that
+     produced "Hidden/revealable Ausrüstung stats" below — a GM wants to
+     stat out equipment in advance, cross-group, before it's ever found by
+     anyone; concept pass done 2026-08-28). **Decided:** third `owner_type:
+     'gm'` value in the generalization above, `owner_id` unused — **one
+     single shared pool** (not per-GM: confirmed only one GM account exists
+     today, so per-GM scoping would be unused complexity). **Decided:**
+     invisible to players entirely — unlike the group pool (open to any
+     member), a GM-pool item never appears anywhere a player can see it;
+     only a GM ever sees the pool at all, so there's no separate "pull"
+     rule to design. **Decided: lives on `GroupOverviewPage`**
+     (`client/src/pages/GroupOverview.tsx`, already GM-only via
+     `requireGm`), not the `/verwaltung` catalog page — a new panel next to
+     the existing roster-chips panel, reusing the full `ItemChip`/
+     `AddItemDialog` UI from `Ausruestung.tsx`/`Inventar.tsx` (create, edit,
+     hide/reveal stats — a real management surface, not a read-only staging
+     list). Since the pool is global, the same contents show regardless of
+     which group's overview you're on — you pick *who* gets an item by
+     being on that group's page. **Decided: hand-out is drag-and-drop** —
+     drag a chip from the GM-inventory panel onto a player's roster card to
+     reassign it (`owner_type`/`owner_id`: `'gm'` → that character),
+     outright, no confirm step, reusing the cross-owner move action from
+     the entry above. This makes every roster card a drop target, the first
+     interactive element on a page currently documented as strictly
+     read-only (`// Nur-Lesen (die Route dahinter ist requireGm).`,
+     `GroupOverview.tsx:17`) — confirmed fine to break (GM-notes on that
+     same page already do). **Decided:** GM has infinite Traglast — simpler
+     than the group pool's "weightless" workaround, `owner_type: 'gm'`
+     items just skip capacity/Traglast computation entirely, no carrying
+     character to compute it for. Layout proportions/collapsibility of the
+     new panel are a build-time call, not settled here.
+      - **Hard blocker, build order:** needs the cross-owner move action
+        from the entry above to exist **as a drag gesture specifically**
+        (drag chip → drop on a target), not just any move button — this
+        entry's whole interaction is built on that drag. Do not start this
+        sub-item before that lands.
 
 - [ready] **Containers: bench-exclusion must cascade to contents, plus expose
   weight/worn-state in the UI** (concept agreed after a few rounds — the
@@ -217,6 +228,62 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   derives/reuses the original roll's value. If nothing's found, this is
   likely gambler's-fallacy pattern-matching on a small sample, not a bug.
 
+- [ready] **Hidden/revealable Ausrüstung stats** (concept agreed, from a GM/
+  player Discord discussion 2026-08-28 — prep an item's stats ahead of time,
+  then reveal them narratively: "you pick up a sword, it has some strange
+  energy emitting" before the GM later confirms it's +2 RS). **Decided:**
+  scope gates on `kategorie === 'Ausrüstung'` (`shared/src/items.ts:84-132`),
+  not on `location` — an unworn, not-yet-identified item sitting in Inventar
+  still has to stay hidden, so `location` can't be the gate. **Decided:**
+  `name`, `anzahl`, `gewicht`, `kategorie` (already just the generic
+  "Ausrüstung" bucket — reveals nothing further) and `notiz` stay always
+  visible regardless of hidden state. **Decided:** `rs`,
+  `haltbarkeitAktuell`/`haltbarkeitMax` (as one unit — always shown together)
+  and each row of `bonusse` (`ItemBonus`, `items.ts:70-82`) get their own
+  independent reveal state, not one item-level flag — the GM wants to unveil
+  e.g. "it's armored" before "it's also cursed." **Decided:** full
+  concealment for a hidden bonus row — it leaks neither its target nor that
+  it exists at all; RS/Haltbarkeit stay visible as fields but render `???` in
+  place of the real number while hidden. **Decided:** only the GM can
+  create/toggle hidden state — the player-facing `AddItemDialog`
+  (`client/src/components/itemDialogs.tsx:141-378`) never shows the toggle.
+  **Decided:** reveal is one-way per field, GM-triggered manually (no
+  player-facing "Untersuchung"/identify check exists or is needed — confirmed
+  no such mechanic exists anywhere in `rules.ts`/`dice.ts` today), and needs
+  the same confirm-step safeguard as deleting an item, since there's no undo.
+  UI direction (rough, not locked): a small eye-icon next to each
+  hidden-eligible field/row, GM-view only.
+   - **Data model:** `rsVerborgen`/`haltbarkeitVerborgen: boolean` on `Item`,
+     default `false` (visible) so existing rows are unaffected by the new
+     columns; `verborgen: boolean` on each `ItemBonus` row.
+   - **Plumbing (correction to first instinct):** gating does NOT belong in
+     `wornBoni()` (`items.ts:291`) or `effektiverRs()` — those are pure
+     client-side aggregators that just sum whatever `Item[]` they're handed.
+     The real gate has to be server-side: one transform stripping hidden
+     fields from the `Item` payload before it's serialized to a non-GM
+     requester, same principle as the wiki's `ohneGmBloecke()`
+     (`shared/src/wikiMarkup.ts:540-547`) stripping ` ```gm ` blocks before
+     the response goes out, not a client that merely declines to render
+     them. Once that strip exists, `wornBoni()`/`effektiverRs()` need no
+     changes at all — a hidden bonus row simply never reaches a non-GM
+     client's `data.items`, so it's already excluded from `CharCtx.stats` for
+     free, and "effects apply only once revealed" falls out automatically.
+     Still needs a build-time audit: every server call site that currently
+     serializes item data to a client (`loadFullCharacter`, `buildSummary`
+     at `characterData.ts:1740`, `overviewForChars` at
+     `characterData.ts:1854`, at least) must know the requester's GM status
+     at that point — same kind of multi-call-site sweep
+     `docs/concepts/item-bonus-while-worn.md` already had to do for `loadStats`.
+   - **New dependency since item bonuses landed:** `loadStats()`
+     (`characterData.ts`) now folds `wornBoni(loadItems(charId))` into every
+     calculation, dice rolls included — so a hidden-but-unrevealed
+     `ItemBonus` row must be stripped *before* it reaches `wornBoni()`, not
+     just before the `Item[]` is serialized to a non-GM client. The
+     server-side strip this entry already needs (above) has to sit upstream
+     of `loadItems()`'s callers inside `loadStats`, not only at the
+     response-serialization boundary, or an unrevealed bonus would silently
+     affect a player's own roll before the GM ever unveils it.
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -254,41 +321,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   character, not multiple independent characters. Still needs a concept
   pass with the GM (data model + how much duplicates vs. derives from a
   base sheet) before building.
-- [ready] **Expanded bio page** (concept agreed): a dedicated route (e.g.
-  `/charakter/:id/bio`), linked from the character sheet — deliberately outside
-  the existing `char_tabs`/`char_sections` tab system, new territory for the app.
-   - Background story via a markdown content editor: plain textarea for the
-     markdown source + a write/preview toggle button rendering it (no rich-text
-     editor library — matches the app's existing plain-textarea pattern, e.g.
-     `sidebarNotiz` in `components/inputs.tsx`). Needs a markdown renderer added.
-   - GM-only tagging: block-level for now — a marker wraps a whole
-     paragraph/block as GM-only (e.g. a fenced ` ```gm ... ``` ` block), hidden
-     from other players, always shown to the GM. Inline span-level tagging
-     (mid-sentence) is a later idea, not built now.
-   - Image gallery: new table for multiple images per character — separate from
-     today's single-portrait `char_portraits` BLOB (`db.ts:257-262`, one row per
-     character) — each image with an optional caption, reorderable, upload/delete;
-     mirrors the existing portrait upload flow but many-of instead of one-of.
-   - Existing `char_bio` fields (Heldenbrief) stay as they are, always public —
-     the new markdown content is the only place with GM-only tagging.
-   - Still open before a build plan: markdown library choice, where the markdown
-     source is stored (new column/table), exact link/entry point from the sheet.
-   - Images: `helden-assets.db` **already exists** — the wiki built it, keyed by
-     `owner_type`/`owner_id` and generic from the start precisely so the bio
-     gallery plugs in without a schema change. Use `assets/store.ts` with
-     `owner_type='character'`, `rolle='galerie'`; the weekly backup schedule,
-     the cleanup hook and the orphan sweeper are all in place. Note the catch it
-     was built around: SQLite has no cross-database CASCADE, so any new delete
-     path must call `loescheAssetsFuer()` by hand — the weekly sweeper is the
-     safety net, not the mechanism.
-   - The markup renderer also already exists and is shared, not wiki-private:
-     `shared/src/wikiMarkup.ts` (source → typed AST) plus `client/src/wiki/
-     Markup.tsx` (AST → React elements, no HTML string anywhere), including the
-     ` ```gm ` block. The bio page should import those rather than grow a second
-     parser — that was the whole reason they live in `shared`.
-   - Still open: where the bio markdown source is stored (new column/table) and
-     the exact link/entry point from the sheet. The library question is settled
-     — there is no library, and the existing renderer is the answer.
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
@@ -325,112 +357,32 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      Fern row referencing the ammo catalogue? current stock/inventory-linked?),
      and how its damage combines with the weapon's own (added flat, or
      replaces part of the dice formula).
-- [ready] **Editing dialogs for items/weapons/abilities, with item bonuses
-  while worn** (user feedback; supersedes the old "reuse the item-creation
-  Dialog for spells/abilities and weapons" note that used to live in
-  Low-Prio). A full build plan for the items-only slice (data model, compute
-  plumbing across all 7 call sites, UI layer, sequencing, verification) is
-  written up and approved at `docs/concepts/item-bonus-while-worn.md` — start
-  there before re-deriving anything below. Two things merged into one
-  initiative because the second needs the first:
-   - **Move item/weapon/ability editing into dialogs.** Today three tabs
-     edit everything inline: `Ausruestung.tsx`'s `ItemChip` (drag/edit/delete
-     on the chip itself), `Inventar.tsx`'s `AlwaysEditable` rows, and
-     `WaffenNeu.tsx`'s expand-to-edit cards. Creation already uses the
-     `Dialog.tsx`/`itemDialogs.tsx` pattern (fill fields before insert); this
-     extends the same idea to *editing existing* rows.
-     **Decided: hybrid, not a full replacement** — the highest-frequency
-     actions (Anzahl bump, delete, drag-to-equip/reorder) stay inline on the
-     chip/row exactly as today, since those happen constantly during play
-     (using up arrows, equipping mid-combat). A "Bearbeiten" button opens a
-     dialog for the structural fields (RS, Haltbarkeit, Notiz, and the new
-     Bonus list below).
-     **Decided: reuse, not duplicate** — `AddItemDialog` becomes
-     dual-purpose, opening pre-filled for an existing item, matching the
-     fill-before-insert pattern already established rather than adding a
-     second component.
-     **Decided: combined scope** — folds in weapons
-     (`WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()`, ~10+ fields each)
-     and abilities (`AbilityManager.tsx`'s `emptyAbility()`) rather than
-     doing items now and the other two later; each still needs its own field
-     selection pass since none of the three shapes overlap.
-   - **Item bonus while worn** (the feature that needed the room to grow):
-     currently no equip-effect mechanism exists anywhere — the closest
-     precedent, `effektiverRs()` (`shared/src/items.ts:168-170`), is
-     hardcoded to pull only RS from worn items into one computed value.
-     **Decided:** applies only while `location === 'getragen'` (worn — same
-     condition `effektiverRs()` already uses, not merely carried somewhere
-     in inventory).
-     **Decided:** structured, not free-form — a target + amount pair,
-     otherwise the app can't actually compute anything (a free-form field
-     would just be a second `notiz`).
-     **Decided:** an item can carry **multiple** bonuses at once (a
-     repeatable list of target+amount rows) — this is exactly why it needs
-     the dialog rather than an inline field.
-     **Decided:** targets cover everything — attributes (MU..KK), TaW/AT/PA/
-     BL (as an effective value layered on top of the stored one, the same
-     non-destructive way `effektiverRs()` works — TaW/AT/PA/BL are raw
-     player-entered numbers with no formula behind them, so there's nothing
-     to feed a bonus into except the display value), and BaseValueKey/
-     ResourceKey (LE/AU/AsE/etc.).
-     **Decided:** same-target bonuses from multiple worn items **sum** (no
-     single-highest cap the way RS has).
-     **Decided:** the target picker is a grouped `<select><optgroup>` (by
-     Attribut/Basiswert/Energie/Talent) — no new searchable-combobox
-     component needed.
-     **Plumbing plan (resolved):** attributes have a real choke point
-     (`attrMax(attrs, code) = akt + mod`, `shared/src/rules.ts:15-18` — every
-     downstream formula reads through it, so an attribute bonus ripples
-     everywhere for free), but `computeResource`/`computeBaseValueBases` do
-     not — they're called independently from 7 sites total, and not one
-     shared assembler. **Client (3 sites, already solved by existing
-     architecture):** `Heldenbrief.tsx`, `CharacterSidebar.tsx`, and
-     `WaffenNeu.tsx` all read the same `data` object through one shared
-     `CharCtx`/`useChar()` context (`Character.tsx:152`), and `data.items`
-     already sits right next to `data.attributes`/`baseValues`/`resources`
-     in that object — no new data-loading needed, `Heldenbrief.tsx` just
-     needs to start destructuring `items` too. **Server (4 genuinely
-     separate call sites, no shared assembler between them):** `saveSection`
-     (`characterData.ts:1539`, clamps `aktuell` on a resources-section save),
-     `buildSummary` (`characterData.ts:1740,1762`, the limited "summary" view
-     another player sees), `overviewForChars` (`characterData.ts:1854,1874`,
-     GM group-overview chips, one query per character in a loop), and
-     `computeProbeForCharacter` (`diceSource.ts:133`, resolves a weapon probe
-     for a dice roll — bypasses the `Item` model entirely today, reading
-     `sec_waffenFernNeu`/`sec_waffenNahNeu` directly). None of these should
-     be merged into one object — they're deliberately different access
-     levels/purposes — but the fix at each is mechanically the same: add a
-     `loadItems(charId)` call (already exists, used by `loadFullCharacter`
-     at line 762) and apply the one new shared helper described below.
-     Concretely: one new pure function next to `effektiverRs()` in
-     `shared/src/items.ts` — `gatherWornItemBoni(items: Item[])` — filters to
-     `location === 'getragen'` and sums each item's bonus rows by target into
-     `{ attrs, baseValues, resources, talente }` buckets. At every call site,
-     merge that result additively into the *ephemeral* input passed to
-     `computeResource`/`computeBaseValueBases`/`attrMax` — never into the
-     stored `mods`/`permanent`/`akt` values that get persisted, same
-     non-destructive pattern `attrMax` already uses for `akt + mod`.
-     `saveSection`'s clamp fix isn't scope creep — it's necessary: if item
-     boni raise a resource's max and the clamp doesn't know that, a player
-     wearing a bonus item gets `aktuell` silently clamped down wrong. GM
-     overview's per-character loop already does one query per stat category
-     per character; one more `loadItems()` per iteration follows the
-     existing pattern, not a new class of problem. `diceSource.ts` matters
-     most in practice (a bonus item making a weapon roll better) but also
-     needs the most work — both the `loadItems()` addition and wiring the
-     `talente` bucket onto the raw TaW/AT/PA/BL it currently pulls from the
-     legacy section tables.
-     **Target shape (recommendation, not yet locked):** attribute code /
-     base-value key / resource key / a specific talent's TaW-or-AT/PA/BL are
-     four different key-spaces with no shared type today — a small
-     discriminated union (`{kind: 'attr'|'baseValue'|'resource'|'talent',
-     code, talentField?}`) rather than one flat string enum.
-     **Not the same mechanism as ammo damage:** checked and decoupled —
-     "fold ammunition damage into the Fernkampf formula" (below, under
-     Weapon tab rework) targets a weapon's own `schaden` dice-formula field,
-     not an attr/baseValue/resource/talent target, so it doesn't share this
-     bonus system despite looking similar on the surface. Left as its own
-     separate item.
+- [ready] **Editing dialogs for weapons/abilities** (user feedback; supersedes
+  the old "reuse the item-creation Dialog for spells/abilities and weapons"
+  note that used to live in Low-Prio). The items half of this shipped —
+  `AddItemDialog` (`client/src/components/itemDialogs.tsx`) is dual-purpose
+  now, opening pre-filled for an existing item (click the chip/row on
+  Ausrüstung or Inventar, in either read-only or edit mode), with
+  Duplizieren/Löschen in its footer and a repeatable Boni-beim-Tragen list.
+  Item bonuses while worn are fully wired end to end, including the server
+  dice-roll path — see `docs/concepts/item-bonus-while-worn.md` for the build
+  history; that's the precedent to copy for the remaining two shapes, not
+  re-derive:
+   - **Move weapon/ability editing into the same dialog pattern.**
+     `WaffenNeu.tsx`'s expand-to-edit cards and `AbilityManager.tsx` still
+     edit everything inline/on-card. **Decided: hybrid, not a full
+     replacement** — the highest-frequency actions (drag, Anzahl-style bumps)
+     stay inline; a dialog handles the structural fields, same split already
+     proven on items. **Decided: reuse the dialog shell, not the item schema**
+     — `WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()` (~10+ fields each)
+     and `AbilityManager.tsx`'s `emptyAbility()` are shapes of their own; each
+     needs its own field-selection pass, since none of the three (items,
+     weapons, abilities) overlap.
+   - **Open: do weapons/abilities want an item-bonus-style effect list too?**
+     Not decided. If yes, it's the same generalization the "Player-set
+     structured bonuses" entry below already plans for Vorteile/Nachteile —
+     do that generalization once, shared by both, rather than two parallel
+     bonus mechanisms.
 - [sketch] **Player-set structured bonuses for Vorteile/Nachteile/Titel/
   Professionsboni** (user feedback): these currently live in plain free-text
   dynamic-table sections under the locked "Vorteile & Nachteile" tab
@@ -442,10 +394,10 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   from the same `attr | baseValue | resource | talent` union already planned
   for item bonuses, then type the amount), and the app applies it
   automatically from then on instead of the player doing the arithmetic by
-  hand. Deliberately sequenced *after* the item-bonus-while-worn entry above:
-  build that first, then generalize its aggregator (`wornBoni` etc. in
-  `shared/src/items.ts`) to accept any bonus source, not just `Item[]`, rather
-  than growing a second parallel plumbing path. Still open: which of the four
+  hand. Item bonuses while worn (`docs/concepts/item-bonus-while-worn.md`)
+  are built now, so this is unblocked: generalize its aggregator (`wornBoni`
+  etc. in `shared/src/items.ts`) to accept any bonus source, not just
+  `Item[]`, rather than growing a second parallel plumbing path. Still open: which of the four
   sections actually get this (all four, or just vorteile/nachteile?), the UI
   for attaching a structured effect to a free-text dynamic-table row (a
   per-row dialog like the item one, or a new `DynColumn` type?), and whether a
@@ -483,9 +435,11 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   (never `attrMax`), later columns need points *spent* not merely earned,
   Heldenkraft perks are a single pick granting one in-combat and one
   out-of-combat effect (not two picks). Half the perks target exactly the
-  `attr | baseValue | resource | talent` union already designed for item
-  bonuses, so this should be built *after* the item-bonus-while-worn entry
-  below and reuse that plumbing rather than grow a second aggregator. Blocked
+  `attr | baseValue | resource | talent` union item bonuses while worn
+  (`docs/concepts/item-bonus-while-worn.md`, built now) already use — reuse
+  that plumbing (`StatBoni`/`wornBoni` in `shared/src/items.ts`, deliberately
+  named apart from the item-only producer for exactly this reuse) rather than
+  grow a second aggregator. Blocked
   on GM input before a catalog can be seeded: ~7 name conflicts between graphic
   and description list, a duplicate in the Konstitution tree, ambiguous stage
   counts, the missing `stufenfk` master list, and the Kampf/Anders split not
@@ -579,25 +533,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   more than Haltbarkeit can today. Needs a concept pass on whether a
   partially-drunk potion has to split off the stack into its own row, or
   charges only make sense while `anzahl === 1`.
-- [sketch] **Dice rolls and chat — dedicated chat page.** The core feature
-  (Probe/expression rolls, crit confirmations, chat, visibility picker, GM +
-  player requests, roll log, explicit room switching) shipped on
-  `feature/dice-rolls-chat`; the rules/mechanics are documented in
-  `docs/concepts/dice-rolls-and-chat.md`, not repeated here. Still open: a
-  docked-only panel would collide with a possible future virtual-table
-  feature, planned in `docs/concepts/virtual-table.md` (revisited 2026-08-24
-  and ready to build from). Not a rework: any page can call
-  `useDicePanel()` and read the same `feed`/`sendChat`/etc., so a dedicated
-  full-page chat view is additive — reuses `FeedEntryView` for individual
-  messages/rolls, no duplicate connection. **Settled:** that dedicated page
-  does NOT also render the floating dock (`DicePanel.tsx`'s fixed widget) —
-  showing the same feed twice on the same page would be redundant. **Also
-  settled:** the great-roll overlay (`WichtigerWurfOverlay`) is mounted globally
-  in `App.tsx` and covers whatever page is open, so a dedicated chat page must
-  not try to own or duplicate it — it already works there. The overlay pulls its
-  dice toward `.dice-dock`/`.dice-dock-tab` and falls back to the bottom-right
-  corner when neither is on screen, which is exactly the case a dock-less chat
-  page would create.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -615,9 +550,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
  - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
-- [ready] **Filtering** (own-element AsE increase): concept now agreed — see
-  "Percentage bonus for energies, and what 'Filtern' actually is" under User
-  feedback above. No longer a bare sketch.
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.
@@ -725,8 +657,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   *mid-sentence* as GM-only is the open piece, and it is harder than it looks:
   the server strips GM regions from the response before sending, so an inline
   marker has to survive that removal without leaving a hole that reads as a
-  typo. Same decision as the bio page's, and it should stay one decision for
-  both.
+  typo.
 
 - **wiki: Steckbriefe, dann Vorlagen** (concept settled, deliberately deferred —
   the navigation/category/redirect round shipped without it). Two steps, in this

@@ -137,8 +137,9 @@ export const KNOWN_BUGS: KnownBug[] = [
 // Vorschau auf Geplantes — wird auf der Changelog-Seite immer ganz oben als
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
-  'Eine ausführliche Charakter-Biografie als eigene Seite: Hintergrundgeschichte, Aussehen und mehrere Bilder.',
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
+  'Erweiterte Dialoge für Items und Ausrüstung',
+  'Ein überarbeitetes Gruppeninventar mit Itemtransfer zwischen Gruppe <-> Spieler und sogar Spieler <-> Spieler',
   'Eigene Bögen für Tiere und Begleiter.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -198,6 +199,27 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-08-29',
+    title: 'Würfel-Optimierung und Item-Dialoge',
+    version: '0.8.1',
+    added: [
+      'Freie Würfe im Chat („/r") verstehen jetzt echte Rechnung mit Klammern und Vorrang („2*(1w6+3)"), nicht mehr nur Addition/Subtraktion.',
+      'Ein vorangestelltes „Nx" wiederholt einen Wurf N-mal auf einmal, als eine gemeinsame Karte mit Gesamtsumme (oder Erfolgsquote bei einer Probe) — sowohl bei freien Ausdrücken („3x2w6+8") als auch bei einer benannten Probe („2xAthletik").',
+      'Hast du gerade einen Charakter ausgewählt, lösen sich Attribut-Kürzel wie „MU" in einem freien Wurf jetzt gegen dessen Werte auf.',
+      'Der Charakterbogen zeigt jetzt neben Spieler/Gruppe einen Link zur Wiki-Seite des Charakters — gibt es noch keine, legt der Link sie direkt an und versieht sie automatisch mit der Kategorie „Spielercharakter".',
+      'Getragene Ausrüstung kann jetzt echte Boni verleihen: auf Attribute, Basiswerte, Energien, eine Spezialenergie, Psyche, Traglast oder ein einzelnes Talent (bei Kampftalenten AT/PA/BL, sonst wahlweise TaW oder eine direkte Erschwernis/Erleichterung auf die Probe). Betroffene Werte zeigen eine Markierung mit Tooltip, welcher Gegenstand sie anhebt — die Boni fließen überall ein, auch beim tatsächlichen Würfeln.',
+      'Gegenstände in Ausrüstung und Inventar öffnen jetzt per Klick einen Bearbeiten-Dialog (Name, Gewicht, RS, Haltbarkeit, Behälter, Notiz, Boni) mit Duplizieren und Löschen direkt darin — auch ohne „Bearbeiten"-Modus, wie schon das Ziehen und die Anzahl.',
+    ],
+    fixed: [
+      '(Spielleiter) Die Gruppenübersicht zeigte bei formelbasierten Spezialenergien (z. B. Wut, Chi) einen veralteten, gespeicherten Höchstwert statt des live berechneten — jetzt korrekt.',
+      'Die Initiative-Basis und die Todesschwelle auf dem virtuellen Tisch ignorierten Boni auf die zugrundeliegenden Basiswerte — sie rechnen jetzt wie der Charakterbogen selbst.',
+    ],
+    changed: [
+      'Das „Gruppen"-Menü in der Kopfleiste führt beim Überfahren jetzt direkt zu Spieltisch oder Gruppenseite der jeweiligen Gruppe, statt nur zur Gruppenseite.',
+      'Die Anzahl bleibt im Inventar weiterhin direkt in der Zeile änderbar; Name, Gewicht und Notiz wandern zusammen mit den übrigen Feldern in den neuen Bearbeiten-Dialog.',
+    ],
+  },
   {
     date: '2026-08-28',
     version: '0.8',

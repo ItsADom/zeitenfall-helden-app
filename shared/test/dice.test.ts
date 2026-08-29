@@ -7,8 +7,15 @@ import {
   parseDiceShortcuts,
   resolveExpressionRoll,
   resolveProbeRoll,
+  stripRepeatPrefix,
   type CoopRollLike,
 } from '../src/dice.js';
+import type { FormulaNode } from '../src/formula.js';
+
+// Kleine Helfer, damit die AST-Erwartungen unten lesbar bleiben.
+const dice = (count: number, sides: number): FormulaNode => ({ kind: 'dice', count, sides });
+const num = (value: number): FormulaNode => ({ kind: 'num', value });
+const plus = (left: FormulaNode, right: FormulaNode): FormulaNode => ({ kind: 'bin', op: '+', left, right });
 
 describe('findCritTriggers / confirmationsNeeded', () => {
   it('finds no triggers on a plain roll', () => {
@@ -247,12 +254,12 @@ describe('Bestätigungen werden einzeln nachgereicht', () => {
   });
 
   it('greift genauso bei Ausdruckswürfen', () => {
-    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 0 };
-    const open = resolveExpressionRoll(expr, [20], []);
+    const expr = dice(1, 20);
+    const open = resolveExpressionRoll(expr, [20], [], 20);
     expect(open.pending).toEqual([{ dieIndex: 0, trigger: 20 }]);
     expect(open.resolved).toBe(false);
 
-    const skipped = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: null }]);
+    const skipped = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: null }], 20);
     expect(skipped.resolved).toBe(true);
     expect(skipped.adjustedSum).toBe(20);
     // Die 20 ist trotzdem passiert — der Eintrag bleibt hervorgehoben.
@@ -364,24 +371,24 @@ describe('Kritischer Erfolg', () => {
 
 describe('parseDiceExpression', () => {
   it('parses "2w6+5"', () => {
-    expect(parseDiceExpression('2w6+5')).toEqual({ groups: [{ count: 2, sides: 6 }], modifier: 5 });
+    expect(parseDiceExpression('2w6+5')).toEqual(plus(dice(2, 6), num(5)));
   });
 
   it('parses "w20" with an implicit count of 1', () => {
-    expect(parseDiceExpression('w20')).toEqual({ groups: [{ count: 1, sides: 20 }], modifier: 0 });
+    expect(parseDiceExpression('w20')).toEqual(dice(1, 20));
   });
 
   it('is case-insensitive on the "w"', () => {
-    expect(parseDiceExpression('1W20-1')).toEqual({ groups: [{ count: 1, sides: 20 }], modifier: -1 });
+    expect(parseDiceExpression('1W20-1')).toEqual({ kind: 'bin', op: '-', left: dice(1, 20), right: num(1) });
   });
 
   it('also accepts "d" as an alias for "w"', () => {
-    expect(parseDiceExpression('2d6+5')).toEqual({ groups: [{ count: 2, sides: 6 }], modifier: 5 });
-    expect(parseDiceExpression('1D20-1')).toEqual({ groups: [{ count: 1, sides: 20 }], modifier: -1 });
+    expect(parseDiceExpression('2d6+5')).toEqual(plus(dice(2, 6), num(5)));
+    expect(parseDiceExpression('1D20-1')).toEqual({ kind: 'bin', op: '-', left: dice(1, 20), right: num(1) });
   });
 
   it('tolerates surrounding whitespace', () => {
-    expect(parseDiceExpression('  3w8 + 2  ')).toEqual({ groups: [{ count: 3, sides: 8 }], modifier: 2 });
+    expect(parseDiceExpression('  3w8 + 2  ')).toEqual(plus(dice(3, 8), num(2)));
   });
 
   it('rejects garbage', () => {
@@ -397,24 +404,24 @@ describe('parseDiceExpression', () => {
   });
 
   it('parses mixed dice pools, adding multiple groups', () => {
-    expect(parseDiceExpression('1w6+1w20')).toEqual({
-      groups: [
-        { count: 1, sides: 6 },
-        { count: 1, sides: 20 },
-      ],
-      modifier: 0,
-    });
-    expect(parseDiceExpression('2w6+1w4+3')).toEqual({
-      groups: [
-        { count: 2, sides: 6 },
-        { count: 1, sides: 4 },
-      ],
-      modifier: 3,
-    });
+    expect(parseDiceExpression('1w6+1w20')).toEqual(plus(dice(1, 6), dice(1, 20)));
+    expect(parseDiceExpression('2w6+1w4+3')).toEqual(plus(plus(dice(2, 6), dice(1, 4)), num(3)));
   });
 
-  it('rejects subtracting a dice group — only the flat modifier may be negative', () => {
-    expect(parseDiceExpression('1w6-1w20')).toBeNull();
+  // Anders als beim alten rein additiven Modell ist "1w6-1w20" jetzt eine
+  // wohldefinierte Rechnung (roll first, then subtract) statt einer
+  // sprachlichen Sonderregel — real arithmetic gilt gleichermaßen für
+  // Würfel-Blöcke wie für Zahlen/Bezeichner.
+  it('allows subtracting a whole dice block — its rolled result, not its count', () => {
+    expect(parseDiceExpression('1w6-1w20')).toEqual({ kind: 'bin', op: '-', left: dice(1, 6), right: dice(1, 20) });
+  });
+
+  // A leading "-" negates the whole block's ROLLED result ("0-2w6"), not its
+  // count — there is no syntax for a literal negative die count at all (the
+  // dice pattern's count is always `\d*`, never signed), so this is well-
+  // defined rather than rejected.
+  it('a leading "-" before a dice block negates its rolled result, not its count', () => {
+    expect(parseDiceExpression('-2w6')).toEqual({ kind: 'neg', operand: dice(2, 6) });
   });
 
   it('caps the total dice count across all groups combined, not per group', () => {
@@ -429,40 +436,65 @@ describe('parseDiceExpression', () => {
   it('rejects a bare modifier with no dice group at all', () => {
     expect(parseDiceExpression('5')).toBeNull();
   });
+
+  it('supports real arithmetic — multiplication, division, parens', () => {
+    expect(parseDiceExpression('2*(1w6+3)')).toEqual({
+      kind: 'bin',
+      op: '*',
+      left: num(2),
+      right: plus(dice(1, 6), num(3)),
+    });
+  });
+});
+
+describe('stripRepeatPrefix', () => {
+  it('splits a leading "Nx" off the rest of the expression', () => {
+    expect(stripRepeatPrefix('3x2w6+8')).toEqual({ repeat: 3, rest: '2w6+8' });
+    expect(stripRepeatPrefix('3X2w6+8')).toEqual({ repeat: 3, rest: '2w6+8' });
+  });
+
+  it('leaves plain expressions untouched', () => {
+    expect(stripRepeatPrefix('2w6+8')).toEqual({ repeat: 1, rest: '2w6+8' });
+  });
+
+  it('falls back to no repeat when the count is out of range', () => {
+    expect(stripRepeatPrefix('0x2w6')).toEqual({ repeat: 1, rest: '0x2w6' });
+    expect(stripRepeatPrefix('11x2w6')).toEqual({ repeat: 1, rest: '11x2w6' });
+  });
 });
 
 describe('resolveExpressionRoll', () => {
-  it('sums dice plus modifier with no success/fail concept', () => {
-    const expr = { groups: [{ count: 2, sides: 6 }], modifier: 3 };
-    const r = resolveExpressionRoll(expr, [4, 5], []);
+  it('layers confirmations onto the given rawSum, no success/fail concept', () => {
+    const expr = plus(dice(2, 6), num(3));
+    const r = resolveExpressionRoll(expr, [4, 5], [], 12);
     expect(r.rawSum).toBe(12);
     expect(r.adjustedSum).toBe(12);
     expect(r.flagged).toBe(false);
   });
 
   it('flags but does not override on a confirmed 20 in a d20 expression', () => {
-    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 0 };
-    const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 14 }]);
+    const expr = dice(1, 20);
+    const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 14 }], 20);
     expect(r.flagged).toBe(true);
     expect(r.confirmations).toEqual([{ dieIndex: 0, trigger: 20, value: 14, confirmed: true, cancelled: false }]);
     expect(r.adjustedSum).toBe(34); // 20 + 14 — the confirmation value moves the sum like any other
   });
 
   it('adds an unconfirmed 20 confirmation value into the sum', () => {
-    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 0 };
-    const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 3 }]);
+    const expr = dice(1, 20);
+    const r = resolveExpressionRoll(expr, [20], [{ dieIndex: 0, value: 3 }], 20);
     expect(r.adjustedSum).toBe(23);
   });
 
   it('subtracts a natural-1 confirmation value unconditionally', () => {
-    const expr = { groups: [{ count: 1, sides: 20 }], modifier: 5 };
-    const r = resolveExpressionRoll(expr, [1], [{ dieIndex: 0, value: 16 }]);
+    const expr = plus(dice(1, 20), num(5));
+    const r = resolveExpressionRoll(expr, [1], [{ dieIndex: 0, value: 16 }], 6);
     expect(r.adjustedSum).toBe(1 + 5 - 16);
   });
 
   it('never triggers confirmations on a non-d20 expression', () => {
-    const expr = { groups: [{ count: 2, sides: 6 }], modifier: 0 };
-    const r = resolveExpressionRoll(expr, [6, 1], []);
+    const expr = dice(2, 6);
+    const r = resolveExpressionRoll(expr, [6, 1], [], 7);
     expect(r.flagged).toBe(false);
     expect(r.confirmations).toEqual([]);
     expect(r.adjustedSum).toBe(7);
@@ -471,10 +503,19 @@ describe('resolveExpressionRoll', () => {
   it('only the d20 group triggers confirmations in a mixed pool', () => {
     // Gruppe 0: 1w6 (Index 0) — Gruppe 1: 1w20 (Index 1). Die 1 auf dem W6
     // darf keine Bestätigung auslösen, nur die 20 auf dem W20.
-    const expr = { groups: [{ count: 1, sides: 6 }, { count: 1, sides: 20 }], modifier: 0 };
-    const r = resolveExpressionRoll(expr, [1, 20], []);
+    const expr = plus(dice(1, 6), dice(1, 20));
+    const r = resolveExpressionRoll(expr, [1, 20], [], 21);
     expect(r.flagged).toBe(true);
     expect(r.pending).toEqual([{ dieIndex: 1, trigger: 20 }]);
+  });
+
+  it('recovers the total from a multiplied sub-expression via the passed-in rawSum, not the flat dice sum', () => {
+    // "2*(1w6+3)" mit gewürfelter 4: (4+3)*2 = 14 — die flache Summe der
+    // Würfel allein (4) würde das alte additive Modell falsch ergeben.
+    const expr: FormulaNode = { kind: 'bin', op: '*', left: num(2), right: plus(dice(1, 6), num(3)) };
+    const r = resolveExpressionRoll(expr, [4], [], 14);
+    expect(r.rawSum).toBe(14);
+    expect(r.adjustedSum).toBe(14);
   });
 });
 

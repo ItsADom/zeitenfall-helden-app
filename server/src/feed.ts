@@ -4,7 +4,7 @@
 // the two views can't drift apart. Deliberately takes NO isGm parameter:
 // 'hidden' excludes the GM too, the one deliberate exception to this app's
 // usual "GM sees everything" pattern.
-import type { ChatFeedEntry, FeedEntry, RollFeedEntry, RollPayload, RollVisibility } from 'shared';
+import type { ChatFeedEntry, FeedEntry, FormulaNode, RollFeedEntry, RollPayload, RollVisibility } from 'shared';
 import { db } from './db.js';
 import { broadcastToGroup, broadcastUpdateToGroup } from './ws.js';
 
@@ -38,20 +38,40 @@ interface FeedRow {
   roll_json: string | null;
   group_roll_id: string | null;
   is_coop: number;
+  is_repeat: number;
 }
 
-// Vor der Mehrfach-Würfel-Erweiterung stand `expression` als flaches
-// { count, sides, modifier } im gespeicherten JSON, statt als { groups,
-// modifier }. Ältere Zeilen im Verlauf lassen sich nicht rückwirkend
-// umschreiben — also beim Lesen einmalig heben, sonst stürzt die Anzeige an
-// jedem älteren freien Wurf.
+// Zwei Vorgänger-Formen von `expression` liegen im Verlauf, jeweils vor einer
+// eigenen Erweiterung: das ursprüngliche flache { count, sides, modifier }
+// (vor gemischten Pools) und danach { groups, modifier } (vor der
+// Dice-formula-Grammatik-Umstellung auf einen echten Ausdrucksbaum, siehe
+// TODO.md "Dice formula overhaul"). Ältere Zeilen lassen sich nicht
+// rückwirkend umschreiben — also beim Lesen einmalig heben, sonst stürzt die
+// Anzeige an jedem älteren freien Wurf. Reihenfolge (Gruppen, dann
+// Modifikator) bleibt erhalten, damit die bereits gespeicherten `dice`-Werte
+// weiter zur rekonstruierten `sides`-Reihenfolge passen.
 function migrateLegacyExpression(roll: RollPayload): RollPayload {
   if (roll.mode !== 'expr') return roll;
-  const expr = roll.expression as unknown as { count?: number; sides?: number; modifier?: number; groups?: unknown };
-  if (expr && expr.groups === undefined && typeof expr.count === 'number' && typeof expr.sides === 'number') {
-    return { ...roll, expression: { groups: [{ count: expr.count, sides: expr.sides }], modifier: expr.modifier ?? 0 } };
+  const expr = roll.expression as unknown as {
+    count?: number;
+    sides?: number;
+    modifier?: number;
+    groups?: { count: number; sides: number }[];
+  };
+  const groups =
+    expr && expr.groups === undefined && typeof expr.count === 'number' && typeof expr.sides === 'number'
+      ? [{ count: expr.count, sides: expr.sides }]
+      : expr?.groups;
+  if (!groups) return roll; // schon der neue Baum
+  let tree: FormulaNode | null = null;
+  for (const g of groups) {
+    const diceNode: FormulaNode = { kind: 'dice', count: g.count, sides: g.sides };
+    tree = tree ? { kind: 'bin', op: '+', left: tree, right: diceNode } : diceNode;
   }
-  return roll;
+  const modifier = expr?.modifier ?? 0;
+  if (!tree) tree = { kind: 'num', value: modifier };
+  else if (modifier !== 0) tree = { kind: 'bin', op: '+', left: tree, right: { kind: 'num', value: modifier } };
+  return { ...roll, expression: tree };
 }
 
 function rowToEntry(row: FeedRow): FeedEntry {
@@ -69,6 +89,7 @@ function rowToEntry(row: FeedRow): FeedEntry {
       roll,
       ...(row.group_roll_id ? { groupRollId: row.group_roll_id } : {}),
       ...(row.is_coop ? { coop: true as const } : {}),
+      ...(row.is_repeat ? { repeat: true as const } : {}),
     };
     return entry;
   }
@@ -138,12 +159,14 @@ export function writeFeedRoll(
   groupRollId?: string,
   /** Nur bei einer aufgelösten Kooperationsprobe gesetzt — siehe coopPools.ts. */
   coop?: boolean,
+  /** Nur bei einem per führendem "Nx" wiederholten freien Wurf gesetzt — siehe roll.expr in ws.ts. */
+  repeat?: boolean,
 ): RollFeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
-      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id, is_coop)
-       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id, is_coop, is_repeat)
+       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       groupId,
@@ -156,6 +179,7 @@ export function writeFeedRoll(
       JSON.stringify(roll),
       groupRollId ?? null,
       coop ? 1 : 0,
+      repeat ? 1 : 0,
     );
   const entry: RollFeedEntry = {
     id: Number(info.lastInsertRowid),
@@ -169,6 +193,7 @@ export function writeFeedRoll(
     roll,
     ...(groupRollId ? { groupRollId } : {}),
     ...(coop ? { coop: true as const } : {}),
+    ...(repeat ? { repeat: true as const } : {}),
   };
   return entry;
 }
@@ -181,8 +206,9 @@ export function insertFeedRoll(
   roll: RollPayload,
   groupRollId?: string,
   coop?: boolean,
+  repeat?: boolean,
 ): RollFeedEntry {
-  const entry = writeFeedRoll(groupId, author, gmUserId, visibility, roll, groupRollId, coop);
+  const entry = writeFeedRoll(groupId, author, gmUserId, visibility, roll, groupRollId, coop, repeat);
   broadcastToGroup(groupId, entry);
   return entry;
 }

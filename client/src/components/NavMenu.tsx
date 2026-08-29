@@ -49,7 +49,7 @@ export default function NavMenu({ kind }: { kind: 'charaktere' | 'gruppen' }) {
           ) : kind === 'charaktere' ? (
             <CharacterList overview={overview} isGm={!!user.isGm} activeId={activeCharId} onPick={closeNow} />
           ) : (
-            <GroupList groups={overview.groups} activeId={activeGroupId} onPick={closeNow} />
+            <GroupList groups={overview.groups} isGm={!!user.isGm} activeId={activeGroupId} onPick={closeNow} />
           )}
 
           <Link className="nav-flyout-all" to={listPath} onClick={closeNow}>
@@ -118,10 +118,12 @@ function CharacterList({
 
 function GroupList({
   groups,
+  isGm,
   activeId,
   onPick,
 }: {
   groups: { id: number; name: string }[];
+  isGm: boolean;
   activeId: number | null;
   onPick: () => void;
 }) {
@@ -129,15 +131,25 @@ function GroupList({
   return (
     <div className="nav-flyout-list">
       {[...groups].sort(byName).map((g) => (
-        <Link
-          key={g.id}
-          className={`nav-flyout-item${g.id === activeId ? ' active' : ''}`}
-          to={`/gruppe/${g.id}`}
-          role="menuitem"
-          onClick={onPick}
-        >
-          {g.name}
-        </Link>
+        <div className="nav-flyout-group" key={g.id}>
+          <div className={`nav-flyout-head${g.id === activeId ? ' active' : ''}`}>{g.name}</div>
+          <Link className="nav-flyout-item nav-flyout-subitem" to={`/gruppe/${g.id}/tisch`} role="menuitem" onClick={onPick}>
+            Spieltisch →
+          </Link>
+          <Link className="nav-flyout-item nav-flyout-subitem" to={`/gruppe/${g.id}`} role="menuitem" onClick={onPick}>
+            Gruppenseite →
+          </Link>
+          {isGm && (
+            <Link
+              className="nav-flyout-item nav-flyout-subitem"
+              to={`/gruppe/${g.id}/uebersicht`}
+              role="menuitem"
+              onClick={onPick}
+            >
+              Spielleiter-Übersicht →
+            </Link>
+          )}
+        </div>
       ))}
     </div>
   );

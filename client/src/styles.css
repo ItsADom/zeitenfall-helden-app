@@ -712,6 +712,15 @@ header.topbar .nav-menu.open {
   text-transform: uppercase;
   color: var(--muted);
 }
+.nav-flyout-head.active {
+  color: var(--accent);
+}
+/* Untereintrag einer Gruppe (Spieltisch/Gruppenseite/Übersicht) — exakt wie
+   .nav-flyout-item, nur eingerückt, damit die Zugehörigkeit zum Kopf darüber
+   sichtbar bleibt. */
+.nav-flyout-subitem {
+  padding-left: 18px;
+}
 /* Höhere Spezifität als `header.topbar a` (sonst erbte der Eintrag den weißen
    Kopfleisten-Text und wäre auf dem Panel unlesbar). */
 header.topbar .nav-flyout-item,
@@ -1427,6 +1436,13 @@ table.sheet tbody tr:hover td.res-over {
   font-weight: 500;
   color: var(--muted);
   text-decoration-thickness: 1px;
+}
+/* Item-bonusierter Wert (BonusWert.tsx) — dieselbe Färbung wie .chip-rs/
+   .chip-bonus, damit "von einem Gegenstand angehoben" überall gleich aussieht. */
+.bonus-mark {
+  color: var(--accent);
+  font-weight: 700;
+  cursor: help;
 }
 
 /* Gruppenkopf über den Energien-Spalten (Maximum / Ausbaugrenze) */
@@ -2888,9 +2904,11 @@ li {
   table-layout: fixed;
   width: 100%;
 }
-.inv-row-actions {
-  display: flex;
-  gap: 4px;
+/* Die Zeile selbst öffnet den Bearbeiten-Dialog (siehe Inventar.tsx `row`) —
+   Ziehgriff und Anzahl-Feld stoppen die Klick-Ausbreitung und bleiben davon
+   unberührt. */
+.inv-table tbody tr.inv-row {
+  cursor: pointer;
 }
 
 /* Kategorienverwaltung: Chips mit umbenennbarem Namen + Entfernen, plus ein
@@ -3089,26 +3107,15 @@ li {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
-.chip-btn {
-  margin-left: 4px;
-  padding: 0 4px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
-  opacity: 0.75;
-}
-.chip-btn:hover {
-  opacity: 1;
-  color: var(--accent);
-}
 .chip-rs {
   color: var(--accent);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.chip-bonus {
+  color: var(--accent);
+  font-weight: 700;
 }
 .chip-haltbarkeit {
   color: var(--muted);
@@ -3133,7 +3140,6 @@ li {
   gap: 4px;
   max-width: 100%;
 }
-.chip-wrap.open,
 .chip-wrap:has(> .quick-contents) {
   flex-basis: 100%;
   width: 100%;
@@ -3168,15 +3174,9 @@ li {
 .chip-editor textarea {
   font-size: 13px;
 }
-.chip-editor .chip-check {
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-}
 .chip-editor .chip-notiz {
   flex: 1 1 200px;
 }
-.chip-dup,
 .chip-del {
   align-self: center;
 }
@@ -3408,6 +3408,13 @@ li {
   justify-content: flex-end;
   gap: 8px;
   flex: 0 0 auto;
+}
+/* Destruktive/Sekundär-Aktionen (Duplizieren, Löschen) linksbündig im selben
+   Fuß, getrennt von Abbrechen/Speichern rechts. */
+.dlg-foot-left {
+  display: flex;
+  gap: 8px;
+  margin-right: auto;
 }
 
 /* Chat-Befehlsübersicht (siehe dice/CommandsDialog.tsx). */

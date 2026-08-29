@@ -1,28 +1,193 @@
-import { useState } from 'react';
-import type { ContainerArt, Item, KapazitaetArt } from '@shared/items';
+import { useEffect, useState } from 'react';
+import type { ContainerArt, Item, ItemBonus, ItemBonusKind, KapazitaetArt, TalentBonusFeld } from '@shared/items';
+import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
+import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
+import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
 import { NumInput } from './inputs';
 
-// Anlegen-Dialoge fürs Inventar: sammeln alle Felder VOR dem Einfügen, statt
-// einen leeren Item-Datensatz einzufügen und sofort zu bearbeiten (Item
-// creation — fill fields while inserting). Zwei getrennte Dialoge, weil sich
-// „Gegenstand" und „Behälter" fürs Anlegen unterschiedlich anfühlen, auch wenn
-// beide am Ende ein `Item` sind.
+// Anlegen-/Bearbeiten-Dialoge fürs Inventar: sammeln alle Felder VOR dem
+// Einfügen bzw. Patchen, statt einen leeren Item-Datensatz einzufügen und
+// sofort zu bearbeiten (Item creation — fill fields while inserting). Zwei
+// getrennte Dialoge, weil sich „Gegenstand" und „Behälter" fürs Anlegen
+// unterschiedlich anfühlen, auch wenn beide am Ende ein `Item` sind.
+// AddItemDialog ist bewusst BEIDES (anlegen UND bearbeiten) — siehe die
+// `item`-Prop unten; AddContainerDialog bleibt reine Anlage, ein bestehender
+// Behälter wird über AddItemDialog (mit `item` gesetzt) oder die Inline-Felder
+// im Chip-Editor angefasst.
 
 const AUSRUESTUNG_KATEGORIE = 'Ausrüstung';
+// Client-seitiges Gegenstück zu MAX_BONUSSE_PRO_ITEM in
+// server/src/characterData.ts — reine UX-Bremse (der Server deckelt ohnehin),
+// verhindert nur, dass jemand über den „+ Bonus"-Knopf Zeilen anlegt, die beim
+// Speichern klanglos verworfen würden.
+const MAX_BONUSSE_PRO_ITEM = 20;
+
+// Ziel+Code eines Bonus als EIN <select>-Wert kodiert (siehe ItemBonus in
+// shared/src/items.ts): "attr:MU", "baseValue:at", "resource:le",
+// "talent:42", "spezial:7", "psyche:", "traglast:". code ist bei
+// psyche/traglast leer, daher reicht ein Split am ERSTEN ':' — talentId/
+// catalogId sind reine Ziffern, enthalten selbst nie einen Doppelpunkt.
+function bonusOptionValue(kind: ItemBonusKind, code: string): string {
+  return `${kind}:${code}`;
+}
+function parseBonusOptionValue(value: string): { kind: ItemBonusKind; code: string } {
+  const i = value.indexOf(':');
+  return { kind: value.slice(0, i) as ItemBonusKind, code: value.slice(i + 1) };
+}
+
+function BonusRowsEditor({
+  bonusse,
+  onChange,
+  talents,
+  specialEnergies,
+}: {
+  bonusse: ItemBonus[];
+  onChange: (next: ItemBonus[]) => void;
+  talents: TalentCatalogRow[];
+  specialEnergies: SpecialEnergyCatalogRow[];
+}) {
+  // Spezialenergien ohne Formel haben kein Bonus-Feld, das ein Item-Bonus
+  // treffen könnte (siehe SpecialResource) — würden hier gelistet, liefe der
+  // Bonus ins Leere. Aus der Auswahl fernhalten, statt eine tote Option
+  // anzubieten.
+  const formelSpezialEnergien = specialEnergies.filter((e) => e.formula.trim());
+  const patchRow = (i: number, patch: Partial<ItemBonus>) => onChange(bonusse.map((b, j) => (j === i ? { ...b, ...patch } : b)));
+  // Kampftalente führen TaW/AT/PA/BL als vier UNABHÄNGIGE Werte (siehe
+  // Talente.tsx KampfTable) — es gibt nirgends eine Formel, die TaW in
+  // AT/PA/BL umrechnet. Ein TaW-Bonus auf ein Kampftalent würde also nur die
+  // Anzeige/Meisterschaftsschwelle heben, nie eine Probe — deshalb fällt die
+  // Option dort weg; AT/PA/BL bleiben die Ziele, die eine Kampfprobe wirklich
+  // treffen.
+  const istKampftalent = (talentId: string): boolean =>
+    talents.find((t) => String(t.id) === talentId)?.kategorie === 'kampf';
+
+  return (
+    <div className="dlg-fade-group">
+      <div className="dlg-group-label" title="Wirkt nur, solange der Gegenstand getragen wird (Ausrüstung, Körperzone).">
+        Boni beim Tragen
+      </div>
+      <div className="cat-editor">
+        {bonusse.map((b, i) => (
+          <div className="cat-row bonus-row" key={i}>
+            <select
+              value={bonusOptionValue(b.kind, b.code)}
+              onChange={(e) => {
+                const { kind, code } = parseBonusOptionValue(e.target.value);
+                const feld = kind === 'talent' ? (istKampftalent(code) ? 'at' : 'taw') : '';
+                patchRow(i, { kind, code, feld });
+              }}
+            >
+              <optgroup label="Attribut">
+                {ATTR_CODES.map((code) => (
+                  <option key={code} value={bonusOptionValue('attr', code)}>
+                    {ATTR_LABELS[code]}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Basiswert">
+                {BASE_VALUE_KEYS.map((key) => (
+                  <option key={key} value={bonusOptionValue('baseValue', key)}>
+                    {BASE_VALUE_LABELS[key].label}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Energie">
+                {RESOURCE_KEYS.map((key) => (
+                  <option key={key} value={bonusOptionValue('resource', key)}>
+                    {RESOURCE_LABELS[key].label}
+                  </option>
+                ))}
+              </optgroup>
+              {formelSpezialEnergien.length > 0 && (
+                <optgroup label="Spezialenergie">
+                  {formelSpezialEnergien.map((e) => (
+                    <option key={e.id} value={bonusOptionValue('spezial', String(e.id))}>
+                      {e.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {talents.length > 0 && (
+                <optgroup label="Talent">
+                  {talents.map((t) => (
+                    <option key={t.id} value={bonusOptionValue('talent', String(t.id))}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <optgroup label="Sonstiges">
+                <option value={bonusOptionValue('psyche', '')}>Psyche</option>
+                <option value={bonusOptionValue('traglast', '')}>Traglast (kg)</option>
+              </optgroup>
+            </select>
+            {b.kind === 'talent' && (
+              <select value={b.feld} onChange={(e) => patchRow(i, { feld: e.target.value as TalentBonusFeld })}>
+                {istKampftalent(b.code) ? (
+                  <>
+                    <option value="at">AT</option>
+                    <option value="pa">PA</option>
+                    <option value="bl">BL</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="taw" title="Hebt den Talentwert selbst an — wirkt auf die Probe nur grob (alle 5 TaW +1).">
+                      TaW
+                    </option>
+                    <option value="probe" title="Direkte Erschwernis/Erleichterung auf die Probe-Zahl, unabhängig vom TaW.">
+                      Probe
+                    </option>
+                  </>
+                )}
+              </select>
+            )}
+            <NumInput value={b.wert} onChange={(v) => patchRow(i, { wert: v })} />
+            <ConfirmDeleteButton title="Bonus entfernen" onConfirm={() => onChange(bonusse.filter((_, j) => j !== i))} />
+          </div>
+        ))}
+        <button
+          type="button"
+          className="small"
+          disabled={bonusse.length >= MAX_BONUSSE_PRO_ITEM}
+          onClick={() => onChange([...bonusse, { kind: 'attr', code: 'MU', feld: '', wert: 0 }])}
+        >
+          + Bonus
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function AddItemDialog({
   open,
   onClose,
   categories,
   initialMode = 'allgemein',
+  item,
+  talents,
+  specialEnergies,
   onAdd,
+  onSave,
+  onDuplicate,
+  onDelete,
 }: {
   open: boolean;
   onClose: () => void;
   categories: string[];
   initialMode?: 'allgemein' | 'ausruestung';
-  onAdd: (fields: Partial<Item>) => void;
+  /** Gesetzt → Bearbeiten-Modus für ein bestehendes Item statt Anlegen. */
+  item?: Item;
+  talents: TalentCatalogRow[];
+  specialEnergies: SpecialEnergyCatalogRow[];
+  /** Anlegen-Modus (kein `item`). */
+  onAdd?: (fields: Partial<Item>) => void;
+  /** Bearbeiten-Modus (`item` gesetzt) — nur die tatsächlich geänderten Felder. */
+  onSave?: (patch: Partial<Item>) => void;
+  /** Bearbeiten-Modus: Duplizieren-Knopf im Fuß, falls gesetzt. */
+  onDuplicate?: () => void;
+  /** Bearbeiten-Modus: Löschen-Knopf im Fuß, falls gesetzt. */
+  onDelete?: () => void;
 }) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
@@ -30,46 +195,95 @@ export function AddItemDialog({
   const [anzahl, setAnzahl] = useState(1);
   const [gewicht, setGewicht] = useState(0);
   const [rs, setRs] = useState(0);
-  const [haltbarkeit, setHaltbarkeit] = useState(0);
+  const [haltbarkeitMax, setHaltbarkeitMax] = useState(0);
+  const [haltbarkeitAktuell, setHaltbarkeitAktuell] = useState(0);
   const [quickslots, setQuickslots] = useState(0);
   const [notiz, setNotiz] = useState('');
+  const [bonusse, setBonusse] = useState<ItemBonus[]>([]);
 
-  const reset = () => {
-    setMode(initialMode);
-    setName('');
-    setKategorie('');
-    setAnzahl(1);
-    setGewicht(0);
-    setRs(0);
-    setHaltbarkeit(0);
-    setQuickslots(0);
-    setNotiz('');
-  };
-  const close = () => {
-    reset();
-    onClose();
-  };
+  // Beim Öffnen (neu) seeden statt bei reset() beim Schließen — AddItemDialog
+  // selbst bleibt gemountet, während Dialog.tsx nur sein eigenes DOM ab- und
+  // aufbaut (if (!open) return null), siehe NeueSeiteDialog.tsx fürs gleiche
+  // Muster. `item?.uid` als Abhängigkeit: ein Wechsel des Bearbeiten-Ziels
+  // (anderes Item, Dialog bleibt offen) seedet neu, ohne dass open selbst
+  // wechseln müsste.
+  useEffect(() => {
+    if (!open) return;
+    if (item) {
+      setMode(item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
+      setName(item.name);
+      setKategorie(item.kategorie);
+      setAnzahl(item.anzahl);
+      setGewicht(item.gewicht);
+      setRs(item.rs);
+      setHaltbarkeitMax(item.haltbarkeitMax);
+      setHaltbarkeitAktuell(item.haltbarkeitAktuell);
+      setQuickslots(item.istBehaelter && item.containerArt === 'quick' ? item.kapazitaet : 0);
+      setNotiz(item.notiz);
+      setBonusse(item.bonusse);
+    } else {
+      setMode(initialMode);
+      setName('');
+      setKategorie('');
+      setAnzahl(1);
+      setGewicht(0);
+      setRs(0);
+      setHaltbarkeitMax(0);
+      setHaltbarkeitAktuell(0);
+      setQuickslots(0);
+      setNotiz('');
+      setBonusse([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, item?.uid, initialMode]);
+
+  const close = () => onClose();
+
+  // Ein Item, das schon ein Stauraum-Behälter ist (containerArt === 'storage',
+  // z. B. ein per AddContainerDialog angelegter Rucksack), fasst dieser Dialog
+  // beim Bearbeiten NICHT an seiner Behälter-Konfiguration an — das Quickslots-
+  // Feld unten ist nur die kompakte Schreibweise für „Ausrüstung mit
+  // Schnellzugriffs-Fächern" (Gürtel, Bandelier), keine allgemeine Behälter-
+  // Bearbeitung. Ohne diese Sperre würde commit() unten containerArt/
+  // kapazitaetArt/istBehaelter blind auf die Quickslot-Form umschreiben und
+  // einen Stauraum-Rucksack in einen Schnellzugriffs-Behälter verwandeln.
+  const isStorageContainer = !!item?.istBehaelter && item.containerArt === 'storage';
+
   const commit = () => {
     if (!name.trim()) return;
     const ausr = mode === 'ausruestung';
-    onAdd({
+    const patch: Partial<Item> = {
       name: name.trim(),
       kategorie: ausr ? AUSRUESTUNG_KATEGORIE : kategorie,
       anzahl,
       gewicht,
-      rs: ausr ? rs : 0,
-      // 0 heißt „nicht verfolgt" (siehe haltbarkeitPct) — startet dann bei Max.
-      haltbarkeitMax: ausr ? haltbarkeit : 0,
-      haltbarkeitAktuell: ausr ? haltbarkeit : 0,
       notiz,
-      // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-Behälter
-      // (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt der vollen
-      // Behälter-Konfiguration.
-      istBehaelter: ausr && quickslots > 0,
-      containerArt: 'quick',
-      kapazitaetArt: 'stueck',
-      kapazitaet: ausr ? quickslots : 0,
-    });
+      bonusse,
+    };
+    // RS/Haltbarkeit/Quickslots-Behälter nur einbeziehen, wenn ihr Feld auch
+    // sichtbar war (ausr) — sonst würde das Umschalten auf „Allgemein" beim
+    // Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung" weg
+    // geändert wurde (z. B. durch Umkategorisieren per Ziehen im Inventar-
+    // Reiter), dessen RS/Haltbarkeit/Behälter-Status stillschweigend auf 0
+    // zurücksetzen, obwohl niemand diese Felder je zu Gesicht bekam. Beim
+    // Anlegen macht das Weglassen keinen Unterschied: makeItem() setzt
+    // ohnehin dieselben Nullwerte für alles, was `fields` nicht mitbringt.
+    if (ausr) {
+      patch.rs = rs;
+      patch.haltbarkeitMax = haltbarkeitMax;
+      patch.haltbarkeitAktuell = haltbarkeitAktuell;
+      if (!isStorageContainer) {
+        // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-
+        // Behälter (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt
+        // der vollen Behälter-Konfiguration.
+        patch.istBehaelter = quickslots > 0;
+        patch.containerArt = 'quick';
+        patch.kapazitaetArt = 'stueck';
+        patch.kapazitaet = quickslots;
+      }
+    }
+    if (item) onSave?.(patch);
+    else onAdd?.(patch);
     close();
   };
 
@@ -77,14 +291,43 @@ export function AddItemDialog({
     <Dialog
       open={open}
       onClose={close}
-      title="Gegenstand anlegen"
+      title={item ? 'Gegenstand bearbeiten' : 'Gegenstand anlegen'}
+      wide
       footer={
         <>
+          {item && (onDuplicate || onDelete) && (
+            <span className="dlg-foot-left">
+              {onDuplicate && (
+                <button
+                  type="button"
+                  className="small"
+                  title="Duplizieren — legt eine exakte Kopie daneben an"
+                  onClick={() => {
+                    onDuplicate();
+                    close();
+                  }}
+                >
+                  ⧉ Duplizieren
+                </button>
+              )}
+              {onDelete && (
+                <ConfirmDeleteButton
+                  title="Gegenstand entfernen"
+                  onConfirm={() => {
+                    onDelete();
+                    close();
+                  }}
+                >
+                  🗑 Löschen
+                </ConfirmDeleteButton>
+              )}
+            </span>
+          )}
           <button type="button" className="small" onClick={close}>
             Abbrechen
           </button>
           <button type="button" className="primary" disabled={!name.trim()} onClick={commit}>
-            Gegenstand anlegen
+            {item ? 'Speichern' : 'Gegenstand anlegen'}
           </button>
         </>
       }
@@ -150,13 +393,32 @@ export function AddItemDialog({
             </label>
             <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
               Haltbarkeit
-              <NumInput value={haltbarkeit} min={0} onChange={setHaltbarkeit} />
+              <div className="dlg-row2">
+                <NumInput
+                  value={haltbarkeitAktuell}
+                  min={0}
+                  max={haltbarkeitMax}
+                  onChange={setHaltbarkeitAktuell}
+                />
+                <NumInput
+                  value={haltbarkeitMax}
+                  min={0}
+                  onChange={(v) => {
+                    // Neu eingeschaltet (war 0/0) → auf voll starten, statt
+                    // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
+                    setHaltbarkeitMax(v);
+                    if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
+                  }}
+                />
+              </div>
             </label>
           </div>
-          <label className="dlg-field">
-            Quickslots
-            <NumInput value={quickslots} min={0} onChange={setQuickslots} />
-          </label>
+          {!isStorageContainer && (
+            <label className="dlg-field">
+              Quickslots
+              <NumInput value={quickslots} min={0} onChange={setQuickslots} />
+            </label>
+          )}
         </div>
       )}
 
@@ -164,6 +426,8 @@ export function AddItemDialog({
         Notiz
         <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
       </label>
+
+      <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} />
     </Dialog>
   );
 }

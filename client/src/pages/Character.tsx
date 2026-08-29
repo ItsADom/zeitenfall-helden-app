@@ -2,9 +2,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
 import { defaultTabKeys, dynTabId, orderTabKeys } from '@shared/tabOrder';
+import { wikiSlug } from '@shared/wikiSlug';
 import { apiGet, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
+import { ladeZiele } from '../wiki/api';
 import type { Catalogs, FullData, LanguageCatalogRow, RaceCatalogRow, TalentCatalogRow } from '../components/charSheet';
 import { CharCtx, useCharSheet, useChar } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
@@ -57,7 +59,7 @@ export default function CharacterPage() {
   }, [canViewAs]);
 
   const {
-    info, setInfo, access, summary, data, setData, catalogs, loading, error,
+    info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
     update, flush, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
   } = useCharSheet(charId, viewAs || undefined);
 
@@ -162,6 +164,28 @@ export default function CharacterPage() {
       window.clearTimeout(t);
     };
   }, [printing]);
+
+  // Link zur Wiki-Seite des Charakters: derselbe Titel wie der Bogen, geprüft
+  // per Stapel-Abfrage (kein Seitenaufruf, also keine „gelesen"-Markierung).
+  // undefined = noch nicht geprüft (Link wird erst gezeigt, wenn feststeht,
+  // ob rot oder blau); string = existierender Titel; null = Seite fehlt.
+  const wikiSlugFuerName = info ? wikiSlug(info.name) : null;
+  const [wikiZielTitel, setWikiZielTitel] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    setWikiZielTitel(undefined);
+    if (!wikiSlugFuerName) return;
+    let aktuell = true;
+    ladeZiele([wikiSlugFuerName])
+      .then((res) => {
+        if (aktuell) setWikiZielTitel(res.ziele[wikiSlugFuerName] ?? null);
+      })
+      .catch(() => {
+        if (aktuell) setWikiZielTitel(null);
+      });
+    return () => {
+      aktuell = false;
+    };
+  }, [wikiSlugFuerName]);
 
   if (error) return <p className="error">{error}</p>;
   // Während eines Wechsels (auch „Ansehen als") sind data/summary kurz null,
@@ -274,7 +298,7 @@ export default function CharacterPage() {
   };
 
   return (
-    <CharCtx.Provider value={{ charId, data, catalogs, update, rollCtx, requestCtx }}>
+    <CharCtx.Provider value={{ charId, data, stats, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data.tableWidths ?? {}} save={saveTableWidths}>
       <DisplayModeProvider mode={inspecting ? 'inspect' : editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
@@ -322,6 +346,23 @@ export default function CharacterPage() {
             Spieler: {info.ownerName} · Gruppe:{' '}
             {info.groupId ? <Link to={`/gruppe/${info.groupId}`}>{info.groupName}</Link> : info.groupName}
             {info.tempGroups.length > 0 && <> · Event: {info.tempGroups.map((g) => g.name).join(', ')}</>}
+            {wikiZielTitel !== undefined && (
+              <>
+                {' · '}
+                {wikiZielTitel != null ?
+                  <Link className="wiki-link" to={`/wiki/${wikiSlugFuerName}`} title={wikiZielTitel}>
+                    Wiki
+                  </Link>
+                : <Link
+                    className="wiki-rotlink"
+                    to={`/wiki/neu?titel=${encodeURIComponent(info.name)}&kategorie=${encodeURIComponent('Spielercharakter')}`}
+                    title="Wiki-Seite anlegen"
+                  >
+                    Wiki
+                  </Link>
+                }
+              </>
+            )}
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>

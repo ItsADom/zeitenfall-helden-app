@@ -450,6 +450,22 @@ db.exec(`
     haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT ''
   );
+  -- Boni, die ein Gegenstand verleiht, solange er getragen wird (siehe ItemBonus
+  -- in shared/src/items.ts) — eigene Kind-Tabelle wie char_pouch_coins zu
+  -- char_pouches, NICHT JSON-in-TEXT wie char_abilities.kategorien. Referenziert
+  -- char_items.id (die DB-Zeilen-id, NICHT die client-vergebene uid) — saveItems
+  -- löscht+fügt die ganze Item-Liste in einer Transaktion neu ein, die Bonus-
+  -- Zeilen sterben per CASCADE mit und werden gegen die frische id neu angelegt.
+  CREATE TABLE IF NOT EXISTS char_item_bonuses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES char_items(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'attr',
+    code TEXT NOT NULL DEFAULT '',
+    feld TEXT NOT NULL DEFAULT '',
+    wert REAL NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_bonuses_item ON char_item_bonuses(item_id);
   -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
   CREATE TABLE IF NOT EXISTS char_item_categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1171,6 +1187,16 @@ if (hasTable('sec_techniken')) {
 {
   const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('is_coop')) db.exec('ALTER TABLE group_feed ADD COLUMN is_coop INTEGER NOT NULL DEFAULT 0');
+}
+
+// Migration: is_repeat an group_feed ergänzen — markiert jeden Eintrag eines
+// per führendem "Nx" wiederholten freien Wurfs (server/src/ws.ts, roll.expr),
+// unterscheidet ihn von einer gewöhnlichen Gruppenprobe, die denselben
+// group_roll_id-Mechanismus nutzt. 0 bei jeder bestehenden Zeile ist der
+// richtige Wert (Wiederholungs-Würfe gab es vorher nicht), kein Nachziehen nötig.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('is_repeat')) db.exec('ALTER TABLE group_feed ADD COLUMN is_repeat INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration: Event-Gruppen (bisher eine eigene temp_groups-Tabelle mit eigener

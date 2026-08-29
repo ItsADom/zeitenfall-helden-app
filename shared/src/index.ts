@@ -17,6 +17,7 @@ export * from './wikiDiff.js';
 export * from './wikiSuche.js';
 export * from './wikiTags.js';
 export * from './wikiNamensraum.js';
+export * from './formula.js';
 export * from './dice.js';
 export * from './diceProtocol.js';
 export * from './boardProtocol.js';

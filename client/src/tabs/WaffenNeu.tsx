@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { computeBaseValues, weaponProbe, weaponProbes } from '@shared/rules';
+import { attrsMitBoni, baseInputsMitBoni, talentMitBoni } from '@shared/items';
 import { NOTIZ_KEY, listSectionById } from '@shared/sections';
 import type { ColumnDef } from '@shared/sections';
 import { CollapseChevron, CollapsiblePanel } from '../components/collapse';
@@ -58,14 +59,15 @@ function emptyFernRow(): Row {
 }
 
 export default function WaffenNeuTab() {
-  const { data, catalogs, update } = useChar();
-  const bv = computeBaseValues(data.attributes, data.baseValues);
+  const { data, catalogs, stats, update } = useChar();
+  const bv = computeBaseValues(attrsMitBoni(data.attributes, stats), baseInputsMitBoni(data.baseValues, stats));
   const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
   const talents = new Map(data.talents.map((t) => [t.talentId, t]));
   const kampfTalente = catalogs.talents.filter((t) => t.kategorie === 'kampf');
 
   const probesFor = (row: Row) => {
-    const t = talents.get(Number(row.talentId));
+    const raw = talents.get(Number(row.talentId));
+    const t = raw ? talentMitBoni(raw, stats) : undefined;
     return weaponProbes(
       { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0 },
       base,
@@ -73,7 +75,8 @@ export default function WaffenNeuTab() {
     );
   };
   const fkProbeFor = (row: Row) => {
-    const t = talents.get(Number(row.talentId));
+    const raw = talents.get(Number(row.talentId));
+    const t = raw ? talentMitBoni(raw, stats) : undefined;
     return weaponProbe(Number(row.atMod) || 0, bv.fk.ergebnis, t?.at ?? 0);
   };
 

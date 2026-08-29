@@ -11,12 +11,15 @@ export default function NeueSeiteDialog({
   onClose,
   onAngelegt,
   titelVorgabe = '',
+  kategorieVorgabe = '',
 }: {
   open: boolean;
   onClose: () => void;
   onAngelegt: (slug: string) => void;
   /** Pre-filled when the dialog was reached from a red link. */
   titelVorgabe?: string;
+  /** Applied silently on creation — e.g. "Spielercharakter" from a character sheet's link. */
+  kategorieVorgabe?: string;
 }) {
   const [titel, setTitel] = useState(titelVorgabe);
   const [fehler, setFehler] = useState('');
@@ -36,7 +39,7 @@ export default function NeueSeiteDialog({
     setLaeuft(true);
     setFehler('');
     try {
-      const { slug } = await legeSeiteAn(name);
+      const { slug } = await legeSeiteAn(name, kategorieVorgabe);
       onClose();
       onAngelegt(slug);
     } catch (e) {

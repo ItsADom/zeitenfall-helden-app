@@ -17,6 +17,7 @@ import {
   levelForAp,
   computeBaseValues,
   computeResource,
+  evaluateEnergyFormula,
   psycheMax,
   dynTabId,
   dynTabKey,
@@ -29,8 +30,10 @@ import {
   DYN_SLOTS_KEY,
   INVENTAR_KATEGORIEN,
   isPairedZone,
+  ITEM_BONUS_KINDS,
   ITEM_LOCATIONS,
   makeUid,
+  TALENT_BONUS_FELDER,
   listSectionById,
   readSlots,
   normalizeColumns,
@@ -38,6 +41,13 @@ import {
   normalizeWidths,
   talentProbeZahl,
   weaponProbes,
+  wornBoni,
+  attrsMitBoni,
+  baseInputsMitBoni,
+  resourceInputMitBoni,
+  specialMitBoni,
+  talentMitBoni,
+  talentProbeBonus,
 } from 'shared';
 import type {
   Ability,
@@ -50,12 +60,17 @@ import type {
   ContainerArt,
   KapazitaetArt,
   DynColumn,
+  EnergyFormulaVars,
   ExternalAttrPoint,
   Item,
+  ItemBonus,
+  ItemBonusKind,
   ItemLocation,
   ResourceInput,
   Resources,
   SpecialResource,
+  StatBoni,
+  TalentBonusFeld,
   VisibilitySection,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
@@ -70,7 +85,7 @@ import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows,
 
 // --- Laden ---
 
-export function loadAttributes(charId: number): Attributes {
+export function loadAttributesRaw(charId: number): Attributes {
   const rows = db.prepare('SELECT attr, akt, mod FROM char_attributes WHERE character_id = ?').all(charId) as {
     attr: string;
     akt: number;
@@ -82,7 +97,7 @@ export function loadAttributes(charId: number): Attributes {
   return out;
 }
 
-export function loadBaseValueInputs(charId: number): BaseValueInputs {
+export function loadBaseValueInputsRaw(charId: number): BaseValueInputs {
   const rows = db.prepare('SELECT key, mod, base FROM char_base_values WHERE character_id = ?').all(charId) as {
     key: string;
     mod: number;
@@ -103,7 +118,7 @@ export function loadBaseValueInputs(charId: number): BaseValueInputs {
   return { mods, gsBase, resilienzBase, mrBase, akBase };
 }
 
-export function loadResources(charId: number): Resources {
+export function loadResourcesRaw(charId: number): Resources {
   const rows = db
     .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
     .all(charId) as ({ key: string } & Resources['le'])[];
@@ -146,6 +161,108 @@ export function loadSpecialResources(charId: number): SpecialResource[] {
   return db
     .prepare('SELECT catalog_id AS catalogId, name, max, bonus, aktuell FROM char_special_resources WHERE character_id = ? ORDER BY pos, id')
     .all(charId) as SpecialResource[];
+}
+
+// Live-Maximum einer Spezialenergie: hat der Katalog-Eintrag eine Formel, ist
+// das gespeicherte `max` nur ein ungenutzter Snapshot (siehe SpecialResource in
+// shared/src/types.ts) — dasselbe evaluateEnergyFormula(...) + bonus wie im
+// Heldenbrief (Heldenbrief.tsx computedMax), nur serverseitig, damit GM-Übersicht
+// und Gruppen-Karten nicht den veralteten Snapshot statt des echten Werts zeigen.
+function spezialenergieMax(sr: SpecialResource, formelnById: Map<number, string>, vars: EnergyFormulaVars): number {
+  const formula = sr.catalogId != null ? (formelnById.get(sr.catalogId) ?? '') : '';
+  if (!formula) return sr.max;
+  const formulaMax = evaluateEnergyFormula(formula, vars);
+  return formulaMax != null ? formulaMax + sr.bonus : sr.max;
+}
+
+function ladeSpezialenergieFormeln(): Map<number, string> {
+  const rows = db.prepare('SELECT id, formula FROM special_energies_catalog').all() as { id: number; formula: string }[];
+  return new Map(rows.map((r) => [r.id, r.formula]));
+}
+
+// Eingaben für eine Berechnung, EINMAL geladen (Attribute/Basiswerte/Ressourcen/
+// Spezialenergien/Talente/Psyche/Traglast) — Gegenstück zu den *Raw-Ladern oben,
+// die absichtlich roh bleiben (Bearbeiten-Pfad, siehe loadFullCharacter). Jeder
+// NEUE Rechen-Aufrufort verwendet diese Funktion statt einzelner *Raw-Aufrufe,
+// damit ein Bonus, der an einer Stelle einfließt (z. B. ein getragener
+// Gegenstand), automatisch überall ankommt — Regel: eine Berechnung liest immer
+// den vollen Wert, nie den rohen, sofern nicht ausdrücklich anders verlangt.
+// Item-Boni fließen HIER ein (wornBoni + die *MitBoni-Helfer aus shared/items.ts)
+// — jeder Aufrufer, der schon auf loadStats umgestellt ist (saveSection,
+// buildSummary, overviewForChars, board.ts, diceSource.ts, ws.ts), bekommt sie
+// dadurch automatisch, ohne selbst etwas zu wissen.
+export interface CharStats {
+  attrs: Attributes;
+  baseInputs: BaseValueInputs;
+  resources: Resources;
+  special: SpecialResource[];
+  talente: CharTalent[];
+  psycheBonus: number;
+  traglastBonus: number;
+  // Roher StatBoni-Akkumulator, nur für Aufrufer, die die Boni selbst noch auf
+  // einen Wert anwenden müssen, den loadStats nicht schon zurückgibt — z. B.
+  // saveSection()'s resources-Zweig, der `input` frisch aus dem Request-Body
+  // baut statt aus loadResourcesRaw, und dieselbe Ausbaugrenze für die
+  // aktuell-Kappung sehen muss wie das Sheet.
+  boni: StatBoni;
+}
+
+export function loadStats(charId: number): CharStats {
+  const meta = loadSingleRow('char_meta', charId) as { psycheBase?: number; psycheBonus?: number; traglastBonus?: number };
+  const boni = wornBoni(loadItems(charId));
+  const attrs = attrsMitBoni(loadAttributesRaw(charId), boni);
+  const baseInputs = baseInputsMitBoni(loadBaseValueInputsRaw(charId), boni);
+  const rawResources = loadResourcesRaw(charId);
+  const resources: Resources = {
+    le: resourceInputMitBoni(rawResources.le, 'le', boni),
+    aus: resourceInputMitBoni(rawResources.aus, 'aus', boni),
+    ase: resourceInputMitBoni(rawResources.ase, 'ase', boni),
+  };
+  const psycheBonus = (meta.psycheBonus ?? 0) + boni.psyche;
+  const traglastBonus = (meta.traglastBonus ?? 0) + boni.traglast;
+
+  const vars: EnergyFormulaVars = {
+    attrs,
+    leMax: computeResource(attrs, 'le', resources.le).nutzbar,
+    auMax: computeResource(attrs, 'aus', resources.aus).nutzbar,
+    aseMax: computeResource(attrs, 'ase', resources.ase).nutzbar,
+    psycheMax: psycheMax(attrs, meta.psycheBase ?? 0, psycheBonus),
+  };
+  const formelnById = ladeSpezialenergieFormeln();
+  const special = loadSpecialResources(charId).map((sr) => {
+    const srMitBonus = specialMitBoni(sr, boni);
+    return { ...srMitBonus, max: spezialenergieMax(srMitBonus, formelnById, vars) };
+  });
+
+  // Ein Item-Bonus kann ein Talent treffen, das der Charakter nie angerührt hat
+  // (kein char_talents-Eintrag) — ein „ungelernter Versuch" ist trotzdem
+  // würfelbar (siehe computeProbeForCharacter), und der Client synthetisiert
+  // für genau diesen Fall schon eine leere Zeile (Talente.tsx, EMPTY). Ohne
+  // dasselbe hier würde ein Wurf den Bonus nicht sehen, den das Blatt (und
+  // buildSummary) längst anzeigen — das Sheet/Wurf-Auseinanderlaufen, das
+  // dieser Plan eigentlich schließt.
+  const geladeneTalente = loadTalents(charId).map((t) => talentMitBoni(t, boni));
+  const bekannteIds = new Set(geladeneTalente.map((t) => t.talentId));
+  const boniNurTalente = Object.keys(boni.talente)
+    .map(Number)
+    .filter((id) => !bekannteIds.has(id))
+    .map((talentId) =>
+      talentMitBoni(
+        { talentId, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '' },
+        boni,
+      ),
+    );
+
+  return {
+    attrs,
+    baseInputs,
+    resources,
+    special,
+    talente: [...geladeneTalente, ...boniNurTalente],
+    psycheBonus,
+    traglastBonus,
+    boni,
+  };
 }
 
 export function loadExternalAttrPoints(charId: number): ExternalAttrPoint[] {
@@ -752,13 +869,13 @@ function ensureAttrPointsMigration(charId: number, meta: Record<string, unknown>
 
 export function loadFullCharacter(charId: number) {
   const meta = loadSingleRow('char_meta', charId);
-  const attributes = loadAttributes(charId);
+  const attributes = loadAttributesRaw(charId);
   return {
     bio: loadSingleRow('char_bio', charId),
     meta,
     attributes,
-    baseValues: loadBaseValueInputs(charId),
-    resources: loadResources(charId),
+    baseValues: loadBaseValueInputsRaw(charId),
+    resources: loadResourcesRaw(charId),
     special: loadSpecialResources(charId),
     attrExtern: ensureAttrPointsMigration(charId, meta, attributes),
     talents: loadTalents(charId),
@@ -783,6 +900,8 @@ const MAX_ITEMS = 2000;
 const MAX_ITEM_TEXT = 4000;
 const MAX_CATEGORIES = 200;
 const MAX_CATEGORY_LEN = 200;
+const MAX_BONUSSE_PRO_ITEM = 20;
+const MAX_BONUS_CODE = 64;
 
 const clampMin = (v: unknown, min = 0): number => {
   const n = Number(v);
@@ -815,6 +934,27 @@ export function loadItems(charId: number): Item[] {
     haltbarkeit_aktuell: number;
     notiz: string;
   }[];
+  // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
+  // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
+  // Bonus verlieren oder Items mit mehreren Boni vervielfachen.
+  const bonusRows = db
+    .prepare(
+      `SELECT ib.item_id, ib.kind, ib.code, ib.feld, ib.wert FROM char_item_bonuses ib
+       JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ? ORDER BY ib.pos, ib.id`,
+    )
+    .all(charId) as { item_id: number; kind: string; code: string; feld: string; wert: number }[];
+  const bonusesByItem = new Map<number, ItemBonus[]>();
+  for (const r of bonusRows) {
+    if (!(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
+    const list = bonusesByItem.get(r.item_id) ?? [];
+    list.push({
+      kind: r.kind as ItemBonusKind,
+      code: r.code,
+      feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+      wert: Number(r.wert) || 0,
+    });
+    bonusesByItem.set(r.item_id, list);
+  }
   return rows.map((r) => ({
     id: r.id,
     uid: r.uid || makeUid(),
@@ -835,6 +975,7 @@ export function loadItems(charId: number): Item[] {
     haltbarkeitMax: r.haltbarkeit_max,
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
     notiz: r.notiz,
+    bonusse: bonusesByItem.get(r.id) ?? [],
   }));
 }
 
@@ -860,6 +1001,9 @@ export function saveItems(charId: number, raw: unknown): void {
       `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    const insBonus = db.prepare(
+      'INSERT INTO char_item_bonuses (item_id, pos, kind, code, feld, wert) VALUES (?, ?, ?, ?, ?, ?)',
+    );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
       const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
@@ -880,28 +1024,48 @@ export function saveItems(charId: number, raw: unknown): void {
       const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
       const haltbarkeitMax = clampMin(o.haltbarkeitMax);
       const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
-      ins.run(
-        charId,
-        i,
-        uid,
-        String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
-        clampMin(o.anzahl),
-        clampMin(o.gewicht),
-        String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
-        loc,
-        zone,
-        beidseitig,
-        containerUid,
-        o.istBehaelter ? 1 : 0,
-        art,
-        clampMin(o.kapazitaet),
-        kapArt,
-        clampPct(o.gewichtsreduktion),
-        clampMin(o.rs),
-        haltbarkeitMax,
-        haltbarkeitAktuell,
-        String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+      const itemId = Number(
+        ins.run(
+          charId,
+          i,
+          uid,
+          String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
+          clampMin(o.anzahl),
+          clampMin(o.gewicht),
+          String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
+          loc,
+          zone,
+          beidseitig,
+          containerUid,
+          o.istBehaelter ? 1 : 0,
+          art,
+          clampMin(o.kapazitaet),
+          kapArt,
+          clampPct(o.gewichtsreduktion),
+          clampMin(o.rs),
+          haltbarkeitMax,
+          haltbarkeitAktuell,
+          String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+        ).lastInsertRowid,
       );
+      // Ungültige kind-Werte werden verworfen statt zu werfen (wie savePouches
+      // mit veralteten Katalog-Verweisen umgeht) — ein Bonus mit unbekanntem
+      // kind ist Datenmüll aus einem älteren/fremden Client, kein Grund, das
+      // ganze Speichern abzubrechen. Ein wert von 0 bleibt erhalten (keine
+      // Datenverlust-Regel) — der Spieler hat die Zeile bewusst angelegt, auch
+      // wenn noch kein Wert eingetragen ist.
+      const bonusRaw = Array.isArray(o.bonusse) ? (o.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
+      bonusRaw.forEach((b, bi) => {
+        const bo = (b ?? {}) as Record<string, unknown>;
+        const kindRaw = String(bo.kind ?? '');
+        if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) return;
+        const kind = kindRaw as ItemBonusKind;
+        const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(bo.feld)) ? String(bo.feld) : '';
+        const code = kind === 'psyche' || kind === 'traglast' ? '' : String(bo.code ?? '').slice(0, MAX_BONUS_CODE);
+        const wert = Number(bo.wert);
+        if (!Number.isFinite(wert)) return;
+        insBonus.run(itemId, bi, kind, code, feld, wert);
+      });
     });
   });
   tx();
@@ -1568,7 +1732,10 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     }
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
-      const attributes = loadAttributes(charId);
+      // Bonusfähige Attribute, nicht die rohen — die Kappung muss dieselbe
+      // Ausbaugrenze sehen, die ein getragener Gegenstand anhebt (siehe
+      // docs/concepts/item-bonus-while-worn.md, "immer der volle Wert").
+      const stats = loadStats(charId);
       const stmt = db.prepare(
         'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
@@ -1591,7 +1758,13 @@ export function saveSection(charId: number, section: string, data: unknown): voi
         // kappt bereits beim Eintippen; hier nochmal, weil die API auch ohne
         // sie erreichbar ist und die Regel nicht an einem Eingabefeld hängen
         // darf. Nach unten wird nicht gekappt — ein Vorrat darf ins Minus.
-        const { nutzbar } = computeResource(attributes, key, input);
+        // `input` ist roh (das Body-gebaute, ungebonuste) — die Kappung selbst
+        // muss trotzdem den Item-Bonus auf DIESE Ressource sehen (loadStats()
+        // liefert ihn nur auf loadResourcesRaw() angewendet, nicht auf diesen
+        // frischen `input`), sonst könnte eine getragene +2-LE-Ausrüstung nie
+        // eingefüllt werden — sonst genau der Datenverlust, den die Kappung
+        // eigentlich verhindern soll.
+        const { nutzbar } = computeResource(stats.attrs, key, resourceInputMitBoni(input, key, stats.boni));
         stmt.run(
           input.permanent,
           input.kauf,
@@ -1801,10 +1974,9 @@ interface CatalogTalent {
 
 export function buildSummary(charId: number) {
   const visibility = loadVisibility(charId);
-  const attributes = loadAttributes(charId);
-  const resources = loadResources(charId);
-  const baseInputs = loadBaseValueInputs(charId);
-  const baseValues = computeBaseValues(attributes, baseInputs);
+  const stats = loadStats(charId);
+  const { attrs: attributes, resources } = stats;
+  const baseValues = computeBaseValues(attributes, stats.baseInputs);
   const bio = loadSingleRow('char_bio', charId);
   const lists = loadAllLists(charId);
 
@@ -1841,8 +2013,12 @@ export function buildSummary(charId: number) {
   if (visibility.talente) {
     const catalog = db.prepare('SELECT * FROM talents_catalog').all() as CatalogTalent[];
     const byId = new Map(catalog.map((c) => [c.id, c]));
-    sections.talente = loadTalents(charId)
-      .filter((t) => t.taw !== 0 || t.at !== 0 || t.pa !== 0 || t.bl !== 0)
+    sections.talente = stats.talente
+      // Auch ein Talent zeigen, das nur über einen Item-„Probe"-Bonus wirkt
+      // (siehe talentProbeBonus) — sonst würde eine an sich ungelernte Fähigkeit,
+      // die ein Gegenstand trotzdem würfelbar erleichtert, in der Übersicht
+      // spurlos verschwinden, obwohl der Bogen selbst die Zahl längst zeigt.
+      .filter((t) => t.taw !== 0 || t.at !== 0 || t.pa !== 0 || t.bl !== 0 || talentProbeBonus(t.talentId, stats.boni) !== 0)
       .map((t) => {
         const cat = byId.get(t.talentId);
         const probe = cat?.probe ? (cat.probe.split('/') as AttrCode[]) : null;
@@ -1851,13 +2027,16 @@ export function buildSummary(charId: number) {
           kategorie: cat?.kategorie ?? '',
           probe: cat?.probe ?? '',
           taw: t.taw,
-          probeZahl: probe && probe.length === 3 ? talentProbeZahl(attributes, probe as [AttrCode, AttrCode, AttrCode], t.taw) : null,
+          probeZahl:
+            probe && probe.length === 3
+              ? talentProbeZahl(attributes, probe as [AttrCode, AttrCode, AttrCode], t.taw) + talentProbeBonus(t.talentId, stats.boni)
+              : null,
           spezialisierung: t.spezialisierung,
         };
       });
   }
   if (visibility.waffen) {
-    const talents = new Map(loadTalents(charId).map((t) => [t.talentId, t]));
+    const talents = new Map(stats.talente.map((t) => [t.talentId, t]));
     const base = { at: baseValues.at.ergebnis, pa: baseValues.pa.ergebnis, bl: baseValues.bl.ergebnis };
     sections.waffen = {
       nah: lists.waffenNah.map((w) => {
@@ -1914,14 +2093,13 @@ export function buildGroupOverview(groupId: number) {
 
 function overviewForChars(chars: { id: number; name: string; ownerUserId: number; ownerName: string }[]) {
   return chars.map((c) => {
-    const attributes = loadAttributes(c.id);
-    const resources = loadResources(c.id);
-    const baseValues = computeBaseValues(attributes, loadBaseValueInputs(c.id));
+    const stats = loadStats(c.id);
+    const { attrs: attributes, resources } = stats;
+    const baseValues = computeBaseValues(attributes, stats.baseInputs);
     const meta = loadSingleRow('char_meta', c.id) as {
       stufe?: number;
       psycheAkt?: number;
       psycheBase?: number;
-      psycheBonus?: number;
       schicksalspunkteAktuell?: number;
       schicksalspunkteMax?: number;
     };
@@ -1944,12 +2122,15 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
     vitals.push({
       key: 'psyche',
       aktuell: meta.psycheAkt ?? 0,
-      max: psycheMax(attributes, meta.psycheBase ?? 0, meta.psycheBonus ?? 0),
+      max: psycheMax(attributes, meta.psycheBase ?? 0, stats.psycheBonus),
     });
     // Spezialenergien reihen sich als weitere Vital-Chips ein — der Schlüssel ist
     // der frei gewählte Name (dient zugleich als Chip-Beschriftung). Kein eigener
     // Chip-Typ nötig: sie färben wie die anderen (Überladung), zeigen aktuell/max.
-    for (const sr of loadSpecialResources(c.id)) {
+    // stats.special trägt bereits das LIVE-Maximum (Formel + Bonus) statt des
+    // gespeicherten Snapshots — vorher zeigte diese Übersicht bei Formel-
+    // Energien einen veralteten Wert (siehe loadStats/spezialenergieMax).
+    for (const sr of stats.special) {
       vitals.push({ key: sr.name, aktuell: sr.aktuell, max: sr.max });
     }
     // Schicksalspunkte: erlauben eine komplette Probe neu zu würfeln, wenn die

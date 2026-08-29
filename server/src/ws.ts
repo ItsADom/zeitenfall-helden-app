@@ -23,8 +23,30 @@ import type {
   ServerToClientMessage,
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
-import { BOARD_COVER_BY_KEY, BOARD_STATUS_BY_KEY, MASTER_TABLE, WILD_MAGIC_TABLE, activeTurnOrder, cellKey, overlayCell, parseCellKey, parseDiceExpression, parseTileValue, resolveExpressionRoll, resolveProbeRoll, tokenCells, type DiceExpression } from 'shared';
+import {
+  ATTR_ROW_CODES,
+  BOARD_COVER_BY_KEY,
+  BOARD_STATUS_BY_KEY,
+  MASTER_TABLE,
+  WILD_MAGIC_TABLE,
+  activeTurnOrder,
+  attrMax,
+  cellKey,
+  MAX_REPEAT_COUNT,
+  overlayCell,
+  parseCellKey,
+  parseDiceExpression,
+  parseTileValue,
+  resolveExpressionRoll,
+  resolveProbeRoll,
+  stripRepeatPrefix,
+  tokenCells,
+  type AttrRowCode,
+  type DiceExpression,
+} from 'shared';
+import crypto from 'node:crypto';
 import { getSessionToken, userForToken } from './auth.js';
+import { loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
@@ -586,6 +608,21 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
 }
 
 /**
+ * Resolves a bare attribute-code identifier in a free chat roll (typing
+ * "MU") against the SENDER'S selected character — an already-validated
+ * `author.charId` from resolveAuthor(), never the raw, unchecked message
+ * field. No character selected (GM chat, or an invalid one that resolveAuthor
+ * already fell back to null for) ⇒ every identifier fails, same "kein
+ * gültiger Würfelausdruck" outcome as any other unresolvable token — no
+ * separate literal/placeholder concept needed.
+ */
+function chatAttrResolver(charId: number | null): (name: string) => number | null {
+  if (charId === null) return () => null;
+  const attrs = loadStats(charId).attrs;
+  return (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? attrMax(attrs, name as AttrRowCode) : null);
+}
+
+/**
  * Der eigene Charakter des Absenders in DIESER Gruppe — anders als
  * resolveAuthor() (die bei einem ungültigen charId stillschweigend auf „kein
  * Charakter" zurückfällt) hier ein hartes null, denn eine Kooperationsprobe
@@ -688,19 +725,25 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // Server, nie vom Client — sonst könnte sich ein manipulierter Client
       // sein Tabellenergebnis aussuchen (derselbe Grund wie bei probeZahl).
       const table = msg.table === 'master' || msg.table === 'wild' ? msg.table : undefined;
-      const expression: DiceExpression | null = table
-        ? table === 'master'
-          ? { groups: [{ count: 1, sides: 6 }], modifier: 0 }
-          : { groups: [{ count: 1, sides: 6 }, { count: 1, sides: 20 }], modifier: 0 }
-        : parseDiceExpression(String(msg.expression ?? ''));
-      if (!expression) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
-        return;
-      }
       // „/i": announced to the whole table before it reaches the chat. The
       // client hides the command from players, but that is a courtesy — this is
       // the check that actually holds, exactly like roll.pending.request below.
       const important = msg.important === true;
+      // Ein führendes "Nx" wiederholt den Wurf N-mal als eine gemeinsame,
+      // zusammengefasste Karte — bewusst nur beim gewöhnlichen freien Wurf,
+      // nicht bei „/master"/„/wild" (feste Tabellenwürfe) oder „/i" (die
+      // Kino-Ansage ist auf EINEN Wurf ausgelegt).
+      const { repeat, rest } =
+        table || important ? { repeat: 1, rest: String(msg.expression ?? '') } : stripRepeatPrefix(String(msg.expression ?? ''));
+      const expression: DiceExpression | null = table
+        ? table === 'master'
+          ? { kind: 'dice', count: 1, sides: 6 }
+          : { kind: 'bin', op: '+', left: { kind: 'dice', count: 1, sides: 6 }, right: { kind: 'dice', count: 1, sides: 20 } }
+        : parseDiceExpression(rest);
+      if (!expression) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
+        return;
+      }
       if (important && !meta.isGm) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung kann einen großen Wurf ansagen' });
         return;
@@ -724,39 +767,51 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         visibility = resolved.visibility;
         gmUserId = resolved.gmUserId;
       }
-      const result = performExpressionRoll(expression);
-      // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
-      // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
-      const outcomeLabel =
-        table === 'master'
-          ? MASTER_TABLE[result.dice[0] - 1]
-          : table === 'wild'
-            ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
-            : undefined;
-      const roll: ExpressionRollPayload = {
-        mode: 'expr',
-        label: table ? (table === 'master' ? 'Meisterwurf' : 'Wilde Magie') : String(msg.label ?? '').slice(0, 60).trim(),
-        expression: result.expression,
-        dice: result.dice,
-        confirmations: result.confirmations,
-        pending: result.pending,
-        resolved: result.resolved,
-        rawSum: result.rawSum,
-        adjustedSum: result.adjustedSum,
-        flagged: result.flagged,
-        ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
-      };
-      if (important) {
-        // Persisted like any other roll, but NOT broadcast: the entry rides
-        // along inside roll.important and each client appends it itself once
-        // its own performance is done. Whoever reconnects meanwhile picks it up
-        // through the ordinary history endpoint — the cinematic is a live
-        // event, never a property of the entry.
-        const entry = writeFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), null, 'public', roll);
-        lastImportantRoll.set(meta.groupId, Date.now());
-        broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
-      } else {
-        insertFeedRoll(meta.groupId, resolveAuthor(meta, msg.charId), gmUserId, visibility, roll);
+      const author = resolveAuthor(meta, msg.charId);
+      const resolveId = chatAttrResolver(author.charId);
+      const label = table ? (table === 'master' ? 'Meisterwurf' : 'Wilde Magie') : String(msg.label ?? '').slice(0, 60).trim();
+      // Nur bei 2+ Wiederholungen überhaupt gruppieren — ein einzelner Wurf
+      // braucht keinen gemeinsamen Rahmen um sich selbst.
+      const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
+      for (let i = 0; i < repeat; i++) {
+        const result = performExpressionRoll(expression, resolveId);
+        if (!result) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
+          return;
+        }
+        // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
+        // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
+        const outcomeLabel =
+          table === 'master'
+            ? MASTER_TABLE[result.dice[0] - 1]
+            : table === 'wild'
+              ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
+              : undefined;
+        const roll: ExpressionRollPayload = {
+          mode: 'expr',
+          label,
+          expression: result.expression,
+          dice: result.dice,
+          confirmations: result.confirmations,
+          pending: result.pending,
+          resolved: result.resolved,
+          rawSum: result.rawSum,
+          adjustedSum: result.adjustedSum,
+          flagged: result.flagged,
+          ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
+        };
+        if (important) {
+          // Persisted like any other roll, but NOT broadcast: the entry rides
+          // along inside roll.important and each client appends it itself once
+          // its own performance is done. Whoever reconnects meanwhile picks it up
+          // through the ordinary history endpoint — the cinematic is a live
+          // event, never a property of the entry.
+          const entry = writeFeedRoll(meta.groupId, author, null, 'public', roll);
+          lastImportantRoll.set(meta.groupId, Date.now());
+          broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
+        } else {
+          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, false, repeat > 1);
+        }
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -791,6 +846,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (!resolved) return;
       const { visibility, gmUserId } = resolved;
       const result = performExpressionRoll(expression);
+      if (!result) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Waffe hinterlegt' });
+        return;
+      }
       const roll: ExpressionRollPayload = {
         mode: 'expr',
         label: `${row.typ || 'Waffe'} (Schaden)`,
@@ -835,28 +894,36 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (!resolved) return;
       const { visibility, gmUserId } = resolved;
       const modifier = clampModifier(msg.modifier);
-      const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
-      const roll: ProbeRollPayload = {
-        mode: 'probe',
-        source,
-        label: computed.label,
-        n: computed.n,
-        probeZahl: computed.probeZahl,
-        modifier,
-        ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
-        dice: result.dice,
-        confirmations: result.confirmations,
-        pending: result.pending,
-        resolved: result.resolved,
-        rawSum: result.rawSum,
-        adjustedSum: result.adjustedSum,
-        criticalFailureCount: result.criticalFailureCount,
-        criticalFailure: result.criticalFailure,
-        success: result.success,
-        narrow: result.narrow,
-        criticalSuccess: result.criticalSuccess,
-      };
-      insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), gmUserId, visibility, roll);
+      // Chat-typed "Nx<Probe>" ("2xAthletik") — same repeat/grouping mechanism
+      // as a repeated free expression (roll.expr), same cap.
+      const rawRepeat = Number(msg.repeat);
+      const repeat = Number.isInteger(rawRepeat) && rawRepeat >= 1 && rawRepeat <= MAX_REPEAT_COUNT ? rawRepeat : 1;
+      const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
+      const author = resolveAuthor(meta, char.id);
+      for (let i = 0; i < repeat; i++) {
+        const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
+        const roll: ProbeRollPayload = {
+          mode: 'probe',
+          source,
+          label: computed.label,
+          n: computed.n,
+          probeZahl: computed.probeZahl,
+          modifier,
+          ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
+          dice: result.dice,
+          confirmations: result.confirmations,
+          pending: result.pending,
+          resolved: result.resolved,
+          rawSum: result.rawSum,
+          adjustedSum: result.adjustedSum,
+          criticalFailureCount: result.criticalFailureCount,
+          criticalFailure: result.criticalFailure,
+          success: result.success,
+          narrow: result.narrow,
+          criticalSuccess: result.criticalSuccess,
+        };
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, false, repeat > 1);
+      }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -891,7 +958,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       const next =
         roll.mode === 'probe'
           ? { ...roll, ...resolveProbeRoll(roll.dice, done, roll.probeZahl, roll.modifier) }
-          : { ...roll, ...resolveExpressionRoll(roll.expression, roll.dice, done) };
+          : { ...roll, ...resolveExpressionRoll(roll.expression, roll.dice, done, roll.rawSum) };
       updateFeedRoll(loaded.entry.id, meta.groupId, next);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;

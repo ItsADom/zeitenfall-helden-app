@@ -11,7 +11,7 @@ import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
 import { bildFuer, bilderFuerSeite, legeBildAn, loescheBild, markiereBildGmOnly } from './bilder.js';
 import { WikiGeschuetzt, WikiKonflikt, WikiTitelVergeben, WikiUnloeschbar } from './seiten.js';
-import { folgeWeiterleitung, ladeSeite, legeSeiteAn, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
+import { folgeWeiterleitung, ladeSeite, legeSeiteAn, linkZiele, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeAllesGelesen, merkeGesehen, merkeSeiteGelesen, neueSeiten } from './neuigkeiten.js';
 import { kategorieAnsicht, kategorien, neuIndizieren, sucheSeiten } from './suche.js';
 import { endgueltigLoeschen, loescheSeite, papierkorb, setzeFlag, stelleSeiteHer } from './verwaltung.js';
@@ -30,6 +30,20 @@ wikiApi.get('/seiten', requireAuth, (req, res) => {
   const user = leser(req);
   const neu = neueSeiten(user);
   res.json({ seiten: listeSeiten(user).map((s) => ({ ...s, neu: neu.has(s.slug) })) });
+});
+
+/**
+ * Batch existence check for slugs outside a page's own body — e.g. a
+ * character sheet's link to its own wiki page. Mirrors the resolution
+ * `ladeSeite` does internally for `[[Wikilinks]]`, but without marking
+ * anything as read (this isn't a page view).
+ */
+wikiApi.get('/ziele', requireAuth, (req, res) => {
+  const slugs = String(req.query.slugs ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  res.json({ ziele: linkZiele(leser(req), slugs) });
 });
 
 /** Drives the count next to „Wiki" in the top bar. */
@@ -61,7 +75,7 @@ wikiApi.post('/seiten', requireAuth, (req, res) => {
     return;
   }
   try {
-    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel);
+    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel, (req.body ?? {}).tags);
     res.json({ slug: seite.slug });
   } catch (err) {
     if (err instanceof WikiTitelVergeben) {
