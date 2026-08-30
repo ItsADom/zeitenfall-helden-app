@@ -305,6 +305,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
      THe actual statuses can be hardcoded, no need for settings.
+     THe actual statuses can be hardcoded, no need for settings.
    - [ready] **Structured min/max range for Fernkampf** (user feedback):
      `entfernung` (`WaffenNeu.tsx:520-522`, `sections.ts:92-93`) is a single
      freeform text field, historically hand-written like "10/20/30". Decided:
