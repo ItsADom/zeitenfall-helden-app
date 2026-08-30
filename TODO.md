@@ -62,6 +62,14 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 - move training/reading tracker to Überblick sidebar
 - edit dialogs should show every field even in read-only mode, not a subset
 - item-bonues: show the amount of bonus, not just which item contributes
+- token size: default 1, 0.5 smallest, 0.5 steps
+- show center point of measure shapes
+- show token steps taken to everyone (fixed time or until clicked on)
+- new role-style: competitive checks against other players
+  - works like a group check, but the participant that has the most difference to their target value wins
+- player want to add individual talents to Talente
+- make talents and spells "favortiable" so they appear in the dice farvorites
+- an overloaded value does reset to max on page reload: this is a bug
 
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
@@ -314,6 +322,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      below) — low priority, don't card-ify it first.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
+     THe actual statuses can be hardcoded, no need for settings.
    - [ready] **Structured min/max range for Fernkampf** (user feedback):
      `entfernung` (`WaffenNeu.tsx:520-522`, `sections.ts:92-93`) is a single
      freeform text field, historically hand-written like "10/20/30". Decided:
@@ -458,21 +467,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   own settable appearance would look like (a small icon picker? a distinct
   upload separate from the character's sheet portrait?) — needs a concept
   pass before building.
-- [sketch] **VTT: GM's cursor gets stuck as the "grabbing" hand, even while
-  hovering a token** (developer feedback, Phase 9 fog testing). The GM
-  reported the cursor never returns to the token's own `pointer`/pan tool's
-  `grab` cursor once something has been dragged — a player's session behaves
-  correctly. `.vtt-map-wrap` sets `cursor: grab` / `:active { cursor: grabbing
-  }` in `client/src/styles.css`; each token `<g>` overrides that to `pointer`
-  inline (`client/src/pages/VirtualTable.tsx`), identically for every role —
-  nothing in the code branches on `isGm` for this, so the asymmetry isn't
-  obviously explained by a role-specific code path. Likely candidate: a
-  stuck `:active` pseudo-class from a pointer-capture/mouseup mismatch during
-  one of the GM-only paint/highlight/fog drags, but this is a live-browser
-  cursor-rendering quirk that can't be diagnosed from network/DOM inspection
-  (same class of problem as the color-swatch-reopen bug below — needs
-  someone actually reproducing it live, cursor state included, before
-  attempting a fix).
 - [sketch] **Native colour swatch reopens on a second click instead of
   closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
   used by token colour/ring colour, the tile/highlight picker, and the
@@ -488,17 +482,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   happening before trying a third fix — or consider swapping to a custom
   (non-native) colour picker instead, which would sidestep the browser
   quirk entirely.
-- [sketch] **VTT: step-counting token-drag trail — built, wants a real live
-  drag test.** Concept settled with the developer (straight king-move line
-  from the drag's start cell, numbered 0/1/2/…; visible only to the person
-  dragging; gone the instant the token is dropped) and implemented in
-  `client/src/pages/VirtualTable.tsx` (`chebyshevPath`, `tokenTrailActive`/
-  `trailElsRef`, wired into `startTokenDrag`/`onTokenPointerMove`/
-  `onTokenPointerUp`). A CDP-driven drag confirmed the move itself still
-  works with no console errors, but this session's automated tooling has no
-  way to pause mid-drag for a screenshot, so the trail's actual on-screen
-  numbering/positioning during a real drag hasn't been eyeballed yet —
-  needs a live check before this counts as done.
 - [sketch] **Potion charges** (user feedback): no charge concept exists
   today — the closest precedent is `Item.anzahl` (plain stack count).
   Decided: a charge is a portion/dose — potions come in three fixed sizes
