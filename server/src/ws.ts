@@ -660,6 +660,18 @@ function broadcastGroupMember(request: GroupRollRequest, charId: number, status:
   }
 }
 
+// Wie broadcastGroupMember, aber für ein beliebiges Nachrichten-Objekt — nutzt
+// dieselbe [gmUserId, ...members]-Empfängerliste. revealGroupResults und der
+// reveal/cancel-Zweig darunter schickten `roll.group.revealed`/`.cancelled`
+// bislang nur an die Spielleitung selbst (sendToUserInGroup mit meta.userId
+// statt dieser Liste) — die Karte blieb bei den Spielern hängen, weil sie die
+// Nachricht nie sahen, die GroupRequestCard aus groupRequests entfernt.
+function broadcastToGroupRequest(request: GroupRollRequest, msg: ServerToClientMessage): void {
+  for (const uid of [request.gmUserId, ...request.members.map((m) => m.userId)]) {
+    sendToUserInGroup(request.groupId, uid, msg);
+  }
+}
+
 function revealGroupResults(request: GroupRollRequest, order: number[], held: Map<number, HeldResult>): void {
   if (held.size > 0) {
     insertFeedMessage(
@@ -678,7 +690,7 @@ function revealGroupResults(request: GroupRollRequest, order: number[], held: Ma
     if (entry.kind === 'roll') insertFeedRoll(request.groupId, entry.author, null, 'public', entry.roll, request.id);
     else insertFeedMessage(request.groupId, entry.author, 'hat gepasst.', true, request.id);
   }
-  sendToUserInGroup(request.groupId, request.gmUserId, { type: 'roll.group.revealed', requestId: request.id });
+  broadcastToGroupRequest(request, { type: 'roll.group.revealed', requestId: request.id });
 }
 
 function handleMessage(ws: WebSocket, raw: RawData): void {
@@ -1120,7 +1132,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         sendToUserInGroup(sub.groupId, sub.targetUserId, { type: 'roll.pending.cancelled', requestId: sub.id });
       }
       if (result) revealGroupResults(request, result.order, result.held);
-      else sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.revealed', requestId: request.id });
+      else broadcastToGroupRequest(request, { type: 'roll.group.revealed', requestId: request.id });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1131,7 +1143,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       cancelGroupRollRequest(msg.groupRequestId);
-      sendToUserInGroup(meta.groupId, meta.userId, { type: 'roll.group.cancelled', requestId: request.id });
+      broadcastToGroupRequest(request, { type: 'roll.group.cancelled', requestId: request.id });
       for (const sub of removePendingRequestsForGroup(msg.groupRequestId)) {
         sendToUserInGroup(sub.groupId, sub.targetUserId, { type: 'roll.pending.cancelled', requestId: sub.id });
       }

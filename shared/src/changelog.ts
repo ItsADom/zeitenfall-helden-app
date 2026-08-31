@@ -200,6 +200,14 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-08-31',
+    title: 'Zwei Fehlerbehebungen',
+    fixed: [
+      'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',
+      'Eine Gruppenprobe schloss sich bei Spielern nicht von selbst, nachdem alle gewürfelt hatten (die Spielleitung sah das Ende korrekt) — jetzt bekommen alle Beteiligten das Aufdecken/Verwerfen mit.',
+    ],
+  },
+  {
     date: '2026-08-29',
     title: 'Würfel-Optimierung und Item-Dialoge',
     version: '0.8.1',

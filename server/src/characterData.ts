@@ -1732,10 +1732,6 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     }
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
-      // Bonusfähige Attribute, nicht die rohen — die Kappung muss dieselbe
-      // Ausbaugrenze sehen, die ein getragener Gegenstand anhebt (siehe
-      // docs/concepts/item-bonus-while-worn.md, "immer der volle Wert").
-      const stats = loadStats(charId);
       const stmt = db.prepare(
         'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
@@ -1754,23 +1750,18 @@ export function saveSection(charId: number, section: string, data: unknown): voi
           // den Rassenbonus wieder auf 0 zurücksetzen.
           raceBase: num(v.raceBase),
         };
-        // Aktuell kann nie über dem nutzbaren Maximum liegen. Die Oberfläche
-        // kappt bereits beim Eintippen; hier nochmal, weil die API auch ohne
-        // sie erreichbar ist und die Regel nicht an einem Eingabefeld hängen
-        // darf. Nach unten wird nicht gekappt — ein Vorrat darf ins Minus.
-        // `input` ist roh (das Body-gebaute, ungebonuste) — die Kappung selbst
-        // muss trotzdem den Item-Bonus auf DIESE Ressource sehen (loadStats()
-        // liefert ihn nur auf loadResourcesRaw() angewendet, nicht auf diesen
-        // frischen `input`), sonst könnte eine getragene +2-LE-Ausrüstung nie
-        // eingefüllt werden — sonst genau der Datenverlust, den die Kappung
-        // eigentlich verhindern soll.
-        const { nutzbar } = computeResource(stats.attrs, key, resourceInputMitBoni(input, key, stats.boni));
+        // Aktuell wird NICHT gekappt, weder nach oben noch nach unten — ein
+        // Vorrat darf bewusst über sein nutzbares Maximum steigen (Überladung,
+        // siehe AktuellFeld.tsx) und ins Minus fallen. Ein Server-seitiges
+        // Kappen nach oben widersprach dieser Absicht: der Wert kam bei jedem
+        // Speichern (auch dem automatischen bei jeder Änderung) auf das
+        // Maximum zurückgestutzt, was nach einem Neuladen wie ein Reset wirkte.
         stmt.run(
           input.permanent,
           input.kauf,
           input.kaufMax,
           input.maxPlus,
-          Math.min(input.aktuell, nutzbar),
+          input.aktuell,
           input.besonderes,
           input.raceBase,
           charId,
