@@ -66,6 +66,8 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     bonusse: [],
     rsVerborgen: false,
     haltbarkeitVerborgen: false,
+    waffenArt: '',
+    waffenStats: [],
     ...partial,
   };
 }
@@ -290,8 +292,8 @@ describe('wornBoni', () => {
       ],
     });
     const boni = wornBoni([ring, amulett]);
-    expect(boni.quellen['attr:MU']).toEqual(['Ring', 'Amulett']);
-    expect(boni.quellen['baseValue:at']).toEqual(['Amulett']);
+    expect(boni.quellen['attr:MU']).toEqual(['Ring (+1)', 'Amulett (+2)']);
+    expect(boni.quellen['baseValue:at']).toEqual(['Amulett (+1)']);
   });
 
   it('ein wert:0-Bonus trägt weder zur Summe noch zu quellen bei', () => {

@@ -35,6 +35,8 @@ import {
   makeUid,
   ohneVerborgeneItems,
   TALENT_BONUS_FELDER,
+  WAFFEN_ARTEN,
+  WAFFEN_STAT_FELDER,
   listSectionById,
   readSlots,
   normalizeColumns,
@@ -74,6 +76,9 @@ import type {
   StatBoni,
   TalentBonusFeld,
   VisibilitySection,
+  WaffenArt,
+  WaffenStat,
+  WaffenStatFeld,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
 import {
@@ -918,7 +923,7 @@ const clampMin = (v: unknown, min = 0): number => {
 export function loadItems(charId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -942,6 +947,7 @@ export function loadItems(charId: number): Item[] {
     notiz: string;
     rs_verborgen: number;
     haltbarkeit_verborgen: number;
+    waffen_art: string;
   }[];
   // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
   // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
@@ -966,6 +972,21 @@ export function loadItems(charId: number): Item[] {
     });
     bonusesByItem.set(r.item_id, list);
   }
+  // Waffen-Stat-Zeilen — dieselbe Zweitabfrage-plus-Gruppierung wie bei den
+  // Boni oben, aus demselben Grund (0..N Zeilen je Item).
+  const weaponStatRows = db
+    .prepare(
+      `SELECT ws.item_id, ws.uid, ws.feld, ws.wert, ws.verborgen FROM char_item_weapon_stats ws
+       JOIN char_items ci ON ci.id = ws.item_id WHERE ci.character_id = ? ORDER BY ws.pos, ws.id`,
+    )
+    .all(charId) as { item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
+  const weaponStatsByItem = new Map<number, WaffenStat[]>();
+  for (const r of weaponStatRows) {
+    if (!(WAFFEN_STAT_FELDER as string[]).includes(r.feld)) continue;
+    const list = weaponStatsByItem.get(r.item_id) ?? [];
+    list.push({ uid: r.uid || makeUid(), feld: r.feld as WaffenStatFeld, wert: r.wert, verborgen: !!r.verborgen });
+    weaponStatsByItem.set(r.item_id, list);
+  }
   return rows.map((r) => ({
     id: r.id,
     uid: r.uid || makeUid(),
@@ -987,6 +1008,8 @@ export function loadItems(charId: number): Item[] {
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
     notiz: r.notiz,
     bonusse: bonusesByItem.get(r.id) ?? [],
+    waffenArt: (WAFFEN_ARTEN as string[]).includes(r.waffen_art) ? (r.waffen_art as WaffenArt) : '',
+    waffenStats: weaponStatsByItem.get(r.id) ?? [],
     rsVerborgen: !!r.rs_verborgen,
     haltbarkeitVerborgen: !!r.haltbarkeit_verborgen,
   }));
@@ -1017,6 +1040,7 @@ function normalizedItemRow(o: Record<string, unknown>) {
   const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
   const haltbarkeitMax = clampMin(o.haltbarkeitMax);
   const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
+  const waffenArt = (WAFFEN_ARTEN as string[]).includes(String(o.waffenArt)) ? (String(o.waffenArt) as WaffenArt) : '';
   return {
     name: String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
     anzahl: clampMin(o.anzahl),
@@ -1037,17 +1061,20 @@ function normalizedItemRow(o: Record<string, unknown>) {
     notiz: String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
     rsVerborgen: o.rsVerborgen ? 1 : 0,
     haltbarkeitVerborgen: o.haltbarkeitVerborgen ? 1 : 0,
+    waffenArt,
   };
 }
 
-const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=? WHERE id=?`;
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=? WHERE id=?`;
 const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
   n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
   n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
-  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, id,
+  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, id,
 ];
 
 const MAX_ITEM_OPS = 500;
+const MAX_WEAPON_STATS_PRO_ITEM = 20;
+const MAX_WEAPON_STAT_WERT = 4000;
 
 // „Aufdecken" ist einseitig — sobald eine Zeile nicht mehr verdeckt ist, kann
 // KEIN Patch sie wieder verstecken, es gibt bewusst keinen Verstecken-Knopf.
@@ -1068,8 +1095,9 @@ function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>):
   return { code, feld };
 }
 
-interface WorkingItem extends Omit<Item, 'bonusse'> {
+interface WorkingItem extends Omit<Item, 'bonusse' | 'waffenStats'> {
   bonusse: (ItemBonus & { dbId: number })[];
+  waffenStats: (WaffenStat & { dbId: number })[];
 }
 
 // Incremental item saves (Hidden/revealable Ausrüstung stats, TODO.md — siehe
@@ -1088,7 +1116,7 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
   const byUid = new Map<string, WorkingItem>();
   const idToUid = new Map<number, string>();
   for (const it of loadItems(charId)) {
-    byUid.set(it.uid, { ...it, bonusse: [] });
+    byUid.set(it.uid, { ...it, bonusse: [], waffenStats: [] });
     idToUid.set(it.id, it.uid);
   }
   {
@@ -1109,11 +1137,25 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
       });
     }
   }
+  {
+    const statRows = db
+      .prepare(
+        `SELECT ws.id, ws.item_id, ws.uid, ws.feld, ws.wert, ws.verborgen FROM char_item_weapon_stats ws
+         JOIN char_items ci ON ci.id = ws.item_id WHERE ci.character_id = ?`,
+      )
+      .all(charId) as { id: number; item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
+    for (const r of statRows) {
+      const itemUid = idToUid.get(r.item_id);
+      const item = itemUid ? byUid.get(itemUid) : undefined;
+      if (!item || !(WAFFEN_STAT_FELDER as string[]).includes(r.feld)) continue;
+      item.waffenStats.push({ dbId: r.id, uid: r.uid || makeUid(), feld: r.feld as WaffenStatFeld, wert: r.wert, verborgen: !!r.verborgen });
+    }
+  }
 
   const tx = db.transaction(() => {
     const insItem = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updItem = db.prepare(ITEM_UPDATE_SQL);
     const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
@@ -1123,6 +1165,10 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
     const updBonus = db.prepare('UPDATE char_item_bonuses SET kind=?, code=?, feld=?, wert=?, verborgen=? WHERE id=?');
     const delBonus = db.prepare('DELETE FROM char_item_bonuses WHERE id=?');
     const nextBonusPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_item_bonuses WHERE item_id=?');
+    const insStat = db.prepare('INSERT INTO char_item_weapon_stats (item_id, pos, uid, feld, wert, verborgen) VALUES (?, ?, ?, ?, ?, ?)');
+    const updStat = db.prepare('UPDATE char_item_weapon_stats SET feld=?, wert=?, verborgen=? WHERE id=?');
+    const delStat = db.prepare('DELETE FROM char_item_weapon_stats WHERE id=?');
+    const nextStatPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_item_weapon_stats WHERE item_id=?');
 
     const applyPatchToItem = (existing: WorkingItem, patch: Record<string, unknown>): void => {
       const p = { ...patch };
@@ -1147,7 +1193,7 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
         istBehaelter: !!merged.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
         kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
         haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
-        rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen,
+        rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
       });
     };
 
@@ -1178,7 +1224,7 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
           insItem.run(
             charId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig,
             n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
-            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen,
+            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
           ).lastInsertRowid,
         );
         const working: WorkingItem = {
@@ -1187,7 +1233,8 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
           istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
           kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
           haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
-          rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, bonusse: [],
+          rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+          bonusse: [], waffenStats: [],
         };
         byUid.set(uid, working);
         const initialBonusse = Array.isArray(item.bonusse) ? (item.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
@@ -1204,6 +1251,19 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
           if (!bUid) bUid = makeUid();
           const bId = Number(insBonus.run(id, bi, bUid, kind, code, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
           working.bonusse.push({ dbId: bId, uid: bUid, kind, code, feld, wert, verborgen });
+        });
+        const initialStats = Array.isArray(item.waffenStats) ? (item.waffenStats as unknown[]).slice(0, MAX_WEAPON_STATS_PRO_ITEM) : [];
+        initialStats.forEach((s, si) => {
+          const so = (s ?? {}) as Record<string, unknown>;
+          const feldRaw = String(so.feld ?? '');
+          if (!(WAFFEN_STAT_FELDER as string[]).includes(feldRaw)) return;
+          const feld = feldRaw as WaffenStatFeld;
+          const wert = String(so.wert ?? '').slice(0, MAX_WEAPON_STAT_WERT);
+          const verborgen = requesterIsGm ? !!so.verborgen : false;
+          let sUid = String(so.uid ?? '').slice(0, 64);
+          if (!sUid) sUid = makeUid();
+          const sId = Number(insStat.run(id, si, sUid, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+          working.waffenStats.push({ dbId: sId, uid: sUid, feld, wert, verborgen });
         });
       } else if (kindOfOp === 'patch') {
         const existing = byUid.get(String(o.uid ?? ''));
@@ -1272,6 +1332,53 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
         if (!requesterIsGm && bonus.verborgen) continue;
         delBonus.run(bonus.dbId);
         item.bonusse.splice(idx, 1);
+      } else if (kindOfOp === 'addWeaponStat') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        if (!item) continue;
+        const stat = (o.stat ?? {}) as Record<string, unknown>;
+        let sUid = String(stat.uid ?? '').slice(0, 64);
+        if (!sUid) sUid = makeUid();
+        const already = item.waffenStats.find((s) => s.uid === sUid);
+        const feldRaw = String(stat.feld ?? '');
+        if (!(WAFFEN_STAT_FELDER as string[]).includes(feldRaw)) continue;
+        const feld = feldRaw as WaffenStatFeld;
+        const wert = String(stat.wert ?? '').slice(0, MAX_WEAPON_STAT_WERT);
+        if (already) {
+          // Ein Retry darf eine bereits verdeckte Zeile nicht anfassen — wie
+          // bei addBonus, aus demselben Grund.
+          if (!requesterIsGm && already.verborgen) continue;
+          const verborgen = requesterIsGm ? nextVerborgen(already.verborgen, stat.verborgen) : false;
+          updStat.run(feld, wert, verborgen ? 1 : 0, already.dbId);
+          Object.assign(already, { feld, wert, verborgen });
+          continue;
+        }
+        if (item.waffenStats.length >= MAX_WEAPON_STATS_PRO_ITEM) continue;
+        const verborgen = requesterIsGm ? !!stat.verborgen : false;
+        const pos = (nextStatPos.get(item.id) as { p: number }).p;
+        const dbId = Number(insStat.run(item.id, pos, sUid, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+        item.waffenStats.push({ dbId, uid: sUid, feld, wert, verborgen });
+      } else if (kindOfOp === 'patchWeaponStat') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const stat = item?.waffenStats.find((s) => s.uid === String(o.statUid ?? ''));
+        if (!item || !stat) continue;
+        if (!requesterIsGm && stat.verborgen) continue; // Nicht-SL kennt diese uid strukturell nie — defensiv trotzdem sperren
+        const patch = { ...(o.patch ?? {}) } as Record<string, unknown>;
+        if (!requesterIsGm) delete patch.verborgen;
+        else if ('verborgen' in patch) patch.verborgen = nextVerborgen(stat.verborgen, patch.verborgen);
+        const feld = 'feld' in patch && (WAFFEN_STAT_FELDER as string[]).includes(String(patch.feld)) ? (patch.feld as WaffenStatFeld) : stat.feld;
+        const merged = { ...stat, ...patch, feld };
+        const wert = String(merged.wert ?? '').slice(0, MAX_WEAPON_STAT_WERT);
+        const verborgen = !!merged.verborgen;
+        updStat.run(feld, wert, verborgen ? 1 : 0, stat.dbId);
+        Object.assign(stat, { feld, wert, verborgen });
+      } else if (kindOfOp === 'removeWeaponStat') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const idx = item?.waffenStats.findIndex((s) => s.uid === String(o.statUid ?? '')) ?? -1;
+        if (!item || idx < 0) continue;
+        const stat = item.waffenStats[idx];
+        if (!requesterIsGm && stat.verborgen) continue;
+        delStat.run(stat.dbId);
+        item.waffenStats.splice(idx, 1);
       }
     }
   });

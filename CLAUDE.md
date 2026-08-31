@@ -164,6 +164,17 @@ not general DSA5 knowledge.
   is the wiki's list filter *and* the character sheet's search; `.table-wrap
   table.sheet thead` renders inside wiki articles too). Adding the term there is
   safe precisely because an unset variable falls back to `0px`.
+- **The `.scroll-box` class only picks a `top: 0` sticky offset — it does not
+  make the box scroll.** For a table that's meant to scroll inside its own
+  bounded box instead of the page (a modal, the catalog panel in Admin.tsx),
+  `.table-wrap` needs `scroll-box` **and** an inline `maxHeight` +
+  `overflowY: 'auto'` that actually constrains it — both together, every time.
+  Adding just the class name (as `GroupOverviewPage`'s `AbilityLookupDialog`
+  once did) leaves `.table-wrap` at `overflow: visible`, so some ANCESTOR ends
+  up doing the real scrolling (here, `.dialog-body`) while the sticky `thead`
+  still anchors to `.table-wrap`, which never moves — the header ends up
+  overlapping the rows once you scroll. Admin.tsx's catalog table is the
+  reference: `style={{ maxHeight: 420, overflowY: 'auto' }}` alongside the class.
 - **Everything editable flows through `NumInput`/`TextInput`** (they read the
   display mode themselves), which is why one provider flips a whole sheet at once.
   Structural buttons (`+ Zeile`, columns, delete, tab reorder, portrait) do NOT

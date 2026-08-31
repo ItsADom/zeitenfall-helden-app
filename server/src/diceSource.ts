@@ -20,8 +20,9 @@ import {
   weaponProbe,
   weaponProbes,
 } from 'shared';
+import { waffenStatWert, waffenStatZahl } from 'shared';
 import { db } from './db.js';
-import { loadStats } from './characterData.js';
+import { loadItems, loadStats } from './characterData.js';
 import type { CharStats } from './characterData.js';
 
 export interface ComputedProbe {
@@ -56,9 +57,9 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
       if (!abilityId) return null;
       const w = s.weapon as Record<string, unknown> | undefined;
       if (!w) return { kind: 'ability', abilityId };
-      if (w.kind === 'row') {
-        const sectionRowId = id(w.sectionRowId);
-        return sectionRowId ? { kind: 'ability', abilityId, weapon: { kind: 'row', sectionRowId } } : null;
+      if (w.kind === 'item') {
+        const itemId = id(w.itemId);
+        return itemId ? { kind: 'ability', abilityId, weapon: { kind: 'item', itemId } } : null;
       }
       if (w.kind === 'talent') {
         const talentId = id(w.talentId);
@@ -73,10 +74,10 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
       return { kind: 'sprache', languageId, mode: s.mode };
     }
     case 'weapon': {
-      const sectionRowId = id(s.sectionRowId);
-      if (!sectionRowId) return null;
+      const itemId = id(s.itemId);
+      if (!itemId) return null;
       if (s.probe !== 'at' && s.probe !== 'pa' && s.probe !== 'bl' && s.probe !== 'fk') return null;
-      return { kind: 'weapon', sectionRowId, probe: s.probe };
+      return { kind: 'weapon', itemId, probe: s.probe };
     }
     case 'baseValue': {
       return s.key === 'ausweichen' || s.key === 'ini' ? { kind: 'baseValue', key: s.key } : null;
@@ -87,8 +88,9 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
 }
 
 // AT/PA/BL-Term einer Fähigkeiten-Probe: entweder eine echte Nahkampfwaffe
-// (talentId + Waffen-Bonus aus sec_waffenNahNeu) oder Unbewaffnet — direkt
-// über eine talents_catalog-id (Raufen/Ringen), ohne Waffenzeile, Waffen-
+// (talentId + Waffen-Bonus aus deren waffenStats, seit "Weapons become real
+// items" ein char_items-Eintrag mit waffenArt: 'nah') oder Unbewaffnet —
+// direkt über eine talents_catalog-id (Raufen/Ringen), ohne Waffe, Waffen-
 // Bonus dann 0. Beide Fälle rechnen über dieselbe weaponProbes()-Formel wie
 // der Waffen-Reiter, mit der AT/PA/BL-SPALTE des Talents (char_talents.at/
 // pa/bl), NICHT dem TaW — genau die Aufteilung, die auch echte Waffen nutzen.
@@ -104,13 +106,11 @@ function resolveAbilityWeaponProbes(
   const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
   let talentId: number;
   let weaponMod = { at: 0, pa: 0, bl: 0 };
-  if (weapon.kind === 'row') {
-    const row = db.prepare('SELECT * FROM sec_waffenNahNeu WHERE character_id = ? AND id = ?').get(characterId, weapon.sectionRowId) as
-      | Record<string, unknown>
-      | undefined;
-    if (!row) return null;
-    talentId = Number(row.talentId) || 0;
-    weaponMod = { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0 };
+  if (weapon.kind === 'item') {
+    const item = loadItems(characterId).find((it) => it.id === weapon.itemId && it.waffenArt === 'nah');
+    if (!item) return null;
+    talentId = Number(waffenStatWert(item, 'talentId')) || 0;
+    weaponMod = { at: waffenStatZahl(item, 'at'), pa: waffenStatZahl(item, 'pa'), bl: waffenStatZahl(item, 'bl') };
   } else {
     talentId = weapon.talentId;
   }
@@ -183,20 +183,18 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       return { n: 3, probeZahl, label: `${row.name} (${modeLabel})`, attrParts };
     }
     case 'weapon': {
-      const table = source.probe === 'fk' ? 'sec_waffenFernNeu' : 'sec_waffenNahNeu';
-      const row = db.prepare(`SELECT * FROM ${table} WHERE character_id = ? AND id = ?`).get(characterId, source.sectionRowId) as
-        | Record<string, unknown>
-        | undefined;
-      if (!row) return null;
-      const talentId = Number(row.talentId) || 0;
+      const wantsArt = source.probe === 'fk' ? 'fern' : 'nah';
+      const item = loadItems(characterId).find((it) => it.id === source.itemId && it.waffenArt === wantsArt);
+      if (!item) return null;
+      const talentId = Number(waffenStatWert(item, 'talentId')) || 0;
       const talent = stats.talente.find((t) => t.talentId === talentId);
       const bv = computeBaseValues(attrs, stats.baseInputs);
-      const label = String(row.typ ?? '');
+      const label = item.name;
       if (source.probe === 'fk') {
-        const probeZahl = weaponProbe(Number(row.atMod) || 0, bv.fk.ergebnis, talent?.at ?? 0);
+        const probeZahl = weaponProbe(waffenStatZahl(item, 'atMod'), bv.fk.ergebnis, talent?.at ?? 0);
         return { n: 1, probeZahl, label: `${label} (FK)` };
       }
-      const weaponMod = Number(row[source.probe]) || 0;
+      const weaponMod = waffenStatZahl(item, source.probe);
       const baseErgebnis = bv[source.probe].ergebnis;
       const talentSplit = talent?.[source.probe] ?? 0;
       const probeZahl = weaponProbe(weaponMod, baseErgebnis, talentSplit);
@@ -255,16 +253,14 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
     add({ kind: 'sprache', languageId: l.id, mode: l.kind === 'schrift' ? 'schreiben' : 'sprechen' }, 'sprache');
   }
 
-  const nah = db.prepare('SELECT id FROM sec_waffenNahNeu WHERE character_id = ? ORDER BY pos, id').all(characterId) as {
-    id: number;
-  }[];
-  for (const w of nah) {
-    for (const probe of ['at', 'pa', 'bl'] as const) add({ kind: 'weapon', sectionRowId: w.id, probe }, 'weapon');
+  const items = loadItems(characterId);
+  for (const it of items) {
+    if (it.waffenArt === 'nah') {
+      for (const probe of ['at', 'pa', 'bl'] as const) add({ kind: 'weapon', itemId: it.id, probe }, 'weapon');
+    } else if (it.waffenArt === 'fern') {
+      add({ kind: 'weapon', itemId: it.id, probe: 'fk' }, 'weapon');
+    }
   }
-  const fern = db.prepare('SELECT id FROM sec_waffenFernNeu WHERE character_id = ? ORDER BY pos, id').all(characterId) as {
-    id: number;
-  }[];
-  for (const w of fern) add({ kind: 'weapon', sectionRowId: w.id, probe: 'fk' }, 'weapon');
 
   return out;
 }

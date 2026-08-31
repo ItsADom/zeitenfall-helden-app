@@ -509,11 +509,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Unsorted ideas (treat all as [sketch])
 
-- logically connect weapons and inventory
-  - weapons should be real items, too, but they carry some extra information
-  - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen and vice versa
-  - this lets the player carry the ewapon on Ausrüstung as a real entry, not a separate and unconnected copy
-
 - FAQ - like a little manual or easy to miss features
 
 - **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])

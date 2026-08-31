@@ -41,12 +41,13 @@ import {
   resolveProbeRoll,
   stripRepeatPrefix,
   tokenCells,
+  waffenStatWert,
   type AttrRowCode,
   type DiceExpression,
 } from 'shared';
 import crypto from 'node:crypto';
 import { getSessionToken, userForToken } from './auth.js';
-import { loadStats } from './characterData.js';
+import { loadItems, loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
@@ -839,17 +840,16 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
         return;
       }
-      // Die Schaden-Formel UND die RD werden IMMER hier aus der Waffenzeile
-      // gelesen, nie vom Client übernommen — derselbe Grund wie bei probeZahl.
-      const table = msg.ranged ? 'sec_waffenFernNeu' : 'sec_waffenNahNeu';
-      const row = db.prepare(`SELECT typ, schaden, rd FROM ${table} WHERE character_id = ? AND id = ?`).get(char.id, Number(msg.sectionRowId)) as
-        | { typ: string; schaden: string; rd: string }
-        | undefined;
-      if (!row) {
+      // Die Schaden-Formel UND die RD werden IMMER hier aus dem Item gelesen,
+      // nie vom Client übernommen — derselbe Grund wie bei probeZahl. Seit
+      // "Weapons become real items" (TODO.md) ist das ein normaler char_items-
+      // Eintrag mit waffenArt gesetzt, kein `ranged`-Flag vom Client mehr nötig.
+      const item = loadItems(char.id).find((it) => it.id === Number(msg.itemId) && it.waffenArt);
+      if (!item) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Waffe nicht gefunden' });
         return;
       }
-      const expression = parseDiceExpression(String(row.schaden ?? ''));
+      const expression = parseDiceExpression(waffenStatWert(item, 'schaden'));
       if (!expression) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Waffe hinterlegt' });
         return;
@@ -862,9 +862,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Waffe hinterlegt' });
         return;
       }
+      const rd = waffenStatWert(item, 'rd');
       const roll: ExpressionRollPayload = {
         mode: 'expr',
-        label: `${row.typ || 'Waffe'} (Schaden)`,
+        label: `${item.name || 'Waffe'} (Schaden)`,
         expression: result.expression,
         dice: result.dice,
         confirmations: result.confirmations,
@@ -873,7 +874,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         rawSum: result.rawSum,
         adjustedSum: result.adjustedSum,
         flagged: result.flagged,
-        ...(row.rd ? { rd: String(row.rd) } : {}),
+        ...(rd ? { rd } : {}),
       };
       insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), gmUserId, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });
