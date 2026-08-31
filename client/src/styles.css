@@ -4651,6 +4651,20 @@ body.resizing-dice {
   gap: 8px;
   justify-content: flex-end;
 }
+/* Trainings-/Lesesitzungen-Tracker (CharacterSidebar.tsx): dieselbe Klee-
+   Bestätigung wie Schicksalspunkte, aber in der schmalen Seitenleiste statt im
+   breiten Dock — .sp-confirm-flyout's rechtsbündiges 220px reicht dort über
+   den linken Leistenrand hinaus. Links statt rechts verankert (nahe am
+   Klee-Wrap, der selbst am linken Blockrand sitzt) und auf die tatsächliche
+   Leistenbreite gedeckelt.
+*/
+.side-confirm-flyout {
+  left: 0;
+  right: auto;
+  min-width: 0;
+  width: max-content;
+  max-width: calc(var(--sidebar-w, 300px) - 40px);
+}
 
 @media (max-width: 700px) {
   /* Desktop's tight padding assumes a mouse pointer; a thumb needs bigger
