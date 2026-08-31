@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ContainerArt, Item, ItemBonus, ItemBonusKind, KapazitaetArt, TalentBonusFeld } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
+import { AlwaysEditable } from './displayMode';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
 import { NumInput } from './inputs';
@@ -332,102 +333,108 @@ export function AddItemDialog({
         </>
       }
     >
-      <div className="dlg-seg">
-        <button type="button" className={mode === 'allgemein' ? 'active' : ''} onClick={() => setMode('allgemein')}>
-          Allgemein
-        </button>
-        <button type="button" className={mode === 'ausruestung' ? 'active' : ''} onClick={() => setMode('ausruestung')}>
-          Ausrüstung
-        </button>
-      </div>
-
-      <label className="dlg-field">
-        Name
-        <input
-          value={name}
-          autoFocus
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && commit()}
-        />
-      </label>
-
-      <div className="dlg-row2">
-        <label className="dlg-field">
-          Anzahl
-          <NumInput value={anzahl} min={0} onChange={setAnzahl} />
-        </label>
-        <label className="dlg-field">
-          Gewicht (kg/St.)
-          <NumInput value={gewicht} min={0} onChange={setGewicht} />
-        </label>
-      </div>
-
-      {mode === 'allgemein' ? (
-        <label className="dlg-field">
-          Kategorie
-          <select value={kategorie} onChange={(e) => setKategorie(e.target.value)}>
-            <option value="">— ohne Kategorie —</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <div className="dlg-field">
-          Kategorie
-          <div className="dlg-locked">
-            <span className="dlg-badge">{AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
-          </div>
+      {/* Bleibt bearbeitbar unabhängig vom Blatt-Anzeigemodus — Duplizieren/
+          Löschen im Fuß oben laufen schon unbedingt, die Feldwerte hier sollen
+          es genauso (siehe TODO.md, "AddItemDialog's fields should stay
+          editable in read-only mode"). */}
+      <AlwaysEditable>
+        <div className="dlg-seg">
+          <button type="button" className={mode === 'allgemein' ? 'active' : ''} onClick={() => setMode('allgemein')}>
+            Allgemein
+          </button>
+          <button type="button" className={mode === 'ausruestung' ? 'active' : ''} onClick={() => setMode('ausruestung')}>
+            Ausrüstung
+          </button>
         </div>
-      )}
 
-      {mode === 'ausruestung' && (
-        <div className="dlg-fade-group">
-          <div className="dlg-group-label">Nur für Ausrüstung</div>
-          <div className="dlg-row2">
-            <label className="dlg-field">
-              RS
-              <NumInput value={rs} min={0} onChange={setRs} />
-            </label>
-            <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
-              Haltbarkeit
-              <div className="dlg-row2">
-                <NumInput
-                  value={haltbarkeitAktuell}
-                  min={0}
-                  max={haltbarkeitMax}
-                  onChange={setHaltbarkeitAktuell}
-                />
-                <NumInput
-                  value={haltbarkeitMax}
-                  min={0}
-                  onChange={(v) => {
-                    // Neu eingeschaltet (war 0/0) → auf voll starten, statt
-                    // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
-                    setHaltbarkeitMax(v);
-                    if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
-                  }}
-                />
-              </div>
-            </label>
-          </div>
-          {!isStorageContainer && (
-            <label className="dlg-field">
-              Quickslots
-              <NumInput value={quickslots} min={0} onChange={setQuickslots} />
-            </label>
-          )}
+        <label className="dlg-field">
+          Name
+          <input
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && commit()}
+          />
+        </label>
+
+        <div className="dlg-row2">
+          <label className="dlg-field">
+            Anzahl
+            <NumInput value={anzahl} min={0} onChange={setAnzahl} />
+          </label>
+          <label className="dlg-field">
+            Gewicht (kg/St.)
+            <NumInput value={gewicht} min={0} onChange={setGewicht} />
+          </label>
         </div>
-      )}
 
-      <label className="dlg-field">
-        Notiz
-        <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
-      </label>
+        {mode === 'allgemein' ? (
+          <label className="dlg-field">
+            Kategorie
+            <select value={kategorie} onChange={(e) => setKategorie(e.target.value)}>
+              <option value="">— ohne Kategorie —</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <div className="dlg-field">
+            Kategorie
+            <div className="dlg-locked">
+              <span className="dlg-badge">{AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
+            </div>
+          </div>
+        )}
 
-      <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} />
+        {mode === 'ausruestung' && (
+          <div className="dlg-fade-group">
+            <div className="dlg-group-label">Nur für Ausrüstung</div>
+            <div className="dlg-row2">
+              <label className="dlg-field">
+                RS
+                <NumInput value={rs} min={0} onChange={setRs} />
+              </label>
+              <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
+                Haltbarkeit
+                <div className="dlg-row2">
+                  <NumInput
+                    value={haltbarkeitAktuell}
+                    min={0}
+                    max={haltbarkeitMax}
+                    onChange={setHaltbarkeitAktuell}
+                  />
+                  <NumInput
+                    value={haltbarkeitMax}
+                    min={0}
+                    onChange={(v) => {
+                      // Neu eingeschaltet (war 0/0) → auf voll starten, statt
+                      // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
+                      setHaltbarkeitMax(v);
+                      if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
+                    }}
+                  />
+                </div>
+              </label>
+            </div>
+            {!isStorageContainer && (
+              <label className="dlg-field">
+                Quickslots
+                <NumInput value={quickslots} min={0} onChange={setQuickslots} />
+              </label>
+            )}
+          </div>
+        )}
+
+        <label className="dlg-field">
+          Notiz
+          <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
+        </label>
+
+        <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} />
+      </AlwaysEditable>
     </Dialog>
   );
 }

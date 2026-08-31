@@ -300,11 +300,15 @@ function leererStatBoni(): StatBoni {
 // jeweils aktuellen Item-Liste auf, es gibt keinen globalen Cache.
 export function wornBoni(items: readonly Item[]): StatBoni {
   const boni = leererStatBoni();
-  const quellenSets = new Map<string, Set<string>>();
-  const addQuelle = (key: string, name: string) => {
-    const set = quellenSets.get(key) ?? new Set<string>();
-    set.add(name.trim() || '(ohne Name)');
-    quellenSets.set(key, set);
+  // key -> Item-Name -> Summe seiner Boni auf DIESES Ziel — ein Item kann
+  // mehr als eine Bonus-Zeile auf denselben Zielschlüssel tragen, die
+  // Tooltip-Zahl muss die Summe zeigen, nicht nur die zuletzt gesehene.
+  const quellenSummen = new Map<string, Map<string, number>>();
+  const addQuelle = (key: string, name: string, wert: number) => {
+    const perItem = quellenSummen.get(key) ?? new Map<string, number>();
+    const label = name.trim() || '(ohne Name)';
+    perItem.set(label, (perItem.get(label) ?? 0) + wert);
+    quellenSummen.set(key, perItem);
   };
   const addNum = (rec: Record<string, number>, key: string, wert: number) => {
     rec[key] = (rec[key] ?? 0) + wert;
@@ -318,15 +322,15 @@ export function wornBoni(items: readonly Item[]): StatBoni {
       switch (b.kind) {
         case 'attr':
           addNum(boni.attrs as Record<string, number>, b.code, wert);
-          addQuelle(attrBonusKey(b.code as AttrCode), item.name);
+          addQuelle(attrBonusKey(b.code as AttrCode), item.name, wert);
           break;
         case 'baseValue':
           addNum(boni.baseValues as Record<string, number>, b.code, wert);
-          addQuelle(baseValueBonusKey(b.code as BaseValueKey), item.name);
+          addQuelle(baseValueBonusKey(b.code as BaseValueKey), item.name, wert);
           break;
         case 'resource':
           addNum(boni.resources as Record<string, number>, b.code, wert);
-          addQuelle(resourceBonusKey(b.code as ResourceKey), item.name);
+          addQuelle(resourceBonusKey(b.code as ResourceKey), item.name, wert);
           break;
         case 'talent': {
           const talentId = Number(b.code);
@@ -334,28 +338,33 @@ export function wornBoni(items: readonly Item[]): StatBoni {
           const rec = boni.talente[talentId] ?? {};
           rec[b.feld] = (rec[b.feld] ?? 0) + wert;
           boni.talente[talentId] = rec;
-          addQuelle(talentBonusKey(talentId, b.feld), item.name);
+          addQuelle(talentBonusKey(talentId, b.feld), item.name, wert);
           break;
         }
         case 'spezial': {
           const catalogId = Number(b.code);
           if (!Number.isFinite(catalogId)) break;
           boni.spezial[catalogId] = (boni.spezial[catalogId] ?? 0) + wert;
-          addQuelle(spezialBonusKey(catalogId), item.name);
+          addQuelle(spezialBonusKey(catalogId), item.name, wert);
           break;
         }
         case 'psyche':
           boni.psyche += wert;
-          addQuelle(PSYCHE_BONUS_KEY, item.name);
+          addQuelle(PSYCHE_BONUS_KEY, item.name, wert);
           break;
         case 'traglast':
           boni.traglast += wert;
-          addQuelle(TRAGLAST_BONUS_KEY, item.name);
+          addQuelle(TRAGLAST_BONUS_KEY, item.name, wert);
           break;
       }
     }
   }
-  for (const [key, set] of quellenSets) boni.quellen[key] = [...set];
+  // Formatierung wie bonusLabel() (client/src/tabs/Ausruestung.tsx) für eine
+  // einzelne Bonus-Zeile — hier auf die je Item aufsummierte Zahl angewandt,
+  // damit der Tooltip zeigt WIEVIEL ein Gegenstand beiträgt, nicht nur DASS.
+  for (const [key, perItem] of quellenSummen) {
+    boni.quellen[key] = [...perItem].map(([name, sum]) => `${name} (${sum > 0 ? '+' : ''}${sum})`);
+  }
   return boni;
 }
 

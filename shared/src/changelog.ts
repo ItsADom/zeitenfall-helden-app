@@ -201,10 +201,16 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-31',
-    title: 'Zwei Fehlerbehebungen',
+    title: 'Fehlerbehebungen und kleine Politur',
+    added: [
+      'Die Größe einer Marke auf dem virtuellen Tisch lässt sich jetzt auch in halben Schritten setzen, bis hinunter zu 0,5 Feldern.',
+      'Kreis- und Rechteck-Messformen auf dem virtuellen Tisch zeigen jetzt dauerhaft einen Punkt an ihrem Mittelpunkt.',
+    ],
     fixed: [
       'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',
       'Eine Gruppenprobe schloss sich bei Spielern nicht von selbst, nachdem alle gewürfelt hatten (die Spielleitung sah das Ende korrekt) — jetzt bekommen alle Beteiligten das Aufdecken/Verwerfen mit.',
+      'Der Bearbeiten-Dialog eines Gegenstands ließ sich außerhalb des Bearbeiten-Modus zwar öffnen (wie schon Duplizieren/Löschen), aber nicht mehr ausfüllen — jetzt bleiben seine Felder auch dort nutzbar.',
+      'Der Tooltip eines Wertes mit Gegenstands-Bonus zeigte nur, welcher Gegenstand ihn anhebt, nicht um wie viel — er nennt jetzt auch den Betrag (z. B. „Kettenhemd (+2)").',
     ],
   },
   {

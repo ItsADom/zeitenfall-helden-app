@@ -272,6 +272,22 @@ interface MeasureEls {
   // Ziehgriff: ohne eigenen Ref bliebe es beim Verschieben/Skalieren am alten
   // Platz stehen und spränge erst beim Loslassen an die richtige Stelle.
   labelEl?: SVGTextElement | null;
+  // Mittelpunkt-Marker (Kreis/Rechteck) — derselbe Grund wie beim Ziehgriff:
+  // ohne eigenen Ref bliebe er während eines laufenden Zugs zurück, statt live
+  // mitzuwandern.
+  centerEl?: SVGCircleElement | null;
+}
+
+/**
+ * Mittelpunkt einer Kreis-/Rechteck-Messform, in Zellkoordinaten — für den
+ * stets sichtbaren Mittelpunkt-Marker (user feedback). Kegel und Lineal
+ * bleiben ohne: der Kegel-Ursprung ist an der Wedge-Spitze schon eindeutig
+ * zu sehen, ein Lineal (eine Gerade) hat keinen sinnvollen Mittelpunkt.
+ */
+function measureCenterPoint(data: MeasureOverlayData): { x: number; y: number } | null {
+  if (data.kind === 'circle') return data.origin;
+  if (data.kind === 'rectangle') return { x: (data.from.x + data.to.x) / 2, y: (data.from.y + data.to.y) / 2 };
+  return null;
 }
 
 /** Position des optionalen Benutzer-Labels — dieselbe Formel wie im JSX unten (siehe labelEl), hier geteilt, damit writeMeasureVisual sie beim Ziehen/Skalieren live nachschreiben kann. */
@@ -288,6 +304,13 @@ function writeMeasureVisual(data: MeasureOverlayData, els: MeasureEls): void {
     const pos = measureLabelPos(data);
     els.labelEl.setAttribute('x', String(pos.x));
     els.labelEl.setAttribute('y', String(pos.y));
+  }
+  if (els.centerEl) {
+    const center = measureCenterPoint(data);
+    if (center) {
+      els.centerEl.setAttribute('cx', String(center.x * CELL_PX));
+      els.centerEl.setAttribute('cy', String(center.y * CELL_PX));
+    }
   }
   if (data.kind === 'ruler') {
     els.lineEl?.setAttribute('x1', String(data.from.x * CELL_PX));
@@ -637,10 +660,11 @@ function TokenEditor({
               Größe{' '}
               <input
                 type="number"
-                min={1}
+                min={0.5}
                 max={6}
+                step={0.5}
                 value={token.size}
-                onChange={(e) => updateToken(token.id, { size: Math.min(6, Math.max(1, Number(e.target.value) || 1)) })}
+                onChange={(e) => updateToken(token.id, { size: Math.min(6, Math.max(0.5, Number(e.target.value) || 1)) })}
                 style={{ width: 44 }}
               />
             </label>
@@ -2840,6 +2864,27 @@ function MapCanvas({
                       {labelEl}
                     </>
                   )}
+                  {/* Mittelpunkt-Marker (Kreis/Rechteck) — user feedback, anders
+                      als der Ziehgriff unten IMMER sichtbar, nicht nur an der
+                      ausgewählten Form (siehe measureCenterPoint). */}
+                  {(() => {
+                    const center = measureCenterPoint(data);
+                    if (!center) return null;
+                    return (
+                      <circle
+                        ref={(el) => {
+                          const els = measureElsRef.current.get(o.id) ?? {};
+                          els.centerEl = el;
+                          measureElsRef.current.set(o.id, els);
+                        }}
+                        cx={center.x * CELL_PX}
+                        cy={center.y * CELL_PX}
+                        r={3}
+                        fill={stroke}
+                        pointerEvents="none"
+                      />
+                    );
+                  })()}
                   {/* Ziehgriff — nur an der ausgewählten Form, EIN Griff für
                       jede Art (siehe measureHandlePoint/startMeasureResize).
                       stopPropagation in startMeasureResize verhindert, dass
