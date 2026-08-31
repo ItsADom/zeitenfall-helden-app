@@ -201,7 +201,7 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-08-31',
-    title: 'Verdeckte Ausrüstung und kleine Politur',
+    title: 'ADD_ON_VERSIONING',
     features: [
       {
         title: 'Verdeckte Ausrüstungs-Eigenschaften',
@@ -210,7 +210,17 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
       },
       {
-        title: 'Fehlerbehebungen und kleine Politur',
+        title: 'Waffen als echte Gegenstände',
+        changed: [
+          'Nah- und Fernkampfwaffen sind jetzt ganz normale Gegenstände: sie haben ein Gewicht, das in der Traglast mitzählt, und tauchen im Inventar bzw. in der Ausrüstung auf, statt nur als eigene Zeile im Waffen-Reiter zu existieren, unabhängig vom Rest der Ausrüstung.',
+          'Die Haltbarkeit einer Waffe wird jetzt wie bei anderer Ausrüstung als Verhältnis (aktuell/maximal) geführt statt als freier Text.',
+        ],
+        added: [
+          'Die Spielleitung kann einzelne Werte einer Waffe (Schaden, AT/PA/BL, Kampftalent und mehr) verdeckt anlegen — sie zeigen „???", bis die Spielleitung sie einzeln aufdeckt, etwa für eine noch unidentifizierte magische Waffe.',
+        ],
+      },
+      {
+        title: 'Sonstiges',
         added: [
           'Die Größe einer Marke auf dem virtuellen Tisch lässt sich jetzt auch in halben Schritten setzen, bis hinunter zu 0,5 Feldern.',
           'Kreis- und Rechteck-Messformen auf dem virtuellen Tisch zeigen jetzt dauerhaft einen Punkt an ihrem Mittelpunkt.',
