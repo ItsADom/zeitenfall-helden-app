@@ -19,7 +19,7 @@ export default function AbilityWeaponRollButton({ abilityId, title }: { abilityI
 
   if (!rollCtx && !requestCtx) return null;
 
-  const weapons = data.lists.waffenNahNeu.filter((r) => Number(r.id) > 0);
+  const weapons = data.items.filter((it) => it.waffenArt === 'nah' && it.id > 0);
   const raufen = catalogs.talents.find((t) => t.name === 'Raufen');
   const ringen = catalogs.talents.find((t) => t.name === 'Ringen');
 
@@ -45,12 +45,12 @@ export default function AbilityWeaponRollButton({ abilityId, title }: { abilityI
         <span className="dice-flyout probe-roll-flyout" role="menu">
           {weapons.map((w) => (
             <button
-              key={String(w.id)}
+              key={w.uid}
               className="dice-flyout-item"
               role="menuitem"
-              onClick={() => choose({ kind: 'row', sectionRowId: Number(w.id) })}
+              onClick={() => choose({ kind: 'item', itemId: w.id })}
             >
-              {String(w.typ || '(ohne Name)')}
+              {w.name || '(ohne Name)'}
             </button>
           ))}
           {raufen && (

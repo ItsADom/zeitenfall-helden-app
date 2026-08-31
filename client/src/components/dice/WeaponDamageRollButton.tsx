@@ -9,12 +9,10 @@ import { useDicePanel } from './DicePanelProvider';
 // (rollCtx) — auf einem fremden Bogen (Spielleitung, requestCtx) erscheint
 // gar kein Knopf, statt einer Anfrage, die es für Schaden nicht gibt.
 export default function WeaponDamageRollButton({
-  sectionRowId,
-  ranged,
+  itemId,
   title,
 }: {
-  sectionRowId: number;
-  ranged: boolean;
+  itemId: number;
   title: string;
 }) {
   const { rollCtx } = useChar();
@@ -24,7 +22,7 @@ export default function WeaponDamageRollButton({
   if (!rollCtx) return null;
 
   const roll = (visibility: 'public' | 'hidden' | 'gm_player') => {
-    rollWeaponDamage(rollCtx.groupId, rollCtx.charId, sectionRowId, ranged, visibility);
+    rollWeaponDamage(rollCtx.groupId, rollCtx.charId, itemId, visibility);
     closeNow();
   };
 

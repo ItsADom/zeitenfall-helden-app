@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { computeBaseValues, weaponProbe, weaponProbes } from '@shared/rules';
 import { attrsMitBoni, baseInputsMitBoni, talentMitBoni } from '@shared/items';
+import type { Item, WaffenStatFeld } from '@shared/items';
+import { makeItem, waffenStatWert, waffenStatZahl, waffenStatZeile, waffenStatsFuerArt } from '@shared/items';
 import { NOTIZ_KEY, listSectionById } from '@shared/sections';
 import type { ColumnDef } from '@shared/sections';
 import { CollapseChevron, CollapsiblePanel } from '../components/collapse';
@@ -10,6 +12,7 @@ import WeaponDamageRollButton from '../components/dice/WeaponDamageRollButton';
 import { ListEditor, NumInput, TextInput } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useDisplayMode, useReadOnly } from '../components/displayMode';
+import { useAuth } from '../App';
 import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
@@ -36,48 +39,50 @@ import type { TalentCatalogRow } from '../pages/Character';
 // leerer Kästchen erscheint. Die Felder sind 1:1-Umbenennungen der alten
 // Spalten (siehe Migration in db.ts).
 //
+// Weapons become real items (TODO.md): eine Waffe ist seit Kurzem ein ganz
+// normales `char_items`-Item mit `waffenArt` gesetzt — dieselbe Liste, die
+// Ausrüstung/Inventar zeigen. Diese Karte ist nur noch eine GEFILTERTE SICHT
+// auf `data.items` (waffenArt === 'nah'/'fern'), editiert über denselben
+// `patch`-Op wie jedes andere Item; ein Haltbarkeits-Update von hier landet
+// auf exakt derselben Zeile, die Ausrüstung zeigt, keine Kopie. Die
+// eigentlichen Waffenwerte (Schaden, AT/PA/BL, Kampftalent, …) liegen als
+// `WaffenStat`-Zeilen in `item.waffenStats` — jede einzeln SL-verdeckbar,
+// genau wie eine Item-Bonus-Zeile („Hidden/revealable Ausrüstung stats",
+// TODO.md, hier auf jedes Waffenfeld erweitert statt nur RS/Haltbarkeit).
+//
 // Waffenloser Kampf / Kampfstile / Pfeile-Bolzen (Munition) hängen unten noch
 // dran, unverändert mit der generischen `ListEditor`-Tabelle: sie waren nie
-// Teil der Migration nach waffenNahNeu/waffenFernNeu und lebten NUR im alten,
-// jetzt stillgelegten „Waffen (alt)"-Reiter — ohne sie hier wären bestehende
-// Einträge dort unerreichbar geworden, nicht verloren, aber für niemanden mehr
-// sichtbar oder bearbeitbar. Munition bekommt mit dem geplanten Nachschlage-
-// Katalog (siehe TODO.md) ohnehin eine eigene Lösung; Waffenloser Kampf und
-// Kampfstile warten noch auf ihren eigenen Kartenumbau.
-
-function emptyNahRow(): Row {
-  return {
-    typ: '', expLevel: '', schaden: '', material: '', iniBonus: 0, rd: '', reichweite: '',
-    haltbarkeit: '', besonderes: '', anforderung: '', talentId: 0, at: 0, pa: 0, bl: 0, [NOTIZ_KEY]: '',
-  };
-}
-function emptyFernRow(): Row {
-  return {
-    typ: '', eBE: '', rd: '', haltbarkeit: '', entfernung: '', besonderes: '', schaden: '',
-    talentId: 0, atMod: 0, [NOTIZ_KEY]: '',
-  };
-}
+// Teil dieser Migration und leben weiter in den alten Listen-Sektionen.
+// Munition bekommt mit dem geplanten Nachschlage-Katalog (siehe TODO.md)
+// ohnehin eine eigene Lösung; Waffenloser Kampf und Kampfstile warten noch
+// auf ihren eigenen Kartenumbau.
 
 export default function WaffenNeuTab() {
   const { data, catalogs, stats, update } = useChar();
+  const { user } = useAuth();
   const bv = computeBaseValues(attrsMitBoni(data.attributes, stats), baseInputsMitBoni(data.baseValues, stats));
   const base = { at: bv.at.ergebnis, pa: bv.pa.ergebnis, bl: bv.bl.ergebnis };
   const talents = new Map(data.talents.map((t) => [t.talentId, t]));
   const kampfTalente = catalogs.talents.filter((t) => t.kategorie === 'kampf');
+  const nahItems = data.items.filter((it) => it.waffenArt === 'nah');
+  const fernItems = data.items.filter((it) => it.waffenArt === 'fern');
+  const setItems = (next: Item[]) => update('items', next);
 
-  const probesFor = (row: Row) => {
-    const raw = talents.get(Number(row.talentId));
+  const probesFor = (item: Item) => {
+    const talentId = Number(waffenStatWert(item, 'talentId')) || 0;
+    const raw = talents.get(talentId);
     const t = raw ? talentMitBoni(raw, stats) : undefined;
     return weaponProbes(
-      { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0 },
+      { at: waffenStatZahl(item, 'at'), pa: waffenStatZahl(item, 'pa'), bl: waffenStatZahl(item, 'bl') },
       base,
       { at: t?.at ?? 0, pa: t?.pa ?? 0, bl: t?.bl ?? 0 },
     );
   };
-  const fkProbeFor = (row: Row) => {
-    const raw = talents.get(Number(row.talentId));
+  const fkProbeFor = (item: Item) => {
+    const talentId = Number(waffenStatWert(item, 'talentId')) || 0;
+    const raw = talents.get(talentId);
     const t = raw ? talentMitBoni(raw, stats) : undefined;
-    return weaponProbe(Number(row.atMod) || 0, bv.fk.ergebnis, t?.at ?? 0);
+    return weaponProbe(waffenStatZahl(item, 'atMod'), bv.fk.ergebnis, t?.at ?? 0);
   };
 
   return (
@@ -85,20 +90,24 @@ export default function WaffenNeuTab() {
       <p className="muted">
         Basiswerte: AT {base.at} · PA {base.pa} · BL {base.bl} · FK {bv.fk.ergebnis} · INI {bv.ini.ergebnis}
       </p>
-      <CollapsiblePanel collapseKey="list:waffenNahNeu" title="Nahkampfwaffen" rows={data.lists.waffenNahNeu.length}>
+      <CollapsiblePanel collapseKey="list:waffenNahNeu" title="Nahkampfwaffen" rows={nahItems.length}>
         <NahCards
-          rows={data.lists.waffenNahNeu}
-          onChange={(rows) => update('waffenNahNeu', rows)}
+          items={nahItems}
+          allItems={data.items}
+          setItems={setItems}
           kampfTalente={kampfTalente}
           probesFor={probesFor}
+          isGm={user.isGm}
         />
       </CollapsiblePanel>
-      <CollapsiblePanel collapseKey="list:waffenFernNeu" title="Fernkampfwaffen" rows={data.lists.waffenFernNeu.length}>
+      <CollapsiblePanel collapseKey="list:waffenFernNeu" title="Fernkampfwaffen" rows={fernItems.length}>
         <FernCards
-          rows={data.lists.waffenFernNeu}
-          onChange={(rows) => update('waffenFernNeu', rows)}
+          items={fernItems}
+          allItems={data.items}
+          setItems={setItems}
           kampfTalente={kampfTalente}
           fkProbeFor={fkProbeFor}
+          isGm={user.isGm}
         />
       </CollapsiblePanel>
       <div className="grid2">
@@ -124,7 +133,7 @@ export default function WaffenNeuTab() {
 /**
  * Kampftalent-Spalte für die drei Listen, die (noch) nicht auf Karten
  * umgestellt sind (Waffenloser Kampf; Kampfstile/Munition haben gar kein
- * Talent-Feld). Dieselbe Vorsicht wie bei `TalentFeld` weiter unten: ein
+ * Talent-Feld). Dieselbe Vorsicht wie bei `TalentSelect` weiter unten: ein
  * `<select>` läuft nicht durch NumInput/TextInput und bliebe ungegated auch
  * auf einem schreibgeschützten Blatt bedienbar — siehe die identische
  * Begründung dort.
@@ -160,10 +169,11 @@ function TalentCell({
 
 /**
  * Aufgeklappt-Zustand je Karte. Bewusst NICHT gespeichert: es beschreibt, was
- * jemand gerade ansieht, und die Zeilen sind ohnehin nur über ihre Position
- * identifizierbar. Beim Löschen rutschen die Indizes nach — `dropAt` zieht den
- * Zustand mit, sonst stünde nach dem Entfernen die falsche Karte offen.
- * Im Druck ist alles offen: auf Papier gibt es kein Aufklappen.
+ * jemand gerade ansieht — Karten sind über ihre `item.uid` identifizierbar,
+ * der Index dient nur der offen/zu-Verwaltung selbst. Beim Löschen rutschen
+ * die Indizes nach — `dropAt` zieht den Zustand mit, sonst stünde nach dem
+ * Entfernen die falsche Karte offen. Im Druck ist alles offen: auf Papier
+ * gibt es kein Aufklappen.
  */
 function useWeaponCards() {
   const [open, setOpen] = useState<Set<number>>(new Set());
@@ -190,7 +200,8 @@ function useWeaponCards() {
 /**
  * Ein beschriftetes Feld im aufgeklappten Block. `leer` sagt, ob nichts drin
  * steht — in Nur-Lesen fällt das Feld dann ganz weg, im Bearbeiten bleibt es
- * stehen, damit es befüllbar ist.
+ * stehen, damit es befüllbar ist. Für plain Item-Felder (Name, Notiz) ohne
+ * Verdeckungs-Mechanik — für Waffen-Stat-Felder siehe `WaffenFeld` unten.
  */
 function Feld({
   label,
@@ -216,20 +227,85 @@ function Feld({
   );
 }
 
-// Der Server schlägt die Waffenzeile über ihre id nach; eine frisch angelegte,
-// noch nicht gespeicherte Zeile hat keine — dort bleibt der Würfel-Knopf weg,
+/**
+ * Ein Waffen-Stat-Feld (siehe WaffenStat in shared/src/items.ts) — wie Feld,
+ * aber verdeckungs-bewusst: eine SL sieht den echten Wert plus 🔒-Marker
+ * (dieselbe Konvention wie RS/Haltbarkeit auf dem Ausrüstungs-Chip), ein
+ * Nicht-SL sieht ausschließlich „???", auch im Bearbeiten-Modus — für sie
+ * gibt es strukturell kein Eingabefeld für eine Zeile, die sie serverseitig
+ * nie mit echtem Wert zu Gesicht bekommen (siehe ohneVerborgeneItems).
+ * `children` ist wie bei Feld die fertige Eingabe (NumInput/TextInput/
+ * TalentSelect) — sie bindet an den ROHEN Wert (siehe rawStat in den Karten
+ * unten), NIE an den „effektiven" (waffenStatWert liefert für eine verdeckte
+ * Zeile immer '', auch der SL — das gilt nur fürs Wirken/die Probe, nicht
+ * fürs Bearbeiten).
+ */
+function WaffenFeld({
+  item,
+  feld,
+  label,
+  title,
+  wide,
+  isGm,
+  onReveal,
+  children,
+}: {
+  item: Item;
+  feld: WaffenStatFeld;
+  label: string;
+  title?: string;
+  wide?: boolean;
+  isGm: boolean;
+  onReveal: () => void;
+  children: React.ReactNode;
+}) {
+  const ro = useReadOnly();
+  const row = waffenStatZeile(item, feld);
+  const verborgen = row?.verborgen ?? false;
+  const raw = row?.wert ?? '';
+  if (verborgen && !isGm) {
+    return (
+      <label title="Von der Spielleitung noch nicht aufgedeckt">
+        {label}
+        <span className="static-value chip-verborgen"> ???</span>
+      </label>
+    );
+  }
+  if (ro && !raw) return null;
+  return (
+    <label className={wide ? 'chip-notiz' : undefined} title={title}>
+      {label}
+      {verborgen &&
+        (ro ? (
+          <span className="chip-verborgen" title="Für Spieler noch verborgen"> 🔒</span>
+        ) : (
+          <ConfirmDeleteButton
+            className="small chip-verborgen"
+            title="Aufdecken — für Spieler dann sichtbar, keine Rückgängig-Funktion"
+            onConfirm={onReveal}
+          >
+            👁 Aufdecken
+          </ConfirmDeleteButton>
+        ))}
+      {children}
+    </label>
+  );
+}
+
+// Der Server schlägt die Waffe über ihre Item-id nach; ein frisch angelegtes,
+// noch nicht gespeichertes Item hat keine — dort bleibt der Würfel-Knopf weg,
 // bis gespeichert wurde.
-function rollFor(row: Row, probe: 'at' | 'pa' | 'bl' | 'fk') {
-  const sectionRowId = Number(row.id) || 0;
-  return sectionRowId ? { sectionRowId, probe } : undefined;
+function rollFor(item: Item, probe: 'at' | 'pa' | 'bl' | 'fk') {
+  return item.id ? { itemId: item.id, probe } : undefined;
 }
 
 // Dieselbe Grund-Bedingung wie rollFor: keine gespeicherte Zeile, kein Würfel-
 // Knopf. Zusätzlich ohne Schaden-Text kein Knopf — sonst würfelt man gegen
-// eine leere Formel und bekommt nur eine Fehlermeldung.
-function damageRollFor(row: Row): number | undefined {
-  const sectionRowId = Number(row.id) || 0;
-  return sectionRowId && String(row.schaden ?? '').trim() ? sectionRowId : undefined;
+// eine leere Formel und bekommt nur eine Fehlermeldung. Liest den EFFEKTIVEN
+// Wert (waffenStatWert) — eine noch verdeckte Schaden-Formel ist noch nicht
+// würfelbar, auch nicht für die SL selbst (siehe WaffenFeld-Kommentar oben).
+function damageRollFor(item: Item): number | undefined {
+  return item.id && waffenStatWert(item, 'schaden').trim() ? item.id : undefined;
 }
 
 /**
@@ -247,7 +323,7 @@ function ProbeChip({
   label: string;
   value: number;
   title: string;
-  roll?: { sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' };
+  roll?: { itemId: number; probe: 'at' | 'pa' | 'bl' | 'fk' };
 }) {
   return (
     <span className="wpn-chip" title={title}>
@@ -312,7 +388,7 @@ function CardHead({
             <span className="wpn-chip-label">Schaden</span>
             <span className="wpn-chip-val">{schaden}{rd && ` · RD ${rd}`}</span>
             {damageRollId != null && (
-              <WeaponDamageRollButton sectionRowId={damageRollId} ranged={ranged} title={`${name || 'Waffe'} — Schaden`} />
+              <WeaponDamageRollButton itemId={damageRollId} title={`${name || 'Waffe'} — Schaden`} />
             )}
           </span>
         )}
@@ -329,36 +405,33 @@ function CardHead({
 }
 
 /**
- * Kampftalent. Das Auswahlfeld gibt es NUR im Bearbeiten-Modus: ein `<select>`
- * läuft nicht durch NumInput/TextInput und bliebe sonst auch auf einem
- * schreibgeschützten Blatt ein bedienbares Klappmenü — man könnte das Talent
- * eines fremden Charakters im Vorbeigehen umstellen. Gelesen wird es als
- * fester Text wie jeder andere Wert auch.
+ * Kampftalent-Auswahl. Das Auswahlfeld gibt es NUR im Bearbeiten-Modus: ein
+ * `<select>` läuft nicht durch NumInput/TextInput und bliebe sonst auch auf
+ * einem schreibgeschützten Blatt ein bedienbares Klappmenü — man könnte das
+ * Talent eines fremden Charakters im Vorbeigehen umstellen. Gelesen wird es
+ * als fester Text wie jeder andere Wert auch. Bindet an den ROHEN Wert (über
+ * `raw`, von der aufrufenden WaffenFeld-Stelle durchgereicht) — nicht an
+ * waffenStatWert, siehe dessen Kommentar.
  */
-function TalentFeld({
-  row,
+function TalentSelect({
+  raw,
   kampfTalente,
-  onPatch,
+  onChange,
 }: {
-  row: Row;
+  raw: string;
   kampfTalente: TalentCatalogRow[];
-  onPatch: (patch: Partial<Row>) => void;
+  onChange: (id: number) => void;
 }) {
   const ro = useReadOnly();
-  const id = Number(row.talentId) || 0;
+  const id = Number(raw) || 0;
+  if (ro) return <span className="static-value static-text">{kampfTalente.find((t) => t.id === id)?.name ?? ''}</span>;
   return (
-    <Feld label="Kampftalent" leer={!id}>
-      {ro ? (
-        <span className="static-value static-text">{kampfTalente.find((t) => t.id === id)?.name ?? ''}</span>
-      ) : (
-        <select value={id} onChange={(e) => onPatch({ talentId: Number(e.target.value) })}>
-          <option value={0}>—</option>
-          {kampfTalente.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      )}
-    </Feld>
+    <select value={id} onChange={(e) => onChange(Number(e.target.value))}>
+      <option value={0}>—</option>
+      {kampfTalente.map((t) => (
+        <option key={t.id} value={t.id}>{t.name}</option>
+      ))}
+    </select>
   );
 }
 
@@ -366,51 +439,92 @@ function EmptyNote({ what }: { what: string }) {
   return <p className="muted collapsed-note">Keine {what}</p>;
 }
 
+/** Haltbarkeit-Feld — anders als die Waffen-Stat-Felder ein PLAIN Item-Feld
+ * (haltbarkeitMax/haltbarkeitAktuell), mit seiner EIGENEN, schon länger
+ * bestehenden Verdeckungs-Mechanik (item.haltbarkeitVerborgen — dieselbe wie
+ * auf dem Ausrüstungs-Chip). Dieselbe Zeile wie dort, also dieselbe Regel:
+ * ein von Ausrüstung aus verdecktes Item bleibt auch hier verdeckt, keine
+ * eigene Kopie des Zustands. */
+function HaltbarkeitFeld({ item, isGm, onPatch }: { item: Item; isGm: boolean; onPatch: (patch: Partial<Item>) => void }) {
+  const ro = useReadOnly();
+  if (ro && item.haltbarkeitMax <= 0 && !item.haltbarkeitVerborgen) return null;
+  if (item.haltbarkeitVerborgen && !isGm) {
+    return (
+      <label title="Von der Spielleitung noch nicht aufgedeckt">
+        Haltbarkeit
+        <span className="static-value chip-verborgen"> ???</span>
+      </label>
+    );
+  }
+  return (
+    <label title="Haltbarkeit">
+      Haltbarkeit
+      {item.haltbarkeitVerborgen && <span className="chip-verborgen" title="Für Spieler noch verborgen"> 🔒</span>}
+      <NumInput value={item.haltbarkeitAktuell} min={0} max={item.haltbarkeitMax} onChange={(v) => onPatch({ haltbarkeitAktuell: v })} />
+      {' / '}
+      <NumInput
+        value={item.haltbarkeitMax}
+        min={0}
+        onChange={(v) => onPatch({ haltbarkeitMax: v, haltbarkeitAktuell: item.haltbarkeitMax === 0 && item.haltbarkeitAktuell === 0 ? v : item.haltbarkeitAktuell })}
+      />
+    </label>
+  );
+}
+
 function NahCards({
-  rows,
-  onChange,
+  items,
+  allItems,
+  setItems,
   kampfTalente,
   probesFor,
+  isGm,
 }: {
-  rows: Row[];
-  onChange: (rows: Row[]) => void;
+  items: Item[];
+  allItems: Item[];
+  setItems: (items: Item[]) => void;
   kampfTalente: TalentCatalogRow[];
-  probesFor: (row: Row) => { at: number; pa: number; bl: number };
+  probesFor: (item: Item) => { at: number; pa: number; bl: number };
+  isGm: boolean;
 }) {
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
-  const patch = (i: number, p: Partial<Row>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  const removeRow = (i: number) => {
-    dropAt(i);
-    onChange(rows.filter((_, j) => j !== i));
-  };
+  const patchItem = (uid: string, patch: Partial<Item>) => setItems(allItems.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  const patchStat = (item: Item, feld: WaffenStatFeld, wert: string) =>
+    patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, wert } : s)) });
+  const revealStat = (item: Item, feld: WaffenStatFeld) =>
+    patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, verborgen: false } : s)) });
+  const removeItem = (uid: string) => setItems(allItems.filter((it) => it.uid !== uid));
+  const addWaffe = () =>
+    setItems([...allItems, makeItem({ waffenArt: 'nah', waffenStats: waffenStatsFuerArt('nah').map((s) => ({ ...s, verborgen: isGm })) })]);
+  const rawStat = (item: Item, feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
+
   return (
     <>
       <div className="wpn-list">
-        {rows.map((row, i) => {
-          const probes = probesFor(row);
-          const notiz = String(row[NOTIZ_KEY] ?? '');
+        {items.map((item, i) => {
+          const probes = probesFor(item);
+          const notiz = item.notiz;
           const open = isOpen(i);
-          const exp = String(row.expLevel ?? '');
+          const exp = waffenStatWert(item, 'expLevel');
           // Das Kampftalent steht bewusst NICHT im Kopf: es ist bereits in die
           // Proben eingerechnet, die daneben stehen.
           const sub = exp ? `EXP/LVL ${exp}` : '';
           return (
-            <div className={`wpn-card${open ? ' open' : ''}`} key={i}>
+            <div className={`wpn-card${open ? ' open' : ''}`} key={item.uid}>
               <CardHead
-                name={String(row.typ ?? '')}
+                name={item.name}
                 sub={sub}
-                schaden={String(row.schaden ?? '')}
-                rd={String(row.rd ?? '')}
-                damageRollId={damageRollFor(row)}
+                schaden={waffenStatWert(item, 'schaden')}
+                rd={waffenStatWert(item, 'rd')}
+                damageRollId={damageRollFor(item)}
                 ranged={false}
                 notiz={notiz}
                 open={open}
                 onToggle={() => toggle(i)}
               >
-                <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={rollFor(row, 'at')} />
-                <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={rollFor(row, 'pa')} />
-                <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={rollFor(row, 'bl')} />
+                <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={rollFor(item, 'at')} />
+                <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={rollFor(item, 'pa')} />
+                <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={rollFor(item, 'bl')} />
               </CardHead>
               {open && (
                 <div className="chip-editor">
@@ -418,53 +532,53 @@ function NahCards({
                       im Kartenkopf und stünde hier ein zweites Mal. */}
                   {!ro && (
                     <Feld label="Waffe/Typ" leer={false}>
-                      <TextInput value={String(row.typ ?? '')} onChange={(v) => patch(i, { typ: v })} />
+                      <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
                     </Feld>
                   )}
-                  <Feld label="Schaden" leer={!String(row.schaden ?? '')}>
-                    <TextInput value={String(row.schaden ?? '')} onChange={(v) => patch(i, { schaden: v })} />
-                  </Feld>
-                  <Feld label="Material" leer={!String(row.material ?? '')}>
-                    <TextInput value={String(row.material ?? '')} onChange={(v) => patch(i, { material: v })} />
-                  </Feld>
-                  <Feld label="RD" title="Rüstungsdurchdringung" leer={!String(row.rd ?? '')}>
-                    <TextInput value={String(row.rd ?? '')} onChange={(v) => patch(i, { rd: v })} />
-                  </Feld>
-                  <Feld label="Haltbarkeit" leer={!String(row.haltbarkeit ?? '')}>
-                    <TextInput value={String(row.haltbarkeit ?? '')} onChange={(v) => patch(i, { haltbarkeit: v })} />
-                  </Feld>
-                  <Feld label="Reichweite" leer={!String(row.reichweite ?? '')}>
-                    <TextInput value={String(row.reichweite ?? '')} onChange={(v) => patch(i, { reichweite: v })} />
-                  </Feld>
-                  <Feld label="Ini-Bonus" leer={!Number(row.iniBonus)}>
-                    <NumInput value={Number(row.iniBonus) || 0} onChange={(v) => patch(i, { iniBonus: v })} />
-                  </Feld>
-                  <Feld label="Anforderung" leer={!String(row.anforderung ?? '')}>
-                    <TextInput value={String(row.anforderung ?? '')} onChange={(v) => patch(i, { anforderung: v })} />
-                  </Feld>
-                  <Feld label="EXP/LVL" leer={!exp}>
-                    <TextInput value={exp} onChange={(v) => patch(i, { expLevel: v })} />
-                  </Feld>
-                  <TalentFeld row={row} kampfTalente={kampfTalente} onPatch={(p) => patch(i, p)} />
+                  <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
+                    <TextInput value={rawStat(item, 'schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="material" label="Material" isGm={isGm} onReveal={() => revealStat(item, 'material')}>
+                    <TextInput value={rawStat(item, 'material')} onChange={(v) => patchStat(item, 'material', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="rd" label="RD" title="Rüstungsdurchdringung" isGm={isGm} onReveal={() => revealStat(item, 'rd')}>
+                    <TextInput value={rawStat(item, 'rd')} onChange={(v) => patchStat(item, 'rd', v)} />
+                  </WaffenFeld>
+                  <HaltbarkeitFeld item={item} isGm={isGm} onPatch={(p) => patchItem(item.uid, p)} />
+                  <WaffenFeld item={item} feld="reichweite" label="Reichweite" isGm={isGm} onReveal={() => revealStat(item, 'reichweite')}>
+                    <TextInput value={rawStat(item, 'reichweite')} onChange={(v) => patchStat(item, 'reichweite', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="iniBonus" label="Ini-Bonus" isGm={isGm} onReveal={() => revealStat(item, 'iniBonus')}>
+                    <NumInput value={Number(rawStat(item, 'iniBonus')) || 0} onChange={(v) => patchStat(item, 'iniBonus', String(v))} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="anforderung" label="Anforderung" isGm={isGm} onReveal={() => revealStat(item, 'anforderung')}>
+                    <TextInput value={rawStat(item, 'anforderung')} onChange={(v) => patchStat(item, 'anforderung', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="expLevel" label="EXP/LVL" isGm={isGm} onReveal={() => revealStat(item, 'expLevel')}>
+                    <TextInput value={rawStat(item, 'expLevel')} onChange={(v) => patchStat(item, 'expLevel', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="talentId" label="Kampftalent" isGm={isGm} onReveal={() => revealStat(item, 'talentId')}>
+                    <TalentSelect raw={rawStat(item, 'talentId')} kampfTalente={kampfTalente} onChange={(v) => patchStat(item, 'talentId', String(v))} />
+                  </WaffenFeld>
                   {/* Waffeneigene Boni — was die Waffe zur Probe beisteuert. Die
                       fertige Zahl steht oben im Kopf. */}
-                  <Feld label="AT-Bonus" title="Bonus dieser Waffe auf die Attacke" leer={!Number(row.at)}>
-                    <NumInput value={Number(row.at) || 0} onChange={(v) => patch(i, { at: v })} />
-                  </Feld>
-                  <Feld label="PA-Bonus" title="Bonus dieser Waffe auf die Parade" leer={!Number(row.pa)}>
-                    <NumInput value={Number(row.pa) || 0} onChange={(v) => patch(i, { pa: v })} />
-                  </Feld>
-                  <Feld label="BL-Bonus" title="Bonus dieser Waffe auf den Block" leer={!Number(row.bl)}>
-                    <NumInput value={Number(row.bl) || 0} onChange={(v) => patch(i, { bl: v })} />
-                  </Feld>
-                  <Feld label="Besonderes" leer={!String(row.besonderes ?? '')} wide>
-                    <TextInput value={String(row.besonderes ?? '')} onChange={(v) => patch(i, { besonderes: v })} />
-                  </Feld>
+                  <WaffenFeld item={item} feld="at" label="AT-Bonus" title="Bonus dieser Waffe auf die Attacke" isGm={isGm} onReveal={() => revealStat(item, 'at')}>
+                    <NumInput value={Number(rawStat(item, 'at')) || 0} onChange={(v) => patchStat(item, 'at', String(v))} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="pa" label="PA-Bonus" title="Bonus dieser Waffe auf die Parade" isGm={isGm} onReveal={() => revealStat(item, 'pa')}>
+                    <NumInput value={Number(rawStat(item, 'pa')) || 0} onChange={(v) => patchStat(item, 'pa', String(v))} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="bl" label="BL-Bonus" title="Bonus dieser Waffe auf den Block" isGm={isGm} onReveal={() => revealStat(item, 'bl')}>
+                    <NumInput value={Number(rawStat(item, 'bl')) || 0} onChange={(v) => patchStat(item, 'bl', String(v))} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
+                    <TextInput value={rawStat(item, 'besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
+                  </WaffenFeld>
                   <Feld label="Notiz" leer={!notiz} wide>
-                    <TextInput value={notiz} onChange={(v) => patch(i, { [NOTIZ_KEY]: v })} />
+                    <TextInput value={notiz} onChange={(v) => patchItem(item.uid, { notiz: v })} />
                   </Feld>
                   {!ro && (
-                    <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={() => removeRow(i)}>
+                    <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={() => { dropAt(i); removeItem(item.uid); }}>
                       🗑 Löschen
                     </ConfirmDeleteButton>
                   )}
@@ -473,55 +587,64 @@ function NahCards({
             </div>
           );
         })}
-        {rows.length === 0 && <EmptyNote what="Nahkampfwaffen" />}
+        {items.length === 0 && <EmptyNote what="Nahkampfwaffen" />}
       </div>
       {!ro && (
-        <button className="small add-row" onClick={() => onChange([...rows, emptyNahRow()])}>+ Waffe</button>
+        <button className="small add-row" onClick={addWaffe}>+ Waffe</button>
       )}
     </>
   );
 }
 
 function FernCards({
-  rows,
-  onChange,
+  items,
+  allItems,
+  setItems,
   kampfTalente,
   fkProbeFor,
+  isGm,
 }: {
-  rows: Row[];
-  onChange: (rows: Row[]) => void;
+  items: Item[];
+  allItems: Item[];
+  setItems: (items: Item[]) => void;
   kampfTalente: TalentCatalogRow[];
-  fkProbeFor: (row: Row) => number;
+  fkProbeFor: (item: Item) => number;
+  isGm: boolean;
 }) {
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
-  const patch = (i: number, p: Partial<Row>) => onChange(rows.map((r, j) => (j === i ? { ...r, ...p } : r)));
-  const removeRow = (i: number) => {
-    dropAt(i);
-    onChange(rows.filter((_, j) => j !== i));
-  };
+  const patchItem = (uid: string, patch: Partial<Item>) => setItems(allItems.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  const patchStat = (item: Item, feld: WaffenStatFeld, wert: string) =>
+    patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, wert } : s)) });
+  const revealStat = (item: Item, feld: WaffenStatFeld) =>
+    patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, verborgen: false } : s)) });
+  const removeItem = (uid: string) => setItems(allItems.filter((it) => it.uid !== uid));
+  const addWaffe = () =>
+    setItems([...allItems, makeItem({ waffenArt: 'fern', waffenStats: waffenStatsFuerArt('fern').map((s) => ({ ...s, verborgen: isGm })) })]);
+  const rawStat = (item: Item, feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
+
   return (
     <>
       <div className="wpn-list">
-        {rows.map((row, i) => {
-          const notiz = String(row[NOTIZ_KEY] ?? '');
+        {items.map((item, i) => {
+          const notiz = item.notiz;
           const open = isOpen(i);
           return (
-            <div className={`wpn-card${open ? ' open' : ''}`} key={i}>
+            <div className={`wpn-card${open ? ' open' : ''}`} key={item.uid}>
               {/* Kein Beiwerk im Kopf: das Kampftalent steckt schon in der
                   FK-Probe daneben, und eine Stufe gibt es hier nicht. */}
               <CardHead
-                name={String(row.typ ?? '')}
+                name={item.name}
                 sub=""
-                schaden={String(row.schaden ?? '')}
-                rd={String(row.rd ?? '')}
-                damageRollId={damageRollFor(row)}
+                schaden={waffenStatWert(item, 'schaden')}
+                rd={waffenStatWert(item, 'rd')}
+                damageRollId={damageRollFor(item)}
                 ranged
                 notiz={notiz}
                 open={open}
                 onToggle={() => toggle(i)}
               >
-                <ProbeChip label="FK" value={fkProbeFor(row)} title="Fernkampf — fertige Probe" roll={rollFor(row, 'fk')} />
+                <ProbeChip label="FK" value={fkProbeFor(item)} title="Fernkampf — fertige Probe" roll={rollFor(item, 'fk')} />
               </CardHead>
               {open && (
                 <div className="chip-editor">
@@ -529,36 +652,36 @@ function FernCards({
                       im Kartenkopf und stünde hier ein zweites Mal. */}
                   {!ro && (
                     <Feld label="Waffe/Typ" leer={false}>
-                      <TextInput value={String(row.typ ?? '')} onChange={(v) => patch(i, { typ: v })} />
+                      <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
                     </Feld>
                   )}
-                  <Feld label="Schaden" leer={!String(row.schaden ?? '')}>
-                    <TextInput value={String(row.schaden ?? '')} onChange={(v) => patch(i, { schaden: v })} />
-                  </Feld>
-                  <Feld label="Material" leer={!String(row.eBE ?? '')}>
-                    <TextInput value={String(row.eBE ?? '')} onChange={(v) => patch(i, { eBE: v })} />
-                  </Feld>
-                  <Feld label="RD" title="Rüstungsdurchdringung" leer={!String(row.rd ?? '')}>
-                    <TextInput value={String(row.rd ?? '')} onChange={(v) => patch(i, { rd: v })} />
-                  </Feld>
-                  <Feld label="Entfernung" leer={!String(row.entfernung ?? '')}>
-                    <TextInput value={String(row.entfernung ?? '')} onChange={(v) => patch(i, { entfernung: v })} />
-                  </Feld>
-                  <Feld label="Haltbarkeit" leer={!String(row.haltbarkeit ?? '')}>
-                    <TextInput value={String(row.haltbarkeit ?? '')} onChange={(v) => patch(i, { haltbarkeit: v })} />
-                  </Feld>
-                  <TalentFeld row={row} kampfTalente={kampfTalente} onPatch={(p) => patch(i, p)} />
-                  <Feld label="AT-Mod" title="Modifikator dieser Waffe auf die Fernkampfprobe" leer={!Number(row.atMod)}>
-                    <NumInput value={Number(row.atMod) || 0} onChange={(v) => patch(i, { atMod: v })} />
-                  </Feld>
-                  <Feld label="Besonderes" leer={!String(row.besonderes ?? '')} wide>
-                    <TextInput value={String(row.besonderes ?? '')} onChange={(v) => patch(i, { besonderes: v })} />
-                  </Feld>
+                  <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
+                    <TextInput value={rawStat(item, 'schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="eBE" label="Material" isGm={isGm} onReveal={() => revealStat(item, 'eBE')}>
+                    <TextInput value={rawStat(item, 'eBE')} onChange={(v) => patchStat(item, 'eBE', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="rd" label="RD" title="Rüstungsdurchdringung" isGm={isGm} onReveal={() => revealStat(item, 'rd')}>
+                    <TextInput value={rawStat(item, 'rd')} onChange={(v) => patchStat(item, 'rd', v)} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="entfernung" label="Entfernung" isGm={isGm} onReveal={() => revealStat(item, 'entfernung')}>
+                    <TextInput value={rawStat(item, 'entfernung')} onChange={(v) => patchStat(item, 'entfernung', v)} />
+                  </WaffenFeld>
+                  <HaltbarkeitFeld item={item} isGm={isGm} onPatch={(p) => patchItem(item.uid, p)} />
+                  <WaffenFeld item={item} feld="talentId" label="Kampftalent" isGm={isGm} onReveal={() => revealStat(item, 'talentId')}>
+                    <TalentSelect raw={rawStat(item, 'talentId')} kampfTalente={kampfTalente} onChange={(v) => patchStat(item, 'talentId', String(v))} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="atMod" label="AT-Mod" title="Modifikator dieser Waffe auf die Fernkampfprobe" isGm={isGm} onReveal={() => revealStat(item, 'atMod')}>
+                    <NumInput value={Number(rawStat(item, 'atMod')) || 0} onChange={(v) => patchStat(item, 'atMod', String(v))} />
+                  </WaffenFeld>
+                  <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
+                    <TextInput value={rawStat(item, 'besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
+                  </WaffenFeld>
                   <Feld label="Notiz" leer={!notiz} wide>
-                    <TextInput value={notiz} onChange={(v) => patch(i, { [NOTIZ_KEY]: v })} />
+                    <TextInput value={notiz} onChange={(v) => patchItem(item.uid, { notiz: v })} />
                   </Feld>
                   {!ro && (
-                    <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={() => removeRow(i)}>
+                    <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={() => { dropAt(i); removeItem(item.uid); }}>
                       🗑 Löschen
                     </ConfirmDeleteButton>
                   )}
@@ -567,10 +690,10 @@ function FernCards({
             </div>
           );
         })}
-        {rows.length === 0 && <EmptyNote what="Fernkampfwaffen" />}
+        {items.length === 0 && <EmptyNote what="Fernkampfwaffen" />}
       </div>
       {!ro && (
-        <button className="small add-row" onClick={() => onChange([...rows, emptyFernRow()])}>+ Waffe</button>
+        <button className="small add-row" onClick={addWaffe}>+ Waffe</button>
       )}
     </>
   );

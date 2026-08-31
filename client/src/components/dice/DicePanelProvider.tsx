@@ -216,15 +216,13 @@ interface DicePanelCtxValue {
     repeat?: number,
   ) => void;
   /**
-   * Schaden einer Waffenzeile würfeln. `ranged` unterscheidet Nah-/Fernkampf-
-   * Tabelle (siehe roll.weaponDamage im Protokoll) — kein Anfrage-Pendant,
-   * nur vom eigenen Bogen.
+   * Schaden einer Waffe würfeln (siehe roll.weaponDamage im Protokoll) — kein
+   * Anfrage-Pendant, nur vom eigenen Bogen.
    */
   rollWeaponDamage: (
     groupId: number,
     charId: number,
-    sectionRowId: number,
-    ranged: boolean,
+    itemId: number,
     visibility: RollVisibility,
     targetUserId?: number,
   ) => void;
@@ -1228,7 +1226,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const rollWeaponDamage = useCallback(
-    (forGroupId: number, forCharId: number, sectionRowId: number, ranged: boolean, visibility: RollVisibility, targetUserId?: number) => {
+    (forGroupId: number, forCharId: number, itemId: number, visibility: RollVisibility, targetUserId?: number) => {
       if (groupIdRef.current !== forGroupId) {
         const option = myGroups.find((g) => g.id === forGroupId);
         if (option) applyRoom(option);
@@ -1238,8 +1236,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         type: 'roll.weaponDamage',
         reqId: crypto.randomUUID(),
         charId: forCharId,
-        sectionRowId,
-        ranged,
+        itemId,
         visibility,
         targetUserId,
       });

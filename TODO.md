@@ -222,6 +222,53 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
   shown next to the name in the collapsed head, full field grid on expand;
   follows the Ausrüstung item-chip pattern). Remaining:
+   - [ready] **Weapons become real items** (concept agreed 2026-08-31,
+     in progress on branch `feature/weapons-as-items`): today `waffenNahNeu`/
+     `waffenFernNeu` are their own whole-list-PUT dynamic sections
+     (`data.lists`, `sec_waffenNahNeu`/`sec_waffenFernNeu`), entirely
+     disconnected from `char_items` — a weapon has no `gewicht` field at all,
+     so tracking its weight means adding a second, unlinked entry over in
+     Ausrüstung. **Decided:** every weapon becomes one real `char_items` row.
+     `Item` gains a plain `waffenArt: 'nah' | 'fern' | ''` field (structural —
+     picks the card renderer/field-set, routes the item into the Waffen tab;
+     not itself hideable, same as an un-handed-out GM-pool item already being
+     invisible entirely). Every actual weapon value — including `talentId` —
+     lives in a new child table `char_item_weapon_stats`, rows shaped exactly
+     like `ItemBonus` (`{uid, feld, wert, verborgen}`), with new ops
+     `addWeaponStat`/`patchWeaponStat`/`removeWeaponStat` mirroring
+     `addBonus`/`patchBonus`/`removeBonus`. **Decided (uniformity over a
+     narrower special case):** ALL weapon fields go through this per-stat
+     reveal mechanism, not just the numeric combat ones — no split between
+     "plain" and "revealable" weapon fields. A hidden stat shows „???" (same
+     convention as `rs`/`haltbarkeit`) and contributes nothing to the computed
+     probe until revealed (`wornBoni`'s existing "effects apply only once
+     revealed" rule) — an unrevealed weapon simply can't resolve a probe yet
+     (no known `talentId`), which falls out of the same rule rather than
+     needing a special case. Haltbarkeit migrates onto the existing
+     `haltbarkeitMax`/`haltbarkeitAktuell` pair (armor already uses these,
+     no duplication needed); old freeform Haltbarkeit text that doesn't parse
+     folds into `notiz` (no-data-loss rule). `WaffenNeu.tsx` keeps its exact
+     current look — it becomes a filtered view over `data.items`
+     (`waffenArt === 'nah' | 'fern'`), edited via the existing `patch` op, so
+     a Haltbarkeit edit from Ausrüstung and from Waffen is the same DB row,
+     not a mirror to keep in sync. `AddItemDialog` gets a third section (pick
+     „kein Waffe/Nah/Fern" → matching stat-row subset) — also the creation
+     path for the GM prep-pool entry, so a GM can stat out a fully-hidden
+     weapon in one place and hand it out via the existing drag-move action.
+     **Also touches the dice-roll protocol:** `diceSource.ts`
+     (`computeProbeForCharacter`'s `'weapon'` case and
+     `resolveAbilityWeaponProbes`) and `ws.ts`'s damage-roll handler currently
+     resolve a weapon by row id directly against `sec_waffenNahNeu`/
+     `sec_waffenFernNeu` — these move to resolving against `char_items` +
+     `char_item_weapon_stats` instead. `WaffenNeu.tsx` stops writing to
+     `data.lists.waffenNahNeu`/`waffenFernNeu` — the old `sec_waffenNahNeu`/
+     `sec_waffenFernNeu` tables and their `LIST_SECTIONS` entries stay in
+     place untouched, same precedent as `sec_waffenNah`/`sec_waffenFern`
+     after the card-view migration (dead capability, nothing reads/writes it
+     going forward, never removed). A one-time boot migration copies existing
+     rows into `char_items`/`char_item_weapon_stats`. Scope: Nahkampf/Fernkampf only —
+     Waffenloser Kampf/Kampfstile/Munition stay on the old list mechanism for
+     now (see below).
    - `client/src/tabs/Waffen.tsx` (the retired generic-list tab, unreachable
      but still on disk) is dead code — safe to delete once nobody needs it
      for reference.
@@ -508,11 +555,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   (one per attribute row)?
 
 ## Unsorted ideas (treat all as [sketch])
-
-- logically connect weapons and inventory
-  - weapons should be real items, too, but they carry some extra information
-  - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen and vice versa
-  - this lets the player carry the ewapon on Ausrüstung as a real entry, not a separate and unconnected copy
 
 - FAQ - like a little manual or easy to miss features
 

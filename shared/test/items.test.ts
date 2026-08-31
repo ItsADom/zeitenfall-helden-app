@@ -66,6 +66,8 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     bonusse: [],
     rsVerborgen: false,
     haltbarkeitVerborgen: false,
+    waffenArt: '',
+    waffenStats: [],
     ...partial,
   };
 }

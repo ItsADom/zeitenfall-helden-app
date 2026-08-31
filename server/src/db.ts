@@ -454,8 +454,29 @@ db.exec(`
     -- Felder sichtbar, zeigen aber „???" statt der Zahl, solange verborgen.
     -- Default 0 (sichtbar) hält bestehende Zeilen unverändert.
     rs_verborgen INTEGER NOT NULL DEFAULT 0,
-    haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0
+    haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0,
+    -- Weapons as real items (TODO.md): '' = kein Waffe, sonst 'nah'/'fern'.
+    -- Routet die Karte in den Waffen-Reiter/den richtigen Feldsatz; die
+    -- tatsächlichen Waffenwerte liegen in char_item_weapon_stats.
+    waffen_art TEXT NOT NULL DEFAULT ''
   );
+  -- Waffen-Stat-Zeilen (Weapons as real items, TODO.md) — eigene Kind-Tabelle
+  -- wie char_item_bonuses, ein Item hat 0..N Zeilen (eine je Waffen-Feld,
+  -- siehe waffenFelderFuerArt in shared/src/items.ts). Anders als ein
+  -- verdeckter ItemBonus (Zeile komplett unsichtbar) bleibt eine verdeckte
+  -- Waffen-Stat-Zeile als Zeile sichtbar — nur ihr Wert wird beim Ausliefern
+  -- an einen Nicht-SL geleert (siehe ohneVerborgeneItems) —, damit der Reiter
+  -- „???" zeigen kann, statt so zu tun, als gäbe es das Feld gar nicht.
+  CREATE TABLE IF NOT EXISTS char_item_weapon_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES char_items(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    uid TEXT NOT NULL DEFAULT '',
+    feld TEXT NOT NULL DEFAULT '',
+    wert TEXT NOT NULL DEFAULT '',
+    verborgen INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_weapon_stats_item ON char_item_weapon_stats(item_id);
   -- Boni, die ein Gegenstand verleiht, solange er getragen wird (siehe ItemBonus
   -- in shared/src/items.ts) — eigene Kind-Tabelle wie char_pouch_coins zu
   -- char_pouches, NICHT JSON-in-TEXT wie char_abilities.kategorien. Referenziert
@@ -978,6 +999,14 @@ db.exec(`
   }
 }
 
+// Migration: Weapons as real items (TODO.md) — `waffen_art` auf char_items.
+// Default '' (kein Waffe) hält bestehende Zeilen unverändert; die Waffen-
+// Stat-Zeilen-Tabelle selbst ist neu und braucht keine ALTER-Migration.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('waffen_art')) db.exec("ALTER TABLE char_items ADD COLUMN waffen_art TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: Magieresistenz von den Energien zu den Basiswerten.
 // Früher lag sie in char_resources mit getrenntem permanent/kauf; da beides in
 // der Praxis dasselbe war, wird es zu einem einzelnen Basiswert-Modifikator
@@ -1079,6 +1108,64 @@ for (const s of LIST_SECTIONS) {
         SELECT character_id, pos, name, typEbe, entfernung, tpEntfernung, atMod, tp, besonderes, talentId, notiz
         FROM sec_waffenFern;
     `);
+  }
+}
+
+// Migration: Weapons as real items (TODO.md) — bestehende Karten aus
+// sec_waffenNahNeu/sec_waffenFernNeu einmalig als echte char_items-Zeilen
+// (waffen_art gesetzt) + char_item_weapon_stats-Zeilen anlegen.
+// sec_waffenNahNeu/sec_waffenFernNeu bleiben unangetastet stehen (reines
+// Archiv, wie sec_waffenNah/sec_waffenFern es seit der vorigen Migration
+// schon sind) — WaffenNeu.tsx liest ab jetzt nur noch aus char_items. Läuft
+// nur einmal: sobald irgendein Item waffen_art gesetzt hat, fasst der
+// Serverstart nichts mehr an (auch nicht für neue Charaktere — die haben
+// ohnehin nichts in den alten Tabellen zu migrieren). Freitext-Haltbarkeit,
+// die sich nicht als reine Zahl lesen lässt, geht NICHT verloren — sie
+// landet als „Haltbarkeit: <Text>" in der Notiz (no-data-loss rule).
+{
+  const tableExists = (name: string): boolean =>
+    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name);
+  const already = (db.prepare("SELECT COUNT(*) AS n FROM char_items WHERE waffen_art != ''").get() as { n: number }).n > 0;
+  if (!already && tableExists('sec_waffenNahNeu') && tableExists('sec_waffenFernNeu')) {
+    const NAH_FELDER = ['talentId', 'schaden', 'material', 'rd', 'reichweite', 'iniBonus', 'anforderung', 'expLevel', 'at', 'pa', 'bl', 'besonderes'];
+    const FERN_FELDER = ['talentId', 'schaden', 'eBE', 'rd', 'entfernung', 'atMod', 'besonderes'];
+    const newUid = (): string => (db.prepare('SELECT lower(hex(randomblob(16))) AS u').get() as { u: string }).u;
+    const insItem = db.prepare(
+      `INSERT INTO char_items (character_id, pos, uid, name, notiz, haltbarkeit_max, haltbarkeit_aktuell, waffen_art)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insStat = db.prepare('INSERT INTO char_item_weapon_stats (item_id, pos, uid, feld, wert) VALUES (?, ?, ?, ?, ?)');
+    // Alte Haltbarkeit war reiner Freitext (kein current/max-Paar wie bei
+    // Item.haltbarkeit) — eine reine Zahl wird zu max=aktuell=Zahl (frisch,
+    // volle Haltbarkeit), alles andere (leer, "12/15", "gut", …) bleibt als
+    // Text erhalten und wandert in die Notiz statt verloren zu gehen.
+    const parseHaltbarkeit = (raw: unknown): { max: number; aktuell: number; rest: string } => {
+      const trimmed = String(raw ?? '').trim();
+      if (trimmed && /^\d+([.,]\d+)?$/.test(trimmed)) {
+        const n = Number(trimmed.replace(',', '.'));
+        return { max: n, aktuell: n, rest: '' };
+      }
+      return { max: 0, aktuell: 0, rest: trimmed };
+    };
+    const migrateTable = (table: string, felder: string[], art: 'nah' | 'fern', posOffset: number) => {
+      const rows = db.prepare(`SELECT * FROM ${table} ORDER BY character_id, pos, id`).all() as Record<string, unknown>[];
+      for (const row of rows) {
+        const { max, aktuell, rest } = parseHaltbarkeit(row.haltbarkeit);
+        const notizParts = [String(row.notiz ?? '').trim(), rest ? `Haltbarkeit: ${rest}` : ''].filter(Boolean);
+        const itemId = Number(
+          insItem.run(
+            row.character_id, posOffset + Number(row.pos ?? 0), newUid(),
+            String(row.typ ?? ''), notizParts.join('\n'), max, aktuell, art,
+          ).lastInsertRowid,
+        );
+        felder.forEach((feld, i) => insStat.run(itemId, i, newUid(), feld, String(row[feld] ?? '')));
+      }
+    };
+    const migrate = db.transaction(() => {
+      migrateTable('sec_waffenNahNeu', NAH_FELDER, 'nah', 2_000_000);
+      migrateTable('sec_waffenFernNeu', FERN_FELDER, 'fern', 3_000_000);
+    });
+    migrate();
   }
 }
 
