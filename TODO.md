@@ -59,20 +59,191 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- move training/reading tracker to Überblick sidebar and clickable in read-mode (with safeguard)
-- edit dialogs should show every field editable even in read-only mode, not a subset
-- item-bonues: show the amount of bonus, not just which item contributes
-  - currently, example: an item increases MU. MU then shows in the tooltip that Item x is does something with the value, but not how much
-- token size: default 1, 0.5 smallest, 0.5 steps
-- show center point of measure shapes
-- show token steps taken to everyone (fixed time or until clicked on)
-- new role-style: competitive checks against other players
-  - works like a group check, but the participant that has the most difference to their target value wins
-- player want to add individual talents to Talente
-- make talents and spells "favortiable" so they appear in the dice farvorites
-- an overloaded value does reset to max on page reload: this is a bug
-- group check does not close when everyone has rolled (players only, gm is working fine)
-
+- [ready] **Move Training/Lesen tracker into the Überblick sidebar, guarded
+  everywhere** (user feedback, concept agreed). Today `TrainingLeseTracker`
+  (`client/src/tabs/Heldenbrief.tsx:107-138`) is a 4-clover book-icon row
+  bound to `meta.trainingLeseHeute`, rendered next to Abenteuerpunkte,
+  `disabled={readOnly}` — unusable outside edit mode. **Decided: move, not
+  duplicate** — remove it from `Heldenbrief.tsx` entirely, render it only in
+  `CharacterSidebar.tsx` (a new `side-block`, same pattern as `SidebarPools`
+  etc.). **Decided: every click goes through a confirm step**, in both edit
+  and read mode — reuse `SchicksalspunkteControl`'s exact pattern
+  (`client/src/components/dice/SchicksalspunkteControl.tsx`): `useHoverFlyout`
+  opened by a click on the book icon, a small flyout panel with
+  Bestätigen/Abbrechen, only the confirm actually calls `onChange`. This
+  replaces today's direct instant-click in edit mode too, not just adds a
+  gate for read mode. **Decided: silent** — no chat line on confirm (unlike
+  Schicksalspunkte's `/me` announcement); this is personal bookkeeping, not a
+  table action. Un-filling (undo an entry) goes through the same confirm
+  step as filling.
+- [ready] **`AddItemDialog`'s fields should stay editable in read-only mode**
+  (user feedback, concept agreed — the actual bug was narrower than the raw
+  note read: not WaffenNeu's cards, the item edit dialog itself).
+  `ItemChip`'s own docstring already claims this dialog works „Auch im
+  Nur-Lesen-Modus, wie Ziehen" (`client/src/components/itemDialogs.tsx`,
+  opened from `Ausruestung.tsx`/`Inventar.tsx`), and indeed the footer's
+  Duplizieren/Löschen buttons render unconditionally regardless of mode — but
+  the value fields (`NumInput`/`TextInput` for Name/Anzahl/Gewicht/RS/
+  Haltbarkeit/Quickslots/Notiz/Boni) aren't wrapped in `AlwaysEditable`, so
+  they silently fall back to static text under the ambient read-only
+  `DisplayMode`. Net effect today: you can duplicate or delete an item from
+  read-only mode, but not edit its fields — backwards from intent. **Decided:
+  fix, not redesign** — wrap `AddItemDialog`'s body in `AlwaysEditable`
+  (`client/src/components/displayMode.tsx`), same exception mechanism the
+  sidebar pools already use. Safe to apply unconditionally (not just when
+  `item` is set / editing): the create-mode path can only ever open via the
+  „+ hinzufügen" button, which is already gated `!ro` in `Ausruestung.tsx`, so
+  `AlwaysEditable` is never reached while actually read-only in create mode.
+  `AddContainerDialog` is unaffected — it's create-only (a structural action),
+  correctly stays gated behind edit mode as-is.
+- [ready] **Item-bonus tooltip should show the amount, not just the item
+  name** (user feedback, concept agreed — a narrow, contained bug). Confirmed
+  root cause: `wornBoni()` (`shared/src/items.ts:301-360`) builds
+  `StatBoni.quellen[key]` as a bare `Set<string>` of item names via
+  `addQuelle(key, item.name)` — the actual `wert` is summed separately into
+  `boni.attrs`/etc. and never carried into `quellen`. `BonusWert`
+  (`client/src/components/BonusWert.tsx`) then renders that list verbatim as
+  the tooltip (`Durch getragene Gegenstände: ${quellen.join(', ')}`), so a
+  player sees which item contributes but not how much. **Decided:** change
+  `quellen`'s per-key collection from `Set<string>` to a `Map<string, number>`
+  (item name → summed `wert` at that key — an item can carry more than one
+  bonus row targeting the same key, so this must sum, not just record the
+  last value seen), and format each entry the same way `bonusLabel()`
+  (`client/src/tabs/Ausruestung.tsx:28-50`) already formats a single bonus
+  row: `${name} (${sign}${wert})`, e.g. `Kettenhemd (+2)`. `BonusWert`'s
+  `quellen` prop type changes from `string[]` to the formatted-string array it
+  already expects — the formatting happens where the map is built (still
+  `wornBoni`, one place, not duplicated at each call site).
+- [ready] **VTT token size: allow half-steps down to 0.5** (user feedback,
+  self-contained, no concept pass needed). Today's Größe field
+  (`client/src/pages/VirtualTable.tsx:636-646`) is a plain `<input
+  type="number" min={1} max={6}>` — whole steps only, smallest a full cell.
+  **Decided:** `min={0.5} step={0.5}` (max stays 6), clamp updated to
+  `Math.max(0.5, ...)`. Default token size (wherever a token is first created)
+  stays `1`, unaffected. No shared/server change needed — `size: number`
+  (`shared/src/board.ts:71`, `server/src/board.ts:150`) already stores
+  whatever's sent, no integer constraint anywhere in the chain; the only
+  place that rounds is `cellsOfToken()`'s footprint/occupancy calc
+  (`shared/src/board.ts:84-92`, `Math.max(1, Math.round(token.size))`), which
+  is fine as-is — a 0.5-size token still reserves and collides on its one
+  anchor cell, only its drawn radius shrinks (`t.size * CELL_PX / 2`, already
+  fraction-safe).
+- [ready] **Show a center-point marker on Kreis/Rechteck measure shapes**
+  (user feedback, concept agreed). **Decided: only circle and rectangle** —
+  cone's apex is already visually obvious as the wedge's point, and a ruler
+  (a straight line) has no meaningful center; scope stays those two.
+  **Decided: always visible**, not gated behind selection like today's resize
+  handle (`client/src/pages/VirtualTable.tsx:2848-2871`,
+  `measureHandlePoint`). Circle's center is already `data.origin`
+  (`MeasureOverlayData`, `circle` variant) — reuse directly. Rectangle has no
+  stored center (`from`/`to` are corners); compute it inline where rendered
+  (`VirtualTable.tsx:2809-2826`, `{ x: (data.from.x + data.to.x) / 2, y:
+  (data.from.y + data.to.y) / 2 }`) rather than adding a field to
+  `MeasureOverlayData` — same treatment as the existing `measureLabelPos`/
+  `measureOverlayBounds` helpers that already derive points from `from`/`to`
+  on the fly. Render as a small dot (same visual language as the resize
+  handle circle, smaller radius, no pointer/resize behavior — just a marker),
+  one per circle/rectangle overlay, always drawn regardless of
+  `selectedOverlayId`.
+- [ready] **Broadcast a token's step trail to everyone at the table** (user
+  feedback, concept agreed — reverses a prior explicit decision). Today's
+  step-counter trail (`client/src/pages/VirtualTable.tsx:1021-1029`,
+  `tokenTrailActive`) was deliberately settled as local-only, gone instantly
+  on release; moves themselves also only ever send the final position over
+  the wire, never the path (`:1441`, `board.token.move` in
+  `server/src/ws.ts:1633-1668`). **Decided: full trail, not just distance** —
+  reuse `chebyshevPath(from, to)` (`VirtualTable.tsx:379-391`), which is
+  already a pure/deterministic straight-line function of two cell
+  coordinates. Since the server already has the pre-move position as
+  `existing.x/y` (read right before `moveBoardToken` overwrites it,
+  `ws.ts:1636-1654`) — **no new client payload needed**: add `fromX`/`fromY`
+  (the origin) onto the `board.token.updated`/`created` message the
+  `board.token.move` handler already broadcasts, gated by the same
+  `tokenVisibleTo` filtering it already does (so a trail through/into fog
+  respects visibility exactly like the token move itself). Each receiving
+  client (including the mover) computes the same trail locally via
+  `chebyshevPath`, no path serialization over the wire. **Decided: fixed
+  10s auto-fade for everyone, AND click-to-dismiss layered on top** — the
+  10s timer is shared/absolute (not reset or extended by a click), the click
+  only hides it early for that one viewer, local UI state, not
+  broadcast/synced. Only `board.token.move` triggers a trail — ordinary
+  `board.token.update` (color, size, etc.) must not.
+- [ready] **Competitive check ("Wettstreit"): a second pool kind alongside the
+  Kooperationsprobe** (user feedback, concept agreed — rules confirmed with
+  the GM, since Zeitenfall's probe mechanics are homebrew, not DSA5).
+  Reuses the existing self-serve join/leave/start scaffolding
+  (`CoopPoolCard.tsx`, `roll.coop.propose/join/leave/start/cancel` in
+  `shared/src/diceProtocol.ts:395-434`, `server/src/coopPools.ts`) — same
+  UI shape, a new pool `mode: 'coop' | 'competitive'` instead of a
+  parallel set of message types. Only the verdict differs from
+  `computeCoopVerdict` (`shared/src/dice.ts:296-309`), which pools sums for a
+  joint pass/fail: a competitive verdict instead ranks participants and picks
+  ONE winner (or a tied set — see below), nobody's roll pooled with anyone
+  else's. **Decided verdict algorithm:**
+   1. Tier every participant by crit status: confirmed crit-success (top) >
+      ordinary roll > confirmed crit-fail (bottom) — a crit auto-outranks any
+      non-crit tier, same override precedence the coop pool already gives
+      crits over the sum-check.
+   2. Within a tier, rank by margin — `probeZahl - adjustedSum` (bigger =
+      beat target by more) — descending; the winner is the best margin in the
+      highest non-empty tier. **Decided: best margin always wins, even if
+      negative** — a participant does NOT need to have actually succeeded
+      their own probe to win the contest; if everyone in the top tier failed,
+      whoever failed by the least still wins.
+   3. **Decided (corollary, not separately asked): an exact tie within the
+      winning tier/margin is a genuine tie** — report all tied participants
+      as joint winners rather than picking one arbitrarily; no further
+      tie-break rule.
+   4. Multiple crit-successes (or multiple crit-fails) still get ranked
+      against each other by margin within their own tier — a crit only
+      outranks OTHER tiers, it doesn't flatten comparisons within its own.
+  **New:** `computeCompetitiveVerdict` in `shared/src/dice.ts`, parallel to
+  `computeCoopVerdict`, returning winner(s) + each participant's tier/margin
+  for display. UI: a `CompetitivePoolCard` alongside `CoopPoolCard`,
+  labels via a `WETTSTREIT`-style entry in `labels.ts`.
+- [onHold] **Players adding individual/custom talents to Talente** (user
+  feedback — on hold, needs GM input before a concept can be settled).
+  Today's Talente tab (`client/src/tabs/Talente.tsx`) has no per-character
+  add path at all: rows come entirely from the shared, GM-managed
+  `catalogs.talents` (`TalentCatalogRow`, `Character.tsx`) — every character
+  sees the same fixed list, filled in with their own TaW/AT/PA/BL. Open
+  before this can move to `[ready]`:
+   - **Scope: private-to-character vs. joins the shared catalog** — does an
+     „individual" talent only ever show on the adding player's own sheet, or
+     does it become a real catalog entry visible/usable by every character
+     (effectively proposing a new official talent)? Not decided, needs the
+     GM's call.
+   - **Approval:** GM-gated before it's usable/rollable, or immediately live
+     once a player adds it? No preference expressed yet either way.
+   - Once those two are settled, a build pass still needs: what a
+     custom-talent row actually needs filled in (name + which attributes
+     feed its `probeExpr`, at minimum — a real talent's probe formula isn't
+     optional), and where it lives structurally (a new per-character table,
+     or an extension of the existing catalog schema with an owner column).
+- [ready] **Favorite a talent/spell so it shows up in the dice-favorites
+  flyout** (user feedback, concept agreed). Today's dice favorites
+  (`ShortcutsFlyout.tsx`) are hand-typed free-text lines (`Label: Ausdruck`,
+  parsed by `parseDiceShortcuts`, maintained in Einstellungen) — no link to
+  real talents/abilities at all, and a favorited one needs the ACTUAL probe
+  roll (same as `ProbeRollButton`/`AbilityWeaponRollButton`, resolved
+  server-side from a `ProbeSource`), not a raw dice-expression string.
+  **Decided: one flyout, two sections** — keep the existing 🎲 flyout and its
+  text shortcuts as-is, add a second, visually separated group underneath
+  listing the current character's favorited talents/spells. Clicking one
+  calls `rollProbe(rollCtx.groupId, rollCtx.charId, source, 'public')`
+  directly (`source: { kind: 'talent', talentId }` or `{ kind: 'ability',
+  abilityId }`, same `ProbeSource` shape every roll button already uses) —
+  no visibility flyout, mirrors the existing shortcut buttons' one-click
+  „always public" behavior. **Decided: 📌 pin icon** for the toggle — ★/☆ was
+  ruled out, already double-booked (Signatur-Zauber toggle in
+  `AbilityManager.tsx:537-545`, and the 100-TaW Mastery marker in
+  `Talente.tsx:21-32`). Toggle sits on the row itself: `Talente.tsx`'s
+  `KampfTable`/`NormalTable` rows and `AbilityTable.tsx`'s ability row
+  (next to its `ProbeRollButton`, `:249-254`). **New:** `favorit: boolean`
+  on `CharTalent` (`shared/src/types.ts`) and on `Ability`
+  (`shared/src/abilities.ts`), default `false` so existing rows are
+  unaffected — same no-data-loss-safe pattern as any other new boolean
+  column added to an existing table.
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;
