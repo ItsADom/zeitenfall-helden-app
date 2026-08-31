@@ -140,14 +140,13 @@ export function loadSingleRow(table: 'char_bio' | 'char_meta', charId: number): 
 }
 
 export function loadTalents(charId: number): CharTalent[] {
-  return (
-    db
-      .prepare(
-        `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz
-         FROM char_talents WHERE character_id = ?`,
-      )
-      .all(charId) as CharTalent[]
-  );
+  const rows = db
+    .prepare(
+      `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit
+       FROM char_talents WHERE character_id = ?`,
+    )
+    .all(charId) as (Omit<CharTalent, 'favorit'> & { favorit: number })[];
+  return rows.map((r) => ({ ...r, favorit: !!r.favorit }));
 }
 
 export function loadLanguages(charId: number): CharLanguage[] {
@@ -248,7 +247,7 @@ export function loadStats(charId: number): CharStats {
     .filter((id) => !bekannteIds.has(id))
     .map((talentId) =>
       talentMitBoni(
-        { talentId, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '' },
+        { talentId, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '', favorit: false },
         boni,
       ),
     );
@@ -1235,7 +1234,7 @@ function parseKategorien(raw: string): string[] {
 export function loadAbilities(charId: number): Ability[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -1253,6 +1252,7 @@ export function loadAbilities(charId: number): Ability[] {
     effekt: string;
     fortschritt: number;
     notiz: string;
+    favorit: number;
   }[];
   return rows.map((r) => ({
     id: r.id,
@@ -1270,6 +1270,7 @@ export function loadAbilities(charId: number): Ability[] {
     effekt: r.effekt,
     fortschritt: r.fortschritt,
     notiz: r.notiz,
+    favorit: !!r.favorit,
   }));
 }
 
@@ -1282,8 +1283,8 @@ export function saveAbilities(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -1312,6 +1313,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
         String(o.effekt ?? '').slice(0, MAX_ABILITY_TEXT),
         clampMin(o.fortschritt),
         String(o.notiz ?? '').slice(0, MAX_ABILITY_TEXT),
+        o.favorit ? 1 : 0,
       );
     });
   });
@@ -1827,16 +1829,17 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       const next = rows.map((r) => [
         num(r.talentId), Math.min(100, num(r.taw)), num(r.at), num(r.pa), num(r.bl),
         str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus), str(r.notiz),
+        r.favorit ? 1 : 0,
       ]);
       const cur = (db
-        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz FROM char_talents WHERE character_id = ? ORDER BY rowid')
+        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit FROM char_talents WHERE character_id = ? ORDER BY rowid')
         .all(charId) as Record<string, unknown>[])
-        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus, r.notiz]);
+        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus, r.notiz, r.favorit]);
       if (sameRows(cur, next)) return;
       db.prepare('DELETE FROM char_talents WHERE character_id = ?').run(charId);
       const stmt = db.prepare(
-        `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const v of next) stmt.run(charId, ...v);
       return;

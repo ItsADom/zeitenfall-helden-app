@@ -34,6 +34,9 @@ export interface Ability {
   effekt: string;
   fortschritt: number; // Lernfortschritt / investierte Punkte (im Reiter editierbar)
   notiz: string;
+  // Favorit fürs Würfel-Dock (📌 in AbilityManager/AbilityTable) — taucht dann
+  // zusätzlich in der Würfel-Favoriten-Flyout auf (ShortcutsFlyout.tsx).
+  favorit: boolean;
 }
 
 // Neue Kennung — dieselbe Quelle wie bei Item (crypto.randomUUID / Fallback).

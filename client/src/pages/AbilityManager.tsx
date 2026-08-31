@@ -8,6 +8,7 @@ import { BackToSheet } from '../components/BackToSheet';
 import { CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { ExitGuard } from '../components/exitGuard';
+import { FavPin } from '../components/FavPin';
 import { Field } from '../components/inputs';
 
 // Regeltabelle fürs Erschaffen neuer Zauber im Spiel: pro Attribut, was es beim
@@ -47,6 +48,7 @@ function emptyAbility(magisch: boolean): Ability {
     magisch,
     passiv: false,
     signatur: false,
+    favorit: false,
     name: '',
     element: '',
     kategorien: [],
@@ -544,6 +546,7 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
                   {a.signatur ? '★' : '☆'}
                 </button>
               )}
+              <FavPin active={a.favorit} onClick={() => onPatch(a.uid, { favorit: !a.favorit })} />
               <ConfirmDeleteButton className="small abil-del" title="Entfernen" onConfirm={() => onRemove(a.uid)} />
             </div>
             {expanded.has(a.uid) && (

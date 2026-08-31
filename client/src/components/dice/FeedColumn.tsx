@@ -151,6 +151,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
 
   const [probes, setProbes] = useState<RollableProbe[] | null>(null);
   const probesCharRef = useRef<number | null>(null);
+  const [favoriteProbes, setFavoriteProbes] = useState<RollableProbe[]>([]);
   const [highlight, setHighlight] = useState(0);
   const [suggestDismissed, setSuggestDismissed] = useState(false);
   const activeSuggestRef = useRef<HTMLButtonElement | null>(null);
@@ -192,6 +193,23 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
       .then(setProbes)
       .catch(() => setProbes([]));
   }, [showSuggestions, suggestCharId]);
+
+  // Würfel-Favoriten (📌 in Talente.tsx/AbilityManager.tsx) fürs 🎲-Flyout —
+  // unabhängig von den Tipp-Vorschlägen oben, lädt daher gleich beim
+  // Charakterwechsel statt erst beim Tippen.
+  useEffect(() => {
+    if (charId === null) {
+      setFavoriteProbes([]);
+      return;
+    }
+    let aktuell = true;
+    apiGet<RollableProbe[]>(`/api/characters/${charId}/dice-favorites`)
+      .then((list) => aktuell && setFavoriteProbes(list))
+      .catch(() => aktuell && setFavoriteProbes([]));
+    return () => {
+      aktuell = false;
+    };
+  }, [charId]);
 
   const q = searchText.toLowerCase();
   const matches =
@@ -357,11 +375,24 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
         raw={activeRoom?.myDiceShortcuts ?? ''}
         charId={charId}
         editHref={charId != null ? `/einstellungen?char=${charId}#wuerfel` : user.isGm ? '/einstellungen#wuerfel-sl' : undefined}
-        onOpen={refreshRooms}
+        onOpen={() => {
+          refreshRooms();
+          if (charId !== null) {
+            apiGet<RollableProbe[]>(`/api/characters/${charId}/dice-favorites`)
+              .then(setFavoriteProbes)
+              .catch(() => {});
+          }
+        }}
         onPick={(label, expression) => {
           if (groupId === null) return;
           setError('');
           rollExpr(expression, visibility, label, undefined, visibilityTarget ?? undefined);
+        }}
+        favorites={favoriteProbes}
+        onPickFavorite={(source) => {
+          if (groupId === null || charId === null) return;
+          setError('');
+          rollProbe(groupId, charId, source, 'public');
         }}
       />
       <VisibilityPicker

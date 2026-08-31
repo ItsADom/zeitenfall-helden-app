@@ -217,6 +217,7 @@ db.exec(`
     billiger TEXT NOT NULL DEFAULT '', spezialisierung TEXT NOT NULL DEFAULT '',
     waffenmeister TEXT NOT NULL DEFAULT '', berufsbonus TEXT NOT NULL DEFAULT '',
     notiz TEXT NOT NULL DEFAULT '',
+    favorit INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (character_id, talent_id)
   );
 
@@ -495,7 +496,8 @@ db.exec(`
     probe TEXT NOT NULL DEFAULT '',
     effekt TEXT NOT NULL DEFAULT '',
     fortschritt REAL NOT NULL DEFAULT 0,
-    notiz TEXT NOT NULL DEFAULT ''
+    notiz TEXT NOT NULL DEFAULT '',
+    favorit INTEGER NOT NULL DEFAULT 0
   );
   -- Selbst verwaltete Element- und Kategorie-Listen je Charakter (kind trennt
   -- die beiden Achsen, nach denen die Reiter gruppieren können).
@@ -977,6 +979,15 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_talents)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('notiz')) db.exec("ALTER TABLE char_talents ADD COLUMN notiz TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: 'favorit'-Spalte für char_talents/char_abilities (📌 fürs
+// Würfel-Dock, siehe ShortcutsFlyout.tsx). Startet false für jede Bestandszeile.
+{
+  const talentCols = new Set((db.prepare('PRAGMA table_info(char_talents)').all() as { name: string }[]).map((c) => c.name));
+  if (!talentCols.has('favorit')) db.exec('ALTER TABLE char_talents ADD COLUMN favorit INTEGER NOT NULL DEFAULT 0');
+  const abilityCols = new Set((db.prepare('PRAGMA table_info(char_abilities)').all() as { name: string }[]).map((c) => c.name));
+  if (!abilityCols.has('favorit')) db.exec('ALTER TABLE char_abilities ADD COLUMN favorit INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration: Anmeldung soll Groß-/Kleinschreibung beim Benutzernamen ignorieren

@@ -3917,6 +3917,25 @@ li {
   color: var(--accent, gold);
   margin-right: 4px;
 }
+/* Würfel-Favorit: 📌-Umschalter auf Talent-/Ability-Zeilen (Talente.tsx,
+   AbilityTable.tsx, AbilityManager.tsx) — grau/blass bis gesetzt, wie die
+   übrigen Zeilen-Marker (Meisterschaft, Signatur). */
+.fav-pin {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.95em;
+  padding: 0 3px 0 0;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+.fav-pin:hover {
+  opacity: 0.7;
+}
+.fav-pin.on {
+  opacity: 1;
+  filter: none;
+}
 .abil-werk-link {
   margin-left: auto;
   font-size: 0.88em;

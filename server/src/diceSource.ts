@@ -268,3 +268,27 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
 
   return out;
 }
+
+// Nur die als 📌-Favorit markierten Talente/Zauber-Fähigkeiten (Talente.tsx/
+// AbilityManager.tsx, Spalte `favorit`) — fürs Würfel-Favoriten-Flyout
+// (ShortcutsFlyout.tsx), deutlich schlanker als listRollableProbes (das den
+// ganzen Talent-Katalog + jede Waffe/Sprache durchrechnet).
+export function listFavoriteProbes(characterId: number): RollableProbe[] {
+  const out: RollableProbe[] = [];
+  const add = (source: ProbeSource, kind: RollableProbe['kind']) => {
+    const computed = computeProbeForCharacter(characterId, source);
+    if (computed) out.push({ source, kind, label: computed.label, n: computed.n, probeZahl: computed.probeZahl });
+  };
+
+  const talents = db
+    .prepare('SELECT talent_id AS id FROM char_talents WHERE character_id = ? AND favorit = 1')
+    .all(characterId) as { id: number }[];
+  for (const t of talents) add({ kind: 'talent', talentId: t.id }, 'talent');
+
+  const abilities = db
+    .prepare('SELECT id FROM char_abilities WHERE character_id = ? AND favorit = 1 ORDER BY pos, id')
+    .all(characterId) as { id: number }[];
+  for (const a of abilities) add({ kind: 'ability', abilityId: a.id }, 'ability');
+
+  return out;
+}

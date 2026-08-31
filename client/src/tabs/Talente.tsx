@@ -4,7 +4,9 @@ import type { AttrCode, CharTalent, TalentKategorie } from '@shared/types';
 import { erleichterung, talentProbeZahl } from '@shared/rules';
 import { attrsMitBoni, talentBonusKey, talentMitBoni, talentProbeBonus } from '@shared/items';
 import { CollapsiblePanel } from '../components/collapse';
+import { AlwaysEditable } from '../components/displayMode';
 import { BonusWert } from '../components/BonusWert';
+import { FavPin } from '../components/FavPin';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { Field, NumInput, TextInput } from '../components/inputs';
 import { NoteField } from '../components/notes';
@@ -15,7 +17,7 @@ import { useChar } from '../pages/Character';
 import type { TalentCatalogRow } from '../pages/Character';
 
 const EMPTY: Omit<CharTalent, 'talentId'> = {
-  taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '',
+  taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '', favorit: false,
 };
 
 // Ab 100 TaW freigeschaltete Meisterschaft; Text erscheint beim Überfahren des Sterns
@@ -135,6 +137,12 @@ function KampfTable({
     rows.push(
       <tr key={e.id}>
         <td title={e.name}>
+          <AlwaysEditable>
+            <FavPin
+              active={v?.favorit ?? false}
+              onClick={() => setValue(e.id, { favorit: !(v?.favorit ?? false) })}
+            />
+          </AlwaysEditable>
           {e.name}
           <Mastery taw={effTaw} skill100={e.skill100} />
         </td>
@@ -253,6 +261,12 @@ function NormalTable({
               return (
                 <tr key={e.id}>
                   <td title={name}>
+                    <AlwaysEditable>
+                      <FavPin
+                        active={v?.favorit ?? false}
+                        onClick={() => setValue(e.id, { favorit: !(v?.favorit ?? false) })}
+                      />
+                    </AlwaysEditable>
                     {name}
                     <Mastery taw={effTaw} skill100={e.skill100} />
                   </td>

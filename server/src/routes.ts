@@ -32,7 +32,7 @@ import { db, initCharacterRows } from './db.js';
 import { loadFeedPage } from './feed.js';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
 import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
-import { listRollableProbes } from './diceSource.js';
+import { listFavoriteProbes, listRollableProbes } from './diceSource.js';
 import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
 import {
@@ -1352,6 +1352,15 @@ api.get('/characters/:id/probes', requireAuth, (req, res) => {
     return;
   }
   res.json(listRollableProbes(char.id));
+});
+
+api.get('/characters/:id/dice-favorites', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  res.json(listFavoriteProbes(char.id));
 });
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---

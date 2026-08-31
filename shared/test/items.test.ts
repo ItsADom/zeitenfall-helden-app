@@ -244,7 +244,7 @@ function resourceInput(over: Partial<ResourceInput> = {}): ResourceInput {
 }
 
 function talent(over: Partial<CharTalent> = {}): CharTalent {
-  return { talentId: 1, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '', ...over };
+  return { talentId: 1, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '', favorit: false, ...over };
 }
 
 function specialResource(over: Partial<SpecialResource> = {}): SpecialResource {
