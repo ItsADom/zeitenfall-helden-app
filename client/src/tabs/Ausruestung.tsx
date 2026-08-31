@@ -16,6 +16,7 @@ import {
 import type { AttrCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { ATTR_LABELS, BASE_VALUE_LABELS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from '../components/charSheet';
+import { useAuth } from '../App';
 import { BonusWert } from '../components/BonusWert';
 import { useReadOnly } from '../components/displayMode';
 import { AddItemDialog } from '../components/itemDialogs';
@@ -72,6 +73,7 @@ const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerU
 
 export default function AusruestungTab() {
   const { data, update, catalogs, stats } = useChar();
+  const { user } = useAuth();
   const ro = useReadOnly();
   const items = data.items;
   const byUid = new Map(items.map((it) => [it.uid, it]));
@@ -175,6 +177,7 @@ export default function AusruestungTab() {
       item={it}
       onEdit={() => setEditUid(it.uid)}
       bonusTitle={it.bonusse.length > 0 ? it.bonusse.map((b) => bonusLabel(b, catalogs.talents, catalogs.specialEnergies)).join(', ') : ''}
+      isGm={user.isGm}
     >
       {it.istBehaelter && it.containerArt === 'quick' && (
         <div className="quick-contents">
@@ -315,6 +318,7 @@ export default function AusruestungTab() {
         initialMode="ausruestung"
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        isGm={user.isGm}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'bench' })])}
       />
       <AddItemDialog
@@ -324,6 +328,7 @@ export default function AusruestungTab() {
         item={editUid !== null ? byUid.get(editUid) : undefined}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        isGm={user.isGm}
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}
         onDelete={() => editUid && removeItem(editUid)}
@@ -336,6 +341,7 @@ function ItemChip({
   item,
   onEdit,
   bonusTitle,
+  isGm,
   children,
 }: {
   item: Item;
@@ -343,6 +349,11 @@ function ItemChip({
   onEdit: () => void;
   /** Zusammenfassung der Boni fürs Tooltip, '' wenn keine — steuert den Marker. */
   bonusTitle: string;
+  /** Hidden/revealable Ausrüstung stats (TODO.md): die SL sieht auf dem Chip
+   * die echte Zahl (mit Verborgen-Marker) statt „???" — sie hat sie ja selbst
+   * eingetragen und muss sie nicht erst im Dialog nachsehen. Nur ein Nicht-SL
+   * sieht „???"; für den ist die Zahl serverseitig ohnehin nie angekommen. */
+  isGm: boolean;
   children?: React.ReactNode;
 }) {
   return (
@@ -359,20 +370,47 @@ function ItemChip({
       >
         <span className="chip-name">{item.name || '(ohne Name)'}</span>
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}
-        {item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>}
+        {item.rsVerborgen ? (
+          isGm ? (
+            <span className="chip-rs chip-verborgen" title="Rüstungsschutz — für Spieler noch als „???“ verborgen">
+              {' '}
+              🔒RS {item.rs}
+            </span>
+          ) : (
+            <span className="chip-rs chip-verborgen" title="Rüstungsschutz — von der Spielleitung noch nicht aufgedeckt"> RS ???</span>
+          )
+        ) : (
+          item.rs > 0 && <span className="chip-rs" title="Rüstungsschutz"> RS {item.rs}</span>
+        )}
         {bonusTitle && (
           <span className="chip-bonus" title={`Boni beim Tragen: ${bonusTitle}`}> ✦</span>
         )}
-        {(() => {
-          const pct = haltbarkeitPct(item);
-          if (pct === null) return null;
-          return (
-            <span className={`chip-haltbarkeit${pct <= 25 ? ' chip-haltbarkeit--low' : ''}`} title="Haltbarkeit">
-              {' '}
-              {pct}%
-            </span>
-          );
-        })()}
+        {item.haltbarkeitVerborgen ? (
+          isGm ? (
+            (() => {
+              const pct = haltbarkeitPct(item);
+              return (
+                <span className="chip-haltbarkeit chip-verborgen" title="Haltbarkeit — für Spieler noch als „???“ verborgen">
+                  {' '}
+                  🔒{pct === null ? '—' : `${pct}%`}
+                </span>
+              );
+            })()
+          ) : (
+            <span className="chip-haltbarkeit chip-verborgen" title="Haltbarkeit — von der Spielleitung noch nicht aufgedeckt"> ???</span>
+          )
+        ) : (
+          (() => {
+            const pct = haltbarkeitPct(item);
+            if (pct === null) return null;
+            return (
+              <span className={`chip-haltbarkeit${pct <= 25 ? ' chip-haltbarkeit--low' : ''}`} title="Haltbarkeit">
+                {' '}
+                {pct}%
+              </span>
+            );
+          })()
+        )}
         {item.beidseitig && (
           <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>
         )}

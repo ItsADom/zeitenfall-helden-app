@@ -449,22 +449,33 @@ db.exec(`
     -- in shared/src/items.ts).
     haltbarkeit_max REAL NOT NULL DEFAULT 0,
     haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
-    notiz TEXT NOT NULL DEFAULT ''
+    notiz TEXT NOT NULL DEFAULT '',
+    -- Hidden/revealable Ausrüstung stats (TODO.md): rs/haltbarkeit bleiben als
+    -- Felder sichtbar, zeigen aber „???" statt der Zahl, solange verborgen.
+    -- Default 0 (sichtbar) hält bestehende Zeilen unverändert.
+    rs_verborgen INTEGER NOT NULL DEFAULT 0,
+    haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0
   );
   -- Boni, die ein Gegenstand verleiht, solange er getragen wird (siehe ItemBonus
   -- in shared/src/items.ts) — eigene Kind-Tabelle wie char_pouch_coins zu
   -- char_pouches, NICHT JSON-in-TEXT wie char_abilities.kategorien. Referenziert
-  -- char_items.id (die DB-Zeilen-id, NICHT die client-vergebene uid) — saveItems
-  -- löscht+fügt die ganze Item-Liste in einer Transaktion neu ein, die Bonus-
-  -- Zeilen sterben per CASCADE mit und werden gegen die frische id neu angelegt.
+  -- char_items.id (die DB-Zeilen-id, NICHT die client-vergebene uid).
+  -- uid (wie bei char_items) macht eine Zeile über applyItemOps() einzeln
+  -- ansprechbar (addBonus/patchBonus/removeBonus) statt die ganze Liste eines
+  -- Items ersetzen zu müssen — genau die Kennung, deren Fehlen den Bug hinter
+  -- "Hidden/revealable Ausrüstung stats" (TODO.md) erst möglich gemacht hat.
   CREATE TABLE IF NOT EXISTS char_item_bonuses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER NOT NULL REFERENCES char_items(id) ON DELETE CASCADE,
     pos INTEGER NOT NULL DEFAULT 0,
+    uid TEXT NOT NULL DEFAULT '',
     kind TEXT NOT NULL DEFAULT 'attr',
     code TEXT NOT NULL DEFAULT '',
     feld TEXT NOT NULL DEFAULT '',
-    wert REAL NOT NULL DEFAULT 0
+    wert REAL NOT NULL DEFAULT 0,
+    -- Hidden/revealable Ausrüstung stats (TODO.md): eine verdeckte Zeile ist
+    -- für einen Nicht-SL komplett unsichtbar (siehe ohneVerborgeneItems).
+    verborgen INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_item_bonuses_item ON char_item_bonuses(item_id);
   -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
@@ -945,6 +956,26 @@ db.exec(`
   if (!cols.has('haltbarkeit_aktuell')) db.exec('ALTER TABLE char_items ADD COLUMN haltbarkeit_aktuell REAL NOT NULL DEFAULT 0');
   // Bestehende Zeilen ohne uid nachträglich befüllen (eine zufällige je Zeile).
   db.exec("UPDATE char_items SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
+}
+
+// Migration: Hidden/revealable Ausrüstung stats (TODO.md) — verdeckbare
+// RS/Haltbarkeit auf char_items, verdeckbare Bonus-Zeilen auf
+// char_item_bonuses. Default 0 (sichtbar) hält bestehende Zeilen unverändert.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('rs_verborgen')) db.exec('ALTER TABLE char_items ADD COLUMN rs_verborgen INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('haltbarkeit_verborgen')) db.exec('ALTER TABLE char_items ADD COLUMN haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0');
+}
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_item_bonuses)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('verborgen')) db.exec('ALTER TABLE char_item_bonuses ADD COLUMN verborgen INTEGER NOT NULL DEFAULT 0');
+  // uid für gezielte Bonus-Zeilen-Ops (applyItemOps) — siehe Tabellenkommentar
+  // oben. Bestehende Zeilen bekommen nachträglich eine zufällige, wie
+  // char_items.uid es bei seiner eigenen Einführung schon tat.
+  if (!cols.has('uid')) {
+    db.exec("ALTER TABLE char_item_bonuses ADD COLUMN uid TEXT NOT NULL DEFAULT ''");
+    db.exec("UPDATE char_item_bonuses SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
+  }
 }
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.

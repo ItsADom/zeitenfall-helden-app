@@ -7,6 +7,7 @@ import {
   containerFuellungAnzeige,
   containerFuellungStueck,
   containers,
+  diffItems,
   duplicateItem,
   effektiverRs,
   getrageneLast,
@@ -17,6 +18,7 @@ import {
   lastInfo,
   makeItem,
   makeUid,
+  ohneVerborgeneItems,
   resourceInputMitBoni,
   specialMitBoni,
   talentMitBoni,
@@ -25,7 +27,7 @@ import {
   zaehltZurLast,
   zoneView,
 } from '../src/items.js';
-import type { Item, ItemLocation } from '../src/items.js';
+import type { Item, ItemBonus, ItemLocation } from '../src/items.js';
 import type { AttrCode, Attributes, BaseValueInputs, CharTalent, ResourceInput, SpecialResource } from '../src/types.js';
 import { ATTR_ROW_CODES, BASE_VALUE_KEYS } from '../src/types.js';
 
@@ -62,6 +64,8 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     haltbarkeitAktuell: 0,
     notiz: '',
     bonusse: [],
+    rsVerborgen: false,
+    haltbarkeitVerborgen: false,
     ...partial,
   };
 }
@@ -161,7 +165,7 @@ describe('lastInfo', () => {
     const belt = item({
       location: 'getragen',
       name: 'Gürtel der Kraft',
-      bonusse: [{ kind: 'traglast', code: '', feld: '', wert: 5 }],
+      bonusse: [{ uid: makeUid(), kind: 'traglast', code: '', feld: '', wert: 5, verborgen: false }],
     });
     expect(lastInfo([belt], attrs(), 12).max).toBe(45); // 28 + 12 (gespeichert) + 5 (Item)
   });
@@ -170,7 +174,7 @@ describe('lastInfo', () => {
     const gauntlets = item({
       location: 'getragen',
       name: 'Handschuhe der Kraft',
-      bonusse: [{ kind: 'attr', code: 'KK', feld: '', wert: 4 }],
+      bonusse: [{ uid: makeUid(), kind: 'attr', code: 'KK', feld: '', wert: 4, verborgen: false }],
     });
     // maximaleLast = (KO+KK)*2, siehe attrs()-Fixture (ko=8, kk=6) -> ohne Bonus 28
     expect(lastInfo([gauntlets], attrs()).max).toBe(36); // KK 6+4=10 -> (8+10)*2
@@ -222,13 +226,14 @@ describe('bonusse (Item-Boni-Datenmodell)', () => {
     expect(makeItem({ name: 'Ring' }).bonusse).toEqual([]);
   });
 
-  it('duplicateItem kopiert die Bonusliste mit, statt sie zu leeren', () => {
+  it('duplicateItem kopiert die Bonusliste mit, statt sie zu leeren — mit frischen Bonus-uids', () => {
     const ring = item({
       name: 'Ring der Stärke',
-      bonusse: [{ kind: 'attr', code: 'KK', feld: '', wert: 1 }],
+      bonusse: [{ uid: makeUid(), kind: 'attr', code: 'KK', feld: '', wert: 1, verborgen: false }],
     });
     const copy = duplicateItem(ring);
-    expect(copy.bonusse).toEqual(ring.bonusse);
+    expect(copy.bonusse).toEqual([{ ...ring.bonusse[0], uid: copy.bonusse[0].uid }]);
+    expect(copy.bonusse[0].uid).not.toBe(ring.bonusse[0].uid);
     expect(copy.id).toBe(0);
     expect(copy.uid).not.toBe(ring.uid);
   });
@@ -253,8 +258,8 @@ function specialResource(over: Partial<SpecialResource> = {}): SpecialResource {
 
 describe('wornBoni', () => {
   it('summiert gleiches Ziel über mehrere getragene Items', () => {
-    const ring = item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 1 }] });
-    const amulett = item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 2 }] });
+    const ring = item({ location: 'getragen', name: 'Ring', bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 1, verborgen: false }] });
+    const amulett = item({ location: 'getragen', name: 'Amulett', bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 2, verborgen: false }] });
     const boni = wornBoni([ring, amulett]);
     expect(boni.attrs.MU).toBe(3);
   });
@@ -263,25 +268,25 @@ describe('wornBoni', () => {
     const ringImRucksack = item({
       location: 'behaelter',
       name: 'Ring',
-      bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 5 }],
+      bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 5, verborgen: false }],
     });
     const boni = wornBoni([ringImRucksack]);
     expect(boni.attrs.MU).toBeUndefined();
   });
 
   it('negative Werte ziehen ab (verfluchter Gegenstand)', () => {
-    const fluch = item({ location: 'getragen', name: 'Fluchring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: -3 }] });
+    const fluch = item({ location: 'getragen', name: 'Fluchring', bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: -3, verborgen: false }] });
     expect(wornBoni([fluch]).attrs.MU).toBe(-3);
   });
 
   it('quellen nennt die richtigen Items je Ziel, ohne Dopplung', () => {
-    const ring = item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 1 }] });
+    const ring = item({ location: 'getragen', name: 'Ring', bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 1, verborgen: false }] });
     const amulett = item({
       location: 'getragen',
       name: 'Amulett',
       bonusse: [
-        { kind: 'attr', code: 'MU', feld: '', wert: 2 },
-        { kind: 'baseValue', code: 'at', feld: '', wert: 1 },
+        { uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 2, verborgen: false },
+        { uid: makeUid(), kind: 'baseValue', code: 'at', feld: '', wert: 1, verborgen: false },
       ],
     });
     const boni = wornBoni([ring, amulett]);
@@ -290,7 +295,7 @@ describe('wornBoni', () => {
   });
 
   it('ein wert:0-Bonus trägt weder zur Summe noch zu quellen bei', () => {
-    const leer = item({ location: 'getragen', name: 'Unbestimmt', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 0 }] });
+    const leer = item({ location: 'getragen', name: 'Unbestimmt', bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 0, verborgen: false }] });
     const boni = wornBoni([leer]);
     expect(boni.attrs.MU).toBeUndefined();
     expect(boni.quellen['attr:MU']).toBeUndefined();
@@ -301,8 +306,8 @@ describe('wornBoni', () => {
       location: 'getragen',
       name: 'Kampfring',
       bonusse: [
-        { kind: 'talent', code: '42', feld: 'taw', wert: 2 },
-        { kind: 'talent', code: '42', feld: 'at', wert: 1 },
+        { uid: makeUid(), kind: 'talent', code: '42', feld: 'taw', wert: 2, verborgen: false },
+        { uid: makeUid(), kind: 'talent', code: '42', feld: 'at', wert: 1, verborgen: false },
       ],
     });
     const boni = wornBoni([ring]);
@@ -314,9 +319,9 @@ describe('wornBoni', () => {
       location: 'getragen',
       name: 'Amulett',
       bonusse: [
-        { kind: 'spezial', code: '7', feld: '', wert: 4 },
-        { kind: 'psyche', code: '', feld: '', wert: 5 },
-        { kind: 'traglast', code: '', feld: '', wert: 6 },
+        { uid: makeUid(), kind: 'spezial', code: '7', feld: '', wert: 4, verborgen: false },
+        { uid: makeUid(), kind: 'psyche', code: '', feld: '', wert: 5, verborgen: false },
+        { uid: makeUid(), kind: 'traglast', code: '', feld: '', wert: 6, verborgen: false },
       ],
     });
     const boni = wornBoni([amulett]);
@@ -329,7 +334,7 @@ describe('wornBoni', () => {
 describe('attrsMitBoni', () => {
   it('legt den Bonus auf mod, akt bleibt unangetastet', () => {
     const attrsFixture = attrs();
-    const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'attr', code: 'MU', feld: '', wert: 3 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 3, verborgen: false }] })]);
     const out = attrsMitBoni(attrsFixture, boni);
     expect(out.MU).toEqual({ akt: attrsFixture.MU.akt, mod: attrsFixture.MU.mod + 3 });
     expect(out.KL).toEqual(attrsFixture.KL);
@@ -339,7 +344,7 @@ describe('attrsMitBoni', () => {
 describe('baseInputsMitBoni', () => {
   it('addiert auf mods[key], andere Keys bleiben unverändert', () => {
     const inputs = baseInputs();
-    const boni = wornBoni([item({ location: 'getragen', name: 'Stiefel', bonusse: [{ kind: 'baseValue', code: 'gs', feld: '', wert: 2 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Stiefel', bonusse: [{ uid: makeUid(), kind: 'baseValue', code: 'gs', feld: '', wert: 2, verborgen: false }] })]);
     const out = baseInputsMitBoni(inputs, boni);
     expect(out.mods.gs).toBe(2);
     expect(out.mods.at).toBe(0);
@@ -349,7 +354,7 @@ describe('baseInputsMitBoni', () => {
 describe('resourceInputMitBoni', () => {
   it('hebt das nutzbare Maximum an, ohne aktuell zu verändern', () => {
     const input = resourceInput({ aktuell: 5 });
-    const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ kind: 'resource', code: 'le', feld: '', wert: 2 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ uid: makeUid(), kind: 'resource', code: 'le', feld: '', wert: 2, verborgen: false }] })]);
     const out = resourceInputMitBoni(input, 'le', boni);
     expect(out.permanent).toBe(2);
     expect(out.maxPlus).toBe(2);
@@ -365,13 +370,13 @@ describe('resourceInputMitBoni', () => {
 describe('specialMitBoni', () => {
   it('addiert auf bonus, wenn catalogId trifft', () => {
     const sr = specialResource({ catalogId: 7, bonus: 1 });
-    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'spezial', code: '7', feld: '', wert: 4 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ uid: makeUid(), kind: 'spezial', code: '7', feld: '', wert: 4, verborgen: false }] })]);
     expect(specialMitBoni(sr, boni).bonus).toBe(5);
   });
 
   it('ohne passenden catalogId bleibt bonus unverändert', () => {
     const sr = specialResource({ catalogId: 9, bonus: 1 });
-    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'spezial', code: '7', feld: '', wert: 4 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ uid: makeUid(), kind: 'spezial', code: '7', feld: '', wert: 4, verborgen: false }] })]);
     expect(specialMitBoni(sr, boni).bonus).toBe(1);
   });
 });
@@ -379,7 +384,7 @@ describe('specialMitBoni', () => {
 describe('talentMitBoni', () => {
   it('legt den Bonus auf die Anzeige, das gespeicherte Talent bleibt unangetastet', () => {
     const t = talent({ talentId: 42, taw: 8 });
-    const boni = wornBoni([item({ location: 'getragen', name: 'Kampfring', bonusse: [{ kind: 'talent', code: '42', feld: 'taw', wert: 2 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Kampfring', bonusse: [{ uid: makeUid(), kind: 'talent', code: '42', feld: 'taw', wert: 2, verborgen: false }] })]);
     const out = talentMitBoni(t, boni);
     expect(out.taw).toBe(10);
     expect(t.taw).toBe(8);
@@ -392,7 +397,7 @@ describe('talentMitBoni', () => {
 
   it('feld "probe" fließt NICHT in taw/at/pa/bl ein — dafür gibt es kein CharTalent-Feld', () => {
     const t = talent({ talentId: 42, taw: 8 });
-    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: 2 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ uid: makeUid(), kind: 'talent', code: '42', feld: 'probe', wert: 2, verborgen: false }] })]);
     const out = talentMitBoni(t, boni);
     expect(out.taw).toBe(8);
     expect(out.at).toBe(0);
@@ -401,13 +406,13 @@ describe('talentMitBoni', () => {
 
 describe('talentProbeBonus', () => {
   it('liefert den direkten Probe-Bonus eines Talents', () => {
-    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: 2 }] })]);
+    const boni = wornBoni([item({ location: 'getragen', name: 'Amulett', bonusse: [{ uid: makeUid(), kind: 'talent', code: '42', feld: 'probe', wert: 2, verborgen: false }] })]);
     expect(talentProbeBonus(42, boni)).toBe(2);
   });
 
   it('summiert über mehrere getragene Items', () => {
-    const a = item({ location: 'getragen', name: 'A', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: 1 }] });
-    const b = item({ location: 'getragen', name: 'B', bonusse: [{ kind: 'talent', code: '42', feld: 'probe', wert: -3 }] });
+    const a = item({ location: 'getragen', name: 'A', bonusse: [{ uid: makeUid(), kind: 'talent', code: '42', feld: 'probe', wert: 1, verborgen: false }] });
+    const b = item({ location: 'getragen', name: 'B', bonusse: [{ uid: makeUid(), kind: 'talent', code: '42', feld: 'probe', wert: -3, verborgen: false }] });
     expect(talentProbeBonus(42, wornBoni([a, b]))).toBe(-2);
   });
 
@@ -421,8 +426,8 @@ describe('talentProbeBonus', () => {
         location: 'getragen',
         name: 'Ring',
         bonusse: [
-          { kind: 'talent', code: '42', feld: 'taw', wert: 5 },
-          { kind: 'talent', code: '42', feld: 'probe', wert: 2 },
+          { uid: makeUid(), kind: 'talent', code: '42', feld: 'taw', wert: 5, verborgen: false },
+          { uid: makeUid(), kind: 'talent', code: '42', feld: 'probe', wert: 2, verborgen: false },
         ],
       }),
     ]);
@@ -513,5 +518,105 @@ describe('zoneView (beidseitig)', () => {
     expect(zoneView([both], 'Bein links')).toHaveLength(1);
     expect(zoneView([both], 'Bein rechts')).toHaveLength(1);
     expect(effektiverRs([both])).toBe(4);
+  });
+});
+
+function bonus(over: Partial<ItemBonus> = {}): ItemBonus {
+  return { uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 1, verborgen: false, ...over };
+}
+
+describe('ohneVerborgeneItems (Hidden/revealable Ausrüstung stats)', () => {
+  it('nullt rs/haltbarkeit, wenn verdeckt, behält aber die *Verborgen-Flags', () => {
+    const it1 = item({ rs: 7, rsVerborgen: true, haltbarkeitMax: 10, haltbarkeitAktuell: 8, haltbarkeitVerborgen: true });
+    const [out] = ohneVerborgeneItems([it1]);
+    expect(out.rs).toBe(0);
+    expect(out.rsVerborgen).toBe(true);
+    expect(out.haltbarkeitMax).toBe(0);
+    expect(out.haltbarkeitAktuell).toBe(0);
+    expect(out.haltbarkeitVerborgen).toBe(true);
+  });
+
+  it('lässt sichtbare rs/haltbarkeit unangetastet', () => {
+    const it1 = item({ rs: 7, haltbarkeitMax: 10, haltbarkeitAktuell: 8 });
+    const [out] = ohneVerborgeneItems([it1]);
+    expect(out.rs).toBe(7);
+    expect(out.haltbarkeitMax).toBe(10);
+    expect(out.haltbarkeitAktuell).toBe(8);
+  });
+
+  it('entfernt eine verdeckte Bonus-Zeile vollständig, behält sichtbare', () => {
+    const hidden = bonus({ code: 'MU', wert: 3, verborgen: true });
+    const visible = bonus({ code: 'KL', wert: 1, verborgen: false });
+    const [out] = ohneVerborgeneItems([item({ bonusse: [hidden, visible] })]);
+    expect(out.bonusse).toEqual([visible]);
+  });
+});
+
+describe('diffItems (incremental item saves)', () => {
+  it('erzeugt keine Ops, wenn sich nichts geändert hat', () => {
+    const a = item({ name: 'Schwert' });
+    expect(diffItems([a], [a])).toEqual([]);
+  });
+
+  it('neues Item -> add', () => {
+    const a = item({ name: 'Schwert' });
+    expect(diffItems([], [a])).toEqual([{ op: 'add', item: a }]);
+  });
+
+  it('entferntes Item -> remove', () => {
+    const a = item({ name: 'Schwert' });
+    expect(diffItems([a], [])).toEqual([{ op: 'remove', uid: a.uid }]);
+  });
+
+  it('geändertes Feld -> patch mit NUR den geänderten Feldern', () => {
+    const a = item({ name: 'Schwert', gewicht: 2 });
+    const b = { ...a, name: 'Alt-Schwert' };
+    expect(diffItems([a], [b])).toEqual([{ op: 'patch', uid: a.uid, patch: { name: 'Alt-Schwert' } }]);
+  });
+
+  it('geänderte Reihenfolge -> reorder mit der vollen neuen uid-Liste', () => {
+    const a = item({ name: 'A' });
+    const b = item({ name: 'B' });
+    expect(diffItems([a, b], [b, a])).toEqual([{ op: 'reorder', uids: [b.uid, a.uid] }]);
+  });
+
+  it('neue/entfernte/geänderte Bonus-Zeile -> addBonus/removeBonus/patchBonus, adressiert per Bonus-uid', () => {
+    const kept = bonus({ code: 'MU', wert: 1 });
+    const removed = bonus({ code: 'KL', wert: 2 });
+    const a = item({ bonusse: [kept, removed] });
+    const added = bonus({ code: 'IN', wert: 3 });
+    const b = { ...a, bonusse: [{ ...kept, wert: 5 }, added] };
+    const ops = diffItems([a], [b]);
+    expect(ops).toContainEqual({ op: 'removeBonus', itemUid: a.uid, bonusUid: removed.uid });
+    expect(ops).toContainEqual({ op: 'addBonus', itemUid: a.uid, bonus: added });
+    expect(ops).toContainEqual({ op: 'patchBonus', itemUid: a.uid, bonusUid: kept.uid, patch: { wert: 5 } });
+    expect(ops).toHaveLength(3);
+  });
+
+  // Die eigentliche Motivation für diffItems (Hidden/revealable Ausrüstung
+  // stats, TODO.md): ein Nicht-SL-Client hat eine verdeckte Bonus-Zeile NIE
+  // gesehen — weder in prev noch in next fehlt ihm dieselbe Zeile also nicht
+  // "neu", sondern schlicht "keine Änderung". Der alte Ganze-Liste-Ersatz
+  // hätte diesen Fall nicht von einer echten Löschung unterscheiden können.
+  it('eine Zeile, die weder in prev noch in next auftaucht, erzeugt KEINEN Op (strukturelle Sicherheit)', () => {
+    const visible = bonus({ code: 'KL', wert: 1 });
+    // "prev" und "next" sind beide die Sicht eines Nicht-SL: eine verdeckte
+    // Zeile, die die SL inzwischen serverseitig angelegt/aufgedeckt hat,
+    // steckt in KEINEM von beiden — der Client weiß schlicht nichts von ihr.
+    const a = item({ name: 'Schwert', bonusse: [visible] });
+    const b = { ...a, name: 'Schwert (umbenannt)' };
+    const ops = diffItems([a], [b]);
+    expect(ops).toEqual([{ op: 'patch', uid: a.uid, patch: { name: 'Schwert (umbenannt)' } }]);
+    // Insbesondere: kein removeBonus/addBonus für irgendeine unbekannte uid.
+    expect(ops.some((o) => o.op === 'removeBonus' || o.op === 'addBonus')).toBe(false);
+  });
+
+  it('rs/haltbarkeit, die in prev UND next 0 sind (verdeckt & genullt), erzeugen keinen patch dafür', () => {
+    // Simuliert die Sicht eines Nicht-SL auf ein Item mit verdeckter RS: der
+    // Wert ist in BEIDEN Ständen 0 (serverseitig genullt), also "unverändert".
+    const a = item({ name: 'Schwert', rs: 0, rsVerborgen: true });
+    const b = { ...a, name: 'Schwert (umbenannt)' };
+    const ops = diffItems([a], [b]);
+    expect(ops).toEqual([{ op: 'patch', uid: a.uid, patch: { name: 'Schwert (umbenannt)' } }]);
   });
 });

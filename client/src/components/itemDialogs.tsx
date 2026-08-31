@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { ContainerArt, Item, ItemBonus, ItemBonusKind, KapazitaetArt, TalentBonusFeld } from '@shared/items';
+import { makeUid } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
 import { AlwaysEditable } from './displayMode';
@@ -42,11 +43,16 @@ function BonusRowsEditor({
   onChange,
   talents,
   specialEnergies,
+  isGm,
 }: {
   bonusse: ItemBonus[];
   onChange: (next: ItemBonus[]) => void;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
+  /** Hidden/revealable Ausrüstung stats (TODO.md): nur die SL kann Bonus-Zeilen
+   * verborgen anlegen/aufdecken — Spieler sehen weder Umschalter noch verdeckte
+   * Zeilen (die kommen serverseitig nie in `bonusse` an, siehe ohneVerborgeneItems). */
+  isGm: boolean;
 }) {
   // Spezialenergien ohne Formel haben kein Bonus-Feld, das ein Item-Bonus
   // treffen könnte (siehe SpecialResource) — würden hier gelistet, liefe der
@@ -70,7 +76,16 @@ function BonusRowsEditor({
       </div>
       <div className="cat-editor">
         {bonusse.map((b, i) => (
-          <div className="cat-row bonus-row" key={i}>
+          <div className="cat-row bonus-row" key={b.uid}>
+            {isGm && b.verborgen && (
+              <ConfirmDeleteButton
+                title="Bonus aufdecken — einseitig, keine Rückgängig-Funktion"
+                className="small"
+                onConfirm={() => patchRow(i, { verborgen: false })}
+              >
+                👁 Aufdecken
+              </ConfirmDeleteButton>
+            )}
             <select
               value={bonusOptionValue(b.kind, b.code)}
               onChange={(e) => {
@@ -151,7 +166,7 @@ function BonusRowsEditor({
           type="button"
           className="small"
           disabled={bonusse.length >= MAX_BONUSSE_PRO_ITEM}
-          onClick={() => onChange([...bonusse, { kind: 'attr', code: 'MU', feld: '', wert: 0 }])}
+          onClick={() => onChange([...bonusse, { uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 0, verborgen: isGm }])}
         >
           + Bonus
         </button>
@@ -168,6 +183,7 @@ export function AddItemDialog({
   item,
   talents,
   specialEnergies,
+  isGm,
   onAdd,
   onSave,
   onDuplicate,
@@ -181,6 +197,11 @@ export function AddItemDialog({
   item?: Item;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
+  /** Hidden/revealable Ausrüstung stats (TODO.md): nur die SL bekommt den
+   * Verborgen-Zustand/Aufdecken-Knopf zu sehen. Von der SL neu angelegte
+   * RS/Haltbarkeit/Bonus-Zeilen starten verdeckt (kein Verstecken-Knopf nötig —
+   * es gibt keinen Weg zurück außer Aufdecken). */
+  isGm: boolean;
   /** Anlegen-Modus (kein `item`). */
   onAdd?: (fields: Partial<Item>) => void;
   /** Bearbeiten-Modus (`item` gesetzt) — nur die tatsächlich geänderten Felder. */
@@ -196,8 +217,10 @@ export function AddItemDialog({
   const [anzahl, setAnzahl] = useState(1);
   const [gewicht, setGewicht] = useState(0);
   const [rs, setRs] = useState(0);
+  const [rsVerborgen, setRsVerborgen] = useState(false);
   const [haltbarkeitMax, setHaltbarkeitMax] = useState(0);
   const [haltbarkeitAktuell, setHaltbarkeitAktuell] = useState(0);
+  const [haltbarkeitVerborgen, setHaltbarkeitVerborgen] = useState(false);
   const [quickslots, setQuickslots] = useState(0);
   const [notiz, setNotiz] = useState('');
   const [bonusse, setBonusse] = useState<ItemBonus[]>([]);
@@ -217,8 +240,10 @@ export function AddItemDialog({
       setAnzahl(item.anzahl);
       setGewicht(item.gewicht);
       setRs(item.rs);
+      setRsVerborgen(item.rsVerborgen);
       setHaltbarkeitMax(item.haltbarkeitMax);
       setHaltbarkeitAktuell(item.haltbarkeitAktuell);
+      setHaltbarkeitVerborgen(item.haltbarkeitVerborgen);
       setQuickslots(item.istBehaelter && item.containerArt === 'quick' ? item.kapazitaet : 0);
       setNotiz(item.notiz);
       setBonusse(item.bonusse);
@@ -229,8 +254,14 @@ export function AddItemDialog({
       setAnzahl(1);
       setGewicht(0);
       setRs(0);
+      // Hidden/revealable Ausrüstung stats (TODO.md): von der SL neu angelegte
+      // Ausrüstung startet verdeckt — es gibt keinen Verstecken-Knopf, das ist
+      // der einzige Zeitpunkt, an dem der Zustand entsteht. Spieler legen nie
+      // etwas Verdecktes an.
+      setRsVerborgen(isGm);
       setHaltbarkeitMax(0);
       setHaltbarkeitAktuell(0);
+      setHaltbarkeitVerborgen(isGm);
       setQuickslots(0);
       setNotiz('');
       setBonusse([]);
@@ -271,8 +302,10 @@ export function AddItemDialog({
     // ohnehin dieselben Nullwerte für alles, was `fields` nicht mitbringt.
     if (ausr) {
       patch.rs = rs;
+      patch.rsVerborgen = rsVerborgen;
       patch.haltbarkeitMax = haltbarkeitMax;
       patch.haltbarkeitAktuell = haltbarkeitAktuell;
+      patch.haltbarkeitVerborgen = haltbarkeitVerborgen;
       if (!isStorageContainer) {
         // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-
         // Behälter (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt
@@ -395,10 +428,30 @@ export function AddItemDialog({
             <div className="dlg-row2">
               <label className="dlg-field">
                 RS
-                <NumInput value={rs} min={0} onChange={setRs} />
+                {!isGm && rsVerborgen ? (
+                  <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">
+                    ???
+                  </span>
+                ) : (
+                  <NumInput value={rs} min={0} onChange={setRs} />
+                )}
+                {isGm && rsVerborgen && (
+                  <ConfirmDeleteButton
+                    title="RS aufdecken — einseitig, keine Rückgängig-Funktion"
+                    className="small"
+                    onConfirm={() => setRsVerborgen(false)}
+                  >
+                    👁 Aufdecken
+                  </ConfirmDeleteButton>
+                )}
               </label>
               <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
                 Haltbarkeit
+                {!isGm && haltbarkeitVerborgen ? (
+                  <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">
+                    ???
+                  </span>
+                ) : (
                 <div className="dlg-row2">
                   <NumInput
                     value={haltbarkeitAktuell}
@@ -417,6 +470,16 @@ export function AddItemDialog({
                     }}
                   />
                 </div>
+                )}
+                {isGm && haltbarkeitVerborgen && (
+                  <ConfirmDeleteButton
+                    title="Haltbarkeit aufdecken — einseitig, keine Rückgängig-Funktion"
+                    className="small"
+                    onConfirm={() => setHaltbarkeitVerborgen(false)}
+                  >
+                    👁 Aufdecken
+                  </ConfirmDeleteButton>
+                )}
               </label>
             </div>
             {!isStorageContainer && (
@@ -433,7 +496,7 @@ export function AddItemDialog({
           <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
         </label>
 
-        <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} />
+        <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} isGm={isGm} />
       </AlwaysEditable>
     </Dialog>
   );

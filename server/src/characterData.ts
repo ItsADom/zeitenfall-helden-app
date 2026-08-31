@@ -33,6 +33,7 @@ import {
   ITEM_BONUS_KINDS,
   ITEM_LOCATIONS,
   makeUid,
+  ohneVerborgeneItems,
   TALENT_BONUS_FELDER,
   listSectionById,
   readSlots,
@@ -66,6 +67,7 @@ import type {
   ItemBonus,
   ItemBonusKind,
   ItemLocation,
+  ItemOp,
   ResourceInput,
   Resources,
   SpecialResource,
@@ -866,9 +868,15 @@ function ensureAttrPointsMigration(charId: number, meta: Record<string, unknown>
   return loadExternalAttrPoints(charId);
 }
 
-export function loadFullCharacter(charId: number) {
+// `requesterIsGm` gates Hidden/revealable Ausrüstung stats (TODO.md): a
+// character's own owner is NOT exempt — an unrevealed item stays hidden from
+// them too, only the GM sees the real rs/haltbarkeit/bonusse. Called with the
+// VIEWER's GM status (viewerFor()'s simulated identity during "Ansehen als"
+// in routes.ts), not always the raw session user.
+export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
   const meta = loadSingleRow('char_meta', charId);
   const attributes = loadAttributesRaw(charId);
+  const items = loadItems(charId);
   return {
     bio: loadSingleRow('char_bio', charId),
     meta,
@@ -885,7 +893,7 @@ export function loadFullCharacter(charId: number) {
     tableWidths: loadTableWidths(charId),
     tabOrder: loadTabOrder(charId),
     portrait: hasPortrait(charId),
-    items: loadItems(charId),
+    items: requesterIsGm ? items : ohneVerborgeneItems(items),
     itemCategories: loadItemCategories(charId),
     abilities: loadAbilities(charId),
     abilityLists: loadAbilityLists(charId),
@@ -910,7 +918,7 @@ const clampMin = (v: unknown, min = 0): number => {
 export function loadItems(charId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen FROM char_items WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -932,25 +940,29 @@ export function loadItems(charId: number): Item[] {
     haltbarkeit_max: number;
     haltbarkeit_aktuell: number;
     notiz: string;
+    rs_verborgen: number;
+    haltbarkeit_verborgen: number;
   }[];
   // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
   // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
   // Bonus verlieren oder Items mit mehreren Boni vervielfachen.
   const bonusRows = db
     .prepare(
-      `SELECT ib.item_id, ib.kind, ib.code, ib.feld, ib.wert FROM char_item_bonuses ib
+      `SELECT ib.item_id, ib.uid, ib.kind, ib.code, ib.feld, ib.wert, ib.verborgen FROM char_item_bonuses ib
        JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ? ORDER BY ib.pos, ib.id`,
     )
-    .all(charId) as { item_id: number; kind: string; code: string; feld: string; wert: number }[];
+    .all(charId) as { item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
   const bonusesByItem = new Map<number, ItemBonus[]>();
   for (const r of bonusRows) {
     if (!(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
     const list = bonusesByItem.get(r.item_id) ?? [];
     list.push({
+      uid: r.uid || makeUid(),
       kind: r.kind as ItemBonusKind,
       code: r.code,
       feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
       wert: Number(r.wert) || 0,
+      verborgen: !!r.verborgen,
     });
     bonusesByItem.set(r.item_id, list);
   }
@@ -975,6 +987,8 @@ export function loadItems(charId: number): Item[] {
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
     notiz: r.notiz,
     bonusse: bonusesByItem.get(r.id) ?? [],
+    rsVerborgen: !!r.rs_verborgen,
+    haltbarkeitVerborgen: !!r.haltbarkeit_verborgen,
   }));
 }
 
@@ -989,83 +1003,277 @@ export function loadItemCategories(charId: number): string[] {
 const ZONE_SET = new Set<string>(BODY_ZONES as readonly string[]);
 const clampPct = (v: unknown): number => Math.min(100, Math.max(0, Number(v) || 0));
 
-export function saveItems(charId: number, raw: unknown): void {
-  const arr = Array.isArray(raw) ? raw.slice(0, MAX_ITEMS) : [];
-  // uids eindeutig halten: fehlende oder doppelte erzeugen wir neu, damit die
-  // Behälter-Verweise (containerUid) verlässlich ein Ziel treffen.
-  const seenUids = new Set<string>();
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
-    const ins = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    const insBonus = db.prepare(
-      'INSERT INTO char_item_bonuses (item_id, pos, kind, code, feld, wert) VALUES (?, ?, ?, ?, ?, ?)',
-    );
-    arr.forEach((it, i) => {
-      const o = (it ?? {}) as Record<string, unknown>;
-      const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
-      let uid = String(o.uid ?? '').slice(0, 64);
-      if (!uid || seenUids.has(uid)) uid = makeUid();
-      seenUids.add(uid);
-      // Zone/Behälter passend zum Ort halten: nur getragene Sachen haben eine
-      // Zone, nur Behälter-Inhalte einen container_uid. So bleibt der Datensatz
-      // widerspruchsfrei, egal was von außen kommt.
-      const zoneRaw = String(o.zone ?? '');
-      const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
-      // „Beidseitig" nur behalten, wenn der Gegenstand auch wirklich in einer
-      // seitengetrennten Körperzone (Arm/Hand/Bein) getragen wird — sonst wäre
-      // das Kennzeichen wirkungslos und bliebe als Altlast hängen.
-      const beidseitig = isPairedZone(zone) && o.beidseitig ? 1 : 0;
-      const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
-      const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
-      const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
-      const haltbarkeitMax = clampMin(o.haltbarkeitMax);
-      const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
-      const itemId = Number(
-        ins.run(
-          charId,
-          i,
-          uid,
-          String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
-          clampMin(o.anzahl),
-          clampMin(o.gewicht),
-          String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
-          loc,
-          zone,
-          beidseitig,
-          containerUid,
-          o.istBehaelter ? 1 : 0,
-          art,
-          clampMin(o.kapazitaet),
-          kapArt,
-          clampPct(o.gewichtsreduktion),
-          clampMin(o.rs),
-          haltbarkeitMax,
-          haltbarkeitAktuell,
-          String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
-        ).lastInsertRowid,
-      );
-      // Ungültige kind-Werte werden verworfen statt zu werfen (wie savePouches
-      // mit veralteten Katalog-Verweisen umgeht) — ein Bonus mit unbekanntem
-      // kind ist Datenmüll aus einem älteren/fremden Client, kein Grund, das
-      // ganze Speichern abzubrechen. Ein wert von 0 bleibt erhalten (keine
-      // Datenverlust-Regel) — der Spieler hat die Zeile bewusst angelegt, auch
-      // wenn noch kein Wert eingetragen ist.
-      const bonusRaw = Array.isArray(o.bonusse) ? (o.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
-      bonusRaw.forEach((b, bi) => {
-        const bo = (b ?? {}) as Record<string, unknown>;
-        const kindRaw = String(bo.kind ?? '');
-        if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) return;
-        const kind = kindRaw as ItemBonusKind;
-        const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(bo.feld)) ? String(bo.feld) : '';
-        const code = kind === 'psyche' || kind === 'traglast' ? '' : String(bo.code ?? '').slice(0, MAX_BONUS_CODE);
-        const wert = Number(bo.wert);
-        if (!Number.isFinite(wert)) return;
-        insBonus.run(itemId, bi, kind, code, feld, wert);
+// Ein zusammengeführtes (bestehend+patch) Item-artiges Objekt auf die
+// tatsächlichen DB-Spaltenwerte normalisieren — dieselben Regeln wie die
+// frühere Ganze-Liste-saveItems (Zone/Behälter-Konsistenz, Clamps), jetzt für
+// EINE Zeile statt die ganze Liste (siehe applyItemOps).
+function normalizedItemRow(o: Record<string, unknown>) {
+  const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
+  const zoneRaw = String(o.zone ?? '');
+  const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
+  const beidseitig = isPairedZone(zone) && o.beidseitig ? 1 : 0;
+  const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
+  const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
+  const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
+  const haltbarkeitMax = clampMin(o.haltbarkeitMax);
+  const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
+  return {
+    name: String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
+    anzahl: clampMin(o.anzahl),
+    gewicht: clampMin(o.gewicht),
+    kategorie: String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
+    location: loc,
+    zone,
+    beidseitig,
+    containerUid,
+    istBehaelter: o.istBehaelter ? 1 : 0,
+    containerArt: art,
+    kapazitaet: clampMin(o.kapazitaet),
+    kapazitaetArt: kapArt,
+    gewichtsreduktion: clampPct(o.gewichtsreduktion),
+    rs: clampMin(o.rs),
+    haltbarkeitMax,
+    haltbarkeitAktuell,
+    notiz: String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+    rsVerborgen: o.rsVerborgen ? 1 : 0,
+    haltbarkeitVerborgen: o.haltbarkeitVerborgen ? 1 : 0,
+  };
+}
+
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=? WHERE id=?`;
+const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
+  n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
+  n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
+  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, id,
+];
+
+const MAX_ITEM_OPS = 500;
+
+// „Aufdecken" ist einseitig — sobald eine Zeile nicht mehr verdeckt ist, kann
+// KEIN Patch sie wieder verstecken, es gibt bewusst keinen Verstecken-Knopf.
+// Nur aufrufen, nachdem der Aufrufer bereits als SL bestätigt ist — ein
+// Nicht-SL darf das Feld an keiner Stelle anfassen (siehe die jeweiligen
+// Aufrufer, die das vorher separat sperren).
+function nextVerborgen(existing: boolean, incoming: unknown): boolean {
+  if (!existing) return false; // schon sichtbar: bleibt sichtbar, egal was ankommt
+  return incoming === undefined ? existing : !!incoming;
+}
+
+// Boni-Zeile: Ziel/Feld normalisieren, ungültige kind-Werte verwerfen (wie
+// savePouches mit veralteten Katalog-Verweisen umgeht) — Aufrufer prüft vorher
+// bereits, ob kind überhaupt geändert werden darf.
+function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>): { code: string; feld: TalentBonusFeld | '' } {
+  const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(o.feld)) ? (String(o.feld) as TalentBonusFeld) : '';
+  const code = kind === 'psyche' || kind === 'traglast' ? '' : String(o.code ?? '').slice(0, MAX_BONUS_CODE);
+  return { code, feld };
+}
+
+interface WorkingItem extends Omit<Item, 'bonusse'> {
+  bonusse: (ItemBonus & { dbId: number })[];
+}
+
+// Incremental item saves (Hidden/revealable Ausrüstung stats, TODO.md — siehe
+// diffItems in shared/src/items.ts für die Client-Gegenseite und die
+// Begründung, warum ein Ganze-Liste-Ersatz hier nicht mehr geht). Jede Zeile
+// (Item wie Bonus) wird über ihre eigene stabile uid angesprochen — ein Op zu
+// einer uid, die dieser Client nie gesehen hat (weil sie verdeckt war), kann
+// es strukturell gar nicht geben, also muss hier nichts rekonstruiert werden.
+export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolean): void {
+  const ops = (Array.isArray(raw) ? raw.slice(0, MAX_ITEM_OPS) : []) as Record<string, unknown>[];
+  if (ops.length === 0) return;
+
+  // Laufender Arbeitsstand, EINMAL geladen, dann pro Op weitergeschrieben —
+  // spätere Ops im selben Batch (z. B. patch direkt nach add) sehen so den
+  // Stand vorheriger Ops, ohne zwischendurch neu aus der DB zu lesen.
+  const byUid = new Map<string, WorkingItem>();
+  const idToUid = new Map<number, string>();
+  for (const it of loadItems(charId)) {
+    byUid.set(it.uid, { ...it, bonusse: [] });
+    idToUid.set(it.id, it.uid);
+  }
+  {
+    const bonusRows = db
+      .prepare(
+        `SELECT ib.id, ib.item_id, ib.uid, ib.kind, ib.code, ib.feld, ib.wert, ib.verborgen FROM char_item_bonuses ib
+         JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ?`,
+      )
+      .all(charId) as { id: number; item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
+    for (const r of bonusRows) {
+      const itemUid = idToUid.get(r.item_id);
+      const item = itemUid ? byUid.get(itemUid) : undefined;
+      if (!item || !(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
+      item.bonusse.push({
+        dbId: r.id, uid: r.uid || makeUid(), kind: r.kind as ItemBonusKind, code: r.code,
+        feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+        wert: Number(r.wert) || 0, verborgen: !!r.verborgen,
       });
-    });
+    }
+  }
+
+  const tx = db.transaction(() => {
+    const insItem = db.prepare(
+      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const updItem = db.prepare(ITEM_UPDATE_SQL);
+    const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
+    const nextPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_items WHERE character_id=?');
+    const setPos = db.prepare('UPDATE char_items SET pos=? WHERE id=?');
+    const insBonus = db.prepare('INSERT INTO char_item_bonuses (item_id, pos, uid, kind, code, feld, wert, verborgen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    const updBonus = db.prepare('UPDATE char_item_bonuses SET kind=?, code=?, feld=?, wert=?, verborgen=? WHERE id=?');
+    const delBonus = db.prepare('DELETE FROM char_item_bonuses WHERE id=?');
+    const nextBonusPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_item_bonuses WHERE item_id=?');
+
+    const applyPatchToItem = (existing: WorkingItem, patch: Record<string, unknown>): void => {
+      const p = { ...patch };
+      if (!requesterIsGm) {
+        delete p.rsVerborgen;
+        delete p.haltbarkeitVerborgen;
+        if (existing.rsVerborgen) delete p.rs;
+        if (existing.haltbarkeitVerborgen) {
+          delete p.haltbarkeitMax;
+          delete p.haltbarkeitAktuell;
+        }
+      } else {
+        if ('rsVerborgen' in p) p.rsVerborgen = nextVerborgen(existing.rsVerborgen, p.rsVerborgen);
+        if ('haltbarkeitVerborgen' in p) p.haltbarkeitVerborgen = nextVerborgen(existing.haltbarkeitVerborgen, p.haltbarkeitVerborgen);
+      }
+      const merged = { ...existing, ...p };
+      const n = normalizedItemRow(merged as unknown as Record<string, unknown>);
+      updItem.run(...itemUpdateParams(n, existing.id));
+      Object.assign(existing, {
+        name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie,
+        location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
+        istBehaelter: !!merged.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
+        kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
+        haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+        rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen,
+      });
+    };
+
+    for (const rawOp of ops) {
+      const o = (rawOp ?? {}) as Record<string, unknown>;
+      const kindOfOp = String(o.op ?? '');
+
+      if (kindOfOp === 'add') {
+        const item = (o.item ?? {}) as Record<string, unknown>;
+        let uid = String(item.uid ?? '').slice(0, 64);
+        if (!uid) uid = makeUid();
+        const already = byUid.get(uid);
+        if (already) {
+          // Wiederholter add (z. B. nach einem Netzwerk-Retry) — wie ein
+          // Patch behandeln statt eine zweite Zeile anzulegen.
+          applyPatchToItem(already, item);
+          continue;
+        }
+        if (byUid.size >= MAX_ITEMS) continue;
+        const fields: Record<string, unknown> = { ...item };
+        if (!requesterIsGm) {
+          fields.rsVerborgen = false;
+          fields.haltbarkeitVerborgen = false;
+        }
+        const n = normalizedItemRow(fields);
+        const pos = (nextPos.get(charId) as { p: number }).p;
+        const id = Number(
+          insItem.run(
+            charId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig,
+            n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
+            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen,
+          ).lastInsertRowid,
+        );
+        const working: WorkingItem = {
+          id, uid, name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie,
+          location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
+          istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
+          kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
+          haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+          rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, bonusse: [],
+        };
+        byUid.set(uid, working);
+        const initialBonusse = Array.isArray(item.bonusse) ? (item.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
+        initialBonusse.forEach((b, bi) => {
+          const bo = (b ?? {}) as Record<string, unknown>;
+          const kindRaw = String(bo.kind ?? '');
+          if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) return;
+          const kind = kindRaw as ItemBonusKind;
+          const { code, feld } = normalizedBonusFields(kind, bo);
+          const wert = Number(bo.wert);
+          if (!Number.isFinite(wert)) return;
+          const verborgen = requesterIsGm ? !!bo.verborgen : false;
+          let bUid = String(bo.uid ?? '').slice(0, 64);
+          if (!bUid) bUid = makeUid();
+          const bId = Number(insBonus.run(id, bi, bUid, kind, code, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+          working.bonusse.push({ dbId: bId, uid: bUid, kind, code, feld, wert, verborgen });
+        });
+      } else if (kindOfOp === 'patch') {
+        const existing = byUid.get(String(o.uid ?? ''));
+        if (!existing) continue;
+        applyPatchToItem(existing, (o.patch ?? {}) as Record<string, unknown>);
+      } else if (kindOfOp === 'remove') {
+        const existing = byUid.get(String(o.uid ?? ''));
+        if (!existing) continue;
+        delItem.run(existing.id);
+        byUid.delete(existing.uid);
+      } else if (kindOfOp === 'reorder') {
+        const uids = Array.isArray(o.uids) ? (o.uids as unknown[]).map(String) : [];
+        uids.forEach((uid, i) => {
+          const it = byUid.get(uid);
+          if (it) setPos.run(i, it.id);
+        });
+      } else if (kindOfOp === 'addBonus') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        if (!item) continue;
+        const bonus = (o.bonus ?? {}) as Record<string, unknown>;
+        let bUid = String(bonus.uid ?? '').slice(0, 64);
+        if (!bUid) bUid = makeUid();
+        const already = item.bonusse.find((b) => b.uid === bUid);
+        const kindRaw = String(bonus.kind ?? '');
+        if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) continue;
+        const kind = kindRaw as ItemBonusKind;
+        const { code, feld } = normalizedBonusFields(kind, bonus);
+        const wert = Number(bonus.wert);
+        if (!Number.isFinite(wert)) continue;
+        if (already) {
+          // Ein Retry (Netzwerkfehler, erneuter Flush) darf eine bereits
+          // verdeckte Zeile nicht anfassen — Nicht-SL kennt ihre uid ohnehin
+          // strukturell nie, das hier ist reine Verteidigung in der Tiefe.
+          if (!requesterIsGm && already.verborgen) continue;
+          const verborgen = requesterIsGm ? nextVerborgen(already.verborgen, bonus.verborgen) : false;
+          updBonus.run(kind, code, feld, wert, verborgen ? 1 : 0, already.dbId);
+          Object.assign(already, { kind, code, feld, wert, verborgen });
+          continue;
+        }
+        if (item.bonusse.length >= MAX_BONUSSE_PRO_ITEM) continue;
+        const verborgen = requesterIsGm ? !!bonus.verborgen : false;
+        const pos = (nextBonusPos.get(item.id) as { p: number }).p;
+        const dbId = Number(insBonus.run(item.id, pos, bUid, kind, code, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+        item.bonusse.push({ dbId, uid: bUid, kind, code, feld, wert, verborgen });
+      } else if (kindOfOp === 'patchBonus') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const bonus = item?.bonusse.find((b) => b.uid === String(o.bonusUid ?? ''));
+        if (!item || !bonus) continue;
+        if (!requesterIsGm && bonus.verborgen) continue; // Nicht-SL kennt diese uid strukturell nie — defensiv trotzdem sperren
+        const patch = { ...(o.patch ?? {}) } as Record<string, unknown>;
+        if (!requesterIsGm) delete patch.verborgen;
+        else if ('verborgen' in patch) patch.verborgen = nextVerborgen(bonus.verborgen, patch.verborgen);
+        const kind = 'kind' in patch && (ITEM_BONUS_KINDS as string[]).includes(String(patch.kind)) ? (patch.kind as ItemBonusKind) : bonus.kind;
+        const merged = { ...bonus, ...patch, kind };
+        const { code, feld } = normalizedBonusFields(kind, merged as unknown as Record<string, unknown>);
+        const wert = Number(merged.wert);
+        if (!Number.isFinite(wert)) continue;
+        const verborgen = !!merged.verborgen;
+        updBonus.run(kind, code, feld, wert, verborgen ? 1 : 0, bonus.dbId);
+        Object.assign(bonus, { kind, code, feld, wert, verborgen });
+      } else if (kindOfOp === 'removeBonus') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const idx = item?.bonusse.findIndex((b) => b.uid === String(o.bonusUid ?? '')) ?? -1;
+        if (!item || idx < 0) continue;
+        const bonus = item.bonusse[idx];
+        if (!requesterIsGm && bonus.verborgen) continue;
+        delBonus.run(bonus.dbId);
+        item.bonusse.splice(idx, 1);
+      }
+    }
   });
   tx();
 }

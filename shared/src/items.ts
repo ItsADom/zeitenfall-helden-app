@@ -85,10 +85,23 @@ export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl' | 'probe';
 export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl', 'probe'];
 
 export interface ItemBonus {
+  // Stabile, client-vergebene Kennung — wie Item.uid, aus demselben Grund:
+  // incremental item saves (siehe ItemOp weiter unten) müssen EINE Bonus-Zeile
+  // gezielt ansprechen können, ohne die ganze bonusse-Liste zu ersetzen. Ohne
+  // eigene Kennung ließ sich eine gerade aufgedeckte Zeile nicht von einer
+  // schlicht nie gesehenen unterscheiden — eine ganze Bonus-Klasse an Bugs
+  // (siehe TODO.md, "Hidden/revealable Ausrüstung stats").
+  uid: string;
   kind: ItemBonusKind;
   code: string; // Bedeutung je nach kind, siehe oben; '' bei psyche/traglast
   feld: TalentBonusFeld | ''; // nur bei kind === 'talent', sonst ''
   wert: number;
+  // Verdeckte Bonus-Zeile (Hidden/revealable Ausrüstung stats, TODO.md):
+  // solange true, existiert die Zeile für einen Nicht-SL nicht — weder Ziel
+  // noch Wert noch die Tatsache, dass es sie gibt (volle Verdeckung, siehe
+  // ohneVerborgeneItems). Nur die Spielleitung kann sie anlegen/aufdecken;
+  // Aufdecken ist einseitig (kein Zurück, siehe AddItemDialog „Aufdecken").
+  verborgen: boolean;
 }
 
 export interface Item {
@@ -139,6 +152,13 @@ export interface Item {
   // Boni, die dieser Gegenstand verleiht, solange location === 'getragen' ist
   // (siehe ItemBonus oben). Leer für die allermeisten Items.
   bonusse: ItemBonus[];
+  // Verdeckte RS/Haltbarkeit (Hidden/revealable Ausrüstung stats, TODO.md):
+  // NICHT an kategorie/location gebunden — ein unidentifiziertes Stück im
+  // Inventar bleibt verdeckt. Anders als ein verdeckter ItemBonus (voll
+  // unsichtbar) bleiben rs/haltbarkeit als FELDER sichtbar, zeigen aber „???"
+  // statt der echten Zahl, solange verborgen ist (siehe ohneVerborgeneItems).
+  rsVerborgen: boolean;
+  haltbarkeitVerborgen: boolean;
 }
 
 // Haltbarkeit als Prozentsatz (0–100), oder null wenn nicht verfolgt (max = 0).
@@ -163,8 +183,28 @@ export function makeItem(over: Partial<Item>): Item {
     id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
     kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
-    bonusse: [], ...over,
+    bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, ...over,
   };
+}
+
+// Die Sicht eines Nicht-Spielleiters auf einen Gegenstand (Hidden/revealable
+// Ausrüstung stats, TODO.md): rs/haltbarkeit bleiben als Felder da, ihr Wert
+// wird aber auf 0 genullt, solange verborgen — der Client entscheidet über
+// die *Verborgen-Flags, ob „???" statt der Zahl steht, NIE über den Wert
+// selbst (0 wäre sonst nicht von „wirklich 0" zu unterscheiden). Eine
+// verdeckte Bonus-Zeile wird komplett entfernt (volle Verdeckung — weder Ziel
+// noch Wert noch Existenz sichtbar), NICHT nur ihr Wert genullt. Server-seitig
+// vor jeder Antwort an einen Nicht-SL anzuwenden (siehe ohneGmBloecke in
+// shared/src/wikiMarkup.ts fürs selbe Prinzip) — ein Client, der die Felder
+// nur nicht rendert, hätte die echten Werte trotzdem verschickt.
+export function ohneVerborgeneItems(items: readonly Item[]): Item[] {
+  return items.map((it) => ({
+    ...it,
+    rs: it.rsVerborgen ? 0 : it.rs,
+    haltbarkeitMax: it.haltbarkeitVerborgen ? 0 : it.haltbarkeitMax,
+    haltbarkeitAktuell: it.haltbarkeitVerborgen ? 0 : it.haltbarkeitAktuell,
+    bonusse: it.bonusse.filter((b) => !b.verborgen),
+  }));
 }
 
 // Exakte Kopie — neue `uid`/`id: 0`, sonst jedes Feld identisch (Name,
@@ -173,7 +213,113 @@ export function makeItem(over: Partial<Item>): Item {
 // getrennt verfolgt werden soll (z. B. zwei Dolche mit je eigener
 // Haltbarkeit) — anders als `anzahl`, das nur EINEN gemeinsamen Zustand kennt.
 export function duplicateItem(item: Item): Item {
-  return { ...item, id: 0, uid: makeUid() };
+  // Bonus-Zeilen bekommen ebenfalls neue uids — sonst trüge die Kopie
+  // dieselbe Bonus-Kennung wie das Original, obwohl beide von nun an
+  // unabhängig editier-/aufdeckbar sein sollen (siehe ItemBonus.uid).
+  return { ...item, id: 0, uid: makeUid(), bonusse: item.bonusse.map((b) => ({ ...b, uid: makeUid() })) };
+}
+
+// --- Incremental item saves ---
+//
+// `PUT /items` used to replace the WHOLE list (delete+reinsert) on every
+// save, no matter how small the edit. That is fine for crash-safety (one DB
+// transaction, atomic) but not for two people editing concurrently: a client
+// can only ever echo back what it has locally, so a full-list save silently
+// DROPS anything it never received — which is exactly what happens to a
+// bonus row a GM reveals mid-session while a player's tab is still open on
+// the pre-reveal item list (see TODO.md, "Hidden/revealable Ausrüstung
+// stats" — the bug that motivated this). An op describes ONE targeted change
+// instead of a whole snapshot, so a client can never accidentally erase data
+// it was never shown in the first place — there is no "whole list" moment
+// where that data would need to be echoed back.
+export type ItemOp =
+  | { op: 'add'; item: Item }
+  | { op: 'remove'; uid: string }
+  | { op: 'patch'; uid: string; patch: Partial<Item> }
+  | { op: 'reorder'; uids: string[] }
+  | { op: 'addBonus'; itemUid: string; bonus: ItemBonus }
+  | { op: 'removeBonus'; itemUid: string; bonusUid: string }
+  | { op: 'patchBonus'; itemUid: string; bonusUid: string; patch: Partial<ItemBonus> };
+
+// Item-Felder, die ein 'patch'-Op tragen darf — ausdrücklich OHNE `id`/`uid`
+// (Identität, nicht Inhalt) und OHNE `bonusse` (eigene addBonus/patchBonus/
+// removeBonus-Ops; ein Patch, der bonusse als Ganzes ersetzt, hätte exakt
+// dasselbe Verlustproblem wie der alte Ganze-Liste-Ersatz, nur eine Ebene
+// tiefer).
+const ITEM_PATCH_KEYS = [
+  'name', 'anzahl', 'gewicht', 'kategorie', 'location', 'zone', 'beidseitig', 'containerUid',
+  'istBehaelter', 'containerArt', 'kapazitaet', 'kapazitaetArt', 'gewichtsreduktion',
+  'rs', 'haltbarkeitMax', 'haltbarkeitAktuell', 'notiz', 'rsVerborgen', 'haltbarkeitVerborgen',
+] as const satisfies readonly (keyof Item)[];
+
+const BONUS_PATCH_KEYS = ['kind', 'code', 'feld', 'wert', 'verborgen'] as const satisfies readonly (keyof ItemBonus)[];
+
+function diffBonusRows(itemUid: string, prevRows: readonly ItemBonus[], nextRows: readonly ItemBonus[]): ItemOp[] {
+  const ops: ItemOp[] = [];
+  const prevByUid = new Map(prevRows.map((b) => [b.uid, b]));
+  const nextByUid = new Map(nextRows.map((b) => [b.uid, b]));
+  for (const b of prevRows) {
+    if (!nextByUid.has(b.uid)) ops.push({ op: 'removeBonus', itemUid, bonusUid: b.uid });
+  }
+  for (const b of nextRows) {
+    const old = prevByUid.get(b.uid);
+    if (!old) {
+      ops.push({ op: 'addBonus', itemUid, bonus: b });
+      continue;
+    }
+    const patch: Partial<ItemBonus> = {};
+    let changed = false;
+    for (const k of BONUS_PATCH_KEYS) {
+      if (old[k] !== b[k]) {
+        (patch as Record<string, unknown>)[k] = b[k];
+        changed = true;
+      }
+    }
+    if (changed) ops.push({ op: 'patchBonus', itemUid, bonusUid: b.uid, patch });
+  }
+  return ops;
+}
+
+// Berechnet die Ops, die `prev` in `next` überführen — die Client-seitige
+// Gegenseite zu applyItemOps() (server/src/characterData.ts). `prev` und
+// `next` sind beide der eigene, lokale Stand desselben Betrachters (nie ein
+// fremder/serverseitiger) — genau deshalb kann ein Nicht-SL hier strukturell
+// NIE einen Op erzeugen, der eine verdeckte Zeile berührt: seine eigene
+// Kopie hat sie ja nie enthalten, in `prev` so wenig wie in `next`, also
+// zeigt der Vergleich für sie schlicht „keine Änderung".
+export function diffItems(prev: readonly Item[], next: readonly Item[]): ItemOp[] {
+  const ops: ItemOp[] = [];
+  const prevByUid = new Map(prev.map((it) => [it.uid, it]));
+  const nextByUid = new Map(next.map((it) => [it.uid, it]));
+  for (const it of prev) {
+    if (!nextByUid.has(it.uid)) ops.push({ op: 'remove', uid: it.uid });
+  }
+  for (const it of next) {
+    const old = prevByUid.get(it.uid);
+    if (!old) {
+      ops.push({ op: 'add', item: it });
+      continue;
+    }
+    const patch: Partial<Item> = {};
+    let changed = false;
+    for (const k of ITEM_PATCH_KEYS) {
+      if (old[k] !== it[k]) {
+        (patch as Record<string, unknown>)[k] = it[k];
+        changed = true;
+      }
+    }
+    if (changed) ops.push({ op: 'patch', uid: it.uid, patch });
+    ops.push(...diffBonusRows(it.uid, old.bonusse, it.bonusse));
+  }
+  // Reihenfolge nur unter den in BEIDEN Ständen vorhandenen uids vergleichen —
+  // neu/entfernt wird bereits oben behandelt, dafür braucht reorder keine
+  // eigene Sonderrolle.
+  const commonPrevOrder = prev.filter((it) => nextByUid.has(it.uid)).map((it) => it.uid);
+  const commonNextOrder = next.filter((it) => prevByUid.has(it.uid)).map((it) => it.uid);
+  if (commonPrevOrder.join(' ') !== commonNextOrder.join(' ')) {
+    ops.push({ op: 'reorder', uids: next.map((it) => it.uid) });
+  }
+  return ops;
 }
 
 // Zeilengewicht: Stückzahl × Einzelgewicht (kg), OHNE Reduktion.
@@ -349,6 +495,14 @@ export function wornBoni(items: readonly Item[]): StatBoni {
   for (const item of items) {
     if (item.location !== 'getragen') continue;
     for (const b of item.bonusse) {
+      // Ein verdeckter Bonus wirkt mechanisch noch nicht — „effects apply
+      // only once revealed" (Hidden/revealable Ausrüstung stats, TODO.md).
+      // Das gilt hier UNBEDINGT, nicht nur beim Verschicken an einen
+      // Nicht-SL: derselbe Aufruf (client wie server, u. a. loadStats für
+      // Würfe) darf einen unaufgedeckten Bonus nie mitrechnen, auch nicht in
+      // der eigenen SL-Vorschau — das Item hat sich narrativ noch nicht
+      // offenbart.
+      if (b.verborgen) continue;
       const wert = Number(b.wert) || 0;
       if (wert === 0) continue;
       switch (b.kind) {

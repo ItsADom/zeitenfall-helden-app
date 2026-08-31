@@ -3125,6 +3125,14 @@ li {
   color: var(--error-text);
   font-weight: 700;
 }
+/* Hidden/revealable Ausrüstung stats (TODO.md): noch nicht aufgedeckte
+   RS/Haltbarkeit — „???" statt der Zahl, gedämpft statt der Akzentfarbe, damit
+   es klar als „unbekannt", nicht als echter Wert liest. */
+.chip-verborgen {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+}
 /* Kennzeichen „beidseitig getragen": dasselbe Stück wird in beiden Zellen
    gezeigt; das Zeichen macht die Spiegelung erkennbar. */
 .chip-both {

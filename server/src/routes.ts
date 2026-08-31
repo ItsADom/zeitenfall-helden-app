@@ -1,5 +1,5 @@
 import express, { Router } from 'express';
-import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths } from 'shared';
+import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths, ohneVerborgeneItems } from 'shared';
 import type { UserInfo } from 'shared';
 import { MAX_CHIME_BYTES, istWavKopf } from 'shared';
 import { instanceGate, mayEnter } from './accessGate.js';
@@ -63,7 +63,7 @@ import {
   manageItemCategories,
   saveAbilities,
   saveItemCategories,
-  saveItems,
+  applyItemOps,
   savePouches,
   saveSection,
   saveTabOrder,
@@ -1071,7 +1071,7 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     res.json({ character: info, access, summary: buildSummary(char.id), viewAs });
     return;
   }
-  res.json({ character: info, access, data: loadFullCharacter(char.id), viewAs });
+  res.json({ character: info, access, data: loadFullCharacter(char.id, viewer.isGm), viewAs });
 });
 
 api.put('/characters/:id/section/:section', requireAuth, (req, res) => {
@@ -1231,14 +1231,21 @@ api.put('/characters/:id/request', requireAuth, (req, res) => {
   res.json({ requestedGroupId });
 });
 
-// --- Gegenstände (Cluster 5) — ganze Liste bzw. Kategorienliste ersetzen.
-// Server normalisiert und antwortet mit dem gespeicherten Stand, damit Anzeige
-// und Datenbank übereinstimmen. ---
-api.put('/characters/:id/items', requireAuth, (req, res) => {
+// --- Gegenstände (Cluster 5) ---
+// Incremental: der Client schickt eine Liste gezielter Ops (add/patch/remove/
+// reorder, plus addBonus/patchBonus/removeBonus für Boni-Zeilen) statt der
+// ganzen Liste — siehe diffItems (shared/src/items.ts) und applyItemOps
+// (characterData.ts) für die Begründung (Hidden/revealable Ausrüstung stats,
+// TODO.md: ein Ganze-Liste-Ersatz kann nicht anders, als Daten zu verlieren,
+// die ein Client strukturell nie zu Gesicht bekam). Antwort ist trotzdem der
+// volle, gespeicherte Stand — der Client gleicht seinen lokalen Diff-
+// Vergleichsstand darauf ab, damit serverseitige Normalisierung nicht bei der
+// nächsten Änderung fälschlich als Diff auftaucht.
+api.post('/characters/:id/items/ops', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  saveItems(char.id, req.body);
-  res.json({ items: loadItems(char.id) });
+  applyItemOps(char.id, req.body, req.user!.isGm);
+  res.json({ items: req.user!.isGm ? loadItems(char.id) : ohneVerborgeneItems(loadItems(char.id)) });
 });
 
 // Geldbeutel (Geld-Umbau) — ganze Liste ersetzen, wie /items.

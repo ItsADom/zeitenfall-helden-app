@@ -10,10 +10,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAttrPoint, Resources, SpecialResource } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item, StatBoni } from '@shared/items';
-import { wornBoni } from '@shared/items';
+import { diffItems, wornBoni } from '@shared/items';
 import type { Ability } from '@shared/abilities';
 import type { CoinPouch, CurrencySystem } from '@shared/currency';
-import { apiGet, apiPut } from '../api';
+import { apiGet, apiPost, apiPut } from '../api';
 import { useAuth, useThemeControls } from '../App';
 import type { Row } from './inputs';
 
@@ -229,6 +229,13 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
           setAccess(res.access);
           setData(res.data ?? null);
           setSummary(res.summary ?? null);
+          // Vergleichsstand für diffItems() (siehe flush) auf den frisch
+          // geladenen Stand zurücksetzen — sonst würde die nächste Item-
+          // Änderung gegen einen veralteten Stand verglichen und lauter
+          // Phantom-Ops erzeugen (oder, bei einer stillen Aktualisierung
+          // durch fremde Änderungen, deren Boni fälschlich als „von mir
+          // entfernt" interpretieren).
+          itemsBaseline.current = res.data?.items ?? null;
           if (quiet) setReloadTick((t) => t + 1);
         })
         .catch((e) => {
@@ -265,6 +272,11 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
   const timer = useRef<number | undefined>(undefined);
   const dataRef = useRef<FullData | null>(null);
   dataRef.current = data;
+  // Letzter mit dem Server abgeglichener items-Stand — diffItems() vergleicht
+  // JEDEN Flush gegen diesen, nicht gegen den vorherigen Flush, damit mehrere
+  // schnelle Änderungen vor dem ersten Speichern (Entprellung) sich zu EINEM
+  // korrekten Satz Ops summieren statt sich einzeln zu überschreiben.
+  const itemsBaseline = useRef<Item[] | null>(null);
 
   const flush = useCallback(async () => {
     const sections = [...dirty.current];
@@ -276,8 +288,20 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
     try {
       for (const s of sections) {
         if (s === 'visibility') await apiPut(`/api/characters/${charId}/visibility`, d.visibility);
-        else if (s === 'items') await apiPut(`/api/characters/${charId}/items`, d.items);
-        else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
+        else if (s === 'items') {
+          // Incremental (Hidden/revealable Ausrüstung stats, TODO.md): ein
+          // Ganze-Liste-PUT würde alles verlieren, was dieser Client nie zu
+          // Gesicht bekam (verdeckte Boni-Zeilen), siehe diffItems für die
+          // Begründung. `prev`/`next` sind beide der eigene lokale Stand,
+          // nie ein fremder — genau deshalb kann hier strukturell nie ein Op
+          // entstehen, der eine verdeckte Zeile berührt.
+          const ops = diffItems(itemsBaseline.current ?? [], d.items);
+          if (ops.length > 0) {
+            const res = await apiPost<{ items: Item[] }>(`/api/characters/${charId}/items/ops`, ops);
+            itemsBaseline.current = res.items;
+            setData((prev) => (prev ? { ...prev, items: res.items } : prev));
+          }
+        } else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
         else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities`, d.abilities);
         else if (s === 'pouches') await apiPut(`/api/characters/${charId}/pouches`, d.pouches);
         else {
