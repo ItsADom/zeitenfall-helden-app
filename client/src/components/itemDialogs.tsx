@@ -19,6 +19,13 @@ import { NumInput } from './inputs';
 // im Chip-Editor angefasst.
 
 const AUSRUESTUNG_KATEGORIE = 'Ausrüstung';
+// Weapons become real items (TODO.md): eigene, feste Kategorie wie
+// AUSRUESTUNG_KATEGORIE — „Waffe" ist jetzt ein dritter, zum Allgemein-/
+// Ausrüstung-Umschalter paralleler Modus, kein Zusatz-Abschnitt mehr
+// (Spieler-Entscheidung: eigene, gleichrangige Kategorie statt eines Toggles
+// obendrauf). Sorgt nebenbei dafür, dass Waffen auf Inventar/Ausrüstung unter
+// einer eigenen Kategorie-Überschrift gruppiert erscheinen statt „Ohne Kategorie".
+const WAFFE_KATEGORIE = 'Waffe';
 // Client-seitiges Gegenstück zu MAX_BONUSSE_PRO_ITEM in
 // server/src/characterData.ts — reine UX-Bremse (der Server deckelt ohnehin),
 // verhindert nur, dass jemand über den „+ Bonus"-Knopf Zeilen anlegt, die beim
@@ -262,6 +269,10 @@ function WeaponTalentRow({
   );
 }
 
+// Nur gerendert, wenn der Dialog im „Waffe"-Modus ist (siehe AddItemDialog) —
+// waffenArt ist dann strukturell immer 'nah' oder 'fern', nie '': der
+// Moduswechsel selbst (changeMode) sorgt dafür, kein Verstecken-Toggle mehr
+// hier nötig.
 function WeaponSection({
   waffenArt,
   onArtChange,
@@ -270,8 +281,8 @@ function WeaponSection({
   talents,
   isGm,
 }: {
-  waffenArt: WaffenArt;
-  onArtChange: (art: WaffenArt) => void;
+  waffenArt: 'nah' | 'fern';
+  onArtChange: (art: 'nah' | 'fern') => void;
   stats: WaffenStat[];
   onStatsChange: (next: WaffenStat[]) => void;
   talents: TalentCatalogRow[];
@@ -285,9 +296,6 @@ function WeaponSection({
   return (
     <>
       <div className="dlg-seg">
-        <button type="button" className={waffenArt === '' ? 'active' : ''} onClick={() => onArtChange('')}>
-          Kein Waffe
-        </button>
         <button type="button" className={waffenArt === 'nah' ? 'active' : ''} onClick={() => onArtChange('nah')}>
           Nahkampf
         </button>
@@ -295,34 +303,71 @@ function WeaponSection({
           Fernkampf
         </button>
       </div>
-      {waffenArt && (
-        <div className="dlg-fade-group">
-          <div className="dlg-group-label">Nur für Waffen</div>
-          {waffenFelderFuerArt(waffenArt).map((feld) =>
-            feld === 'talentId' ? (
-              <WeaponTalentRow
-                key={feld}
-                stat={statFor(feld)}
-                talents={talents}
-                isGm={isGm}
-                onChange={(v) => patchStat(feld, v)}
-                onReveal={() => revealStat(feld)}
-              />
-            ) : (
-              <WeaponStatRow
-                key={feld}
-                stat={statFor(feld)}
-                label={labels[feld] ?? feld}
-                isGm={isGm}
-                numeric={WAFFEN_NUMERIC_FELDER.has(feld)}
-                onChange={(v) => patchStat(feld, v)}
-                onReveal={() => revealStat(feld)}
-              />
-            ),
-          )}
-        </div>
+      {waffenFelderFuerArt(waffenArt).map((feld) =>
+        feld === 'talentId' ? (
+          <WeaponTalentRow
+            key={feld}
+            stat={statFor(feld)}
+            talents={talents}
+            isGm={isGm}
+            onChange={(v) => patchStat(feld, v)}
+            onReveal={() => revealStat(feld)}
+          />
+        ) : (
+          <WeaponStatRow
+            key={feld}
+            stat={statFor(feld)}
+            label={labels[feld] ?? feld}
+            isGm={isGm}
+            numeric={WAFFEN_NUMERIC_FELDER.has(feld)}
+            onChange={(v) => patchStat(feld, v)}
+            onReveal={() => revealStat(feld)}
+          />
+        ),
       )}
     </>
+  );
+}
+
+// Haltbarkeit-Feld — gebraucht sowohl im Ausrüstung- als auch im Waffe-Modus
+// (beide teilen sich dieselben Item-Felder haltbarkeitMax/Aktuell/Verborgen),
+// deshalb als eigene Komponente statt zweimal dieselbe verzweigte JSX.
+function HaltbarkeitField({
+  haltbarkeitAktuell,
+  haltbarkeitMax,
+  haltbarkeitVerborgen,
+  isGm,
+  onAktuellChange,
+  onMaxChange,
+  onReveal,
+}: {
+  haltbarkeitAktuell: number;
+  haltbarkeitMax: number;
+  haltbarkeitVerborgen: boolean;
+  isGm: boolean;
+  onAktuellChange: (v: number) => void;
+  onMaxChange: (v: number) => void;
+  onReveal: () => void;
+}) {
+  return (
+    <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
+      Haltbarkeit
+      {!isGm && haltbarkeitVerborgen ? (
+        <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">
+          ???
+        </span>
+      ) : (
+        <div className="dlg-row2">
+          <NumInput value={haltbarkeitAktuell} min={0} max={haltbarkeitMax} onChange={onAktuellChange} />
+          <NumInput value={haltbarkeitMax} min={0} onChange={onMaxChange} />
+        </div>
+      )}
+      {isGm && haltbarkeitVerborgen && (
+        <ConfirmDeleteButton title="Haltbarkeit aufdecken — einseitig, keine Rückgängig-Funktion" className="small" onConfirm={onReveal}>
+          👁 Aufdecken
+        </ConfirmDeleteButton>
+      )}
+    </label>
   );
 }
 
@@ -343,7 +388,7 @@ export function AddItemDialog({
   open: boolean;
   onClose: () => void;
   categories: string[];
-  initialMode?: 'allgemein' | 'ausruestung';
+  initialMode?: 'allgemein' | 'ausruestung' | 'waffe';
   /** Gesetzt → Bearbeiten-Modus für ein bestehendes Item statt Anlegen. */
   item?: Item;
   talents: TalentCatalogRow[];
@@ -377,15 +422,29 @@ export function AddItemDialog({
   const [bonusse, setBonusse] = useState<ItemBonus[]>([]);
   const [waffenArt, setWaffenArt] = useState<WaffenArt>('');
   const [waffenStats, setWaffenStats] = useState<WaffenStat[]>([]);
-  // Wechsel der Waffenart (auch von/zu „kein Waffe") sät den Feldsatz komplett
-  // neu — keine Wertübernahme zwischen Nah-/Fernkampf, dieselbe bewusst
-  // simple Regel wie beim Umschalten von Ausrüstung → Allgemein oben. Von
-  // der SL frisch angelegte Waffen-Felder starten verdeckt, dieselbe Regel
-  // wie rsVerborgen/haltbarkeitVerborgen oben — es gibt keinen Verstecken-
-  // Knopf, das ist der einzige Zeitpunkt, an dem der Zustand entsteht.
+  // Wechsel der Waffenart sät den Feldsatz komplett neu — keine Wertübernahme
+  // zwischen Nah-/Fernkampf, dieselbe bewusst simple Regel wie beim Umschalten
+  // von Ausrüstung → Allgemein oben. Von der SL frisch angelegte Waffen-Felder
+  // starten verdeckt, dieselbe Regel wie rsVerborgen/haltbarkeitVerborgen oben
+  // — es gibt keinen Verstecken-Knopf, das ist der einzige Zeitpunkt, an dem
+  // der Zustand entsteht.
   const changeWaffenArt = (art: WaffenArt) => {
     setWaffenArt(art);
     setWaffenStats(art ? waffenStatsFuerArt(art).map((s) => ({ ...s, verborgen: isGm })) : []);
+  };
+  // Allgemein/Ausrüstung/Waffe sind jetzt gleichrangige, sich gegenseitig
+  // ausschließende Modi (Spieler-Entscheidung: „Waffe" ist eine eigene
+  // Kategorie, kein Zusatz-Toggle mehr) — der Wechsel setzt/räumt waffenArt
+  // mit auf, statt eines eigenen „kein Waffe"-Zustands innerhalb des
+  // Waffen-Abschnitts. Neu in den Waffe-Modus: startet als Nahkampfwaffe
+  // (häufigster Fall), umschaltbar auf Fernkampf im Abschnitt selbst.
+  const changeMode = (next: 'allgemein' | 'ausruestung' | 'waffe') => {
+    setMode(next);
+    if (next === 'waffe') {
+      if (!waffenArt) changeWaffenArt('nah');
+    } else if (waffenArt) {
+      changeWaffenArt('');
+    }
   };
 
   // Beim Öffnen (neu) seeden statt bei reset() beim Schließen — AddItemDialog
@@ -397,7 +456,7 @@ export function AddItemDialog({
   useEffect(() => {
     if (!open) return;
     if (item) {
-      setMode(item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
+      setMode(item.waffenArt ? 'waffe' : item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
       setName(item.name);
       setKategorie(item.kategorie);
       setAnzahl(item.anzahl);
@@ -451,9 +510,10 @@ export function AddItemDialog({
   const commit = () => {
     if (!name.trim()) return;
     const ausr = mode === 'ausruestung';
+    const waffe = mode === 'waffe';
     const patch: Partial<Item> = {
       name: name.trim(),
-      kategorie: ausr ? AUSRUESTUNG_KATEGORIE : kategorie,
+      kategorie: ausr ? AUSRUESTUNG_KATEGORIE : waffe ? WAFFE_KATEGORIE : kategorie,
       anzahl,
       gewicht,
       notiz,
@@ -462,19 +522,21 @@ export function AddItemDialog({
       waffenStats,
     };
     // RS/Haltbarkeit/Quickslots-Behälter nur einbeziehen, wenn ihr Feld auch
-    // sichtbar war (ausr) — sonst würde das Umschalten auf „Allgemein" beim
-    // Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung" weg
-    // geändert wurde (z. B. durch Umkategorisieren per Ziehen im Inventar-
-    // Reiter), dessen RS/Haltbarkeit/Behälter-Status stillschweigend auf 0
-    // zurücksetzen, obwohl niemand diese Felder je zu Gesicht bekam. Beim
-    // Anlegen macht das Weglassen keinen Unterschied: makeItem() setzt
+    // sichtbar war (ausr/waffe) — sonst würde das Umschalten auf „Allgemein"
+    // beim Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung"
+    // weg geändert wurde (z. B. durch Umkategorisieren per Ziehen im
+    // Inventar-Reiter), dessen RS/Haltbarkeit/Behälter-Status stillschweigend
+    // auf 0 zurücksetzen, obwohl niemand diese Felder je zu Gesicht bekam.
+    // Beim Anlegen macht das Weglassen keinen Unterschied: makeItem() setzt
     // ohnehin dieselben Nullwerte für alles, was `fields` nicht mitbringt.
-    if (ausr) {
-      patch.rs = rs;
-      patch.rsVerborgen = rsVerborgen;
+    if (ausr || waffe) {
       patch.haltbarkeitMax = haltbarkeitMax;
       patch.haltbarkeitAktuell = haltbarkeitAktuell;
       patch.haltbarkeitVerborgen = haltbarkeitVerborgen;
+    }
+    if (ausr) {
+      patch.rs = rs;
+      patch.rsVerborgen = rsVerborgen;
       if (!isStorageContainer) {
         // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-
         // Behälter (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt
@@ -541,11 +603,14 @@ export function AddItemDialog({
           editable in read-only mode"). */}
       <AlwaysEditable>
         <div className="dlg-seg">
-          <button type="button" className={mode === 'allgemein' ? 'active' : ''} onClick={() => setMode('allgemein')}>
+          <button type="button" className={mode === 'allgemein' ? 'active' : ''} onClick={() => changeMode('allgemein')}>
             Allgemein
           </button>
-          <button type="button" className={mode === 'ausruestung' ? 'active' : ''} onClick={() => setMode('ausruestung')}>
+          <button type="button" className={mode === 'ausruestung' ? 'active' : ''} onClick={() => changeMode('ausruestung')}>
             Ausrüstung
+          </button>
+          <button type="button" className={mode === 'waffe' ? 'active' : ''} onClick={() => changeMode('waffe')}>
+            Waffe
           </button>
         </div>
 
@@ -586,7 +651,7 @@ export function AddItemDialog({
           <div className="dlg-field">
             Kategorie
             <div className="dlg-locked">
-              <span className="dlg-badge">{AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
+              <span className="dlg-badge">{mode === 'waffe' ? WAFFE_KATEGORIE : AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
             </div>
           </div>
         )}
@@ -614,42 +679,20 @@ export function AddItemDialog({
                   </ConfirmDeleteButton>
                 )}
               </label>
-              <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
-                Haltbarkeit
-                {!isGm && haltbarkeitVerborgen ? (
-                  <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">
-                    ???
-                  </span>
-                ) : (
-                <div className="dlg-row2">
-                  <NumInput
-                    value={haltbarkeitAktuell}
-                    min={0}
-                    max={haltbarkeitMax}
-                    onChange={setHaltbarkeitAktuell}
-                  />
-                  <NumInput
-                    value={haltbarkeitMax}
-                    min={0}
-                    onChange={(v) => {
-                      // Neu eingeschaltet (war 0/0) → auf voll starten, statt
-                      // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
-                      setHaltbarkeitMax(v);
-                      if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
-                    }}
-                  />
-                </div>
-                )}
-                {isGm && haltbarkeitVerborgen && (
-                  <ConfirmDeleteButton
-                    title="Haltbarkeit aufdecken — einseitig, keine Rückgängig-Funktion"
-                    className="small"
-                    onConfirm={() => setHaltbarkeitVerborgen(false)}
-                  >
-                    👁 Aufdecken
-                  </ConfirmDeleteButton>
-                )}
-              </label>
+              <HaltbarkeitField
+                haltbarkeitAktuell={haltbarkeitAktuell}
+                haltbarkeitMax={haltbarkeitMax}
+                haltbarkeitVerborgen={haltbarkeitVerborgen}
+                isGm={isGm}
+                onAktuellChange={setHaltbarkeitAktuell}
+                onMaxChange={(v) => {
+                  // Neu eingeschaltet (war 0/0) → auf voll starten, statt
+                  // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
+                  setHaltbarkeitMax(v);
+                  if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
+                }}
+                onReveal={() => setHaltbarkeitVerborgen(false)}
+              />
             </div>
             {!isStorageContainer && (
               <label className="dlg-field">
@@ -660,14 +703,31 @@ export function AddItemDialog({
           </div>
         )}
 
-        <WeaponSection
-          waffenArt={waffenArt}
-          onArtChange={changeWaffenArt}
-          stats={waffenStats}
-          onStatsChange={setWaffenStats}
-          talents={talents}
-          isGm={isGm}
-        />
+        {mode === 'waffe' && waffenArt && (
+          <div className="dlg-fade-group">
+            <div className="dlg-group-label">Nur für Waffen</div>
+            <HaltbarkeitField
+              haltbarkeitAktuell={haltbarkeitAktuell}
+              haltbarkeitMax={haltbarkeitMax}
+              haltbarkeitVerborgen={haltbarkeitVerborgen}
+              isGm={isGm}
+              onAktuellChange={setHaltbarkeitAktuell}
+              onMaxChange={(v) => {
+                setHaltbarkeitMax(v);
+                if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
+              }}
+              onReveal={() => setHaltbarkeitVerborgen(false)}
+            />
+            <WeaponSection
+              waffenArt={waffenArt}
+              onArtChange={changeWaffenArt}
+              stats={waffenStats}
+              onStatsChange={setWaffenStats}
+              talents={talents}
+              isGm={isGm}
+            />
+          </div>
+        )}
 
         <label className="dlg-field">
           Notiz
