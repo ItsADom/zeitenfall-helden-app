@@ -85,7 +85,16 @@ function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; ch
       {!error && !abilities && <p className="muted">Lade…</p>}
       {abilities && abilities.length === 0 && <p className="muted">Noch keine Zauber oder Fähigkeiten eingetragen.</p>}
       {abilities && abilities.length > 0 && (
-        <div className="table-wrap scroll-box">
+        // `scroll-box` alone only picks the right sticky-thead `top` offset
+        // (styles.css) — it does NOT make the box scroll by itself. Without
+        // an actual maxHeight+overflowY here, `.table-wrap` stays
+        // `overflow: visible` and `.dialog-body` ends up doing the real
+        // scrolling instead, while the thead still sticks relative to
+        // `.table-wrap` — the two disagree and the header overlaps the rows
+        // once you scroll. Same fix as the catalog table in Admin.tsx: give
+        // `.scroll-box` its own bounded, scrolling box so it and the sticky
+        // thead agree on what's actually scrolling.
+        <div className="table-wrap scroll-box" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           <table className="sheet ability-lookup-table">
             <thead>
               <tr>
