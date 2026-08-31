@@ -7,7 +7,7 @@
 export function BonusWert({ quellen, children }: { quellen: string[] | undefined; children: React.ReactNode }) {
   if (!quellen || quellen.length === 0) return <>{children}</>;
   return (
-    <span className="bonus-mark" title={`Durch getragene Gegenstände: ${quellen.join(', ')}`}>
+    <span className="bonus-mark" title={`Durch getragene Gegenstände:\n${quellen.join('\n')}`}>
       {children}
     </span>
   );
