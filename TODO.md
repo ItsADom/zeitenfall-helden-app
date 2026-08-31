@@ -76,29 +76,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   Schicksalspunkte's `/me` announcement); this is personal bookkeeping, not a
   table action. Un-filling (undo an entry) goes through the same confirm
   step as filling.
-- [ready] **Broadcast a token's step trail to everyone at the table** (user
-  feedback, concept agreed — reverses a prior explicit decision). Today's
-  step-counter trail (`client/src/pages/VirtualTable.tsx:1021-1029`,
-  `tokenTrailActive`) was deliberately settled as local-only, gone instantly
-  on release; moves themselves also only ever send the final position over
-  the wire, never the path (`:1441`, `board.token.move` in
-  `server/src/ws.ts:1633-1668`). **Decided: full trail, not just distance** —
-  reuse `chebyshevPath(from, to)` (`VirtualTable.tsx:379-391`), which is
-  already a pure/deterministic straight-line function of two cell
-  coordinates. Since the server already has the pre-move position as
-  `existing.x/y` (read right before `moveBoardToken` overwrites it,
-  `ws.ts:1636-1654`) — **no new client payload needed**: add `fromX`/`fromY`
-  (the origin) onto the `board.token.updated`/`created` message the
-  `board.token.move` handler already broadcasts, gated by the same
-  `tokenVisibleTo` filtering it already does (so a trail through/into fog
-  respects visibility exactly like the token move itself). Each receiving
-  client (including the mover) computes the same trail locally via
-  `chebyshevPath`, no path serialization over the wire. **Decided: fixed
-  10s auto-fade for everyone, AND click-to-dismiss layered on top** — the
-  10s timer is shared/absolute (not reset or extended by a click), the click
-  only hides it early for that one viewer, local UI state, not
-  broadcast/synced. Only `board.token.move` triggers a trail — ordinary
-  `board.token.update` (color, size, etc.) must not.
 - [ready] **Competitive check ("Wettstreit"): a second pool kind alongside the
   Kooperationsprobe** (user feedback, concept agreed — rules confirmed with
   the GM, since Zeitenfall's probe mechanics are homebrew, not DSA5).
@@ -132,25 +109,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   `computeCoopVerdict`, returning winner(s) + each participant's tier/margin
   for display. UI: a `CompetitivePoolCard` alongside `CoopPoolCard`,
   labels via a `WETTSTREIT`-style entry in `labels.ts`.
-- [onHold] **Players adding individual/custom talents to Talente** (user
-  feedback — on hold, needs GM input before a concept can be settled).
-  Today's Talente tab (`client/src/tabs/Talente.tsx`) has no per-character
-  add path at all: rows come entirely from the shared, GM-managed
-  `catalogs.talents` (`TalentCatalogRow`, `Character.tsx`) — every character
-  sees the same fixed list, filled in with their own TaW/AT/PA/BL. Open
-  before this can move to `[ready]`:
-   - **Scope: private-to-character vs. joins the shared catalog** — does an
-     „individual" talent only ever show on the adding player's own sheet, or
-     does it become a real catalog entry visible/usable by every character
-     (effectively proposing a new official talent)? Not decided, needs the
-     GM's call.
-   - **Approval:** GM-gated before it's usable/rollable, or immediately live
-     once a player adds it? No preference expressed yet either way.
-   - Once those two are settled, a build pass still needs: what a
-     custom-talent row actually needs filled in (name + which attributes
-     feed its `probeExpr`, at minimum — a real talent's probe formula isn't
-     optional), and where it lives structurally (a new per-character table,
-     or an extension of the existing catalog schema with an owner column).
 - [ready] **Favorite a talent/spell so it shows up in the dice-favorites
   flyout** (user feedback, concept agreed). Today's dice favorites
   (`ShortcutsFlyout.tsx`) are hand-typed free-text lines (`Label: Ausdruck`,

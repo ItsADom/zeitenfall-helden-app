@@ -6417,6 +6417,18 @@ tr:hover .probe-roll,
     stroke-width: 1px;
   }
 }
+.vtt-token-trail-broadcast {
+  animation: vtt-token-trail-broadcast-fade 10s ease-in both;
+}
+@keyframes vtt-token-trail-broadcast-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 .vtt-tile-picker {
   position: absolute;
   left: 12px;

@@ -1673,8 +1673,11 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         const wasVisible = tokenVisibleTo(existing, fogAtMove, v);
         const nowVisible = tokenVisibleTo(moved, fogAtMove, v);
         if (!nowVisible) return wasVisible ? { type: 'board.token.deleted', tokenId: moved.id } : null;
-        if (wasVisible) return { type: 'board.token.updated', token: toWireToken(moved, v) };
-        return { type: 'board.token.created', token: toWireToken(moved, v) };
+        // fromX/fromY: the pre-move cell (TODO.md "Broadcast a token's step
+        // trail to everyone at the table") — every receiving client derives
+        // the same trail locally via chebyshevPath, no path over the wire.
+        if (wasVisible) return { type: 'board.token.updated', token: toWireToken(moved, v), fromX: existing.x, fromY: existing.y };
+        return { type: 'board.token.created', token: toWireToken(moved, v), fromX: existing.x, fromY: existing.y };
       });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;

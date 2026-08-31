@@ -412,8 +412,16 @@ export type BoardClientMessage =
   | { type: 'board.roundTracker.delete'; reqId: string; trackerId: number };
 
 export type BoardServerMessage =
-  | { type: 'board.token.created'; token: BoardToken }
-  | { type: 'board.token.updated'; token: BoardToken }
+  // fromX/fromY: only set when this broadcast comes from board.token.move
+  // (never from board.token.update/wounds.set/create) — the origin cell the
+  // move handler already had as `existing.x/y` before overwriting it, so
+  // every receiving client (including the mover) can compute the same
+  // step-counter trail locally via chebyshevPath (VirtualTable.tsx) without
+  // the server ever serializing a path over the wire. Same tokenVisibleTo
+  // filtering as the token itself, so a trail through/into fog respects
+  // visibility exactly like the move.
+  | { type: 'board.token.created'; token: BoardToken; fromX?: number; fromY?: number }
+  | { type: 'board.token.updated'; token: BoardToken; fromX?: number; fromY?: number }
   | { type: 'board.token.deleted'; tokenId: number }
   | { type: 'board.settings.updated'; board: BoardSettings }
   | { type: 'board.tiles.painted'; cells: Record<string, string> }

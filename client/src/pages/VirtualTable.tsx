@@ -482,6 +482,10 @@ const CELL_PING_DURATION_MS = 1600;
 // A freshly uploaded image's long edge, in cells — a starting point to
 // resize from (drag handle, see startImageResize), not a measured scale.
 const DEFAULT_IMAGE_LONG_EDGE_CELLS = 4;
+// Broadcast step-trail (TODO.md "Broadcast a token's step trail to everyone
+// at the table"): fixed/absolute for every viewer, not reset or extended by
+// the per-viewer click-to-dismiss (see broadcastTrails below).
+const BROADCAST_TRAIL_DURATION_MS = 10000;
 // Step-counter trail while dragging a token (chebyshevPath): a FIXED pool of
 // this many square+number pairs is mounted once per drag (see
 // tokenTrailDraft/trailElsRef) and only their attributes are rewritten per
@@ -871,6 +875,7 @@ function MapCanvas({
     boardViewCenter,
     pingCell,
     boardCellPing,
+    boardTokenTrail,
   } = useDicePanel();
   const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
@@ -1292,6 +1297,39 @@ function MapCanvas({
     }, CELL_PING_DURATION_MS);
     return () => clearTimeout(timer);
   }, [boardCellPing]);
+
+  // Broadcast step-trail: same "list keyed by seq, several in flight at
+  // once, own timer per entry" shape as cellPings above. The path itself is
+  // derived here (chebyshevPath), never sent over the wire — the context only
+  // carries the two endpoints (see boardTokenTrail's doc comment). A click
+  // removes just that one entry from this LOCAL list — the shared 10s timer
+  // keeps running for every other viewer (settled with the developer: fixed/
+  // absolute fade, click only hides it early for the clicker).
+  const [broadcastTrails, setBroadcastTrails] = useState<{ seq: number; tokenId: number; path: CellCoord[] }[]>([]);
+  useEffect(() => {
+    if (!boardTokenTrail) return;
+    // chebyshevPath steps by exactly ±1 until cx/cy hits the target — a token's
+    // x/y is a free-dragged FLOAT (see onTokenPointerMove), so an unfloored
+    // endpoint can sit between two integer steps and the loop never lands on
+    // it (infinite loop, froze the tab on first real test). The local drag
+    // trail already floors for the same reason (see startCell/currentCell
+    // above) — AND floors the token's CENTER (x + size/2), not its top-left
+    // corner, since that's the cell the live drag preview actually highlights.
+    // Using the raw top-left here would floor to a different cell than the
+    // preview showed whenever the fractional part crossed the cell's
+    // midpoint, making the dropped trail visibly "jump" relative to what was
+    // just previewed — same centering, same floor, for both endpoints.
+    const half = boardTokenTrail.size / 2;
+    const path = chebyshevPath(
+      { x: Math.floor(boardTokenTrail.fromX + half), y: Math.floor(boardTokenTrail.fromY + half) },
+      { x: Math.floor(boardTokenTrail.toX + half), y: Math.floor(boardTokenTrail.toY + half) },
+    );
+    setBroadcastTrails((prev) => [...prev, { seq: boardTokenTrail.seq, tokenId: boardTokenTrail.tokenId, path }]);
+    const timer = setTimeout(() => {
+      setBroadcastTrails((prev) => prev.filter((t) => t.seq !== boardTokenTrail.seq));
+    }, BROADCAST_TRAIL_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [boardTokenTrail]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -3074,6 +3112,58 @@ function MapCanvas({
               ))}
             </g>
           )}
+
+          {/* Broadcast step-trail (TODO.md "Broadcast a token's step trail to
+              everyone at the table"): every viewer, mover included, sees the
+              same trail after a token.move lands — not while dragging (that
+              stays the local-only pool above). One `<g>` per still-active
+              broadcast (several tokens moving within the same 10s window all
+              show at once), fading via CSS (vtt-token-trail-broadcast) rather
+              than a per-frame write, since these aren't updated every
+              pointermove like the local drag trail. A click removes just
+              that one trail from the LOCAL list (see broadcastTrails effect)
+              — stopPropagation so it doesn't also start a camera drag/paint
+              stroke on the cell underneath. */}
+          {broadcastTrails.map((t) => (
+            <g
+              key={t.seq}
+              className="vtt-token-trail-broadcast"
+              onClick={(e) => {
+                e.stopPropagation();
+                setBroadcastTrails((prev) => prev.filter((x) => x.seq !== t.seq));
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              {t.path.map((cell, i) => (
+                <g key={i}>
+                  <rect
+                    x={cell.x * CELL_PX}
+                    y={cell.y * CELL_PX}
+                    width={CELL_PX}
+                    height={CELL_PX}
+                    fill="var(--panel)"
+                    fillOpacity={0.65}
+                    stroke="var(--accent)"
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={(cell.x + 0.5) * CELL_PX}
+                    y={(cell.y + 0.5) * CELL_PX}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={13}
+                    fontWeight={700}
+                    fill="var(--text)"
+                    stroke="var(--panel)"
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                  >
+                    {i}
+                  </text>
+                </g>
+              ))}
+            </g>
+          ))}
 
           {tokens
             .filter((t) => !t.hidden || isGm)

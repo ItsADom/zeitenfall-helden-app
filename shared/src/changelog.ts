@@ -205,6 +205,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     added: [
       'Die Größe einer Marke auf dem virtuellen Tisch lässt sich jetzt auch in halben Schritten setzen, bis hinunter zu 0,5 Feldern.',
       'Kreis- und Rechteck-Messformen auf dem virtuellen Tisch zeigen jetzt dauerhaft einen Punkt an ihrem Mittelpunkt.',
+      'Verschiebt jemand eine Marke auf dem virtuellen Tisch, sehen jetzt alle am Tisch kurz die durchlaufenen Felder mit Schrittzahl markiert (10 Sekunden, per Klick auch früher ausblendbar).',
     ],
     fixed: [
       'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',

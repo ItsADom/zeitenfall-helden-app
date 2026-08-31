@@ -417,6 +417,18 @@ interface DicePanelCtxValue {
   boardCellPing: { x: number; y: number; by: string; seq: number } | null;
   /** Available to everyone, not just the GM — broadcasts a cell (grid index, not board pixels); every viewer, sender included, shows the same pulsing ring + name. */
   pingCell: (x: number, y: number) => void;
+  /**
+   * Latest token move that carried a `fromX`/`fromY` origin (TODO.md
+   * "Broadcast a token's step trail to everyone at the table") — ephemeral,
+   * not board state, same `seq`-per-broadcast idiom as boardCellPing above.
+   * VirtualTable.tsx derives the actual trail cells locally via
+   * chebyshevPath(from, to); this context only carries the two endpoints.
+   * `size` rides along so the client can center each endpoint the same way
+   * the live drag preview does (floor(x + size/2), not floor(x)) — otherwise
+   * a size-1 token whose fractional position sits past the cell's midpoint
+   * lands the trail's last cell one off from what the preview showed.
+   */
+  boardTokenTrail: { tokenId: number; fromX: number; fromY: number; toX: number; toY: number; size: number; seq: number } | null;
   /** Places an already-uploaded asset (see POST .../board/images) on the board — perm_images-gated (canEditImages). */
   createImage: (input: { assetSlug: string; modus?: ImageModus; x: number; y: number; w: number; h: number; rotation?: number; opacity?: number }) => void;
   /** Move/resize/rotate/opacity/z-order/modus, and `hidden` (GM-only server-side — the one all-or-nothing fog escape hatch for images). */
@@ -515,6 +527,7 @@ export function useDicePanel(): DicePanelCtxValue {
       centerView: () => {},
       boardCellPing: null,
       pingCell: () => {},
+      boardTokenTrail: null,
       boardImages: [],
       createImage: () => {},
       updateImage: () => {},
@@ -576,6 +589,11 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   /** "Point at a cell" ping — ephemeral, never board state (see board.cell.ping in shared/src/boardProtocol.ts). Same `seq`-per-broadcast idiom as boardViewCenter above. */
   const [boardCellPing, setBoardCellPing] = useState<{ x: number; y: number; by: string; seq: number } | null>(null);
   const boardCellPingSeqRef = useRef(0);
+  /** Latest board.token.move-derived trail endpoints — ephemeral, see boardTokenTrail's doc comment. */
+  const [boardTokenTrail, setBoardTokenTrail] = useState<
+    { tokenId: number; fromX: number; fromY: number; toX: number; toY: number; size: number; seq: number } | null
+  >(null);
+  const boardTokenTrailSeqRef = useRef(0);
   const serverErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { ankuendigungEmpfangen } = useWartung();
@@ -903,6 +921,10 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       }
       if (msg.type === 'board.token.created') {
         setBoardTokens((prev) => [...prev.filter((t) => t.id !== msg.token.id), msg.token]);
+        if (msg.fromX !== undefined && msg.fromY !== undefined) {
+          boardTokenTrailSeqRef.current += 1;
+          setBoardTokenTrail({ tokenId: msg.token.id, fromX: msg.fromX, fromY: msg.fromY, toX: msg.token.x, toY: msg.token.y, size: msg.token.size, seq: boardTokenTrailSeqRef.current });
+        }
         return;
       }
       if (msg.type === 'board.token.updated') {
@@ -910,6 +932,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         // der ziehende Client selbst rendert währenddessen aus seinem eigenen
         // Drag-Zustand, nicht aus boardTokens (siehe VirtualTable.tsx).
         setBoardTokens((prev) => prev.map((t) => (t.id === msg.token.id ? msg.token : t)));
+        // fromX/fromY only present when this broadcast came from
+        // board.token.move (see BoardServerMessage) — an ordinary
+        // color/size/etc. update must not trigger a trail.
+        if (msg.fromX !== undefined && msg.fromY !== undefined) {
+          boardTokenTrailSeqRef.current += 1;
+          setBoardTokenTrail({ tokenId: msg.token.id, fromX: msg.fromX, fromY: msg.fromY, toX: msg.token.x, toY: msg.token.y, size: msg.token.size, seq: boardTokenTrailSeqRef.current });
+        }
         return;
       }
       if (msg.type === 'board.token.deleted') {
@@ -1679,6 +1708,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         centerView: centerViewAction,
         boardCellPing,
         pingCell: pingCellAction,
+        boardTokenTrail,
         createImage: createImageAction,
         updateImage: updateImageAction,
         deleteImage: deleteImageAction,
