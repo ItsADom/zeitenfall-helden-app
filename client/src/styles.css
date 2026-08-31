@@ -3147,6 +3147,10 @@ li {
 .quick-contents {
   margin-left: 16px;
 }
+.quick-cap {
+  display: block;
+  margin-bottom: 3px;
+}
 .quick-contents .drop-zone {
   min-height: 32px;
 }

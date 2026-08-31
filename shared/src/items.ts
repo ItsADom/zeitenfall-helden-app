@@ -222,10 +222,42 @@ export function itemLastAnteil(item: Item, byUid: Map<string, Item>): number {
   return base;
 }
 
-// Summe der getragenen Last (kg), inklusive Behälter-Reduktion.
+// Liegt item in einem STAURAUM-Behälter, der (direkt oder über weitere
+// Verschachtelung) selbst auf der Ablage (bench) liegt? Dann zählt es nicht
+// zur Traglast — eine spare, unworn backpack's Inhalt ist nicht am Körper/im
+// Gepäck. Nur containerArt === 'storage' benched zählt: ein Schnellzugriff-
+// Behälter (Gürtel, Bandelier) zählt seinen Inhalt schon immer unabhängig vom
+// Tragen voll, außer beim Tragen selbst halbiert (siehe itemLastAnteil) — das
+// ändert sich hier nicht, nur Stauraum bekommt die neue Bench-Ausnahme.
+// Bewusst getrennt von itemLastAnteil: die Kapazitäts-/Füllstandsprüfung
+// eines Behälters (containerEffektiveFuellung) bleibt davon unberührt, ein
+// benchter Behälter kann weiterhin über seine Kapazität hinaus vollgestopft
+// sein.
+function inBenchtemStauraum(item: Pick<Item, 'location' | 'containerUid'>, byUid: Map<string, Item>): boolean {
+  let location = item.location;
+  let containerUid = item.containerUid;
+  const seen = new Set<string>();
+  while (location === 'behaelter') {
+    if (seen.has(containerUid)) break;
+    seen.add(containerUid);
+    const container = byUid.get(containerUid);
+    if (!container) break;
+    if (container.containerArt === 'storage' && container.location === 'bench') return true;
+    location = container.location;
+    containerUid = container.containerUid;
+  }
+  return false;
+}
+
+// Summe der getragenen Last (kg), inklusive Behälter-Reduktion. Inhalt eines
+// benchten Stauraum-Behälters (auch verschachtelt) zählt nicht mit (siehe
+// inBenchtemStauraum).
 export function getrageneLast(items: readonly Item[]): number {
   const byUid = new Map(items.map((it) => [it.uid, it]));
-  return items.reduce((sum, it) => sum + itemLastAnteil(it, byUid), 0);
+  return items.reduce(
+    (sum, it) => sum + (inBenchtemStauraum(it, byUid) ? 0 : itemLastAnteil(it, byUid)),
+    0,
+  );
 }
 
 export interface LastInfo {

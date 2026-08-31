@@ -450,6 +450,7 @@ export function AddContainerDialog({
 }) {
   const [name, setName] = useState('');
   const [containerArt, setContainerArt] = useState<ContainerArt>('storage');
+  const [gewicht, setGewicht] = useState(0);
   const [kapazitaet, setKapazitaet] = useState(0);
   const [kapazitaetArt, setKapazitaetArt] = useState<KapazitaetArt>('gewicht');
   const [gewichtsreduktion, setGewichtsreduktion] = useState(0);
@@ -458,6 +459,7 @@ export function AddContainerDialog({
   const reset = () => {
     setName('');
     setContainerArt('storage');
+    setGewicht(0);
     setKapazitaet(0);
     setKapazitaetArt('gewicht');
     setGewichtsreduktion(0);
@@ -473,6 +475,7 @@ export function AddContainerDialog({
       name: name.trim(),
       istBehaelter: true,
       containerArt,
+      gewicht,
       kapazitaet,
       kapazitaetArt,
       gewichtsreduktion: kapazitaetArt === 'stueck' ? 0 : gewichtsreduktion,
@@ -517,17 +520,22 @@ export function AddContainerDialog({
 
       <div className="dlg-row2">
         <label className="dlg-field">
+          Eigengewicht (kg)
+          <NumInput value={gewicht} min={0} onChange={setGewicht} />
+        </label>
+        <label className="dlg-field">
           Kapazität
           <NumInput value={kapazitaet} min={0} onChange={setKapazitaet} />
         </label>
-        <label className="dlg-field">
-          Einheit
-          <select value={kapazitaetArt} onChange={(e) => setKapazitaetArt(e.target.value as KapazitaetArt)}>
-            <option value="gewicht">kg</option>
-            <option value="stueck">Stück</option>
-          </select>
-        </label>
       </div>
+
+      <label className="dlg-field">
+        Einheit
+        <select value={kapazitaetArt} onChange={(e) => setKapazitaetArt(e.target.value as KapazitaetArt)}>
+          <option value="gewicht">kg</option>
+          <option value="stueck">Stück</option>
+        </select>
+      </label>
 
       {kapazitaetArt !== 'stueck' && (
         <label className="dlg-field">

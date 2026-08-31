@@ -150,6 +150,25 @@ export default function AusruestungTab() {
     };
   };
 
+  // Schnellzugriff-Behälter (Gürtel, Bandelier): Fach-Kapazität war bisher nur
+  // gespeichert, nirgends angezeigt — anders als Stauraum-Behälter (siehe die
+  // "Behälter (Stauraum)"-Sektion unten) zeigte hier nichts, wie voll er ist.
+  // Wie bei Stauraum ist das rein informativ (`over` nur eine Warnfarbe) —
+  // ein Behälter darf auch hier über Kapazität gestopft werden (Spieler-
+  // Entscheidung, siehe TODO.md „capacity/overfill checking stays location-
+  // independent"), kein hartes Limit fürs Ziehen.
+  const quickCap = (it: Item) => {
+    if (it.kapazitaet <= 0) return null;
+    const stueck = it.kapazitaetArt === 'stueck';
+    const fuell = containerFuellungAnzeige(items, it);
+    const voll = fuell > it.kapazitaet;
+    return (
+      <span className={`container-cap quick-cap${voll ? ' over' : ''}`}>
+        {stueck ? fuell : kg(fuell)} / {stueck ? it.kapazitaet : kg(it.kapazitaet)} {stueck ? 'Stück' : 'kg'}
+      </span>
+    );
+  };
+
   const chip = (it: Item) => (
     <ItemChip
       key={it.uid}
@@ -159,6 +178,7 @@ export default function AusruestungTab() {
     >
       {it.istBehaelter && it.containerArt === 'quick' && (
         <div className="quick-contents">
+          {quickCap(it)}
           <div {...dropProps({ location: 'behaelter', containerUid: it.uid })}>
             {itemsInContainer(items, it.uid).map(chip)}
             {itemsInContainer(items, it.uid).length === 0 && <span className="zone-empty">leer — hierher ziehen</span>}
