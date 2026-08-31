@@ -115,87 +115,38 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   just flipped off by the player/GM when the GM calls it.
 
 - [ready] **Group ↔ player inventory, player ↔ player item transfer, and
-  containers as a real, movable, worn concept** (concept agreed for the first
-  two; houses is a much rougher sketch — see below). Confirmed starting
-  point: **no group-level item storage exists at all today** — `char_items`
-  is still strictly `character_id`-scoped. Saving is no longer a full
-  delete+reinsert, though (see the incremental item saves note below) —
-  `applyItemOps`/`ItemOp` (`characterData.ts`, `shared/src/items.ts`) already
-  give per-item CRUD by uid (add/patch/remove/reorder). A cross-owner move is
-  a natural fit for that same op vocabulary (a `move`-style op reassigning
-  `owner_type`/`owner_id`, or reusing `patch`) rather than a primitive that
-  still needs building from scratch.
-   - **Decided: generalize item ownership.** Replace the hard `character_id`
-     FK with an `owner_type`/`owner_id` pair (mirroring the pattern
-     `assets/store.ts` already uses for images) — `'character'` or `'group'`
-     for now, extensible to `'room'` later for houses.
-   - **Decided: a new cross-owner move action** on any item chip (including
-     containers) reassigns `owner_type`/`owner_id`. Moving a container moves
-     every item whose `containerUid` points into it atomically, in the same
-     operation — nothing gets orphaned.
-   - **Decided: permission split.** Pulling an item *from* the shared group
-     inventory is open to any group member. Sending is restricted to your
-     own items — a player can give away or drop their own stuff, but can't
-     reach into another player's personal inventory directly (that needs the
-     GM, or that other player).
-   - **Decided: no confirmation step** — a move happens outright, same as a
-     normal drag-to-equip today.
-   - **Decided: items in the group pool are weightless** for everyone's
-     Traglast — nobody is personally hauling the shared stash.
-   - **Decided:** on any owner change, position-specific fields (`location`,
-     `zone`, `beidseitig`) reset to a safe default (`inventar`) rather than
-     trying to preserve a worn-state that can't carry over to the new owner
-     — no data is lost, just re-equip on arrival.
-   - **New UI needed:** a "Gruppen-Inventar" section on `Group.tsx`, using
-     the same specialized item-chip UI as `Ausruestung.tsx`/`Inventar.tsx`
-     (not the generic `Sektionen` dynamic-table component, which can't
-     represent weight/location/container relationships) — this is the "big
-     overhaul of group page" the original note anticipated.
-   - **[sketch] Houses** — much rougher than the above two: confirmed shared
-     group property, subdivided into rooms, with containers inside rooms
-     holding items ("all the stuff a real house has"). Structurally this
-     would reuse the same `owner_type`/`owner_id` generalization (a
-     lightweight `group_rooms` table, group-owned items optionally tagged
-     with a `room_id`), but still open: can a group own multiple houses, who
-     can create/name rooms, whether a room has any capacity/size concept.
-     Needs its own concept pass before it's buildable — do not treat as
-     `[ready]` just because the other two pieces in this entry are.
-   - **[ready] GM-wide prep pool** (from the same Discord discussion that
-     produced Hidden/revealable Ausrüstung stats, shipped 2026-08-31 — a GM
-     wants to stat out equipment in advance, cross-group, before it's ever found by
-     anyone; concept pass done 2026-08-28). **Decided:** third `owner_type:
-     'gm'` value in the generalization above, `owner_id` unused — **one
-     single shared pool** (not per-GM: confirmed only one GM account exists
-     today, so per-GM scoping would be unused complexity). **Decided:**
-     invisible to players entirely — unlike the group pool (open to any
-     member), a GM-pool item never appears anywhere a player can see it;
-     only a GM ever sees the pool at all, so there's no separate "pull"
-     rule to design. **Decided: lives on `GroupOverviewPage`**
-     (`client/src/pages/GroupOverview.tsx`, already GM-only via
-     `requireGm`), not the `/verwaltung` catalog page — a new panel next to
-     the existing roster-chips panel, reusing the full `ItemChip`/
-     `AddItemDialog` UI from `Ausruestung.tsx`/`Inventar.tsx` (create, edit,
-     hide/reveal stats — a real management surface, not a read-only staging
-     list). Since the pool is global, the same contents show regardless of
-     which group's overview you're on — you pick *who* gets an item by
-     being on that group's page. **Decided: hand-out is drag-and-drop** —
-     drag a chip from the GM-inventory panel onto a player's roster card to
-     reassign it (`owner_type`/`owner_id`: `'gm'` → that character),
-     outright, no confirm step, reusing the cross-owner move action from
-     the entry above. This makes every roster card a drop target, the first
-     interactive element on a page currently documented as strictly
-     read-only (`// Nur-Lesen (die Route dahinter ist requireGm).`,
-     `GroupOverview.tsx:17`) — confirmed fine to break (GM-notes on that
-     same page already do). **Decided:** GM has infinite Traglast — simpler
-     than the group pool's "weightless" workaround, `owner_type: 'gm'`
-     items just skip capacity/Traglast computation entirely, no carrying
-     character to compute it for. Layout proportions/collapsibility of the
-     new panel are a build-time call, not settled here.
-      - **Hard blocker, build order:** needs the cross-owner move action
-        from the entry above to exist **as a drag gesture specifically**
-        (drag chip → drop on a target), not just any move button — this
-        entry's whole interaction is built on that drag. Do not start this
-        sub-item before that lands.
+  containers as a real, movable, worn concept.** Concept agreed 2026-08-31 —
+  **full plan in `docs/concepts/shared-inventories.md`; build from that, not
+  from this summary.** In short: ownership generalizes to an
+  `owner_type`/`owner_id` pair on `char_items`
+  (`'character'`/`'group'`/`'gm'`, extensible to `'room'`), which forces a
+  table rebuild (SQLite cannot drop `NOT NULL` via `ALTER`) and costs the
+  DB-level cascade on character/group delete. The cross-owner move is its own
+  imperative endpoint, NOT an `ItemOp` — `diffItems` compares one owner's
+  list against itself and structurally cannot express a move between owners.
+  Containers move atomically with their contents. The move UI is a
+  „Verschieben nach…“-picker in `AddItemDialog` listing target names only;
+  the permission split falls out of which items a viewer can open a dialog on,
+  so there is no target-side rule to write. New panels: Gruppen-Inventar on
+  `Group.tsx`, GM prep pool on `GroupOverview.tsx`. Everyone may send to the
+  GM pool (the SL stands in for every NSC, so it is how an item is conserved
+  out of a player's hands); its contents stay SL-only. Categories:
+  `char_item_categories` takes the same owner pair — per-owner curated lists,
+  no global catalog, taxonomy spreads by item movement.
+   - **Superseded by the concept doc:** the earlier „hand-out is
+     drag-and-drop, drag a chip onto a roster card“ decision and the hard
+     build-order blocker that came with it. The picker replaces the drag, so
+     the GM pool has no dependency left and lands in the same round.
+   - **[sketch] Houses** — much rougher than the rest, and deliberately NOT
+     covered by the concept doc: confirmed shared group property, subdivided
+     into rooms, with containers inside rooms holding items ("all the stuff a
+     real house has"). Structurally this would reuse the same
+     `owner_type`/`owner_id` generalization (a lightweight `group_rooms`
+     table, group-owned items optionally tagged with a `room_id`), but still
+     open: can a group own multiple houses, who can create/name rooms, whether
+     a room has any capacity/size concept. Needs its own concept pass before
+     it is buildable — do not treat as `[ready]` just because the rest of this
+     entry is.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
