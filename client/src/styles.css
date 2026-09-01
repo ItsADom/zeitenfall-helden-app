@@ -311,6 +311,75 @@
   --banner-motif: none; /* Schattenlande: Nebel kommt aus dem Canvas (BannerFx) */
 }
 
+/* "Chaos"-Modus — geheimes Easter Egg (TODO.md), KEIN Eintrag in THEMES: nicht
+   wählbar, nicht gespeichert, wird nur kurzzeitig über data-theme='chaos'
+   gesetzt (App.tsx) und läuft nach ein paar Sekunden von selbst wieder ab.
+   Absichtlich schrill/unstimmig — dark-only wie Schattenlande, ignoriert also
+   data-mode, deshalb ganz am Ende der Farbwelten-Blöcke. */
+:root[data-theme='chaos'] {
+  color-scheme: dark;
+  --bg: #1a0033;
+  --panel: #ff00c8;
+  --panel-hi: #ff66e0;
+  --border: #00fff2;
+  --border-strong: #eaff00;
+  --border-soft: #00fff2;
+  --border-hover: #ff6a00;
+  --text: #eaff00;
+  --muted: #ffd1f5;
+  --input-bg: #2a0044;
+  --accent: #ff6a00;
+  --accent-dark: #cc3300;
+  --accent-soft: #ffe66d;
+  --accent-disabled: #663399;
+  --on-accent: #1a0033;
+  --on-accent-fill: #1a0033;
+  --header-grad-a: #ff00c8;
+  --header-grad-mid: #00fff2;
+  --header-grad-b: #ff6a00;
+  --surface-head: #2a0044;
+  --surface-hover: #3a0066;
+  --surface-hover-strong: #4a0088;
+  --surface-sunken: #220038;
+  --computed-bg: #00fff2;
+  --computed-text: #ff00c8;
+  --warn-soft: #ff6a00;
+  --warn-line: #1a0033;
+  --crit-soft: #00fff2;
+  --crit-line: #ff00c8;
+  --over-soft: #eaff00;
+  --over-line: #1a0033;
+  --mastery: #39ff14;
+  --error-text: #ff003c;
+  --bg-wash: rgba(255, 0, 200, 0.15);
+  --die-w4: #ff00c8;
+  --die-w6: #00fff2;
+  --die-w8: #eaff00;
+  --die-w10: #ff6a00;
+  --die-w12: #39ff14;
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 15 9 22 9 16.5 13.5 18.5 21 12 16.5 5.5 21 7.5 13.5 2 9 9 9Z'/%3E%3C/svg%3E"); /* Chaos: Stern, absichtlich unpassend zum Rest */
+  --banner-motif: none;
+  --banner-drift: 6s;
+}
+/* Die ganze Seite langsam durch den Farbkreis drehen, statt nur der schrillen
+   Palette oben — filter statt einzelner Farb-Tokens, weil die Tokens feste
+   Hex-Werte sind (keine hsl()-Basis) und sich sonst nicht animieren ließen.
+   Hängt an .chaos-hue-wrap (App.tsx), nicht an body: filter macht sein
+   Element zum containing block für position:fixed-Nachkommen; Würfel-Dock/
+   Overlays sitzen bewusst außerhalb dieser Hülle. Gleiche Abschalt-Regeln wie
+   die Kopfleisten-Animation oben (prefers-reduced-motion, data-anim='off'). */
+:root[data-theme='chaos'] .chaos-hue-wrap {
+  animation: chaosHue 3s linear infinite;
+}
+@keyframes chaosHue {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='chaos'] .chaos-hue-wrap { animation: none; }
+}
+:root[data-theme='chaos'][data-anim='off'] .chaos-hue-wrap { animation: none; }
+
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
 .theme-dropdown {
   position: relative;
@@ -558,12 +627,15 @@ header.topbar {
 :root[data-anim='off'] header.topbar { animation: none; }
 
 /* Dekorative Effekt-Ebene in der Kopfleiste (hinter den Inhalten). Standard
-   unsichtbar; einzelne Themes können darin bewegte Formen zeigen. */
+   unsichtbar; einzelne Themes können darin bewegte Formen zeigen.
+   pointer-events bleibt auto (nicht 'none'): das geheime Chaos-Easter-Egg
+   (App.tsx) hört hier auf Klicks. Die Kopfleisten-Inhalte liegen per z-index
+   ohnehin darüber (siehe Regel unten), also fängt ein Klick auf Wortmarke/
+   Menüs weiterhin dort ab — nur die freie Fläche der Leiste geht an banner-fx. */
 .banner-fx {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  pointer-events: none;
   z-index: 0;
 }
 /* Inhalte über die Effekt-Ebene heben */

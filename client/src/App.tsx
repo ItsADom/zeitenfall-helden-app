@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import type { UserInfo } from '@shared/types';
 import { apiGet, apiPost, setUnauthorizedHandler } from './api';
@@ -32,6 +32,16 @@ import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
 import { isKnownTheme, useAnimations, useChatFontSize, useDiceIcons, useMode, useTheme } from './theme';
 import type { ChatFontSize, Mode } from './theme';
+import { reportEasterEggFound } from './easterEggs';
+
+// Geheimer "Chaos"-Modus (TODO.md „Secret chaos mode easter egg"): 5x schnell
+// auf den banner-fx-Streifen klicken löst kurzzeitig eine grelle, absichtlich
+// unpassende Farbwelt aus. Bewusst NICHT Teil von THEMES (theme.ts) — ein Gag,
+// keine wählbare/gespeicherte Farbwelt.
+const CHAOS_THEME_ID = 'chaos';
+const CHAOS_CLICKS_NEEDED = 5;
+const CHAOS_CLICK_WINDOW_MS = 1500;
+const CHAOS_DURATION_MS = 12000;
 
 interface AuthContextValue {
   user: UserInfo;
@@ -88,9 +98,29 @@ export default function App() {
   // damit auf der Charakterseite beides zur Charakter-Farbwelt passt.
   const [overrideTheme, setOverrideTheme] = useState<string | null>(null);
   const displayTheme = overrideTheme && isKnownTheme(overrideTheme) ? overrideTheme : theme;
+  // Chaos-Modus: eigener Schalter statt über setTheme/setOverrideTheme, damit
+  // er weder persistiert noch die Charakter-Override-Farbwelt anfasst — läuft
+  // rein am displayTheme vorbei und legt sich nach Ablauf selbst wieder ab.
+  const [chaosMode, setChaosMode] = useState(false);
+  const chaosClicksRef = useRef<number[]>([]);
+  const chaosTimeoutRef = useRef<number | undefined>(undefined);
+  const appliedTheme = chaosMode ? CHAOS_THEME_ID : displayTheme;
   useEffect(() => {
-    document.documentElement.dataset.theme = displayTheme;
-  }, [displayTheme]);
+    document.documentElement.dataset.theme = appliedTheme;
+  }, [appliedTheme]);
+  useEffect(() => () => window.clearTimeout(chaosTimeoutRef.current), []);
+  const handleBannerClick = () => {
+    if (chaosMode) return;
+    const now = Date.now();
+    const recent = [...chaosClicksRef.current, now].filter((t) => now - t <= CHAOS_CLICK_WINDOW_MS);
+    chaosClicksRef.current = recent;
+    if (recent.length < CHAOS_CLICKS_NEEDED) return;
+    chaosClicksRef.current = [];
+    setChaosMode(true);
+    reportEasterEggFound('chaos-mode');
+    window.clearTimeout(chaosTimeoutRef.current);
+    chaosTimeoutRef.current = window.setTimeout(() => setChaosMode(false), CHAOS_DURATION_MS);
+  };
   // Die Kopfleiste klebt oben; was darunter kleben soll, braucht ihre Höhe.
   const topbarRef = useTopbarHeight();
 
@@ -127,11 +157,17 @@ export default function App() {
           Ansage direkt weiterreichen kann. */}
       <WartungProvider>
       <DicePanelProvider>
+      {/* Chaos-Hue-Animation (styles.css) hängt an dieser Hülle, NICHT an body:
+          filter macht sein Element zum containing block für position:fixed-
+          Nachkommen, und der Würfel-Dock/die Overlays unten sind bewusst
+          außerhalb dieser Hülle, damit sie beim Scrollen während des Chaos-
+          Fensters weiter am echten Viewport kleben. */}
+      <div className="chaos-hue-wrap">
       <header className="topbar" ref={topbarRef}>
-        <div className="banner-fx" aria-hidden="true">
+        <div className="banner-fx" aria-hidden="true" onClick={handleBannerClick}>
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
               der Effekt neu auf (Schleife ⇄ Standbild). */}
-          <BannerFx key={`${displayTheme}-${anim}`} theme={displayTheme} animate={anim} />
+          <BannerFx key={`${appliedTheme}-${anim}`} theme={appliedTheme} animate={anim} />
         </div>
         {/* Wortmarke → Startseite. „Zeitenkompass": der Kompass, der die aus
             ihrer Zeit gefallenen Helden von Zeitenfall orientiert. */}
@@ -191,6 +227,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/charaktere" />} />
         </Routes>
       </main>
+      </div>
       <DicePanelDock />
       {/* Over the dock (which it ends by flying into), but under the restart
           screen: a redeploy beats any performance. */}

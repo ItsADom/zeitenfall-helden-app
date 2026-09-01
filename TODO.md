@@ -389,17 +389,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   - Andergast as colorless
   - Orkland dark green, Bornland lighter green
   - Efferdia light blue
-- [ready] **Secret "chaos mode" easter egg** (concept agreed — gag, not a real
-  theme): click the decorative `banner-fx` strip in the header (`App.tsx:99-103`
-  — purely decorative today, `aria-hidden`, no click handler, spans every page;
-  deliberately NOT the "Zeitenkompass" wordmark, which is a `Link to="/"` and
-  would navigate/interrupt the click sequence) 5x fast (~1.5s window) to trigger
-  a garish/clashing "chaos" color mode — a joke, not a real addition to `THEMES`
-  in `theme.ts`. Timed: runs for a fixed short duration (~10–15s) then auto-
-  reverts to whatever theme was active before, no persistence, no toggle-off needed.
-  Not yet implemented — when it is, it needs to report itself to the easter-egg
-  tracker below (same as any future egg), so build the trigger with that hook
-  from the start rather than adding it after the fact.
 - [ready] **Easter egg tracker** (concept agreed; visual reference at
   `docs/concepts/easter-egg-tracker.html`): a public page listing every
   easter egg that exists, who found it first, and when — first-finder-only,
@@ -410,10 +399,11 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      `easter_egg_finds(id, egg_key, user_id, found_at)` with
      `UNIQUE(egg_key, user_id)` — insert-or-ignore, so only the first trigger
      per (player, egg) sticks and later triggers are silently no-ops.
-   - Each egg's trigger needs to call a small `POST /easter-eggs/:key/found`
-     (or similar) when it fires — there's no other persistence today (chaos
-     mode is 100% client-side), so this is new wiring on the egg itself, not
-     just a new page reading existing data.
+   - The "chaos mode" egg is built (`App.tsx`'s `handleBannerClick`, chaos
+     palette in `styles.css`) and already calls a `reportEasterEggFound(key)`
+     hook (`client/src/easterEggs.ts`) on trigger — today a no-op stub. This
+     task's server piece is turning that stub into a real
+     `POST /easter-eggs/:key/found`, not adding new wiring on the egg itself.
    - **Decided:** the list itself is a normal, always-reachable page — NOT an
      egg to find (considered, dropped: paradoxical to gate a "how many eggs
      have been found" page behind being found itself).
