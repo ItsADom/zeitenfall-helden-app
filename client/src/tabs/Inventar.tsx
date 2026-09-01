@@ -342,6 +342,14 @@ export default function InventarTab() {
                       −%<NumInput value={c.gewichtsreduktion} min={0} max={100} onChange={(v) => patchItem(c.uid, { gewichtsreduktion: v })} />
                     </label>
                   )}
+                  <button
+                    type="button"
+                    className="small"
+                    title="Weitere Details, Duplizieren, Verschieben…"
+                    onClick={() => setEditUid(c.uid)}
+                  >
+                    ⇄
+                  </button>
                   <ConfirmDeleteButton title="Behälter entfernen (Inhalt wird lose)" onConfirm={() => removeItem(c.uid)} />
                 </span>
               )}

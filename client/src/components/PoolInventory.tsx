@@ -192,6 +192,14 @@ export default function PoolInventory({
                 <label title={stueck ? 'Fassungsvermögen (Stück, 0 = ohne Angabe)' : 'Fassungsvermögen (kg, 0 = ohne Angabe)'}>
                   Kap.<NumInput value={c.kapazitaet} min={0} onChange={(v) => onSave(c.uid, { kapazitaet: v })} />
                 </label>
+                <button
+                  type="button"
+                  className="small"
+                  title="Weitere Details, Duplizieren, Verschieben…"
+                  onClick={() => setEditUid(c.uid)}
+                >
+                  ⇄
+                </button>
                 <ConfirmDeleteButton title="Behälter entfernen (Inhalt wird lose)" onConfirm={() => onDelete(c.uid)} />
               </span>
               <span className="chev" aria-hidden>{open ? '▾' : '▸'}</span>
