@@ -2,11 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
+import type { Item } from '@shared/items';
+import { duplicateItem, makeItem } from '@shared/items';
+import type { MoveTarget } from '../components/itemDialogs';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterCard from '../components/CharacterCard';
+import type { Catalogs } from '../components/charSheet';
+import PoolInventory from '../components/PoolInventory';
 import { Portrait } from '../components/Portrait';
 import { useTabsHeight } from '../components/stickyChrome';
+import { usePoolItems } from '../components/usePoolItems';
 import ContentTabView from '../tabs/Sektionen';
 
 interface GroupData {
@@ -14,11 +20,19 @@ interface GroupData {
   members: { id: number; username: string; displayName: string }[];
   characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null; portrait: boolean }[];
   tabs: DynTab[];
+  itemPool: Item[];
+  itemCategories: string[];
 }
 
 // Gruppeninhalte haben keine Attribute — Probe-Spalten gibt es hier nicht,
 // der Wert wird nur gebraucht, weil die Sektions-Ansicht ihn erwartet.
 const NO_ATTRIBUTES = {} as Attributes;
+// Stabile Referenz für "noch nicht geladen" — `data?.itemPool ?? []` würde bei
+// jedem Render, solange data noch null ist, ein NEUES Array anlegen; usePoolItems'
+// Effekt hängt an genau dieser Referenz und würde dadurch in einer Endlosschleife
+// (setState im Effekt ändert die Prop-Referenz nie, aber der Fallback hier schon)
+// immer wieder feuern ("Maximum update depth exceeded").
+const NO_ITEMS: Item[] = [];
 
 export default function GroupPage() {
   const { user } = useAuth();
@@ -38,6 +52,19 @@ export default function GroupPage() {
   // frischen Serverdaten übernimmt.
   const [reloadTick, setReloadTick] = useState(0);
   const dynDirty = useRef(false); // aktiver Tab hat ungespeicherte Zeilen?
+
+  // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md):
+  // talents/specialEnergies fürs Boni-Feld im Item-Dialog — die Gruppenseite
+  // hat, anders als der Charakterbogen, keinen eigenen Katalog-Ladepfad, daher
+  // hier direkt der generische /api/catalogs-Weg.
+  const [catalogs, setCatalogs] = useState<Pick<Catalogs, 'talents' | 'specialEnergies'> | null>(null);
+  useEffect(() => {
+    apiGet<Catalogs>('/api/catalogs').then((c) => setCatalogs({ talents: c.talents, specialEnergies: c.specialEnergies }));
+  }, []);
+  const { items: itemPool, setItems: setItemPool, replace: replaceItemPool } = usePoolItems(
+    `/api/groups/${groupId}/items`,
+    data?.itemPool ?? NO_ITEMS,
+  );
 
   // Lädt die Gruppe. quiet=true: stille Hintergrund-Aktualisierung ohne
   // Lade-Anzeige — der bisherige Stand bleibt stehen, bis neue Daten da sind.
@@ -109,6 +136,22 @@ export default function GroupPage() {
     setTabs(() => next);
     await apiPut(`${basePath}/tabs/reorder`, { order: next.map((t) => t.id) });
   };
+
+  // Gruppen-Inventar: Ziele fürs „Verschieben nach…" sind alle Charaktere
+  // DIESER Gruppe plus der GM-Pool (nicht die Gruppenpool-Option selbst —
+  // die ist ja bereits die Quelle). data.characters ist schon geladen, ein
+  // zweiter Fetch wie useMoveTargets ihn für den Charakterbogen braucht
+  // entfällt hier.
+  const poolMoveTargets: MoveTarget[] = [
+    ...data.characters.map((c) => ({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character' as const, toOwnerId: c.id })),
+    { key: 'gm', label: 'Spielleiter-Vorrat', toOwnerType: 'gm' as const, toOwnerId: 0 },
+  ];
+  const patchPoolItem = (uid: string, patch: Partial<Item>) =>
+    setItemPool(itemPool.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  const movePoolItem = (uid: string, target: MoveTarget) =>
+    void apiPost<{ items: Item[] }>(`${basePath}/items/${uid}/move`, { toOwnerType: target.toOwnerType, toOwnerId: target.toOwnerId }).then(
+      (res) => replaceItemPool(res.items),
+    );
 
   return (
     <>
@@ -188,6 +231,44 @@ export default function GroupPage() {
             />
           ) : (
             <p className="muted">Noch keine Tabs. Lege einen an, um gemeinsame Inhalte zu sammeln.</p>
+          )}
+
+          {/* Bewusst NICHT „Gruppen-Inventar" — manche Gruppen (diese hier
+              inklusive) haben bereits einen gleichnamigen, frei getippten
+              Tab von vor diesem Feature; „Gruppenpool" hält beides sauber
+              auseinander. */}
+          <h2>Gruppenpool</h2>
+          <p className="muted">
+            Gemeinsamer Besitz der Gruppe — gewichtslos, jedes Mitglied darf hinzufügen, bearbeiten und an Charaktere
+            oder den Spielleiter-Vorrat verschieben.
+          </p>
+          {catalogs ? (
+            <PoolInventory
+              storageKey={`grouppool:${groupId}`}
+              items={itemPool}
+              categories={data.itemCategories}
+              talents={catalogs.talents}
+              specialEnergies={catalogs.specialEnergies}
+              isGm={user.isGm}
+              moveTargets={poolMoveTargets}
+              onAdd={(fields) => setItemPool([...itemPool, makeItem(fields)])}
+              onSave={(uid, patch) => patchPoolItem(uid, patch)}
+              onDuplicate={(uid) => {
+                const it = itemPool.find((x) => x.uid === uid);
+                if (it) setItemPool([...itemPool, duplicateItem(it)]);
+              }}
+              onDelete={(uid) =>
+                setItemPool(
+                  itemPool
+                    .filter((it) => it.uid !== uid)
+                    .map((it) => (it.containerUid === uid ? { ...it, location: 'inventar', containerUid: '' } : it)),
+                )
+              }
+              onPatchAnzahl={(uid, anzahl) => patchPoolItem(uid, { anzahl })}
+              onMove={movePoolItem}
+            />
+          ) : (
+            <p className="muted">Lade…</p>
           )}
         </>
       )}

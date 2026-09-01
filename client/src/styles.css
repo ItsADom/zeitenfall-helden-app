@@ -3427,6 +3427,18 @@ li {
   display: flex;
   gap: 8px;
   margin-right: auto;
+  /* Ohne Umbruch quetscht der globale `select { width: 100% }` (oben) das
+     Verschieben-Ziel-Dropdown flex-shrink-bedingt auf fast nichts zusammen,
+     sobald der Fuß eng wird (Duplizieren/Löschen daneben) — siehe .dlg-move-select. */
+  flex-wrap: wrap;
+}
+/* „Verschieben nach…"-Auswahl im Dialog-Fuß (siehe MoveTarget in
+   itemDialogs.tsx): braucht eine Mindestbreite, sonst gilt für sie derselbe
+   globale `select { width: 100% }`, der in einer Flex-Reihe ohne eigene Breite
+   frei auf fast nichts zusammenschrumpft. */
+.dlg-move-select {
+  width: auto;
+  min-width: 12em;
 }
 
 /* Chat-Befehlsübersicht (siehe dice/CommandsDialog.tsx). */
