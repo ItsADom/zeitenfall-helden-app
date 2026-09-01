@@ -208,6 +208,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         added: [
           'Ausrüstung kann jetzt geheime Eigenschaften haben: die Spielleitung kann RS, Haltbarkeit oder einzelne Boni eines Gegenstands verdeckt anlegen — sie zeigen „???" statt der echten Zahl (ein verdeckter Bonus bleibt komplett unsichtbar), bis die Spielleitung sie aufdeckt.',
           'Nah- und Fernkampfwaffen sind jetzt ganz normale Gegenstände: sie haben ein Gewicht, das in der Traglast mitzählt, und tauchen im Inventar bzw. in der Ausrüstung auf, statt nur als eigene Zeile im Waffen-Reiter zu existieren, unabhängig vom Rest der Ausrüstung.',
+          'Die Abenteurergilde erinnert (erneut) daran, dass geliehene Ausrüstung nach dem Tod zurückzugeben ist.'
         ],
       },
       {
@@ -227,6 +228,9 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Kreis- und Rechteck-Messformen auf dem virtuellen Tisch zeigen jetzt dauerhaft einen Punkt an ihrem Mittelpunkt.',
           'Verschiebt jemand eine Marke auf dem virtuellen Tisch, sehen jetzt alle am Tisch kurz die durchlaufenen Felder mit Schrittzahl markiert (10 Sekunden, per Klick auch früher ausblendbar).',
           'Talente und Zauber/Fähigkeiten lassen sich jetzt mit 📌 als Würfel-Favorit markieren (in Talente sowie in „Zauber & Fähigkeiten verwalten") — sie tauchen dann in der 🎲-Favoriten-Liste im Würfel-Chat auf und würfeln von dort direkt die echte Probe.',
+        ],
+        changed:[
+          'Kritische Fehlschläge treten jetzt bevorzugt dann auf, wenn es besonders wichtig ist.',
         ],
         fixed: [
           'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',
