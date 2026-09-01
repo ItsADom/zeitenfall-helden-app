@@ -70,6 +70,7 @@ import type {
   ItemBonusKind,
   ItemLocation,
   ItemOp,
+  ItemOwnerType,
   ResourceInput,
   Resources,
   SpecialResource,
@@ -491,13 +492,24 @@ export function instantiateStandardSections(charId: number): void {
   tx();
 }
 
-// Ein paar sinnvolle Ausgangs-Kategorien für einen neuen Charakter, sofern er
-// noch keine hat. Frei änderbar — nur eine Starthilfe, kein Zwang.
-export function seedItemCategories(charId: number): void {
-  const have = (db.prepare('SELECT COUNT(*) AS n FROM char_item_categories WHERE character_id = ?').get(charId) as { n: number }).n;
+// Ein paar sinnvolle Ausgangs-Kategorien für einen neuen Owner (Charakter,
+// Gruppenpool, GM-Pool), sofern er noch keine hat. Frei änderbar — nur eine
+// Starthilfe, kein Zwang. Idempotent, damit sie auch für den GM-Pool (der
+// keinen eigenen Anlege-Zeitpunkt hat) bei jedem Zugriff gefahrlos erneut
+// aufgerufen werden kann (siehe GET-Route für den GM-Pool).
+export function seedItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number): void {
+  const have = (
+    db.prepare('SELECT COUNT(*) AS n FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').get(ownerType, ownerId) as {
+      n: number;
+    }
+  ).n;
   if (have > 0) return;
-  const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
-  INVENTAR_KATEGORIEN.forEach((name, i) => ins.run(charId, i, name));
+  const ins = db.prepare('INSERT INTO char_item_categories (owner_type, owner_id, pos, name) VALUES (?, ?, ?, ?)');
+  INVENTAR_KATEGORIEN.forEach((name, i) => ins.run(ownerType, ownerId, i, name));
+}
+
+export function seedItemCategories(charId: number): void {
+  seedItemCategoriesForOwner('character', charId);
 }
 
 // Einmalige Migration (Cluster 5a): den früheren dynamischen „Inventar"-Reiter
@@ -921,11 +933,15 @@ const clampMin = (v: unknown, min = 0): number => {
 };
 
 export function loadItems(charId: number): Item[] {
+  return loadItemsForOwner('character', charId);
+}
+
+export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
-    .all(charId) as {
+    .all(ownerType, ownerId) as {
     id: number;
     uid: string;
     name: string;
@@ -955,9 +971,9 @@ export function loadItems(charId: number): Item[] {
   const bonusRows = db
     .prepare(
       `SELECT ib.item_id, ib.uid, ib.kind, ib.code, ib.feld, ib.wert, ib.verborgen FROM char_item_bonuses ib
-       JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ? ORDER BY ib.pos, ib.id`,
+       JOIN char_items ci ON ci.id = ib.item_id WHERE ci.owner_type = ? AND ci.owner_id = ? ORDER BY ib.pos, ib.id`,
     )
-    .all(charId) as { item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
+    .all(ownerType, ownerId) as { item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
   const bonusesByItem = new Map<number, ItemBonus[]>();
   for (const r of bonusRows) {
     if (!(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
@@ -977,9 +993,9 @@ export function loadItems(charId: number): Item[] {
   const weaponStatRows = db
     .prepare(
       `SELECT ws.item_id, ws.uid, ws.feld, ws.wert, ws.verborgen FROM char_item_weapon_stats ws
-       JOIN char_items ci ON ci.id = ws.item_id WHERE ci.character_id = ? ORDER BY ws.pos, ws.id`,
+       JOIN char_items ci ON ci.id = ws.item_id WHERE ci.owner_type = ? AND ci.owner_id = ? ORDER BY ws.pos, ws.id`,
     )
-    .all(charId) as { item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
+    .all(ownerType, ownerId) as { item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
   const weaponStatsByItem = new Map<number, WaffenStat[]>();
   for (const r of weaponStatRows) {
     if (!(WAFFEN_STAT_FELDER as string[]).includes(r.feld)) continue;
@@ -1016,8 +1032,14 @@ export function loadItems(charId: number): Item[] {
 }
 
 export function loadItemCategories(charId: number): string[] {
+  return loadItemCategoriesForOwner('character', charId);
+}
+
+export function loadItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number): string[] {
   return (
-    db.prepare('SELECT name FROM char_item_categories WHERE character_id = ? ORDER BY pos, id').all(charId) as { name: string }[]
+    db
+      .prepare('SELECT name FROM char_item_categories WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id')
+      .all(ownerType, ownerId) as { name: string }[]
   ).map((r) => r.name);
 }
 
@@ -1107,6 +1129,10 @@ interface WorkingItem extends Omit<Item, 'bonusse' | 'waffenStats'> {
 // einer uid, die dieser Client nie gesehen hat (weil sie verdeckt war), kann
 // es strukturell gar nicht geben, also muss hier nichts rekonstruiert werden.
 export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolean): void {
+  applyItemOpsForOwner('character', charId, raw, requesterIsGm);
+}
+
+export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, raw: unknown, requesterIsGm: boolean): void {
   const ops = (Array.isArray(raw) ? raw.slice(0, MAX_ITEM_OPS) : []) as Record<string, unknown>[];
   if (ops.length === 0) return;
 
@@ -1115,7 +1141,7 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
   // Stand vorheriger Ops, ohne zwischendurch neu aus der DB zu lesen.
   const byUid = new Map<string, WorkingItem>();
   const idToUid = new Map<number, string>();
-  for (const it of loadItems(charId)) {
+  for (const it of loadItemsForOwner(ownerType, ownerId)) {
     byUid.set(it.uid, { ...it, bonusse: [], waffenStats: [] });
     idToUid.set(it.id, it.uid);
   }
@@ -1123,9 +1149,9 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
     const bonusRows = db
       .prepare(
         `SELECT ib.id, ib.item_id, ib.uid, ib.kind, ib.code, ib.feld, ib.wert, ib.verborgen FROM char_item_bonuses ib
-         JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ?`,
+         JOIN char_items ci ON ci.id = ib.item_id WHERE ci.owner_type = ? AND ci.owner_id = ?`,
       )
-      .all(charId) as { id: number; item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
+      .all(ownerType, ownerId) as { id: number; item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
     for (const r of bonusRows) {
       const itemUid = idToUid.get(r.item_id);
       const item = itemUid ? byUid.get(itemUid) : undefined;
@@ -1141,9 +1167,9 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
     const statRows = db
       .prepare(
         `SELECT ws.id, ws.item_id, ws.uid, ws.feld, ws.wert, ws.verborgen FROM char_item_weapon_stats ws
-         JOIN char_items ci ON ci.id = ws.item_id WHERE ci.character_id = ?`,
+         JOIN char_items ci ON ci.id = ws.item_id WHERE ci.owner_type = ? AND ci.owner_id = ?`,
       )
-      .all(charId) as { id: number; item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
+      .all(ownerType, ownerId) as { id: number; item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
     for (const r of statRows) {
       const itemUid = idToUid.get(r.item_id);
       const item = itemUid ? byUid.get(itemUid) : undefined;
@@ -1154,12 +1180,12 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
 
   const tx = db.transaction(() => {
     const insItem = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updItem = db.prepare(ITEM_UPDATE_SQL);
     const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
-    const nextPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_items WHERE character_id=?');
+    const nextPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_items WHERE owner_type=? AND owner_id=?');
     const setPos = db.prepare('UPDATE char_items SET pos=? WHERE id=?');
     const insBonus = db.prepare('INSERT INTO char_item_bonuses (item_id, pos, uid, kind, code, feld, wert, verborgen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
     const updBonus = db.prepare('UPDATE char_item_bonuses SET kind=?, code=?, feld=?, wert=?, verborgen=? WHERE id=?');
@@ -1219,10 +1245,10 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
           fields.haltbarkeitVerborgen = false;
         }
         const n = normalizedItemRow(fields);
-        const pos = (nextPos.get(charId) as { p: number }).p;
+        const pos = (nextPos.get(ownerType, ownerId) as { p: number }).p;
         const id = Number(
           insItem.run(
-            charId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig,
+            ownerType, ownerId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig,
             n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
             n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
           ).lastInsertRowid,
@@ -1386,6 +1412,10 @@ export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolea
 }
 
 export function saveItemCategories(charId: number, raw: unknown): void {
+  saveItemCategoriesForOwner('character', charId, raw);
+}
+
+export function saveItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? raw : [];
   const seen = new Set<string>();
   const clean: string[] = [];
@@ -1398,9 +1428,9 @@ export function saveItemCategories(charId: number, raw: unknown): void {
     if (clean.length >= MAX_CATEGORIES) break;
   }
   const tx = db.transaction(() => {
-    db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
-    const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
-    clean.forEach((name, i) => ins.run(charId, i, name));
+    db.prepare('DELETE FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
+    const ins = db.prepare('INSERT INTO char_item_categories (owner_type, owner_id, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(ownerType, ownerId, i, name));
   });
   tx();
 }
@@ -1490,6 +1520,10 @@ export function savePouches(charId: number, raw: unknown): void {
 // Seite): Umbenennen zieht die betroffenen char_items mit, Entfernen setzt deren
 // Kategorie auf '' (ohne). Danach wird die Liste in der neuen Reihenfolge gesetzt.
 export function manageItemCategories(charId: number, raw: unknown): string[] {
+  return manageItemCategoriesForOwner('character', charId, raw);
+}
+
+export function manageItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number, raw: unknown): string[] {
   const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
   const renames = Array.isArray(body.renames) ? body.renames : [];
   const removes = Array.isArray(body.removes) ? body.removes : [];
@@ -1505,22 +1539,97 @@ export function manageItemCategories(charId: number, raw: unknown): string[] {
     if (clean.length >= MAX_CATEGORIES) break;
   }
   const tx = db.transaction(() => {
-    const up = db.prepare('UPDATE char_items SET kategorie = ? WHERE character_id = ? AND kategorie = ?');
+    const up = db.prepare('UPDATE char_items SET kategorie = ? WHERE owner_type = ? AND owner_id = ? AND kategorie = ?');
     for (const r of renames) {
       const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_CATEGORY_LEN);
       const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      if (from && to && from !== to) up.run(to, charId, from);
+      if (from && to && from !== to) up.run(to, ownerType, ownerId, from);
     }
     for (const name of removes) {
       const n = String(name ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      if (n) up.run('', charId, n);
+      if (n) up.run('', ownerType, ownerId, n);
     }
-    db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
-    const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
-    clean.forEach((name, i) => ins.run(charId, i, name));
+    db.prepare('DELETE FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
+    const ins = db.prepare('INSERT INTO char_item_categories (owner_type, owner_id, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(ownerType, ownerId, i, name));
   });
   tx();
-  return loadItemCategories(charId);
+  return loadItemCategoriesForOwner(ownerType, ownerId);
+}
+
+// --- Shared inventories: cross-owner move (docs/concepts/shared-inventories.md) ---
+//
+// A move is its OWN imperative call, never an ItemOp — diffItems compares one
+// owner's list against its own previous state and structurally cannot express
+// "this uid leaves my list and joins yours" (see ItemOwnerType in
+// shared/src/items.ts). Containers move atomically with their contents
+// (collectSubtree walks container_uid the same way the client's ancestors()
+// walk does, just downward instead of up for cycle-checking); only the moved
+// ROOT item resets location/zone/beidseitig/containerUid
+// (ITEM_MOVE_RESET_PATCH in shared/src/items.ts is the single source of truth
+// for that shape — mirrored by hand below, there is no shared SQL builder to
+// import it through) — descendants keep theirs, so a moved backpack's
+// contents stay exactly as packed.
+function collectSubtree(ownerType: ItemOwnerType, ownerId: number, rootUid: string): { rootId: number; ids: number[] } | null {
+  const rows = db
+    .prepare('SELECT id, uid, container_uid FROM char_items WHERE owner_type = ? AND owner_id = ?')
+    .all(ownerType, ownerId) as { id: number; uid: string; container_uid: string }[];
+  const root = rows.find((r) => r.uid === rootUid);
+  if (!root) return null;
+  const childrenByContainerUid = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (!r.container_uid) continue;
+    const list = childrenByContainerUid.get(r.container_uid) ?? [];
+    list.push(r);
+    childrenByContainerUid.set(r.container_uid, list);
+  }
+  const ids = [root.id];
+  const seen = new Set([root.uid]);
+  const queue = [root.uid];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const child of childrenByContainerUid.get(cur) ?? []) {
+      if (seen.has(child.uid)) continue;
+      seen.add(child.uid);
+      ids.push(child.id);
+      queue.push(child.uid);
+    }
+  }
+  return { rootId: root.id, ids };
+}
+
+// Moves one item — and, if it's a container, everything inside it — from one
+// owner to another. Returns false on a uid that doesn't exist under `from`
+// (stale, or the same request retried after it already moved) or if the
+// target owner would exceed MAX_ITEMS; both are silent no-ops for the caller,
+// the same defensive posture applyItemOps already takes on its own caps.
+export function moveItem(from: { type: ItemOwnerType; id: number }, to: { type: ItemOwnerType; id: number }, uid: string): boolean {
+  const found = collectSubtree(from.type, from.id, uid);
+  if (!found) return false;
+  const targetCount = (
+    db.prepare('SELECT COUNT(*) AS n FROM char_items WHERE owner_type = ? AND owner_id = ?').get(to.type, to.id) as { n: number }
+  ).n;
+  if (targetCount + found.ids.length > MAX_ITEMS) return false;
+  const tx = db.transaction(() => {
+    const setOwner = db.prepare('UPDATE char_items SET owner_type = ?, owner_id = ? WHERE id = ?');
+    for (const id of found.ids) setOwner.run(to.type, to.id, id);
+    db.prepare("UPDATE char_items SET location = 'inventar', zone = '', beidseitig = 0, container_uid = '' WHERE id = ?").run(
+      found.rootId,
+    );
+  });
+  tx();
+  return true;
+}
+
+// Manuelles Aufräumen beim Löschen eines Charakters/einer Gruppe — die
+// DB-Kaskade ist mit character_id gegangen (siehe die owner_type-Migration in
+// db.ts), also übernimmt das hier von Hand, exakt wie loescheAssetsFuer() es
+// für den (datei-übergreifenden) Bild-Store schon tut. char_item_bonuses/
+// char_item_weapon_stats hängen weiterhin per echter FK an char_items.id und
+// räumen sich darüber von selbst mit.
+export function loescheItemsFuer(ownerType: ItemOwnerType, ownerId: number): void {
+  db.prepare('DELETE FROM char_items WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
+  db.prepare('DELETE FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
 }
 
 // --- Zauber & Fähigkeiten (Cluster 6) ---
