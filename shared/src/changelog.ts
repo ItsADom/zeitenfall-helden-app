@@ -216,8 +216,8 @@ export const CHANGELOG: ChangelogEntry[] = [
         added: [
           'Gruppen haben jetzt einen gemeinsamen Gruppenpool (auf der Gruppenseite): jedes Mitglied darf dort Gegenstände hinzufügen, bearbeiten und zwischen dem Pool, den Charakteren der Gruppe und der Spielleitung verschieben — praktisch, um Beute zu teilen oder Ausrüstung weiterzureichen.',
           'Der Bearbeiten-Dialog eines Gegenstands hat jetzt einen „Verschieben nach…“-Knopf: von dort geht ein Gegenstand direkt an einen anderen Charakter der Gruppe, in den Gruppenpool oder an die Spielleitung.',
-          'Die Kategorie eines Gegenstands lässt sich jetzt frei eintippen (mit Vorschlägen aus den bestehenden Kategorien), statt nur aus einer festen Liste wählbar zu sein — eine neue Kategorie entsteht einfach dadurch, dass sie benutzt wird.',
-          'Der Gruppenpool hat jetzt einen eigenen „Kategorien verwalten“-Dialog zum Umbenennen oder Entfernen seiner Kategorien.',
+          'Die Kategorie eines Gegenstands lässt sich jetzt überall frei eintippen (mit Vorschlägen aus den bestehenden Kategorien), statt nur aus einer festen Liste wählbar zu sein — egal ob eigener Charakter, Gruppenpool oder SL-Vorrat, eine neue Kategorie entsteht einfach dadurch, dass sie benutzt wird.',
+          'Jedes Inventar hat jetzt einen eigenen „Kategorien verwalten“-Dialog zum Umbenennen oder Entfernen seiner Kategorien.',
         ],
         admin: [
           '(Spielleiter) Ein SL-Vorrat (auf der Spielleiter-Übersicht) zum Vorbereiten von Gegenständen, bevor sie an einen Charakter oder den Gruppenpool gehen — für Spieler unsichtbar, bis sie verschoben werden.',

@@ -3271,11 +3271,6 @@ li {
   gap: 8px;
   align-items: center;
 }
-/* Sprung-Link zu den Kategorien in den Einstellungen — rechts in der Leiste. */
-.inv-cats-link {
-  margin-left: auto;
-  font-size: 13px;
-}
 /* Sprung-Navigation der Einstellungen-Seite: klebt unter der Kopfzeile
    (gemessener Versatz, wie .talent-search/.inv-equip-drop). */
 .einst-nav {

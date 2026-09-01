@@ -7,7 +7,7 @@ import { duplicateItem, makeItem } from '@shared/items';
 import type { MoveTarget } from '../components/itemDialogs';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
-import { CategoryManagerDialog } from '../components/CategoryManagerDialog';
+import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
 import CharacterCard from '../components/CharacterCard';
 import type { Catalogs } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
@@ -257,7 +257,10 @@ export default function GroupPage() {
                 onClose={() => setCatDialogOpen(false)}
                 categories={data.itemCategories}
                 endpoint={`/api/groups/${groupId}/item-categories/manage`}
-                onSaved={(cats) => setData((d) => (d ? { ...d, itemCategories: cats } : d))}
+                onSaved={(cats, cascade) => {
+                  setData((d) => (d ? { ...d, itemCategories: cats } : d));
+                  setItemPool(applyCategoryCascade(itemPool, cascade));
+                }}
               />
               {catalogs ? (
                 <PoolInventory

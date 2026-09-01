@@ -1,9 +1,9 @@
 import { Fragment, useState } from 'react';
-import { Link } from 'react-router-dom';
 import type { Item, ItemLocation, KapazitaetArt } from '@shared/items';
 import { containerFuellungAnzeige, duplicateItem, itemGewicht, itemsInContainer, lastInfo, makeItem } from '@shared/items';
 import { apiPost } from '../api';
 import { useAuth } from '../App';
+import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { AlwaysEditable, useReadOnly } from '../components/displayMode';
 import { AddContainerDialog, AddItemDialog, useMoveTargets } from '../components/itemDialogs';
@@ -43,6 +43,7 @@ export default function InventarTab() {
   const byUid = new Map(items.map((it) => [it.uid, it]));
   const [over, setOver] = useState<string | null>(null);
   const [addContainerOpen, setAddContainerOpen] = useState(false);
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
   // uid des Behälters, für den der Gegenstand-Dialog gerade offen ist (null = zu).
   const [addItemFor, setAddItemFor] = useState<string | null>(null);
   // uid des Items, das gerade im Bearbeiten-Dialog offen ist (null = zu).
@@ -265,16 +266,21 @@ export default function InventarTab() {
           <button className="small" onClick={() => setAddContainerOpen(true)}>
             + Behälter
           </button>
-          {/* Kategorien werden in den Einstellungen gepflegt — direkt dorthin
-              springen (Charakter vorgewählt, zu den Kategorien gescrollt). Nur
-              für Spieler: der Spielleiter hat keine Einstellungen-Seite. */}
-          {!user.isGm && (
-            <Link className="inv-cats-link" to={`/einstellungen?char=${charId}&from=Inventar#kategorien`}>
-              Kategorien bearbeiten →
-            </Link>
-          )}
+          <button className="small" onClick={() => setCatDialogOpen(true)}>
+            Kategorien verwalten
+          </button>
         </div>
       )}
+      <CategoryManagerDialog
+        open={catDialogOpen}
+        onClose={() => setCatDialogOpen(false)}
+        categories={data.itemCategories}
+        endpoint={`/api/characters/${charId}/item-categories/manage`}
+        onSaved={(cats, cascade) => {
+          update('itemCategories', cats);
+          update('items', applyCategoryCascade(items, cascade));
+        }}
+      />
 
       {storageConts.length === 0 && loose.length === 0 && (
         <p className="muted">

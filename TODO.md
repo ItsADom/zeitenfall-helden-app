@@ -114,24 +114,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [ready] **Move the character's category management out of Einstellungen,
-  onto its own dialog on Inventar.tsx** (residual from
-  `docs/concepts/shared-inventories.md`; the group-pool/GM-pool half of this
-  shipped 2026-09-01 as `CategoryManagerDialog` — reusable rename/remove-
-  with-cascade dialog, wired to `Group.tsx`'s pool header and
-  `GroupOverview.tsx`'s „SL-Vorrat" section, plus a freeform `AddItemDialog`
-  Kategorie field with a `<datalist>` of suggestions across all three owner
-  scopes). Only the character sheet is left: its category editor still lives
-  in `Einstellungen.tsx`'s `#kategorien` panel, reached only via a
-  "Kategorien bearbeiten →" link that navigates away from the sheet entirely
-  (`Inventar.tsx:272`) — inconsistent with the direct-from-item-screen
-  pattern the other two owners now use. Reuse `CategoryManagerDialog`
-  (`client/src/components/CategoryManagerDialog.tsx`) with
-  `endpoint="/api/characters/:id/item-categories/manage"`, open it from a
-  button on `Inventar.tsx`, and remove the now-redundant panel + link +
-  `catRows`/`cleanNames`/`catsChanged` state from `Einstellungen.tsx` (and
-  the `?char=&from=…#kategorien` deep-link handling that only existed to
-  support it).
 - [sketch] **Houses** — much rougher than the shared-inventories work above,
   and deliberately not covered by that concept doc: confirmed shared group
   property, subdivided into rooms, with containers inside rooms holding items

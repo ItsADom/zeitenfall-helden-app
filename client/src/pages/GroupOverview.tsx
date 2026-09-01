@@ -6,7 +6,7 @@ import { duplicateItem, makeItem } from '@shared/items';
 import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost } from '../api';
-import { CategoryManagerDialog } from '../components/CategoryManagerDialog';
+import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
 import type { Catalogs } from '../components/charSheet';
 import { Dialog } from '../components/Dialog';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
@@ -498,7 +498,10 @@ export default function GroupOverviewPage() {
         onClose={() => setCatDialogOpen(false)}
         categories={data.gmPoolCategories}
         endpoint="/api/gm/item-categories/manage"
-        onSaved={(cats) => setData((d) => (d ? { ...d, gmPoolCategories: cats } : d))}
+        onSaved={(cats, cascade) => {
+          setData((d) => (d ? { ...d, gmPoolCategories: cats } : d));
+          setGmPool(applyCategoryCascade(gmPool, cascade));
+        }}
       />
       {catalogs ? (
         <PoolInventory
