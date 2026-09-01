@@ -308,7 +308,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Mid-Prio
 
-- [ready] **Reorder worn items within a body zone** (user feedback, fact-check
+- [ready] **Reorder worn items within a body zone and inventory** (user feedback, fact-check
   2026-09-01): `Ausruestung.tsx`'s zone chips (`zoneView(items, z).map(chip)`,
   `Ausruestung.tsx:234`) render in plain `data.items` array order — i.e.
   creation order — with no way for the player to rearrange them; the same is

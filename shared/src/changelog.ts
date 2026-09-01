@@ -139,6 +139,7 @@ export const KNOWN_BUGS: KnownBug[] = [
 export const COMING_SOON: string[] = [
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
   'Erweiterte Bearbeiten-Dialoge Zauber/Fähigkeiten (Gegenstände haben ihren bereits).',
+  'Erweiterung des Gruppeninventars um z.B. Häuser oder Lager abzubilden',
   'Eigene Bögen für Tiere und Begleiter.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
