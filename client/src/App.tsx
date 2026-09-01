@@ -38,6 +38,11 @@ import { reportEasterEggFound } from './easterEggs';
 // auf den banner-fx-Streifen klicken löst kurzzeitig eine grelle, absichtlich
 // unpassende Farbwelt aus. Bewusst NICHT Teil von THEMES (theme.ts) — ein Gag,
 // keine wählbare/gespeicherte Farbwelt.
+// Vorerst ABGESCHALTET: reportEasterEggFound() ist noch ein Stub (kein
+// Server, kein Tracker — siehe TODO.md „Easter egg tracker"). Wer das Ei
+// jetzt schon findet, würde einen ungetrackten Vorsprung haben, sobald die
+// Rangliste live geht. Auf true stellen, sobald der Tracker steht.
+const CHAOS_MODE_ENABLED = false;
 const CHAOS_THEME_ID = 'chaos';
 const CHAOS_CLICKS_NEEDED = 5;
 const CHAOS_CLICK_WINDOW_MS = 1500;
@@ -110,7 +115,7 @@ export default function App() {
   }, [appliedTheme]);
   useEffect(() => () => window.clearTimeout(chaosTimeoutRef.current), []);
   const handleBannerClick = () => {
-    if (chaosMode) return;
+    if (!CHAOS_MODE_ENABLED || chaosMode) return;
     const now = Date.now();
     const recent = [...chaosClicksRef.current, now].filter((t) => now - t <= CHAOS_CLICK_WINDOW_MS);
     chaosClicksRef.current = recent;

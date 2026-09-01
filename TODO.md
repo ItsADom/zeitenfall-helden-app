@@ -404,6 +404,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      hook (`client/src/easterEggs.ts`) on trigger — today a no-op stub. This
      task's server piece is turning that stub into a real
      `POST /easter-eggs/:key/found`, not adding new wiring on the egg itself.
+     **Currently disabled** (`CHAOS_MODE_ENABLED = false` in `App.tsx`) so
+     nobody finds it while finds go untracked — flip that flag true once the
+     tracker + real POST are live, as the last step of this task.
    - **Decided:** the list itself is a normal, always-reachable page — NOT an
      egg to find (considered, dropped: paradoxical to gate a "how many eggs
      have been found" page behind being found itself).
