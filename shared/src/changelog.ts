@@ -204,18 +204,10 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'ADD_ON_VERSIONING',
     features: [
       {
-        title: 'Verdeckte Ausrüstungs-Eigenschaften',
+        title: 'Items und Waffen',
         added: [
           'Ausrüstung kann jetzt geheime Eigenschaften haben: die Spielleitung kann RS, Haltbarkeit oder einzelne Boni eines Gegenstands verdeckt anlegen — sie zeigen „???" statt der echten Zahl (ein verdeckter Bonus bleibt komplett unsichtbar), bis die Spielleitung sie aufdeckt.',
-        ],
-      },
-      {
-        title: 'Waffen als echte Gegenstände',
-        changed: [
           'Nah- und Fernkampfwaffen sind jetzt ganz normale Gegenstände: sie haben ein Gewicht, das in der Traglast mitzählt, und tauchen im Inventar bzw. in der Ausrüstung auf, statt nur als eigene Zeile im Waffen-Reiter zu existieren, unabhängig vom Rest der Ausrüstung.',
-        ],
-        added: [
-          'Die Spielleitung kann einzelne Werte einer Waffe (Schaden, AT/PA/BL, Kampftalent und mehr) verdeckt anlegen — sie zeigen „???", bis die Spielleitung sie einzeln aufdeckt, etwa für eine noch unidentifizierte magische Waffe.',
         ],
       },
       {
