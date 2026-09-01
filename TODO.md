@@ -114,88 +114,28 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [ready] **Group ↔ player inventory, player ↔ player item transfer, and
-  containers as a real, movable, worn concept** (concept agreed for the first
-  two; houses is a much rougher sketch — see below). Confirmed starting
-  point: **no group-level item storage exists at all today** — `char_items`
-  is still strictly `character_id`-scoped. Saving is no longer a full
-  delete+reinsert, though (see the incremental item saves note below) —
-  `applyItemOps`/`ItemOp` (`characterData.ts`, `shared/src/items.ts`) already
-  give per-item CRUD by uid (add/patch/remove/reorder). A cross-owner move is
-  a natural fit for that same op vocabulary (a `move`-style op reassigning
-  `owner_type`/`owner_id`, or reusing `patch`) rather than a primitive that
-  still needs building from scratch.
-   - **Decided: generalize item ownership.** Replace the hard `character_id`
-     FK with an `owner_type`/`owner_id` pair (mirroring the pattern
-     `assets/store.ts` already uses for images) — `'character'` or `'group'`
-     for now, extensible to `'room'` later for houses.
-   - **Decided: a new cross-owner move action** on any item chip (including
-     containers) reassigns `owner_type`/`owner_id`. Moving a container moves
-     every item whose `containerUid` points into it atomically, in the same
-     operation — nothing gets orphaned.
-   - **Decided: permission split.** Pulling an item *from* the shared group
-     inventory is open to any group member. Sending is restricted to your
-     own items — a player can give away or drop their own stuff, but can't
-     reach into another player's personal inventory directly (that needs the
-     GM, or that other player).
-   - **Decided: no confirmation step** — a move happens outright, same as a
-     normal drag-to-equip today.
-   - **Decided: items in the group pool are weightless** for everyone's
-     Traglast — nobody is personally hauling the shared stash.
-   - **Decided:** on any owner change, position-specific fields (`location`,
-     `zone`, `beidseitig`) reset to a safe default (`inventar`) rather than
-     trying to preserve a worn-state that can't carry over to the new owner
-     — no data is lost, just re-equip on arrival.
-   - **New UI needed:** a "Gruppen-Inventar" section on `Group.tsx`, using
-     the same specialized item-chip UI as `Ausruestung.tsx`/`Inventar.tsx`
-     (not the generic `Sektionen` dynamic-table component, which can't
-     represent weight/location/container relationships) — this is the "big
-     overhaul of group page" the original note anticipated.
-   - **[sketch] Houses** — much rougher than the above two: confirmed shared
-     group property, subdivided into rooms, with containers inside rooms
-     holding items ("all the stuff a real house has"). Structurally this
-     would reuse the same `owner_type`/`owner_id` generalization (a
-     lightweight `group_rooms` table, group-owned items optionally tagged
-     with a `room_id`), but still open: can a group own multiple houses, who
-     can create/name rooms, whether a room has any capacity/size concept.
-     Needs its own concept pass before it's buildable — do not treat as
-     `[ready]` just because the other two pieces in this entry are.
-   - **[ready] GM-wide prep pool** (from the same Discord discussion that
-     produced Hidden/revealable Ausrüstung stats, shipped 2026-08-31 — a GM
-     wants to stat out equipment in advance, cross-group, before it's ever found by
-     anyone; concept pass done 2026-08-28). **Decided:** third `owner_type:
-     'gm'` value in the generalization above, `owner_id` unused — **one
-     single shared pool** (not per-GM: confirmed only one GM account exists
-     today, so per-GM scoping would be unused complexity). **Decided:**
-     invisible to players entirely — unlike the group pool (open to any
-     member), a GM-pool item never appears anywhere a player can see it;
-     only a GM ever sees the pool at all, so there's no separate "pull"
-     rule to design. **Decided: lives on `GroupOverviewPage`**
-     (`client/src/pages/GroupOverview.tsx`, already GM-only via
-     `requireGm`), not the `/verwaltung` catalog page — a new panel next to
-     the existing roster-chips panel, reusing the full `ItemChip`/
-     `AddItemDialog` UI from `Ausruestung.tsx`/`Inventar.tsx` (create, edit,
-     hide/reveal stats — a real management surface, not a read-only staging
-     list). Since the pool is global, the same contents show regardless of
-     which group's overview you're on — you pick *who* gets an item by
-     being on that group's page. **Decided: hand-out is drag-and-drop** —
-     drag a chip from the GM-inventory panel onto a player's roster card to
-     reassign it (`owner_type`/`owner_id`: `'gm'` → that character),
-     outright, no confirm step, reusing the cross-owner move action from
-     the entry above. This makes every roster card a drop target, the first
-     interactive element on a page currently documented as strictly
-     read-only (`// Nur-Lesen (die Route dahinter ist requireGm).`,
-     `GroupOverview.tsx:17`) — confirmed fine to break (GM-notes on that
-     same page already do). **Decided:** GM has infinite Traglast — simpler
-     than the group pool's "weightless" workaround, `owner_type: 'gm'`
-     items just skip capacity/Traglast computation entirely, no carrying
-     character to compute it for. Layout proportions/collapsibility of the
-     new panel are a build-time call, not settled here.
-      - **Hard blocker, build order:** needs the cross-owner move action
-        from the entry above to exist **as a drag gesture specifically**
-        (drag chip → drop on a target), not just any move button — this
-        entry's whole interaction is built on that drag. Do not start this
-        sub-item before that lands.
+- [ready] **Curated category management UI for the group pool and the GM
+  pool** (residual from `docs/concepts/shared-inventories.md`, shipped
+  2026-09-01 — see that doc for what's already built). The character sheet's
+  Einstellungen page has a rename/remove-with-cascade UI for its own item
+  categories (`manageItemCategories`); the group pool and GM pool got the
+  same server-side owner-scoped endpoints (`manageItemCategoriesForOwner`,
+  wired at `PUT /groups/:id/item-categories/manage` and
+  `PUT /gm/item-categories/manage`) but no client UI to drive them yet — for
+  now their categories only ever grow by use (an item carries whatever
+  category string it had when it arrived). Needs: a small settings-style
+  panel (reorder/rename/remove) somewhere reachable from `Group.tsx` /
+  `GroupOverview.tsx`, mirroring `Einstellungen.tsx`'s pattern for a
+  character.
+- [sketch] **Houses** — much rougher than the shared-inventories work above,
+  and deliberately not covered by that concept doc: confirmed shared group
+  property, subdivided into rooms, with containers inside rooms holding items
+  ("all the stuff a real house has"). Structurally this would reuse the same
+  `owner_type`/`owner_id` generalization the pools now use (a lightweight
+  `group_rooms` table, group-owned items optionally tagged with a `room_id`),
+  but still open: can a group own multiple houses, who can create/name rooms,
+  whether a room has any capacity/size concept. Needs its own concept pass
+  before it is buildable.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
@@ -365,6 +305,20 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
    - Optional: read-only 'Verlauf' panel per char (GM sees all with user/character
     filters; owner sees own, character filter).
+
+## Mid-Prio
+
+- [ready] **Reorder worn items within a body zone and inventory** (user feedback, fact-check
+  2026-09-01): `Ausruestung.tsx`'s zone chips (`zoneView(items, z).map(chip)`,
+  `Ausruestung.tsx:234`) render in plain `data.items` array order — i.e.
+  creation order — with no way for the player to rearrange them; the same is
+  true of Inventar's within-category rows (`groupedRows`,
+  `Inventar.tsx:185-215`, filters `list` without sorting). Zones already have
+  full drag-and-drop wiring for moving an item between zones/containers
+  (`moveTo`/`dropHandlers` in both files), so reordering within one zone
+  should reuse that same mechanism — drop an item onto/before a sibling chip
+  in the same zone to splice it to that position in `data.items`, rather than
+  inventing a new interaction. Low complexity; not blocked on anything.
 
 ## Low-Prio
 

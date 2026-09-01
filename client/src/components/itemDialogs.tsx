@@ -1,12 +1,63 @@
 import { useEffect, useState } from 'react';
-import type { ContainerArt, Item, ItemBonus, ItemBonusKind, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
+import type { ContainerArt, Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
 import { makeUid, waffenFelderFuerArt, waffenStatsFuerArt } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
+import { apiGet } from '../api';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
 import { AlwaysEditable } from './displayMode';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
 import { NumInput } from './inputs';
+
+// --- Shared inventories: cross-owner move target picker (docs/concepts/
+// shared-inventories.md, 2.3) ---
+//
+// "The permission split is enforced by the source, not the target list" — the
+// picker below just needs a sane list of names, one per valid destination.
+// `exclude` drops the caller's OWN owner from that list (moving a group pool
+// item back into the same group pool makes no sense, etc.).
+export interface MoveTarget {
+  key: string;
+  label: string;
+  toOwnerType: ItemOwnerType;
+  toOwnerId: number;
+}
+
+export function useMoveTargets(groupId: number | null, exclude: { type: ItemOwnerType; id: number } | null): MoveTarget[] {
+  const [roster, setRoster] = useState<{ groupName: string; characters: { id: number; name: string }[] }>({
+    groupName: '',
+    characters: [],
+  });
+
+  useEffect(() => {
+    if (groupId == null) {
+      setRoster({ groupName: '', characters: [] });
+      return;
+    }
+    apiGet<{ group: { name: string }; characters: { id: number; name: string }[] }>(`/api/groups/${groupId}`)
+      .then((d) => setRoster({ groupName: d.group.name, characters: d.characters }))
+      .catch(() => setRoster({ groupName: '', characters: [] }));
+  }, [groupId]);
+
+  const excluded = (type: ItemOwnerType, id: number) => exclude != null && exclude.type === type && exclude.id === id;
+  const targets: MoveTarget[] = [];
+  if (groupId != null && !excluded('group', groupId)) {
+    targets.push({
+      key: 'group',
+      label: roster.groupName ? `Gruppenpool (${roster.groupName})` : 'Gruppenpool',
+      toOwnerType: 'group',
+      toOwnerId: groupId,
+    });
+  }
+  for (const c of roster.characters) {
+    if (excluded('character', c.id)) continue;
+    targets.push({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character', toOwnerId: c.id });
+  }
+  if (!excluded('gm', 0)) {
+    targets.push({ key: 'gm', label: 'Spielleiter-Vorrat', toOwnerType: 'gm', toOwnerId: 0 });
+  }
+  return targets;
+}
 
 // Anlegen-/Bearbeiten-Dialoge fürs Inventar: sammeln alle Felder VOR dem
 // Einfügen bzw. Patchen, statt einen leeren Item-Datensatz einzufügen und
@@ -384,6 +435,8 @@ export function AddItemDialog({
   onSave,
   onDuplicate,
   onDelete,
+  moveTargets,
+  onMove,
 }: {
   open: boolean;
   onClose: () => void;
@@ -406,6 +459,12 @@ export function AddItemDialog({
   onDuplicate?: () => void;
   /** Bearbeiten-Modus: Löschen-Knopf im Fuß, falls gesetzt. */
   onDelete?: () => void;
+  /** Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
+   * nach…"-Ziele. Nur im Bearbeiten-Modus sinnvoll (ein noch nicht
+   * gespeichertes Item hat keine uid zum Verschieben) — leer/undefined blendet
+   * den Picker aus, ganz ohne den Konzept-Unterbau zu berühren. */
+  moveTargets?: MoveTarget[];
+  onMove?: (target: MoveTarget) => void;
 }) {
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
@@ -422,6 +481,7 @@ export function AddItemDialog({
   const [bonusse, setBonusse] = useState<ItemBonus[]>([]);
   const [waffenArt, setWaffenArt] = useState<WaffenArt>('');
   const [waffenStats, setWaffenStats] = useState<WaffenStat[]>([]);
+  const [moveTargetKey, setMoveTargetKey] = useState('');
   // Wechsel der Waffenart sät den Feldsatz komplett neu — keine Wertübernahme
   // zwischen Nah-/Fernkampf, dieselbe bewusst simple Regel wie beim Umschalten
   // von Ausrüstung → Allgemein oben. Von der SL frisch angelegte Waffen-Felder
@@ -455,6 +515,7 @@ export function AddItemDialog({
   // wechseln müsste.
   useEffect(() => {
     if (!open) return;
+    setMoveTargetKey('');
     if (item) {
       setMode(item.waffenArt ? 'waffe' : item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
       setName(item.name);
@@ -560,8 +621,38 @@ export function AddItemDialog({
       wide
       footer={
         <>
-          {item && (onDuplicate || onDelete) && (
+          {item && (onDuplicate || onDelete || (onMove && moveTargets && moveTargets.length > 0)) && (
             <span className="dlg-foot-left">
+              {onMove && moveTargets && moveTargets.length > 0 && (
+                <>
+                  <select
+                    className="dlg-move-select"
+                    value={moveTargetKey}
+                    onChange={(e) => setMoveTargetKey(e.target.value)}
+                    title="Verschiebt den Gegenstand (samt Inhalt, falls Behälter) sofort — keine Bestätigung nötig"
+                  >
+                    <option value="">Verschieben nach…</option>
+                    {moveTargets.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="small"
+                    disabled={!moveTargetKey}
+                    onClick={() => {
+                      const target = moveTargets.find((t) => t.key === moveTargetKey);
+                      if (!target) return;
+                      onMove(target);
+                      close();
+                    }}
+                  >
+                    Verschieben
+                  </button>
+                </>
+              )}
               {onDuplicate && (
                 <button
                   type="button"

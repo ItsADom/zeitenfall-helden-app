@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths, ohneVerborgeneItems } from 'shared';
-import type { UserInfo } from 'shared';
+import type { Item, ItemOwnerType, UserInfo } from 'shared';
 import { MAX_CHIME_BYTES, istWavKopf } from 'shared';
 import { instanceGate, mayEnter } from './accessGate.js';
 import {
@@ -53,17 +53,25 @@ import {
   loadAbilityLists,
   loadFullCharacter,
   loadItemCategories,
+  loadItemCategoriesForOwner,
   loadItems,
+  loadItemsForOwner,
   loadPouches,
+  loescheItemsFuer,
   hasPortrait,
   loadPortrait,
   manageAbilityList,
   migrateCharacterPeriphery,
+  moveItem,
   savePortrait,
   manageItemCategories,
+  manageItemCategoriesForOwner,
   saveAbilities,
   saveItemCategories,
+  saveItemCategoriesForOwner,
+  seedItemCategoriesForOwner,
   applyItemOps,
+  applyItemOpsForOwner,
   savePouches,
   saveSection,
   saveTabOrder,
@@ -615,17 +623,28 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     return { ...c, access, portrait: hasPortrait(c.id) };
   });
   let tabs: ReturnType<typeof loadDynTabs> = [];
+  // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md):
+  // dieselbe Beschränkung wie die Tabs oben — Event-Gruppen bekommen bewusst
+  // kein gemeinsames Inventar.
+  let itemPool: Item[] = [];
+  let itemCategories: string[] = [];
   if (!group.isTemp) {
     // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
     // die es vor diesem Feature schon gab, ihre Inhalte
     instantiateGroupTabs(groupId);
     tabs = loadDynTabs(groupId, GROUP_DYN);
+    seedItemCategoriesForOwner('group', groupId);
+    const items = loadItemsForOwner('group', groupId);
+    itemPool = user.isGm ? items : ohneVerborgeneItems(items);
+    itemCategories = loadItemCategoriesForOwner('group', groupId);
   }
   res.json({
     group: { ...group, isTemp: !!group.isTemp, portrait: hatGruppenPortrait(groupId) },
     members,
     characters,
     tabs,
+    itemPool,
+    itemCategories,
   });
 });
 
@@ -643,11 +662,18 @@ api.get('/groups/:id/overview', requireAuth, requireGm, (req, res) => {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
+  // GM-Pool (Shared Inventories, docs/concepts/shared-inventories.md): EIN
+  // globaler Bestand, hier trotzdem je Gruppen-Übersicht mitgeliefert — der SL
+  // bereitet Gegenstände typischerweise für DIE Gruppe vor, die er sich gerade
+  // ansieht, auch wenn die Ablage selbst nicht pro Gruppe getrennt ist.
+  seedItemCategoriesForOwner('gm', 0);
   res.json({
     group: { id: group.id, name: group.name, isTemp: !!group.isTemp },
     talentCatalog: talentCatalogList(),
     tagCatalog: tagCatalogList(),
     characters: buildGroupOverview(groupId),
+    gmPool: loadItemsForOwner('gm', 0),
+    gmPoolCategories: loadItemCategoriesForOwner('gm', 0),
   });
 });
 
@@ -1271,6 +1297,149 @@ api.put('/characters/:id/item-categories/manage', requireAuth, (req, res) => {
   res.json({ categories: manageItemCategories(char.id, req.body) });
 });
 
+// --- Shared inventories (docs/concepts/shared-inventories.md): cross-owner move ---
+//
+// Body: { toOwnerType: 'character'|'group'|'gm', toOwnerId?: number }. The
+// SOURCE is whichever of the three routes below the request hits — a
+// character's own items, a group's pool, or the GM's pool — never named in
+// the body. This is deliberate (concept doc, 2.3): "the permission split is
+// enforced by the source, not the target list" — you can only open a move
+// dialog on an item you can already see, so there is no target-side rule to
+// write beyond "is this a sane destination at all". `groupCtx` is the group a
+// non-GM mover is scoped to (their character's group_id, or the group pool's
+// own id); a non-GM may only aim at THAT group's pool or one of ITS
+// characters, plus the GM pool (always allowed — "everyone may send to it",
+// it is how an item is conserved out of a player's hands). A GM has no such
+// restriction: they stand in for the whole game, not one group.
+function resolveMoveTarget(
+  body: unknown,
+  isGm: boolean,
+  groupCtx: number | null,
+): { type: ItemOwnerType; id: number } | null {
+  const b = (body ?? {}) as { toOwnerType?: unknown; toOwnerId?: unknown };
+  const type = String(b.toOwnerType ?? '');
+  if (type === 'gm') return { type: 'gm', id: 0 };
+  if (type === 'group') {
+    const id = Number(b.toOwnerId);
+    if (!Number.isInteger(id) || (!isGm && id !== groupCtx)) return null;
+    if (!db.prepare('SELECT 1 FROM groups WHERE id = ? AND is_temp = 0').get(id)) return null;
+    return { type: 'group', id };
+  }
+  if (type === 'character') {
+    const id = Number(b.toOwnerId);
+    if (!Number.isInteger(id)) return null;
+    const target = getChar(id);
+    if (!target || (!isGm && target.group_id !== groupCtx)) return null;
+    return { type: 'character', id };
+  }
+  return null;
+}
+
+api.post('/characters/:id/items/:uid/move', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  const target = resolveMoveTarget(req.body, req.user!.isGm, char.group_id);
+  if (!target) {
+    res.status(400).json({ error: 'Ungültiges Ziel' });
+    return;
+  }
+  const moved = moveItem({ type: 'character', id: char.id }, target, String(req.params.uid));
+  if (!moved) {
+    res.status(404).json({ error: 'Gegenstand nicht gefunden' });
+    return;
+  }
+  res.json({ items: req.user!.isGm ? loadItems(char.id) : ohneVerborgeneItems(loadItems(char.id)) });
+});
+
+// --- Gruppen-Inventar (docs/concepts/shared-inventories.md) ---
+// Dieselbe Beschränkung wie die übrigen „Gemeinsamen Gruppeninhalte" oben
+// (editableGroup, isGroupMember statt isRoomMember): Event-Gruppen bekommen
+// bewusst KEIN gemeinsames Inventar, aus demselben Grund wie keine Tabs.
+api.get('/groups/:id/items', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  seedItemCategoriesForOwner('group', groupId); // idempotent, wie instantiateGroupTabs oben
+  const items = loadItemsForOwner('group', groupId);
+  res.json({ items: req.user!.isGm ? items : ohneVerborgeneItems(items), categories: loadItemCategoriesForOwner('group', groupId) });
+});
+
+api.post('/groups/:id/items/ops', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  applyItemOpsForOwner('group', groupId, req.body, req.user!.isGm);
+  const items = loadItemsForOwner('group', groupId);
+  res.json({ items: req.user!.isGm ? items : ohneVerborgeneItems(items) });
+});
+
+api.put('/groups/:id/item-categories', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  saveItemCategoriesForOwner('group', groupId, req.body);
+  res.json({ categories: loadItemCategoriesForOwner('group', groupId) });
+});
+
+api.put('/groups/:id/item-categories/manage', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  res.json({ categories: manageItemCategoriesForOwner('group', groupId, req.body) });
+});
+
+api.post('/groups/:id/items/:uid/move', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  const target = resolveMoveTarget(req.body, req.user!.isGm, groupId);
+  if (!target) {
+    res.status(400).json({ error: 'Ungültiges Ziel' });
+    return;
+  }
+  const moved = moveItem({ type: 'group', id: groupId }, target, String(req.params.uid));
+  if (!moved) {
+    res.status(404).json({ error: 'Gegenstand nicht gefunden' });
+    return;
+  }
+  const items = loadItemsForOwner('group', groupId);
+  res.json({ items: req.user!.isGm ? items : ohneVerborgeneItems(items) });
+});
+
+// --- GM-Pool (docs/concepts/shared-inventories.md) ---
+// EIN globaler Pool (ownerId immer 0 — es gibt nur ein SL-Konto, eine
+// Aufteilung je SL wäre tote Komplexität). Für Spieler write-only: sie dürfen
+// hierher verschieben (siehe der move-Zweig oben, resolveMoveTarget erlaubt
+// 'gm' immer), aber der Inhalt ist reiner SL-Bestand — kein Lese-/Ops-Zugriff
+// für Nicht-SL, deshalb requireGm auf allen Routen hier.
+api.get('/gm/items', requireAuth, requireGm, (_req, res) => {
+  seedItemCategoriesForOwner('gm', 0);
+  res.json({ items: loadItemsForOwner('gm', 0), categories: loadItemCategoriesForOwner('gm', 0) });
+});
+
+api.post('/gm/items/ops', requireAuth, requireGm, (req, res) => {
+  applyItemOpsForOwner('gm', 0, req.body, true);
+  res.json({ items: loadItemsForOwner('gm', 0) });
+});
+
+api.put('/gm/item-categories', requireAuth, requireGm, (req, res) => {
+  saveItemCategoriesForOwner('gm', 0, req.body);
+  res.json({ categories: loadItemCategoriesForOwner('gm', 0) });
+});
+
+api.put('/gm/item-categories/manage', requireAuth, requireGm, (req, res) => {
+  res.json({ categories: manageItemCategoriesForOwner('gm', 0, req.body) });
+});
+
+api.post('/gm/items/:uid/move', requireAuth, requireGm, (req, res) => {
+  const target = resolveMoveTarget(req.body, true, null);
+  if (!target) {
+    res.status(400).json({ error: 'Ungültiges Ziel' });
+    return;
+  }
+  const moved = moveItem({ type: 'gm', id: 0 }, target, String(req.params.uid));
+  if (!moved) {
+    res.status(404).json({ error: 'Gegenstand nicht gefunden' });
+    return;
+  }
+  res.json({ items: loadItemsForOwner('gm', 0) });
+});
+
 // --- Zauber & Fähigkeiten (Cluster 6) ---
 
 // Ganze Stammliste ersetzen (wie /items). Die Reiter zeigen daraus nur an.
@@ -1720,6 +1889,10 @@ api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   // Betrifft inzwischen das Porträt; ein wöchentlicher Durchlauf fängt zusätzlich
   // ab, was hier durchrutscht.
   loescheAssetsFuer('character', id);
+  // Gegenstände hängen seit den Shared Inventories (docs/concepts/
+  // shared-inventories.md) nicht mehr per DB-Kaskade an character_id — dieselbe
+  // manuelle Lücke wie bei den Assets oben, nur innerhalb derselben Datei.
+  loescheItemsFuer('character', id);
   res.json({ ok: true });
 });
 
@@ -1860,6 +2033,7 @@ api.post('/admin/groups', requireAuth, requireGmOrAdmin, (req, res) => {
   const r = db.prepare('INSERT INTO groups (name) VALUES (?)').run(name);
   const id = Number(r.lastInsertRowid);
   instantiateGroupTabs(id);
+  seedItemCategoriesForOwner('group', id);
   res.json({ id });
 });
 
@@ -1887,6 +2061,12 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
   loescheAssetsFuer('group', id);
   if (board) loescheAssetsFuer('board', board.id);
+  // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md)
+  // hängt per owner_type/owner_id, nicht per DB-Kaskade — „enthält noch
+  // Charaktere" oben schließt Items nicht mit ein, die Prüfung gilt nur
+  // Charakteren, also muss dieser Aufruf hier stehen statt sich auf die
+  // CASCADE zu verlassen.
+  loescheItemsFuer('group', id);
   res.json({ ok: true });
 });
 

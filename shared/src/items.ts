@@ -294,6 +294,34 @@ export function duplicateItem(item: Item): Item {
   };
 }
 
+// --- Shared inventories: ownership (docs/concepts/shared-inventories.md) ---
+//
+// An item belongs to an OWNER, not directly to a character: a character's own
+// stuff, a group's shared pool, or the GM's prep pool. 'gm' is a single global
+// pool (only one GM account exists, so per-GM scoping would be dead
+// complexity) — ownerId is unused for it, always 0.
+export type ItemOwnerType = 'character' | 'group' | 'gm';
+export interface ItemOwnerRef {
+  ownerType: ItemOwnerType;
+  ownerId: number; // unused (0) when ownerType === 'gm'
+}
+
+// A cross-owner move is its own imperative call (moveItem in
+// server/src/characterData.ts), never an ItemOp: diffItems compares one
+// owner's list against its OWN previous state and structurally cannot express
+// "this uid leaves my list and joins yours". Only the root item resets — a
+// moved container's descendants keep their location/containerUid untouched
+// (they travel with it, see server-side subtreeIds), so the container's
+// internal structure survives the trip. Server-side mirrors this patch
+// directly in SQL (see moveItem) rather than importing it, but the shape must
+// stay identical — this is the single source of truth for what resets.
+export const ITEM_MOVE_RESET_PATCH: Partial<Item> = {
+  location: 'inventar',
+  zone: '',
+  beidseitig: false,
+  containerUid: '',
+};
+
 // --- Incremental item saves ---
 //
 // `PUT /items` used to replace the WHOLE list (delete+reinsert) on every

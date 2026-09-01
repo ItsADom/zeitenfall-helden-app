@@ -130,6 +130,9 @@ export interface CharacterInfo {
 // Tischplatte) ihn ohne die Lade-/„Ansehen als"-Feinheiten mitbringen kann.
 interface CharCtxValue {
   charId: number;
+  /** Shared inventories (docs/concepts/shared-inventories.md): null = keine
+   * Gruppe → der „Verschieben nach…"-Picker bietet nur noch den SL-Vorrat an. */
+  groupId: number | null;
   data: FullData;
   /**
    * Boni aller getragenen Items, EINMAL aus data.items berechnet (wornBoni,
@@ -416,7 +419,7 @@ export function CharSheetProvider({ charId, children }: { charId: number; childr
     return <p className="muted">Lade…</p>;
   }
   const ctx: CharCtxValue = {
-    charId, data: sheet.data, stats: sheet.stats, catalogs: sheet.catalogs, update: sheet.update,
+    charId, groupId: sheet.info?.groupId ?? null, data: sheet.data, stats: sheet.stats, catalogs: sheet.catalogs, update: sheet.update,
     rollCtx: sheet.rollCtx, requestCtx: sheet.requestCtx,
   };
   return <CharCtx.Provider value={ctx}>{children}</CharCtx.Provider>;

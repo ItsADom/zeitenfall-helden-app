@@ -16,10 +16,12 @@ import {
 import type { AttrCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { ATTR_LABELS, BASE_VALUE_LABELS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from '../components/charSheet';
+import { apiPost } from '../api';
 import { useAuth } from '../App';
 import { BonusWert } from '../components/BonusWert';
 import { useReadOnly } from '../components/displayMode';
-import { AddItemDialog } from '../components/itemDialogs';
+import { AddItemDialog, useMoveTargets } from '../components/itemDialogs';
+import type { MoveTarget } from '../components/itemDialogs';
 import { NumInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
@@ -72,7 +74,7 @@ interface DropTarget {
 const dropKey = (t: DropTarget) => `${t.location}:${t.zone ?? ''}:${t.containerUid ?? ''}:${t.beidseitig ? 'both' : ''}`;
 
 export default function AusruestungTab() {
-  const { data, update, catalogs, stats } = useChar();
+  const { charId, groupId, data, update, catalogs, stats } = useChar();
   const { user } = useAuth();
   const ro = useReadOnly();
   const items = data.items;
@@ -80,9 +82,22 @@ export default function AusruestungTab() {
   const [over, setOver] = useState<string | null>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editUid, setEditUid] = useState<string | null>(null);
+  // Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
+  // nach…"-Ziele fürs Item-Dialog — eigene Gruppe + ihre Charaktere + SL-Vorrat,
+  // ausgeschlossen der eigene Charakter selbst (kein Ziel für die eigenen Sachen).
+  const moveTargets = useMoveTargets(groupId, { type: 'character', id: charId });
 
   const setItems = (next: Item[]) => update('items', next);
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(items.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  // Verschieben ist ein eigener Endpunkt, kein Op (siehe moveItem in
+  // server/src/characterData.ts / ItemOwnerType in shared/src/items.ts) — die
+  // Antwort trägt den vollen verbleibenden Bestand, den Rest übernimmt der
+  // normale Speicherpfad wie jede andere Item-Änderung.
+  const moveItemTo = (uid: string, target: MoveTarget) =>
+    void apiPost<{ items: Item[] }>(`/api/characters/${charId}/items/${uid}/move`, {
+      toOwnerType: target.toOwnerType,
+      toOwnerId: target.toOwnerId,
+    }).then((res) => update('items', res.items));
 
   // Direkt neben dem Original einfügen, nicht ans Ende — sonst muss man die
   // Kopie erst suchen gehen.
@@ -332,6 +347,8 @@ export default function AusruestungTab() {
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}
         onDelete={() => editUid && removeItem(editUid)}
+        moveTargets={moveTargets}
+        onMove={(target) => editUid && moveItemTo(editUid, target)}
       />
     </>
   );

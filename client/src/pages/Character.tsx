@@ -298,7 +298,7 @@ export default function CharacterPage() {
   };
 
   return (
-    <CharCtx.Provider value={{ charId, data, stats, catalogs, update, rollCtx, requestCtx }}>
+    <CharCtx.Provider value={{ charId, groupId: info?.groupId ?? null, data, stats, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data.tableWidths ?? {}} save={saveTableWidths}>
       <DisplayModeProvider mode={inspecting ? 'inspect' : editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
