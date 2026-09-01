@@ -114,19 +114,24 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [ready] **Curated category management UI for the group pool and the GM
-  pool** (residual from `docs/concepts/shared-inventories.md`, shipped
-  2026-09-01 — see that doc for what's already built). The character sheet's
-  Einstellungen page has a rename/remove-with-cascade UI for its own item
-  categories (`manageItemCategories`); the group pool and GM pool got the
-  same server-side owner-scoped endpoints (`manageItemCategoriesForOwner`,
-  wired at `PUT /groups/:id/item-categories/manage` and
-  `PUT /gm/item-categories/manage`) but no client UI to drive them yet — for
-  now their categories only ever grow by use (an item carries whatever
-  category string it had when it arrived). Needs: a small settings-style
-  panel (reorder/rename/remove) somewhere reachable from `Group.tsx` /
-  `GroupOverview.tsx`, mirroring `Einstellungen.tsx`'s pattern for a
-  character.
+- [ready] **Move the character's category management out of Einstellungen,
+  onto its own dialog on Inventar.tsx** (residual from
+  `docs/concepts/shared-inventories.md`; the group-pool/GM-pool half of this
+  shipped 2026-09-01 as `CategoryManagerDialog` — reusable rename/remove-
+  with-cascade dialog, wired to `Group.tsx`'s pool header and
+  `GroupOverview.tsx`'s „SL-Vorrat" section, plus a freeform `AddItemDialog`
+  Kategorie field with a `<datalist>` of suggestions across all three owner
+  scopes). Only the character sheet is left: its category editor still lives
+  in `Einstellungen.tsx`'s `#kategorien` panel, reached only via a
+  "Kategorien bearbeiten →" link that navigates away from the sheet entirely
+  (`Inventar.tsx:272`) — inconsistent with the direct-from-item-screen
+  pattern the other two owners now use. Reuse `CategoryManagerDialog`
+  (`client/src/components/CategoryManagerDialog.tsx`) with
+  `endpoint="/api/characters/:id/item-categories/manage"`, open it from a
+  button on `Inventar.tsx`, and remove the now-redundant panel + link +
+  `catRows`/`cleanNames`/`catsChanged` state from `Einstellungen.tsx` (and
+  the `?char=&from=…#kategorien` deep-link handling that only existed to
+  support it).
 - [sketch] **Houses** — much rougher than the shared-inventories work above,
   and deliberately not covered by that concept doc: confirmed shared group
   property, subdivided into rooms, with containers inside rooms holding items
@@ -195,7 +200,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      Fern row referencing the ammo catalogue? current stock/inventory-linked?),
      and how its damage combines with the weapon's own (added flat, or
      replaces part of the dice formula).
-- [ready] **Editing dialogs for weapons/abilities** (user feedback; supersedes
+- [ready] **Editing dialog for abilities** (user feedback; supersedes
   the old "reuse the item-creation Dialog for spells/abilities and weapons"
   note that used to live in Low-Prio). The items half of this shipped —
   `AddItemDialog` (`client/src/components/itemDialogs.tsx`) is dual-purpose
@@ -204,19 +209,21 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   Duplizieren/Löschen in its footer and a repeatable Boni-beim-Tragen list.
   Item bonuses while worn are fully wired end to end, including the server
   dice-roll path — see `docs/concepts/item-bonus-while-worn.md` for the build
-  history; that's the precedent to copy for the remaining two shapes, not
-  re-derive:
-   - **Move weapon/ability editing into the same dialog pattern.**
-     `WaffenNeu.tsx`'s expand-to-edit cards and `AbilityManager.tsx` still
-     edit everything inline/on-card. **Decided: hybrid, not a full
-     replacement** — the highest-frequency actions (drag, Anzahl-style bumps)
-     stay inline; a dialog handles the structural fields, same split already
-     proven on items. **Decided: reuse the dialog shell, not the item schema**
-     — `WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()` (~10+ fields each)
-     and `AbilityManager.tsx`'s `emptyAbility()` are shapes of their own; each
-     needs its own field-selection pass, since none of the three (items,
-     weapons, abilities) overlap.
-   - **Open: do weapons/abilities want an item-bonus-style effect list too?**
+  history; that's the precedent to copy for the remaining shape, not
+  re-derive. **Weapons no longer need their own pass here** — weapons are
+  now real `Item` rows (`waffenArt`/`waffenStats`), and `AddItemDialog`
+  already has a complete `mode === 'waffe'` editor (stat rows, AT/PA/BL/
+  damage fields) alongside its `allgemein`/`ausruestung` modes, so weapon
+  structural editing already goes through the same dialog pattern this task
+  was trying to reach. Only abilities are left:
+   - **Move ability editing into the same dialog pattern.**
+     `AbilityManager.tsx` still edits everything inline/on-card. **Decided:
+     hybrid, not a full replacement** — the highest-frequency actions stay
+     inline; a dialog handles the structural fields, same split already
+     proven on items. `AbilityManager.tsx`'s `emptyAbility()` is a shape of
+     its own with no overlap with the `Item` schema, so it needs its own
+     field-selection pass rather than reusing `AddItemDialog` directly.
+   - **Open: do abilities want an item-bonus-style effect list too?**
      Not decided. If yes, it's the same generalization the "Player-set
      structured bonuses" entry below already plans for Vorteile/Nachteile —
      do that generalization once, shared by both, rather than two parallel

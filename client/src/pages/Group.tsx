@@ -7,6 +7,7 @@ import { duplicateItem, makeItem } from '@shared/items';
 import type { MoveTarget } from '../components/itemDialogs';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
+import { CategoryManagerDialog } from '../components/CategoryManagerDialog';
 import CharacterCard from '../components/CharacterCard';
 import type { Catalogs } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
@@ -57,6 +58,7 @@ export default function GroupPage() {
   // Nur-Lesen ist der Normalfall für den Gruppenpool, wie beim Charakterbogen —
   // absichtlich NICHT gemerkt, jedes Öffnen fängt wieder geschützt an.
   const [poolEditing, setPoolEditing] = useState(false);
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
   // Geht in den React-Key des aktiven Tabs ein; bei stiller Aktualisierung
   // hochgezählt, damit ContentTabView (hält Zeilen in eigenem State) die
   // frischen Serverdaten übernimmt.
@@ -246,7 +248,17 @@ export default function GroupPage() {
                 >
                   {poolEditing ? '🔓 Fertig' : '🔒 Bearbeiten'}
                 </button>
+                <button className="small" onClick={() => setCatDialogOpen(true)}>
+                  Kategorien verwalten
+                </button>
               </div>
+              <CategoryManagerDialog
+                open={catDialogOpen}
+                onClose={() => setCatDialogOpen(false)}
+                categories={data.itemCategories}
+                endpoint={`/api/groups/${groupId}/item-categories/manage`}
+                onSaved={(cats) => setData((d) => (d ? { ...d, itemCategories: cats } : d))}
+              />
               {catalogs ? (
                 <PoolInventory
                   storageKey={`grouppool:${groupId}`}

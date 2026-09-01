@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { ContainerArt, Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
 import { makeUid, waffenFelderFuerArt, waffenStatsFuerArt } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
@@ -466,6 +466,7 @@ export function AddItemDialog({
   moveTargets?: MoveTarget[];
   onMove?: (target: MoveTarget) => void;
 }) {
+  const kategorieListId = useId();
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
   const [kategorie, setKategorie] = useState('');
@@ -729,14 +730,17 @@ export function AddItemDialog({
         {mode === 'allgemein' ? (
           <label className="dlg-field">
             Kategorie
-            <select value={kategorie} onChange={(e) => setKategorie(e.target.value)}>
-              <option value="">— ohne Kategorie —</option>
+            <input
+              value={kategorie}
+              onChange={(e) => setKategorie(e.target.value)}
+              placeholder="— ohne Kategorie —"
+              list={kategorieListId}
+            />
+            <datalist id={kategorieListId}>
               {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c} />
               ))}
-            </select>
+            </datalist>
           </label>
         ) : (
           <div className="dlg-field">

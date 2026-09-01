@@ -6,6 +6,7 @@ import { duplicateItem, makeItem } from '@shared/items';
 import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost } from '../api';
+import { CategoryManagerDialog } from '../components/CategoryManagerDialog';
 import type { Catalogs } from '../components/charSheet';
 import { Dialog } from '../components/Dialog';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
@@ -147,6 +148,7 @@ export default function GroupOverviewPage() {
   const { id } = useParams();
   const groupId = Number(id);
   const [data, setData] = useState<OverviewData | null>(null);
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [error, setError] = useState('');
 
   // GM-Pool (Shared Inventories, docs/concepts/shared-inventories.md): eigener
@@ -488,6 +490,16 @@ export default function GroupOverviewPage() {
         Vorbereitete Gegenstände, bevor sie an einen Charakter oder in den Gruppenpool gehen — gewichtslos, nur für die
         Spielleitung sichtbar, bis sie verschoben werden.
       </p>
+      <button className="small" onClick={() => setCatDialogOpen(true)}>
+        Kategorien verwalten
+      </button>
+      <CategoryManagerDialog
+        open={catDialogOpen}
+        onClose={() => setCatDialogOpen(false)}
+        categories={data.gmPoolCategories}
+        endpoint="/api/gm/item-categories/manage"
+        onSaved={(cats) => setData((d) => (d ? { ...d, gmPoolCategories: cats } : d))}
+      />
       {catalogs ? (
         <PoolInventory
           storageKey="gmpool"
