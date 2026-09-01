@@ -114,39 +114,28 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [ready] **Group ↔ player inventory, player ↔ player item transfer, and
-  containers as a real, movable, worn concept.** Concept agreed 2026-08-31 —
-  **full plan in `docs/concepts/shared-inventories.md`; build from that, not
-  from this summary.** In short: ownership generalizes to an
-  `owner_type`/`owner_id` pair on `char_items`
-  (`'character'`/`'group'`/`'gm'`, extensible to `'room'`), which forces a
-  table rebuild (SQLite cannot drop `NOT NULL` via `ALTER`) and costs the
-  DB-level cascade on character/group delete. The cross-owner move is its own
-  imperative endpoint, NOT an `ItemOp` — `diffItems` compares one owner's
-  list against itself and structurally cannot express a move between owners.
-  Containers move atomically with their contents. The move UI is a
-  „Verschieben nach…“-picker in `AddItemDialog` listing target names only;
-  the permission split falls out of which items a viewer can open a dialog on,
-  so there is no target-side rule to write. New panels: Gruppen-Inventar on
-  `Group.tsx`, GM prep pool on `GroupOverview.tsx`. Everyone may send to the
-  GM pool (the SL stands in for every NSC, so it is how an item is conserved
-  out of a player's hands); its contents stay SL-only. Categories:
-  `char_item_categories` takes the same owner pair — per-owner curated lists,
-  no global catalog, taxonomy spreads by item movement.
-   - **Superseded by the concept doc:** the earlier „hand-out is
-     drag-and-drop, drag a chip onto a roster card“ decision and the hard
-     build-order blocker that came with it. The picker replaces the drag, so
-     the GM pool has no dependency left and lands in the same round.
-   - **[sketch] Houses** — much rougher than the rest, and deliberately NOT
-     covered by the concept doc: confirmed shared group property, subdivided
-     into rooms, with containers inside rooms holding items ("all the stuff a
-     real house has"). Structurally this would reuse the same
-     `owner_type`/`owner_id` generalization (a lightweight `group_rooms`
-     table, group-owned items optionally tagged with a `room_id`), but still
-     open: can a group own multiple houses, who can create/name rooms, whether
-     a room has any capacity/size concept. Needs its own concept pass before
-     it is buildable — do not treat as `[ready]` just because the rest of this
-     entry is.
+- [ready] **Curated category management UI for the group pool and the GM
+  pool** (residual from `docs/concepts/shared-inventories.md`, shipped
+  2026-09-01 — see that doc for what's already built). The character sheet's
+  Einstellungen page has a rename/remove-with-cascade UI for its own item
+  categories (`manageItemCategories`); the group pool and GM pool got the
+  same server-side owner-scoped endpoints (`manageItemCategoriesForOwner`,
+  wired at `PUT /groups/:id/item-categories/manage` and
+  `PUT /gm/item-categories/manage`) but no client UI to drive them yet — for
+  now their categories only ever grow by use (an item carries whatever
+  category string it had when it arrived). Needs: a small settings-style
+  panel (reorder/rename/remove) somewhere reachable from `Group.tsx` /
+  `GroupOverview.tsx`, mirroring `Einstellungen.tsx`'s pattern for a
+  character.
+- [sketch] **Houses** — much rougher than the shared-inventories work above,
+  and deliberately not covered by that concept doc: confirmed shared group
+  property, subdivided into rooms, with containers inside rooms holding items
+  ("all the stuff a real house has"). Structurally this would reuse the same
+  `owner_type`/`owner_id` generalization the pools now use (a lightweight
+  `group_rooms` table, group-owned items optionally tagged with a `room_id`),
+  but still open: can a group own multiple houses, who can create/name rooms,
+  whether a room has any capacity/size concept. Needs its own concept pass
+  before it is buildable.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)

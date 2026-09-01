@@ -4,8 +4,13 @@ Concept agreed 2026-08-31 (session with the developer). Covers the `[ready]`
 TODO entry "Group ↔ player inventory, player ↔ player item transfer". Houses
 stay out of scope and keep their own `[sketch]` status.
 
-Status: **concept only, no code written yet.** Branch `feature/shared-inventories`
-exists and holds this document.
+Status: **built 2026-09-01**, verified end-to-end against a disposable copy of
+the dev DB (ownership migration, both pools, all three move directions,
+container-with-contents). One residual gap, tracked separately in `TODO.md`:
+the group pool and GM pool have no category rename/remove UI yet (the server
+endpoints exist; categories only grow by use for now). The real dev DB has
+not run the migration yet — that happens the next time the real server
+starts.
 
 ---
 
@@ -252,8 +257,22 @@ The panels want a shared component rather than reusing `InventarTab`, which is
 tightly bound to `useChar()` and carries Traglast and body zones that a pool has
 no use for.
 
-## 6. Still open (build-time calls)
+## 6. Build-time calls, as resolved
 
-- Panel layout proportions and collapsibility for both new panels.
-- Whether the pools refresh on focus like `Group.tsx` does today, or push over
-  the existing websocket. Recommendation: focus-reload first, no WS.
+- Panel layout: both pools reuse `PoolInventory` (`client/src/components/
+  PoolInventory.tsx`) — the same category-grouped/container view `Inventar.tsx`
+  has, minus drag-and-drop, Traglast and body zones. No drag at all (not just
+  on the GM pool as originally floated) — the move picker replaces it
+  everywhere, so neither pool carries drop-target plumbing.
+- Refresh: focus-reload, no WS, as recommended — both pools ride the same
+  `GET /groups/:id` / `GET /groups/:id/overview` responses their pages
+  already quiet-reload on focus (`Group.tsx`, `GroupOverview.tsx`); no new
+  fetch, no new realtime path.
+- Naming: the group panel is labelled "Gruppenpool", not "Gruppen-Inventar" —
+  a live group already had an unrelated free-typed dynamic tab with that
+  exact name, discovered during manual testing, and the two needed to stay
+  visually distinct.
+- Still genuinely open: a category rename/remove UI for the two pools
+  (tracked as its own `[ready]` TODO entry) — categories are otherwise fully
+  wired (server endpoints, per-owner curated lists, `INVENTAR_KATEGORIEN`
+  seeding), just missing the client management panel.

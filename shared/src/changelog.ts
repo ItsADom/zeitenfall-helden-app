@@ -138,8 +138,7 @@ export const KNOWN_BUGS: KnownBug[] = [
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
-  'Erweiterte Dialoge für Items und Ausrüstung',
-  'Ein überarbeitetes Gruppeninventar mit Itemtransfer zwischen Gruppe <-> Spieler und sogar Spieler <-> Spieler',
+  'Erweiterte Bearbeiten-Dialoge Zauber/Fähigkeiten (Gegenstände haben ihren bereits).',
   'Eigene Bögen für Tiere und Begleiter.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -216,6 +215,16 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
         added: [
           'Die Spielleitung kann einzelne Werte einer Waffe (Schaden, AT/PA/BL, Kampftalent und mehr) verdeckt anlegen — sie zeigen „???", bis die Spielleitung sie einzeln aufdeckt, etwa für eine noch unidentifizierte magische Waffe.',
+        ],
+      },
+      {
+        title: 'Geteiltes Inventar',
+        added: [
+          'Gruppen haben jetzt einen gemeinsamen Gruppenpool (auf der Gruppenseite): jedes Mitglied darf dort Gegenstände hinzufügen, bearbeiten und zwischen dem Pool, den Charakteren der Gruppe und der Spielleitung verschieben — praktisch, um Beute zu teilen oder Ausrüstung weiterzureichen.',
+          'Der Bearbeiten-Dialog eines Gegenstands hat jetzt einen „Verschieben nach…“-Knopf: von dort geht ein Gegenstand direkt an einen anderen Charakter der Gruppe, in den Gruppenpool oder an die Spielleitung.',
+        ],
+        admin: [
+          '(Spielleiter) Ein SL-Vorrat (auf der Spielleiter-Übersicht) zum Vorbereiten von Gegenständen, bevor sie an einen Charakter oder den Gruppenpool gehen — für Spieler unsichtbar, bis sie verschoben werden.',
         ],
       },
       {
