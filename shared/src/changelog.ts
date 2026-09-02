@@ -200,14 +200,6 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-02',
-    title: 'Gruppenkasse und Geldbeutel umsortieren',
-    added: [
-      'Geldbeutel lassen sich jetzt wie Gegenstände per Ziehen in eine eigene Reihenfolge bringen.',
-      'Gruppen haben jetzt eine gemeinsame Gruppenkasse (im Gruppeninventar): jedes Mitglied darf dort Münzen ein- und auszahlen.',
-    ],
-  },
-  {
-    date: '2026-09-02',
     version: '0.9.0',
     title: 'Inventare, Items und Waffen',
     features: [
@@ -243,6 +235,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
         changed:[
           'Kritische Fehlschläge treten jetzt bevorzugt dann auf, wenn es besonders wichtig ist.',
+          'Geldbeutel lassen sich jetzt wie Gegenstände per Ziehen in eine eigene Reihenfolge bringen.',
         ],
         fixed: [
           'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',
