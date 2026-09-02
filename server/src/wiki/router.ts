@@ -412,12 +412,20 @@ wikiApi.put('/seiten/:slug/flags', requireAuth, requireGm, (req, res) => {
   res.json({ gmOnly: !!aktuell.gm_only, geschuetzt: !!aktuell.geschuetzt });
 });
 
-/** Soft delete — into the trash, not out of existence. */
-wikiApi.delete('/seiten/:slug', requireAuth, requireGm, (req, res) => {
+/**
+ * Soft delete — into the trash, not out of existence. Anyone who may see the
+ * page may delete it, same as editing (darfBearbeiten): a protected page is
+ * the one case that stays GM-only.
+ */
+wikiApi.delete('/seiten/:slug', requireAuth, (req, res) => {
   const user = leser(req);
   const seite = seiteFuer(user, String(req.params.slug));
   if (!seite) {
     res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  if (!darfBearbeiten(user, seite)) {
+    res.status(403).json({ error: 'Diese Seite ist geschützt' });
     return;
   }
   try {
