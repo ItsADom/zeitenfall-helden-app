@@ -245,18 +245,6 @@ export default function WikiEditor() {
         </div>
       </div>
 
-      {entwurf != null && entwurf !== text && (
-        <p className="wiki-hinweis">
-          Es liegt ein ungespeicherter Entwurf von diesem Gerät vor.{' '}
-          <button className="small" onClick={() => setText(entwurf)}>
-            Entwurf übernehmen
-          </button>{' '}
-          <button className="small" onClick={() => setEntwurf(null)}>
-            Verwerfen
-          </button>
-        </p>
-      )}
-
       {fehler && <p className="error">{fehler}</p>}
       {konflikt && (
         <div className="panel wiki-konflikt screen-only">
