@@ -242,6 +242,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Der Bearbeiten-Dialog eines Gegenstands ließ sich außerhalb des Bearbeiten-Modus zwar öffnen (wie schon Duplizieren/Löschen), aber nicht mehr ausfüllen — jetzt bleiben seine Felder auch dort nutzbar.',
           'Der Tooltip eines Wertes mit Gegenstands-Bonus zeigte nur, welcher Gegenstand ihn anhebt, nicht um wie viel — er nennt jetzt auch den Betrag (z. B. „Kettenhemd (+2)").',
           'Das vergrößerte Porträt einer Charakterkarte auf der Gruppenseite flackerte wild und rutschte hinter die Reiterleiste, sobald die Maus nicht exakt auf dem Bild ruhte — behoben.',
+          'Der Würfel-Chat schlug beim Tippen eines Wurfbefehls weiterhin eine bereits aus dem Inventar entfernte Waffe vor — ein Klick darauf endete nur in einer Fehlermeldung. Die Vorschlagsliste wird jetzt aktuell gehalten.',
         ],
       },
     ],
