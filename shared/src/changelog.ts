@@ -200,7 +200,6 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-02',
-    version: '0.9.0',
     title: 'Inventare, Items und Waffen',
     features: [
       {
