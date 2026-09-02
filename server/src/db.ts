@@ -307,15 +307,22 @@ db.exec(`
     sort INTEGER NOT NULL DEFAULT 0
   );
 
-  -- Geldbeutel je Charakter: ein oder mehrere benannte Behälter (Gürtelbeutel,
+  -- Geldbeutel je Besitzer: ein oder mehrere benannte Behälter (Gürtelbeutel,
   -- Bank, …), jeder an EIN Währungssystem gebunden. kapazitaet zählt in Münzen
   -- (Stück, jede Sorte gleich gewichtet) — 0 = unbegrenzt, gleiche Konvention
   -- wie char_items.kapazitaet. Bewusst NICHT Teil des allgemeinen Behälter-
   -- Systems (char_items/ist_behaelter): die Kapazität wird direkt im Geld-
   -- Bereich gepflegt, nicht über die Ausrüstung (Spieler-Entscheidung 2026-08-16).
+  -- Gruppenkasse (2026-09-02): owner_type/owner_id statt eines harten
+  -- character_id-FKs, dasselbe Paar wie char_items — ein Beutel gehört einem
+  -- Charakter ODER einer Gruppe. Genau eine 'group'-Zeile je Gruppe, analog
+  -- zur Bank (getOrCreateGroupPouch in characterData.ts erzeugt sie bei Bedarf),
+  -- kein GM-Vorrat (bislang kein Bedarf, siehe docs/concepts/shared-inventories.md
+  -- für die entsprechende Item-Diskussion, falls das mal nachgezogen wird).
   CREATE TABLE IF NOT EXISTS char_pouches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    owner_type TEXT NOT NULL DEFAULT 'character',
+    owner_id INTEGER NOT NULL DEFAULT 0,
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT '',
     system_id INTEGER REFERENCES currency_systems(id) ON DELETE SET NULL,
@@ -1160,6 +1167,47 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_item_categories_owner ON char_item_categories (owner_type, owner_id, pos);
 `);
 
+// Migration (Gruppenkasse, 2026-09-02): char_pouches gains owner_type/owner_id
+// instead of a hard character_id FK, same rebuild technique and reasoning as
+// the char_items migration above (SQLite cannot drop NOT NULL/a FK via ALTER;
+// id is preserved so char_pouch_coins.pouch_id, untouched here, stays valid).
+// The DB-level cascade on character/group delete is gone from here on —
+// loeschePouchenFuer() (characterData.ts) takes over, exactly like
+// loescheItemsFuer() already does for char_items.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_pouches)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('character_id')) {
+    db.pragma('foreign_keys = OFF');
+    const rebuild = db.transaction(() => {
+      db.exec(`
+        CREATE TABLE char_pouches_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          owner_type TEXT NOT NULL DEFAULT 'character',
+          owner_id INTEGER NOT NULL DEFAULT 0,
+          pos INTEGER NOT NULL DEFAULT 0,
+          name TEXT NOT NULL DEFAULT '',
+          system_id INTEGER REFERENCES currency_systems(id) ON DELETE SET NULL,
+          kapazitaet REAL NOT NULL DEFAULT 0,
+          is_bank INTEGER NOT NULL DEFAULT 0
+        );
+        INSERT INTO char_pouches_new (id, owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank)
+          SELECT id, 'character', character_id, pos, name, system_id, kapazitaet, is_bank FROM char_pouches;
+        DROP TABLE char_pouches;
+        ALTER TABLE char_pouches_new RENAME TO char_pouches;
+        CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_type, owner_id, pos);
+      `);
+    });
+    rebuild();
+    const violations = db.prepare('PRAGMA foreign_key_check').all();
+    db.pragma('foreign_keys = ON');
+    if (violations.length) {
+      throw new Error(`char_pouches-Neuaufbau ließ FK-Verletzungen zurück: ${JSON.stringify(violations)}`);
+    }
+    console.log('Migration: char_pouches trägt jetzt owner_type/owner_id statt character_id (Gruppenkasse)');
+  }
+}
+db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_type, owner_id, pos);`);
+
 // Migration (Houses, docs/concepts/houses.md): haus/raum auf char_items —
 // plain additive ALTERs, kein Neuaufbau nötig (anders als die owner_type-
 // Migration oben: das hier sind zwei ganz neue, nullable-mit-Default-Spalten,
@@ -1410,7 +1458,7 @@ if (hasTable('sec_techniken')) {
         )
         .all() as { character_id: number; geldD: number; geldS: number; geldH: number; geldK: number; bank: number }[];
       const insPouch = db.prepare(
-        'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, ?, ?, ?, 0, ?)',
+        "INSERT INTO char_pouches (owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank) VALUES ('character', ?, ?, ?, ?, 0, ?)",
       );
       const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
       for (const c of chars) {
@@ -1446,12 +1494,12 @@ if (hasTable('sec_techniken')) {
     const missing = db
       .prepare(
         `SELECT c.id FROM characters c
-         WHERE NOT EXISTS (SELECT 1 FROM char_pouches p WHERE p.character_id = c.id AND p.is_bank = 1)`,
+         WHERE NOT EXISTS (SELECT 1 FROM char_pouches p WHERE p.owner_type = 'character' AND p.owner_id = c.id AND p.is_bank = 1)`,
       )
       .all() as { id: number }[];
     if (missing.length > 0) {
       const insBank = db.prepare(
-        'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, 1, ?, ?, 0, 1)',
+        "INSERT INTO char_pouches (owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank) VALUES ('character', ?, 1, ?, ?, 0, 1)",
       );
       const repair = db.transaction(() => {
         for (const c of missing) insBank.run(c.id, 'Bank', firstSystem.id);
@@ -1688,7 +1736,7 @@ export function initCharacterRows(characterId: number): void {
     | undefined;
   if (firstSystem) {
     const insPouch = db.prepare(
-      'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, ?, ?, ?, 0, ?)',
+      "INSERT INTO char_pouches (owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank) VALUES ('character', ?, ?, ?, ?, 0, ?)",
     );
     insPouch.run(characterId, 0, 'Gürtelbeutel', firstSystem.id, 0);
     insPouch.run(characterId, 1, 'Bank', firstSystem.id, 1);

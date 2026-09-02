@@ -30,10 +30,14 @@ export function GeldPanel({
   pouches,
   systems,
   setPouches,
+  fixed,
 }: {
   pouches: CoinPouch[];
   systems: CurrencySystem[];
   setPouches: (next: CoinPouch[]) => void;
+  /** Für die Gruppenkasse: genau ein Beutel, kein Hinzufügen/Entfernen — nur
+   * Name, Währung, Kapazität und Münzen bleiben bearbeitbar. */
+  fixed?: boolean;
 }) {
   const readOnly = useReadOnly();
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -53,7 +57,7 @@ export function GeldPanel({
     <div className="panel">
       <div className="subhead-row">
         <h3>Geld</h3>
-        {!readOnly && pouches.length < MAX_POUCHES && (
+        {!readOnly && !fixed && pouches.length < MAX_POUCHES && (
           <button className="small add-row" onClick={addPouch}>
             + Beutel
           </button>
@@ -65,6 +69,8 @@ export function GeldPanel({
           key={pouch.id || `neu-${i}`}
           pouch={pouch}
           systems={systems}
+          removable={!fixed}
+          draggable={!fixed && pouches.length > 1}
           dropBefore={overIdx === i}
           onDragStart={() => setDragIdx(i)}
           onDragEnd={() => {
@@ -93,6 +99,8 @@ export function GeldPanel({
 function PouchCard({
   pouch,
   systems,
+  removable,
+  draggable,
   dropBefore,
   onDragStart,
   onDragEnd,
@@ -106,6 +114,11 @@ function PouchCard({
 }: {
   pouch: CoinPouch;
   systems: CurrencySystem[];
+  /** false für die Gruppenkasse (fixed) — dort gibt es nur den einen Beutel. */
+  removable: boolean;
+  /** false für die Gruppenkasse oder eine einzelne Karte — Ziehen ist erst mit
+   * mindestens zwei Beuteln sinnvoll. */
+  draggable: boolean;
   /** Markiert die Karte als Ziel, wenn ein anderer Beutel gerade über sie gezogen wird. */
   dropBefore: boolean;
   onDragStart: () => void;
@@ -127,19 +140,19 @@ function PouchCard({
     <div
       className={`pouch${dropBefore ? ' pouch-drop-before' : ''}`}
       onDragOver={(e) => {
-        if (readOnly) return;
+        if (readOnly || !draggable) return;
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         onDragOver();
       }}
       onDrop={(e) => {
-        if (readOnly) return;
+        if (readOnly || !draggable) return;
         e.preventDefault();
         onDrop();
       }}
     >
       <div className="pouch-head">
-        {!readOnly && (
+        {!readOnly && draggable && (
           <span
             className="pouch-drag-handle"
             draggable
@@ -163,7 +176,7 @@ function PouchCard({
         <span className="pouch-system">
           <CurrencySystemSelect systemId={pouch.systemId} systems={systems} onChange={onChangeSystem} />
         </span>
-        {!readOnly && !pouch.bank && <ConfirmDeleteButton title="Geldbeutel entfernen" onConfirm={onRemove} />}
+        {!readOnly && !pouch.bank && removable && <ConfirmDeleteButton title="Geldbeutel entfernen" onConfirm={onRemove} />}
       </div>
       <div className="container-cap-edit">
         <span className={`container-cap${over ? ' over' : ''}`} title="Münzen im Beutel / Kapazität (0 = unbegrenzt)">

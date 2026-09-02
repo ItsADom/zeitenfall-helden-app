@@ -200,9 +200,10 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-02',
-    title: 'Geldbeutel umsortieren',
+    title: 'Gruppenkasse und Geldbeutel umsortieren',
     added: [
       'Geldbeutel lassen sich jetzt wie Gegenstände per Ziehen in eine eigene Reihenfolge bringen.',
+      'Gruppen haben jetzt eine gemeinsame Gruppenkasse (im Gruppeninventar): jedes Mitglied darf dort Münzen ein- und auszahlen.',
     ],
   },
   {

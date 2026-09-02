@@ -118,7 +118,7 @@ function setAbilityLists(charId: number, elements: string[], kategorien: string[
 // Der Beutel existiert bereits durch initCharacterRows.
 function setPouchCoins(charId: number, coins: Record<string, number>): void {
   const pouch = db
-    .prepare('SELECT id FROM char_pouches WHERE character_id = ? AND is_bank = 0 ORDER BY pos LIMIT 1')
+    .prepare("SELECT id FROM char_pouches WHERE owner_type = 'character' AND owner_id = ? AND is_bank = 0 ORDER BY pos LIMIT 1")
     .get(charId) as { id: number } | undefined;
   if (!pouch) return;
   const ins = db.prepare(

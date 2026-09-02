@@ -4,6 +4,7 @@ import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
 import { duplicateItem, makeItem } from '@shared/items';
+import type { CoinPouch } from '@shared/currency';
 import type { MoveTarget } from '../components/itemDialogs';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
 import { useAuth } from '../App';
@@ -11,8 +12,10 @@ import { applyCategoryCascade, CategoryManagerDialog } from '../components/Categ
 import CharacterCard from '../components/CharacterCard';
 import type { Catalogs } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
+import { GeldPanel } from '../components/GeldPanel';
 import { applyHouseCascade, HouseManagerDialog } from '../components/HouseManagerDialog';
 import PoolInventory from '../components/PoolInventory';
+import { useGroupPouch } from '../components/useGroupPouch';
 import { Portrait } from '../components/Portrait';
 import { useTabsHeight } from '../components/stickyChrome';
 import { usePoolItems } from '../components/usePoolItems';
@@ -27,7 +30,13 @@ interface GroupData {
   itemCategories: string[];
   houses: string[];
   roomsByHaus: Record<string, string[]>;
+  pouch: CoinPouch | null;
 }
+
+// Stabiler Platzhalter, bis data.pouch geladen ist (data ist anfangs null) —
+// useGroupPouch braucht eine echte Referenz, siehe NO_ITEMS oben für denselben
+// Grund (kein neues Objekt bei jedem Render, sonst Endlosschleife im Effekt).
+const EMPTY_POUCH: CoinPouch = { id: 0, name: 'Gruppenkasse', systemId: null, kapazitaet: 0, coins: {}, bank: false };
 
 // Gruppeninhalte haben keine Attribute — Probe-Spalten gibt es hier nicht,
 // der Wert wird nur gebraucht, weil die Sektions-Ansicht ihn erwartet.
@@ -73,14 +82,17 @@ export default function GroupPage() {
   // talents/specialEnergies fürs Boni-Feld im Item-Dialog — die Gruppenseite
   // hat, anders als der Charakterbogen, keinen eigenen Katalog-Ladepfad, daher
   // hier direkt der generische /api/catalogs-Weg.
-  const [catalogs, setCatalogs] = useState<Pick<Catalogs, 'talents' | 'specialEnergies'> | null>(null);
+  const [catalogs, setCatalogs] = useState<Pick<Catalogs, 'talents' | 'specialEnergies' | 'currencies'> | null>(null);
   useEffect(() => {
-    apiGet<Catalogs>('/api/catalogs').then((c) => setCatalogs({ talents: c.talents, specialEnergies: c.specialEnergies }));
+    apiGet<Catalogs>('/api/catalogs').then((c) =>
+      setCatalogs({ talents: c.talents, specialEnergies: c.specialEnergies, currencies: c.currencies }),
+    );
   }, []);
   const { items: itemPool, setItems: setItemPool, replace: replaceItemPool } = usePoolItems(
     `/api/groups/${groupId}/items`,
     data?.itemPool ?? NO_ITEMS,
   );
+  const { pouch, setPouch } = useGroupPouch(`/api/groups/${groupId}/pouch`, data?.pouch ?? EMPTY_POUCH);
 
   // Lädt die Gruppe. quiet=true: stille Hintergrund-Aktualisierung ohne
   // Lade-Anzeige — der bisherige Stand bleibt stehen, bis neue Daten da sind.
@@ -313,6 +325,9 @@ export default function GroupPage() {
                 />
               ) : (
                 <p className="muted">Lade…</p>
+              )}
+              {catalogs && (
+                <GeldPanel pouches={[pouch]} systems={catalogs.currencies} setPouches={(next) => setPouch(next[0])} fixed />
               )}
             </DisplayModeProvider>
           ) : current ? (
