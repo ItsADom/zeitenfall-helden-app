@@ -139,7 +139,6 @@ export const KNOWN_BUGS: KnownBug[] = [
 export const COMING_SOON: string[] = [
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
   'Erweiterte Bearbeiten-Dialoge Zauber/Fähigkeiten (Gegenstände haben ihren bereits).',
-  'Erweiterung des Gruppeninventars um z.B. Häuser oder Lager abzubilden',
   'Eigene Bögen für Tiere und Begleiter.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -200,8 +199,9 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-08-31',
-    title: 'ADD_ON_VERSIONING',
+    date: '2026-09-02',
+    version: '0.9.0',
+    title: 'Inventare, Items und Waffen',
     features: [
       {
         title: 'Items und Waffen',
