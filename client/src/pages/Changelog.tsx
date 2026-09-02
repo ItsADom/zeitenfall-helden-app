@@ -61,7 +61,7 @@ export default function ChangelogPage() {
       {released.length === 0 && <p className="muted">Noch keine Einträge.</p>}
 
       {released.map((entry) => (
-        <div className="panel" key={`${entry.date}-${entry.title}`}>
+        <div className="panel" id={`v${entry.version}`} key={`${entry.date}-${entry.title}`}>
           <h3>{entry.title}</h3>
           <div className="changelog-meta">
             {entry.version && <span className="changelog-version">Version {entry.version}</span>}

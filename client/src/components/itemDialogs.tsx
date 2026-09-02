@@ -663,7 +663,7 @@ export function AddItemDialog({
                   </select>
                   <button
                     type="button"
-                    className="small"
+                    className="primary"
                     disabled={!moveTargetKey}
                     onClick={() => {
                       const target = moveTargets.find((t) => t.key === moveTargetKey);

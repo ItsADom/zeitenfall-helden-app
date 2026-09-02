@@ -412,7 +412,9 @@ export default function InventarTab() {
             title={isColl('__loose') ? 'Ausklappen' : 'Einklappen'}
           >
             <span className="panel-title">Nicht in einem Behälter</span>
-            <span className="panel-info">Alt-Bestand — in einen Behälter ziehen oder zu Ausrüstung</span>
+            <span className="panel-info">
+              Alt-Bestand und frisch zugeschobene Gegenstände — in einen Behälter ziehen oder zu Ausrüstung
+            </span>
             <span className="head-rule" aria-hidden />
             <span className="chev" aria-hidden>{isColl('__loose') ? '▸' : '▾'}</span>
           </h3>

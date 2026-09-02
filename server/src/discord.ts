@@ -28,6 +28,17 @@ const WEBHOOK = (process.env.DISCORD_CHANGELOG_WEBHOOK ?? '').trim();
 const DRYRUN = /^(1|true)$/i.test(process.env.DISCORD_CHANGELOG_DRYRUN ?? '');
 const TEST = /^(1|true)$/i.test(process.env.DISCORD_CHANGELOG_TEST ?? '');
 
+// Basis-URL der Live-Changelog-Seite. Jeder veröffentlichte Eintrag bekommt in
+// Changelog.tsx ein `id="v<version>"` auf seinem Panel, daher kann direkt auf
+// den Eintrag verlinkt werden statt nur auf die Seite.
+const SITE_URL = (process.env.DISCORD_CHANGELOG_URL ?? 'https://zeitenfall.de/changelog').trim();
+
+// Discord-Grenzen pro Embed und pro Nachricht (mehrere Embeds teilen sich das
+// 6000-Zeichen-Gesamtbudget einer Nachricht) — siehe splitDescription unten.
+const EMBED_DESC_LIMIT = 4096;
+const MESSAGE_TOTAL_LIMIT = 6000;
+const MAX_EMBEDS_PER_MESSAGE = 10;
+
 const WATERMARK_KEY = 'changelog_watermark';
 const EMBED_COLOR = 0xb08d57; // Bronze — passt zum Standard-Thema (Gareth)
 
@@ -58,7 +69,30 @@ const setWatermark = (v: string): void => {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-function buildEmbed(e: ChangelogEntry): Record<string, unknown> {
+// Zerlegt eine (potenziell zu lange) Beschreibung in Discord-taugliche Häppchen:
+// nie mitten in einem Absatz/einer Aufzählung trennen, wenn vermeidbar. Ein
+// einzelner Absatz, der selbst das Limit sprengt (praktisch nie), wird hart
+// geschnitten statt die Nachricht scheitern zu lassen.
+function splitDescription(description: string, maxLen = EMBED_DESC_LIMIT): string[] {
+  if (description.length <= maxLen) return [description];
+  const paragraphs = description.split('\n\n');
+  const chunks: string[] = [];
+  let current = '';
+  for (const p of paragraphs) {
+    const piece = p.length > maxLen ? p.slice(0, maxLen) : p;
+    const candidate = current ? `${current}\n\n${piece}` : piece;
+    if (candidate.length > maxLen) {
+      if (current) chunks.push(current);
+      current = piece;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
+function buildEmbeds(e: ChangelogEntry): Record<string, unknown>[] {
   const title = e.version ? `${e.title} — v${e.version}` : e.title;
   // Kategorisierte Einträge bekommen fette Abschnitts-Überschriften; die
   // ungegliederten Bestandseinträge (label leer) bleiben eine flache Liste.
@@ -72,28 +106,43 @@ function buildEmbed(e: ChangelogEntry): Record<string, unknown> {
   const description = e.features
     ? e.features.map((f) => `## ${f.title}\n${renderGroups(f)}`).join('\n\n')
     : renderGroups(e);
-  return {
-    title: title.slice(0, 256),
-    description: description.slice(0, 4096),
+  const url = e.version ? `${SITE_URL}#v${e.version}` : SITE_URL;
+
+  // Ein Eintrag, der 4096 Zeichen sprengt, wird auf mehrere Embeds derselben
+  // Nachricht verteilt (Discord erlaubt bis zu 10, mit gemeinsamem 6000er-
+  // Budget) statt stillschweigend am Limit abgeschnitten zu werden. Titel/Link
+  // trägt nur das erste Embed, der Live-Link im Footer nur das letzte.
+  let chunks = splitDescription(description).slice(0, MAX_EMBEDS_PER_MESSAGE);
+  let total = chunks.reduce((n, c) => n + c.length, 0);
+  while (total > MESSAGE_TOTAL_LIMIT && chunks.length > 1) {
+    const dropped = chunks.pop();
+    total -= dropped?.length ?? 0;
+  }
+
+  return chunks.map((desc, i) => ({
+    ...(i === 0 ? { title: title.slice(0, 256), url } : {}),
+    description: desc,
     color: EMBED_COLOR,
     // Discord zeigt diesen Zeitstempel in der lokalen Zeitzone des Betrachters
     // an — bewusst der tatsächliche Post-Zeitpunkt (JETZT), nicht `e.date`:
     // das Changelog-Datum hat keine Uhrzeit, wurde also immer als UTC-Mitternacht
     // interpretiert und erschien dadurch in deutscher Zeit fix um 2:00 Uhr.
-    timestamp: new Date().toISOString(),
-    footer: { text: 'Zeitenfall · Zeitenkompass' },
-  };
+    ...(i === chunks.length - 1 ? { timestamp: new Date().toISOString() } : {}),
+    ...(i === chunks.length - 1
+      ? { footer: { text: `Zeitenfall · Zeitenkompass · ${url.replace(/^https?:\/\//, '')}` } }
+      : {}),
+  }));
 }
 
 async function postEntry(e: ChangelogEntry): Promise<void> {
-  const embed = buildEmbed(e);
-  const payload: Record<string, unknown> = { username: USERNAME, embeds: [embed] };
+  const embeds = buildEmbeds(e);
+  const payload: Record<string, unknown> = { username: USERNAME, embeds };
   if (AVATAR) payload.avatar_url = AVATAR;
 
   if (DRYRUN) {
     console.log(
       `[discord] DRYRUN — würde posten als „${USERNAME}" (${entryKey(e)}):\n` +
-        JSON.stringify(embed, null, 2),
+        JSON.stringify(embeds, null, 2),
     );
     return;
   }
