@@ -114,15 +114,13 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [sketch] **Houses** — much rougher than the shared-inventories work above,
-  and deliberately not covered by that concept doc: confirmed shared group
-  property, subdivided into rooms, with containers inside rooms holding items
-  ("all the stuff a real house has"). Structurally this would reuse the same
-  `owner_type`/`owner_id` generalization the pools now use (a lightweight
-  `group_rooms` table, group-owned items optionally tagged with a `room_id`),
-  but still open: can a group own multiple houses, who can create/name rooms,
-  whether a room has any capacity/size concept. Needs its own concept pass
-  before it is buildable.
+- [ready] **Rename "Gruppenpool"** now that houses (docs/concepts/houses.md)
+  overlap it conceptually — flagged during the houses concept discussion,
+  deliberately left undecided there. Needs a name that still reads correctly
+  for a group with no house yet, and must not collide with a live group's own
+  free-typed dynamic tab (a real one was already named "Gruppen-Inventar" —
+  see shared-inventories.md §6 — which is why "Gruppenpool" was picked in the
+  first place).
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)

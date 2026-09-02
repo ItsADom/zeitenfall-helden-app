@@ -174,6 +174,14 @@ export interface Item {
   anzahl: number; // Stückzahl
   gewicht: number; // kg je Stück (Dezimalzahlen erlaubt)
   kategorie: string; // Name aus der Kategorienliste des Charakters ('' = ohne)
+  // Houses (docs/concepts/houses.md): freiwillige Orts-Angabe, NUR bei
+  // gruppen-eigenen Items sinnvoll — genau wie kategorie ein freier String
+  // mit eigener Vorschlagsliste (group_houses/group_rooms), kein Fremdschlüssel.
+  // raum ist innerhalb von haus verschachtelt (dieselbe haus-Zeichenkette
+  // gruppiert mehrere Räume); '' bei beiden = kein Ort zugewiesen, bleibt im
+  // allgemeinen Gruppenpool.
+  haus: string;
+  raum: string;
   location: ItemLocation;
   // Körperstelle, wenn location === 'getragen' (Name aus BODY_ZONES). Sonst ''.
   zone: string;
@@ -246,7 +254,7 @@ export function makeUid(): string {
 // Stelle steht.
 export function makeItem(over: Partial<Item>): Item {
   return {
-    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
+    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', haus: '', raum: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
     kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
     bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, waffenArt: '', waffenStats: [], ...over,
@@ -320,6 +328,11 @@ export const ITEM_MOVE_RESET_PATCH: Partial<Item> = {
   zone: '',
   beidseitig: false,
   containerUid: '',
+  // Houses (docs/concepts/houses.md): haus/raum only mean anything while the
+  // item stays group-owned — a house tag surviving a move onto a character
+  // or into the GM's prep pool would be a stale reference to nothing.
+  haus: '',
+  raum: '',
 };
 
 // --- Incremental item saves ---
@@ -353,7 +366,7 @@ export type ItemOp =
 // dasselbe Verlustproblem wie der alte Ganze-Liste-Ersatz, nur eine Ebene
 // tiefer).
 const ITEM_PATCH_KEYS = [
-  'name', 'anzahl', 'gewicht', 'kategorie', 'location', 'zone', 'beidseitig', 'containerUid',
+  'name', 'anzahl', 'gewicht', 'kategorie', 'haus', 'raum', 'location', 'zone', 'beidseitig', 'containerUid',
   'istBehaelter', 'containerArt', 'kapazitaet', 'kapazitaetArt', 'gewichtsreduktion',
   'rs', 'haltbarkeitMax', 'haltbarkeitAktuell', 'notiz', 'rsVerborgen', 'haltbarkeitVerborgen', 'waffenArt',
 ] as const satisfies readonly (keyof Item)[];

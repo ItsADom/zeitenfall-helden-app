@@ -426,6 +426,8 @@ export function AddItemDialog({
   open,
   onClose,
   categories,
+  houses,
+  roomsByHaus,
   initialMode = 'allgemein',
   item,
   talents,
@@ -441,6 +443,11 @@ export function AddItemDialog({
   open: boolean;
   onClose: () => void;
   categories: string[];
+  /** Houses (docs/concepts/houses.md): nur im Gruppenpool gesetzt — blendet
+   * die Haus-/Raum-Felder ein, genau wie moveTargets den Verschieben-Picker.
+   * Charakter- und SL-Vorrat lassen beide weg, keine Häuser dort. */
+  houses?: string[];
+  roomsByHaus?: Record<string, string[]>;
   initialMode?: 'allgemein' | 'ausruestung' | 'waffe';
   /** Gesetzt → Bearbeiten-Modus für ein bestehendes Item statt Anlegen. */
   item?: Item;
@@ -467,9 +474,13 @@ export function AddItemDialog({
   onMove?: (target: MoveTarget) => void;
 }) {
   const kategorieListId = useId();
+  const hausListId = useId();
+  const raumListId = useId();
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
   const [kategorie, setKategorie] = useState('');
+  const [haus, setHaus] = useState('');
+  const [raum, setRaum] = useState('');
   const [anzahl, setAnzahl] = useState(1);
   const [gewicht, setGewicht] = useState(0);
   const [rs, setRs] = useState(0);
@@ -521,6 +532,8 @@ export function AddItemDialog({
       setMode(item.waffenArt ? 'waffe' : item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
       setName(item.name);
       setKategorie(item.kategorie);
+      setHaus(item.haus);
+      setRaum(item.raum);
       setAnzahl(item.anzahl);
       setGewicht(item.gewicht);
       setRs(item.rs);
@@ -537,6 +550,8 @@ export function AddItemDialog({
       setMode(initialMode);
       setName('');
       setKategorie('');
+      setHaus('');
+      setRaum('');
       setAnzahl(1);
       setGewicht(0);
       setRs(0);
@@ -583,6 +598,13 @@ export function AddItemDialog({
       waffenArt,
       waffenStats,
     };
+    // Houses (docs/concepts/houses.md): nur einbeziehen, wenn die Felder auch
+    // sichtbar waren (houses gesetzt) — Charakter-/SL-Vorrat sollen ein
+    // Bearbeiten sonst nie stillschweigend auf '' zurücksetzen.
+    if (houses) {
+      patch.haus = haus;
+      patch.raum = haus ? raum : '';
+    }
     // RS/Haltbarkeit/Quickslots-Behälter nur einbeziehen, wenn ihr Feld auch
     // sichtbar war (ausr/waffe) — sonst würde das Umschalten auf „Allgemein"
     // beim Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung"
@@ -748,6 +770,40 @@ export function AddItemDialog({
             <div className="dlg-locked">
               <span className="dlg-badge">{mode === 'waffe' ? WAFFE_KATEGORIE : AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
             </div>
+          </div>
+        )}
+
+        {houses && (
+          <div className="dlg-row2">
+            <label className="dlg-field">
+              Haus
+              <input
+                value={haus}
+                onChange={(e) => setHaus(e.target.value)}
+                placeholder="— ohne Haus —"
+                list={hausListId}
+              />
+              <datalist id={hausListId}>
+                {houses.map((h) => (
+                  <option key={h} value={h} />
+                ))}
+              </datalist>
+            </label>
+            <label className="dlg-field">
+              Raum
+              <input
+                value={raum}
+                onChange={(e) => setRaum(e.target.value)}
+                disabled={!haus}
+                placeholder={haus ? '— ohne Raum —' : '— erst ein Haus wählen —'}
+                list={raumListId}
+              />
+              <datalist id={raumListId}>
+                {(roomsByHaus?.[haus] ?? []).map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
+            </label>
           </div>
         )}
 

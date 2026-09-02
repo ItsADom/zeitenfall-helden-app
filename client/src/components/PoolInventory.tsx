@@ -44,10 +44,24 @@ function catsOf(list: Item[]): string[] {
   return set.has('') ? [...named, ''] : named;
 }
 
+// Houses (docs/concepts/houses.md): Räume EINES Hauses in einer Item-Liste,
+// in Anzeigereihenfolge — dieselbe Herleitung wie catsOf (aus den
+// tatsächlich vorhandenen Items, nicht aus der verwalteten Liste, siehe
+// shared-inventories.md §3.1/3.2). '' steht für „nicht diesem Haus/Raum
+// zugeordnet" (kein Haus, oder ein anderes Haus als das gerade Betrachtete)
+// und läuft immer zuletzt.
+function raeumeVon(list: Item[], haus: string): string[] {
+  const set = new Set(list.map((it) => (it.haus === haus && haus ? it.raum : '')));
+  const named = [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, 'de'));
+  return set.has('') ? [...named, ''] : named;
+}
+
 export default function PoolInventory({
   storageKey,
   items,
   categories,
+  houses,
+  roomsByHaus,
   talents,
   specialEnergies,
   isGm,
@@ -64,6 +78,11 @@ export default function PoolInventory({
   storageKey: string;
   items: Item[];
   categories: string[];
+  /** Houses (docs/concepts/houses.md): nur der Gruppenpool setzt beides — blendet
+   * den Kategorie-/Raum-Umschalter ein. Der SL-Vorrat lässt beide weg, keine
+   * Häuser dort (siehe AddItemDialog.houses). */
+  houses?: string[];
+  roomsByHaus?: Record<string, string[]>;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
   isGm: boolean;
@@ -101,10 +120,27 @@ export default function PoolInventory({
 
   const editingItem = editUid !== null ? byUid.get(editUid) : undefined;
 
-  const row = (it: Item) => (
+  // Houses (docs/concepts/houses.md): persistierte Ansicht — Kategorie- oder
+  // Raum-Gruppierung derselben Liste, plus welches Haus im Raum-Modus gerade
+  // betrachtet wird. Nur relevant, wenn houses gesetzt ist (Gruppenpool).
+  const [view, setView] = usePersistedState<'kategorie' | 'raum'>(`${storageKey}:view`, 'kategorie');
+  const [activeHausRaw, setActiveHaus] = usePersistedState<string>(`${storageKey}:activeHaus`, '');
+  // Wählbare Häuser sind die verwaltete Liste VEREINIGT mit jedem Haus-Wert,
+  // der schon auf einem Item steht — dieselbe Regel wie catOptions für
+  // Kategorien (shared-inventories.md §3.1): ein frisch auf ein Item
+  // getipptes, noch nicht verwaltetes Haus soll sofort umschaltbar sein,
+  // nicht erst nach einem Abstecher in „Häuser verwalten".
+  const availableHouses = houses
+    ? [...new Set([...houses, ...items.map((it) => it.haus).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'de'))
+    : undefined;
+  const activeHaus = availableHouses && availableHouses.includes(activeHausRaw) ? activeHausRaw : (availableHouses?.[0] ?? '');
+  const raumView = view === 'raum' && !!availableHouses;
+
+  const row = (it: Item, hint?: string) => (
     <tr key={it.uid} className="inv-row" title="Klicken für Details — Bearbeiten, Duplizieren, Löschen, Verschieben" onClick={() => setEditUid(it.uid)}>
       <td>
         <span className="static-value static-text">{it.name || ' '}</span>
+        {hint && <span className="muted" style={{ marginLeft: 8, fontSize: '0.85em' }}>{hint}</span>}
       </td>
       <td className="num" onClick={(e) => e.stopPropagation()}>
         <NumInput value={it.anzahl} min={0} onChange={(v) => onPatchAnzahl(it.uid, v)} />
@@ -118,6 +154,9 @@ export default function PoolInventory({
       </td>
     </tr>
   );
+
+  // Ort-Hinweis für eine Kategorie-Zeile — nur, wenn ein Haus zugewiesen ist.
+  const ortHinweis = (it: Item) => (it.haus ? `${it.haus}${it.raum ? ' · ' + it.raum : ''}` : undefined);
 
   const groupedRows = (list: Item[], keyBase: string) =>
     catsOf(list).map((cat) => {
@@ -143,13 +182,75 @@ export default function PoolInventory({
               </button>
             </td>
           </tr>
-          {open && rows.map(row)}
+          {open && rows.map((it) => row(it, ortHinweis(it)))}
+        </Fragment>
+      );
+    });
+
+  // Houses (docs/concepts/houses.md): dieselbe Gruppierungs-/Einklapp-Mechanik
+  // wie groupedRows, nur nach raum (innerhalb activeHaus) statt kategorie —
+  // '' fasst „nicht diesem Haus/Raum zugeordnet" zusammen (kein Haus, oder ein
+  // anderes Haus als das gerade betrachtete), läuft dank raeumeVon immer
+  // zuletzt. Jede Zeile zeigt ihre Kategorie als Hinweis statt des Orts.
+  const groupedByRaum = (list: Item[], keyBase: string) =>
+    raeumeVon(list, activeHaus).map((raum) => {
+      const rows = list.filter((it) => (it.haus === activeHaus && activeHaus ? it.raum : '') === raum);
+      const sum = rows.reduce((s, it) => s + itemGewicht(it), 0);
+      const raumKey = `raum:${keyBase}:${raum}`;
+      const open = !isColl(raumKey);
+      return (
+        <Fragment key={raum || '__none'}>
+          <tr className="subtle-head cat-head-row">
+            <td colSpan={cols}>
+              <button
+                type="button"
+                className="cat-toggle"
+                aria-expanded={open}
+                onClick={() => toggleColl(raumKey)}
+                title={open ? 'Raum einklappen' : 'Raum ausklappen'}
+              >
+                <span className="cat-chev" aria-hidden>{open ? '▾' : '▸'}</span>
+                <span className="sticky-label">
+                  {raum || 'Nicht zugeordnet'} <span className="muted">· {rows.length} · {kg(sum)} kg</span>
+                </span>
+              </button>
+            </td>
+          </tr>
+          {open && rows.map((it) => row(it, it.kategorie || undefined))}
         </Fragment>
       );
     });
 
   return (
     <>
+      {availableHouses && (
+        <div className="panel inv-toolbar">
+          {activeHaus && availableHouses.length > 1 && (
+            <select value={activeHaus} onChange={(e) => setActiveHaus(e.target.value)} disabled={!raumView}>
+              {availableHouses.map((h) => (
+                <option key={h} value={h}>
+                  {h}
+                </option>
+              ))}
+            </select>
+          )}
+          <div className="dlg-seg">
+            <button type="button" className={view === 'kategorie' ? 'active' : ''} onClick={() => setView('kategorie')}>
+              Kategorie
+            </button>
+            <button
+              type="button"
+              className={view === 'raum' ? 'active' : ''}
+              disabled={!activeHaus}
+              title={activeHaus ? undefined : 'Noch kein Haus angelegt'}
+              onClick={() => setView('raum')}
+            >
+              Raum
+            </button>
+          </div>
+        </div>
+      )}
+
       {!ro && (
         <div className="panel inv-toolbar">
           <button className="small" onClick={() => setAddContainerOpen(true)}>
@@ -192,6 +293,7 @@ export default function PoolInventory({
               )}
               <span className="panel-info">
                 {inside.length} · {stueck ? c.kapazitaet : kg(c.kapazitaet)} {stueck ? 'Stück' : 'kg'}
+                {ortHinweis(c) && <> · {ortHinweis(c)}</>}
               </span>
               <span className="head-rule" aria-hidden />
               <span className="panel-actions cont-props" onClick={(e) => e.stopPropagation()}>
@@ -262,7 +364,7 @@ export default function PoolInventory({
           <div className="table-wrap">
             <table className="sheet inv-table">
               {colgroup}
-              <tbody>{groupedRows(loose, '__loose')}</tbody>
+              <tbody>{raumView ? groupedByRaum(loose, '__loose') : groupedRows(loose, '__loose')}</tbody>
             </table>
           </div>
         </div>
@@ -273,11 +375,16 @@ export default function PoolInventory({
         open={addLooseOpen}
         onClose={() => setAddLooseOpen(false)}
         categories={categories}
+        houses={houses}
+        roomsByHaus={roomsByHaus}
         talents={talents}
         specialEnergies={specialEnergies}
         isGm={isGm}
         onAdd={(fields) => onAdd({ ...fields, location: 'inventar' })}
       />
+      {/* Kein houses/roomsByHaus hier: Inhalt eines Behälters trägt keinen
+          eigenen Raum — nur der Behälter (das Wurzel-Item) tut das (docs/
+          concepts/houses.md, „Container carry their contents implicitly"). */}
       <AddItemDialog
         open={addItemFor !== null}
         onClose={() => setAddItemFor(null)}
@@ -291,6 +398,8 @@ export default function PoolInventory({
         open={editUid !== null}
         onClose={() => setEditUid(null)}
         categories={categories}
+        houses={editingItem?.location !== 'behaelter' ? houses : undefined}
+        roomsByHaus={roomsByHaus}
         item={editingItem}
         talents={talents}
         specialEnergies={specialEnergies}

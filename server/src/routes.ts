@@ -56,6 +56,8 @@ import {
   loadItemCategoriesForOwner,
   loadItems,
   loadItemsForOwner,
+  loadHouses,
+  loadRoomsForGroup,
   loadPouches,
   loescheItemsFuer,
   hasPortrait,
@@ -66,6 +68,8 @@ import {
   savePortrait,
   manageItemCategories,
   manageItemCategoriesForOwner,
+  manageHouses,
+  manageRoomsForHouse,
   saveAbilities,
   saveItemCategories,
   saveItemCategoriesForOwner,
@@ -628,6 +632,10 @@ api.get('/groups/:id', requireAuth, (req, res) => {
   // kein gemeinsames Inventar.
   let itemPool: Item[] = [];
   let itemCategories: string[] = [];
+  // Houses (docs/concepts/houses.md): dieselbe Event-Gruppen-Beschränkung wie
+  // der Gruppenpool oben — Event-Gruppen bekommen kein Haus.
+  let houses: string[] = [];
+  let roomsByHaus: Record<string, string[]> = {};
   if (!group.isTemp) {
     // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
     // die es vor diesem Feature schon gab, ihre Inhalte
@@ -637,6 +645,8 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     const items = loadItemsForOwner('group', groupId);
     itemPool = user.isGm ? items : ohneVerborgeneItems(items);
     itemCategories = loadItemCategoriesForOwner('group', groupId);
+    houses = loadHouses(groupId);
+    roomsByHaus = loadRoomsForGroup(groupId);
   }
   res.json({
     group: { ...group, isTemp: !!group.isTemp, portrait: hatGruppenPortrait(groupId) },
@@ -645,6 +655,8 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     tabs,
     itemPool,
     itemCategories,
+    houses,
+    roomsByHaus,
   });
 });
 
@@ -1382,6 +1394,21 @@ api.put('/groups/:id/item-categories/manage', requireAuth, (req, res) => {
   const groupId = editableGroup(req, res);
   if (!groupId) return;
   res.json({ categories: manageItemCategoriesForOwner('group', groupId, req.body) });
+});
+
+// Houses (docs/concepts/houses.md): dieselbe Zugriffsprüfung wie die
+// Kategorien-Verwaltung oben (editableGroup) — jedes Gruppenmitglied darf
+// Häuser/Räume anlegen und umbenennen, keine SL-Sonderrolle.
+api.put('/groups/:id/houses/manage', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  res.json(manageHouses(groupId, req.body));
+});
+
+api.put('/groups/:id/houses/:haus/rooms/manage', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  res.json({ rooms: manageRoomsForHouse(groupId, String(req.params.haus), req.body) });
 });
 
 api.post('/groups/:id/items/:uid/move', requireAuth, (req, res) => {

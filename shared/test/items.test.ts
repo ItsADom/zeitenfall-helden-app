@@ -50,6 +50,8 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     anzahl: 1,
     gewicht: 0,
     kategorie: '',
+    haus: '',
+    raum: '',
     location: 'inventar',
     zone: '',
     beidseitig: false,

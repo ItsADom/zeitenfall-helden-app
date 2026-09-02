@@ -11,6 +11,7 @@ import { applyCategoryCascade, CategoryManagerDialog } from '../components/Categ
 import CharacterCard from '../components/CharacterCard';
 import type { Catalogs } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
+import { applyHouseCascade, HouseManagerDialog } from '../components/HouseManagerDialog';
 import PoolInventory from '../components/PoolInventory';
 import { Portrait } from '../components/Portrait';
 import { useTabsHeight } from '../components/stickyChrome';
@@ -24,6 +25,8 @@ interface GroupData {
   tabs: DynTab[];
   itemPool: Item[];
   itemCategories: string[];
+  houses: string[];
+  roomsByHaus: Record<string, string[]>;
 }
 
 // Gruppeninhalte haben keine Attribute — Probe-Spalten gibt es hier nicht,
@@ -59,6 +62,7 @@ export default function GroupPage() {
   // absichtlich NICHT gemerkt, jedes Öffnen fängt wieder geschützt an.
   const [poolEditing, setPoolEditing] = useState(false);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [houseDialogOpen, setHouseDialogOpen] = useState(false);
   // Geht in den React-Key des aktiven Tabs ein; bei stiller Aktualisierung
   // hochgezählt, damit ContentTabView (hält Zeilen in eigenem State) die
   // frischen Serverdaten übernimmt.
@@ -251,6 +255,9 @@ export default function GroupPage() {
                 <button className="small" onClick={() => setCatDialogOpen(true)}>
                   Kategorien verwalten
                 </button>
+                <button className="small" onClick={() => setHouseDialogOpen(true)}>
+                  Häuser verwalten
+                </button>
               </div>
               <CategoryManagerDialog
                 open={catDialogOpen}
@@ -262,11 +269,24 @@ export default function GroupPage() {
                   setItemPool(applyCategoryCascade(itemPool, cascade));
                 }}
               />
+              <HouseManagerDialog
+                open={houseDialogOpen}
+                onClose={() => setHouseDialogOpen(false)}
+                groupId={groupId}
+                houses={data.houses}
+                roomsByHaus={data.roomsByHaus}
+                onSaved={(houses, roomsByHaus, cascade) => {
+                  setData((d) => (d ? { ...d, houses, roomsByHaus } : d));
+                  setItemPool(applyHouseCascade(itemPool, cascade));
+                }}
+              />
               {catalogs ? (
                 <PoolInventory
                   storageKey={`grouppool:${groupId}`}
                   items={itemPool}
                   categories={data.itemCategories}
+                  houses={data.houses}
+                  roomsByHaus={data.roomsByHaus}
                   talents={catalogs.talents}
                   specialEnergies={catalogs.specialEnergies}
                   isGm={user.isGm}

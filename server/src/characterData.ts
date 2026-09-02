@@ -939,7 +939,7 @@ export function loadItems(charId: number): Item[] {
 export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
     .all(ownerType, ownerId) as {
     id: number;
@@ -948,6 +948,8 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     anzahl: number;
     gewicht: number;
     kategorie: string;
+    haus: string;
+    raum: string;
     location: string;
     zone: string;
     beidseitig: number;
@@ -1010,6 +1012,8 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     anzahl: r.anzahl,
     gewicht: r.gewicht,
     kategorie: r.kategorie,
+    haus: r.haus,
+    raum: r.raum,
     location: (ITEM_LOCATIONS as string[]).includes(r.location) ? (r.location as ItemLocation) : 'inventar',
     zone: r.zone,
     beidseitig: !!r.beidseitig,
@@ -1068,6 +1072,8 @@ function normalizedItemRow(o: Record<string, unknown>) {
     anzahl: clampMin(o.anzahl),
     gewicht: clampMin(o.gewicht),
     kategorie: String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
+    haus: String(o.haus ?? '').slice(0, MAX_ITEM_TEXT),
+    raum: String(o.raum ?? '').slice(0, MAX_ITEM_TEXT),
     location: loc,
     zone,
     beidseitig,
@@ -1087,9 +1093,9 @@ function normalizedItemRow(o: Record<string, unknown>) {
   };
 }
 
-const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=? WHERE id=?`;
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=? WHERE id=?`;
 const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
-  n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
+  n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
   n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
   n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, id,
 ];
@@ -1180,8 +1186,8 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
 
   const tx = db.transaction(() => {
     const insItem = db.prepare(
-      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updItem = db.prepare(ITEM_UPDATE_SQL);
     const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
@@ -1214,7 +1220,7 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
       const n = normalizedItemRow(merged as unknown as Record<string, unknown>);
       updItem.run(...itemUpdateParams(n, existing.id));
       Object.assign(existing, {
-        name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie,
+        name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie, haus: n.haus, raum: n.raum,
         location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
         istBehaelter: !!merged.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
         kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
@@ -1248,13 +1254,13 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
         const pos = (nextPos.get(ownerType, ownerId) as { p: number }).p;
         const id = Number(
           insItem.run(
-            ownerType, ownerId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.location, n.zone, n.beidseitig,
+            ownerType, ownerId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig,
             n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
             n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
           ).lastInsertRowid,
         );
         const working: WorkingItem = {
-          id, uid, name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie,
+          id, uid, name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie, haus: n.haus, raum: n.raum,
           location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
           istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
           kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
@@ -1557,6 +1563,126 @@ export function manageItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: 
   return loadItemCategoriesForOwner(ownerType, ownerId);
 }
 
+// --- Houses (docs/concepts/houses.md): group-only location tags ---
+//
+// haus/raum on char_items are freeform strings — same role as kategorie, no
+// foreign key (shared-inventories.md §3.1 already proved a curated list can
+// coexist safely with an unvalidated string field). group_houses/group_rooms
+// are pure suggestion/rename lists, one level deeper than
+// char_item_categories: a room is scoped to a house NAME within the group,
+// not a house id. Houses are group-only — characters and the GM pool never
+// populate haus/raum, so there is no ownerType parameter here.
+
+const MAX_HOUSE_LEN = 200;
+const MAX_HOUSES = 200;
+const MAX_ROOMS_PER_HOUSE = 200;
+
+export function loadHouses(groupId: number): string[] {
+  return (
+    db.prepare('SELECT name FROM group_houses WHERE group_id = ? ORDER BY pos, id').all(groupId) as { name: string }[]
+  ).map((r) => r.name);
+}
+
+export function loadRoomsForGroup(groupId: number): Record<string, string[]> {
+  const rows = db
+    .prepare('SELECT haus, name FROM group_rooms WHERE group_id = ? ORDER BY pos, id')
+    .all(groupId) as { haus: string; name: string }[];
+  const out: Record<string, string[]> = {};
+  for (const r of rows) {
+    const list = out[r.haus] ?? [];
+    list.push(r.name);
+    out[r.haus] = list;
+  }
+  return out;
+}
+
+// Häuser verwalten MIT Kaskade — wie manageItemCategoriesForOwner, nur eine
+// Ebene tiefer: eine Umbenennung/Entfernung trifft auch group_rooms.haus
+// (Räume dieses Hauses) und char_items (owner_type='group'). Entfernen setzt
+// BEIDE Felder (haus UND raum) auf '' zurück — ohne sein Haus bedeutet ein
+// Raum-Name nichts mehr.
+export function manageHouses(groupId: number, raw: unknown): { houses: string[]; roomsByHaus: Record<string, string[]> } {
+  const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
+  const renames = Array.isArray(body.renames) ? body.renames : [];
+  const removes = Array.isArray(body.removes) ? body.removes : [];
+  const orderArr = Array.isArray(body.order) ? body.order : [];
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const v of orderArr) {
+    const name = String(v ?? '').trim().slice(0, MAX_HOUSE_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_HOUSES) break;
+  }
+  const tx = db.transaction(() => {
+    const upRooms = db.prepare('UPDATE group_rooms SET haus = ? WHERE group_id = ? AND haus = ?');
+    const upItemsHaus = db.prepare("UPDATE char_items SET haus = ? WHERE owner_type = 'group' AND owner_id = ? AND haus = ?");
+    for (const r of renames) {
+      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (from && to && from !== to) {
+        upRooms.run(to, groupId, from);
+        upItemsHaus.run(to, groupId, from);
+      }
+    }
+    const delRooms = db.prepare('DELETE FROM group_rooms WHERE group_id = ? AND haus = ?');
+    const clearItems = db.prepare(
+      "UPDATE char_items SET haus = '', raum = '' WHERE owner_type = 'group' AND owner_id = ? AND haus = ?",
+    );
+    for (const name of removes) {
+      const n = String(name ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (n) {
+        delRooms.run(groupId, n);
+        clearItems.run(groupId, n);
+      }
+    }
+    db.prepare('DELETE FROM group_houses WHERE group_id = ?').run(groupId);
+    const ins = db.prepare('INSERT INTO group_houses (group_id, pos, name) VALUES (?, ?, ?)');
+    clean.forEach((name, i) => ins.run(groupId, i, name));
+  });
+  tx();
+  return { houses: loadHouses(groupId), roomsByHaus: loadRoomsForGroup(groupId) };
+}
+
+// Räume EINES Hauses verwalten — exakt wie manageItemCategoriesForOwner, nur
+// zusätzlich auf `haus` gefiltert (sowohl bei group_rooms als auch beim
+// char_items-Kaskade-UPDATE).
+export function manageRoomsForHouse(groupId: number, haus: string, raw: unknown): string[] {
+  const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
+  const renames = Array.isArray(body.renames) ? body.renames : [];
+  const removes = Array.isArray(body.removes) ? body.removes : [];
+  const orderArr = Array.isArray(body.order) ? body.order : [];
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const v of orderArr) {
+    const name = String(v ?? '').trim().slice(0, MAX_HOUSE_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_ROOMS_PER_HOUSE) break;
+  }
+  const tx = db.transaction(() => {
+    const up = db.prepare("UPDATE char_items SET raum = ? WHERE owner_type = 'group' AND owner_id = ? AND haus = ? AND raum = ?");
+    for (const r of renames) {
+      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (from && to && from !== to) up.run(to, groupId, haus, from);
+    }
+    for (const name of removes) {
+      const n = String(name ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (n) up.run('', groupId, haus, n);
+    }
+    db.prepare('DELETE FROM group_rooms WHERE group_id = ? AND haus = ?').run(groupId, haus);
+    const ins = db.prepare('INSERT INTO group_rooms (group_id, haus, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(groupId, haus, i, name));
+  });
+  tx();
+  return loadRoomsForGroup(groupId)[haus] ?? [];
+}
+
 // --- Shared inventories: cross-owner move (docs/concepts/shared-inventories.md) ---
 //
 // A move is its OWN imperative call, never an ItemOp — diffItems compares one
@@ -1613,9 +1739,9 @@ export function moveItem(from: { type: ItemOwnerType; id: number }, to: { type: 
   const tx = db.transaction(() => {
     const setOwner = db.prepare('UPDATE char_items SET owner_type = ?, owner_id = ? WHERE id = ?');
     for (const id of found.ids) setOwner.run(to.type, to.id, id);
-    db.prepare("UPDATE char_items SET location = 'inventar', zone = '', beidseitig = 0, container_uid = '' WHERE id = ?").run(
-      found.rootId,
-    );
+    db.prepare(
+      "UPDATE char_items SET location = 'inventar', zone = '', beidseitig = 0, container_uid = '', haus = '', raum = '' WHERE id = ?",
+    ).run(found.rootId);
   });
   tx();
   return true;

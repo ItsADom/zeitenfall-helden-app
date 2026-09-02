@@ -439,6 +439,12 @@ db.exec(`
     anzahl REAL NOT NULL DEFAULT 1,
     gewicht REAL NOT NULL DEFAULT 0,
     kategorie TEXT NOT NULL DEFAULT '',
+    -- Houses (docs/concepts/houses.md): freiwillige Orts-Angabe, nur bei
+    -- gruppen-eigenen Items sinnvoll — freier String mit eigener
+    -- Vorschlagsliste (group_houses/group_rooms), kein Fremdschlüssel, genau
+    -- wie kategorie. raum ist innerhalb von haus verschachtelt.
+    haus TEXT NOT NULL DEFAULT '',
+    raum TEXT NOT NULL DEFAULT '',
     location TEXT NOT NULL DEFAULT 'inventar',
     -- 5b: Körperzone (bei location='getragen'), Behälter-Zugehörigkeit
     -- (container_uid → uid des Behälters, bei location='behaelter'), Behälter-
@@ -527,6 +533,34 @@ db.exec(`
   );
   -- Index folgt nach der Migration weiter unten, aus demselben Grund wie bei
   -- char_items oben.
+
+  -- Houses (docs/concepts/houses.md): kuratierte Vorschlags-/Umbenennen-Listen
+  -- für char_items.haus/raum — dieselbe Rolle wie char_item_categories für
+  -- kategorie, KEIN Fremdschlüssel (char_items.haus/raum bleiben freie Strings,
+  -- shared-inventories.md §3.1 zeigt, dass das gefahrlos ist). Direkte, echte
+  -- group_id-FK statt des generischen owner_type/owner_id-Paars — ein Haus
+  -- gehört strukturell IMMER einer Gruppe, nie einem Charakter oder dem SL, es
+  -- gibt also keine Owner-Art-Mehrdeutigkeit zu verallgemeinern, und eine echte
+  -- ON DELETE CASCADE erspart das manuelle Aufräumen, das char_items für sein
+  -- generisches Paar in Kauf nehmen musste.
+  CREATE TABLE IF NOT EXISTS group_houses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_houses_group ON group_houses (group_id, pos);
+  -- Räume liegen eine Ebene tiefer, verschachtelt über den Haus-NAMEN (haus),
+  -- nicht über eine group_houses.id — Räume sind wie Kategorien reine
+  -- Zeichenketten, siehe oben.
+  CREATE TABLE IF NOT EXISTS group_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    haus TEXT NOT NULL DEFAULT '',
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_rooms_group_haus ON group_rooms (group_id, haus, pos);
 
   -- Einheitliches Zauber-/Fähigkeiten-Modell (Cluster 6): eine Quelle der
   -- Wahrheit je Charakter, aus der die Reiter „Zauber" (magisch=1) und
@@ -1125,6 +1159,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_items_owner ON char_items (owner_type, owner_id, pos);
   CREATE INDEX IF NOT EXISTS idx_item_categories_owner ON char_item_categories (owner_type, owner_id, pos);
 `);
+
+// Migration (Houses, docs/concepts/houses.md): haus/raum auf char_items —
+// plain additive ALTERs, kein Neuaufbau nötig (anders als die owner_type-
+// Migration oben: das hier sind zwei ganz neue, nullable-mit-Default-Spalten,
+// keine NOT-NULL-Umwandlung). Läuft bewusst NACH dem obigen Neuaufbau: der
+// hat seine eigene, feste Spaltenliste und würde haus/raum sonst beim
+// Kopieren stillschweigend wieder verwerfen, kämen sie vorher dazu.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('haus')) db.exec("ALTER TABLE char_items ADD COLUMN haus TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('raum')) db.exec("ALTER TABLE char_items ADD COLUMN raum TEXT NOT NULL DEFAULT ''");
+}
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.
 // Früher lag sie in char_resources mit getrenntem permanent/kauf; da beides in
