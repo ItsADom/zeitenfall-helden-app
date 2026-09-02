@@ -278,12 +278,17 @@ db.exec(`
   -- Energien-Panel durch eine Auswahl aus vorgegebenen Namen. formula ist
   -- eine kleine Arithmetik-Formel über Attributen/Pool-Maxima (leer = rein
   -- manueller Eintrag, Spieler pflegt max/aktuell wie bisher selbst), siehe
-  -- evaluateEnergyFormula in shared/src/rules.ts.
+  -- evaluateEnergyFormula in shared/src/rules.ts. regeneration/umrechnung
+  -- sind reiner Freitext wie beschreibung (keine App-Berechnung) — wie
+  -- regeneriert sich die Energie, und wie rechnet sie in LE/AUS/AsE um
+  -- (z. B. "1 Punkt Drachenenergie = 5 AsE").
   CREATE TABLE IF NOT EXISTS special_energies_catalog (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     formula TEXT NOT NULL DEFAULT '',
     beschreibung TEXT NOT NULL DEFAULT '',
+    regeneration TEXT NOT NULL DEFAULT '',
+    umrechnung TEXT NOT NULL DEFAULT '',
     sort INTEGER NOT NULL DEFAULT 0
   );
 
@@ -984,6 +989,17 @@ db.exec(`
   if (!cols.has('bonus')) {
     db.exec('ALTER TABLE char_special_resources ADD COLUMN bonus REAL NOT NULL DEFAULT 0');
   }
+}
+
+// Migration: 'regeneration'/'umrechnung'-Spalten an bestehenden
+// special_energies_catalog ergänzen (Freitext, s. Kommentar an der Tabelle
+// oben). Default '' ist für Altbestand korrekt, keine Nachzieh-Migration nötig.
+{
+  const cols = new Set(
+    (db.prepare('PRAGMA table_info(special_energies_catalog)').all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!cols.has('regeneration')) db.exec("ALTER TABLE special_energies_catalog ADD COLUMN regeneration TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('umrechnung')) db.exec("ALTER TABLE special_energies_catalog ADD COLUMN umrechnung TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: 'AT-Deckel' (atMax) aus den Nahkampfwaffen entfernt. Bestehende

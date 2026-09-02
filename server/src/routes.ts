@@ -2227,7 +2227,8 @@ const CATALOGS = {
     refCol: 'catalog_id',
     // formula bleibt Text (evaluateEnergyFormula in shared/src/rules.ts parst
     // sie selbst) — leer = rein manueller Eintrag ohne Formel-Maximum.
-    cols: ['name', 'formula', 'beschreibung', 'sort'],
+    // regeneration/umrechnung sind reiner Freitext, keine App-Berechnung.
+    cols: ['name', 'formula', 'beschreibung', 'regeneration', 'umrechnung', 'sort'],
   },
 } as const;
 

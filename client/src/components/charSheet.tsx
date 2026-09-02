@@ -99,6 +99,8 @@ export interface SpecialEnergyCatalogRow {
   name: string;
   formula: string;
   beschreibung: string;
+  regeneration: string;
+  umrechnung: string;
   sort: number;
 }
 export interface Catalogs {

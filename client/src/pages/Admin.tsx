@@ -1222,6 +1222,8 @@ export default function AdminPage() {
           { key: 'name', label: 'Name', width: 180 },
           { key: 'formula', label: 'Formel (leer = manuell)', width: 160 },
           { key: 'beschreibung', label: 'Beschreibung' },
+          { key: 'regeneration', label: 'Regeneration' },
+          { key: 'umrechnung', label: 'Umrechnung in normale Energien' },
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />
