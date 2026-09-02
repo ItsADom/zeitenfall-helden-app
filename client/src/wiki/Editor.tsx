@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { parseWiki } from '@shared/wikiMarkup';
 import { wikiTagKey } from '@shared/wikiTags';
@@ -119,11 +120,21 @@ export default function WikiEditor() {
     setStatus('Speichere…');
     try {
       const d = await speichereSeite(slug, { titel, text, kommentar, tags, basisRev: basis });
-      setSeite(d.seite);
-      setBasisRev(d.seite.revisionId || null);
-      setKommentar('');
-      setEntwurf(null);
-      setStatus(`Gespeichert (${new Date().toLocaleTimeString()})`);
+      // flushSync: navigate() below reads `schmutzig` via the ExitGuard's blocker,
+      // which closes over the state as of the LAST COMMITTED render. Without this,
+      // setSeite/setTitel/setText are still batched and unflushed when navigate()
+      // fires, so the blocker still sees the pre-save (dirty) state and blocks an
+      // explicit, successful save with the "ungespeicherte Änderungen" dialog.
+      flushSync(() => {
+        setSeite(d.seite);
+        setTitel(d.seite.titel);
+        setText(d.seite.text);
+        setTags(d.seite.tags.join(', '));
+        setBasisRev(d.seite.revisionId || null);
+        setKommentar('');
+        setEntwurf(null);
+        setStatus(`Gespeichert (${new Date().toLocaleTimeString()})`);
+      });
       navigate(`/wiki/${d.kanonisch}`);
     } catch (e) {
       setStatus('');
