@@ -8,6 +8,7 @@ export * from './abilities.js';
 export * from './tableLayout.js';
 export * from './tabOrder.js';
 export * from './changelog.js';
+export * from './funFacts.js';
 export * from './accessGate.js';
 export * from './deployStatus.js';
 export * from './wikiTypen.js';

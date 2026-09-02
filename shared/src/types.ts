@@ -256,6 +256,9 @@ export interface CharTalent {
   waffenmeister: string;
   berufsbonus: string;
   notiz: string;
+  // Favorit fürs Würfel-Dock (📌 im Talente-Reiter) — taucht dann zusätzlich
+  // in der Würfel-Favoriten-Flyout auf (ShortcutsFlyout.tsx).
+  favorit: boolean;
 }
 
 // Sprachen & Schriften

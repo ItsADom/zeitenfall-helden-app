@@ -217,6 +217,7 @@ db.exec(`
     billiger TEXT NOT NULL DEFAULT '', spezialisierung TEXT NOT NULL DEFAULT '',
     waffenmeister TEXT NOT NULL DEFAULT '', berufsbonus TEXT NOT NULL DEFAULT '',
     notiz TEXT NOT NULL DEFAULT '',
+    favorit INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (character_id, talent_id)
   );
 
@@ -419,15 +420,31 @@ db.exec(`
   -- Einheitliches Gegenstands-Modell (Cluster 5): jeder Besitz ist EINE Zeile
   -- mit Gewicht (kg je Stück), Kategorie und Ort. Inventar, Kategorie-Summen,
   -- getragene Last und (5b) getragene Ausrüstung leiten sich hieraus ab.
+  -- Shared inventories (docs/concepts/shared-inventories.md): ein Item gehört
+  -- einem OWNER, nicht direkt einem Charakter — owner_type/owner_id statt
+  -- eines harten character_id-FKs, genau das Paar, das assets/store.ts schon
+  -- für Bilder benutzt. 'character'/'group'/'gm'; KEINE eigene FK mehr (SQLite
+  -- kennt keine tabellenübergreifende CASCADE über owner_type hinweg — das
+  -- manuelle Löschen beim Charakter-/Gruppen-Löschen übernimmt loescheItemsFuer,
+  -- genau wie loescheAssetsFuer es für den Bild-Store schon tut). Der Name
+  -- char_items bleibt trotzdem (eine milde Lüge jetzt) — umbenennen würde jeden
+  -- SQL-String und beide Kind-FKs anfassen, ohne Verhaltensgewinn.
   CREATE TABLE IF NOT EXISTS char_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    owner_type TEXT NOT NULL DEFAULT 'character',
+    owner_id INTEGER NOT NULL DEFAULT 0,
     pos INTEGER NOT NULL DEFAULT 0,
     uid TEXT NOT NULL DEFAULT '',
     name TEXT NOT NULL DEFAULT '',
     anzahl REAL NOT NULL DEFAULT 1,
     gewicht REAL NOT NULL DEFAULT 0,
     kategorie TEXT NOT NULL DEFAULT '',
+    -- Houses (docs/concepts/houses.md): freiwillige Orts-Angabe, nur bei
+    -- gruppen-eigenen Items sinnvoll — freier String mit eigener
+    -- Vorschlagsliste (group_houses/group_rooms), kein Fremdschlüssel, genau
+    -- wie kategorie. raum ist innerhalb von haus verschachtelt.
+    haus TEXT NOT NULL DEFAULT '',
+    raum TEXT NOT NULL DEFAULT '',
     location TEXT NOT NULL DEFAULT 'inventar',
     -- 5b: Körperzone (bei location='getragen'), Behälter-Zugehörigkeit
     -- (container_uid → uid des Behälters, bei location='behaelter'), Behälter-
@@ -448,31 +465,102 @@ db.exec(`
     -- in shared/src/items.ts).
     haltbarkeit_max REAL NOT NULL DEFAULT 0,
     haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
-    notiz TEXT NOT NULL DEFAULT ''
+    notiz TEXT NOT NULL DEFAULT '',
+    -- Hidden/revealable Ausrüstung stats (TODO.md): rs/haltbarkeit bleiben als
+    -- Felder sichtbar, zeigen aber „???" statt der Zahl, solange verborgen.
+    -- Default 0 (sichtbar) hält bestehende Zeilen unverändert.
+    rs_verborgen INTEGER NOT NULL DEFAULT 0,
+    haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0,
+    -- Weapons as real items (TODO.md): '' = kein Waffe, sonst 'nah'/'fern'.
+    -- Routet die Karte in den Waffen-Reiter/den richtigen Feldsatz; die
+    -- tatsächlichen Waffenwerte liegen in char_item_weapon_stats.
+    waffen_art TEXT NOT NULL DEFAULT ''
   );
+  -- Der Index auf (owner_type, owner_id, pos) steht NICHT hier, sondern erst
+  -- nach der owner_type-Migration weiter unten: auf einer bestehenden DB mit
+  -- der alten character_id-Spalte gäbe es owner_type zu diesem Zeitpunkt
+  -- (CREATE TABLE IF NOT EXISTS ist für sie ein No-op) noch gar nicht — CREATE
+  -- INDEX schlüge mit "no such column" fehl, bevor die Migration überhaupt lief.
+  -- Waffen-Stat-Zeilen (Weapons as real items, TODO.md) — eigene Kind-Tabelle
+  -- wie char_item_bonuses, ein Item hat 0..N Zeilen (eine je Waffen-Feld,
+  -- siehe waffenFelderFuerArt in shared/src/items.ts). Anders als ein
+  -- verdeckter ItemBonus (Zeile komplett unsichtbar) bleibt eine verdeckte
+  -- Waffen-Stat-Zeile als Zeile sichtbar — nur ihr Wert wird beim Ausliefern
+  -- an einen Nicht-SL geleert (siehe ohneVerborgeneItems) —, damit der Reiter
+  -- „???" zeigen kann, statt so zu tun, als gäbe es das Feld gar nicht.
+  CREATE TABLE IF NOT EXISTS char_item_weapon_stats (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL REFERENCES char_items(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    uid TEXT NOT NULL DEFAULT '',
+    feld TEXT NOT NULL DEFAULT '',
+    wert TEXT NOT NULL DEFAULT '',
+    verborgen INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_weapon_stats_item ON char_item_weapon_stats(item_id);
   -- Boni, die ein Gegenstand verleiht, solange er getragen wird (siehe ItemBonus
   -- in shared/src/items.ts) — eigene Kind-Tabelle wie char_pouch_coins zu
   -- char_pouches, NICHT JSON-in-TEXT wie char_abilities.kategorien. Referenziert
-  -- char_items.id (die DB-Zeilen-id, NICHT die client-vergebene uid) — saveItems
-  -- löscht+fügt die ganze Item-Liste in einer Transaktion neu ein, die Bonus-
-  -- Zeilen sterben per CASCADE mit und werden gegen die frische id neu angelegt.
+  -- char_items.id (die DB-Zeilen-id, NICHT die client-vergebene uid).
+  -- uid (wie bei char_items) macht eine Zeile über applyItemOps() einzeln
+  -- ansprechbar (addBonus/patchBonus/removeBonus) statt die ganze Liste eines
+  -- Items ersetzen zu müssen — genau die Kennung, deren Fehlen den Bug hinter
+  -- "Hidden/revealable Ausrüstung stats" (TODO.md) erst möglich gemacht hat.
   CREATE TABLE IF NOT EXISTS char_item_bonuses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id INTEGER NOT NULL REFERENCES char_items(id) ON DELETE CASCADE,
     pos INTEGER NOT NULL DEFAULT 0,
+    uid TEXT NOT NULL DEFAULT '',
     kind TEXT NOT NULL DEFAULT 'attr',
     code TEXT NOT NULL DEFAULT '',
     feld TEXT NOT NULL DEFAULT '',
-    wert REAL NOT NULL DEFAULT 0
+    wert REAL NOT NULL DEFAULT 0,
+    -- Hidden/revealable Ausrüstung stats (TODO.md): eine verdeckte Zeile ist
+    -- für einen Nicht-SL komplett unsichtbar (siehe ohneVerborgeneItems).
+    verborgen INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_item_bonuses_item ON char_item_bonuses(item_id);
-  -- Selbst verwaltete Kategorienliste je Charakter (Reihenfolge über pos).
+  -- Selbst verwaltete Kategorienliste je Owner (Reihenfolge über pos) — dieselbe
+  -- owner_type/owner_id-Verallgemeinerung wie char_items, siehe dort. Ein
+  -- Charakter behält seine eigene Liste unverändert; Gruppenpool und GM-Pool
+  -- bekommen je ihre eigene (docs/concepts/shared-inventories.md, Abschnitt 2.6).
   CREATE TABLE IF NOT EXISTS char_item_categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    owner_type TEXT NOT NULL DEFAULT 'character',
+    owner_id INTEGER NOT NULL DEFAULT 0,
     pos INTEGER NOT NULL DEFAULT 0,
     name TEXT NOT NULL DEFAULT ''
   );
+  -- Index folgt nach der Migration weiter unten, aus demselben Grund wie bei
+  -- char_items oben.
+
+  -- Houses (docs/concepts/houses.md): kuratierte Vorschlags-/Umbenennen-Listen
+  -- für char_items.haus/raum — dieselbe Rolle wie char_item_categories für
+  -- kategorie, KEIN Fremdschlüssel (char_items.haus/raum bleiben freie Strings,
+  -- shared-inventories.md §3.1 zeigt, dass das gefahrlos ist). Direkte, echte
+  -- group_id-FK statt des generischen owner_type/owner_id-Paars — ein Haus
+  -- gehört strukturell IMMER einer Gruppe, nie einem Charakter oder dem SL, es
+  -- gibt also keine Owner-Art-Mehrdeutigkeit zu verallgemeinern, und eine echte
+  -- ON DELETE CASCADE erspart das manuelle Aufräumen, das char_items für sein
+  -- generisches Paar in Kauf nehmen musste.
+  CREATE TABLE IF NOT EXISTS group_houses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_houses_group ON group_houses (group_id, pos);
+  -- Räume liegen eine Ebene tiefer, verschachtelt über den Haus-NAMEN (haus),
+  -- nicht über eine group_houses.id — Räume sind wie Kategorien reine
+  -- Zeichenketten, siehe oben.
+  CREATE TABLE IF NOT EXISTS group_rooms (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+    haus TEXT NOT NULL DEFAULT '',
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_group_rooms_group_haus ON group_rooms (group_id, haus, pos);
 
   -- Einheitliches Zauber-/Fähigkeiten-Modell (Cluster 6): eine Quelle der
   -- Wahrheit je Charakter, aus der die Reiter „Zauber" (magisch=1) und
@@ -495,7 +583,8 @@ db.exec(`
     probe TEXT NOT NULL DEFAULT '',
     effekt TEXT NOT NULL DEFAULT '',
     fortschritt REAL NOT NULL DEFAULT 0,
-    notiz TEXT NOT NULL DEFAULT ''
+    notiz TEXT NOT NULL DEFAULT '',
+    favorit INTEGER NOT NULL DEFAULT 0
   );
   -- Selbst verwaltete Element- und Kategorie-Listen je Charakter (kind trennt
   -- die beiden Achsen, nach denen die Reiter gruppieren können).
@@ -945,6 +1034,144 @@ db.exec(`
   db.exec("UPDATE char_items SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
 }
 
+// Migration: Hidden/revealable Ausrüstung stats (TODO.md) — verdeckbare
+// RS/Haltbarkeit auf char_items, verdeckbare Bonus-Zeilen auf
+// char_item_bonuses. Default 0 (sichtbar) hält bestehende Zeilen unverändert.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('rs_verborgen')) db.exec('ALTER TABLE char_items ADD COLUMN rs_verborgen INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('haltbarkeit_verborgen')) db.exec('ALTER TABLE char_items ADD COLUMN haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0');
+}
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_item_bonuses)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('verborgen')) db.exec('ALTER TABLE char_item_bonuses ADD COLUMN verborgen INTEGER NOT NULL DEFAULT 0');
+  // uid für gezielte Bonus-Zeilen-Ops (applyItemOps) — siehe Tabellenkommentar
+  // oben. Bestehende Zeilen bekommen nachträglich eine zufällige, wie
+  // char_items.uid es bei seiner eigenen Einführung schon tat.
+  if (!cols.has('uid')) {
+    db.exec("ALTER TABLE char_item_bonuses ADD COLUMN uid TEXT NOT NULL DEFAULT ''");
+    db.exec("UPDATE char_item_bonuses SET uid = lower(hex(randomblob(16))) WHERE uid IS NULL OR uid = ''");
+  }
+}
+
+// Migration: Weapons as real items (TODO.md) — `waffen_art` auf char_items.
+// Default '' (kein Waffe) hält bestehende Zeilen unverändert; die Waffen-
+// Stat-Zeilen-Tabelle selbst ist neu und braucht keine ALTER-Migration.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('waffen_art')) db.exec("ALTER TABLE char_items ADD COLUMN waffen_art TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration (shared inventories, docs/concepts/shared-inventories.md):
+// char_items/char_item_categories gain owner_type/owner_id instead of a hard
+// character_id FK, so an item or a curated category list can belong to a
+// group's pool or the GM's pool too, not only a character. SQLite cannot drop
+// NOT NULL/a FK via ALTER, so both tables get a one-way rebuild: create the
+// new shape, copy every row (character_id -> owner_type='character',
+// owner_id=character_id) PRESERVING id, drop, rename. Ids are preserved so
+// char_item_bonuses/char_item_weapon_stats (which reference char_items.id,
+// untouched here) stay valid without needing to be touched themselves. Must
+// run AFTER the char_items column ALTERs above (so the copied column set is
+// complete) and BEFORE the weapons-as-items data migration further below
+// (which inserts into char_items and has to target the new column pair).
+//
+// Two accepted consequences (see the concept doc): the DB-level cascade on
+// character/group delete is gone from here on — loescheItemsFuer()
+// (characterData.ts) takes over, exactly like loescheAssetsFuer() already
+// does for the cross-database asset store — and this migration is one-way: a
+// rollback onto older code would read a character_id column that no longer
+// exists.
+{
+  const itemCols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  const catCols = new Set((db.prepare('PRAGMA table_info(char_item_categories)').all() as { name: string }[]).map((c) => c.name));
+  if (itemCols.has('character_id') || catCols.has('character_id')) {
+    db.pragma('foreign_keys = OFF');
+    const rebuild = db.transaction(() => {
+      if (itemCols.has('character_id')) {
+        db.exec(`
+          CREATE TABLE char_items_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_type TEXT NOT NULL DEFAULT 'character',
+            owner_id INTEGER NOT NULL DEFAULT 0,
+            pos INTEGER NOT NULL DEFAULT 0,
+            uid TEXT NOT NULL DEFAULT '',
+            name TEXT NOT NULL DEFAULT '',
+            anzahl REAL NOT NULL DEFAULT 1,
+            gewicht REAL NOT NULL DEFAULT 0,
+            kategorie TEXT NOT NULL DEFAULT '',
+            location TEXT NOT NULL DEFAULT 'inventar',
+            zone TEXT NOT NULL DEFAULT '',
+            beidseitig INTEGER NOT NULL DEFAULT 0,
+            container_uid TEXT NOT NULL DEFAULT '',
+            ist_behaelter INTEGER NOT NULL DEFAULT 0,
+            container_art TEXT NOT NULL DEFAULT 'storage',
+            kapazitaet REAL NOT NULL DEFAULT 0,
+            kapazitaet_art TEXT NOT NULL DEFAULT 'gewicht',
+            gewichtsreduktion REAL NOT NULL DEFAULT 0,
+            rs REAL NOT NULL DEFAULT 0,
+            haltbarkeit_max REAL NOT NULL DEFAULT 0,
+            haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
+            notiz TEXT NOT NULL DEFAULT '',
+            rs_verborgen INTEGER NOT NULL DEFAULT 0,
+            haltbarkeit_verborgen INTEGER NOT NULL DEFAULT 0,
+            waffen_art TEXT NOT NULL DEFAULT ''
+          );
+          INSERT INTO char_items_new (id, owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
+            SELECT id, 'character', character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art
+            FROM char_items;
+          DROP TABLE char_items;
+          ALTER TABLE char_items_new RENAME TO char_items;
+          CREATE INDEX IF NOT EXISTS idx_items_owner ON char_items (owner_type, owner_id, pos);
+        `);
+      }
+      if (catCols.has('character_id')) {
+        db.exec(`
+          CREATE TABLE char_item_categories_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_type TEXT NOT NULL DEFAULT 'character',
+            owner_id INTEGER NOT NULL DEFAULT 0,
+            pos INTEGER NOT NULL DEFAULT 0,
+            name TEXT NOT NULL DEFAULT ''
+          );
+          INSERT INTO char_item_categories_new (id, owner_type, owner_id, pos, name)
+            SELECT id, 'character', character_id, pos, name FROM char_item_categories;
+          DROP TABLE char_item_categories;
+          ALTER TABLE char_item_categories_new RENAME TO char_item_categories;
+          CREATE INDEX IF NOT EXISTS idx_item_categories_owner ON char_item_categories (owner_type, owner_id, pos);
+        `);
+      }
+    });
+    rebuild();
+    const violations = db.prepare('PRAGMA foreign_key_check').all();
+    db.pragma('foreign_keys = ON');
+    if (violations.length) {
+      throw new Error(`char_items/char_item_categories-Neuaufbau ließ FK-Verletzungen zurück: ${JSON.stringify(violations)}`);
+    }
+    console.log('Migration: char_items/char_item_categories tragen jetzt owner_type/owner_id statt character_id (shared inventories)');
+  }
+}
+
+// Index auf (owner_type, owner_id, pos) — unconditional und idempotent, läuft
+// hier statt in den CREATE-TABLE-Blöcken oben, weil owner_type auf einer
+// bestehenden (noch nicht migrierten) DB zu diesem Zeitpunkt garantiert
+// existiert, während es dort oben (vor der Migration) noch fehlen könnte.
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_items_owner ON char_items (owner_type, owner_id, pos);
+  CREATE INDEX IF NOT EXISTS idx_item_categories_owner ON char_item_categories (owner_type, owner_id, pos);
+`);
+
+// Migration (Houses, docs/concepts/houses.md): haus/raum auf char_items —
+// plain additive ALTERs, kein Neuaufbau nötig (anders als die owner_type-
+// Migration oben: das hier sind zwei ganz neue, nullable-mit-Default-Spalten,
+// keine NOT-NULL-Umwandlung). Läuft bewusst NACH dem obigen Neuaufbau: der
+// hat seine eigene, feste Spaltenliste und würde haus/raum sonst beim
+// Kopieren stillschweigend wieder verwerfen, kämen sie vorher dazu.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('haus')) db.exec("ALTER TABLE char_items ADD COLUMN haus TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('raum')) db.exec("ALTER TABLE char_items ADD COLUMN raum TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: Magieresistenz von den Energien zu den Basiswerten.
 // Früher lag sie in char_resources mit getrenntem permanent/kauf; da beides in
 // der Praxis dasselbe war, wird es zu einem einzelnen Basiswert-Modifikator
@@ -977,6 +1204,15 @@ db.exec(`
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_talents)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('notiz')) db.exec("ALTER TABLE char_talents ADD COLUMN notiz TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration: 'favorit'-Spalte für char_talents/char_abilities (📌 fürs
+// Würfel-Dock, siehe ShortcutsFlyout.tsx). Startet false für jede Bestandszeile.
+{
+  const talentCols = new Set((db.prepare('PRAGMA table_info(char_talents)').all() as { name: string }[]).map((c) => c.name));
+  if (!talentCols.has('favorit')) db.exec('ALTER TABLE char_talents ADD COLUMN favorit INTEGER NOT NULL DEFAULT 0');
+  const abilityCols = new Set((db.prepare('PRAGMA table_info(char_abilities)').all() as { name: string }[]).map((c) => c.name));
+  if (!abilityCols.has('favorit')) db.exec('ALTER TABLE char_abilities ADD COLUMN favorit INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration: Anmeldung soll Groß-/Kleinschreibung beim Benutzernamen ignorieren
@@ -1037,6 +1273,64 @@ for (const s of LIST_SECTIONS) {
         SELECT character_id, pos, name, typEbe, entfernung, tpEntfernung, atMod, tp, besonderes, talentId, notiz
         FROM sec_waffenFern;
     `);
+  }
+}
+
+// Migration: Weapons as real items (TODO.md) — bestehende Karten aus
+// sec_waffenNahNeu/sec_waffenFernNeu einmalig als echte char_items-Zeilen
+// (waffen_art gesetzt) + char_item_weapon_stats-Zeilen anlegen.
+// sec_waffenNahNeu/sec_waffenFernNeu bleiben unangetastet stehen (reines
+// Archiv, wie sec_waffenNah/sec_waffenFern es seit der vorigen Migration
+// schon sind) — WaffenNeu.tsx liest ab jetzt nur noch aus char_items. Läuft
+// nur einmal: sobald irgendein Item waffen_art gesetzt hat, fasst der
+// Serverstart nichts mehr an (auch nicht für neue Charaktere — die haben
+// ohnehin nichts in den alten Tabellen zu migrieren). Freitext-Haltbarkeit,
+// die sich nicht als reine Zahl lesen lässt, geht NICHT verloren — sie
+// landet als „Haltbarkeit: <Text>" in der Notiz (no-data-loss rule).
+{
+  const tableExists = (name: string): boolean =>
+    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name);
+  const already = (db.prepare("SELECT COUNT(*) AS n FROM char_items WHERE waffen_art != ''").get() as { n: number }).n > 0;
+  if (!already && tableExists('sec_waffenNahNeu') && tableExists('sec_waffenFernNeu')) {
+    const NAH_FELDER = ['talentId', 'schaden', 'material', 'rd', 'reichweite', 'iniBonus', 'anforderung', 'expLevel', 'at', 'pa', 'bl', 'besonderes'];
+    const FERN_FELDER = ['talentId', 'schaden', 'eBE', 'rd', 'entfernung', 'atMod', 'besonderes'];
+    const newUid = (): string => (db.prepare('SELECT lower(hex(randomblob(16))) AS u').get() as { u: string }).u;
+    const insItem = db.prepare(
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, notiz, haltbarkeit_max, haltbarkeit_aktuell, waffen_art)
+       VALUES ('character', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const insStat = db.prepare('INSERT INTO char_item_weapon_stats (item_id, pos, uid, feld, wert) VALUES (?, ?, ?, ?, ?)');
+    // Alte Haltbarkeit war reiner Freitext (kein current/max-Paar wie bei
+    // Item.haltbarkeit) — eine reine Zahl wird zu max=aktuell=Zahl (frisch,
+    // volle Haltbarkeit), alles andere (leer, "12/15", "gut", …) bleibt als
+    // Text erhalten und wandert in die Notiz statt verloren zu gehen.
+    const parseHaltbarkeit = (raw: unknown): { max: number; aktuell: number; rest: string } => {
+      const trimmed = String(raw ?? '').trim();
+      if (trimmed && /^\d+([.,]\d+)?$/.test(trimmed)) {
+        const n = Number(trimmed.replace(',', '.'));
+        return { max: n, aktuell: n, rest: '' };
+      }
+      return { max: 0, aktuell: 0, rest: trimmed };
+    };
+    const migrateTable = (table: string, felder: string[], art: 'nah' | 'fern', posOffset: number) => {
+      const rows = db.prepare(`SELECT * FROM ${table} ORDER BY character_id, pos, id`).all() as Record<string, unknown>[];
+      for (const row of rows) {
+        const { max, aktuell, rest } = parseHaltbarkeit(row.haltbarkeit);
+        const notizParts = [String(row.notiz ?? '').trim(), rest ? `Haltbarkeit: ${rest}` : ''].filter(Boolean);
+        const itemId = Number(
+          insItem.run(
+            row.character_id, posOffset + Number(row.pos ?? 0), newUid(),
+            String(row.typ ?? ''), notizParts.join('\n'), max, aktuell, art,
+          ).lastInsertRowid,
+        );
+        felder.forEach((feld, i) => insStat.run(itemId, i, newUid(), feld, String(row[feld] ?? '')));
+      }
+    };
+    const migrate = db.transaction(() => {
+      migrateTable('sec_waffenNahNeu', NAH_FELDER, 'nah', 2_000_000);
+      migrateTable('sec_waffenFernNeu', FERN_FELDER, 'fern', 3_000_000);
+    });
+    migrate();
   }
 }
 

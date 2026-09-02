@@ -150,7 +150,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   };
 
   const [probes, setProbes] = useState<RollableProbe[] | null>(null);
-  const probesCharRef = useRef<number | null>(null);
+  const [favoriteProbes, setFavoriteProbes] = useState<RollableProbe[]>([]);
   const [highlight, setHighlight] = useState(0);
   const [suggestDismissed, setSuggestDismissed] = useState(false);
   const activeSuggestRef = useRef<HTMLButtonElement | null>(null);
@@ -184,14 +184,40 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const suggestCharId = koopMode ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
   const showSuggestions = !suggestDismissed && suggestCharId !== null && searchText.length >= MIN_SEARCH_LEN;
 
+  // Neu geladen jedes Mal, wenn die Vorschlagsliste aufklappt (nicht bei jedem
+  // Tastendruck — showSuggestions kippt nur beim Unter-/Überschreiten von
+  // MIN_SEARCH_LEN) statt einmalig pro Charakter zwischengespeichert: sonst
+  // zeigt der Chat nach dem Entfernen einer Waffe (oder Talent/Fähigkeit)
+  // weiter den alten Stand an, und ein Klick darauf endet nur in einer
+  // Fehlermeldung, weil die Probe serverseitig längst nicht mehr existiert.
   useEffect(() => {
-    if (!showSuggestions || suggestCharId === null || probesCharRef.current === suggestCharId) return;
-    probesCharRef.current = suggestCharId;
+    if (!showSuggestions || suggestCharId === null) return;
+    let aktuell = true;
     setProbes(null);
     apiGet<RollableProbe[]>(`/api/characters/${suggestCharId}/probes`)
-      .then(setProbes)
-      .catch(() => setProbes([]));
+      .then((list) => aktuell && setProbes(list))
+      .catch(() => aktuell && setProbes([]));
+    return () => {
+      aktuell = false;
+    };
   }, [showSuggestions, suggestCharId]);
+
+  // Würfel-Favoriten (📌 in Talente.tsx/AbilityManager.tsx) fürs 🎲-Flyout —
+  // unabhängig von den Tipp-Vorschlägen oben, lädt daher gleich beim
+  // Charakterwechsel statt erst beim Tippen.
+  useEffect(() => {
+    if (charId === null) {
+      setFavoriteProbes([]);
+      return;
+    }
+    let aktuell = true;
+    apiGet<RollableProbe[]>(`/api/characters/${charId}/dice-favorites`)
+      .then((list) => aktuell && setFavoriteProbes(list))
+      .catch(() => aktuell && setFavoriteProbes([]));
+    return () => {
+      aktuell = false;
+    };
+  }, [charId]);
 
   const q = searchText.toLowerCase();
   const matches =
@@ -357,11 +383,24 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
         raw={activeRoom?.myDiceShortcuts ?? ''}
         charId={charId}
         editHref={charId != null ? `/einstellungen?char=${charId}#wuerfel` : user.isGm ? '/einstellungen#wuerfel-sl' : undefined}
-        onOpen={refreshRooms}
+        onOpen={() => {
+          refreshRooms();
+          if (charId !== null) {
+            apiGet<RollableProbe[]>(`/api/characters/${charId}/dice-favorites`)
+              .then(setFavoriteProbes)
+              .catch(() => {});
+          }
+        }}
         onPick={(label, expression) => {
           if (groupId === null) return;
           setError('');
           rollExpr(expression, visibility, label, undefined, visibilityTarget ?? undefined);
+        }}
+        favorites={favoriteProbes}
+        onPickFavorite={(source) => {
+          if (groupId === null || charId === null) return;
+          setError('');
+          rollProbe(groupId, charId, source, 'public');
         }}
       />
       <VisibilityPicker

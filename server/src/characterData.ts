@@ -33,7 +33,10 @@ import {
   ITEM_BONUS_KINDS,
   ITEM_LOCATIONS,
   makeUid,
+  ohneVerborgeneItems,
   TALENT_BONUS_FELDER,
+  WAFFEN_ARTEN,
+  WAFFEN_STAT_FELDER,
   listSectionById,
   readSlots,
   normalizeColumns,
@@ -66,12 +69,17 @@ import type {
   ItemBonus,
   ItemBonusKind,
   ItemLocation,
+  ItemOp,
+  ItemOwnerType,
   ResourceInput,
   Resources,
   SpecialResource,
   StatBoni,
   TalentBonusFeld,
   VisibilitySection,
+  WaffenArt,
+  WaffenStat,
+  WaffenStatFeld,
 } from 'shared';
 import { db, initCharacterRows } from './db.js';
 import {
@@ -140,14 +148,13 @@ export function loadSingleRow(table: 'char_bio' | 'char_meta', charId: number): 
 }
 
 export function loadTalents(charId: number): CharTalent[] {
-  return (
-    db
-      .prepare(
-        `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz
-         FROM char_talents WHERE character_id = ?`,
-      )
-      .all(charId) as CharTalent[]
-  );
+  const rows = db
+    .prepare(
+      `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit
+       FROM char_talents WHERE character_id = ?`,
+    )
+    .all(charId) as (Omit<CharTalent, 'favorit'> & { favorit: number })[];
+  return rows.map((r) => ({ ...r, favorit: !!r.favorit }));
 }
 
 export function loadLanguages(charId: number): CharLanguage[] {
@@ -248,7 +255,7 @@ export function loadStats(charId: number): CharStats {
     .filter((id) => !bekannteIds.has(id))
     .map((talentId) =>
       talentMitBoni(
-        { talentId, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '' },
+        { talentId, taw: 0, at: 0, pa: 0, bl: 0, spezialisierung: '', waffenmeister: '', berufsbonus: '', notiz: '', favorit: false },
         boni,
       ),
     );
@@ -485,13 +492,24 @@ export function instantiateStandardSections(charId: number): void {
   tx();
 }
 
-// Ein paar sinnvolle Ausgangs-Kategorien für einen neuen Charakter, sofern er
-// noch keine hat. Frei änderbar — nur eine Starthilfe, kein Zwang.
-export function seedItemCategories(charId: number): void {
-  const have = (db.prepare('SELECT COUNT(*) AS n FROM char_item_categories WHERE character_id = ?').get(charId) as { n: number }).n;
+// Ein paar sinnvolle Ausgangs-Kategorien für einen neuen Owner (Charakter,
+// Gruppenpool, GM-Pool), sofern er noch keine hat. Frei änderbar — nur eine
+// Starthilfe, kein Zwang. Idempotent, damit sie auch für den GM-Pool (der
+// keinen eigenen Anlege-Zeitpunkt hat) bei jedem Zugriff gefahrlos erneut
+// aufgerufen werden kann (siehe GET-Route für den GM-Pool).
+export function seedItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number): void {
+  const have = (
+    db.prepare('SELECT COUNT(*) AS n FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').get(ownerType, ownerId) as {
+      n: number;
+    }
+  ).n;
   if (have > 0) return;
-  const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
-  INVENTAR_KATEGORIEN.forEach((name, i) => ins.run(charId, i, name));
+  const ins = db.prepare('INSERT INTO char_item_categories (owner_type, owner_id, pos, name) VALUES (?, ?, ?, ?)');
+  INVENTAR_KATEGORIEN.forEach((name, i) => ins.run(ownerType, ownerId, i, name));
+}
+
+export function seedItemCategories(charId: number): void {
+  seedItemCategoriesForOwner('character', charId);
 }
 
 // Einmalige Migration (Cluster 5a): den früheren dynamischen „Inventar"-Reiter
@@ -867,9 +885,15 @@ function ensureAttrPointsMigration(charId: number, meta: Record<string, unknown>
   return loadExternalAttrPoints(charId);
 }
 
-export function loadFullCharacter(charId: number) {
+// `requesterIsGm` gates Hidden/revealable Ausrüstung stats (TODO.md): a
+// character's own owner is NOT exempt — an unrevealed item stays hidden from
+// them too, only the GM sees the real rs/haltbarkeit/bonusse. Called with the
+// VIEWER's GM status (viewerFor()'s simulated identity during "Ansehen als"
+// in routes.ts), not always the raw session user.
+export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
   const meta = loadSingleRow('char_meta', charId);
   const attributes = loadAttributesRaw(charId);
+  const items = loadItems(charId);
   return {
     bio: loadSingleRow('char_bio', charId),
     meta,
@@ -886,7 +910,7 @@ export function loadFullCharacter(charId: number) {
     tableWidths: loadTableWidths(charId),
     tabOrder: loadTabOrder(charId),
     portrait: hasPortrait(charId),
-    items: loadItems(charId),
+    items: requesterIsGm ? items : ohneVerborgeneItems(items),
     itemCategories: loadItemCategories(charId),
     abilities: loadAbilities(charId),
     abilityLists: loadAbilityLists(charId),
@@ -909,17 +933,23 @@ const clampMin = (v: unknown, min = 0): number => {
 };
 
 export function loadItems(charId: number): Item[] {
+  return loadItemsForOwner('character', charId);
+}
+
+export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz FROM char_items WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
-    .all(charId) as {
+    .all(ownerType, ownerId) as {
     id: number;
     uid: string;
     name: string;
     anzahl: number;
     gewicht: number;
     kategorie: string;
+    haus: string;
+    raum: string;
     location: string;
     zone: string;
     beidseitig: number;
@@ -933,27 +963,47 @@ export function loadItems(charId: number): Item[] {
     haltbarkeit_max: number;
     haltbarkeit_aktuell: number;
     notiz: string;
+    rs_verborgen: number;
+    haltbarkeit_verborgen: number;
+    waffen_art: string;
   }[];
   // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
   // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
   // Bonus verlieren oder Items mit mehreren Boni vervielfachen.
   const bonusRows = db
     .prepare(
-      `SELECT ib.item_id, ib.kind, ib.code, ib.feld, ib.wert FROM char_item_bonuses ib
-       JOIN char_items ci ON ci.id = ib.item_id WHERE ci.character_id = ? ORDER BY ib.pos, ib.id`,
+      `SELECT ib.item_id, ib.uid, ib.kind, ib.code, ib.feld, ib.wert, ib.verborgen FROM char_item_bonuses ib
+       JOIN char_items ci ON ci.id = ib.item_id WHERE ci.owner_type = ? AND ci.owner_id = ? ORDER BY ib.pos, ib.id`,
     )
-    .all(charId) as { item_id: number; kind: string; code: string; feld: string; wert: number }[];
+    .all(ownerType, ownerId) as { item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
   const bonusesByItem = new Map<number, ItemBonus[]>();
   for (const r of bonusRows) {
     if (!(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
     const list = bonusesByItem.get(r.item_id) ?? [];
     list.push({
+      uid: r.uid || makeUid(),
       kind: r.kind as ItemBonusKind,
       code: r.code,
       feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
       wert: Number(r.wert) || 0,
+      verborgen: !!r.verborgen,
     });
     bonusesByItem.set(r.item_id, list);
+  }
+  // Waffen-Stat-Zeilen — dieselbe Zweitabfrage-plus-Gruppierung wie bei den
+  // Boni oben, aus demselben Grund (0..N Zeilen je Item).
+  const weaponStatRows = db
+    .prepare(
+      `SELECT ws.item_id, ws.uid, ws.feld, ws.wert, ws.verborgen FROM char_item_weapon_stats ws
+       JOIN char_items ci ON ci.id = ws.item_id WHERE ci.owner_type = ? AND ci.owner_id = ? ORDER BY ws.pos, ws.id`,
+    )
+    .all(ownerType, ownerId) as { item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
+  const weaponStatsByItem = new Map<number, WaffenStat[]>();
+  for (const r of weaponStatRows) {
+    if (!(WAFFEN_STAT_FELDER as string[]).includes(r.feld)) continue;
+    const list = weaponStatsByItem.get(r.item_id) ?? [];
+    list.push({ uid: r.uid || makeUid(), feld: r.feld as WaffenStatFeld, wert: r.wert, verborgen: !!r.verborgen });
+    weaponStatsByItem.set(r.item_id, list);
   }
   return rows.map((r) => ({
     id: r.id,
@@ -962,6 +1012,8 @@ export function loadItems(charId: number): Item[] {
     anzahl: r.anzahl,
     gewicht: r.gewicht,
     kategorie: r.kategorie,
+    haus: r.haus,
+    raum: r.raum,
     location: (ITEM_LOCATIONS as string[]).includes(r.location) ? (r.location as ItemLocation) : 'inventar',
     zone: r.zone,
     beidseitig: !!r.beidseitig,
@@ -976,12 +1028,22 @@ export function loadItems(charId: number): Item[] {
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
     notiz: r.notiz,
     bonusse: bonusesByItem.get(r.id) ?? [],
+    waffenArt: (WAFFEN_ARTEN as string[]).includes(r.waffen_art) ? (r.waffen_art as WaffenArt) : '',
+    waffenStats: weaponStatsByItem.get(r.id) ?? [],
+    rsVerborgen: !!r.rs_verborgen,
+    haltbarkeitVerborgen: !!r.haltbarkeit_verborgen,
   }));
 }
 
 export function loadItemCategories(charId: number): string[] {
+  return loadItemCategoriesForOwner('character', charId);
+}
+
+export function loadItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number): string[] {
   return (
-    db.prepare('SELECT name FROM char_item_categories WHERE character_id = ? ORDER BY pos, id').all(charId) as { name: string }[]
+    db
+      .prepare('SELECT name FROM char_item_categories WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id')
+      .all(ownerType, ownerId) as { name: string }[]
   ).map((r) => r.name);
 }
 
@@ -990,88 +1052,376 @@ export function loadItemCategories(charId: number): string[] {
 const ZONE_SET = new Set<string>(BODY_ZONES as readonly string[]);
 const clampPct = (v: unknown): number => Math.min(100, Math.max(0, Number(v) || 0));
 
-export function saveItems(charId: number, raw: unknown): void {
-  const arr = Array.isArray(raw) ? raw.slice(0, MAX_ITEMS) : [];
-  // uids eindeutig halten: fehlende oder doppelte erzeugen wir neu, damit die
-  // Behälter-Verweise (containerUid) verlässlich ein Ziel treffen.
-  const seenUids = new Set<string>();
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM char_items WHERE character_id = ?').run(charId);
-    const ins = db.prepare(
-      `INSERT INTO char_items (character_id, pos, uid, name, anzahl, gewicht, kategorie, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    );
-    const insBonus = db.prepare(
-      'INSERT INTO char_item_bonuses (item_id, pos, kind, code, feld, wert) VALUES (?, ?, ?, ?, ?, ?)',
-    );
-    arr.forEach((it, i) => {
-      const o = (it ?? {}) as Record<string, unknown>;
-      const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
-      let uid = String(o.uid ?? '').slice(0, 64);
-      if (!uid || seenUids.has(uid)) uid = makeUid();
-      seenUids.add(uid);
-      // Zone/Behälter passend zum Ort halten: nur getragene Sachen haben eine
-      // Zone, nur Behälter-Inhalte einen container_uid. So bleibt der Datensatz
-      // widerspruchsfrei, egal was von außen kommt.
-      const zoneRaw = String(o.zone ?? '');
-      const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
-      // „Beidseitig" nur behalten, wenn der Gegenstand auch wirklich in einer
-      // seitengetrennten Körperzone (Arm/Hand/Bein) getragen wird — sonst wäre
-      // das Kennzeichen wirkungslos und bliebe als Altlast hängen.
-      const beidseitig = isPairedZone(zone) && o.beidseitig ? 1 : 0;
-      const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
-      const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
-      const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
-      const haltbarkeitMax = clampMin(o.haltbarkeitMax);
-      const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
-      const itemId = Number(
-        ins.run(
-          charId,
-          i,
-          uid,
-          String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
-          clampMin(o.anzahl),
-          clampMin(o.gewicht),
-          String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
-          loc,
-          zone,
-          beidseitig,
-          containerUid,
-          o.istBehaelter ? 1 : 0,
-          art,
-          clampMin(o.kapazitaet),
-          kapArt,
-          clampPct(o.gewichtsreduktion),
-          clampMin(o.rs),
-          haltbarkeitMax,
-          haltbarkeitAktuell,
-          String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
-        ).lastInsertRowid,
-      );
-      // Ungültige kind-Werte werden verworfen statt zu werfen (wie savePouches
-      // mit veralteten Katalog-Verweisen umgeht) — ein Bonus mit unbekanntem
-      // kind ist Datenmüll aus einem älteren/fremden Client, kein Grund, das
-      // ganze Speichern abzubrechen. Ein wert von 0 bleibt erhalten (keine
-      // Datenverlust-Regel) — der Spieler hat die Zeile bewusst angelegt, auch
-      // wenn noch kein Wert eingetragen ist.
-      const bonusRaw = Array.isArray(o.bonusse) ? (o.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
-      bonusRaw.forEach((b, bi) => {
-        const bo = (b ?? {}) as Record<string, unknown>;
-        const kindRaw = String(bo.kind ?? '');
-        if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) return;
-        const kind = kindRaw as ItemBonusKind;
-        const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(bo.feld)) ? String(bo.feld) : '';
-        const code = kind === 'psyche' || kind === 'traglast' ? '' : String(bo.code ?? '').slice(0, MAX_BONUS_CODE);
-        const wert = Number(bo.wert);
-        if (!Number.isFinite(wert)) return;
-        insBonus.run(itemId, bi, kind, code, feld, wert);
+// Ein zusammengeführtes (bestehend+patch) Item-artiges Objekt auf die
+// tatsächlichen DB-Spaltenwerte normalisieren — dieselben Regeln wie die
+// frühere Ganze-Liste-saveItems (Zone/Behälter-Konsistenz, Clamps), jetzt für
+// EINE Zeile statt die ganze Liste (siehe applyItemOps).
+function normalizedItemRow(o: Record<string, unknown>) {
+  const loc = (ITEM_LOCATIONS as string[]).includes(String(o.location)) ? String(o.location) : 'inventar';
+  const zoneRaw = String(o.zone ?? '');
+  const zone = loc === 'getragen' && ZONE_SET.has(zoneRaw) ? zoneRaw : '';
+  const beidseitig = isPairedZone(zone) && o.beidseitig ? 1 : 0;
+  const containerUid = loc === 'behaelter' ? String(o.containerUid ?? '').slice(0, 64) : '';
+  const art = (CONTAINER_ARTEN as string[]).includes(String(o.containerArt)) ? String(o.containerArt) : 'storage';
+  const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
+  const haltbarkeitMax = clampMin(o.haltbarkeitMax);
+  const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
+  const waffenArt = (WAFFEN_ARTEN as string[]).includes(String(o.waffenArt)) ? (String(o.waffenArt) as WaffenArt) : '';
+  return {
+    name: String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
+    anzahl: clampMin(o.anzahl),
+    gewicht: clampMin(o.gewicht),
+    kategorie: String(o.kategorie ?? '').slice(0, MAX_ITEM_TEXT),
+    haus: String(o.haus ?? '').slice(0, MAX_ITEM_TEXT),
+    raum: String(o.raum ?? '').slice(0, MAX_ITEM_TEXT),
+    location: loc,
+    zone,
+    beidseitig,
+    containerUid,
+    istBehaelter: o.istBehaelter ? 1 : 0,
+    containerArt: art,
+    kapazitaet: clampMin(o.kapazitaet),
+    kapazitaetArt: kapArt,
+    gewichtsreduktion: clampPct(o.gewichtsreduktion),
+    rs: clampMin(o.rs),
+    haltbarkeitMax,
+    haltbarkeitAktuell,
+    notiz: String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
+    rsVerborgen: o.rsVerborgen ? 1 : 0,
+    haltbarkeitVerborgen: o.haltbarkeitVerborgen ? 1 : 0,
+    waffenArt,
+  };
+}
+
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=? WHERE id=?`;
+const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
+  n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
+  n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
+  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, id,
+];
+
+const MAX_ITEM_OPS = 500;
+const MAX_WEAPON_STATS_PRO_ITEM = 20;
+const MAX_WEAPON_STAT_WERT = 4000;
+
+// „Aufdecken" ist einseitig — sobald eine Zeile nicht mehr verdeckt ist, kann
+// KEIN Patch sie wieder verstecken, es gibt bewusst keinen Verstecken-Knopf.
+// Nur aufrufen, nachdem der Aufrufer bereits als SL bestätigt ist — ein
+// Nicht-SL darf das Feld an keiner Stelle anfassen (siehe die jeweiligen
+// Aufrufer, die das vorher separat sperren).
+function nextVerborgen(existing: boolean, incoming: unknown): boolean {
+  if (!existing) return false; // schon sichtbar: bleibt sichtbar, egal was ankommt
+  return incoming === undefined ? existing : !!incoming;
+}
+
+// Boni-Zeile: Ziel/Feld normalisieren, ungültige kind-Werte verwerfen (wie
+// savePouches mit veralteten Katalog-Verweisen umgeht) — Aufrufer prüft vorher
+// bereits, ob kind überhaupt geändert werden darf.
+function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>): { code: string; feld: TalentBonusFeld | '' } {
+  const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(o.feld)) ? (String(o.feld) as TalentBonusFeld) : '';
+  const code = kind === 'psyche' || kind === 'traglast' ? '' : String(o.code ?? '').slice(0, MAX_BONUS_CODE);
+  return { code, feld };
+}
+
+interface WorkingItem extends Omit<Item, 'bonusse' | 'waffenStats'> {
+  bonusse: (ItemBonus & { dbId: number })[];
+  waffenStats: (WaffenStat & { dbId: number })[];
+}
+
+// Incremental item saves (Hidden/revealable Ausrüstung stats, TODO.md — siehe
+// diffItems in shared/src/items.ts für die Client-Gegenseite und die
+// Begründung, warum ein Ganze-Liste-Ersatz hier nicht mehr geht). Jede Zeile
+// (Item wie Bonus) wird über ihre eigene stabile uid angesprochen — ein Op zu
+// einer uid, die dieser Client nie gesehen hat (weil sie verdeckt war), kann
+// es strukturell gar nicht geben, also muss hier nichts rekonstruiert werden.
+export function applyItemOps(charId: number, raw: unknown, requesterIsGm: boolean): void {
+  applyItemOpsForOwner('character', charId, raw, requesterIsGm);
+}
+
+export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, raw: unknown, requesterIsGm: boolean): void {
+  const ops = (Array.isArray(raw) ? raw.slice(0, MAX_ITEM_OPS) : []) as Record<string, unknown>[];
+  if (ops.length === 0) return;
+
+  // Laufender Arbeitsstand, EINMAL geladen, dann pro Op weitergeschrieben —
+  // spätere Ops im selben Batch (z. B. patch direkt nach add) sehen so den
+  // Stand vorheriger Ops, ohne zwischendurch neu aus der DB zu lesen.
+  const byUid = new Map<string, WorkingItem>();
+  const idToUid = new Map<number, string>();
+  for (const it of loadItemsForOwner(ownerType, ownerId)) {
+    byUid.set(it.uid, { ...it, bonusse: [], waffenStats: [] });
+    idToUid.set(it.id, it.uid);
+  }
+  {
+    const bonusRows = db
+      .prepare(
+        `SELECT ib.id, ib.item_id, ib.uid, ib.kind, ib.code, ib.feld, ib.wert, ib.verborgen FROM char_item_bonuses ib
+         JOIN char_items ci ON ci.id = ib.item_id WHERE ci.owner_type = ? AND ci.owner_id = ?`,
+      )
+      .all(ownerType, ownerId) as { id: number; item_id: number; uid: string; kind: string; code: string; feld: string; wert: number; verborgen: number }[];
+    for (const r of bonusRows) {
+      const itemUid = idToUid.get(r.item_id);
+      const item = itemUid ? byUid.get(itemUid) : undefined;
+      if (!item || !(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
+      item.bonusse.push({
+        dbId: r.id, uid: r.uid || makeUid(), kind: r.kind as ItemBonusKind, code: r.code,
+        feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+        wert: Number(r.wert) || 0, verborgen: !!r.verborgen,
       });
-    });
+    }
+  }
+  {
+    const statRows = db
+      .prepare(
+        `SELECT ws.id, ws.item_id, ws.uid, ws.feld, ws.wert, ws.verborgen FROM char_item_weapon_stats ws
+         JOIN char_items ci ON ci.id = ws.item_id WHERE ci.owner_type = ? AND ci.owner_id = ?`,
+      )
+      .all(ownerType, ownerId) as { id: number; item_id: number; uid: string; feld: string; wert: string; verborgen: number }[];
+    for (const r of statRows) {
+      const itemUid = idToUid.get(r.item_id);
+      const item = itemUid ? byUid.get(itemUid) : undefined;
+      if (!item || !(WAFFEN_STAT_FELDER as string[]).includes(r.feld)) continue;
+      item.waffenStats.push({ dbId: r.id, uid: r.uid || makeUid(), feld: r.feld as WaffenStatFeld, wert: r.wert, verborgen: !!r.verborgen });
+    }
+  }
+
+  const tx = db.transaction(() => {
+    const insItem = db.prepare(
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const updItem = db.prepare(ITEM_UPDATE_SQL);
+    const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
+    const nextPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_items WHERE owner_type=? AND owner_id=?');
+    const setPos = db.prepare('UPDATE char_items SET pos=? WHERE id=?');
+    const insBonus = db.prepare('INSERT INTO char_item_bonuses (item_id, pos, uid, kind, code, feld, wert, verborgen) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    const updBonus = db.prepare('UPDATE char_item_bonuses SET kind=?, code=?, feld=?, wert=?, verborgen=? WHERE id=?');
+    const delBonus = db.prepare('DELETE FROM char_item_bonuses WHERE id=?');
+    const nextBonusPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_item_bonuses WHERE item_id=?');
+    const insStat = db.prepare('INSERT INTO char_item_weapon_stats (item_id, pos, uid, feld, wert, verborgen) VALUES (?, ?, ?, ?, ?, ?)');
+    const updStat = db.prepare('UPDATE char_item_weapon_stats SET feld=?, wert=?, verborgen=? WHERE id=?');
+    const delStat = db.prepare('DELETE FROM char_item_weapon_stats WHERE id=?');
+    const nextStatPos = db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_item_weapon_stats WHERE item_id=?');
+
+    const applyPatchToItem = (existing: WorkingItem, patch: Record<string, unknown>): void => {
+      const p = { ...patch };
+      if (!requesterIsGm) {
+        delete p.rsVerborgen;
+        delete p.haltbarkeitVerborgen;
+        if (existing.rsVerborgen) delete p.rs;
+        if (existing.haltbarkeitVerborgen) {
+          delete p.haltbarkeitMax;
+          delete p.haltbarkeitAktuell;
+        }
+      } else {
+        if ('rsVerborgen' in p) p.rsVerborgen = nextVerborgen(existing.rsVerborgen, p.rsVerborgen);
+        if ('haltbarkeitVerborgen' in p) p.haltbarkeitVerborgen = nextVerborgen(existing.haltbarkeitVerborgen, p.haltbarkeitVerborgen);
+      }
+      const merged = { ...existing, ...p };
+      const n = normalizedItemRow(merged as unknown as Record<string, unknown>);
+      updItem.run(...itemUpdateParams(n, existing.id));
+      Object.assign(existing, {
+        name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie, haus: n.haus, raum: n.raum,
+        location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
+        istBehaelter: !!merged.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
+        kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
+        haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+        rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+      });
+    };
+
+    for (const rawOp of ops) {
+      const o = (rawOp ?? {}) as Record<string, unknown>;
+      const kindOfOp = String(o.op ?? '');
+
+      if (kindOfOp === 'add') {
+        const item = (o.item ?? {}) as Record<string, unknown>;
+        let uid = String(item.uid ?? '').slice(0, 64);
+        if (!uid) uid = makeUid();
+        const already = byUid.get(uid);
+        if (already) {
+          // Wiederholter add (z. B. nach einem Netzwerk-Retry) — wie ein
+          // Patch behandeln statt eine zweite Zeile anzulegen.
+          applyPatchToItem(already, item);
+          continue;
+        }
+        if (byUid.size >= MAX_ITEMS) continue;
+        const fields: Record<string, unknown> = { ...item };
+        if (!requesterIsGm) {
+          fields.rsVerborgen = false;
+          fields.haltbarkeitVerborgen = false;
+        }
+        const n = normalizedItemRow(fields);
+        const pos = (nextPos.get(ownerType, ownerId) as { p: number }).p;
+        const id = Number(
+          insItem.run(
+            ownerType, ownerId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig,
+            n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
+            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
+          ).lastInsertRowid,
+        );
+        const working: WorkingItem = {
+          id, uid, name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie, haus: n.haus, raum: n.raum,
+          location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
+          istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
+          kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
+          haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+          rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+          bonusse: [], waffenStats: [],
+        };
+        byUid.set(uid, working);
+        const initialBonusse = Array.isArray(item.bonusse) ? (item.bonusse as unknown[]).slice(0, MAX_BONUSSE_PRO_ITEM) : [];
+        initialBonusse.forEach((b, bi) => {
+          const bo = (b ?? {}) as Record<string, unknown>;
+          const kindRaw = String(bo.kind ?? '');
+          if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) return;
+          const kind = kindRaw as ItemBonusKind;
+          const { code, feld } = normalizedBonusFields(kind, bo);
+          const wert = Number(bo.wert);
+          if (!Number.isFinite(wert)) return;
+          const verborgen = requesterIsGm ? !!bo.verborgen : false;
+          let bUid = String(bo.uid ?? '').slice(0, 64);
+          if (!bUid) bUid = makeUid();
+          const bId = Number(insBonus.run(id, bi, bUid, kind, code, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+          working.bonusse.push({ dbId: bId, uid: bUid, kind, code, feld, wert, verborgen });
+        });
+        const initialStats = Array.isArray(item.waffenStats) ? (item.waffenStats as unknown[]).slice(0, MAX_WEAPON_STATS_PRO_ITEM) : [];
+        initialStats.forEach((s, si) => {
+          const so = (s ?? {}) as Record<string, unknown>;
+          const feldRaw = String(so.feld ?? '');
+          if (!(WAFFEN_STAT_FELDER as string[]).includes(feldRaw)) return;
+          const feld = feldRaw as WaffenStatFeld;
+          const wert = String(so.wert ?? '').slice(0, MAX_WEAPON_STAT_WERT);
+          const verborgen = requesterIsGm ? !!so.verborgen : false;
+          let sUid = String(so.uid ?? '').slice(0, 64);
+          if (!sUid) sUid = makeUid();
+          const sId = Number(insStat.run(id, si, sUid, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+          working.waffenStats.push({ dbId: sId, uid: sUid, feld, wert, verborgen });
+        });
+      } else if (kindOfOp === 'patch') {
+        const existing = byUid.get(String(o.uid ?? ''));
+        if (!existing) continue;
+        applyPatchToItem(existing, (o.patch ?? {}) as Record<string, unknown>);
+      } else if (kindOfOp === 'remove') {
+        const existing = byUid.get(String(o.uid ?? ''));
+        if (!existing) continue;
+        delItem.run(existing.id);
+        byUid.delete(existing.uid);
+      } else if (kindOfOp === 'reorder') {
+        const uids = Array.isArray(o.uids) ? (o.uids as unknown[]).map(String) : [];
+        uids.forEach((uid, i) => {
+          const it = byUid.get(uid);
+          if (it) setPos.run(i, it.id);
+        });
+      } else if (kindOfOp === 'addBonus') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        if (!item) continue;
+        const bonus = (o.bonus ?? {}) as Record<string, unknown>;
+        let bUid = String(bonus.uid ?? '').slice(0, 64);
+        if (!bUid) bUid = makeUid();
+        const already = item.bonusse.find((b) => b.uid === bUid);
+        const kindRaw = String(bonus.kind ?? '');
+        if (!(ITEM_BONUS_KINDS as string[]).includes(kindRaw)) continue;
+        const kind = kindRaw as ItemBonusKind;
+        const { code, feld } = normalizedBonusFields(kind, bonus);
+        const wert = Number(bonus.wert);
+        if (!Number.isFinite(wert)) continue;
+        if (already) {
+          // Ein Retry (Netzwerkfehler, erneuter Flush) darf eine bereits
+          // verdeckte Zeile nicht anfassen — Nicht-SL kennt ihre uid ohnehin
+          // strukturell nie, das hier ist reine Verteidigung in der Tiefe.
+          if (!requesterIsGm && already.verborgen) continue;
+          const verborgen = requesterIsGm ? nextVerborgen(already.verborgen, bonus.verborgen) : false;
+          updBonus.run(kind, code, feld, wert, verborgen ? 1 : 0, already.dbId);
+          Object.assign(already, { kind, code, feld, wert, verborgen });
+          continue;
+        }
+        if (item.bonusse.length >= MAX_BONUSSE_PRO_ITEM) continue;
+        const verborgen = requesterIsGm ? !!bonus.verborgen : false;
+        const pos = (nextBonusPos.get(item.id) as { p: number }).p;
+        const dbId = Number(insBonus.run(item.id, pos, bUid, kind, code, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+        item.bonusse.push({ dbId, uid: bUid, kind, code, feld, wert, verborgen });
+      } else if (kindOfOp === 'patchBonus') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const bonus = item?.bonusse.find((b) => b.uid === String(o.bonusUid ?? ''));
+        if (!item || !bonus) continue;
+        if (!requesterIsGm && bonus.verborgen) continue; // Nicht-SL kennt diese uid strukturell nie — defensiv trotzdem sperren
+        const patch = { ...(o.patch ?? {}) } as Record<string, unknown>;
+        if (!requesterIsGm) delete patch.verborgen;
+        else if ('verborgen' in patch) patch.verborgen = nextVerborgen(bonus.verborgen, patch.verborgen);
+        const kind = 'kind' in patch && (ITEM_BONUS_KINDS as string[]).includes(String(patch.kind)) ? (patch.kind as ItemBonusKind) : bonus.kind;
+        const merged = { ...bonus, ...patch, kind };
+        const { code, feld } = normalizedBonusFields(kind, merged as unknown as Record<string, unknown>);
+        const wert = Number(merged.wert);
+        if (!Number.isFinite(wert)) continue;
+        const verborgen = !!merged.verborgen;
+        updBonus.run(kind, code, feld, wert, verborgen ? 1 : 0, bonus.dbId);
+        Object.assign(bonus, { kind, code, feld, wert, verborgen });
+      } else if (kindOfOp === 'removeBonus') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const idx = item?.bonusse.findIndex((b) => b.uid === String(o.bonusUid ?? '')) ?? -1;
+        if (!item || idx < 0) continue;
+        const bonus = item.bonusse[idx];
+        if (!requesterIsGm && bonus.verborgen) continue;
+        delBonus.run(bonus.dbId);
+        item.bonusse.splice(idx, 1);
+      } else if (kindOfOp === 'addWeaponStat') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        if (!item) continue;
+        const stat = (o.stat ?? {}) as Record<string, unknown>;
+        let sUid = String(stat.uid ?? '').slice(0, 64);
+        if (!sUid) sUid = makeUid();
+        const already = item.waffenStats.find((s) => s.uid === sUid);
+        const feldRaw = String(stat.feld ?? '');
+        if (!(WAFFEN_STAT_FELDER as string[]).includes(feldRaw)) continue;
+        const feld = feldRaw as WaffenStatFeld;
+        const wert = String(stat.wert ?? '').slice(0, MAX_WEAPON_STAT_WERT);
+        if (already) {
+          // Ein Retry darf eine bereits verdeckte Zeile nicht anfassen — wie
+          // bei addBonus, aus demselben Grund.
+          if (!requesterIsGm && already.verborgen) continue;
+          const verborgen = requesterIsGm ? nextVerborgen(already.verborgen, stat.verborgen) : false;
+          updStat.run(feld, wert, verborgen ? 1 : 0, already.dbId);
+          Object.assign(already, { feld, wert, verborgen });
+          continue;
+        }
+        if (item.waffenStats.length >= MAX_WEAPON_STATS_PRO_ITEM) continue;
+        const verborgen = requesterIsGm ? !!stat.verborgen : false;
+        const pos = (nextStatPos.get(item.id) as { p: number }).p;
+        const dbId = Number(insStat.run(item.id, pos, sUid, feld, wert, verborgen ? 1 : 0).lastInsertRowid);
+        item.waffenStats.push({ dbId, uid: sUid, feld, wert, verborgen });
+      } else if (kindOfOp === 'patchWeaponStat') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const stat = item?.waffenStats.find((s) => s.uid === String(o.statUid ?? ''));
+        if (!item || !stat) continue;
+        if (!requesterIsGm && stat.verborgen) continue; // Nicht-SL kennt diese uid strukturell nie — defensiv trotzdem sperren
+        const patch = { ...(o.patch ?? {}) } as Record<string, unknown>;
+        if (!requesterIsGm) delete patch.verborgen;
+        else if ('verborgen' in patch) patch.verborgen = nextVerborgen(stat.verborgen, patch.verborgen);
+        const feld = 'feld' in patch && (WAFFEN_STAT_FELDER as string[]).includes(String(patch.feld)) ? (patch.feld as WaffenStatFeld) : stat.feld;
+        const merged = { ...stat, ...patch, feld };
+        const wert = String(merged.wert ?? '').slice(0, MAX_WEAPON_STAT_WERT);
+        const verborgen = !!merged.verborgen;
+        updStat.run(feld, wert, verborgen ? 1 : 0, stat.dbId);
+        Object.assign(stat, { feld, wert, verborgen });
+      } else if (kindOfOp === 'removeWeaponStat') {
+        const item = byUid.get(String(o.itemUid ?? ''));
+        const idx = item?.waffenStats.findIndex((s) => s.uid === String(o.statUid ?? '')) ?? -1;
+        if (!item || idx < 0) continue;
+        const stat = item.waffenStats[idx];
+        if (!requesterIsGm && stat.verborgen) continue;
+        delStat.run(stat.dbId);
+        item.waffenStats.splice(idx, 1);
+      }
+    }
   });
   tx();
 }
 
 export function saveItemCategories(charId: number, raw: unknown): void {
+  saveItemCategoriesForOwner('character', charId, raw);
+}
+
+export function saveItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? raw : [];
   const seen = new Set<string>();
   const clean: string[] = [];
@@ -1084,9 +1434,9 @@ export function saveItemCategories(charId: number, raw: unknown): void {
     if (clean.length >= MAX_CATEGORIES) break;
   }
   const tx = db.transaction(() => {
-    db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
-    const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
-    clean.forEach((name, i) => ins.run(charId, i, name));
+    db.prepare('DELETE FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
+    const ins = db.prepare('INSERT INTO char_item_categories (owner_type, owner_id, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(ownerType, ownerId, i, name));
   });
   tx();
 }
@@ -1176,6 +1526,10 @@ export function savePouches(charId: number, raw: unknown): void {
 // Seite): Umbenennen zieht die betroffenen char_items mit, Entfernen setzt deren
 // Kategorie auf '' (ohne). Danach wird die Liste in der neuen Reihenfolge gesetzt.
 export function manageItemCategories(charId: number, raw: unknown): string[] {
+  return manageItemCategoriesForOwner('character', charId, raw);
+}
+
+export function manageItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: number, raw: unknown): string[] {
   const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
   const renames = Array.isArray(body.renames) ? body.renames : [];
   const removes = Array.isArray(body.removes) ? body.removes : [];
@@ -1191,22 +1545,217 @@ export function manageItemCategories(charId: number, raw: unknown): string[] {
     if (clean.length >= MAX_CATEGORIES) break;
   }
   const tx = db.transaction(() => {
-    const up = db.prepare('UPDATE char_items SET kategorie = ? WHERE character_id = ? AND kategorie = ?');
+    const up = db.prepare('UPDATE char_items SET kategorie = ? WHERE owner_type = ? AND owner_id = ? AND kategorie = ?');
     for (const r of renames) {
       const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_CATEGORY_LEN);
       const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      if (from && to && from !== to) up.run(to, charId, from);
+      if (from && to && from !== to) up.run(to, ownerType, ownerId, from);
     }
     for (const name of removes) {
       const n = String(name ?? '').trim().slice(0, MAX_CATEGORY_LEN);
-      if (n) up.run('', charId, n);
+      if (n) up.run('', ownerType, ownerId, n);
     }
-    db.prepare('DELETE FROM char_item_categories WHERE character_id = ?').run(charId);
-    const ins = db.prepare('INSERT INTO char_item_categories (character_id, pos, name) VALUES (?, ?, ?)');
-    clean.forEach((name, i) => ins.run(charId, i, name));
+    db.prepare('DELETE FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
+    const ins = db.prepare('INSERT INTO char_item_categories (owner_type, owner_id, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(ownerType, ownerId, i, name));
   });
   tx();
-  return loadItemCategories(charId);
+  return loadItemCategoriesForOwner(ownerType, ownerId);
+}
+
+// --- Houses (docs/concepts/houses.md): group-only location tags ---
+//
+// haus/raum on char_items are freeform strings — same role as kategorie, no
+// foreign key (shared-inventories.md §3.1 already proved a curated list can
+// coexist safely with an unvalidated string field). group_houses/group_rooms
+// are pure suggestion/rename lists, one level deeper than
+// char_item_categories: a room is scoped to a house NAME within the group,
+// not a house id. Houses are group-only — characters and the GM pool never
+// populate haus/raum, so there is no ownerType parameter here.
+
+const MAX_HOUSE_LEN = 200;
+const MAX_HOUSES = 200;
+const MAX_ROOMS_PER_HOUSE = 200;
+
+export function loadHouses(groupId: number): string[] {
+  return (
+    db.prepare('SELECT name FROM group_houses WHERE group_id = ? ORDER BY pos, id').all(groupId) as { name: string }[]
+  ).map((r) => r.name);
+}
+
+export function loadRoomsForGroup(groupId: number): Record<string, string[]> {
+  const rows = db
+    .prepare('SELECT haus, name FROM group_rooms WHERE group_id = ? ORDER BY pos, id')
+    .all(groupId) as { haus: string; name: string }[];
+  const out: Record<string, string[]> = {};
+  for (const r of rows) {
+    const list = out[r.haus] ?? [];
+    list.push(r.name);
+    out[r.haus] = list;
+  }
+  return out;
+}
+
+// Häuser verwalten MIT Kaskade — wie manageItemCategoriesForOwner, nur eine
+// Ebene tiefer: eine Umbenennung/Entfernung trifft auch group_rooms.haus
+// (Räume dieses Hauses) und char_items (owner_type='group'). Entfernen setzt
+// BEIDE Felder (haus UND raum) auf '' zurück — ohne sein Haus bedeutet ein
+// Raum-Name nichts mehr.
+export function manageHouses(groupId: number, raw: unknown): { houses: string[]; roomsByHaus: Record<string, string[]> } {
+  const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
+  const renames = Array.isArray(body.renames) ? body.renames : [];
+  const removes = Array.isArray(body.removes) ? body.removes : [];
+  const orderArr = Array.isArray(body.order) ? body.order : [];
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const v of orderArr) {
+    const name = String(v ?? '').trim().slice(0, MAX_HOUSE_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_HOUSES) break;
+  }
+  const tx = db.transaction(() => {
+    const upRooms = db.prepare('UPDATE group_rooms SET haus = ? WHERE group_id = ? AND haus = ?');
+    const upItemsHaus = db.prepare("UPDATE char_items SET haus = ? WHERE owner_type = 'group' AND owner_id = ? AND haus = ?");
+    for (const r of renames) {
+      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (from && to && from !== to) {
+        upRooms.run(to, groupId, from);
+        upItemsHaus.run(to, groupId, from);
+      }
+    }
+    const delRooms = db.prepare('DELETE FROM group_rooms WHERE group_id = ? AND haus = ?');
+    const clearItems = db.prepare(
+      "UPDATE char_items SET haus = '', raum = '' WHERE owner_type = 'group' AND owner_id = ? AND haus = ?",
+    );
+    for (const name of removes) {
+      const n = String(name ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (n) {
+        delRooms.run(groupId, n);
+        clearItems.run(groupId, n);
+      }
+    }
+    db.prepare('DELETE FROM group_houses WHERE group_id = ?').run(groupId);
+    const ins = db.prepare('INSERT INTO group_houses (group_id, pos, name) VALUES (?, ?, ?)');
+    clean.forEach((name, i) => ins.run(groupId, i, name));
+  });
+  tx();
+  return { houses: loadHouses(groupId), roomsByHaus: loadRoomsForGroup(groupId) };
+}
+
+// Räume EINES Hauses verwalten — exakt wie manageItemCategoriesForOwner, nur
+// zusätzlich auf `haus` gefiltert (sowohl bei group_rooms als auch beim
+// char_items-Kaskade-UPDATE).
+export function manageRoomsForHouse(groupId: number, haus: string, raw: unknown): string[] {
+  const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
+  const renames = Array.isArray(body.renames) ? body.renames : [];
+  const removes = Array.isArray(body.removes) ? body.removes : [];
+  const orderArr = Array.isArray(body.order) ? body.order : [];
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const v of orderArr) {
+    const name = String(v ?? '').trim().slice(0, MAX_HOUSE_LEN);
+    if (name && !seen.has(name)) {
+      seen.add(name);
+      clean.push(name);
+    }
+    if (clean.length >= MAX_ROOMS_PER_HOUSE) break;
+  }
+  const tx = db.transaction(() => {
+    const up = db.prepare("UPDATE char_items SET raum = ? WHERE owner_type = 'group' AND owner_id = ? AND haus = ? AND raum = ?");
+    for (const r of renames) {
+      const from = String((r as { from?: unknown })?.from ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      const to = String((r as { to?: unknown })?.to ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (from && to && from !== to) up.run(to, groupId, haus, from);
+    }
+    for (const name of removes) {
+      const n = String(name ?? '').trim().slice(0, MAX_HOUSE_LEN);
+      if (n) up.run('', groupId, haus, n);
+    }
+    db.prepare('DELETE FROM group_rooms WHERE group_id = ? AND haus = ?').run(groupId, haus);
+    const ins = db.prepare('INSERT INTO group_rooms (group_id, haus, pos, name) VALUES (?, ?, ?, ?)');
+    clean.forEach((name, i) => ins.run(groupId, haus, i, name));
+  });
+  tx();
+  return loadRoomsForGroup(groupId)[haus] ?? [];
+}
+
+// --- Shared inventories: cross-owner move (docs/concepts/shared-inventories.md) ---
+//
+// A move is its OWN imperative call, never an ItemOp — diffItems compares one
+// owner's list against its own previous state and structurally cannot express
+// "this uid leaves my list and joins yours" (see ItemOwnerType in
+// shared/src/items.ts). Containers move atomically with their contents
+// (collectSubtree walks container_uid the same way the client's ancestors()
+// walk does, just downward instead of up for cycle-checking); only the moved
+// ROOT item resets location/zone/beidseitig/containerUid
+// (ITEM_MOVE_RESET_PATCH in shared/src/items.ts is the single source of truth
+// for that shape — mirrored by hand below, there is no shared SQL builder to
+// import it through) — descendants keep theirs, so a moved backpack's
+// contents stay exactly as packed.
+function collectSubtree(ownerType: ItemOwnerType, ownerId: number, rootUid: string): { rootId: number; ids: number[] } | null {
+  const rows = db
+    .prepare('SELECT id, uid, container_uid FROM char_items WHERE owner_type = ? AND owner_id = ?')
+    .all(ownerType, ownerId) as { id: number; uid: string; container_uid: string }[];
+  const root = rows.find((r) => r.uid === rootUid);
+  if (!root) return null;
+  const childrenByContainerUid = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (!r.container_uid) continue;
+    const list = childrenByContainerUid.get(r.container_uid) ?? [];
+    list.push(r);
+    childrenByContainerUid.set(r.container_uid, list);
+  }
+  const ids = [root.id];
+  const seen = new Set([root.uid]);
+  const queue = [root.uid];
+  while (queue.length) {
+    const cur = queue.shift()!;
+    for (const child of childrenByContainerUid.get(cur) ?? []) {
+      if (seen.has(child.uid)) continue;
+      seen.add(child.uid);
+      ids.push(child.id);
+      queue.push(child.uid);
+    }
+  }
+  return { rootId: root.id, ids };
+}
+
+// Moves one item — and, if it's a container, everything inside it — from one
+// owner to another. Returns false on a uid that doesn't exist under `from`
+// (stale, or the same request retried after it already moved) or if the
+// target owner would exceed MAX_ITEMS; both are silent no-ops for the caller,
+// the same defensive posture applyItemOps already takes on its own caps.
+export function moveItem(from: { type: ItemOwnerType; id: number }, to: { type: ItemOwnerType; id: number }, uid: string): boolean {
+  const found = collectSubtree(from.type, from.id, uid);
+  if (!found) return false;
+  const targetCount = (
+    db.prepare('SELECT COUNT(*) AS n FROM char_items WHERE owner_type = ? AND owner_id = ?').get(to.type, to.id) as { n: number }
+  ).n;
+  if (targetCount + found.ids.length > MAX_ITEMS) return false;
+  const tx = db.transaction(() => {
+    const setOwner = db.prepare('UPDATE char_items SET owner_type = ?, owner_id = ? WHERE id = ?');
+    for (const id of found.ids) setOwner.run(to.type, to.id, id);
+    db.prepare(
+      "UPDATE char_items SET location = 'inventar', zone = '', beidseitig = 0, container_uid = '', haus = '', raum = '' WHERE id = ?",
+    ).run(found.rootId);
+  });
+  tx();
+  return true;
+}
+
+// Manuelles Aufräumen beim Löschen eines Charakters/einer Gruppe — die
+// DB-Kaskade ist mit character_id gegangen (siehe die owner_type-Migration in
+// db.ts), also übernimmt das hier von Hand, exakt wie loescheAssetsFuer() es
+// für den (datei-übergreifenden) Bild-Store schon tut. char_item_bonuses/
+// char_item_weapon_stats hängen weiterhin per echter FK an char_items.id und
+// räumen sich darüber von selbst mit.
+export function loescheItemsFuer(ownerType: ItemOwnerType, ownerId: number): void {
+  db.prepare('DELETE FROM char_items WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
+  db.prepare('DELETE FROM char_item_categories WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
 }
 
 // --- Zauber & Fähigkeiten (Cluster 6) ---
@@ -1235,7 +1784,7 @@ function parseKategorien(raw: string): string[] {
 export function loadAbilities(charId: number): Ability[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -1253,6 +1802,7 @@ export function loadAbilities(charId: number): Ability[] {
     effekt: string;
     fortschritt: number;
     notiz: string;
+    favorit: number;
   }[];
   return rows.map((r) => ({
     id: r.id,
@@ -1270,6 +1820,7 @@ export function loadAbilities(charId: number): Ability[] {
     effekt: r.effekt,
     fortschritt: r.fortschritt,
     notiz: r.notiz,
+    favorit: !!r.favorit,
   }));
 }
 
@@ -1282,8 +1833,8 @@ export function saveAbilities(charId: number, raw: unknown): void {
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     arr.forEach((it, i) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -1312,6 +1863,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
         String(o.effekt ?? '').slice(0, MAX_ABILITY_TEXT),
         clampMin(o.fortschritt),
         String(o.notiz ?? '').slice(0, MAX_ABILITY_TEXT),
+        o.favorit ? 1 : 0,
       );
     });
   });
@@ -1732,10 +2284,6 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     }
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
-      // Bonusfähige Attribute, nicht die rohen — die Kappung muss dieselbe
-      // Ausbaugrenze sehen, die ein getragener Gegenstand anhebt (siehe
-      // docs/concepts/item-bonus-while-worn.md, "immer der volle Wert").
-      const stats = loadStats(charId);
       const stmt = db.prepare(
         'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
@@ -1754,23 +2302,18 @@ export function saveSection(charId: number, section: string, data: unknown): voi
           // den Rassenbonus wieder auf 0 zurücksetzen.
           raceBase: num(v.raceBase),
         };
-        // Aktuell kann nie über dem nutzbaren Maximum liegen. Die Oberfläche
-        // kappt bereits beim Eintippen; hier nochmal, weil die API auch ohne
-        // sie erreichbar ist und die Regel nicht an einem Eingabefeld hängen
-        // darf. Nach unten wird nicht gekappt — ein Vorrat darf ins Minus.
-        // `input` ist roh (das Body-gebaute, ungebonuste) — die Kappung selbst
-        // muss trotzdem den Item-Bonus auf DIESE Ressource sehen (loadStats()
-        // liefert ihn nur auf loadResourcesRaw() angewendet, nicht auf diesen
-        // frischen `input`), sonst könnte eine getragene +2-LE-Ausrüstung nie
-        // eingefüllt werden — sonst genau der Datenverlust, den die Kappung
-        // eigentlich verhindern soll.
-        const { nutzbar } = computeResource(stats.attrs, key, resourceInputMitBoni(input, key, stats.boni));
+        // Aktuell wird NICHT gekappt, weder nach oben noch nach unten — ein
+        // Vorrat darf bewusst über sein nutzbares Maximum steigen (Überladung,
+        // siehe AktuellFeld.tsx) und ins Minus fallen. Ein Server-seitiges
+        // Kappen nach oben widersprach dieser Absicht: der Wert kam bei jedem
+        // Speichern (auch dem automatischen bei jeder Änderung) auf das
+        // Maximum zurückgestutzt, was nach einem Neuladen wie ein Reset wirkte.
         stmt.run(
           input.permanent,
           input.kauf,
           input.kaufMax,
           input.maxPlus,
-          Math.min(input.aktuell, nutzbar),
+          input.aktuell,
           input.besonderes,
           input.raceBase,
           charId,
@@ -1836,16 +2379,17 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       const next = rows.map((r) => [
         num(r.talentId), Math.min(100, num(r.taw)), num(r.at), num(r.pa), num(r.bl),
         str(r.billiger), str(r.spezialisierung), str(r.waffenmeister), str(r.berufsbonus), str(r.notiz),
+        r.favorit ? 1 : 0,
       ]);
       const cur = (db
-        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz FROM char_talents WHERE character_id = ? ORDER BY rowid')
+        .prepare('SELECT talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit FROM char_talents WHERE character_id = ? ORDER BY rowid')
         .all(charId) as Record<string, unknown>[])
-        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus, r.notiz]);
+        .map((r) => [r.talent_id, r.taw, r.at, r.pa, r.bl, r.billiger, r.spezialisierung, r.waffenmeister, r.berufsbonus, r.notiz, r.favorit]);
       if (sameRows(cur, next)) return;
       db.prepare('DELETE FROM char_talents WHERE character_id = ?').run(charId);
       const stmt = db.prepare(
-        `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO char_talents (character_id, talent_id, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       );
       for (const v of next) stmt.run(charId, ...v);
       return;

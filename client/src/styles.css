@@ -311,6 +311,75 @@
   --banner-motif: none; /* Schattenlande: Nebel kommt aus dem Canvas (BannerFx) */
 }
 
+/* "Chaos"-Modus — geheimes Easter Egg (TODO.md), KEIN Eintrag in THEMES: nicht
+   wählbar, nicht gespeichert, wird nur kurzzeitig über data-theme='chaos'
+   gesetzt (App.tsx) und läuft nach ein paar Sekunden von selbst wieder ab.
+   Absichtlich schrill/unstimmig — dark-only wie Schattenlande, ignoriert also
+   data-mode, deshalb ganz am Ende der Farbwelten-Blöcke. */
+:root[data-theme='chaos'] {
+  color-scheme: dark;
+  --bg: #1a0033;
+  --panel: #ff00c8;
+  --panel-hi: #ff66e0;
+  --border: #00fff2;
+  --border-strong: #eaff00;
+  --border-soft: #00fff2;
+  --border-hover: #ff6a00;
+  --text: #eaff00;
+  --muted: #ffd1f5;
+  --input-bg: #2a0044;
+  --accent: #ff6a00;
+  --accent-dark: #cc3300;
+  --accent-soft: #ffe66d;
+  --accent-disabled: #663399;
+  --on-accent: #1a0033;
+  --on-accent-fill: #1a0033;
+  --header-grad-a: #ff00c8;
+  --header-grad-mid: #00fff2;
+  --header-grad-b: #ff6a00;
+  --surface-head: #2a0044;
+  --surface-hover: #3a0066;
+  --surface-hover-strong: #4a0088;
+  --surface-sunken: #220038;
+  --computed-bg: #00fff2;
+  --computed-text: #ff00c8;
+  --warn-soft: #ff6a00;
+  --warn-line: #1a0033;
+  --crit-soft: #00fff2;
+  --crit-line: #ff00c8;
+  --over-soft: #eaff00;
+  --over-line: #1a0033;
+  --mastery: #39ff14;
+  --error-text: #ff003c;
+  --bg-wash: rgba(255, 0, 200, 0.15);
+  --die-w4: #ff00c8;
+  --die-w6: #00fff2;
+  --die-w8: #eaff00;
+  --die-w10: #ff6a00;
+  --die-w12: #39ff14;
+  --sigil: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2 15 9 22 9 16.5 13.5 18.5 21 12 16.5 5.5 21 7.5 13.5 2 9 9 9Z'/%3E%3C/svg%3E"); /* Chaos: Stern, absichtlich unpassend zum Rest */
+  --banner-motif: none;
+  --banner-drift: 6s;
+}
+/* Die ganze Seite langsam durch den Farbkreis drehen, statt nur der schrillen
+   Palette oben — filter statt einzelner Farb-Tokens, weil die Tokens feste
+   Hex-Werte sind (keine hsl()-Basis) und sich sonst nicht animieren ließen.
+   Hängt an .chaos-hue-wrap (App.tsx), nicht an body: filter macht sein
+   Element zum containing block für position:fixed-Nachkommen; Würfel-Dock/
+   Overlays sitzen bewusst außerhalb dieser Hülle. Gleiche Abschalt-Regeln wie
+   die Kopfleisten-Animation oben (prefers-reduced-motion, data-anim='off'). */
+:root[data-theme='chaos'] .chaos-hue-wrap {
+  animation: chaosHue 3s linear infinite;
+}
+@keyframes chaosHue {
+  from { filter: hue-rotate(0deg); }
+  to { filter: hue-rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme='chaos'] .chaos-hue-wrap { animation: none; }
+}
+:root[data-theme='chaos'][data-anim='off'] .chaos-hue-wrap { animation: none; }
+
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
 .theme-dropdown {
   position: relative;
@@ -558,12 +627,15 @@ header.topbar {
 :root[data-anim='off'] header.topbar { animation: none; }
 
 /* Dekorative Effekt-Ebene in der Kopfleiste (hinter den Inhalten). Standard
-   unsichtbar; einzelne Themes können darin bewegte Formen zeigen. */
+   unsichtbar; einzelne Themes können darin bewegte Formen zeigen.
+   pointer-events bleibt auto (nicht 'none'): das geheime Chaos-Easter-Egg
+   (App.tsx) hört hier auf Klicks. Die Kopfleisten-Inhalte liegen per z-index
+   ohnehin darüber (siehe Regel unten), also fängt ein Klick auf Wortmarke/
+   Menüs weiterhin dort ab — nur die freie Fläche der Leiste geht an banner-fx. */
 .banner-fx {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  pointer-events: none;
   z-index: 0;
 }
 /* Inhalte über die Effekt-Ebene heben */
@@ -2910,6 +2982,13 @@ li {
 .inv-table tbody tr.inv-row {
   cursor: pointer;
 }
+/* Umsortieren: eine Zeile wird über eine andere gezogen — landet gleich davor.
+   Eigene Markierung als die Kategorie-Kopfzeile (.cat-head-row.drop-into, die
+   ganze Gruppe), damit „vor diese Zeile" von „in diese Kategorie" unterscheidbar
+   bleibt (siehe .item-chip-drop-before, dasselbe Prinzip für Ausrüstung). */
+.inv-table tbody tr.inv-row-drop-before td {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
 
 /* Kategorienverwaltung: Chips mit umbenennbarem Namen + Entfernen, plus ein
    Feld zum Anlegen. */
@@ -3098,6 +3177,12 @@ li {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 10%, var(--surface));
 }
+/* Umsortieren: ein Item wird über einen anderen Chip gezogen — landet gleich
+   davor. Eigene, dünnere Markierung als die Zonen-.drop-zone.over (die ganze
+   Fläche), damit „vor diesen Chip" von „in diese Zone" unterscheidbar bleibt. */
+.item-chip-drop-before {
+  box-shadow: -4px 0 0 var(--accent);
+}
 .chip-name {
   font-weight: 600;
   white-space: normal;
@@ -3125,6 +3210,14 @@ li {
   color: var(--error-text);
   font-weight: 700;
 }
+/* Hidden/revealable Ausrüstung stats (TODO.md): noch nicht aufgedeckte
+   RS/Haltbarkeit — „???" statt der Zahl, gedämpft statt der Akzentfarbe, damit
+   es klar als „unbekannt", nicht als echter Wert liest. */
+.chip-verborgen {
+  color: var(--muted);
+  font-style: italic;
+  font-weight: 400;
+}
 /* Kennzeichen „beidseitig getragen": dasselbe Stück wird in beiden Zellen
    gezeigt; das Zeichen macht die Spiegelung erkennbar. */
 .chip-both {
@@ -3146,6 +3239,10 @@ li {
 }
 .quick-contents {
   margin-left: 16px;
+}
+.quick-cap {
+  display: block;
+  margin-bottom: 3px;
 }
 .quick-contents .drop-zone {
   min-height: 32px;
@@ -3186,11 +3283,6 @@ li {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-/* Sprung-Link zu den Kategorien in den Einstellungen — rechts in der Leiste. */
-.inv-cats-link {
-  margin-left: auto;
-  font-size: 13px;
 }
 /* Sprung-Navigation der Einstellungen-Seite: klebt unter der Kopfzeile
    (gemessener Versatz, wie .talent-search/.inv-equip-drop). */
@@ -3415,6 +3507,18 @@ li {
   display: flex;
   gap: 8px;
   margin-right: auto;
+  /* Ohne Umbruch quetscht der globale `select { width: 100% }` (oben) das
+     Verschieben-Ziel-Dropdown flex-shrink-bedingt auf fast nichts zusammen,
+     sobald der Fuß eng wird (Duplizieren/Löschen daneben) — siehe .dlg-move-select. */
+  flex-wrap: wrap;
+}
+/* „Verschieben nach…"-Auswahl im Dialog-Fuß (siehe MoveTarget in
+   itemDialogs.tsx): braucht eine Mindestbreite, sonst gilt für sie derselbe
+   globale `select { width: 100% }`, der in einer Flex-Reihe ohne eigene Breite
+   frei auf fast nichts zusammenschrumpft. */
+.dlg-move-select {
+  width: auto;
+  min-width: 12em;
 }
 
 /* Chat-Befehlsübersicht (siehe dice/CommandsDialog.tsx). */
@@ -3912,6 +4016,25 @@ li {
 .abil-sig-star {
   color: var(--accent, gold);
   margin-right: 4px;
+}
+/* Würfel-Favorit: 📌-Umschalter auf Talent-/Ability-Zeilen (Talente.tsx,
+   AbilityTable.tsx, AbilityManager.tsx) — grau/blass bis gesetzt, wie die
+   übrigen Zeilen-Marker (Meisterschaft, Signatur). */
+.fav-pin {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 0.95em;
+  padding: 0 3px 0 0;
+  opacity: 0.3;
+  filter: grayscale(1);
+}
+.fav-pin:hover {
+  opacity: 0.7;
+}
+.fav-pin.on {
+  opacity: 1;
+  filter: none;
 }
 .abil-werk-link {
   margin-left: auto;
@@ -4646,6 +4769,20 @@ body.resizing-dice {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+/* Trainings-/Lesesitzungen-Tracker (CharacterSidebar.tsx): dieselbe Klee-
+   Bestätigung wie Schicksalspunkte, aber in der schmalen Seitenleiste statt im
+   breiten Dock — .sp-confirm-flyout's rechtsbündiges 220px reicht dort über
+   den linken Leistenrand hinaus. Links statt rechts verankert (nahe am
+   Klee-Wrap, der selbst am linken Blockrand sitzt) und auf die tatsächliche
+   Leistenbreite gedeckelt.
+*/
+.side-confirm-flyout {
+  left: 0;
+  right: auto;
+  min-width: 0;
+  width: max-content;
+  max-width: calc(var(--sidebar-w, 300px) - 40px);
 }
 
 @media (max-width: 700px) {
@@ -6415,6 +6552,18 @@ tr:hover .probe-roll,
   100% {
     r: 34px;
     stroke-width: 1px;
+  }
+}
+.vtt-token-trail-broadcast {
+  animation: vtt-token-trail-broadcast-fade 10s ease-in both;
+}
+@keyframes vtt-token-trail-broadcast-fade {
+  0%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
   }
 }
 .vtt-tile-picker {

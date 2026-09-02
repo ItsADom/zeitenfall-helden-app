@@ -272,6 +272,22 @@ interface MeasureEls {
   // Ziehgriff: ohne eigenen Ref bliebe es beim Verschieben/Skalieren am alten
   // Platz stehen und spränge erst beim Loslassen an die richtige Stelle.
   labelEl?: SVGTextElement | null;
+  // Mittelpunkt-Marker (Kreis/Rechteck) — derselbe Grund wie beim Ziehgriff:
+  // ohne eigenen Ref bliebe er während eines laufenden Zugs zurück, statt live
+  // mitzuwandern.
+  centerEl?: SVGCircleElement | null;
+}
+
+/**
+ * Mittelpunkt einer Kreis-/Rechteck-Messform, in Zellkoordinaten — für den
+ * stets sichtbaren Mittelpunkt-Marker (user feedback). Kegel und Lineal
+ * bleiben ohne: der Kegel-Ursprung ist an der Wedge-Spitze schon eindeutig
+ * zu sehen, ein Lineal (eine Gerade) hat keinen sinnvollen Mittelpunkt.
+ */
+function measureCenterPoint(data: MeasureOverlayData): { x: number; y: number } | null {
+  if (data.kind === 'circle') return data.origin;
+  if (data.kind === 'rectangle') return { x: (data.from.x + data.to.x) / 2, y: (data.from.y + data.to.y) / 2 };
+  return null;
 }
 
 /** Position des optionalen Benutzer-Labels — dieselbe Formel wie im JSX unten (siehe labelEl), hier geteilt, damit writeMeasureVisual sie beim Ziehen/Skalieren live nachschreiben kann. */
@@ -288,6 +304,13 @@ function writeMeasureVisual(data: MeasureOverlayData, els: MeasureEls): void {
     const pos = measureLabelPos(data);
     els.labelEl.setAttribute('x', String(pos.x));
     els.labelEl.setAttribute('y', String(pos.y));
+  }
+  if (els.centerEl) {
+    const center = measureCenterPoint(data);
+    if (center) {
+      els.centerEl.setAttribute('cx', String(center.x * CELL_PX));
+      els.centerEl.setAttribute('cy', String(center.y * CELL_PX));
+    }
   }
   if (data.kind === 'ruler') {
     els.lineEl?.setAttribute('x1', String(data.from.x * CELL_PX));
@@ -459,6 +482,10 @@ const CELL_PING_DURATION_MS = 1600;
 // A freshly uploaded image's long edge, in cells — a starting point to
 // resize from (drag handle, see startImageResize), not a measured scale.
 const DEFAULT_IMAGE_LONG_EDGE_CELLS = 4;
+// Broadcast step-trail (TODO.md "Broadcast a token's step trail to everyone
+// at the table"): fixed/absolute for every viewer, not reset or extended by
+// the per-viewer click-to-dismiss (see broadcastTrails below).
+const BROADCAST_TRAIL_DURATION_MS = 10000;
 // Step-counter trail while dragging a token (chebyshevPath): a FIXED pool of
 // this many square+number pairs is mounted once per drag (see
 // tokenTrailDraft/trailElsRef) and only their attributes are rewritten per
@@ -637,10 +664,11 @@ function TokenEditor({
               Größe{' '}
               <input
                 type="number"
-                min={1}
+                min={0.5}
                 max={6}
+                step={0.5}
                 value={token.size}
-                onChange={(e) => updateToken(token.id, { size: Math.min(6, Math.max(1, Number(e.target.value) || 1)) })}
+                onChange={(e) => updateToken(token.id, { size: Math.min(6, Math.max(0.5, Number(e.target.value) || 1)) })}
                 style={{ width: 44 }}
               />
             </label>
@@ -847,6 +875,7 @@ function MapCanvas({
     boardViewCenter,
     pingCell,
     boardCellPing,
+    boardTokenTrail,
   } = useDicePanel();
   const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
@@ -1268,6 +1297,39 @@ function MapCanvas({
     }, CELL_PING_DURATION_MS);
     return () => clearTimeout(timer);
   }, [boardCellPing]);
+
+  // Broadcast step-trail: same "list keyed by seq, several in flight at
+  // once, own timer per entry" shape as cellPings above. The path itself is
+  // derived here (chebyshevPath), never sent over the wire — the context only
+  // carries the two endpoints (see boardTokenTrail's doc comment). A click
+  // removes just that one entry from this LOCAL list — the shared 10s timer
+  // keeps running for every other viewer (settled with the developer: fixed/
+  // absolute fade, click only hides it early for the clicker).
+  const [broadcastTrails, setBroadcastTrails] = useState<{ seq: number; tokenId: number; path: CellCoord[] }[]>([]);
+  useEffect(() => {
+    if (!boardTokenTrail) return;
+    // chebyshevPath steps by exactly ±1 until cx/cy hits the target — a token's
+    // x/y is a free-dragged FLOAT (see onTokenPointerMove), so an unfloored
+    // endpoint can sit between two integer steps and the loop never lands on
+    // it (infinite loop, froze the tab on first real test). The local drag
+    // trail already floors for the same reason (see startCell/currentCell
+    // above) — AND floors the token's CENTER (x + size/2), not its top-left
+    // corner, since that's the cell the live drag preview actually highlights.
+    // Using the raw top-left here would floor to a different cell than the
+    // preview showed whenever the fractional part crossed the cell's
+    // midpoint, making the dropped trail visibly "jump" relative to what was
+    // just previewed — same centering, same floor, for both endpoints.
+    const half = boardTokenTrail.size / 2;
+    const path = chebyshevPath(
+      { x: Math.floor(boardTokenTrail.fromX + half), y: Math.floor(boardTokenTrail.fromY + half) },
+      { x: Math.floor(boardTokenTrail.toX + half), y: Math.floor(boardTokenTrail.toY + half) },
+    );
+    setBroadcastTrails((prev) => [...prev, { seq: boardTokenTrail.seq, tokenId: boardTokenTrail.tokenId, path }]);
+    const timer = setTimeout(() => {
+      setBroadcastTrails((prev) => prev.filter((t) => t.seq !== boardTokenTrail.seq));
+    }, BROADCAST_TRAIL_DURATION_MS);
+    return () => clearTimeout(timer);
+  }, [boardTokenTrail]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     (e.target as Element).setPointerCapture(e.pointerId);
@@ -2840,6 +2902,27 @@ function MapCanvas({
                       {labelEl}
                     </>
                   )}
+                  {/* Mittelpunkt-Marker (Kreis/Rechteck) — user feedback, anders
+                      als der Ziehgriff unten IMMER sichtbar, nicht nur an der
+                      ausgewählten Form (siehe measureCenterPoint). */}
+                  {(() => {
+                    const center = measureCenterPoint(data);
+                    if (!center) return null;
+                    return (
+                      <circle
+                        ref={(el) => {
+                          const els = measureElsRef.current.get(o.id) ?? {};
+                          els.centerEl = el;
+                          measureElsRef.current.set(o.id, els);
+                        }}
+                        cx={center.x * CELL_PX}
+                        cy={center.y * CELL_PX}
+                        r={3}
+                        fill={stroke}
+                        pointerEvents="none"
+                      />
+                    );
+                  })()}
                   {/* Ziehgriff — nur an der ausgewählten Form, EIN Griff für
                       jede Art (siehe measureHandlePoint/startMeasureResize).
                       stopPropagation in startMeasureResize verhindert, dass
@@ -3029,6 +3112,58 @@ function MapCanvas({
               ))}
             </g>
           )}
+
+          {/* Broadcast step-trail (TODO.md "Broadcast a token's step trail to
+              everyone at the table"): every viewer, mover included, sees the
+              same trail after a token.move lands — not while dragging (that
+              stays the local-only pool above). One `<g>` per still-active
+              broadcast (several tokens moving within the same 10s window all
+              show at once), fading via CSS (vtt-token-trail-broadcast) rather
+              than a per-frame write, since these aren't updated every
+              pointermove like the local drag trail. A click removes just
+              that one trail from the LOCAL list (see broadcastTrails effect)
+              — stopPropagation so it doesn't also start a camera drag/paint
+              stroke on the cell underneath. */}
+          {broadcastTrails.map((t) => (
+            <g
+              key={t.seq}
+              className="vtt-token-trail-broadcast"
+              onClick={(e) => {
+                e.stopPropagation();
+                setBroadcastTrails((prev) => prev.filter((x) => x.seq !== t.seq));
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              {t.path.map((cell, i) => (
+                <g key={i}>
+                  <rect
+                    x={cell.x * CELL_PX}
+                    y={cell.y * CELL_PX}
+                    width={CELL_PX}
+                    height={CELL_PX}
+                    fill="var(--panel)"
+                    fillOpacity={0.65}
+                    stroke="var(--accent)"
+                    strokeWidth={1.5}
+                  />
+                  <text
+                    x={(cell.x + 0.5) * CELL_PX}
+                    y={(cell.y + 0.5) * CELL_PX}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    fontSize={13}
+                    fontWeight={700}
+                    fill="var(--text)"
+                    stroke="var(--panel)"
+                    strokeWidth={3}
+                    paintOrder="stroke"
+                  >
+                    {i}
+                  </text>
+                </g>
+              ))}
+            </g>
+          ))}
 
           {tokens
             .filter((t) => !t.hidden || isGm)

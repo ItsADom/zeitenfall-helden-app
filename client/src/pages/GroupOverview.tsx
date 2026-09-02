@@ -1,20 +1,32 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Ability } from '@shared/abilities';
+import type { Item } from '@shared/items';
+import { duplicateItem, makeItem } from '@shared/items';
 import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost } from '../api';
+import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
+import type { Catalogs } from '../components/charSheet';
 import { Dialog } from '../components/Dialog';
 import RequestGroupProbePicker from '../components/dice/RequestGroupProbePicker';
 import RequestProbePicker from '../components/dice/RequestProbePicker';
 import { GmNoteField, VITAL_LABELS, vitalClass } from '../components/gmRoster';
 import { Field } from '../components/inputs';
+import type { MoveTarget } from '../components/itemDialogs';
 import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
+import PoolInventory from '../components/PoolInventory';
 import { PortraitView } from '../components/PortraitView';
+import { usePoolItems } from '../components/usePoolItems';
 
 // Spielleiter-Übersicht: alle Charaktere einer Gruppe als Karten, ihre
 // wichtigsten Kennwerte als Chips. Nur-Lesen (die Route dahinter ist requireGm).
+
+// Stabile Referenz für "noch nicht geladen" — siehe Group.tsx für die
+// Begründung (usePoolItems' Effekt sonst in einer Endlosschleife, solange
+// data noch null ist).
+const NO_ITEMS: Item[] = [];
 
 interface Vital {
   key: string; // le | aus | ase | psyche
@@ -50,6 +62,8 @@ interface OverviewData {
   talentCatalog: CatalogTalent[];
   tagCatalog: CharTag[];
   characters: OverviewChar[];
+  gmPool: Item[];
+  gmPoolCategories: string[];
 }
 
 // Takt der stillen Auto-Aktualisierung, solange die Übersicht sichtbar offen ist.
@@ -85,7 +99,16 @@ function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; ch
       {!error && !abilities && <p className="muted">Lade…</p>}
       {abilities && abilities.length === 0 && <p className="muted">Noch keine Zauber oder Fähigkeiten eingetragen.</p>}
       {abilities && abilities.length > 0 && (
-        <div className="table-wrap scroll-box">
+        // `scroll-box` alone only picks the right sticky-thead `top` offset
+        // (styles.css) — it does NOT make the box scroll by itself. Without
+        // an actual maxHeight+overflowY here, `.table-wrap` stays
+        // `overflow: visible` and `.dialog-body` ends up doing the real
+        // scrolling instead, while the thead still sticks relative to
+        // `.table-wrap` — the two disagree and the header overlaps the rows
+        // once you scroll. Same fix as the catalog table in Admin.tsx: give
+        // `.scroll-box` its own bounded, scrolling box so it and the sticky
+        // thead agree on what's actually scrolling.
+        <div className="table-wrap scroll-box" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
           <table className="sheet ability-lookup-table">
             <thead>
               <tr>
@@ -125,7 +148,19 @@ export default function GroupOverviewPage() {
   const { id } = useParams();
   const groupId = Number(id);
   const [data, setData] = useState<OverviewData | null>(null);
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [error, setError] = useState('');
+
+  // GM-Pool (Shared Inventories, docs/concepts/shared-inventories.md): eigener
+  // Katalog-Fetch wie auf der Gruppenseite — talentCatalog oben ist nur die
+  // schlanke Abfrage-Form (id/name/gruppe), nicht die volle TalentCatalogRow,
+  // die der Boni-Editor im Item-Dialog braucht (u. a. `kategorie` fürs
+  // Kampftalent-Erkennen).
+  const [catalogs, setCatalogs] = useState<Pick<Catalogs, 'talents' | 'specialEnergies'> | null>(null);
+  useEffect(() => {
+    apiGet<Catalogs>('/api/catalogs').then((c) => setCatalogs({ talents: c.talents, specialEnergies: c.specialEnergies }));
+  }, []);
+  const { items: gmPool, setItems: setGmPool, replace: replaceGmPool } = usePoolItems('/api/gm/items', data?.gmPool ?? NO_ITEMS);
 
   // Talent-Abfrage: der Spielleiter tippt einen Talentnamen, angepinnte Talente
   // erscheinen als Spalte auf jeder Karte. Die Auswahl überlebt Reload/Poll und
@@ -215,6 +250,20 @@ export default function GroupOverviewPage() {
   const pinnedTalents = pinned
     .map((tid) => data.talentCatalog.find((t) => t.id === tid))
     .filter((t): t is CatalogTalent => t !== undefined);
+
+  // GM-Pool: Ziele fürs „Verschieben nach…" sind das Gruppeninventar DIESER
+  // Gruppe plus jeder ihrer Charaktere — der GM-Pool selbst fällt weg, das ist
+  // ja die Quelle. data.characters ist schon geladen, kein zweiter Fetch nötig.
+  const gmPoolMoveTargets: MoveTarget[] = [
+    { key: 'group', label: `Gruppeninventar (${data.group.name})`, toOwnerType: 'group', toOwnerId: groupId },
+    ...data.characters.map((c) => ({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character' as const, toOwnerId: c.id })),
+  ];
+  const patchGmPoolItem = (uid: string, patch: Partial<Item>) =>
+    setGmPool(gmPool.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  const moveGmPoolItem = (uid: string, target: MoveTarget) =>
+    void apiPost<{ items: Item[] }>(`/api/gm/items/${uid}/move`, { toOwnerType: target.toOwnerType, toOwnerId: target.toOwnerId }).then(
+      (res) => replaceGmPool(res.items),
+    );
 
   return (
     <>
@@ -434,6 +483,53 @@ export default function GroupOverviewPage() {
             </div>
           ))}
         </div>
+      )}
+
+      <h2>SL-Vorrat</h2>
+      <p className="muted">
+        Vorbereitete Gegenstände, bevor sie an einen Charakter oder in das Gruppeninventar gehen — gewichtslos, nur für die
+        Spielleitung sichtbar, bis sie verschoben werden.
+      </p>
+      <button className="small" onClick={() => setCatDialogOpen(true)}>
+        Kategorien verwalten
+      </button>
+      <CategoryManagerDialog
+        open={catDialogOpen}
+        onClose={() => setCatDialogOpen(false)}
+        categories={data.gmPoolCategories}
+        endpoint="/api/gm/item-categories/manage"
+        onSaved={(cats, cascade) => {
+          setData((d) => (d ? { ...d, gmPoolCategories: cats } : d));
+          setGmPool(applyCategoryCascade(gmPool, cascade));
+        }}
+      />
+      {catalogs ? (
+        <PoolInventory
+          storageKey="gmpool"
+          items={gmPool}
+          categories={data.gmPoolCategories}
+          talents={catalogs.talents}
+          specialEnergies={catalogs.specialEnergies}
+          isGm
+          moveTargets={gmPoolMoveTargets}
+          onAdd={(fields) => setGmPool([...gmPool, makeItem(fields)])}
+          onSave={(uid, patch) => patchGmPoolItem(uid, patch)}
+          onDuplicate={(uid) => {
+            const it = gmPool.find((x) => x.uid === uid);
+            if (it) setGmPool([...gmPool, duplicateItem(it)]);
+          }}
+          onDelete={(uid) =>
+            setGmPool(
+              gmPool
+                .filter((it) => it.uid !== uid)
+                .map((it) => (it.containerUid === uid ? { ...it, location: 'inventar', containerUid: '' } : it)),
+            )
+          }
+          onPatchAnzahl={(uid, anzahl) => patchGmPoolItem(uid, { anzahl })}
+          onMove={moveGmPoolItem}
+        />
+      ) : (
+        <p className="muted">Lade…</p>
       )}
 
       {lookupChar && (

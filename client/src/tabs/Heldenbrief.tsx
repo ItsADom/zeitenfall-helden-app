@@ -104,39 +104,6 @@ const META_FIELDS: [string, string][] = [
   ['ruf', 'Ruf'],
 ];
 
-// Trainings-/Lesesitzungen: ein gemeinsamer Zähler für beide (keine zwei
-// getrennten Vieren), rein manuell nachgetragen — der eigentliche Fortschritt
-// bleibt außerhalb der App. Fixe Obergrenze, deshalb kein eigenes Max-Feld.
-const TRAINING_LESE_MAX = 4;
-
-// Klont bewusst das Klee-Muster von SchicksalspunkteControl (siehe dort) statt
-// einen neuen Zähler-Baustein zu erfinden — nur die Richtung ist umgekehrt:
-// hier füllt ein Klick, statt auszugeben. Jeder Klick wirkt wie „genau ein
-// Schritt in diese Richtung", unabhängig davon, welches der Symbole getroffen
-// wurde (genau wie beim Original).
-function TrainingLeseTracker({ value, onChange, readOnly }: { value: number; onChange: (v: number) => void; readOnly: boolean }) {
-  const used = Math.max(0, Math.min(TRAINING_LESE_MAX, Math.trunc(value) || 0));
-  return (
-    <span className="sp-clovers" title="Trainings-/Lesesitzungen — der Lernfortschritt selbst bleibt bei dir">
-      {Array.from({ length: TRAINING_LESE_MAX }, (_, i) => {
-        const filled = i < used;
-        return (
-          <button
-            key={i}
-            type="button"
-            className={`sp-clover${filled ? '' : ' sp-clover--spent'}`}
-            disabled={readOnly}
-            title={filled ? 'Eintrag zurücknehmen' : 'Trainings-/Lesesitzung eintragen'}
-            onClick={() => onChange(filled ? used - 1 : used + 1)}
-          >
-            📖
-          </button>
-        );
-      })}
-    </span>
-  );
-}
-
 export default function HeldenbriefTab() {
   const { charId, data, stats, catalogs, update } = useChar();
   const readOnly = useReadOnly();
@@ -735,12 +702,6 @@ export default function HeldenbriefTab() {
                 <span />
               </Fragment>
             ))}
-
-            <label title='Trage hier eine absolvierte Trainings- oder Lesesitzung ein — von der Spielleitung mit „Neuer Spieltag" zurückgesetzt'>
-              Training/Lesen
-            </label>
-            <TrainingLeseTracker value={meta.trainingLeseHeute ?? 0} onChange={(v) => setMeta('trainingLeseHeute', v)} readOnly={readOnly} />
-            <span className="muted">{Math.min(TRAINING_LESE_MAX, meta.trainingLeseHeute ?? 0)} / {TRAINING_LESE_MAX}</span>
           </div>
         </div>
 

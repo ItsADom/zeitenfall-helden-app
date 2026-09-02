@@ -138,6 +138,16 @@ not general DSA5 knowledge.
 
 ## Codebase constraints & gotchas (don't relearn these)
 
+- **VTT toolbar sub-options open as a flyout, never as inline buttons.**
+  `TilePicker`/`HighlightPicker` open as a floating panel below the toolbar
+  (`.vtt-tile-picker`, `position: absolute`) rather than as inline buttons —
+  Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel) briefly broke that
+  convention as an inline row and was converted to the same flyout pattern
+  (`MeasureKindPicker`, reusing `.vtt-tile-picker`/`pickerOpen`). Additional
+  always-visible buttons push the rest of the toolbar around, which also
+  shifts button positions underfoot and breaks scripted/automated click
+  sequences during testing. Every future `client/src/pages/VirtualTable.tsx`
+  toolbar addition should follow the flyout pattern.
 - **A table must not get its own scroll area.** `overflow-x: auto` silently makes
   a box a scroll container in BOTH axes, so a sticky `thead` inside can only stick
   to the box, never the page. Tables drop their own overflow; this only works
@@ -154,6 +164,17 @@ not general DSA5 knowledge.
   is the wiki's list filter *and* the character sheet's search; `.table-wrap
   table.sheet thead` renders inside wiki articles too). Adding the term there is
   safe precisely because an unset variable falls back to `0px`.
+- **The `.scroll-box` class only picks a `top: 0` sticky offset — it does not
+  make the box scroll.** For a table that's meant to scroll inside its own
+  bounded box instead of the page (a modal, the catalog panel in Admin.tsx),
+  `.table-wrap` needs `scroll-box` **and** an inline `maxHeight` +
+  `overflowY: 'auto'` that actually constrains it — both together, every time.
+  Adding just the class name (as `GroupOverviewPage`'s `AbilityLookupDialog`
+  once did) leaves `.table-wrap` at `overflow: visible`, so some ANCESTOR ends
+  up doing the real scrolling (here, `.dialog-body`) while the sticky `thead`
+  still anchors to `.table-wrap`, which never moves — the header ends up
+  overlapping the rows once you scroll. Admin.tsx's catalog table is the
+  reference: `style={{ maxHeight: 420, overflowY: 'auto' }}` alongside the class.
 - **Everything editable flows through `NumInput`/`TextInput`** (they read the
   display mode themselves), which is why one provider flips a whole sheet at once.
   Structural buttons (`+ Zeile`, columns, delete, tab reorder, portrait) do NOT
@@ -214,3 +235,29 @@ not general DSA5 knowledge.
   *throws* (always go through `ftsAnfrage`), `bm25()` returns negative values so
   the sort is `ASC`, and `remove_diacritics 2` folds `ü` but **not** `ß` — which
   is why `wikiSuchtext` indexes a written-out copy alongside the original.
+- **Items save incrementally, not as a whole-list replace — don't regress this.**
+  `char_items`/`char_item_bonuses` used to be a full delete+reinsert per save
+  (`saveItems`); that's gone. `PUT .../items` is replaced by `POST
+  .../items/ops`, carrying a batch of targeted `ItemOp`s (`shared/src/items.ts`:
+  add/patch/remove/reorder for items, addBonus/patchBonus/removeBonus for bonus
+  rows — both items and bonus rows now carry a stable `uid`) applied by
+  `applyItemOps` (`characterData.ts`). The client computes the ops itself via
+  `diffItems(prevSnapshot, next)` in `charSheet.tsx`'s `flush()`, comparing
+  against the last server-confirmed snapshot, not the previous flush — a client
+  never has to echo back data it was never shown. This replaced a real bug: two
+  people with the sheet open at once (a GM revealing a hidden stat, a player
+  saving something unrelated a moment later) — a whole-list save can only ever
+  send what its own client currently holds, so anything it never received
+  (a still-hidden field/row, or one revealed after its last load) silently
+  vanishes on the next save, because the row is entirely absent from the
+  DELETE+INSERT rather than merely stale. Ops fix this structurally: a client
+  can only ever address a uid it has actually seen, so it can't accidentally
+  touch what it doesn't know exists. **Anything that edits items must go
+  through an op, never resurrect a whole-list PUT** — that includes the
+  planned group/GM-pool inventory and cross-owner item transfer (TODO.md),
+  which should express a move as a `patch`/`move`-style op, not a full-array
+  save of the source and destination owners' lists (that would reintroduce
+  exactly this bug, and worse, since those lists are shared/concurrently
+  edited by construction). See `diffItems`'s tests in `shared/test/items.test.ts`
+  for the exact "never touch a row this client didn't see" property this
+  depends on.

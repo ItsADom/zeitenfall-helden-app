@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CropEditor } from './CropEditor';
 import { useReadOnly } from './displayMode';
 
@@ -123,11 +124,17 @@ export function Portrait({
       />
       {error && <div className="error portrait-error">{error}</div>}
       {cropFile && <CropEditor file={cropFile} onCancel={() => setCropFile(null)} onConfirm={confirmCrop} />}
-      {enlarged && (
-        <div className="portrait-lightbox" onClick={() => setEnlarged(false)}>
-          <img className="portrait-lightbox-img" src={fullSrc} alt="Porträt (vergrößert)" />
-        </div>
-      )}
+      {enlarged &&
+        // Portal, wie in PortraitView.tsx (siehe dortiger Kommentar): eine
+        // `position: fixed`-Lightbox als DOM-Nachfahre eines Elements mit
+        // `:hover`-Transform (z. B. `.card`) bricht auf dessen Box um statt
+        // den Viewport zu füllen und flackert bei Hover in einer Schleife.
+        createPortal(
+          <div className="portrait-lightbox" onClick={() => setEnlarged(false)}>
+            <img className="portrait-lightbox-img" src={fullSrc} alt="Porträt (vergrößert)" />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

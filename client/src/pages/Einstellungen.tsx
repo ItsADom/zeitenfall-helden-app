@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
-import { useLocation, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import type { DynTab } from '@shared/dynamicSections';
 import { parseDiceShortcuts } from '@shared/dice';
 import type { ExternalAttrPoint } from '@shared/types';
@@ -22,10 +22,13 @@ import ThemePicker from '../components/ThemePicker';
 import { CHAT_FONT_SIZES, THEMES } from '../theme';
 
 // Einstellungen: oben die persönliche Anzeige (sofort wirksam). Darunter je
-// Charakter — Farbwelt, Reiter (umbenennen/sortieren/anlegen/löschen),
-// Sichtbarkeit für Gruppenmitglieder und Inventar-Kategorien. Charakterbezogene
-// Änderungen sind erst mit „Speichern" verbindlich (der Bogen selbst speichert
-// dagegen laufend — deshalb ist Reiter-Verwaltung bewusst NICHT auf ihm).
+// Charakter — Farbwelt, Reiter (umbenennen/sortieren/anlegen/löschen) und
+// Sichtbarkeit für Gruppenmitglieder. Charakterbezogene Änderungen sind erst
+// mit „Speichern" verbindlich (der Bogen selbst speichert dagegen laufend —
+// deshalb ist Reiter-Verwaltung bewusst NICHT auf ihm). Inventar-Kategorien
+// werden NICHT hier gepflegt — dafür hat Inventar.tsx (und PoolInventory für
+// Gruppenpool/SL-Vorrat) einen eigenen CategoryManagerDialog direkt am
+// Item-Bildschirm.
 //
 // Gilt auch für den Spielleiter, aber nur für seine eigenen Charaktere: die
 // Charakterliste kommt mit ?mine=1, damit /api/overview ihn nicht auf ALLE
@@ -33,10 +36,6 @@ import { CHAT_FONT_SIZES, THEMES } from '../theme';
 
 interface CharLite {
   id: number;
-  name: string;
-}
-interface CatRow {
-  orig: string | null;
   name: string;
 }
 interface TabRow {
@@ -56,11 +55,9 @@ export default function EinstellungenPage() {
   const { user } = useAuth();
   const einstHeadRef = useEinstHeadHeight();
   const einstNavRef = useEinstNavHeight();
-  // Ein Link „Kategorien bearbeiten" aus dem Inventar bringt ?char=<id> und
-  // #kategorien mit: den Charakter vorwählen und nach unten zu den Kategorien
-  // scrollen.
+  // Ein „Einstellungen für diesen Charakter"-Link bringt ?char=<id> mit: den
+  // Charakter vorwählen.
   const [params] = useSearchParams();
-  const location = useLocation();
   const paramChar = Number(params.get('char')) || null;
   // Reiter, von dem man kam — der Zurück-Link kehrt dorthin zurück.
   const fromTab = params.get('from') || undefined;
@@ -72,7 +69,6 @@ export default function EinstellungenPage() {
 
   // Gespeicherter Stand (Vergleichsbasis für „dirty").
   const [savedTheme, setSavedTheme] = useState('');
-  const [savedCats, setSavedCats] = useState<string[]>([]);
   const [savedVis, setSavedVis] = useState<Record<string, boolean>>({});
   const [savedTabKey, setSavedTabKey] = useState('');
   // Bearbeiteter Stand.
@@ -81,7 +77,6 @@ export default function EinstellungenPage() {
   const [chatName, setChatName] = useState('');
   const [savedShortcuts, setSavedShortcuts] = useState('');
   const [shortcuts, setShortcuts] = useState('');
-  const [catRows, setCatRows] = useState<CatRow[]>([]);
   const [savedAttrExtern, setSavedAttrExtern] = useState<ExternalAttrPoint[]>([]);
   const [attrExternRows, setAttrExternRows] = useState<ExternalAttrPoint[]>([]);
   const [vis, setVis] = useState<Record<string, boolean>>({});
@@ -138,7 +133,6 @@ export default function EinstellungenPage() {
         const theme = res.character.theme ?? '';
         const chatNameVal = res.character.chatName ?? '';
         const shortcutsVal = res.character.diceShortcuts ?? '';
-        const cats = res.data?.itemCategories ?? [];
         const attrExtern = res.data?.attrExtern ?? [];
         const tabs = res.data?.tabs ?? [];
         const tabOrder = res.data?.tabOrder ?? [];
@@ -158,8 +152,6 @@ export default function EinstellungenPage() {
         setChatName(chatNameVal);
         setSavedShortcuts(shortcutsVal);
         setShortcuts(shortcutsVal);
-        setSavedCats(cats);
-        setCatRows(cats.map((c) => ({ orig: c, name: c })));
         setSavedAttrExtern(attrExtern);
         setAttrExternRows(attrExtern);
         setSavedVis(visibility);
@@ -176,27 +168,7 @@ export default function EinstellungenPage() {
     if (selId != null) void load(selId);
   }, [selId, load]);
 
-  // Nach dem Laden zu den Kategorien scrollen, wenn man mit #kategorien kam.
-  useEffect(() => {
-    if (loading || location.hash !== '#kategorien') return;
-    document.getElementById('kategorien')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [loading, location.hash, selId]);
-
-  const cleanNames = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const r of catRows) {
-      const n = r.name.trim();
-      if (n && !seen.has(n)) {
-        seen.add(n);
-        out.push(n);
-      }
-    }
-    return out;
-  }, [catRows]);
-
   const tabSig = tabRows.map((r) => `${r.key}:${r.name}`).join('|');
-  const catsChanged = savedCats.join(' ') !== cleanNames.join(' ');
   const tabsChanged = tabSig !== savedTabKey || deletedIds.length > 0 || tabRows.some((r) => r.isNew || (r.isDyn && r.name.trim() !== r.origName));
   const visChanged = VISIBILITY_SECTIONS.some((s) => !!vis[s] !== !!savedVis[s]);
   const cleanAttrExtern = useMemo(
@@ -207,7 +179,7 @@ export default function EinstellungenPage() {
   const chatNameChanged = chatName.trim() !== savedChatName;
   const shortcutsChanged = shortcuts !== savedShortcuts;
   const dirty =
-    charTheme !== savedTheme || chatNameChanged || shortcutsChanged || catsChanged || tabsChanged || visChanged || attrExternChanged;
+    charTheme !== savedTheme || chatNameChanged || shortcutsChanged || tabsChanged || visChanged || attrExternChanged;
 
   // --- Reiter-Verwaltung ---
   // Reihenfolge und feste/verschiebbare Regeln kommen aus shared/src/tabOrder.ts
@@ -270,13 +242,6 @@ export default function EinstellungenPage() {
       if (visChanged) {
         await apiPut(`/api/characters/${selId}/visibility`, vis);
       }
-      if (catsChanged) {
-        const renames = catRows
-          .filter((r) => r.orig && r.name.trim() && r.orig !== r.name.trim())
-          .map((r) => ({ from: r.orig as string, to: r.name.trim() }));
-        const removes = savedCats.filter((o) => !catRows.some((r) => r.orig === o));
-        await apiPut(`/api/characters/${selId}/item-categories/manage`, { order: cleanNames, renames, removes });
-      }
       if (attrExternChanged) {
         await apiPut(`/api/characters/${selId}/section/attrExtern`, cleanAttrExtern);
       }
@@ -303,7 +268,6 @@ export default function EinstellungenPage() {
           ['wuerfel', 'Würfel-Favoriten'],
           ['reiter', 'Reiter'],
           ['sichtbarkeit', 'Sichtbarkeit'],
-          ['kategorien', 'Kategorien'],
           ['attrextern', 'Attributspunkte'],
         ] as [string, string][])
       : []),
@@ -561,28 +525,6 @@ export default function EinstellungenPage() {
                   {VISIBILITY_LABELS[s]}
                 </label>
               ))}
-            </div>
-          </div>
-
-          <div className="panel" id="kategorien">
-            <h3>Inventar-Kategorien</h3>
-            <p className="muted">
-             Entfernen einer Kategorie setzt alle Gegenstände darin auf „ohne Kategorie".
-            </p>
-            <div className="cat-editor">
-              {catRows.map((r, i) => (
-                <div className="cat-row" key={i}>
-                  <input
-                    value={r.name}
-                    placeholder="Kategoriename"
-                    onChange={(e) => setCatRows((rows) => rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))}
-                  />
-                  <ConfirmDeleteButton title="Kategorie entfernen" onConfirm={() => setCatRows((rows) => rows.filter((_, j) => j !== i))} />
-                </div>
-              ))}
-              <button className="small" onClick={() => setCatRows((rows) => [...rows, { orig: null, name: '' }])}>
-                + Kategorie
-              </button>
             </div>
           </div>
 

@@ -8,10 +8,31 @@
 //
 // Sicherheitsnetze wie seedDummy.ts: bricht bei NODE_ENV=production ab und
 // ist idempotent (per Name erkannt, zweiter Lauf erzeugt keine Duplikate).
+import { makeItem, waffenStatsFuerArt } from 'shared';
+import type { WaffenArt, WaffenStatFeld } from 'shared';
 import { db, initCharacterRows } from './db.js';
 import { hashPassword } from './auth.js';
-import { instantiateStandardSections, saveAbilities, saveSection } from './characterData.js';
+import { applyItemOps, instantiateStandardSections, saveAbilities, saveSection } from './characterData.js';
 import { instantiateGroupTabs } from './dynSections.js';
+
+// Legt eine Waffe als echtes Item an (Weapons become real items, TODO.md) —
+// dieselbe Op-basierte Anlage wie der Client (AddItemDialog), damit der
+// Test-Account weiterhin über den Waffen-Reiter sichtbare, funktionierende
+// Waffen bekommt statt in der stillgelegten sec_waffenNahNeu/sec_waffenFernNeu
+// zu landen, die niemand mehr liest.
+function addWaffe(
+  charId: number,
+  art: WaffenArt,
+  felder: Partial<Record<WaffenStatFeld, string>>,
+  over: { name: string; haltbarkeitMax?: number; haltbarkeitAktuell?: number; notiz?: string },
+): void {
+  const stats = waffenStatsFuerArt(art).map((s) => (felder[s.feld] !== undefined ? { ...s, wert: felder[s.feld]! } : s));
+  const item = makeItem({
+    name: over.name, waffenArt: art, waffenStats: stats,
+    haltbarkeitMax: over.haltbarkeitMax ?? 0, haltbarkeitAktuell: over.haltbarkeitAktuell ?? 0, notiz: over.notiz ?? '',
+  });
+  applyItemOps(charId, [{ op: 'add', item }], true);
+}
 
 const TESTUSER_PASSWORD = process.env.TESTUSER_PASSWORD ?? 'test1234';
 const USERNAME = 'testspieler';
@@ -189,25 +210,19 @@ function fillRichCharacter(charId: number): void {
     { talentId: talentId('Überreden'), taw: 5 },
   ]);
 
-  saveSection(charId, 'waffenNahNeu', [
-    {
-      typ: 'Gildenmagierstab', expLevel: '', schaden: '1W6+2', material: 'Eschenholz mit Silberbeschlag',
-      iniBonus: 0, rd: 1, reichweite: 'kurz', haltbarkeit: 6, besonderes: 'Doppelt als Fokus nutzbar',
-      anforderung: '', talentId: talentId('Stäbe'), at: 10, pa: 8, bl: 0,
-    },
-    {
-      typ: 'Dolch', expLevel: '', schaden: '1W6', material: 'Stahl', iniBonus: 1, rd: 0,
-      reichweite: 'kurz', haltbarkeit: 5, besonderes: 'Versteckt am Unterarm getragen',
-      anforderung: '', talentId: talentId('Dolche'), at: 8, pa: 6, bl: 0,
-    },
-  ]);
+  addWaffe(charId, 'nah', {
+    schaden: '1W6+2', material: 'Eschenholz mit Silberbeschlag', rd: '1', reichweite: 'kurz',
+    besonderes: 'Doppelt als Fokus nutzbar', talentId: String(talentId('Stäbe')), at: '10', pa: '8',
+  }, { name: 'Gildenmagierstab', haltbarkeitMax: 6, haltbarkeitAktuell: 6 });
+  addWaffe(charId, 'nah', {
+    schaden: '1W6', material: 'Stahl', iniBonus: '1', reichweite: 'kurz',
+    besonderes: 'Versteckt am Unterarm getragen', talentId: String(talentId('Dolche')), at: '8', pa: '6',
+  }, { name: 'Dolch', haltbarkeitMax: 5, haltbarkeitAktuell: 5 });
 
-  saveSection(charId, 'waffenFernNeu', [
-    {
-      typ: 'Jagdbogen', eBE: 'Eibenholz', haltbarkeit: 5, entfernung: '5/10/25',
-      besonderes: 'Ererbt von der Großmutter', schaden: '1W6+2', talentId: talentId('Jagdbögen'), atMod: 0,
-    },
-  ]);
+  addWaffe(charId, 'fern', {
+    eBE: 'Eibenholz', entfernung: '5/10/25', besonderes: 'Ererbt von der Großmutter',
+    schaden: '1W6+2', talentId: String(talentId('Jagdbögen')),
+  }, { name: 'Jagdbogen', haltbarkeitMax: 5, haltbarkeitAktuell: 5 });
 
   setPouchCoins(charId, { D: 2, S: 18, H: 4, K: 12 });
 }
@@ -220,13 +235,10 @@ function fillLightCharacter(charId: number): void {
 
   saveSection(charId, 'talents', [{ talentId: talentId('Äxte'), taw: 11, at: 3, pa: 1, bl: 1 }]);
 
-  saveSection(charId, 'waffenNahNeu', [
-    {
-      typ: 'Kriegsaxt', expLevel: '', schaden: '1W6+4', material: 'Zwergenstahl', iniBonus: -1, rd: 2,
-      reichweite: 'mittel', haltbarkeit: 8, besonderes: '', anforderung: 'KK 14', talentId: talentId('Äxte'),
-      at: 12, pa: 6, bl: 1,
-    },
-  ]);
+  addWaffe(charId, 'nah', {
+    schaden: '1W6+4', material: 'Zwergenstahl', iniBonus: '-1', rd: '2', reichweite: 'mittel',
+    anforderung: 'KK 14', talentId: String(talentId('Äxte')), at: '12', pa: '6', bl: '1',
+  }, { name: 'Kriegsaxt', haltbarkeitMax: 8, haltbarkeitAktuell: 8 });
 
   setPouchCoins(charId, { S: 6, H: 2 });
 }

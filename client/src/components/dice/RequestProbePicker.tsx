@@ -52,7 +52,18 @@ export default function RequestProbePicker({
 
   if (!open) {
     return (
-      <button className="small gm-request-open" onClick={() => setOpen(true)} title={`Eine Probe von ${charName} erbitten`}>
+      <button
+        className="small gm-request-open"
+        // probes zurücksetzen statt nur öffnen: sonst zeigt ein erneutes
+        // Öffnen den Stand vom letzten Mal (z. B. eine inzwischen entfernte
+        // Waffe), und das Anfordern endet nur in einer Fehlermeldung, weil
+        // die Probe serverseitig längst nicht mehr existiert.
+        onClick={() => {
+          setProbes(null);
+          setOpen(true);
+        }}
+        title={`Eine Probe von ${charName} erbitten`}
+      >
         🎲 Probe anfordern
       </button>
     );

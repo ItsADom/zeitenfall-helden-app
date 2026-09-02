@@ -1,10 +1,63 @@
-import { useEffect, useState } from 'react';
-import type { ContainerArt, Item, ItemBonus, ItemBonusKind, KapazitaetArt, TalentBonusFeld } from '@shared/items';
+import { useEffect, useId, useState } from 'react';
+import type { ContainerArt, Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
+import { makeUid, waffenFelderFuerArt, waffenStatsFuerArt } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
+import { apiGet } from '../api';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
+import { AlwaysEditable } from './displayMode';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
 import { NumInput } from './inputs';
+
+// --- Shared inventories: cross-owner move target picker (docs/concepts/
+// shared-inventories.md, 2.3) ---
+//
+// "The permission split is enforced by the source, not the target list" — the
+// picker below just needs a sane list of names, one per valid destination.
+// `exclude` drops the caller's OWN owner from that list (moving a group pool
+// item back into the same group pool makes no sense, etc.).
+export interface MoveTarget {
+  key: string;
+  label: string;
+  toOwnerType: ItemOwnerType;
+  toOwnerId: number;
+}
+
+export function useMoveTargets(groupId: number | null, exclude: { type: ItemOwnerType; id: number } | null): MoveTarget[] {
+  const [roster, setRoster] = useState<{ groupName: string; characters: { id: number; name: string }[] }>({
+    groupName: '',
+    characters: [],
+  });
+
+  useEffect(() => {
+    if (groupId == null) {
+      setRoster({ groupName: '', characters: [] });
+      return;
+    }
+    apiGet<{ group: { name: string }; characters: { id: number; name: string }[] }>(`/api/groups/${groupId}`)
+      .then((d) => setRoster({ groupName: d.group.name, characters: d.characters }))
+      .catch(() => setRoster({ groupName: '', characters: [] }));
+  }, [groupId]);
+
+  const excluded = (type: ItemOwnerType, id: number) => exclude != null && exclude.type === type && exclude.id === id;
+  const targets: MoveTarget[] = [];
+  if (groupId != null && !excluded('group', groupId)) {
+    targets.push({
+      key: 'group',
+      label: roster.groupName ? `Gruppeninventar (${roster.groupName})` : 'Gruppeninventar',
+      toOwnerType: 'group',
+      toOwnerId: groupId,
+    });
+  }
+  for (const c of roster.characters) {
+    if (excluded('character', c.id)) continue;
+    targets.push({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character', toOwnerId: c.id });
+  }
+  if (!excluded('gm', 0)) {
+    targets.push({ key: 'gm', label: 'Spielleiter-Vorrat', toOwnerType: 'gm', toOwnerId: 0 });
+  }
+  return targets;
+}
 
 // Anlegen-/Bearbeiten-Dialoge fürs Inventar: sammeln alle Felder VOR dem
 // Einfügen bzw. Patchen, statt einen leeren Item-Datensatz einzufügen und
@@ -17,6 +70,13 @@ import { NumInput } from './inputs';
 // im Chip-Editor angefasst.
 
 const AUSRUESTUNG_KATEGORIE = 'Ausrüstung';
+// Weapons become real items (TODO.md): eigene, feste Kategorie wie
+// AUSRUESTUNG_KATEGORIE — „Waffe" ist jetzt ein dritter, zum Allgemein-/
+// Ausrüstung-Umschalter paralleler Modus, kein Zusatz-Abschnitt mehr
+// (Spieler-Entscheidung: eigene, gleichrangige Kategorie statt eines Toggles
+// obendrauf). Sorgt nebenbei dafür, dass Waffen auf Inventar/Ausrüstung unter
+// einer eigenen Kategorie-Überschrift gruppiert erscheinen statt „Ohne Kategorie".
+const WAFFE_KATEGORIE = 'Waffe';
 // Client-seitiges Gegenstück zu MAX_BONUSSE_PRO_ITEM in
 // server/src/characterData.ts — reine UX-Bremse (der Server deckelt ohnehin),
 // verhindert nur, dass jemand über den „+ Bonus"-Knopf Zeilen anlegt, die beim
@@ -41,11 +101,16 @@ function BonusRowsEditor({
   onChange,
   talents,
   specialEnergies,
+  isGm,
 }: {
   bonusse: ItemBonus[];
   onChange: (next: ItemBonus[]) => void;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
+  /** Hidden/revealable Ausrüstung stats (TODO.md): nur die SL kann Bonus-Zeilen
+   * verborgen anlegen/aufdecken — Spieler sehen weder Umschalter noch verdeckte
+   * Zeilen (die kommen serverseitig nie in `bonusse` an, siehe ohneVerborgeneItems). */
+  isGm: boolean;
 }) {
   // Spezialenergien ohne Formel haben kein Bonus-Feld, das ein Item-Bonus
   // treffen könnte (siehe SpecialResource) — würden hier gelistet, liefe der
@@ -69,7 +134,16 @@ function BonusRowsEditor({
       </div>
       <div className="cat-editor">
         {bonusse.map((b, i) => (
-          <div className="cat-row bonus-row" key={i}>
+          <div className="cat-row bonus-row" key={b.uid}>
+            {isGm && b.verborgen && (
+              <ConfirmDeleteButton
+                title="Bonus aufdecken — einseitig, keine Rückgängig-Funktion"
+                className="small"
+                onConfirm={() => patchRow(i, { verborgen: false })}
+              >
+                👁 Aufdecken
+              </ConfirmDeleteButton>
+            )}
             <select
               value={bonusOptionValue(b.kind, b.code)}
               onChange={(e) => {
@@ -150,7 +224,7 @@ function BonusRowsEditor({
           type="button"
           className="small"
           disabled={bonusse.length >= MAX_BONUSSE_PRO_ITEM}
-          onClick={() => onChange([...bonusse, { kind: 'attr', code: 'MU', feld: '', wert: 0 }])}
+          onClick={() => onChange([...bonusse, { uid: makeUid(), kind: 'attr', code: 'MU', feld: '', wert: 0, verborgen: isGm }])}
         >
           + Bonus
         </button>
@@ -159,27 +233,231 @@ function BonusRowsEditor({
   );
 }
 
+// Weapons become real items (TODO.md): dritter Abschnitt im selben Dialog —
+// „ist das ein Nahkampf-/Fernkampf-Item, und wenn ja, mit welchen Werten".
+// Genau der Ort, an dem auch der geplante GM-Vorrats-Pool (owner_type: 'gm',
+// TODO.md) eine Waffe komplett verdeckt anlegen würde, bevor sie je an
+// jemanden geht — daher volle Sichtbarkeit hier, nicht nur auf dem
+// Waffen-Reiter. Jedes Feld läuft über dieselbe Aufdecken-Konvention wie
+// RS/Haltbarkeit oben (SL sieht den echten Wert + Aufdecken-Knopf, ein
+// Nicht-SL sieht ausschließlich „???").
+const WAFFEN_NAH_LABELS: Partial<Record<WaffenStatFeld, string>> = {
+  schaden: 'Schaden', material: 'Material', rd: 'RD', reichweite: 'Reichweite', iniBonus: 'Ini-Bonus',
+  anforderung: 'Anforderung', expLevel: 'EXP/LVL', at: 'AT-Bonus', pa: 'PA-Bonus', bl: 'BL-Bonus', besonderes: 'Besonderes',
+};
+const WAFFEN_FERN_LABELS: Partial<Record<WaffenStatFeld, string>> = {
+  schaden: 'Schaden', eBE: 'Material', rd: 'RD', entfernung: 'Entfernung', atMod: 'AT-Mod', besonderes: 'Besonderes',
+};
+const WAFFEN_NUMERIC_FELDER = new Set<WaffenStatFeld>(['iniBonus', 'at', 'pa', 'bl', 'atMod']);
+
+function WeaponStatRow({
+  stat,
+  label,
+  isGm,
+  numeric,
+  onChange,
+  onReveal,
+}: {
+  stat: WaffenStat;
+  label: string;
+  isGm: boolean;
+  numeric: boolean;
+  onChange: (wert: string) => void;
+  onReveal: () => void;
+}) {
+  return (
+    <label className="dlg-field">
+      {label}
+      {!isGm && stat.verborgen ? (
+        <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">???</span>
+      ) : numeric ? (
+        <NumInput value={Number(stat.wert) || 0} onChange={(v) => onChange(String(v))} />
+      ) : (
+        <input value={stat.wert} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {isGm && stat.verborgen && (
+        <ConfirmDeleteButton title="Aufdecken — einseitig, keine Rückgängig-Funktion" className="small" onConfirm={onReveal}>
+          👁 Aufdecken
+        </ConfirmDeleteButton>
+      )}
+    </label>
+  );
+}
+
+function WeaponTalentRow({
+  stat,
+  talents,
+  isGm,
+  onChange,
+  onReveal,
+}: {
+  stat: WaffenStat;
+  talents: TalentCatalogRow[];
+  isGm: boolean;
+  onChange: (wert: string) => void;
+  onReveal: () => void;
+}) {
+  const kampfTalente = talents.filter((t) => t.kategorie === 'kampf');
+  return (
+    <label className="dlg-field">
+      Kampftalent
+      {!isGm && stat.verborgen ? (
+        <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">???</span>
+      ) : (
+        <select value={Number(stat.wert) || 0} onChange={(e) => onChange(e.target.value)}>
+          <option value={0}>—</option>
+          {kampfTalente.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      )}
+      {isGm && stat.verborgen && (
+        <ConfirmDeleteButton title="Aufdecken — einseitig, keine Rückgängig-Funktion" className="small" onConfirm={onReveal}>
+          👁 Aufdecken
+        </ConfirmDeleteButton>
+      )}
+    </label>
+  );
+}
+
+// Nur gerendert, wenn der Dialog im „Waffe"-Modus ist (siehe AddItemDialog) —
+// waffenArt ist dann strukturell immer 'nah' oder 'fern', nie '': der
+// Moduswechsel selbst (changeMode) sorgt dafür, kein Verstecken-Toggle mehr
+// hier nötig.
+function WeaponSection({
+  waffenArt,
+  onArtChange,
+  stats,
+  onStatsChange,
+  talents,
+  isGm,
+}: {
+  waffenArt: 'nah' | 'fern';
+  onArtChange: (art: 'nah' | 'fern') => void;
+  stats: WaffenStat[];
+  onStatsChange: (next: WaffenStat[]) => void;
+  talents: TalentCatalogRow[];
+  isGm: boolean;
+}) {
+  const patchStat = (feld: WaffenStatFeld, wert: string) => onStatsChange(stats.map((s) => (s.feld === feld ? { ...s, wert } : s)));
+  const revealStat = (feld: WaffenStatFeld) => onStatsChange(stats.map((s) => (s.feld === feld ? { ...s, verborgen: false } : s)));
+  const statFor = (feld: WaffenStatFeld): WaffenStat => stats.find((s) => s.feld === feld) ?? { uid: '', feld, wert: '', verborgen: false };
+  const labels = waffenArt === 'nah' ? WAFFEN_NAH_LABELS : WAFFEN_FERN_LABELS;
+
+  return (
+    <>
+      <div className="dlg-seg">
+        <button type="button" className={waffenArt === 'nah' ? 'active' : ''} onClick={() => onArtChange('nah')}>
+          Nahkampf
+        </button>
+        <button type="button" className={waffenArt === 'fern' ? 'active' : ''} onClick={() => onArtChange('fern')}>
+          Fernkampf
+        </button>
+      </div>
+      {waffenFelderFuerArt(waffenArt).map((feld) =>
+        feld === 'talentId' ? (
+          <WeaponTalentRow
+            key={feld}
+            stat={statFor(feld)}
+            talents={talents}
+            isGm={isGm}
+            onChange={(v) => patchStat(feld, v)}
+            onReveal={() => revealStat(feld)}
+          />
+        ) : (
+          <WeaponStatRow
+            key={feld}
+            stat={statFor(feld)}
+            label={labels[feld] ?? feld}
+            isGm={isGm}
+            numeric={WAFFEN_NUMERIC_FELDER.has(feld)}
+            onChange={(v) => patchStat(feld, v)}
+            onReveal={() => revealStat(feld)}
+          />
+        ),
+      )}
+    </>
+  );
+}
+
+// Haltbarkeit-Feld — gebraucht sowohl im Ausrüstung- als auch im Waffe-Modus
+// (beide teilen sich dieselben Item-Felder haltbarkeitMax/Aktuell/Verborgen),
+// deshalb als eigene Komponente statt zweimal dieselbe verzweigte JSX.
+function HaltbarkeitField({
+  haltbarkeitAktuell,
+  haltbarkeitMax,
+  haltbarkeitVerborgen,
+  isGm,
+  onAktuellChange,
+  onMaxChange,
+  onReveal,
+}: {
+  haltbarkeitAktuell: number;
+  haltbarkeitMax: number;
+  haltbarkeitVerborgen: boolean;
+  isGm: boolean;
+  onAktuellChange: (v: number) => void;
+  onMaxChange: (v: number) => void;
+  onReveal: () => void;
+}) {
+  return (
+    <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
+      Haltbarkeit
+      {!isGm && haltbarkeitVerborgen ? (
+        <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">
+          ???
+        </span>
+      ) : (
+        <div className="dlg-row2">
+          <NumInput value={haltbarkeitAktuell} min={0} max={haltbarkeitMax} onChange={onAktuellChange} />
+          <NumInput value={haltbarkeitMax} min={0} onChange={onMaxChange} />
+        </div>
+      )}
+      {isGm && haltbarkeitVerborgen && (
+        <ConfirmDeleteButton title="Haltbarkeit aufdecken — einseitig, keine Rückgängig-Funktion" className="small" onConfirm={onReveal}>
+          👁 Aufdecken
+        </ConfirmDeleteButton>
+      )}
+    </label>
+  );
+}
+
 export function AddItemDialog({
   open,
   onClose,
   categories,
+  houses,
+  roomsByHaus,
   initialMode = 'allgemein',
   item,
   talents,
   specialEnergies,
+  isGm,
   onAdd,
   onSave,
   onDuplicate,
   onDelete,
+  moveTargets,
+  onMove,
 }: {
   open: boolean;
   onClose: () => void;
   categories: string[];
-  initialMode?: 'allgemein' | 'ausruestung';
+  /** Houses (docs/concepts/houses.md): nur im Gruppeninventar gesetzt — blendet
+   * die Haus-/Raum-Felder ein, genau wie moveTargets den Verschieben-Picker.
+   * Charakter- und SL-Vorrat lassen beide weg, keine Häuser dort. */
+  houses?: string[];
+  roomsByHaus?: Record<string, string[]>;
+  initialMode?: 'allgemein' | 'ausruestung' | 'waffe';
   /** Gesetzt → Bearbeiten-Modus für ein bestehendes Item statt Anlegen. */
   item?: Item;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
+  /** Hidden/revealable Ausrüstung stats (TODO.md): nur die SL bekommt den
+   * Verborgen-Zustand/Aufdecken-Knopf zu sehen. Von der SL neu angelegte
+   * RS/Haltbarkeit/Bonus-Zeilen starten verdeckt (kein Verstecken-Knopf nötig —
+   * es gibt keinen Weg zurück außer Aufdecken). */
+  isGm: boolean;
   /** Anlegen-Modus (kein `item`). */
   onAdd?: (fields: Partial<Item>) => void;
   /** Bearbeiten-Modus (`item` gesetzt) — nur die tatsächlich geänderten Felder. */
@@ -188,18 +466,58 @@ export function AddItemDialog({
   onDuplicate?: () => void;
   /** Bearbeiten-Modus: Löschen-Knopf im Fuß, falls gesetzt. */
   onDelete?: () => void;
+  /** Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
+   * nach…"-Ziele. Nur im Bearbeiten-Modus sinnvoll (ein noch nicht
+   * gespeichertes Item hat keine uid zum Verschieben) — leer/undefined blendet
+   * den Picker aus, ganz ohne den Konzept-Unterbau zu berühren. */
+  moveTargets?: MoveTarget[];
+  onMove?: (target: MoveTarget) => void;
 }) {
+  const kategorieListId = useId();
+  const hausListId = useId();
+  const raumListId = useId();
   const [mode, setMode] = useState(initialMode);
   const [name, setName] = useState('');
   const [kategorie, setKategorie] = useState('');
+  const [haus, setHaus] = useState('');
+  const [raum, setRaum] = useState('');
   const [anzahl, setAnzahl] = useState(1);
   const [gewicht, setGewicht] = useState(0);
   const [rs, setRs] = useState(0);
+  const [rsVerborgen, setRsVerborgen] = useState(false);
   const [haltbarkeitMax, setHaltbarkeitMax] = useState(0);
   const [haltbarkeitAktuell, setHaltbarkeitAktuell] = useState(0);
+  const [haltbarkeitVerborgen, setHaltbarkeitVerborgen] = useState(false);
   const [quickslots, setQuickslots] = useState(0);
   const [notiz, setNotiz] = useState('');
   const [bonusse, setBonusse] = useState<ItemBonus[]>([]);
+  const [waffenArt, setWaffenArt] = useState<WaffenArt>('');
+  const [waffenStats, setWaffenStats] = useState<WaffenStat[]>([]);
+  const [moveTargetKey, setMoveTargetKey] = useState('');
+  // Wechsel der Waffenart sät den Feldsatz komplett neu — keine Wertübernahme
+  // zwischen Nah-/Fernkampf, dieselbe bewusst simple Regel wie beim Umschalten
+  // von Ausrüstung → Allgemein oben. Von der SL frisch angelegte Waffen-Felder
+  // starten verdeckt, dieselbe Regel wie rsVerborgen/haltbarkeitVerborgen oben
+  // — es gibt keinen Verstecken-Knopf, das ist der einzige Zeitpunkt, an dem
+  // der Zustand entsteht.
+  const changeWaffenArt = (art: WaffenArt) => {
+    setWaffenArt(art);
+    setWaffenStats(art ? waffenStatsFuerArt(art).map((s) => ({ ...s, verborgen: isGm })) : []);
+  };
+  // Allgemein/Ausrüstung/Waffe sind jetzt gleichrangige, sich gegenseitig
+  // ausschließende Modi (Spieler-Entscheidung: „Waffe" ist eine eigene
+  // Kategorie, kein Zusatz-Toggle mehr) — der Wechsel setzt/räumt waffenArt
+  // mit auf, statt eines eigenen „kein Waffe"-Zustands innerhalb des
+  // Waffen-Abschnitts. Neu in den Waffe-Modus: startet als Nahkampfwaffe
+  // (häufigster Fall), umschaltbar auf Fernkampf im Abschnitt selbst.
+  const changeMode = (next: 'allgemein' | 'ausruestung' | 'waffe') => {
+    setMode(next);
+    if (next === 'waffe') {
+      if (!waffenArt) changeWaffenArt('nah');
+    } else if (waffenArt) {
+      changeWaffenArt('');
+    }
+  };
 
   // Beim Öffnen (neu) seeden statt bei reset() beim Schließen — AddItemDialog
   // selbst bleibt gemountet, während Dialog.tsx nur sein eigenes DOM ab- und
@@ -209,30 +527,47 @@ export function AddItemDialog({
   // wechseln müsste.
   useEffect(() => {
     if (!open) return;
+    setMoveTargetKey('');
     if (item) {
-      setMode(item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
+      setMode(item.waffenArt ? 'waffe' : item.kategorie === AUSRUESTUNG_KATEGORIE ? 'ausruestung' : 'allgemein');
       setName(item.name);
       setKategorie(item.kategorie);
+      setHaus(item.haus);
+      setRaum(item.raum);
       setAnzahl(item.anzahl);
       setGewicht(item.gewicht);
       setRs(item.rs);
+      setRsVerborgen(item.rsVerborgen);
       setHaltbarkeitMax(item.haltbarkeitMax);
       setHaltbarkeitAktuell(item.haltbarkeitAktuell);
+      setHaltbarkeitVerborgen(item.haltbarkeitVerborgen);
       setQuickslots(item.istBehaelter && item.containerArt === 'quick' ? item.kapazitaet : 0);
       setNotiz(item.notiz);
       setBonusse(item.bonusse);
+      setWaffenArt(item.waffenArt);
+      setWaffenStats(item.waffenStats);
     } else {
       setMode(initialMode);
       setName('');
       setKategorie('');
+      setHaus('');
+      setRaum('');
       setAnzahl(1);
       setGewicht(0);
       setRs(0);
+      // Hidden/revealable Ausrüstung stats (TODO.md): von der SL neu angelegte
+      // Ausrüstung startet verdeckt — es gibt keinen Verstecken-Knopf, das ist
+      // der einzige Zeitpunkt, an dem der Zustand entsteht. Spieler legen nie
+      // etwas Verdecktes an.
+      setRsVerborgen(isGm);
       setHaltbarkeitMax(0);
       setHaltbarkeitAktuell(0);
+      setHaltbarkeitVerborgen(isGm);
       setQuickslots(0);
       setNotiz('');
       setBonusse([]);
+      setWaffenArt('');
+      setWaffenStats([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, item?.uid, initialMode]);
@@ -252,26 +587,40 @@ export function AddItemDialog({
   const commit = () => {
     if (!name.trim()) return;
     const ausr = mode === 'ausruestung';
+    const waffe = mode === 'waffe';
     const patch: Partial<Item> = {
       name: name.trim(),
-      kategorie: ausr ? AUSRUESTUNG_KATEGORIE : kategorie,
+      kategorie: ausr ? AUSRUESTUNG_KATEGORIE : waffe ? WAFFE_KATEGORIE : kategorie,
       anzahl,
       gewicht,
       notiz,
       bonusse,
+      waffenArt,
+      waffenStats,
     };
+    // Houses (docs/concepts/houses.md): nur einbeziehen, wenn die Felder auch
+    // sichtbar waren (houses gesetzt) — Charakter-/SL-Vorrat sollen ein
+    // Bearbeiten sonst nie stillschweigend auf '' zurücksetzen.
+    if (houses) {
+      patch.haus = haus;
+      patch.raum = haus ? raum : '';
+    }
     // RS/Haltbarkeit/Quickslots-Behälter nur einbeziehen, wenn ihr Feld auch
-    // sichtbar war (ausr) — sonst würde das Umschalten auf „Allgemein" beim
-    // Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung" weg
-    // geändert wurde (z. B. durch Umkategorisieren per Ziehen im Inventar-
-    // Reiter), dessen RS/Haltbarkeit/Behälter-Status stillschweigend auf 0
-    // zurücksetzen, obwohl niemand diese Felder je zu Gesicht bekam. Beim
-    // Anlegen macht das Weglassen keinen Unterschied: makeItem() setzt
+    // sichtbar war (ausr/waffe) — sonst würde das Umschalten auf „Allgemein"
+    // beim Bearbeiten eines Items, dessen Kategorie einmal von „Ausrüstung"
+    // weg geändert wurde (z. B. durch Umkategorisieren per Ziehen im
+    // Inventar-Reiter), dessen RS/Haltbarkeit/Behälter-Status stillschweigend
+    // auf 0 zurücksetzen, obwohl niemand diese Felder je zu Gesicht bekam.
+    // Beim Anlegen macht das Weglassen keinen Unterschied: makeItem() setzt
     // ohnehin dieselben Nullwerte für alles, was `fields` nicht mitbringt.
-    if (ausr) {
-      patch.rs = rs;
+    if (ausr || waffe) {
       patch.haltbarkeitMax = haltbarkeitMax;
       patch.haltbarkeitAktuell = haltbarkeitAktuell;
+      patch.haltbarkeitVerborgen = haltbarkeitVerborgen;
+    }
+    if (ausr) {
+      patch.rs = rs;
+      patch.rsVerborgen = rsVerborgen;
       if (!isStorageContainer) {
         // Quickslots > 0 macht die Ausrüstung selbst zum Schnellzugriff-
         // Behälter (dieselbe Mechanik wie Gürtel/Bandelier) — ein Feld statt
@@ -295,8 +644,38 @@ export function AddItemDialog({
       wide
       footer={
         <>
-          {item && (onDuplicate || onDelete) && (
+          {item && (onDuplicate || onDelete || (onMove && moveTargets && moveTargets.length > 0)) && (
             <span className="dlg-foot-left">
+              {onMove && moveTargets && moveTargets.length > 0 && (
+                <>
+                  <select
+                    className="dlg-move-select"
+                    value={moveTargetKey}
+                    onChange={(e) => setMoveTargetKey(e.target.value)}
+                    title="Verschiebt den Gegenstand (samt Inhalt, falls Behälter) sofort — keine Bestätigung nötig"
+                  >
+                    <option value="">Verschieben nach…</option>
+                    {moveTargets.map((t) => (
+                      <option key={t.key} value={t.key}>
+                        {t.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="small"
+                    disabled={!moveTargetKey}
+                    onClick={() => {
+                      const target = moveTargets.find((t) => t.key === moveTargetKey);
+                      if (!target) return;
+                      onMove(target);
+                      close();
+                    }}
+                  >
+                    Verschieben
+                  </button>
+                </>
+              )}
               {onDuplicate && (
                 <button
                   type="button"
@@ -332,102 +711,182 @@ export function AddItemDialog({
         </>
       }
     >
-      <div className="dlg-seg">
-        <button type="button" className={mode === 'allgemein' ? 'active' : ''} onClick={() => setMode('allgemein')}>
-          Allgemein
-        </button>
-        <button type="button" className={mode === 'ausruestung' ? 'active' : ''} onClick={() => setMode('ausruestung')}>
-          Ausrüstung
-        </button>
-      </div>
-
-      <label className="dlg-field">
-        Name
-        <input
-          value={name}
-          autoFocus
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && commit()}
-        />
-      </label>
-
-      <div className="dlg-row2">
-        <label className="dlg-field">
-          Anzahl
-          <NumInput value={anzahl} min={0} onChange={setAnzahl} />
-        </label>
-        <label className="dlg-field">
-          Gewicht (kg/St.)
-          <NumInput value={gewicht} min={0} onChange={setGewicht} />
-        </label>
-      </div>
-
-      {mode === 'allgemein' ? (
-        <label className="dlg-field">
-          Kategorie
-          <select value={kategorie} onChange={(e) => setKategorie(e.target.value)}>
-            <option value="">— ohne Kategorie —</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : (
-        <div className="dlg-field">
-          Kategorie
-          <div className="dlg-locked">
-            <span className="dlg-badge">{AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
-          </div>
+      {/* Bleibt bearbeitbar unabhängig vom Blatt-Anzeigemodus — Duplizieren/
+          Löschen im Fuß oben laufen schon unbedingt, die Feldwerte hier sollen
+          es genauso (siehe TODO.md, "AddItemDialog's fields should stay
+          editable in read-only mode"). */}
+      <AlwaysEditable>
+        <div className="dlg-seg">
+          <button type="button" className={mode === 'allgemein' ? 'active' : ''} onClick={() => changeMode('allgemein')}>
+            Allgemein
+          </button>
+          <button type="button" className={mode === 'ausruestung' ? 'active' : ''} onClick={() => changeMode('ausruestung')}>
+            Ausrüstung
+          </button>
+          <button type="button" className={mode === 'waffe' ? 'active' : ''} onClick={() => changeMode('waffe')}>
+            Waffe
+          </button>
         </div>
-      )}
 
-      {mode === 'ausruestung' && (
-        <div className="dlg-fade-group">
-          <div className="dlg-group-label">Nur für Ausrüstung</div>
+        <label className="dlg-field">
+          Name
+          <input
+            value={name}
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && commit()}
+          />
+        </label>
+
+        <div className="dlg-row2">
+          <label className="dlg-field">
+            Anzahl
+            <NumInput value={anzahl} min={0} onChange={setAnzahl} />
+          </label>
+          <label className="dlg-field">
+            Gewicht (kg/St.)
+            <NumInput value={gewicht} min={0} onChange={setGewicht} />
+          </label>
+        </div>
+
+        {mode === 'allgemein' ? (
+          <label className="dlg-field">
+            Kategorie
+            <input
+              value={kategorie}
+              onChange={(e) => setKategorie(e.target.value)}
+              placeholder="— ohne Kategorie —"
+              list={kategorieListId}
+            />
+            <datalist id={kategorieListId}>
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </label>
+        ) : (
+          <div className="dlg-field">
+            Kategorie
+            <div className="dlg-locked">
+              <span className="dlg-badge">{mode === 'waffe' ? WAFFE_KATEGORIE : AUSRUESTUNG_KATEGORIE}</span> fest vorgegeben
+            </div>
+          </div>
+        )}
+
+        {houses && (
           <div className="dlg-row2">
             <label className="dlg-field">
-              RS
-              <NumInput value={rs} min={0} onChange={setRs} />
+              Haus
+              <input
+                value={haus}
+                onChange={(e) => setHaus(e.target.value)}
+                placeholder="— ohne Haus —"
+                list={hausListId}
+              />
+              <datalist id={hausListId}>
+                {houses.map((h) => (
+                  <option key={h} value={h} />
+                ))}
+              </datalist>
             </label>
-            <label className="dlg-field" title="0 = nicht verfolgt, keine %-Anzeige. Sonst startet die Ausrüstung voll.">
-              Haltbarkeit
-              <div className="dlg-row2">
-                <NumInput
-                  value={haltbarkeitAktuell}
-                  min={0}
-                  max={haltbarkeitMax}
-                  onChange={setHaltbarkeitAktuell}
-                />
-                <NumInput
-                  value={haltbarkeitMax}
-                  min={0}
-                  onChange={(v) => {
-                    // Neu eingeschaltet (war 0/0) → auf voll starten, statt
-                    // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
-                    setHaltbarkeitMax(v);
-                    if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
-                  }}
-                />
-              </div>
+            <label className="dlg-field">
+              Raum
+              <input
+                value={raum}
+                onChange={(e) => setRaum(e.target.value)}
+                disabled={!haus}
+                placeholder={haus ? '— ohne Raum —' : '— erst ein Haus wählen —'}
+                list={raumListId}
+              />
+              <datalist id={raumListId}>
+                {(roomsByHaus?.[haus] ?? []).map((r) => (
+                  <option key={r} value={r} />
+                ))}
+              </datalist>
             </label>
           </div>
-          {!isStorageContainer && (
-            <label className="dlg-field">
-              Quickslots
-              <NumInput value={quickslots} min={0} onChange={setQuickslots} />
-            </label>
-          )}
-        </div>
-      )}
+        )}
 
-      <label className="dlg-field">
-        Notiz
-        <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
-      </label>
+        {mode === 'ausruestung' && (
+          <div className="dlg-fade-group">
+            <div className="dlg-group-label">Nur für Ausrüstung</div>
+            <div className="dlg-row2">
+              <label className="dlg-field">
+                RS
+                {!isGm && rsVerborgen ? (
+                  <span className="dlg-locked" title="Von der Spielleitung noch nicht aufgedeckt">
+                    ???
+                  </span>
+                ) : (
+                  <NumInput value={rs} min={0} onChange={setRs} />
+                )}
+                {isGm && rsVerborgen && (
+                  <ConfirmDeleteButton
+                    title="RS aufdecken — einseitig, keine Rückgängig-Funktion"
+                    className="small"
+                    onConfirm={() => setRsVerborgen(false)}
+                  >
+                    👁 Aufdecken
+                  </ConfirmDeleteButton>
+                )}
+              </label>
+              <HaltbarkeitField
+                haltbarkeitAktuell={haltbarkeitAktuell}
+                haltbarkeitMax={haltbarkeitMax}
+                haltbarkeitVerborgen={haltbarkeitVerborgen}
+                isGm={isGm}
+                onAktuellChange={setHaltbarkeitAktuell}
+                onMaxChange={(v) => {
+                  // Neu eingeschaltet (war 0/0) → auf voll starten, statt
+                  // sofort bei 0 % (dieselbe Regel wie im Chip-Editor).
+                  setHaltbarkeitMax(v);
+                  if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
+                }}
+                onReveal={() => setHaltbarkeitVerborgen(false)}
+              />
+            </div>
+            {!isStorageContainer && (
+              <label className="dlg-field">
+                Quickslots
+                <NumInput value={quickslots} min={0} onChange={setQuickslots} />
+              </label>
+            )}
+          </div>
+        )}
 
-      <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} />
+        {mode === 'waffe' && waffenArt && (
+          <div className="dlg-fade-group">
+            <div className="dlg-group-label">Nur für Waffen</div>
+            <HaltbarkeitField
+              haltbarkeitAktuell={haltbarkeitAktuell}
+              haltbarkeitMax={haltbarkeitMax}
+              haltbarkeitVerborgen={haltbarkeitVerborgen}
+              isGm={isGm}
+              onAktuellChange={setHaltbarkeitAktuell}
+              onMaxChange={(v) => {
+                setHaltbarkeitMax(v);
+                if (haltbarkeitMax === 0 && haltbarkeitAktuell === 0) setHaltbarkeitAktuell(v);
+              }}
+              onReveal={() => setHaltbarkeitVerborgen(false)}
+            />
+            <WeaponSection
+              waffenArt={waffenArt}
+              onArtChange={changeWaffenArt}
+              stats={waffenStats}
+              onStatsChange={setWaffenStats}
+              talents={talents}
+              isGm={isGm}
+            />
+          </div>
+        )}
+
+        <label className="dlg-field">
+          Notiz
+          <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
+        </label>
+
+        <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} isGm={isGm} />
+      </AlwaysEditable>
     </Dialog>
   );
 }
@@ -443,6 +902,7 @@ export function AddContainerDialog({
 }) {
   const [name, setName] = useState('');
   const [containerArt, setContainerArt] = useState<ContainerArt>('storage');
+  const [gewicht, setGewicht] = useState(0);
   const [kapazitaet, setKapazitaet] = useState(0);
   const [kapazitaetArt, setKapazitaetArt] = useState<KapazitaetArt>('gewicht');
   const [gewichtsreduktion, setGewichtsreduktion] = useState(0);
@@ -451,6 +911,7 @@ export function AddContainerDialog({
   const reset = () => {
     setName('');
     setContainerArt('storage');
+    setGewicht(0);
     setKapazitaet(0);
     setKapazitaetArt('gewicht');
     setGewichtsreduktion(0);
@@ -466,6 +927,7 @@ export function AddContainerDialog({
       name: name.trim(),
       istBehaelter: true,
       containerArt,
+      gewicht,
       kapazitaet,
       kapazitaetArt,
       gewichtsreduktion: kapazitaetArt === 'stueck' ? 0 : gewichtsreduktion,
@@ -510,17 +972,22 @@ export function AddContainerDialog({
 
       <div className="dlg-row2">
         <label className="dlg-field">
+          Eigengewicht (kg)
+          <NumInput value={gewicht} min={0} onChange={setGewicht} />
+        </label>
+        <label className="dlg-field">
           Kapazität
           <NumInput value={kapazitaet} min={0} onChange={setKapazitaet} />
         </label>
-        <label className="dlg-field">
-          Einheit
-          <select value={kapazitaetArt} onChange={(e) => setKapazitaetArt(e.target.value as KapazitaetArt)}>
-            <option value="gewicht">kg</option>
-            <option value="stueck">Stück</option>
-          </select>
-        </label>
       </div>
+
+      <label className="dlg-field">
+        Einheit
+        <select value={kapazitaetArt} onChange={(e) => setKapazitaetArt(e.target.value as KapazitaetArt)}>
+          <option value="gewicht">kg</option>
+          <option value="stueck">Stück</option>
+        </select>
+      </label>
 
       {kapazitaetArt !== 'stueck' && (
         <label className="dlg-field">

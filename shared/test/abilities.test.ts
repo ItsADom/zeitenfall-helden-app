@@ -28,6 +28,7 @@ function ability(partial: Partial<Ability>): Ability {
     effekt: '',
     fortschritt: 0,
     notiz: '',
+    favorit: false,
     ...partial,
   };
 }

@@ -59,6 +59,39 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
+- [ready] **Competitive check ("Wettstreit"): a second pool kind alongside the
+  Kooperationsprobe** (user feedback, concept agreed — rules confirmed with
+  the GM, since Zeitenfall's probe mechanics are homebrew, not DSA5).
+  Reuses the existing self-serve join/leave/start scaffolding
+  (`CoopPoolCard.tsx`, `roll.coop.propose/join/leave/start/cancel` in
+  `shared/src/diceProtocol.ts:395-434`, `server/src/coopPools.ts`) — same
+  UI shape, a new pool `mode: 'coop' | 'competitive'` instead of a
+  parallel set of message types. Only the verdict differs from
+  `computeCoopVerdict` (`shared/src/dice.ts:296-309`), which pools sums for a
+  joint pass/fail: a competitive verdict instead ranks participants and picks
+  ONE winner (or a tied set — see below), nobody's roll pooled with anyone
+  else's. **Decided verdict algorithm:**
+   1. Tier every participant by crit status: confirmed crit-success (top) >
+      ordinary roll > confirmed crit-fail (bottom) — a crit auto-outranks any
+      non-crit tier, same override precedence the coop pool already gives
+      crits over the sum-check.
+   2. Within a tier, rank by margin — `probeZahl - adjustedSum` (bigger =
+      beat target by more) — descending; the winner is the best margin in the
+      highest non-empty tier. **Decided: best margin always wins, even if
+      negative** — a participant does NOT need to have actually succeeded
+      their own probe to win the contest; if everyone in the top tier failed,
+      whoever failed by the least still wins.
+   3. **Decided (corollary, not separately asked): an exact tie within the
+      winning tier/margin is a genuine tie** — report all tied participants
+      as joint winners rather than picking one arbitrarily; no further
+      tie-break rule.
+   4. Multiple crit-successes (or multiple crit-fails) still get ranked
+      against each other by margin within their own tier — a crit only
+      outranks OTHER tiers, it doesn't flatten comparisons within its own.
+  **New:** `computeCompetitiveVerdict` in `shared/src/dice.ts`, parallel to
+  `computeCoopVerdict`, returning winner(s) + each participant's tier/margin
+  for display. UI: a `CompetitivePoolCard` alongside `CoopPoolCard`,
+  labels via a `WETTSTREIT`-style entry in `labels.ts`.
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;
@@ -81,228 +114,8 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [ready] **Special checks catalog** (e.g. "Erinnern (KK+KK)") — **concept
-  agreed, and this is new territory, not a hidden existing mechanism**: a
-  repo-wide search turned up zero trace of any such check anywhere in code —
-  today it only lives in GM memory/house-rules. **Decided:** a single
-  GM-maintained global catalog (named check + formula), shown identically on
-  every character's Talente tab as a shared, always-present reference section
-  — not something each player adds/removes individually — and rollable
-  directly from there like any other talent.
-
-- [sketch] **Favorites: add a text field** (partially agreed, partially
-  still open): the "inherit the chosen visibility setting" half turned out to
-  probably just be a symptom of the multi-tab chat desync — now fixed (see
-  `usePersistedState` listening for the `storage` event) — so likely no
-  further work needed there; worth re-checking with the reporting player now
-  that it's live. The "allow to add text" half is still genuinely open —
-  unclear whether it means a new separate note/description field alongside
-  today's `label:expression` free text, or just letting the existing label
-  itself hold more/richer text. **Needs another pass with the original
-  requesting player** before this can go to `[ready]`.
-
-- [ready] **Group ↔ player inventory, player ↔ player item transfer, and
-  containers as a real, movable, worn concept** (concept agreed for the first
-  two; houses is a much rougher sketch — see below). Confirmed starting
-  point: **no group-level item storage exists at all today** — only
-  `char_items`, strictly `character_id`-scoped, saved as a full delete+
-  reinsert per character (`saveItems`, `characterData.ts:846-903`) with no
-  per-item CRUD or cross-character transfer primitive of any kind.
-   - **Decided: generalize item ownership.** Replace the hard `character_id`
-     FK with an `owner_type`/`owner_id` pair (mirroring the pattern
-     `assets/store.ts` already uses for images) — `'character'` or `'group'`
-     for now, extensible to `'room'` later for houses.
-   - **Decided: a new cross-owner move action** on any item chip (including
-     containers) reassigns `owner_type`/`owner_id`. Moving a container moves
-     every item whose `containerUid` points into it atomically, in the same
-     operation — nothing gets orphaned.
-   - **Decided: permission split.** Pulling an item *from* the shared group
-     inventory is open to any group member. Sending is restricted to your
-     own items — a player can give away or drop their own stuff, but can't
-     reach into another player's personal inventory directly (that needs the
-     GM, or that other player).
-   - **Decided: no confirmation step** — a move happens outright, same as a
-     normal drag-to-equip today.
-   - **Decided: items in the group pool are weightless** for everyone's
-     Traglast — nobody is personally hauling the shared stash.
-   - **Decided:** on any owner change, position-specific fields (`location`,
-     `zone`, `beidseitig`) reset to a safe default (`inventar`) rather than
-     trying to preserve a worn-state that can't carry over to the new owner
-     — no data is lost, just re-equip on arrival.
-   - **New UI needed:** a "Gruppen-Inventar" section on `Group.tsx`, using
-     the same specialized item-chip UI as `Ausruestung.tsx`/`Inventar.tsx`
-     (not the generic `Sektionen` dynamic-table component, which can't
-     represent weight/location/container relationships) — this is the "big
-     overhaul of group page" the original note anticipated.
-   - **[sketch] Houses** — much rougher than the above two: confirmed shared
-     group property, subdivided into rooms, with containers inside rooms
-     holding items ("all the stuff a real house has"). Structurally this
-     would reuse the same `owner_type`/`owner_id` generalization (a
-     lightweight `group_rooms` table, group-owned items optionally tagged
-     with a `room_id`), but still open: can a group own multiple houses, who
-     can create/name rooms, whether a room has any capacity/size concept.
-     Needs its own concept pass before it's buildable — do not treat as
-     `[ready]` just because the other two pieces in this entry are.
-   - **[ready] GM-wide prep pool** (from the same Discord discussion that
-     produced "Hidden/revealable Ausrüstung stats" below — a GM wants to
-     stat out equipment in advance, cross-group, before it's ever found by
-     anyone; concept pass done 2026-08-28). **Decided:** third `owner_type:
-     'gm'` value in the generalization above, `owner_id` unused — **one
-     single shared pool** (not per-GM: confirmed only one GM account exists
-     today, so per-GM scoping would be unused complexity). **Decided:**
-     invisible to players entirely — unlike the group pool (open to any
-     member), a GM-pool item never appears anywhere a player can see it;
-     only a GM ever sees the pool at all, so there's no separate "pull"
-     rule to design. **Decided: lives on `GroupOverviewPage`**
-     (`client/src/pages/GroupOverview.tsx`, already GM-only via
-     `requireGm`), not the `/verwaltung` catalog page — a new panel next to
-     the existing roster-chips panel, reusing the full `ItemChip`/
-     `AddItemDialog` UI from `Ausruestung.tsx`/`Inventar.tsx` (create, edit,
-     hide/reveal stats — a real management surface, not a read-only staging
-     list). Since the pool is global, the same contents show regardless of
-     which group's overview you're on — you pick *who* gets an item by
-     being on that group's page. **Decided: hand-out is drag-and-drop** —
-     drag a chip from the GM-inventory panel onto a player's roster card to
-     reassign it (`owner_type`/`owner_id`: `'gm'` → that character),
-     outright, no confirm step, reusing the cross-owner move action from
-     the entry above. This makes every roster card a drop target, the first
-     interactive element on a page currently documented as strictly
-     read-only (`// Nur-Lesen (die Route dahinter ist requireGm).`,
-     `GroupOverview.tsx:17`) — confirmed fine to break (GM-notes on that
-     same page already do). **Decided:** GM has infinite Traglast — simpler
-     than the group pool's "weightless" workaround, `owner_type: 'gm'`
-     items just skip capacity/Traglast computation entirely, no carrying
-     character to compute it for. Layout proportions/collapsibility of the
-     new panel are a build-time call, not settled here.
-      - **Hard blocker, build order:** needs the cross-owner move action
-        from the entry above to exist **as a drag gesture specifically**
-        (drag chip → drop on a target), not just any move button — this
-        entry's whole interaction is built on that drag. Do not start this
-        sub-item before that lands.
-
-- [ready] **Containers: bench-exclusion must cascade to contents, plus expose
-  weight/worn-state in the UI** (concept agreed after a few rounds — the
-  actual house rule turned out to differ from the first read). Confirmed
-  today: a container is just an `Item` with `istBehaelter: true`; its own
-  `location` (`shared/src/items.ts`) is completely independent of whether it
-  functions as a container. `zaehltZurLast()` (`items.ts:147-149`) already
-  excludes `bench` for an item's own weight — that part is correct and needs
-  no change. The actual bug: an item **inside** a container always counts
-  toward Traglast based on its own `location` (`'behaelter'`), regardless of
-  whether the *parent* container is benched — so a spare, unworn backpack's
-  contents still fully count today, when they shouldn't.
-   - **Decided: a container's weight-reduction discount to its contents is
-     NOT conditional on being worn** — carried (`getragen`) or merely held/
-     slung (`inventar`) make no difference, the discount always applies while
-     the container is with the character. Only `bench` (genuinely not with
-     you right now — the spare-backpack case) changes anything.
-   - **Decided: the fix is a cascade, not a new gate.** When a container sits
-     on the bench, its contents stop counting toward Traglast too (need to
-     walk up the `containerUid` chain, not just check each item's own
-     top-level `location`) — mirrors the `containerArt === 'quick'` branch's
-     existing worn-check (`itemLastAnteil`, `items.ts:165-179`), generalized
-     to also cover `containerArt === 'storage'` and to cascade through
-     nesting rather than only checking one level.
-   - **Decided: capacity/overfill checking stays location-independent** — a
-     benched container can still be over-stuffed beyond what it can
-     physically hold (e.g. its stated 120/60kg capacity); that check is
-     separate from, and unaffected by, the Traglast-contribution fix above.
-   - **Decided: containers get a real weight field in the UI.** `gewicht`
-     already exists generically on `Item` and already applies to containers
-     structurally, but no container-creation/edit UI exposes it
-     (`AddContainerDialog`, `Inventar.tsx`'s container header) — containers
-     are zero-weight today purely by UI omission, not a schema gap. Add the
-     field where containers are actually created/edited.
-   - Note: this pairs with the cross-owner move feature above — "make a
-     container's `location` editable" doesn't require migrating storage
-     containers into the worn/body-zone drag system; that's a separate,
-     optional nicety, not a prerequisite for either fix here.
-
-- [ready] **Investigate: are "confirmation" rolls independently random, or
-  suspiciously correlated?** (developer feedback: "many 1s and 20s" observed
-  across rolls that get confirmed together). This is a verification task, not
-  a design decision. Dice rolls already use `crypto.randomInt`
-  (`server/src/dice.ts:15,35`) — a proper CSPRNG, so a systemic bias is
-  unlikely — but worth specifically checking whether the confirmation-roll
-  code path draws a fresh, independent random value or accidentally
-  derives/reuses the original roll's value. If nothing's found, this is
-  likely gambler's-fallacy pattern-matching on a small sample, not a bug.
-
-- [ready] **Hidden/revealable Ausrüstung stats** (concept agreed, from a GM/
-  player Discord discussion 2026-08-28 — prep an item's stats ahead of time,
-  then reveal them narratively: "you pick up a sword, it has some strange
-  energy emitting" before the GM later confirms it's +2 RS). **Decided:**
-  scope gates on `kategorie === 'Ausrüstung'` (`shared/src/items.ts:84-132`),
-  not on `location` — an unworn, not-yet-identified item sitting in Inventar
-  still has to stay hidden, so `location` can't be the gate. **Decided:**
-  `name`, `anzahl`, `gewicht`, `kategorie` (already just the generic
-  "Ausrüstung" bucket — reveals nothing further) and `notiz` stay always
-  visible regardless of hidden state. **Decided:** `rs`,
-  `haltbarkeitAktuell`/`haltbarkeitMax` (as one unit — always shown together)
-  and each row of `bonusse` (`ItemBonus`, `items.ts:70-82`) get their own
-  independent reveal state, not one item-level flag — the GM wants to unveil
-  e.g. "it's armored" before "it's also cursed." **Decided:** full
-  concealment for a hidden bonus row — it leaks neither its target nor that
-  it exists at all; RS/Haltbarkeit stay visible as fields but render `???` in
-  place of the real number while hidden. **Decided:** only the GM can
-  create/toggle hidden state — the player-facing `AddItemDialog`
-  (`client/src/components/itemDialogs.tsx:141-378`) never shows the toggle.
-  **Decided:** reveal is one-way per field, GM-triggered manually (no
-  player-facing "Untersuchung"/identify check exists or is needed — confirmed
-  no such mechanic exists anywhere in `rules.ts`/`dice.ts` today), and needs
-  the same confirm-step safeguard as deleting an item, since there's no undo.
-  UI direction (rough, not locked): a small eye-icon next to each
-  hidden-eligible field/row, GM-view only.
-   - **Data model:** `rsVerborgen`/`haltbarkeitVerborgen: boolean` on `Item`,
-     default `false` (visible) so existing rows are unaffected by the new
-     columns; `verborgen: boolean` on each `ItemBonus` row.
-   - **Plumbing (correction to first instinct):** gating does NOT belong in
-     `wornBoni()` (`items.ts:291`) or `effektiverRs()` — those are pure
-     client-side aggregators that just sum whatever `Item[]` they're handed.
-     The real gate has to be server-side: one transform stripping hidden
-     fields from the `Item` payload before it's serialized to a non-GM
-     requester, same principle as the wiki's `ohneGmBloecke()`
-     (`shared/src/wikiMarkup.ts:540-547`) stripping ` ```gm ` blocks before
-     the response goes out, not a client that merely declines to render
-     them. Once that strip exists, `wornBoni()`/`effektiverRs()` need no
-     changes at all — a hidden bonus row simply never reaches a non-GM
-     client's `data.items`, so it's already excluded from `CharCtx.stats` for
-     free, and "effects apply only once revealed" falls out automatically.
-     Still needs a build-time audit: every server call site that currently
-     serializes item data to a client (`loadFullCharacter`, `buildSummary`
-     at `characterData.ts:1740`, `overviewForChars` at
-     `characterData.ts:1854`, at least) must know the requester's GM status
-     at that point — same kind of multi-call-site sweep
-     `docs/concepts/item-bonus-while-worn.md` already had to do for `loadStats`.
-   - **New dependency since item bonuses landed:** `loadStats()`
-     (`characterData.ts`) now folds `wornBoni(loadItems(charId))` into every
-     calculation, dice rolls included — so a hidden-but-unrevealed
-     `ItemBonus` row must be stripped *before* it reaches `wornBoni()`, not
-     just before the `Item[]` is serialized to a non-GM client. The
-     server-side strip this entry already needs (above) has to sit upstream
-     of `loadItems()`'s callers inside `loadStats`, not only at the
-     response-serialization boundary, or an unrevealed bonus would silently
-     affect a player's own roll before the GM ever unveils it.
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
-
-## High-Prio
-
-- [ready] **VTT toolbar styling rule: dropdowns/flyouts over inline button
-  sprawl.** `TilePicker`/`HighlightPicker` already open as a floating panel
-  below the toolbar (`.vtt-tile-picker`, `position: absolute`) rather than as
-  inline buttons — Messen's shape-kind picker (Lineal/Kreis/Rechteck/Kegel)
-  briefly broke that convention as an inline row during Phase 8 slice 3/3 and
-  has since been converted to the same flyout (`MeasureKindPicker`, reusing
-  `.vtt-tile-picker`/`pickerOpen`). Write this down as a standing rule for
-  every future VTT toolbar addition in `client/src/pages/VirtualTable.tsx`: a
-  tool's sub-options open as a flyout anchored below the toolbar, never as
-  additional always-visible buttons pushing the rest of the bar around — that
-  growth also makes the toolbar's button positions shift underfoot, which
-  broke a scripted/automated click sequence during testing. No further work
-  needed right now beyond keeping to it; re-open only if a future tool
-  reintroduces inline sub-buttons.
 
 ## Mid-Prio
 
@@ -337,6 +150,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      below) — low priority, don't card-ify it first.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
+     THe actual statuses can be hardcoded, no need for settings.
+     THe actual statuses can be hardcoded, no need for settings.
    - [ready] **Structured min/max range for Fernkampf** (user feedback):
      `entfernung` (`WaffenNeu.tsx:520-522`, `sections.ts:92-93`) is a single
      freeform text field, historically hand-written like "10/20/30". Decided:
@@ -357,7 +172,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      Fern row referencing the ammo catalogue? current stock/inventory-linked?),
      and how its damage combines with the weapon's own (added flat, or
      replaces part of the dice formula).
-- [ready] **Editing dialogs for weapons/abilities** (user feedback; supersedes
+- [ready] **Editing dialog for abilities** (user feedback; supersedes
   the old "reuse the item-creation Dialog for spells/abilities and weapons"
   note that used to live in Low-Prio). The items half of this shipped —
   `AddItemDialog` (`client/src/components/itemDialogs.tsx`) is dual-purpose
@@ -366,19 +181,21 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   Duplizieren/Löschen in its footer and a repeatable Boni-beim-Tragen list.
   Item bonuses while worn are fully wired end to end, including the server
   dice-roll path — see `docs/concepts/item-bonus-while-worn.md` for the build
-  history; that's the precedent to copy for the remaining two shapes, not
-  re-derive:
-   - **Move weapon/ability editing into the same dialog pattern.**
-     `WaffenNeu.tsx`'s expand-to-edit cards and `AbilityManager.tsx` still
-     edit everything inline/on-card. **Decided: hybrid, not a full
-     replacement** — the highest-frequency actions (drag, Anzahl-style bumps)
-     stay inline; a dialog handles the structural fields, same split already
-     proven on items. **Decided: reuse the dialog shell, not the item schema**
-     — `WaffenNeu.tsx`'s `emptyNahRow()`/`emptyFernRow()` (~10+ fields each)
-     and `AbilityManager.tsx`'s `emptyAbility()` are shapes of their own; each
-     needs its own field-selection pass, since none of the three (items,
-     weapons, abilities) overlap.
-   - **Open: do weapons/abilities want an item-bonus-style effect list too?**
+  history; that's the precedent to copy for the remaining shape, not
+  re-derive. **Weapons no longer need their own pass here** — weapons are
+  now real `Item` rows (`waffenArt`/`waffenStats`), and `AddItemDialog`
+  already has a complete `mode === 'waffe'` editor (stat rows, AT/PA/BL/
+  damage fields) alongside its `allgemein`/`ausruestung` modes, so weapon
+  structural editing already goes through the same dialog pattern this task
+  was trying to reach. Only abilities are left:
+   - **Move ability editing into the same dialog pattern.**
+     `AbilityManager.tsx` still edits everything inline/on-card. **Decided:
+     hybrid, not a full replacement** — the highest-frequency actions stay
+     inline; a dialog handles the structural fields, same split already
+     proven on items. `AbilityManager.tsx`'s `emptyAbility()` is a shape of
+     its own with no overlap with the `Item` schema, so it needs its own
+     field-selection pass rather than reusing `AddItemDialog` directly.
+   - **Open: do abilities want an item-bonus-style effect list too?**
      Not decided. If yes, it's the same generalization the "Player-set
      structured bonuses" entry below already plans for Vorteile/Nachteile —
      do that generalization once, shared by both, rather than two parallel
@@ -481,21 +298,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   own settable appearance would look like (a small icon picker? a distinct
   upload separate from the character's sheet portrait?) — needs a concept
   pass before building.
-- [sketch] **VTT: GM's cursor gets stuck as the "grabbing" hand, even while
-  hovering a token** (developer feedback, Phase 9 fog testing). The GM
-  reported the cursor never returns to the token's own `pointer`/pan tool's
-  `grab` cursor once something has been dragged — a player's session behaves
-  correctly. `.vtt-map-wrap` sets `cursor: grab` / `:active { cursor: grabbing
-  }` in `client/src/styles.css`; each token `<g>` overrides that to `pointer`
-  inline (`client/src/pages/VirtualTable.tsx`), identically for every role —
-  nothing in the code branches on `isGm` for this, so the asymmetry isn't
-  obviously explained by a role-specific code path. Likely candidate: a
-  stuck `:active` pseudo-class from a pointer-capture/mouseup mismatch during
-  one of the GM-only paint/highlight/fog drags, but this is a live-browser
-  cursor-rendering quirk that can't be diagnosed from network/DOM inspection
-  (same class of problem as the color-swatch-reopen bug below — needs
-  someone actually reproducing it live, cursor state included, before
-  attempting a fix).
 - [sketch] **Native colour swatch reopens on a second click instead of
   closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
   used by token colour/ring colour, the tile/highlight picker, and the
@@ -511,17 +313,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   happening before trying a third fix — or consider swapping to a custom
   (non-native) colour picker instead, which would sidestep the browser
   quirk entirely.
-- [sketch] **VTT: step-counting token-drag trail — built, wants a real live
-  drag test.** Concept settled with the developer (straight king-move line
-  from the drag's start cell, numbered 0/1/2/…; visible only to the person
-  dragging; gone the instant the token is dropped) and implemented in
-  `client/src/pages/VirtualTable.tsx` (`chebyshevPath`, `tokenTrailActive`/
-  `trailElsRef`, wired into `startTokenDrag`/`onTokenPointerMove`/
-  `onTokenPointerUp`). A CDP-driven drag confirmed the move itself still
-  works with no console errors, but this session's automated tooling has no
-  way to pause mid-drag for a screenshot, so the trail's actual on-screen
-  numbering/positioning during a real drag hasn't been eyeballed yet —
-  needs a live check before this counts as done.
 - [sketch] **Potion charges** (user feedback): no charge concept exists
   today — the closest precedent is `Item.anzahl` (plain stack count).
   Decided: a charge is a portion/dose — potions come in three fixed sizes
@@ -563,17 +354,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   - Andergast as colorless
   - Orkland dark green, Bornland lighter green
   - Efferdia light blue
-- [ready] **Secret "chaos mode" easter egg** (concept agreed — gag, not a real
-  theme): click the decorative `banner-fx` strip in the header (`App.tsx:99-103`
-  — purely decorative today, `aria-hidden`, no click handler, spans every page;
-  deliberately NOT the "Zeitenkompass" wordmark, which is a `Link to="/"` and
-  would navigate/interrupt the click sequence) 5x fast (~1.5s window) to trigger
-  a garish/clashing "chaos" color mode — a joke, not a real addition to `THEMES`
-  in `theme.ts`. Timed: runs for a fixed short duration (~10–15s) then auto-
-  reverts to whatever theme was active before, no persistence, no toggle-off needed.
-  Not yet implemented — when it is, it needs to report itself to the easter-egg
-  tracker below (same as any future egg), so build the trigger with that hook
-  from the start rather than adding it after the fact.
 - [ready] **Easter egg tracker** (concept agreed; visual reference at
   `docs/concepts/easter-egg-tracker.html`): a public page listing every
   easter egg that exists, who found it first, and when — first-finder-only,
@@ -584,10 +364,14 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      `easter_egg_finds(id, egg_key, user_id, found_at)` with
      `UNIQUE(egg_key, user_id)` — insert-or-ignore, so only the first trigger
      per (player, egg) sticks and later triggers are silently no-ops.
-   - Each egg's trigger needs to call a small `POST /easter-eggs/:key/found`
-     (or similar) when it fires — there's no other persistence today (chaos
-     mode is 100% client-side), so this is new wiring on the egg itself, not
-     just a new page reading existing data.
+   - The "chaos mode" egg is built (`App.tsx`'s `handleBannerClick`, chaos
+     palette in `styles.css`) and already calls a `reportEasterEggFound(key)`
+     hook (`client/src/easterEggs.ts`) on trigger — today a no-op stub. This
+     task's server piece is turning that stub into a real
+     `POST /easter-eggs/:key/found`, not adding new wiring on the egg itself.
+     **Currently disabled** (`CHAOS_MODE_ENABLED = false` in `App.tsx`) so
+     nobody finds it while finds go untracked — flip that flag true once the
+     tracker + real POST are live, as the last step of this task.
    - **Decided:** the list itself is a normal, always-reachable page — NOT an
      egg to find (considered, dropped: paradoxical to gate a "how many eggs
      have been found" page behind being found itself).
@@ -636,11 +420,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   (one per attribute row)?
 
 ## Unsorted ideas (treat all as [sketch])
-
-- logically connect weapons and inventory
-  - weapons should be real items, too, but they carry some extra information
-  - e.g. reducing a weapons Haltbarkeit on Ausrüstung should also be mirrored on Waffen and vice versa
-  - this lets the player carry the ewapon on Ausrüstung as a real entry, not a separate and unconnected copy
 
 - FAQ - like a little manual or easy to miss features
 

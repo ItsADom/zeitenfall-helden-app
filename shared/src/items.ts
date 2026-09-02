@@ -84,11 +84,84 @@ export const ITEM_BONUS_KINDS: ItemBonusKind[] = ['attr', 'baseValue', 'resource
 export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl' | 'probe';
 export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl', 'probe'];
 
+// Weapons as real items (TODO.md, "Weapons become real items"): eine Waffe ist
+// ein ganz normales Item, `waffenArt` entscheidet nur, welcher Karten-
+// Renderer/Feldsatz greift und ob es im Waffen-Reiter erscheint — leer heißt
+// „kein Waffe". Bewusst NICHT selbst verdeckbar: ein noch nicht ausgeteiltes
+// GM-Pool-Item ist bereits vollständig unsichtbar (eigener Mechanismus), und
+// „ist das übehaupt eine Waffe" ist eine strukturelle Frage, keine verdeckte
+// Spielinformation.
+export type WaffenArt = 'nah' | 'fern' | '';
+export const WAFFEN_ARTEN: WaffenArt[] = ['nah', 'fern'];
+
+// Jedes Waffen-Feld — inklusive talentId — läuft über denselben Melde-
+// Mechanismus wie ItemBonus (siehe WaffenStat unten), statt einen Teil der
+// Felder verdeckbar zu machen und den Rest als feste Item-Spalten (Spieler-
+// Entscheidung: lieber ein einheitlicher Mechanismus als zwei schlankere).
+export type WaffenStatFeld =
+  | 'talentId' | 'schaden' | 'material' | 'rd' | 'reichweite' | 'iniBonus' | 'anforderung'
+  | 'expLevel' | 'at' | 'pa' | 'bl' | 'besonderes' | 'eBE' | 'entfernung' | 'atMod';
+
+// Feldsatz je Waffenart — 1:1 die Felder, die WaffenNeu.tsx heute schon als
+// Karten-Grid zeigt (siehe emptyNahRow/emptyFernRow, client/src/tabs/WaffenNeu.tsx).
+export const WAFFEN_NAH_FELDER: readonly WaffenStatFeld[] = [
+  'talentId', 'schaden', 'material', 'rd', 'reichweite', 'iniBonus', 'anforderung', 'expLevel', 'at', 'pa', 'bl', 'besonderes',
+];
+export const WAFFEN_FERN_FELDER: readonly WaffenStatFeld[] = [
+  'talentId', 'schaden', 'eBE', 'rd', 'entfernung', 'atMod', 'besonderes',
+];
+export function waffenFelderFuerArt(art: WaffenArt): readonly WaffenStatFeld[] {
+  return art === 'nah' ? WAFFEN_NAH_FELDER : art === 'fern' ? WAFFEN_FERN_FELDER : [];
+}
+// Vereinigung beider Feldsätze — fürs serverseitige Whitelisten eines
+// ankommenden `feld`-Werts (wie ITEM_BONUS_KINDS es für ItemBonus.kind tut),
+// ohne dass der Aufrufer erst die Waffenart des Items kennen müsste.
+export const WAFFEN_STAT_FELDER: readonly WaffenStatFeld[] = [...new Set([...WAFFEN_NAH_FELDER, ...WAFFEN_FERN_FELDER])];
+
+export interface WaffenStat {
+  // Stabile, client-vergebene Kennung — wie ItemBonus.uid, aus demselben
+  // Grund: ein einzelnes Feld muss über einen Op gezielt ansprechbar sein.
+  uid: string;
+  feld: WaffenStatFeld;
+  // Immer als Text gespeichert (wie die alten Row-Felder, Record<string, unknown>
+  // im Client) — die Feldbedeutung (Zahl wie AT-Bonus, Text wie Schaden-Formel
+  // „1W6+2") hängt vom Feld ab, ein einheitlicher Typ erspart eine Union.
+  wert: string;
+  // Hidden/revealable Ausrüstung stats (TODO.md), hier je Waffen-Feld statt je
+  // Bonus-Zeile: Existenz der Zeile bleibt sichtbar (der Reiter zeigt „???"
+  // für dieses Feld, siehe ohneVerborgeneItems), NUR der Wert wird verborgen —
+  // anders als ein verdeckter ItemBonus (dort ist auch die Existenz verdeckt),
+  // weil ein Waffen-Feld ein strukturell erwarteter Teil der Karte ist (wie
+  // rs/haltbarkeit), keine überraschende Zusatzwirkung. Aufdecken ist
+  // einseitig, wie bei rs/haltbarkeit/ItemBonus.
+  verborgen: boolean;
+}
+
+// Frischer Stat-Zeilensatz für eine gewählte Waffenart — jede Waffe bekommt
+// von Anfang an ALLE ihre Felder als Zeilen (leer, sichtbar), damit „Feld
+// existiert noch nicht" nie mit „Feld ist verdeckt" verwechselt wird.
+export function waffenStatsFuerArt(art: WaffenArt): WaffenStat[] {
+  return waffenFelderFuerArt(art).map((feld) => ({ uid: makeUid(), feld, wert: '', verborgen: false }));
+}
+
 export interface ItemBonus {
+  // Stabile, client-vergebene Kennung — wie Item.uid, aus demselben Grund:
+  // incremental item saves (siehe ItemOp weiter unten) müssen EINE Bonus-Zeile
+  // gezielt ansprechen können, ohne die ganze bonusse-Liste zu ersetzen. Ohne
+  // eigene Kennung ließ sich eine gerade aufgedeckte Zeile nicht von einer
+  // schlicht nie gesehenen unterscheiden — eine ganze Bonus-Klasse an Bugs
+  // (siehe TODO.md, "Hidden/revealable Ausrüstung stats").
+  uid: string;
   kind: ItemBonusKind;
   code: string; // Bedeutung je nach kind, siehe oben; '' bei psyche/traglast
   feld: TalentBonusFeld | ''; // nur bei kind === 'talent', sonst ''
   wert: number;
+  // Verdeckte Bonus-Zeile (Hidden/revealable Ausrüstung stats, TODO.md):
+  // solange true, existiert die Zeile für einen Nicht-SL nicht — weder Ziel
+  // noch Wert noch die Tatsache, dass es sie gibt (volle Verdeckung, siehe
+  // ohneVerborgeneItems). Nur die Spielleitung kann sie anlegen/aufdecken;
+  // Aufdecken ist einseitig (kein Zurück, siehe AddItemDialog „Aufdecken").
+  verborgen: boolean;
 }
 
 export interface Item {
@@ -101,6 +174,14 @@ export interface Item {
   anzahl: number; // Stückzahl
   gewicht: number; // kg je Stück (Dezimalzahlen erlaubt)
   kategorie: string; // Name aus der Kategorienliste des Charakters ('' = ohne)
+  // Houses (docs/concepts/houses.md): freiwillige Orts-Angabe, NUR bei
+  // gruppen-eigenen Items sinnvoll — genau wie kategorie ein freier String
+  // mit eigener Vorschlagsliste (group_houses/group_rooms), kein Fremdschlüssel.
+  // raum ist innerhalb von haus verschachtelt (dieselbe haus-Zeichenkette
+  // gruppiert mehrere Räume); '' bei beiden = kein Ort zugewiesen, bleibt im
+  // allgemeinen Gruppenpool.
+  haus: string;
+  raum: string;
   location: ItemLocation;
   // Körperstelle, wenn location === 'getragen' (Name aus BODY_ZONES). Sonst ''.
   zone: string;
@@ -139,6 +220,19 @@ export interface Item {
   // Boni, die dieser Gegenstand verleiht, solange location === 'getragen' ist
   // (siehe ItemBonus oben). Leer für die allermeisten Items.
   bonusse: ItemBonus[];
+  // Verdeckte RS/Haltbarkeit (Hidden/revealable Ausrüstung stats, TODO.md):
+  // NICHT an kategorie/location gebunden — ein unidentifiziertes Stück im
+  // Inventar bleibt verdeckt. Anders als ein verdeckter ItemBonus (voll
+  // unsichtbar) bleiben rs/haltbarkeit als FELDER sichtbar, zeigen aber „???"
+  // statt der echten Zahl, solange verborgen ist (siehe ohneVerborgeneItems).
+  rsVerborgen: boolean;
+  haltbarkeitVerborgen: boolean;
+  // Weapons as real items (TODO.md): '' für ein gewöhnliches Item, sonst
+  // 'nah'/'fern' — routet die Karte in den Waffen-Reiter und wählt den
+  // Feldsatz (siehe waffenFelderFuerArt). Alle tatsächlichen Waffenwerte
+  // (inkl. talentId) liegen in waffenStats, nicht als eigene Item-Felder.
+  waffenArt: WaffenArt;
+  waffenStats: WaffenStat[];
 }
 
 // Haltbarkeit als Prozentsatz (0–100), oder null wenn nicht verfolgt (max = 0).
@@ -160,11 +254,36 @@ export function makeUid(): string {
 // Stelle steht.
 export function makeItem(over: Partial<Item>): Item {
   return {
-    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', location: 'inventar',
+    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', haus: '', raum: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
     kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
-    bonusse: [], ...over,
+    bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, waffenArt: '', waffenStats: [], ...over,
   };
+}
+
+// Die Sicht eines Nicht-Spielleiters auf einen Gegenstand (Hidden/revealable
+// Ausrüstung stats, TODO.md): rs/haltbarkeit bleiben als Felder da, ihr Wert
+// wird aber auf 0 genullt, solange verborgen — der Client entscheidet über
+// die *Verborgen-Flags, ob „???" statt der Zahl steht, NIE über den Wert
+// selbst (0 wäre sonst nicht von „wirklich 0" zu unterscheiden). Eine
+// verdeckte Bonus-Zeile wird komplett entfernt (volle Verdeckung — weder Ziel
+// noch Wert noch Existenz sichtbar), NICHT nur ihr Wert genullt. Server-seitig
+// vor jeder Antwort an einen Nicht-SL anzuwenden (siehe ohneGmBloecke in
+// shared/src/wikiMarkup.ts fürs selbe Prinzip) — ein Client, der die Felder
+// nur nicht rendert, hätte die echten Werte trotzdem verschickt.
+export function ohneVerborgeneItems(items: readonly Item[]): Item[] {
+  return items.map((it) => ({
+    ...it,
+    rs: it.rsVerborgen ? 0 : it.rs,
+    haltbarkeitMax: it.haltbarkeitVerborgen ? 0 : it.haltbarkeitMax,
+    haltbarkeitAktuell: it.haltbarkeitVerborgen ? 0 : it.haltbarkeitAktuell,
+    bonusse: it.bonusse.filter((b) => !b.verborgen),
+    // Waffen-Stat-Zeilen: wie rs/haltbarkeit, NICHT wie ItemBonus — die Zeile
+    // (also DASS es dieses Feld gibt) bleibt sichtbar, nur ihr Wert wird
+    // geleert, damit der Reiter „???" statt eines echten Werts zeigen kann
+    // (siehe WaffenStat.verborgen).
+    waffenStats: it.waffenStats.map((s) => (s.verborgen ? { ...s, wert: '' } : s)),
+  }));
 }
 
 // Exakte Kopie — neue `uid`/`id: 0`, sonst jedes Feld identisch (Name,
@@ -173,7 +292,183 @@ export function makeItem(over: Partial<Item>): Item {
 // getrennt verfolgt werden soll (z. B. zwei Dolche mit je eigener
 // Haltbarkeit) — anders als `anzahl`, das nur EINEN gemeinsamen Zustand kennt.
 export function duplicateItem(item: Item): Item {
-  return { ...item, id: 0, uid: makeUid() };
+  // Bonus- wie Waffen-Stat-Zeilen bekommen ebenfalls neue uids — sonst trüge
+  // die Kopie dieselbe Kennung wie das Original, obwohl beide von nun an
+  // unabhängig editier-/aufdeckbar sein sollen (siehe ItemBonus.uid).
+  return {
+    ...item, id: 0, uid: makeUid(),
+    bonusse: item.bonusse.map((b) => ({ ...b, uid: makeUid() })),
+    waffenStats: item.waffenStats.map((s) => ({ ...s, uid: makeUid() })),
+  };
+}
+
+// --- Shared inventories: ownership (docs/concepts/shared-inventories.md) ---
+//
+// An item belongs to an OWNER, not directly to a character: a character's own
+// stuff, a group's shared pool, or the GM's prep pool. 'gm' is a single global
+// pool (only one GM account exists, so per-GM scoping would be dead
+// complexity) — ownerId is unused for it, always 0.
+export type ItemOwnerType = 'character' | 'group' | 'gm';
+export interface ItemOwnerRef {
+  ownerType: ItemOwnerType;
+  ownerId: number; // unused (0) when ownerType === 'gm'
+}
+
+// A cross-owner move is its own imperative call (moveItem in
+// server/src/characterData.ts), never an ItemOp: diffItems compares one
+// owner's list against its OWN previous state and structurally cannot express
+// "this uid leaves my list and joins yours". Only the root item resets — a
+// moved container's descendants keep their location/containerUid untouched
+// (they travel with it, see server-side subtreeIds), so the container's
+// internal structure survives the trip. Server-side mirrors this patch
+// directly in SQL (see moveItem) rather than importing it, but the shape must
+// stay identical — this is the single source of truth for what resets.
+export const ITEM_MOVE_RESET_PATCH: Partial<Item> = {
+  location: 'inventar',
+  zone: '',
+  beidseitig: false,
+  containerUid: '',
+  // Houses (docs/concepts/houses.md): haus/raum only mean anything while the
+  // item stays group-owned — a house tag surviving a move onto a character
+  // or into the GM's prep pool would be a stale reference to nothing.
+  haus: '',
+  raum: '',
+};
+
+// --- Incremental item saves ---
+//
+// `PUT /items` used to replace the WHOLE list (delete+reinsert) on every
+// save, no matter how small the edit. That is fine for crash-safety (one DB
+// transaction, atomic) but not for two people editing concurrently: a client
+// can only ever echo back what it has locally, so a full-list save silently
+// DROPS anything it never received — which is exactly what happens to a
+// bonus row a GM reveals mid-session while a player's tab is still open on
+// the pre-reveal item list (see TODO.md, "Hidden/revealable Ausrüstung
+// stats" — the bug that motivated this). An op describes ONE targeted change
+// instead of a whole snapshot, so a client can never accidentally erase data
+// it was never shown in the first place — there is no "whole list" moment
+// where that data would need to be echoed back.
+export type ItemOp =
+  | { op: 'add'; item: Item }
+  | { op: 'remove'; uid: string }
+  | { op: 'patch'; uid: string; patch: Partial<Item> }
+  | { op: 'reorder'; uids: string[] }
+  | { op: 'addBonus'; itemUid: string; bonus: ItemBonus }
+  | { op: 'removeBonus'; itemUid: string; bonusUid: string }
+  | { op: 'patchBonus'; itemUid: string; bonusUid: string; patch: Partial<ItemBonus> }
+  | { op: 'addWeaponStat'; itemUid: string; stat: WaffenStat }
+  | { op: 'removeWeaponStat'; itemUid: string; statUid: string }
+  | { op: 'patchWeaponStat'; itemUid: string; statUid: string; patch: Partial<WaffenStat> };
+
+// Item-Felder, die ein 'patch'-Op tragen darf — ausdrücklich OHNE `id`/`uid`
+// (Identität, nicht Inhalt) und OHNE `bonusse` (eigene addBonus/patchBonus/
+// removeBonus-Ops; ein Patch, der bonusse als Ganzes ersetzt, hätte exakt
+// dasselbe Verlustproblem wie der alte Ganze-Liste-Ersatz, nur eine Ebene
+// tiefer).
+const ITEM_PATCH_KEYS = [
+  'name', 'anzahl', 'gewicht', 'kategorie', 'haus', 'raum', 'location', 'zone', 'beidseitig', 'containerUid',
+  'istBehaelter', 'containerArt', 'kapazitaet', 'kapazitaetArt', 'gewichtsreduktion',
+  'rs', 'haltbarkeitMax', 'haltbarkeitAktuell', 'notiz', 'rsVerborgen', 'haltbarkeitVerborgen', 'waffenArt',
+] as const satisfies readonly (keyof Item)[];
+
+const BONUS_PATCH_KEYS = ['kind', 'code', 'feld', 'wert', 'verborgen'] as const satisfies readonly (keyof ItemBonus)[];
+const WAFFEN_STAT_PATCH_KEYS = ['feld', 'wert', 'verborgen'] as const satisfies readonly (keyof WaffenStat)[];
+
+function diffBonusRows(itemUid: string, prevRows: readonly ItemBonus[], nextRows: readonly ItemBonus[]): ItemOp[] {
+  const ops: ItemOp[] = [];
+  const prevByUid = new Map(prevRows.map((b) => [b.uid, b]));
+  const nextByUid = new Map(nextRows.map((b) => [b.uid, b]));
+  for (const b of prevRows) {
+    if (!nextByUid.has(b.uid)) ops.push({ op: 'removeBonus', itemUid, bonusUid: b.uid });
+  }
+  for (const b of nextRows) {
+    const old = prevByUid.get(b.uid);
+    if (!old) {
+      ops.push({ op: 'addBonus', itemUid, bonus: b });
+      continue;
+    }
+    const patch: Partial<ItemBonus> = {};
+    let changed = false;
+    for (const k of BONUS_PATCH_KEYS) {
+      if (old[k] !== b[k]) {
+        (patch as Record<string, unknown>)[k] = b[k];
+        changed = true;
+      }
+    }
+    if (changed) ops.push({ op: 'patchBonus', itemUid, bonusUid: b.uid, patch });
+  }
+  return ops;
+}
+
+// Gegenstück zu diffBonusRows für WaffenStat-Zeilen — dieselbe Op-Familie,
+// mit addWeaponStat/patchWeaponStat/removeWeaponStat statt …Bonus.
+function diffWeaponStatRows(itemUid: string, prevRows: readonly WaffenStat[], nextRows: readonly WaffenStat[]): ItemOp[] {
+  const ops: ItemOp[] = [];
+  const prevByUid = new Map(prevRows.map((s) => [s.uid, s]));
+  const nextByUid = new Map(nextRows.map((s) => [s.uid, s]));
+  for (const s of prevRows) {
+    if (!nextByUid.has(s.uid)) ops.push({ op: 'removeWeaponStat', itemUid, statUid: s.uid });
+  }
+  for (const s of nextRows) {
+    const old = prevByUid.get(s.uid);
+    if (!old) {
+      ops.push({ op: 'addWeaponStat', itemUid, stat: s });
+      continue;
+    }
+    const patch: Partial<WaffenStat> = {};
+    let changed = false;
+    for (const k of WAFFEN_STAT_PATCH_KEYS) {
+      if (old[k] !== s[k]) {
+        (patch as Record<string, unknown>)[k] = s[k];
+        changed = true;
+      }
+    }
+    if (changed) ops.push({ op: 'patchWeaponStat', itemUid, statUid: s.uid, patch });
+  }
+  return ops;
+}
+
+// Berechnet die Ops, die `prev` in `next` überführen — die Client-seitige
+// Gegenseite zu applyItemOps() (server/src/characterData.ts). `prev` und
+// `next` sind beide der eigene, lokale Stand desselben Betrachters (nie ein
+// fremder/serverseitiger) — genau deshalb kann ein Nicht-SL hier strukturell
+// NIE einen Op erzeugen, der eine verdeckte Zeile berührt: seine eigene
+// Kopie hat sie ja nie enthalten, in `prev` so wenig wie in `next`, also
+// zeigt der Vergleich für sie schlicht „keine Änderung".
+export function diffItems(prev: readonly Item[], next: readonly Item[]): ItemOp[] {
+  const ops: ItemOp[] = [];
+  const prevByUid = new Map(prev.map((it) => [it.uid, it]));
+  const nextByUid = new Map(next.map((it) => [it.uid, it]));
+  for (const it of prev) {
+    if (!nextByUid.has(it.uid)) ops.push({ op: 'remove', uid: it.uid });
+  }
+  for (const it of next) {
+    const old = prevByUid.get(it.uid);
+    if (!old) {
+      ops.push({ op: 'add', item: it });
+      continue;
+    }
+    const patch: Partial<Item> = {};
+    let changed = false;
+    for (const k of ITEM_PATCH_KEYS) {
+      if (old[k] !== it[k]) {
+        (patch as Record<string, unknown>)[k] = it[k];
+        changed = true;
+      }
+    }
+    if (changed) ops.push({ op: 'patch', uid: it.uid, patch });
+    ops.push(...diffBonusRows(it.uid, old.bonusse, it.bonusse));
+    ops.push(...diffWeaponStatRows(it.uid, old.waffenStats, it.waffenStats));
+  }
+  // Reihenfolge nur unter den in BEIDEN Ständen vorhandenen uids vergleichen —
+  // neu/entfernt wird bereits oben behandelt, dafür braucht reorder keine
+  // eigene Sonderrolle.
+  const commonPrevOrder = prev.filter((it) => nextByUid.has(it.uid)).map((it) => it.uid);
+  const commonNextOrder = next.filter((it) => prevByUid.has(it.uid)).map((it) => it.uid);
+  if (commonPrevOrder.join(' ') !== commonNextOrder.join(' ')) {
+    ops.push({ op: 'reorder', uids: next.map((it) => it.uid) });
+  }
+  return ops;
 }
 
 // Zeilengewicht: Stückzahl × Einzelgewicht (kg), OHNE Reduktion.
@@ -222,10 +517,42 @@ export function itemLastAnteil(item: Item, byUid: Map<string, Item>): number {
   return base;
 }
 
-// Summe der getragenen Last (kg), inklusive Behälter-Reduktion.
+// Liegt item in einem STAURAUM-Behälter, der (direkt oder über weitere
+// Verschachtelung) selbst auf der Ablage (bench) liegt? Dann zählt es nicht
+// zur Traglast — eine spare, unworn backpack's Inhalt ist nicht am Körper/im
+// Gepäck. Nur containerArt === 'storage' benched zählt: ein Schnellzugriff-
+// Behälter (Gürtel, Bandelier) zählt seinen Inhalt schon immer unabhängig vom
+// Tragen voll, außer beim Tragen selbst halbiert (siehe itemLastAnteil) — das
+// ändert sich hier nicht, nur Stauraum bekommt die neue Bench-Ausnahme.
+// Bewusst getrennt von itemLastAnteil: die Kapazitäts-/Füllstandsprüfung
+// eines Behälters (containerEffektiveFuellung) bleibt davon unberührt, ein
+// benchter Behälter kann weiterhin über seine Kapazität hinaus vollgestopft
+// sein.
+function inBenchtemStauraum(item: Pick<Item, 'location' | 'containerUid'>, byUid: Map<string, Item>): boolean {
+  let location = item.location;
+  let containerUid = item.containerUid;
+  const seen = new Set<string>();
+  while (location === 'behaelter') {
+    if (seen.has(containerUid)) break;
+    seen.add(containerUid);
+    const container = byUid.get(containerUid);
+    if (!container) break;
+    if (container.containerArt === 'storage' && container.location === 'bench') return true;
+    location = container.location;
+    containerUid = container.containerUid;
+  }
+  return false;
+}
+
+// Summe der getragenen Last (kg), inklusive Behälter-Reduktion. Inhalt eines
+// benchten Stauraum-Behälters (auch verschachtelt) zählt nicht mit (siehe
+// inBenchtemStauraum).
 export function getrageneLast(items: readonly Item[]): number {
   const byUid = new Map(items.map((it) => [it.uid, it]));
-  return items.reduce((sum, it) => sum + itemLastAnteil(it, byUid), 0);
+  return items.reduce(
+    (sum, it) => sum + (inBenchtemStauraum(it, byUid) ? 0 : itemLastAnteil(it, byUid)),
+    0,
+  );
 }
 
 export interface LastInfo {
@@ -300,11 +627,15 @@ function leererStatBoni(): StatBoni {
 // jeweils aktuellen Item-Liste auf, es gibt keinen globalen Cache.
 export function wornBoni(items: readonly Item[]): StatBoni {
   const boni = leererStatBoni();
-  const quellenSets = new Map<string, Set<string>>();
-  const addQuelle = (key: string, name: string) => {
-    const set = quellenSets.get(key) ?? new Set<string>();
-    set.add(name.trim() || '(ohne Name)');
-    quellenSets.set(key, set);
+  // key -> Item-Name -> Summe seiner Boni auf DIESES Ziel — ein Item kann
+  // mehr als eine Bonus-Zeile auf denselben Zielschlüssel tragen, die
+  // Tooltip-Zahl muss die Summe zeigen, nicht nur die zuletzt gesehene.
+  const quellenSummen = new Map<string, Map<string, number>>();
+  const addQuelle = (key: string, name: string, wert: number) => {
+    const perItem = quellenSummen.get(key) ?? new Map<string, number>();
+    const label = name.trim() || '(ohne Name)';
+    perItem.set(label, (perItem.get(label) ?? 0) + wert);
+    quellenSummen.set(key, perItem);
   };
   const addNum = (rec: Record<string, number>, key: string, wert: number) => {
     rec[key] = (rec[key] ?? 0) + wert;
@@ -313,20 +644,28 @@ export function wornBoni(items: readonly Item[]): StatBoni {
   for (const item of items) {
     if (item.location !== 'getragen') continue;
     for (const b of item.bonusse) {
+      // Ein verdeckter Bonus wirkt mechanisch noch nicht — „effects apply
+      // only once revealed" (Hidden/revealable Ausrüstung stats, TODO.md).
+      // Das gilt hier UNBEDINGT, nicht nur beim Verschicken an einen
+      // Nicht-SL: derselbe Aufruf (client wie server, u. a. loadStats für
+      // Würfe) darf einen unaufgedeckten Bonus nie mitrechnen, auch nicht in
+      // der eigenen SL-Vorschau — das Item hat sich narrativ noch nicht
+      // offenbart.
+      if (b.verborgen) continue;
       const wert = Number(b.wert) || 0;
       if (wert === 0) continue;
       switch (b.kind) {
         case 'attr':
           addNum(boni.attrs as Record<string, number>, b.code, wert);
-          addQuelle(attrBonusKey(b.code as AttrCode), item.name);
+          addQuelle(attrBonusKey(b.code as AttrCode), item.name, wert);
           break;
         case 'baseValue':
           addNum(boni.baseValues as Record<string, number>, b.code, wert);
-          addQuelle(baseValueBonusKey(b.code as BaseValueKey), item.name);
+          addQuelle(baseValueBonusKey(b.code as BaseValueKey), item.name, wert);
           break;
         case 'resource':
           addNum(boni.resources as Record<string, number>, b.code, wert);
-          addQuelle(resourceBonusKey(b.code as ResourceKey), item.name);
+          addQuelle(resourceBonusKey(b.code as ResourceKey), item.name, wert);
           break;
         case 'talent': {
           const talentId = Number(b.code);
@@ -334,28 +673,33 @@ export function wornBoni(items: readonly Item[]): StatBoni {
           const rec = boni.talente[talentId] ?? {};
           rec[b.feld] = (rec[b.feld] ?? 0) + wert;
           boni.talente[talentId] = rec;
-          addQuelle(talentBonusKey(talentId, b.feld), item.name);
+          addQuelle(talentBonusKey(talentId, b.feld), item.name, wert);
           break;
         }
         case 'spezial': {
           const catalogId = Number(b.code);
           if (!Number.isFinite(catalogId)) break;
           boni.spezial[catalogId] = (boni.spezial[catalogId] ?? 0) + wert;
-          addQuelle(spezialBonusKey(catalogId), item.name);
+          addQuelle(spezialBonusKey(catalogId), item.name, wert);
           break;
         }
         case 'psyche':
           boni.psyche += wert;
-          addQuelle(PSYCHE_BONUS_KEY, item.name);
+          addQuelle(PSYCHE_BONUS_KEY, item.name, wert);
           break;
         case 'traglast':
           boni.traglast += wert;
-          addQuelle(TRAGLAST_BONUS_KEY, item.name);
+          addQuelle(TRAGLAST_BONUS_KEY, item.name, wert);
           break;
       }
     }
   }
-  for (const [key, set] of quellenSets) boni.quellen[key] = [...set];
+  // Formatierung wie bonusLabel() (client/src/tabs/Ausruestung.tsx) für eine
+  // einzelne Bonus-Zeile — hier auf die je Item aufsummierte Zahl angewandt,
+  // damit der Tooltip zeigt WIEVIEL ein Gegenstand beiträgt, nicht nur DASS.
+  for (const [key, perItem] of quellenSummen) {
+    boni.quellen[key] = [...perItem].map(([name, sum]) => `${name} (${sum > 0 ? '+' : ''}${sum})`);
+  }
   return boni;
 }
 
@@ -481,6 +825,25 @@ export function itemsInContainer(items: readonly Item[], containerUid: string): 
   return items.filter((it) => it.location === 'behaelter' && it.containerUid === containerUid);
 }
 
+// Setzt EIN Item (per uid) im Array direkt vor ein anderes (beforeUid) um — reine
+// Reihenfolge-Änderung, sonst nichts. Es gibt kein eigenes Sortier-/Reihenfolge-
+// Feld: zoneView/itemsInContainer/Inventar's groupedRows filtern nur, sortieren
+// nie, also bestimmt allein die Position in `items` die Anzeigereihenfolge — das
+// macht Umsortieren zu einem reinen Array-Splice statt einer Schema-Änderung.
+// Für Drag&Drop-Umsortierung INNERHALB einer Zone/eines Behälters/einer Kategorie
+// (Ausruestung.tsx Körperzonen/Schnellzugriff, Inventar.tsx Kategorie-Gruppen).
+// No-op wenn uid selbst, uid unbekannt oder beforeUid unbekannt.
+export function reorderItems(items: Item[], uid: string, beforeUid: string): Item[] {
+  if (uid === beforeUid) return items;
+  const moved = items.find((it) => it.uid === uid);
+  if (!moved) return items;
+  const without = items.filter((it) => it.uid !== uid);
+  const toIdx = without.findIndex((it) => it.uid === beforeUid);
+  if (toIdx < 0) return items;
+  without.splice(toIdx, 0, moved);
+  return without;
+}
+
 // Belegtes Gewicht eines Behälters (kg) — Summe der Inhalte OHNE Reduktion
 // (roher Inhalt).
 export function containerFuellung(items: readonly Item[], containerUid: string): number {
@@ -513,4 +876,27 @@ export function containerFuellungAnzeige(items: readonly Item[], container: Pick
 // Alle Behälter (Gegenstände, die andere aufnehmen können).
 export function containers(items: readonly Item[]): Item[] {
   return items.filter((it) => it.istBehaelter);
+}
+
+// --- Waffen-Stat-Zeilen ---
+//
+// Effektiver (aufgedeckter) Wert eines Waffen-Felds — leer, solange die Zeile
+// fehlt ODER noch verborgen ist. Gilt UNBEDINGT, auch für die eigene SL-Sicht
+// (dieselbe Regel wie wornBoni schon für ItemBonus durchsetzt: „effects apply
+// only once revealed" — ein noch nicht aufgedecktes Feld wirkt narrativ noch
+// nicht, auch nicht in der Proben-Berechnung). Für die Anzeige (Karte/Dialog)
+// bleibt die verdeckte Zeile trotzdem in item.waffenStats sichtbar (mit
+// geleertem wert, siehe ohneVerborgeneItems) — dort steht sie fürs „???",
+// hier zählt sie nicht.
+export function waffenStatWert(item: Pick<Item, 'waffenStats'>, feld: WaffenStatFeld): string {
+  return item.waffenStats.find((s) => s.feld === feld && !s.verborgen)?.wert ?? '';
+}
+export function waffenStatZahl(item: Pick<Item, 'waffenStats'>, feld: WaffenStatFeld): number {
+  return Number(waffenStatWert(item, feld)) || 0;
+}
+// Gibt es diese Zeile überhaupt, unabhängig vom Aufdeckungs-Zustand — für den
+// GM-Editor (Aufdecken-Knopf, Rohwert bearbeiten), der die volle Zeile sehen
+// muss, nicht nur den effektiven Wert.
+export function waffenStatZeile(item: Pick<Item, 'waffenStats'>, feld: WaffenStatFeld): WaffenStat | undefined {
+  return item.waffenStats.find((s) => s.feld === feld);
 }

@@ -16,12 +16,14 @@ export type ProbeSource =
   | { kind: 'attribute'; attr: AttrRowCode }
   | { kind: 'talent'; talentId: number }
   // `weapon` ist nur nötig, wenn die Fähigkeit einen AT/PA/BL-Term führt
-  // (siehe probeExprHasWeaponTerm in rules.ts) — 'row' eine echte Nahkampf-
-  // waffe des Charakters, 'talent' Unbewaffnet (Raufen/Ringen), direkt über
-  // die talents_catalog-id statt über eine Waffenzeile.
-  | { kind: 'ability'; abilityId: number; weapon?: { kind: 'row'; sectionRowId: number } | { kind: 'talent'; talentId: number } }
+  // (siehe probeExprHasWeaponTerm in rules.ts) — 'item' eine echte Nahkampf-
+  // waffe des Charakters (char_items.id, seit "Weapons become real items",
+  // TODO.md — vormals eine Zeilen-id in sec_waffenNahNeu), 'talent'
+  // Unbewaffnet (Raufen/Ringen), direkt über die talents_catalog-id statt
+  // über eine Waffe.
+  | { kind: 'ability'; abilityId: number; weapon?: { kind: 'item'; itemId: number } | { kind: 'talent'; talentId: number } }
   | { kind: 'sprache'; languageId: number; mode: 'sprechen' | 'schreiben' }
-  | { kind: 'weapon'; sectionRowId: number; probe: 'at' | 'pa' | 'bl' | 'fk' }
+  | { kind: 'weapon'; itemId: number; probe: 'at' | 'pa' | 'bl' | 'fk' }
   // Basiswert-Probe: ein W20 gegen den Basiswert selbst — Ausweichen (die
   // einzige Verteidigungsprobe ohne eigenen Waffen-Bezug) und Initiative.
   | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen' | 'ini'> };
@@ -342,19 +344,19 @@ export type ClientToServerMessage =
        */
       repeat?: number;
     }
-  // Schaden einer Waffenzeile würfeln — die Schaden-Formel (und die RD, siehe
-  // ProbeRollPayload.rd) kommt server-seitig aus der Waffenzeile, nie vom
-  // Client, genau wie probeZahl bei roll.probe. `ranged` unterscheidet die
-  // Tabelle (sec_waffenFernNeu/sec_waffenNahNeu) — dieselbe id existiert in
-  // beiden unabhängig voneinander. Nur vom eigenen Bogen (kein Anfrage-/
+  // Schaden einer Waffe würfeln — die Schaden-Formel (und die RD, siehe
+  // ProbeRollPayload.rd) kommt server-seitig aus dem Item, nie vom Client,
+  // genau wie probeZahl bei roll.probe. Seit "Weapons become real items"
+  // (TODO.md) ist `itemId` (char_items.id) eindeutig über Nah-/Fernkampf
+  // hinweg — die Waffenart kommt server-seitig aus item.waffenArt, kein
+  // `ranged`-Flag vom Client mehr nötig. Nur vom eigenen Bogen (kein Anfrage-/
   // Gruppen-/Kooperations-Pendant — Schaden würfelt man für sich, niemand
   // fragt eine andere Person danach an).
   | {
       type: 'roll.weaponDamage';
       reqId: string;
       charId: number;
-      sectionRowId: number;
-      ranged: boolean;
+      itemId: number;
       visibility: RollVisibility;
       targetUserId?: number;
     }

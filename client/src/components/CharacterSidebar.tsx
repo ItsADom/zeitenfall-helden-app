@@ -4,14 +4,21 @@ import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
 import { attrsMitBoni, resourceInputMitBoni } from '@shared/items';
 import { pouchUeberfuellt } from '@shared/currency';
 import { BOARD_STATUS_BY_KEY } from '@shared/boardStatus';
+import { useState } from 'react';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
 import { useDicePanel } from './dice/DicePanelProvider';
 import { TextInput } from './inputs';
 import { AlwaysEditable } from './displayMode';
 import { useCollapsed } from './collapse';
+import { useHoverFlyout } from './useHoverFlyout';
 import { overfilled, poolClass } from './energie';
 import { usePersistedState } from './persist';
+
+// Trainings-/Lesesitzungen: ein gemeinsamer Zähler für beide (keine zwei
+// getrennten Vieren), rein manuell nachgetragen — der eigentliche Fortschritt
+// bleibt außerhalb der App. Fixe Obergrenze, deshalb kein eigenes Max-Feld.
+const TRAINING_LESE_MAX = 4;
 
 // Immer sichtbare Seitenleiste des Charakterbogens: die Werte, die im Spiel am
 // häufigsten gebraucht werden, an einer Stelle, ohne den Reiter zu wechseln.
@@ -110,6 +117,7 @@ export default function CharacterSidebar({ side = 'right' }: { side?: 'left' | '
         <SidebarGeld />
 
         <AlwaysEditable>
+          <SidebarTraining />
           <SidebarNotiz />
         </AlwaysEditable>
       </div>
@@ -260,6 +268,71 @@ function SidebarZustaende() {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// Trainings-/Lesesitzungen — verschoben aus dem Heldenbrief (unusable dort
+// im Nur-Lesen-Modus, siehe TODO.md), jetzt in der Seitenleiste, immer
+// bedienbar. Klont bewusst das Klee-Muster von SchicksalspunkteControl: ein
+// Klick öffnet erst eine Rückfrage (per useHoverFlyout, click-gesteuert),
+// erst die Bestätigung darin ändert den Zähler wirklich — anders als im
+// alten Heldenbrief-Tracker (Direktklick) gilt das jetzt für BEIDE
+// Richtungen (Eintragen wie Zurücknehmen) und in BEIDEN Anzeigemodi, nicht
+// nur im Bearbeiten-Modus. Bewusst ohne Chat-Meldung (anders als
+// Schicksalspunkte) — persönliche Buchführung, keine Tischaktion.
+function SidebarTraining() {
+  const { data, update } = useChar();
+  const { meta } = data;
+  const used = Math.max(0, Math.min(TRAINING_LESE_MAX, Math.trunc(meta.trainingLeseHeute ?? 0) || 0));
+  const { open, wrapRef, openNow, closeNow } = useHoverFlyout<HTMLDivElement>();
+  const [pendingFill, setPendingFill] = useState(false);
+
+  const commit = () => {
+    update('meta', { ...meta, trainingLeseHeute: pendingFill ? used + 1 : used - 1 });
+    closeNow();
+  };
+
+  return (
+    <div className="side-block">
+      <h4 title='Trainings-/Lesesitzungen — der Lernfortschritt selbst bleibt bei dir, von der Spielleitung mit „Neuer Spieltag" zurückgesetzt'>
+        Training/Lesen
+      </h4>
+      <div className={`dice-flyout-wrap sp-clovers${open ? ' open' : ''}`} ref={wrapRef}>
+        {Array.from({ length: TRAINING_LESE_MAX }, (_, i) => {
+          const filled = i < used;
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`sp-clover${filled ? '' : ' sp-clover--spent'}`}
+              title={filled ? 'Eintrag zurücknehmen' : 'Trainings-/Lesesitzung eintragen'}
+              onClick={() => {
+                setPendingFill(!filled);
+                openNow();
+              }}
+            >
+              📖
+            </button>
+          );
+        })}
+        {open && (
+          <div className="dice-flyout sp-confirm-flyout side-confirm-flyout" role="menu">
+            <p className="sp-confirm-hint">
+              {pendingFill ? 'Trainings-/Lesesitzung eintragen?' : 'Eintrag wirklich zurücknehmen?'}
+            </p>
+            <div className="sp-confirm-actions">
+              <button className="small" onClick={commit}>
+                {pendingFill ? 'Eintragen' : 'Zurücknehmen'}
+              </button>
+              <button className="small" onClick={closeNow}>
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+      <span className="muted">{used} / {TRAINING_LESE_MAX}</span>
     </div>
   );
 }

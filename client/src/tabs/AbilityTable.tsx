@@ -6,6 +6,7 @@ import { probeExprHasWeaponTerm, probeExprZahl } from '@shared/rules';
 import { AlwaysEditable } from '../components/displayMode';
 import AbilityWeaponRollButton from '../components/dice/AbilityWeaponRollButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
+import { FavPin } from '../components/FavPin';
 import { Field, NumInput } from '../components/inputs';
 import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
@@ -53,6 +54,8 @@ export function AbilityTable({
 
   const setFort = (uid: string, v: number) =>
     update('abilities', data.abilities.map((a) => (a.uid === uid ? { ...a, fortschritt: v } : a)));
+  const setFavorit = (uid: string, v: boolean) =>
+    update('abilities', data.abilities.map((a) => (a.uid === uid ? { ...a, favorit: v } : a)));
 
   const elemente = [...new Set(list.map((a) => a.element).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
   const kategorien = [...new Set(list.flatMap((a) => a.kategorien).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
@@ -202,10 +205,12 @@ export function AbilityTable({
               </tr>
             </thead>
             <tbody>
-              {sig && <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} pinned onFort={(v) => setFort(sig.uid, v)} />}
+              {sig && (
+                <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} pinned onFort={(v) => setFort(sig.uid, v)} onFavorit={(v) => setFavorit(sig.uid, v)} />
+              )}
               {by === 'none'
                 ? [...rest].sort(sortFn).map((a) => (
-                    <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} />
+                    <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
                   ))
                 : [...groups!.entries()].map(([key, rows]) => (
                     <Fragment key={key || '__none'}>
@@ -217,7 +222,7 @@ export function AbilityTable({
                         </td>
                       </tr>
                       {[...rows].sort(sortFn).map((a) => (
-                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} />
+                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
                       ))}
                     </Fragment>
                   ))}
@@ -230,7 +235,21 @@ export function AbilityTable({
   );
 }
 
-function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch: boolean; attrs: Attributes; onFort: (v: number) => void; pinned?: boolean }) {
+function AbilityRow({
+  a,
+  magisch,
+  attrs,
+  onFort,
+  onFavorit,
+  pinned,
+}: {
+  a: Ability;
+  magisch: boolean;
+  attrs: Attributes;
+  onFort: (v: number) => void;
+  onFavorit: (v: boolean) => void;
+  pinned?: boolean;
+}) {
   const pz = probeExprZahl(attrs, a.probe);
   const needsWeapon = probeExprHasWeaponTerm(a.probe);
   return (
@@ -255,6 +274,9 @@ function AbilityRow({ a, magisch, attrs, onFort, pinned }: { a: Ability; magisch
             </>
           )
         )}
+        <AlwaysEditable>
+          <FavPin active={a.favorit} onClick={() => onFavorit(!a.favorit)} />
+        </AlwaysEditable>
       </td>
       <td className="num">
         <AlwaysEditable>

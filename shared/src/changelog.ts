@@ -138,8 +138,7 @@ export const KNOWN_BUGS: KnownBug[] = [
 // eigener Abschnitt gezeigt (ohne Version/Datum). Leeren, wenn nichts ansteht.
 export const COMING_SOON: string[] = [
   'Gestaltwandler-Charaktere: eigene Werte je Form, gebündelt unter einem Charakter.',
-  'Erweiterte Dialoge für Items und Ausrüstung',
-  'Ein überarbeitetes Gruppeninventar mit Itemtransfer zwischen Gruppe <-> Spieler und sogar Spieler <-> Spieler',
+  'Erweiterte Bearbeiten-Dialoge Zauber/Fähigkeiten (Gegenstände haben ihren bereits).',
   'Eigene Bögen für Tiere und Begleiter.',
   'Mehr Farbthemen und ein ruhigeres Standard-Design.',
   'Visuelles Feintuning'
@@ -199,6 +198,55 @@ export const COMING_SOON: string[] = [
 //     zuletzt gepostete (per Version/Datum+Titel erkannt) — also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
+  {
+    date: '2026-09-02',
+    version: '0.9.0',
+    title: 'Inventare, Items und Waffen',
+    features: [
+      {
+        title: 'Items und Waffen',
+        added: [
+          'Ausrüstung kann jetzt geheime Eigenschaften haben: die Spielleitung kann RS, Haltbarkeit oder einzelne Boni eines Gegenstands verdeckt anlegen — sie zeigen „???" statt der echten Zahl (ein verdeckter Bonus bleibt komplett unsichtbar), bis die Spielleitung sie aufdeckt.',
+          'Nah- und Fernkampfwaffen sind jetzt ganz normale Gegenstände: sie haben ein Gewicht, das in der Traglast mitzählt, und tauchen im Inventar bzw. in der Ausrüstung auf, statt nur als eigene Zeile im Waffen-Reiter zu existieren, unabhängig vom Rest der Ausrüstung.',
+          'Die Abenteurergilde erinnert (erneut) daran, dass geliehene Ausrüstung nach dem Tod zurückzugeben ist.'
+        ],
+      },
+      {
+        title: 'Geteiltes Inventar',
+        added: [
+          'Gruppen haben jetzt ein gemeinsames Gruppeninventar (auf der Gruppenseite): jedes Mitglied darf dort Gegenstände hinzufügen, bearbeiten und zwischen dem Inventar, den Charakteren der Gruppe und der Spielleitung verschieben — praktisch, um Beute zu teilen oder Ausrüstung weiterzureichen.',
+          'Der Bearbeiten-Dialog eines Gegenstands hat jetzt einen „Verschieben nach…“-Knopf: von dort geht ein Gegenstand direkt an einen anderen Charakter der Gruppe, in das Gruppeninventar oder an die Spielleitung.',
+          'Die Kategorie eines Gegenstands lässt sich jetzt überall frei eintippen (mit Vorschlägen aus den bestehenden Kategorien), statt nur aus einer festen Liste wählbar zu sein — egal ob eigener Charakter, Gruppeninventar oder SL-Vorrat, eine neue Kategorie entsteht einfach dadurch, dass sie benutzt wird.',
+          'Jedes Inventar hat jetzt einen eigenen „Kategorien verwalten“-Dialog zum Umbenennen oder Entfernen seiner Kategorien.',
+          'Das Gruppeninventar lässt sich jetzt auch nach Häusern und Räumen statt nach Kategorie gruppiert anzeigen (Umschalter „Kategorie/Raum“): einem Gegenstand ein Haus/einen Raum zuweisen geht direkt im Bearbeiten-Dialog (mit Vorschlägen, wie bei der Kategorie), ein „Häuser verwalten“-Dialog erlaubt Umbenennen/Entfernen.',
+        ],
+        admin: [
+          '(Spielleiter) Ein SL-Vorrat (auf der Spielleiter-Übersicht) zum Vorbereiten von Gegenständen, bevor sie an einen Charakter oder das Gruppeninventar gehen — für Spieler unsichtbar, bis sie verschoben werden.',
+        ],
+      },
+      {
+        title: 'Sonstiges',
+        added: [
+          'Die Größe einer Marke auf dem virtuellen Tisch lässt sich jetzt auch in halben Schritten setzen, bis hinunter zu 0,5 Feldern.',
+          'Kreis- und Rechteck-Messformen auf dem virtuellen Tisch zeigen jetzt dauerhaft einen Punkt an ihrem Mittelpunkt.',
+          'Verschiebt jemand eine Marke auf dem virtuellen Tisch, sehen jetzt alle am Tisch kurz die durchlaufenen Felder mit Schrittzahl markiert (10 Sekunden, per Klick auch früher ausblendbar).',
+          'Talente und Zauber/Fähigkeiten lassen sich jetzt mit 📌 als Würfel-Favorit markieren (in Talente sowie in „Zauber & Fähigkeiten verwalten") — sie tauchen dann in der 🎲-Favoriten-Liste im Würfel-Chat auf und würfeln von dort direkt die echte Probe.',
+          'Gegenstände lassen sich jetzt innerhalb einer Körperzone (Ausrüstung) oder einer Kategorie (Inventar) per Ziehen auf einen anderen Gegenstand in eine eigene Reihenfolge bringen.',
+        ],
+        changed:[
+          'Kritische Fehlschläge treten jetzt bevorzugt dann auf, wenn es besonders wichtig ist.',
+        ],
+        fixed: [
+          'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',
+          'Eine Gruppenprobe schloss sich bei Spielern nicht von selbst, nachdem alle gewürfelt hatten (die Spielleitung sah das Ende korrekt) — jetzt bekommen alle Beteiligten das Aufdecken/Verwerfen mit.',
+          'Der Bearbeiten-Dialog eines Gegenstands ließ sich außerhalb des Bearbeiten-Modus zwar öffnen (wie schon Duplizieren/Löschen), aber nicht mehr ausfüllen — jetzt bleiben seine Felder auch dort nutzbar.',
+          'Der Tooltip eines Wertes mit Gegenstands-Bonus zeigte nur, welcher Gegenstand ihn anhebt, nicht um wie viel — er nennt jetzt auch den Betrag (z. B. „Kettenhemd (+2)").',
+          'Das vergrößerte Porträt einer Charakterkarte auf der Gruppenseite flackerte wild und rutschte hinter die Reiterleiste, sobald die Maus nicht exakt auf dem Bild ruhte — behoben.',
+          'Der Würfel-Chat schlug beim Tippen eines Wurfbefehls weiterhin eine bereits aus dem Inventar entfernte Waffe vor — ein Klick darauf endete nur in einer Fehlermeldung. Die Vorschlagsliste wird jetzt aktuell gehalten.',
+        ],
+      },
+    ],
+  },
   {
     date: '2026-08-29',
     title: 'Würfel-Optimierung und Item-Dialoge',
