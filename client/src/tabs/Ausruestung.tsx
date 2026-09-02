@@ -10,6 +10,7 @@ import {
   itemsInContainer,
   lastInfo,
   makeItem,
+  reorderItems,
   TRAGLAST_BONUS_KEY,
   zoneView,
 } from '@shared/items';
@@ -128,19 +129,33 @@ export default function AusruestungTab() {
     }
     return true;
   };
-  const moveTo = (uid: string, t: DropTarget) => {
-    if (!allowed(uid, t)) return;
+  const locationPatch = (t: DropTarget): Partial<Item> => {
     const zone = t.location === 'getragen' ? t.zone ?? '' : '';
     // „Beidseitig" wird ausschließlich durchs Ziehen auf den "↔ beide"-Streifen
     // gesetzt (t.beidseitig) — jedes andere Ziel, auch die normale Zellfläche
     // derselben seitengetrennten Zone, löscht es wieder. Kein Bewahren mehr.
     const beidseitig = t.location === 'getragen' && isPairedZone(zone) ? !!t.beidseitig : false;
-    patchItem(uid, {
+    return {
       location: t.location,
       zone,
       beidseitig,
       containerUid: t.location === 'behaelter' ? t.containerUid ?? '' : '',
-    });
+    };
+  };
+  const moveTo = (uid: string, t: DropTarget) => {
+    if (!allowed(uid, t)) return;
+    patchItem(uid, locationPatch(t));
+  };
+  // Wie moveTo, aber zusätzlich VOR ein bestimmtes Geschwister-Item gesetzt —
+  // reines Umsortieren INNERHALB derselben Zone/desselben Behälters, wenn t
+  // ohnehin schon die aktuelle Lage des Ziel-Items beschreibt (siehe chip()
+  // Aufrufe unten, die als t immer die eigene Zone/den eigenen Behälter
+  // mitgeben). Auf ein fremdes Ziel gezogen wandert das Item trotzdem dorthin,
+  // landet nur zusätzlich an der Position des Zielitems statt am alten Platz.
+  const moveBefore = (uid: string, t: DropTarget, beforeUid: string) => {
+    if (!allowed(uid, t)) return;
+    const patch = locationPatch(t);
+    setItems(reorderItems(items, uid, beforeUid).map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
   };
 
   // Zieh-Bereich. stopPropagation ist wichtig: der Schnellzugriff-Behälter liegt
@@ -167,6 +182,31 @@ export default function AusruestungTab() {
     };
   };
 
+  // Wurf-Ziel auf einem einzelnen Chip statt einer ganzen Zone: setzt das
+  // gezogene Item direkt VOR dieses Chip-Item (reines Umsortieren, siehe
+  // moveBefore). stopPropagation ist hier ebenso nötig — sonst gewinnt die
+  // umschließende Zone und es wird nur verschoben, nicht sortiert.
+  const reorderDropProps = (t: DropTarget, beforeUid: string) => {
+    const key = `${dropKey(t)}::vor:${beforeUid}`;
+    return {
+      className: over === key ? ' item-chip-drop-before' : '',
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        if (over !== key) setOver(key);
+      },
+      onDragLeave: () => setOver((o) => (o === key ? null : o)),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(null);
+        const uid = e.dataTransfer.getData('text/plain');
+        if (uid) moveBefore(uid, t, beforeUid);
+      },
+    };
+  };
+
   // Schnellzugriff-Behälter (Gürtel, Bandelier): Fach-Kapazität war bisher nur
   // gespeichert, nirgends angezeigt — anders als Stauraum-Behälter (siehe die
   // "Behälter (Stauraum)"-Sektion unten) zeigte hier nichts, wie voll er ist.
@@ -186,19 +226,23 @@ export default function AusruestungTab() {
     );
   };
 
-  const chip = (it: Item) => (
+  // ctx: die Zone/der Behälter, in dem dieser Chip gerade selbst liegt — dient
+  // als Wurf-Ziel fürs Umsortieren (siehe reorderDropProps), muss also mit dem
+  // dropProps-Aufruf des umschließenden Bereichs übereinstimmen.
+  const chip = (it: Item, ctx: DropTarget) => (
     <ItemChip
       key={it.uid}
       item={it}
       onEdit={() => setEditUid(it.uid)}
       bonusTitle={it.bonusse.length > 0 ? it.bonusse.map((b) => bonusLabel(b, catalogs.talents, catalogs.specialEnergies)).join(', ') : ''}
       isGm={user.isGm}
+      reorderDrop={reorderDropProps(ctx, it.uid)}
     >
       {it.istBehaelter && it.containerArt === 'quick' && (
         <div className="quick-contents">
           {quickCap(it)}
           <div {...dropProps({ location: 'behaelter', containerUid: it.uid })}>
-            {itemsInContainer(items, it.uid).map(chip)}
+            {itemsInContainer(items, it.uid).map((x) => chip(x, { location: 'behaelter', containerUid: it.uid }))}
             {itemsInContainer(items, it.uid).length === 0 && <span className="zone-empty">leer — hierher ziehen</span>}
           </div>
         </div>
@@ -252,7 +296,7 @@ export default function AusruestungTab() {
               <div className="zone-cell" key={z}>
                 <div className="zone-name">{z}</div>
                 <div {...dropProps({ location: 'getragen', zone: z })}>
-                  {zi.map(chip)}
+                  {zi.map((it) => chip(it, { location: 'getragen', zone: z }))}
                   {zi.length === 0 && <span className="zone-empty">—</span>}
                 </div>
                 {isPairedZone(z) && (
@@ -271,7 +315,9 @@ export default function AusruestungTab() {
         {wornNoZone.length > 0 && (
           <div className="zone-cell" style={{ marginTop: 10 }}>
             <div className="zone-name">Getragen, ohne Zone</div>
-            <div {...dropProps({ location: 'getragen', zone: '' })}>{wornNoZone.map(chip)}</div>
+            <div {...dropProps({ location: 'getragen', zone: '' })}>
+              {wornNoZone.map((it) => chip(it, { location: 'getragen', zone: '' }))}
+            </div>
           </div>
         )}
       </div>
@@ -280,7 +326,7 @@ export default function AusruestungTab() {
       <div className="panel">
         <h3>Nicht getragen</h3>
         <div {...dropProps({ location: 'bench' })}>
-          {bench.map(chip)}
+          {bench.map((it) => chip(it, { location: 'bench' }))}
           {bench.length === 0 && <span className="zone-empty">—</span>}
         </div>
         {!ro && (
@@ -354,11 +400,19 @@ export default function AusruestungTab() {
   );
 }
 
+interface ReorderDropProps {
+  className: string;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+}
+
 function ItemChip({
   item,
   onEdit,
   bonusTitle,
   isGm,
+  reorderDrop,
   children,
 }: {
   item: Item;
@@ -371,19 +425,26 @@ function ItemChip({
    * eingetragen und muss sie nicht erst im Dialog nachsehen. Nur ein Nicht-SL
    * sieht „???"; für den ist die Zahl serverseitig ohnehin nie angekommen. */
   isGm: boolean;
+  /** Macht den Chip selbst zum Wurf-Ziel: ein darauf gezogenes Item wird VOR
+   * dieses hier einsortiert, statt nur in dieselbe Zone/denselben Behälter zu
+   * wandern (reines Umsortieren, siehe reorderDropProps in AusruestungTab). */
+  reorderDrop: ReorderDropProps;
   children?: React.ReactNode;
 }) {
   return (
     <span className="chip-wrap">
       <span
-        className={`item-chip${item.istBehaelter ? ' is-container' : ''}`}
+        className={`item-chip${item.istBehaelter ? ' is-container' : ''}${reorderDrop.className}`}
         draggable
         onDragStart={(e) => {
           e.dataTransfer.effectAllowed = 'move';
           e.dataTransfer.setData('text/plain', item.uid);
         }}
+        onDragOver={reorderDrop.onDragOver}
+        onDragLeave={reorderDrop.onDragLeave}
+        onDrop={reorderDrop.onDrop}
         onClick={onEdit}
-        title={`Klicken zum Bearbeiten, Ziehen zum Verschieben${item.notiz ? ` — ${item.notiz}` : ''}`}
+        title={`Klicken zum Bearbeiten, Ziehen zum Verschieben/Sortieren${item.notiz ? ` — ${item.notiz}` : ''}`}
       >
         <span className="chip-name">{item.name || '(ohne Name)'}</span>
         {item.anzahl !== 1 && <span className="chip-mult"> ×{item.anzahl}</span>}

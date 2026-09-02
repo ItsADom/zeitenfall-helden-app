@@ -222,7 +222,6 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
         admin: [
           '(Spielleiter) Ein SL-Vorrat (auf der Spielleiter-Übersicht) zum Vorbereiten von Gegenständen, bevor sie an einen Charakter oder das Gruppeninventar gehen — für Spieler unsichtbar, bis sie verschoben werden.',
-          '(Spielleiter) Der SL-Vorrat hat jetzt ebenfalls einen eigenen „Kategorien verwalten“-Dialog.',
         ],
       },
       {
@@ -232,6 +231,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Kreis- und Rechteck-Messformen auf dem virtuellen Tisch zeigen jetzt dauerhaft einen Punkt an ihrem Mittelpunkt.',
           'Verschiebt jemand eine Marke auf dem virtuellen Tisch, sehen jetzt alle am Tisch kurz die durchlaufenen Felder mit Schrittzahl markiert (10 Sekunden, per Klick auch früher ausblendbar).',
           'Talente und Zauber/Fähigkeiten lassen sich jetzt mit 📌 als Würfel-Favorit markieren (in Talente sowie in „Zauber & Fähigkeiten verwalten") — sie tauchen dann in der 🎲-Favoriten-Liste im Würfel-Chat auf und würfeln von dort direkt die echte Probe.',
+          'Gegenstände lassen sich jetzt innerhalb einer Körperzone (Ausrüstung) oder einer Kategorie (Inventar) per Ziehen auf einen anderen Gegenstand in eine eigene Reihenfolge bringen.',
         ],
         changed:[
           'Kritische Fehlschläge treten jetzt bevorzugt dann auf, wenn es besonders wichtig ist.',

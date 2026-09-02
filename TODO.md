@@ -285,20 +285,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - Optional: read-only 'Verlauf' panel per char (GM sees all with user/character
     filters; owner sees own, character filter).
 
-## Mid-Prio
-
-- [ready] **Reorder worn items within a body zone and inventory** (user feedback, fact-check
-  2026-09-01): `Ausruestung.tsx`'s zone chips (`zoneView(items, z).map(chip)`,
-  `Ausruestung.tsx:234`) render in plain `data.items` array order — i.e.
-  creation order — with no way for the player to rearrange them; the same is
-  true of Inventar's within-category rows (`groupedRows`,
-  `Inventar.tsx:185-215`, filters `list` without sorting). Zones already have
-  full drag-and-drop wiring for moving an item between zones/containers
-  (`moveTo`/`dropHandlers` in both files), so reordering within one zone
-  should reuse that same mechanism — drop an item onto/before a sibling chip
-  in the same zone to splice it to that position in `data.items`, rather than
-  inventing a new interaction. Low complexity; not blocked on anything.
-
 ## Low-Prio
 
 - [sketch] **VTT: a way to set a character token's own appearance (custom

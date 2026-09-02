@@ -825,6 +825,25 @@ export function itemsInContainer(items: readonly Item[], containerUid: string): 
   return items.filter((it) => it.location === 'behaelter' && it.containerUid === containerUid);
 }
 
+// Setzt EIN Item (per uid) im Array direkt vor ein anderes (beforeUid) um — reine
+// Reihenfolge-Änderung, sonst nichts. Es gibt kein eigenes Sortier-/Reihenfolge-
+// Feld: zoneView/itemsInContainer/Inventar's groupedRows filtern nur, sortieren
+// nie, also bestimmt allein die Position in `items` die Anzeigereihenfolge — das
+// macht Umsortieren zu einem reinen Array-Splice statt einer Schema-Änderung.
+// Für Drag&Drop-Umsortierung INNERHALB einer Zone/eines Behälters/einer Kategorie
+// (Ausruestung.tsx Körperzonen/Schnellzugriff, Inventar.tsx Kategorie-Gruppen).
+// No-op wenn uid selbst, uid unbekannt oder beforeUid unbekannt.
+export function reorderItems(items: Item[], uid: string, beforeUid: string): Item[] {
+  if (uid === beforeUid) return items;
+  const moved = items.find((it) => it.uid === uid);
+  if (!moved) return items;
+  const without = items.filter((it) => it.uid !== uid);
+  const toIdx = without.findIndex((it) => it.uid === beforeUid);
+  if (toIdx < 0) return items;
+  without.splice(toIdx, 0, moved);
+  return without;
+}
+
 // Belegtes Gewicht eines Behälters (kg) — Summe der Inhalte OHNE Reduktion
 // (roher Inhalt).
 export function containerFuellung(items: readonly Item[], containerUid: string): number {

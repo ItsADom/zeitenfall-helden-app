@@ -19,6 +19,7 @@ import {
   makeItem,
   makeUid,
   ohneVerborgeneItems,
+  reorderItems,
   resourceInputMitBoni,
   specialMitBoni,
   talentMitBoni,
@@ -522,6 +523,35 @@ describe('zoneView (beidseitig)', () => {
     expect(zoneView([both], 'Bein links')).toHaveLength(1);
     expect(zoneView([both], 'Bein rechts')).toHaveLength(1);
     expect(effektiverRs([both])).toBe(4);
+  });
+});
+
+describe('reorderItems (Drag&Drop-Umsortierung)', () => {
+  it('verschiebt ein Item direkt vor ein anderes', () => {
+    const a = item({ name: 'A' });
+    const b = item({ name: 'B' });
+    const c = item({ name: 'C' });
+    expect(reorderItems([a, b, c], c.uid, b.uid)).toEqual([a, c, b]);
+  });
+
+  it('ist ein No-Op, wenn uid und beforeUid gleich sind', () => {
+    const a = item({ name: 'A' });
+    const b = item({ name: 'B' });
+    expect(reorderItems([a, b], a.uid, a.uid)).toEqual([a, b]);
+  });
+
+  it('ist ein No-Op bei unbekannter uid oder unbekannter beforeUid', () => {
+    const a = item({ name: 'A' });
+    const b = item({ name: 'B' });
+    expect(reorderItems([a, b], 'unbekannt', b.uid)).toEqual([a, b]);
+    expect(reorderItems([a, b], a.uid, 'unbekannt')).toEqual([a, b]);
+  });
+
+  it('funktioniert auch rückwärts (Ziel liegt vor der Quelle)', () => {
+    const a = item({ name: 'A' });
+    const b = item({ name: 'B' });
+    const c = item({ name: 'C' });
+    expect(reorderItems([a, b, c], c.uid, a.uid)).toEqual([c, a, b]);
   });
 });
 

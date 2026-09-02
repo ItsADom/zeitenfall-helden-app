@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import type { Item, ItemLocation, KapazitaetArt } from '@shared/items';
-import { containerFuellungAnzeige, duplicateItem, itemGewicht, itemsInContainer, lastInfo, makeItem } from '@shared/items';
+import { containerFuellungAnzeige, duplicateItem, itemGewicht, itemsInContainer, lastInfo, makeItem, reorderItems } from '@shared/items';
 import { apiPost } from '../api';
 import { useAuth } from '../App';
 import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
@@ -88,20 +88,25 @@ export default function InventarTab() {
     }
     return seen;
   };
-  const moveTo = (uid: string, t: DropTarget) => {
+  // beforeUid gesetzt: reines Umsortieren INNERHALB der Zielgruppe (siehe
+  // reorderItems) — das gezogene Item landet direkt vor beforeUid, statt nur
+  // irgendwo in der Kategorie/dem Behälter. Wird ausschließlich von row() als
+  // Wurf-Ziel auf sich selbst benutzt (moveToRow unten).
+  const moveTo = (uid: string, t: DropTarget, beforeUid?: string) => {
     if (t.location === 'behaelter' && t.containerUid) {
       if (t.containerUid === uid || ancestors(t.containerUid).has(uid)) return;
     }
     const patch: Partial<Item> = { location: t.location, zone: '', containerUid: t.location === 'behaelter' ? t.containerUid ?? '' : '' };
     if (t.kategorie !== undefined) patch.kategorie = t.kategorie;
-    patchItem(uid, patch);
+    const base = beforeUid ? reorderItems(items, uid, beforeUid) : items;
+    setItems(base.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
   };
 
-  const isOver = (t: DropTarget) => over === dropKey(t);
+  const isOver = (t: DropTarget, beforeUid?: string) => over === dropKey(t) + (beforeUid ? `::vor:${beforeUid}` : '');
   // Ziehen funktioniert auch im Nur-Lesen-Modus. stopPropagation: der innerste
   // Bereich (Zeile/Kategorie) gewinnt, nicht der Behälter darum herum.
-  const dropHandlers = (t: DropTarget) => {
-    const key = dropKey(t);
+  const dropHandlers = (t: DropTarget, beforeUid?: string) => {
+    const key = dropKey(t) + (beforeUid ? `::vor:${beforeUid}` : '');
     return {
       onDragOver: (e: React.DragEvent) => {
         e.preventDefault();
@@ -115,7 +120,7 @@ export default function InventarTab() {
         e.stopPropagation();
         setOver(null);
         const uid = e.dataTransfer.getData('text/plain');
-        if (uid) moveTo(uid, t);
+        if (uid) moveTo(uid, t, beforeUid);
       },
     };
   };
@@ -155,10 +160,10 @@ export default function InventarTab() {
   const row = (it: Item, target: DropTarget) => (
     <tr
       key={it.uid}
-      className="inv-row"
+      className={`inv-row${isOver(target, it.uid) ? ' inv-row-drop-before' : ''}`}
       title="Klicken für Details — Bearbeiten, Duplizieren, Löschen"
       onClick={() => setEditUid(it.uid)}
-      {...dropHandlers(target)}
+      {...dropHandlers(target, it.uid)}
     >
       <td className="grip-cell" onClick={(e) => e.stopPropagation()}>
         <span
