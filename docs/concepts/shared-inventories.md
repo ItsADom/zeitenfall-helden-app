@@ -271,7 +271,12 @@ no use for.
 - Naming: the group panel is labelled "Gruppenpool", not "Gruppen-Inventar" —
   a live group already had an unrelated free-typed dynamic tab with that
   exact name, discovered during manual testing, and the two needed to stay
-  visually distinct.
+  visually distinct. **Superseded 2026-09-02**: renamed to "Gruppeninventar"
+  once houses (`docs/concepts/houses.md` §3.5) made the pool's fiction
+  overlap with the standard "Gruppen-Inventar" tab anyway — the collision
+  this note describes was reopened deliberately, not rediscovered by
+  accident. See houses.md §3.5 for the reasoning and the mitigation
+  (new groups stop getting the free-typed tab; existing ones keep it).
 - Still genuinely open: a category rename/remove UI for the two pools
   (tracked as its own `[ready]` TODO entry) — categories are otherwise fully
   wired (server endpoints, per-owner curated lists, `INVENTAR_KATEGORIEN`

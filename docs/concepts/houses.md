@@ -14,7 +14,8 @@ Status: **built 2026-09-02**.
 
 A player-driven way to tag a group-owned item with a fictional location —
 "this is in the kitchen, in the old mill" — organized as houses containing
-rooms, browsable as an alternate grouping of the existing Gruppenpool panel.
+rooms, browsable as an alternate grouping of the existing Gruppeninventar
+panel (named "Gruppenpool" at the time this was built — see §3.5).
 
 ## 2. The framing that settled the open questions
 
@@ -74,7 +75,7 @@ get their own `haus`/`raum` and just travel with it — the same rule
 shared-inventories.md §2.2 already established for a cross-owner move of a
 container ("only the root resets/carries state, descendants keep theirs").
 
-### 3.4 Everything lives inside the existing Gruppenpool panel
+### 3.4 Everything lives inside the existing pool panel
 
 Not a separate page. `PoolInventory.tsx` gained a Kategorie/Raum view
 toggle over the *same* item list — switching lenses, not navigating
@@ -85,13 +86,27 @@ a dialog, because *viewing* which house is a frequent action. Per
 *creation* (typing a new name into an item's Haus/Raum field) and *cleanup*
 (rename/delete in `HouseManagerDialog`) are dialog-gated.
 
-### 3.5 Renaming "Gruppenpool" — deliberately left open
+### 3.5 Renamed "Gruppenpool" → "Gruppeninventar"
 
-Once a house/room is just the pool's fiction gaining detail, "Gruppenpool"
-as a label sits a little oddly. Not decided here — tracked as its own
-`[ready]` TODO.md entry, since the right name also has to keep working for a
-group with zero houses defined, and must not collide with a live group's own
-free-typed dynamic tab (shared-inventories.md §6 already hit this once).
+Decided 2026-09-02, in a follow-up to the same session that built the
+feature. Once a house/room is just the pool's fiction gaining detail,
+"Gruppenpool" as a label sat oddly — "Gruppeninventar" was picked instead.
+
+This directly re-opens the exact collision shared-inventories.md §6 named as
+the reason "Gruppenpool" was chosen in the first place: `STANDARD_GROUP_TABS`
+(`server/src/dynSections.ts`) auto-creates a free-typed **"Gruppen-Inventar"**
+tab (Gegenstand/Anzahl/Bei wem/Wert) for every new group, and always has —
+it predates the structured item pool. "Gruppeninventar" sits one character
+away from that, in the same tab bar, both nominally "the group's stuff" but
+backed by entirely different mechanisms.
+
+**Accepted anyway, with one mitigation:** the "Gruppen-Inventar" entry was
+removed from `STANDARD_GROUP_TABS`, so `instantiateGroupTabs` no longer
+creates it for groups that start with zero tabs (brand-new groups from here
+on). Existing groups that already have the tab keep it untouched — no
+migration, no data loss, matching the no-data-loss rule in CLAUDE.md. Over
+time the collision fades out on its own as old groups either stop using
+their free-typed tab or explicitly remove it; nothing forces the issue.
 
 ---
 

@@ -37,7 +37,7 @@ const NO_ATTRIBUTES = {} as Attributes;
 // (FIXED_TAB_KEYS in shared/src/tabOrder.ts), nur ohne die dortige Reihenfolge-
 // Persistenz: ein einzelner fester Reiter braucht kein eigenes Sortiersystem,
 // er steht einfach immer zuerst.
-const POOL_TAB_KEY = 'Gruppenpool';
+const POOL_TAB_KEY = 'Gruppeninventar';
 // Stabile Referenz für "noch nicht geladen" — `data?.itemPool ?? []` würde bei
 // jedem Render, solange data noch null ist, ein NEUES Array anlegen; usePoolItems'
 // Effekt hängt an genau dieser Referenz und würde dadurch in einer Endlosschleife
@@ -58,7 +58,7 @@ export default function GroupPage() {
   const [data, setData] = useState<GroupData | null>(null);
   const [error, setError] = useState('');
   const [activeKey, setActiveKey] = useState<string>(POOL_TAB_KEY);
-  // Nur-Lesen ist der Normalfall für den Gruppenpool, wie beim Charakterbogen —
+  // Nur-Lesen ist der Normalfall für das Gruppeninventar, wie beim Charakterbogen —
   // absichtlich NICHT gemerkt, jedes Öffnen fängt wieder geschützt an.
   const [poolEditing, setPoolEditing] = useState(false);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
@@ -91,8 +91,8 @@ export default function GroupPage() {
         .then((d) => {
           setData(d);
           // Aktiven Reiter behalten, falls es ihn noch gibt — sonst zurück auf
-          // den festen Gruppenpool-Reiter (nie auf einen frei angelegten Tab,
-          // der inzwischen gelöscht sein könnte).
+          // den festen Gruppeninventar-Reiter (nie auf einen frei angelegten
+          // Tab, der inzwischen gelöscht sein könnte).
           setActiveKey((prev) => (prev === POOL_TAB_KEY || d.tabs.some((t) => String(t.id) === prev) ? prev : POOL_TAB_KEY));
           if (quiet) setReloadTick((t) => t + 1);
         })
@@ -155,8 +155,8 @@ export default function GroupPage() {
     await apiPut(`${basePath}/tabs/reorder`, { order: next.map((t) => t.id) });
   };
 
-  // Gruppen-Inventar: Ziele fürs „Verschieben nach…" sind alle Charaktere
-  // DIESER Gruppe plus der GM-Pool (nicht die Gruppenpool-Option selbst —
+  // Gruppeninventar: Ziele fürs „Verschieben nach…" sind alle Charaktere
+  // DIESER Gruppe plus der GM-Pool (nicht die Gruppeninventar-Option selbst —
   // die ist ja bereits die Quelle). data.characters ist schon geladen, ein
   // zweiter Fetch wie useMoveTargets ihn für den Charakterbogen braucht
   // entfällt hier.
@@ -218,12 +218,16 @@ export default function GroupPage() {
           <h2>Gemeinsames</h2>
           <div className="tabs" ref={tabsRef}>
             {/* Fester Reiter, immer zuerst, nicht umbenennbar/löschbar — siehe
-                POOL_TAB_KEY. Bewusst NICHT „Gruppen-Inventar" betitelt: manche
-                Gruppen (diese hier inklusive) haben bereits einen gleichnamigen,
-                frei getippten Tab von vor diesem Feature; „Gruppenpool" hält
-                beides sauber auseinander. */}
+                POOL_TAB_KEY. „Gruppeninventar" statt „Gruppenpool" (Entscheidung
+                2026-09-02, docs/concepts/houses.md §3.5), seit Häuser/Räume den
+                Pool auch als „wo im Haus liegt was" zeigen — der Name passt
+                jetzt besser. Kollidiert im Tab-Bild mit dem älteren, frei
+                getippten „Gruppen-Inventar"-Tab, den manche Gruppen schon haben
+                (STANDARD_GROUP_TABS in server/src/dynSections.ts erzeugt ihn
+                für neue Gruppen nicht mehr, bestehende behalten ihn) — bewusst
+                in Kauf genommen, siehe die Konzept-Notiz. */}
             <button className={activeKey === POOL_TAB_KEY ? 'active' : ''} onClick={() => setActiveKey(POOL_TAB_KEY)}>
-              Gruppenpool
+              Gruppeninventar
             </button>
             {tabs.map((t) => (
               <button key={t.id} className={String(t.id) === activeKey ? 'active' : ''} onClick={() => setActiveKey(String(t.id))}>

@@ -251,11 +251,11 @@ export default function GroupOverviewPage() {
     .map((tid) => data.talentCatalog.find((t) => t.id === tid))
     .filter((t): t is CatalogTalent => t !== undefined);
 
-  // GM-Pool: Ziele fürs „Verschieben nach…" sind der Gruppenpool DIESER Gruppe
-  // plus jeder ihrer Charaktere — der GM-Pool selbst fällt weg, das ist ja die
-  // Quelle. data.characters ist schon geladen, kein zweiter Fetch nötig.
+  // GM-Pool: Ziele fürs „Verschieben nach…" sind das Gruppeninventar DIESER
+  // Gruppe plus jeder ihrer Charaktere — der GM-Pool selbst fällt weg, das ist
+  // ja die Quelle. data.characters ist schon geladen, kein zweiter Fetch nötig.
   const gmPoolMoveTargets: MoveTarget[] = [
-    { key: 'group', label: `Gruppenpool (${data.group.name})`, toOwnerType: 'group', toOwnerId: groupId },
+    { key: 'group', label: `Gruppeninventar (${data.group.name})`, toOwnerType: 'group', toOwnerId: groupId },
     ...data.characters.map((c) => ({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character' as const, toOwnerId: c.id })),
   ];
   const patchGmPoolItem = (uid: string, patch: Partial<Item>) =>
@@ -487,7 +487,7 @@ export default function GroupOverviewPage() {
 
       <h2>SL-Vorrat</h2>
       <p className="muted">
-        Vorbereitete Gegenstände, bevor sie an einen Charakter oder in den Gruppenpool gehen — gewichtslos, nur für die
+        Vorbereitete Gegenstände, bevor sie an einen Charakter oder in das Gruppeninventar gehen — gewichtslos, nur für die
         Spielleitung sichtbar, bis sie verschoben werden.
       </p>
       <button className="small" onClick={() => setCatDialogOpen(true)}>

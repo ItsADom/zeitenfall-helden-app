@@ -114,14 +114,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
-- [ready] **Rename "Gruppenpool"** now that houses (docs/concepts/houses.md)
-  overlap it conceptually — flagged during the houses concept discussion,
-  deliberately left undecided there. Needs a name that still reads correctly
-  for a group with no house yet, and must not collide with a live group's own
-  free-typed dynamic tab (a real one was already named "Gruppen-Inventar" —
-  see shared-inventories.md §6 — which is why "Gruppenpool" was picked in the
-  first place).
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 

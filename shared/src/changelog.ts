@@ -214,14 +214,14 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Geteiltes Inventar',
         added: [
-          'Gruppen haben jetzt einen gemeinsamen Gruppenpool (auf der Gruppenseite): jedes Mitglied darf dort Gegenstände hinzufügen, bearbeiten und zwischen dem Pool, den Charakteren der Gruppe und der Spielleitung verschieben — praktisch, um Beute zu teilen oder Ausrüstung weiterzureichen.',
-          'Der Bearbeiten-Dialog eines Gegenstands hat jetzt einen „Verschieben nach…“-Knopf: von dort geht ein Gegenstand direkt an einen anderen Charakter der Gruppe, in den Gruppenpool oder an die Spielleitung.',
-          'Die Kategorie eines Gegenstands lässt sich jetzt überall frei eintippen (mit Vorschlägen aus den bestehenden Kategorien), statt nur aus einer festen Liste wählbar zu sein — egal ob eigener Charakter, Gruppenpool oder SL-Vorrat, eine neue Kategorie entsteht einfach dadurch, dass sie benutzt wird.',
+          'Gruppen haben jetzt ein gemeinsames Gruppeninventar (auf der Gruppenseite): jedes Mitglied darf dort Gegenstände hinzufügen, bearbeiten und zwischen dem Inventar, den Charakteren der Gruppe und der Spielleitung verschieben — praktisch, um Beute zu teilen oder Ausrüstung weiterzureichen.',
+          'Der Bearbeiten-Dialog eines Gegenstands hat jetzt einen „Verschieben nach…“-Knopf: von dort geht ein Gegenstand direkt an einen anderen Charakter der Gruppe, in das Gruppeninventar oder an die Spielleitung.',
+          'Die Kategorie eines Gegenstands lässt sich jetzt überall frei eintippen (mit Vorschlägen aus den bestehenden Kategorien), statt nur aus einer festen Liste wählbar zu sein — egal ob eigener Charakter, Gruppeninventar oder SL-Vorrat, eine neue Kategorie entsteht einfach dadurch, dass sie benutzt wird.',
           'Jedes Inventar hat jetzt einen eigenen „Kategorien verwalten“-Dialog zum Umbenennen oder Entfernen seiner Kategorien.',
-          'Der Gruppenpool lässt sich jetzt auch nach Häusern und Räumen statt nach Kategorie gruppiert anzeigen (Umschalter „Kategorie/Raum“): einem Gegenstand ein Haus/einen Raum zuweisen geht direkt im Bearbeiten-Dialog (mit Vorschlägen, wie bei der Kategorie), ein „Häuser verwalten“-Dialog erlaubt Umbenennen/Entfernen.',
+          'Das Gruppeninventar lässt sich jetzt auch nach Häusern und Räumen statt nach Kategorie gruppiert anzeigen (Umschalter „Kategorie/Raum“): einem Gegenstand ein Haus/einen Raum zuweisen geht direkt im Bearbeiten-Dialog (mit Vorschlägen, wie bei der Kategorie), ein „Häuser verwalten“-Dialog erlaubt Umbenennen/Entfernen.',
         ],
         admin: [
-          '(Spielleiter) Ein SL-Vorrat (auf der Spielleiter-Übersicht) zum Vorbereiten von Gegenständen, bevor sie an einen Charakter oder den Gruppenpool gehen — für Spieler unsichtbar, bis sie verschoben werden.',
+          '(Spielleiter) Ein SL-Vorrat (auf der Spielleiter-Übersicht) zum Vorbereiten von Gegenständen, bevor sie an einen Charakter oder das Gruppeninventar gehen — für Spieler unsichtbar, bis sie verschoben werden.',
           '(Spielleiter) Der SL-Vorrat hat jetzt ebenfalls einen eigenen „Kategorien verwalten“-Dialog.',
         ],
       },

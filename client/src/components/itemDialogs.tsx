@@ -44,7 +44,7 @@ export function useMoveTargets(groupId: number | null, exclude: { type: ItemOwne
   if (groupId != null && !excluded('group', groupId)) {
     targets.push({
       key: 'group',
-      label: roster.groupName ? `Gruppenpool (${roster.groupName})` : 'Gruppenpool',
+      label: roster.groupName ? `Gruppeninventar (${roster.groupName})` : 'Gruppeninventar',
       toOwnerType: 'group',
       toOwnerId: groupId,
     });
@@ -443,7 +443,7 @@ export function AddItemDialog({
   open: boolean;
   onClose: () => void;
   categories: string[];
-  /** Houses (docs/concepts/houses.md): nur im Gruppenpool gesetzt — blendet
+  /** Houses (docs/concepts/houses.md): nur im Gruppeninventar gesetzt — blendet
    * die Haus-/Raum-Felder ein, genau wie moveTargets den Verschieben-Picker.
    * Charakter- und SL-Vorrat lassen beide weg, keine Häuser dort. */
   houses?: string[];
