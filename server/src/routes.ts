@@ -1,6 +1,6 @@
 import express, { Router } from 'express';
 import { ACCESS_DENIED, LIST_SECTION_IDS, MAX_TAB_KEYS, normalizeColumns, normalizeTabOrder, normalizeWidths, ohneVerborgeneItems } from 'shared';
-import type { Item, ItemOwnerType, UserInfo } from 'shared';
+import type { CoinPouch, Item, ItemOwnerType, UserInfo } from 'shared';
 import { MAX_CHIME_BYTES, istWavKopf } from 'shared';
 import { instanceGate, mayEnter } from './accessGate.js';
 import {
@@ -59,7 +59,10 @@ import {
   loadHouses,
   loadRoomsForGroup,
   loadPouches,
+  loadGroupPouch,
+  saveGroupPouch,
   loescheItemsFuer,
+  loeschePouchenFuer,
   hasPortrait,
   loadPortrait,
   manageAbilityList,
@@ -636,6 +639,9 @@ api.get('/groups/:id', requireAuth, (req, res) => {
   // der Gruppenpool oben — Event-Gruppen bekommen kein Haus.
   let houses: string[] = [];
   let roomsByHaus: Record<string, string[]> = {};
+  // Gruppenkasse: derselbe Event-Gruppen-Ausschluss wie Gruppenpool/Häuser
+  // oben — Event-Gruppen bekommen keinen gemeinsamen Topf.
+  let pouch: CoinPouch | null = null;
   if (!group.isTemp) {
     // Standard-Tabs nachziehen (idempotent) — so bekommen auch Gruppen,
     // die es vor diesem Feature schon gab, ihre Inhalte
@@ -647,6 +653,7 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     itemCategories = loadItemCategoriesForOwner('group', groupId);
     houses = loadHouses(groupId);
     roomsByHaus = loadRoomsForGroup(groupId);
+    pouch = loadGroupPouch(groupId);
   }
   res.json({
     group: { ...group, isTemp: !!group.isTemp, portrait: hatGruppenPortrait(groupId) },
@@ -657,6 +664,7 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     itemCategories,
     houses,
     roomsByHaus,
+    pouch,
   });
 });
 
@@ -1411,6 +1419,14 @@ api.put('/groups/:id/houses/:haus/rooms/manage', requireAuth, (req, res) => {
   res.json({ rooms: manageRoomsForHouse(groupId, String(req.params.haus), req.body) });
 });
 
+// Gruppenkasse: derselbe Zugriff wie Gruppen-Inventar/Häuser oben — jedes
+// Mitglied darf den gemeinsamen Topf befüllen/leeren, keine SL-Sonderrolle.
+api.put('/groups/:id/pouch', requireAuth, (req, res) => {
+  const groupId = editableGroup(req, res);
+  if (!groupId) return;
+  res.json({ pouch: saveGroupPouch(groupId, req.body) });
+});
+
 api.post('/groups/:id/items/:uid/move', requireAuth, (req, res) => {
   const groupId = editableGroup(req, res);
   if (!groupId) return;
@@ -1920,6 +1936,9 @@ api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   // shared-inventories.md) nicht mehr per DB-Kaskade an character_id — dieselbe
   // manuelle Lücke wie bei den Assets oben, nur innerhalb derselben Datei.
   loescheItemsFuer('character', id);
+  // Geldbeutel hängen seit der Gruppenkasse ebenfalls nicht mehr per
+  // DB-Kaskade an character_id — dieselbe manuelle Lücke.
+  loeschePouchenFuer('character', id);
   res.json({ ok: true });
 });
 
@@ -2094,6 +2113,8 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   // Charakteren, also muss dieser Aufruf hier stehen statt sich auf die
   // CASCADE zu verlassen.
   loescheItemsFuer('group', id);
+  // Gruppenkasse hängt ebenfalls per owner_type/owner_id, gleiche Lücke.
+  loeschePouchenFuer('group', id);
   res.json({ ok: true });
 });
 

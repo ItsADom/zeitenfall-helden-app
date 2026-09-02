@@ -1446,16 +1446,16 @@ export function saveItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: nu
 const MAX_POUCHES = 50;
 const MAX_POUCH_NAME = 200;
 
-export function loadPouches(charId: number): CoinPouch[] {
+export function loadPouchesForOwner(ownerType: ItemOwnerType, ownerId: number): CoinPouch[] {
   const pouches = db
-    .prepare('SELECT id, name, system_id, kapazitaet, is_bank FROM char_pouches WHERE character_id = ? ORDER BY pos, id')
-    .all(charId) as { id: number; name: string; system_id: number | null; kapazitaet: number; is_bank: number }[];
+    .prepare('SELECT id, name, system_id, kapazitaet, is_bank FROM char_pouches WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id')
+    .all(ownerType, ownerId) as { id: number; name: string; system_id: number | null; kapazitaet: number; is_bank: number }[];
   const coinRows = db
     .prepare(
       `SELECT pc.pouch_id, pc.denomination_id, pc.anzahl FROM char_pouch_coins pc
-       JOIN char_pouches p ON p.id = pc.pouch_id WHERE p.character_id = ?`,
+       JOIN char_pouches p ON p.id = pc.pouch_id WHERE p.owner_type = ? AND p.owner_id = ?`,
     )
-    .all(charId) as { pouch_id: number; denomination_id: number; anzahl: number }[];
+    .all(ownerType, ownerId) as { pouch_id: number; denomination_id: number; anzahl: number }[];
   const coinsByPouch = new Map<number, Record<number, number>>();
   for (const r of coinRows) {
     const coins = coinsByPouch.get(r.pouch_id) ?? {};
@@ -1472,6 +1472,10 @@ export function loadPouches(charId: number): CoinPouch[] {
   }));
 }
 
+export function loadPouches(charId: number): CoinPouch[] {
+  return loadPouchesForOwner('character', charId);
+}
+
 // Ganze Liste ersetzen (wie saveItems): Delete+Insert, serverseitig gedeckelt.
 // Der Bank-Beutel (CoinPouch.bank) ist eine erzwungene Ausnahme: genau einer,
 // Name fest „Bank", Kapazität immer unbegrenzt — unabhängig davon, was der
@@ -1486,9 +1490,9 @@ export function savePouches(charId: number, raw: unknown): void {
   const validSystemIds = new Set((db.prepare('SELECT id FROM currency_systems').all() as { id: number }[]).map((r) => r.id));
   const validDenomIds = new Set((db.prepare('SELECT id FROM currency_denominations').all() as { id: number }[]).map((r) => r.id));
   const tx = db.transaction(() => {
-    db.prepare('DELETE FROM char_pouches WHERE character_id = ?').run(charId);
+    db.prepare("DELETE FROM char_pouches WHERE owner_type = 'character' AND owner_id = ?").run(charId);
     const insPouch = db.prepare(
-      'INSERT INTO char_pouches (character_id, pos, name, system_id, kapazitaet, is_bank) VALUES (?, ?, ?, ?, ?, ?)',
+      "INSERT INTO char_pouches (owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank) VALUES ('character', ?, ?, ?, ?, ?, ?)",
     );
     const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
     let pos = 0;
@@ -1520,6 +1524,68 @@ export function savePouches(charId: number, raw: unknown): void {
     }
   });
   tx();
+}
+
+// --- Gruppenkasse ---
+//
+// Eine Gruppe hat GENAU einen Geldbeutel — „ein gemeinsamer Topf", analog zum
+// Gruppeninventar (docs/concepts/shared-inventories.md), aber ohne dessen
+// Add/Remove: kein Bank-Sonderfall, keine Liste, nur ein Objekt. Wird bei
+// erstem Zugriff automatisch angelegt (wie getOrCreateBoard einen Brett-
+// Datensatz), nicht erst über eine Reparatur beim Serverstart. Event-Gruppen
+// bekommen keine Kasse (aufrufende Route filtert das, wie beim Gruppenpool).
+function ensureGroupPouch(groupId: number): void {
+  const existing = db.prepare("SELECT id FROM char_pouches WHERE owner_type = 'group' AND owner_id = ?").get(groupId);
+  if (existing) return;
+  const firstSystem = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as
+    | { id: number }
+    | undefined;
+  db.prepare(
+    "INSERT INTO char_pouches (owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank) VALUES ('group', ?, 0, 'Gruppenkasse', ?, 0, 0)",
+  ).run(groupId, firstSystem?.id ?? null);
+}
+
+export function loadGroupPouch(groupId: number): CoinPouch {
+  ensureGroupPouch(groupId);
+  return loadPouchesForOwner('group', groupId)[0];
+}
+
+// Ersetzt nur Name/System/Kapazität/Münzen der einen Gruppenkasse-Zeile — kein
+// Delete+Insert der ganzen Liste wie savePouches, weil es keine Liste gibt.
+export function saveGroupPouch(groupId: number, raw: unknown): CoinPouch {
+  ensureGroupPouch(groupId);
+  const o = (raw ?? {}) as Record<string, unknown>;
+  const validSystemIds = new Set((db.prepare('SELECT id FROM currency_systems').all() as { id: number }[]).map((r) => r.id));
+  const validDenomIds = new Set((db.prepare('SELECT id FROM currency_denominations').all() as { id: number }[]).map((r) => r.id));
+  const systemIdRaw = o.systemId == null || o.systemId === '' ? null : Math.trunc(Number(o.systemId));
+  const systemId = systemIdRaw != null && validSystemIds.has(systemIdRaw) ? systemIdRaw : null;
+  const name = String(o.name ?? '').slice(0, MAX_POUCH_NAME) || 'Gruppenkasse';
+  const kapazitaet = clampMin(o.kapazitaet);
+  const pouch = db.prepare("SELECT id FROM char_pouches WHERE owner_type = 'group' AND owner_id = ?").get(groupId) as {
+    id: number;
+  };
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE char_pouches SET name = ?, system_id = ?, kapazitaet = ? WHERE id = ?').run(name, systemId, kapazitaet, pouch.id);
+    db.prepare('DELETE FROM char_pouch_coins WHERE pouch_id = ?').run(pouch.id);
+    const insCoin = db.prepare('INSERT INTO char_pouch_coins (pouch_id, denomination_id, anzahl) VALUES (?, ?, ?)');
+    const coins = (o.coins ?? {}) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(coins)) {
+      const denomId = Math.trunc(Number(key));
+      const anzahl = clampMin(value);
+      if (validDenomIds.has(denomId) && anzahl > 0) insCoin.run(pouch.id, denomId, anzahl);
+    }
+  });
+  tx();
+  return loadGroupPouch(groupId);
+}
+
+// Manuelles Aufräumen beim Löschen einer Gruppe — die DB-Kaskade ist mit
+// character_id gegangen (siehe die owner_type-Migration in db.ts), also
+// übernimmt das hier von Hand, exakt wie loescheItemsFuer() es für char_items
+// schon tut. char_pouch_coins hängt weiterhin per echter FK an
+// char_pouches.id und räumt sich darüber von selbst mit.
+export function loeschePouchenFuer(ownerType: ItemOwnerType, ownerId: number): void {
+  db.prepare('DELETE FROM char_pouches WHERE owner_type = ? AND owner_id = ?').run(ownerType, ownerId);
 }
 
 // Kategorien verwalten MIT Kaskade auf die Gegenstände (für die Einstellungen-

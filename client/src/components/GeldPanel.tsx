@@ -1,8 +1,21 @@
+import { useState } from 'react';
 import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { pouchFuellung, pouchUeberfuellt } from '@shared/currency';
 import { NumInput, TextInput } from './inputs';
 import { useReadOnly } from './displayMode';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
+
+// Umsortieren per Ziehen, gleiches Prinzip wie reorderItems() in shared/src/
+// items.ts, aber Index-basiert statt uid-basiert: Beutel haben, anders als
+// Items, keine stabile Kennung, solange sie noch nicht gespeichert sind
+// (mehrere neue Beutel tragen alle id 0), also splict das direkt am Index.
+function reorderPouches(pouches: CoinPouch[], from: number, to: number): CoinPouch[] {
+  if (from === to) return pouches;
+  const next = pouches.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  return next;
+}
 
 // Geld (Münz-Umbau): ein Charakter hat null oder mehr benannte Geldbeutel
 // (Gürtelbeutel, Bank, …), jeder an ein GM-Katalog-Währungssystem gebunden.
@@ -17,12 +30,18 @@ export function GeldPanel({
   pouches,
   systems,
   setPouches,
+  fixed,
 }: {
   pouches: CoinPouch[];
   systems: CurrencySystem[];
   setPouches: (next: CoinPouch[]) => void;
+  /** Für die Gruppenkasse: genau ein Beutel, kein Hinzufügen/Entfernen — nur
+   * Name, Währung, Kapazität und Münzen bleiben bearbeitbar. */
+  fixed?: boolean;
 }) {
   const readOnly = useReadOnly();
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
 
   const setPouch = (i: number, patch: Partial<CoinPouch>) => setPouches(pouches.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const setCoin = (i: number, denomId: number, anzahl: number) =>
@@ -38,7 +57,7 @@ export function GeldPanel({
     <div className="panel">
       <div className="subhead-row">
         <h3>Geld</h3>
-        {!readOnly && pouches.length < MAX_POUCHES && (
+        {!readOnly && !fixed && pouches.length < MAX_POUCHES && (
           <button className="small add-row" onClick={addPouch}>
             + Beutel
           </button>
@@ -50,6 +69,22 @@ export function GeldPanel({
           key={pouch.id || `neu-${i}`}
           pouch={pouch}
           systems={systems}
+          removable={!fixed}
+          draggable={!fixed && pouches.length > 1}
+          dropBefore={overIdx === i}
+          onDragStart={() => setDragIdx(i)}
+          onDragEnd={() => {
+            setDragIdx(null);
+            setOverIdx(null);
+          }}
+          onDragOver={() => {
+            if (dragIdx !== null && dragIdx !== i) setOverIdx(i);
+          }}
+          onDrop={() => {
+            if (dragIdx !== null && dragIdx !== i) setPouches(reorderPouches(pouches, dragIdx, i));
+            setDragIdx(null);
+            setOverIdx(null);
+          }}
           onChangeName={(v) => setPouch(i, { name: v })}
           onChangeSystem={(systemId) => setPouch(i, { systemId, coins: {} })}
           onChangeKapazitaet={(v) => setPouch(i, { kapazitaet: v })}
@@ -64,6 +99,13 @@ export function GeldPanel({
 function PouchCard({
   pouch,
   systems,
+  removable,
+  draggable,
+  dropBefore,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
   onChangeName,
   onChangeSystem,
   onChangeKapazitaet,
@@ -72,6 +114,17 @@ function PouchCard({
 }: {
   pouch: CoinPouch;
   systems: CurrencySystem[];
+  /** false für die Gruppenkasse (fixed) — dort gibt es nur den einen Beutel. */
+  removable: boolean;
+  /** false für die Gruppenkasse oder eine einzelne Karte — Ziehen ist erst mit
+   * mindestens zwei Beuteln sinnvoll. */
+  draggable: boolean;
+  /** Markiert die Karte als Ziel, wenn ein anderer Beutel gerade über sie gezogen wird. */
+  dropBefore: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
   onChangeName: (v: string) => void;
   onChangeSystem: (systemId: number | null) => void;
   onChangeKapazitaet: (v: number) => void;
@@ -84,17 +137,46 @@ function PouchCard({
   const over = pouchUeberfuellt(pouch);
 
   return (
-    <div className="pouch">
+    <div
+      className={`pouch${dropBefore ? ' pouch-drop-before' : ''}`}
+      onDragOver={(e) => {
+        if (readOnly || !draggable) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        onDragOver();
+      }}
+      onDrop={(e) => {
+        if (readOnly || !draggable) return;
+        e.preventDefault();
+        onDrop();
+      }}
+    >
       <div className="pouch-head">
-        {pouch.bank ? (
-          <span className="static-value static-text pouch-bank-name" title="Der Bank-Beutel ist immer da, unbegrenzt und nicht löschbar.">
-            Bank
+        {!readOnly && draggable && (
+          <span
+            className="pouch-drag-handle"
+            draggable
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            title="Ziehen zum Umsortieren"
+            aria-hidden
+          >
+            ⠿
           </span>
-        ) : (
-          <TextInput value={pouch.name} onChange={onChangeName} />
         )}
-        <CurrencySystemSelect systemId={pouch.systemId} systems={systems} onChange={onChangeSystem} />
-        {!readOnly && !pouch.bank && <ConfirmDeleteButton title="Geldbeutel entfernen" onConfirm={onRemove} />}
+        <span className="pouch-name">
+          {pouch.bank ? (
+            <span className="static-value static-text pouch-bank-name" title="Der Bank-Beutel ist immer da, unbegrenzt und nicht löschbar.">
+              Bank
+            </span>
+          ) : (
+            <TextInput value={pouch.name} onChange={onChangeName} />
+          )}
+        </span>
+        <span className="pouch-system">
+          <CurrencySystemSelect systemId={pouch.systemId} systems={systems} onChange={onChangeSystem} />
+        </span>
+        {!readOnly && !pouch.bank && removable && <ConfirmDeleteButton title="Geldbeutel entfernen" onConfirm={onRemove} />}
       </div>
       <div className="container-cap-edit">
         <span className={`container-cap${over ? ' over' : ''}`} title="Münzen im Beutel / Kapazität (0 = unbegrenzt)">

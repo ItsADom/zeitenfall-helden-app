@@ -234,6 +234,7 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
         changed:[
           'Kritische Fehlschläge treten jetzt bevorzugt dann auf, wenn es besonders wichtig ist.',
+          'Geldbeutel lassen sich jetzt wie Gegenstände per Ziehen in eine eigene Reihenfolge bringen.',
         ],
         fixed: [
           'Ein Vorrat (LE/AU/AsE/Psyche), der über sein Maximum hinaus aufgefüllt war, sprang nach einem Neuladen der Seite fälschlich auf sein Maximum zurück — die Überladung wird jetzt korrekt gespeichert.',

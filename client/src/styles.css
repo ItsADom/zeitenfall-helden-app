@@ -2502,14 +2502,26 @@ button.side-attr:active {
   gap: 8px;
   margin-bottom: 6px;
 }
-.pouch-head > *:first-child {
+.pouch-drag-handle {
+  cursor: grab;
+  color: var(--muted, #888);
+  user-select: none;
+  flex: 0 0 auto;
+}
+.pouch-name {
   flex: 1;
   min-width: 8em;
 }
-.pouch-head > *:nth-child(2) {
+.pouch-system {
   flex: 0 1 auto;
   width: 12em;
   min-width: 6em;
+}
+/* Umsortieren: ein Beutel wird über einen anderen gezogen — landet gleich
+   davor. Gleiches Prinzip wie .item-chip-drop-before/.inv-row-drop-before,
+   nur oben statt seitlich markiert, weil Beutel senkrecht gestapelt sind. */
+.pouch-drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
 }
 .coins {
   display: grid;
