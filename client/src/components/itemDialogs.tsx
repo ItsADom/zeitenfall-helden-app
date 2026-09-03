@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import type { ContainerArt, Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
+import type { Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
 import { makeUid, waffenFelderFuerArt, waffenStatsFuerArt } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
 import { apiGet } from '../api';
@@ -901,7 +901,6 @@ export function AddContainerDialog({
   onAdd: (fields: Partial<Item>) => void;
 }) {
   const [name, setName] = useState('');
-  const [containerArt, setContainerArt] = useState<ContainerArt>('storage');
   const [gewicht, setGewicht] = useState(0);
   const [kapazitaet, setKapazitaet] = useState(0);
   const [kapazitaetArt, setKapazitaetArt] = useState<KapazitaetArt>('gewicht');
@@ -910,7 +909,6 @@ export function AddContainerDialog({
 
   const reset = () => {
     setName('');
-    setContainerArt('storage');
     setGewicht(0);
     setKapazitaet(0);
     setKapazitaetArt('gewicht');
@@ -926,7 +924,15 @@ export function AddContainerDialog({
     onAdd({
       name: name.trim(),
       istBehaelter: true,
-      containerArt,
+      // Immer 'storage': Schnellzugriff (containerArt 'quick') gehört getragener
+      // Ausrüstung und wird ausschließlich über deren Quickslots-Feld angelegt
+      // (itemDialogs.tsx, AddItemDialog mode 'ausruestung') — das setzt korrekt
+      // location: 'bench'. Über diesen Dialog (Inventar/Gruppenpool) angelegt,
+      // landete ein 'quick'-Behälter dagegen bei location: 'inventar', wo ihn
+      // weder Inventar.tsx noch Ausruestung.tsx je rendert: unsichtbar, aber im
+      // Traglast-Gewicht trotzdem mitgezählt. Im Gruppenpool ergibt „Schnell-
+      // zugriff" ohnehin nie Sinn — ein Pool-Item hat niemanden, der es trägt.
+      containerArt: 'storage',
       gewicht,
       kapazitaet,
       kapazitaetArt,
@@ -960,14 +966,6 @@ export function AddContainerDialog({
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && commit()}
         />
-      </label>
-
-      <label className="dlg-field">
-        Art
-        <select value={containerArt} onChange={(e) => setContainerArt(e.target.value as ContainerArt)}>
-          <option value="storage">Stauraum (Inhalt im Inventar-Reiter)</option>
-          <option value="quick">Schnellzugriff (Inhalt inline in der Ausrüstung)</option>
-        </select>
       </label>
 
       <div className="dlg-row2">
