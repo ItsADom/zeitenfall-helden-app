@@ -114,6 +114,55 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
+- [ready] **Image gallery for houses** (user feedback, concept agreed
+  2026-09-03). Multiple images per house (floor plans, reference photos), not
+  just one — reuses the existing generic `assets` table
+  (`server/src/assets/store.ts`), which already supports several images per
+  owner via `pos` (exactly a gallery) and is the same mechanism the wiki and
+  portraits use. **New:** `OwnerTyp` value `'house'` (`store.ts:22`),
+  `owner_id = group_houses.id` (that row already has a stable id —
+  `docs/concepts/houses.md`'s `haus`/`raum` strings on `Item` stay untouched,
+  this hangs off the suggestion-list row instead). No `gm_only` restriction:
+  everyone uploads/sees/deletes, matching the flat, no-GM-gatekeeping
+  permission model houses already have. Delete: call `loescheAssetsFuer
+  ('house', id)` when a `group_houses` row is deleted or renamed away (same
+  "any new delete path must call this by hand" rule as every other owner
+  type, CLAUDE.md). UI: a small, unobtrusive icon button next to each house's
+  header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
+  (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
+  client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
+- [ready] **Show who last brought an item into the group pool** (user
+  feedback, concept agreed 2026-09-03). A small chip next to the item
+  name/row — same visual language as the existing `kategorie`/`haus` chips —
+  naming the **character** (not the acting user) whose inventory the item
+  most recently came from. **New:** a plain string field on `Item` (same role
+  as `haus`/`raum`: freeform, no FK), set only on an actual cross-owner move
+  landing at `owner_type: 'group'` (never on an in-pool house/room
+  reassignment — that's a same-owner patch, not a move) — blank if the source
+  was the GM pool (`owner_type: 'gm'` has no character). Tracks only the
+  latest inbound move, overwritten each time, no history (see the movement
+  log entry below for that). Cleared on the item's next cross-owner move OUT
+  of the group pool — same reset-on-move-out pattern `ITEM_MOVE_RESET_PATCH`
+  already applies to `haus`/`raum` (`docs/concepts/houses.md` §3.2).
+- [ready] **Item movement log for group inventories, GM-only** (user
+  feedback, concept agreed 2026-09-03). Logs every cross-owner move where
+  either side is `owner_type: 'group'` (both directions — into AND out of the
+  pool), NOT in-pool house/room reassignment. **New table in `helden.db`**
+  (kept forever for now — no retention policy yet, see below), one row per
+  move: item name + `anzahl` as a denormalized snapshot at move time (not a
+  live reference — the item can be renamed/deleted later and the log entry
+  should still read sensibly; no partial-stack moves to account for,
+  splitting a stack isn't possible today), from-owner, to-owner, the acting
+  **user's** display name (deliberately the real account, not the character —
+  makes a GM's own hand in a move unambiguous at a glance), timestamp.
+  GM-only endpoint + UI gate, same as the rest of the GM-only surface. UI: a
+  `Dialog` (`wide`, scrollable table body) opened from the Group page — same
+  shape as `AbilityLookupDialog` (`GroupOverview.tsx:74`): Zeitpunkt /
+  Gegenstand / Anzahl / Von / Nach / Wer. **Retention:** add a server-side
+  deletion/prune function now as a placeholder — no UI trigger, nothing calls
+  it yet — so a future retention policy has something to hook into without
+  re-deriving the table shape.
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -160,6 +209,17 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      existing values (no-data-loss rule) — for rows whose old `entfernung`
      text doesn't cleanly parse into two numbers, fold the original string
      into the row's `notiz` instead of discarding it.
+   - [ready] **Cosmetic grouping for non-unique weapon stacks** (user
+     feedback, concept agreed 2026-09-03): throwing knives and the like get
+     `Duplizieren`'d into several separate rows today because durability must
+     stay independent per instance (`shared/src/items.ts:289-293` —
+     `duplicateItem` exists specifically so two identical weapons can diverge
+     in Haltbarkeit; `anzahl`-style stacking would collapse that to one
+     shared state, which is wrong here). **Decided: display-only** — the data
+     model doesn't change, still one `Item` row per instance. Group
+     functionally-identical weapon instances (same stats, differing at most
+     in Haltbarkeit) into one collapsed card in the reworked weapon tab,
+     expandable to the individual instances underneath.
    - [sketch] **Fold ammunition damage into the Fernkampf damage formula**
      (user feedback): every ranged weapon has its own `schaden` value today,
      but the ammunition actually loaded/used should add to it — currently
@@ -263,27 +323,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   yet written per Heldenkraft. Also needs a server-side reveal state — 34+/60
   perks are hidden until the GM unveils them, so they must not be sent, same
   rule as the wiki's ` ```gm ` regions.
-- [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
-  every system change). Concept to build when it comes off hold:
-   - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
-    `backup.ts` copies the whole file × KEEP, so history stays out of those
-    backups. Denormalize `actor_name` into each row (no cross-file FK).
-   - Diff, don't snapshot: in `saveSection` compare payload vs current DB, log only
-    changed fields (old→new); empty diff → skip (doubles as the no-op skipper).
-   - Coalesce: within ~5 min, same (character_id, actor, section, field) → UPDATE
-    new_val + ts, keep original old_val. Keeps size independent of the debounce.
-   - Granularity: scalar sections (bio/meta/attributes/baseValues/resources)
-    field-level; list/dyn sections COARSE only ('section X: +a/-b/~c Zeilen') —
-    rows are positional (DELETE+INSERT), so per-cell diffing is noisy.
-   - Fat values: numbers keep both; free text > ~120 chars truncate / '[geändert]'.
-   - Hook: `saveSection` (thread actor = `req.user.id`). Also `saveVisibility`,
-    dyn-row saves, portrait set/delete, GM char rename/reassign/delete. Skip
-    catalog/admin edits.
-   - Schema: `audit_log(id, character_id, actor_id, actor_name, ts, section, field
-    NULL=coarse, old_val, new_val)`, index (character_id, ts DESC).
-   - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
-   - Optional: read-only 'Verlauf' panel per char (GM sees all with user/character
-    filters; owner sees own, character filter).
 
 ## Low-Prio
 
@@ -430,13 +469,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   rollback onto older code still shows portraits. Once a release has gone by
   without needing one, delete the table and the fallback branches in
   `assets/portraits.ts`. Not before: it is the only copy an older build can see.
-
-- **wiki: inline span-level GM tagging** — the wiki marks GM-only content at
-  block level (a fenced ` ```gm ... ``` ` region). Marking a few words
-  *mid-sentence* as GM-only is the open piece, and it is harder than it looks:
-  the server strips GM regions from the response before sending, so an inline
-  marker has to survive that removal without leaving a hole that reads as a
-  typo.
 
 - **wiki: Steckbriefe, dann Vorlagen** (concept settled, deliberately deferred —
   the navigation/category/redirect round shipped without it). Two steps, in this
