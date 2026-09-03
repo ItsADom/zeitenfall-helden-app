@@ -1029,6 +1029,30 @@ db.exec(`
   }
 }
 
+// Migration: verwaiste Schnellzugriff-Behälter (containerArt 'quick') zurück
+// sichtbar machen. AddContainerDialog bot 'quick' bis vor Kurzem auch aus dem
+// allgemeinen Inventar-/Gruppenpool-Dialog heraus an, setzte dabei aber nie
+// location — die Zeile blieb bei 'inventar' stehen. Ausruestung.tsx zeigt den
+// Inhalt eines Schnellzugriff-Behälters aber nur bei location 'getragen' oder
+// 'bench', Inventar.tsx/PoolInventory.tsx rendern 'quick'-Behälter überhaupt
+// nicht — solche Zeilen waren komplett unerreichbar, zählten aber weiter zur
+// Traglast. 'storage' ist der einzige Behälter-Typ, den beide je gerendert
+// haben, also der richtige sichtbare Zustand für einen so entstandenen
+// Behälter — echte, korrekt getragene Schnellzugriff-Behälter (location
+// 'getragen'/'bench') bleiben unangetastet. Idempotent: einmal umgeschrieben,
+// greift die WHERE-Bedingung beim nächsten Start nicht mehr.
+{
+  const verwaist = db
+    .prepare("SELECT COUNT(*) AS n FROM char_items WHERE ist_behaelter = 1 AND container_art = 'quick' AND location NOT IN ('getragen', 'bench')")
+    .get() as { n: number };
+  if (verwaist.n > 0) {
+    db.exec(
+      "UPDATE char_items SET container_art = 'storage' WHERE ist_behaelter = 1 AND container_art = 'quick' AND location NOT IN ('getragen', 'bench')",
+    );
+    console.log(`Migration: ${verwaist.n} verwaiste(r) Schnellzugriff-Behälter als Stauraum-Behälter sichtbar gemacht`);
+  }
+}
+
 // Migration: 'visible'/'tab_id'-Spalten an bestehende char_sections ergänzen
 {
   const cols = new Set((db.prepare('PRAGMA table_info(char_sections)').all() as { name: string }[]).map((c) => c.name));
