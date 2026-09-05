@@ -59,39 +59,10 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Competitive check ("Wettstreit"): a second pool kind alongside the
-  Kooperationsprobe** (user feedback, concept agreed — rules confirmed with
-  the GM, since Zeitenfall's probe mechanics are homebrew, not DSA5).
-  Reuses the existing self-serve join/leave/start scaffolding
-  (`CoopPoolCard.tsx`, `roll.coop.propose/join/leave/start/cancel` in
-  `shared/src/diceProtocol.ts:395-434`, `server/src/coopPools.ts`) — same
-  UI shape, a new pool `mode: 'coop' | 'competitive'` instead of a
-  parallel set of message types. Only the verdict differs from
-  `computeCoopVerdict` (`shared/src/dice.ts:296-309`), which pools sums for a
-  joint pass/fail: a competitive verdict instead ranks participants and picks
-  ONE winner (or a tied set — see below), nobody's roll pooled with anyone
-  else's. **Decided verdict algorithm:**
-   1. Tier every participant by crit status: confirmed crit-success (top) >
-      ordinary roll > confirmed crit-fail (bottom) — a crit auto-outranks any
-      non-crit tier, same override precedence the coop pool already gives
-      crits over the sum-check.
-   2. Within a tier, rank by margin — `probeZahl - adjustedSum` (bigger =
-      beat target by more) — descending; the winner is the best margin in the
-      highest non-empty tier. **Decided: best margin always wins, even if
-      negative** — a participant does NOT need to have actually succeeded
-      their own probe to win the contest; if everyone in the top tier failed,
-      whoever failed by the least still wins.
-   3. **Decided (corollary, not separately asked): an exact tie within the
-      winning tier/margin is a genuine tie** — report all tied participants
-      as joint winners rather than picking one arbitrarily; no further
-      tie-break rule.
-   4. Multiple crit-successes (or multiple crit-fails) still get ranked
-      against each other by margin within their own tier — a crit only
-      outranks OTHER tiers, it doesn't flatten comparisons within its own.
-  **New:** `computeCompetitiveVerdict` in `shared/src/dice.ts`, parallel to
-  `computeCoopVerdict`, returning winner(s) + each participant's tier/margin
-  for display. UI: a `CompetitivePoolCard` alongside `CoopPoolCard`,
-  labels via a `WETTSTREIT`-style entry in `labels.ts`.
+- equipment presets
+  - e.g. a set for leisure, a set for combat etc.
+  - this could also need tracking for these items inside group inventories (needs dicsussion)
+
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;

@@ -43,6 +43,8 @@ export interface ChatFeedEntry {
   groupRollId?: string;
   /** Siehe RollFeedEntry.coop. */
   coop?: true;
+  /** Siehe RollFeedEntry.competitive — nie tatsächlich gesetzt (nur roll-Einträge), rein für den Vereinigungstyp. */
+  competitive?: true;
   /** Siehe RollFeedEntry.repeat — nie tatsächlich gesetzt (nur roll-Einträge), rein für den Vereinigungstyp. */
   repeat?: true;
 }
@@ -148,6 +150,14 @@ export interface RollFeedEntry {
    * Verdikt-Zeile über den einzelnen Würfen (computeCoopVerdict).
    */
   coop?: true;
+  /**
+   * Gegenstück zu `coop` für einen aufgelösten Wettstreit (derselbe Pool-
+   * Mechanismus, `mode: 'competitive'`, siehe PoolMode) — mit `coop`
+   * zusammen betrachtet immer höchstens eines der beiden gesetzt.
+   * FeedColumn.tsx rendert dabei stattdessen eine Gewinner-Zeile
+   * (computeCompetitiveVerdict) statt der gepoolten Kooperations-Verdikt-Zeile.
+   */
+  competitive?: true;
   /**
    * Gesetzt auf JEDEM Eintrag eines per führendem "Nx" wiederholten freien
    * Wurfs (siehe roll.expr in ws.ts) — unterscheidet diese Art Gruppierung
@@ -260,18 +270,29 @@ export interface CoopPoolMember {
 }
 
 /**
- * An open, self-serve Kooperationsprobe pool (see coopPools.ts) — different
- * shape from GroupRollRequest on purpose: ANY player (GM included) can
- * propose one, and other members join themselves rather than being pushed a
- * targeted PendingRollRequest each. Nobody rolls until the proposer or the
- * GM closes the pool (`roll.coop.start`) — `members` is just "who's in" up
- * to that point, no per-member roll/pass status to track before then.
+ * Ob ein Pool die Ergebnisse poolt (`coop`, siehe computeCoopVerdict) oder
+ * gegeneinander antreten lässt (`competitive`, siehe computeCompetitiveVerdict)
+ * — see TODO.md "Competitive check". Ein Feld statt eines eigenen, parallelen
+ * Nachrichten-/Pool-Typs: propose/join/leave/start/cancel laufen für beide
+ * Modi identisch über dieselben `roll.coop.*`-Nachrichten, nur das Verdikt am
+ * Ende unterscheidet sich.
+ */
+export type PoolMode = 'coop' | 'competitive';
+
+/**
+ * An open, self-serve Kooperationsprobe/Wettstreit pool (see coopPools.ts) —
+ * different shape from GroupRollRequest on purpose: ANY player (GM included)
+ * can propose one, and other members join themselves rather than being
+ * pushed a targeted PendingRollRequest each. Nobody rolls until the proposer
+ * or the GM closes the pool (`roll.coop.start`) — `members` is just "who's
+ * in" up to that point, no per-member roll/pass status to track before then.
  */
 export interface CoopPoolRequest {
   id: string;
   groupId: number;
   source: ProbeSource;
   label: string;
+  mode: PoolMode;
   initiatorUserId: number;
   initiatorName: string;
   /** Join order. */
@@ -388,13 +409,15 @@ export type ClientToServerMessage =
   // Verwirft die ganze Sammelanfrage — auch bereits zurückgehaltene, aber noch
   // nicht veröffentlichte Ergebnisse. Nur die anfragende Spielleitung.
   | { type: 'roll.group.cancel'; reqId: string; groupRequestId: string }
-  // Kooperationsprobe: schlägt einen offenen, für alle sichtbaren Pool vor —
-  // Gegenstück zu roll.group.request, aber selbstbedient statt SL-Broadcast,
-  // und JEDER (nicht nur die Spielleitung) darf vorschlagen — auch OHNE
-  // eigenen Charakter (die Spielleitung hat nie einen), da Vorschlagen nicht
-  // automatisch beitritt. Der Server sucht sich fürs Anzeige-Label selbst
-  // irgendeinen Charakter der Gruppe (siehe ws.ts).
-  | { type: 'roll.coop.propose'; reqId: string; source: ProbeSource }
+  // Kooperationsprobe/Wettstreit: schlägt einen offenen, für alle sichtbaren
+  // Pool vor — Gegenstück zu roll.group.request, aber selbstbedient statt
+  // SL-Broadcast, und JEDER (nicht nur die Spielleitung) darf vorschlagen —
+  // auch OHNE eigenen Charakter (die Spielleitung hat nie einen), da
+  // Vorschlagen nicht automatisch beitritt. Der Server sucht sich fürs
+  // Anzeige-Label selbst irgendeinen Charakter der Gruppe (siehe ws.ts).
+  // `mode` entscheidet nur über das spätere Verdikt (roll.coop.start) — Beitritt/
+  // Verlassen/Starten/Verwerfen laufen für beide Modi über dieselben Nachrichten.
+  | { type: 'roll.coop.propose'; reqId: string; source: ProbeSource; mode: PoolMode }
   // Tritt einem offenen Pool bei / verlässt ihn wieder — jeder für sich
   // selbst, mit dem eigenen Charakter dieser Gruppe.
   | { type: 'roll.coop.join'; reqId: string; poolId: string; charId: number }

@@ -6,6 +6,7 @@ import type {
   GroupRollRequest,
   KinoAuftrag,
   PendingRollRequest,
+  PoolMode,
   ProbeSource,
   RollVisibility,
   ServerToClientMessage,
@@ -277,8 +278,8 @@ interface DicePanelCtxValue {
   revealGroupRequest: (groupRequestId: string) => void;
   /** Verwirft eine Sammelanfrage komplett, auch bereits zurückgehaltene Ergebnisse. */
   cancelGroupRequest: (groupRequestId: string) => void;
-  /** Schlägt einen offenen Kooperationsprobe-Pool vor — jeder darf, nicht nur die Spielleitung. */
-  proposeCoopPool: (groupId: number, source: ProbeSource) => void;
+  /** Schlägt einen offenen Kooperationsprobe-/Wettstreit-Pool vor — jeder darf, nicht nur die Spielleitung. */
+  proposeCoopPool: (groupId: number, source: ProbeSource, mode: PoolMode) => void;
   /** Tritt einem offenen Pool mit dem eigenen Charakter bei / verlässt ihn wieder. */
   joinCoopPool: (poolId: string) => void;
   leaveCoopPool: (poolId: string) => void;
@@ -1327,7 +1328,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const proposeCoopPool = useCallback(
-    (forGroupId: number, source: ProbeSource) => {
+    (forGroupId: number, source: ProbeSource, mode: PoolMode) => {
       // Kein eigener Charakter nötig — die Spielleitung hat nie einen, und
       // Vorschlagen tritt nicht automatisch bei (siehe roll.coop.propose im
       // Protokoll).
@@ -1336,7 +1337,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         if (option) applyRoom(option);
       }
       melde();
-      sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source });
+      sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source, mode });
     },
     [myGroups, applyRoom, sendMsg, melde],
   );

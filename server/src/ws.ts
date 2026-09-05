@@ -823,7 +823,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           lastImportantRoll.set(meta.groupId, Date.now());
           broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
         } else {
-          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, false, repeat > 1);
+          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
         }
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -935,7 +935,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           narrow: result.narrow,
           criticalSuccess: result.criticalSuccess,
         };
-        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, false, repeat > 1);
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -1198,6 +1198,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         groupId: meta.groupId,
         source,
         label: computed.label,
+        mode: msg.mode,
         initiatorUserId: meta.userId,
         initiatorName: meta.displayName,
       });
@@ -1283,10 +1284,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         insertFeedMessage(
           meta.groupId,
           { userId: pool.initiatorUserId, charId: null, name: pool.initiatorName },
-          `schlägt eine Kooperationsprobe vor: ${pool.label}`,
+          pool.mode === 'competitive' ? `schlägt einen Wettstreit vor: ${pool.label}` : `schlägt eine Kooperationsprobe vor: ${pool.label}`,
           true,
         );
-        for (const r of rolls) insertFeedRoll(meta.groupId, r.author, null, 'public', r.roll, pool.id, true);
+        for (const r of rolls) insertFeedRoll(meta.groupId, r.author, null, 'public', r.roll, pool.id, pool.mode);
       }
       broadcastUngefiltert(meta.groupId, { type: 'roll.coop.closed', poolId: pool.id });
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -1307,7 +1308,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       insertFeedMessage(
         meta.groupId,
         { userId: meta.userId, charId: null, name: meta.displayName },
-        `verwirft die Kooperationsprobe: ${pool.label}`,
+        pool.mode === 'competitive' ? `verwirft den Wettstreit: ${pool.label}` : `verwirft die Kooperationsprobe: ${pool.label}`,
         true,
       );
       send(ws, { type: 'ack', reqId: msg.reqId });

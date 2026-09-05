@@ -4,7 +4,7 @@
 // the two views can't drift apart. Deliberately takes NO isGm parameter:
 // 'hidden' excludes the GM too, the one deliberate exception to this app's
 // usual "GM sees everything" pattern.
-import type { ChatFeedEntry, FeedEntry, FormulaNode, RollFeedEntry, RollPayload, RollVisibility } from 'shared';
+import type { ChatFeedEntry, FeedEntry, FormulaNode, PoolMode, RollFeedEntry, RollPayload, RollVisibility } from 'shared';
 import { db } from './db.js';
 import { broadcastToGroup, broadcastUpdateToGroup } from './ws.js';
 
@@ -38,6 +38,7 @@ interface FeedRow {
   roll_json: string | null;
   group_roll_id: string | null;
   is_coop: number;
+  is_competitive: number;
   is_repeat: number;
 }
 
@@ -89,6 +90,7 @@ function rowToEntry(row: FeedRow): FeedEntry {
       roll,
       ...(row.group_roll_id ? { groupRollId: row.group_roll_id } : {}),
       ...(row.is_coop ? { coop: true as const } : {}),
+      ...(row.is_competitive ? { competitive: true as const } : {}),
       ...(row.is_repeat ? { repeat: true as const } : {}),
     };
     return entry;
@@ -157,16 +159,16 @@ export function writeFeedRoll(
   visibility: RollVisibility,
   roll: RollPayload,
   groupRollId?: string,
-  /** Nur bei einer aufgelösten Kooperationsprobe gesetzt — siehe coopPools.ts. */
-  coop?: boolean,
+  /** Nur bei einem aufgelösten Kooperationsprobe-/Wettstreit-Pool gesetzt — siehe coopPools.ts. */
+  poolMode?: PoolMode,
   /** Nur bei einem per führendem "Nx" wiederholten freien Wurf gesetzt — siehe roll.expr in ws.ts. */
   repeat?: boolean,
 ): RollFeedEntry {
   const createdAt = Date.now();
   const info = db
     .prepare(
-      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id, is_coop, is_repeat)
-       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO group_feed (group_id, created_at, kind, visibility, author_user_id, author_char_id, gm_user_id, author_name, roll_json, group_roll_id, is_coop, is_competitive, is_repeat)
+       VALUES (?, ?, 'roll', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       groupId,
@@ -178,7 +180,8 @@ export function writeFeedRoll(
       author.name,
       JSON.stringify(roll),
       groupRollId ?? null,
-      coop ? 1 : 0,
+      poolMode === 'coop' ? 1 : 0,
+      poolMode === 'competitive' ? 1 : 0,
       repeat ? 1 : 0,
     );
   const entry: RollFeedEntry = {
@@ -192,7 +195,8 @@ export function writeFeedRoll(
     authorName: author.name,
     roll,
     ...(groupRollId ? { groupRollId } : {}),
-    ...(coop ? { coop: true as const } : {}),
+    ...(poolMode === 'coop' ? { coop: true as const } : {}),
+    ...(poolMode === 'competitive' ? { competitive: true as const } : {}),
     ...(repeat ? { repeat: true as const } : {}),
   };
   return entry;
@@ -205,10 +209,10 @@ export function insertFeedRoll(
   visibility: RollVisibility,
   roll: RollPayload,
   groupRollId?: string,
-  coop?: boolean,
+  poolMode?: PoolMode,
   repeat?: boolean,
 ): RollFeedEntry {
-  const entry = writeFeedRoll(groupId, author, gmUserId, visibility, roll, groupRollId, coop, repeat);
+  const entry = writeFeedRoll(groupId, author, gmUserId, visibility, roll, groupRollId, poolMode, repeat);
   broadcastToGroup(groupId, entry);
   return entry;
 }

@@ -41,7 +41,12 @@ const COMMANDS: { syntax: string; description: string; nurSl?: true }[] = [
   {
     syntax: '/koop <Name>  oder  /coop <Name>',
     description:
-      'Schlägt eine Kooperationsprobe vor (nur Eigenschaften, Talente, Sprachen) — ein offener Pool erscheint für die ganze Gruppe, jeder tritt selbst bei. Gewürfelt wird erst, wenn die vorschlagende Person oder die Spielleitung ihn startet.',
+      'Schlägt eine Kooperationsprobe vor (nur Eigenschaften, Talente, Sprachen) — ein offener Pool erscheint für die ganze Gruppe, jeder tritt selbst bei. Gewürfelt wird erst, wenn die vorschlagende Person oder die Spielleitung ihn startet. Das Ergebnis wird gepoolt: die ganze Gruppe besteht oder scheitert gemeinsam.',
+  },
+  {
+    syntax: '/wettstreit <Name>  oder  /contest <Name>',
+    description:
+      'Schlägt einen Wettstreit vor — derselbe Pool wie „/koop" (nur Eigenschaften, Talente, Sprachen), aber niemand wird gepoolt: beim Start würfelt jeder für sich, und genau eine Person (oder mehrere bei echtem Gleichstand) gewinnt.',
   },
   {
     syntax: '/line  oder  ---',
