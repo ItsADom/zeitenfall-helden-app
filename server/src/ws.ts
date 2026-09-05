@@ -244,6 +244,7 @@ function toWireToken(row: BoardTokenRow, viewer: BoardViewer): BoardToken {
     statuses: row.statuses,
     cover: row.cover,
     portrait: row.portrait,
+    tokenImage: row.tokenImage,
     wounds: woundsVisibleTo(row, viewer),
     sort: row.sort,
   };

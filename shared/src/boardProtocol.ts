@@ -208,6 +208,15 @@ export interface BoardToken {
   /** Computed at read time from the linked character, never stored on the token row. */
   portrait: boolean;
   /**
+   * Computed at read time from the linked character's own uploaded token
+   * image (Einstellungen, separate upload from the sheet portrait — see
+   * TODO.md/"VTT token appearance" concept notes), never stored on the token
+   * row. Always false for a marker/monster token — that upload is
+   * character-only, markers stay icon/emoji-only until a curated icon picker
+   * exists (blocked on content, see TODO.md).
+   */
+  tokenImage: boolean;
+  /**
    * Null for a marker/monster token (no linked character to hang wounds
    * off), and ALSO null for a character token when the viewer is neither
    * its owner nor the GM — this one field is redacted independently of the

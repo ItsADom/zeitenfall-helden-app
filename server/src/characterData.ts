@@ -89,6 +89,7 @@ import {
   speicherePortrait,
   speicherePortraitOriginal,
 } from './assets/portraits.js';
+import { hatMarkenBild, ladeMarkenBild, loescheMarkenBild, speichereMarkenBild } from './assets/tokenImage.js';
 import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows, updateDynSection } from './dynSections.js';
 
 // --- Laden ---
@@ -910,6 +911,7 @@ export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
     tableWidths: loadTableWidths(charId),
     tabOrder: loadTabOrder(charId),
     portrait: hasPortrait(charId),
+    tokenImage: hasTokenImage(charId),
     items: requesterIsGm ? items : ohneVerborgeneItems(items),
     itemCategories: loadItemCategories(charId),
     abilities: loadAbilities(charId),
@@ -2355,6 +2357,28 @@ export function savePortrait(charId: number, mime: string, data: Buffer, full = 
 
 export function savePortraitOriginal(charId: number, mime: string, data: Buffer): void {
   speicherePortraitOriginal(charId, mime, data);
+}
+
+// --- VTT-Marken-Bild ---
+//
+// Eigenes Bild fürs Brett, getrennt vom Bogen-Porträt oben (siehe TODO.md/
+// Konzeptnotizen "VTT token appearance") — dieselbe Naht-Rolle wie bei
+// hasPortrait & Co., nur hinter assets/tokenImage.ts statt assets/portraits.ts.
+
+export function hasTokenImage(charId: number): boolean {
+  return hatMarkenBild(charId);
+}
+
+export function loadTokenImage(charId: number): { mime: string; data: Buffer } | undefined {
+  return ladeMarkenBild(charId);
+}
+
+export function saveTokenImage(charId: number, mime: string, data: Buffer): void {
+  speichereMarkenBild(charId, mime, data);
+}
+
+export function deleteTokenImage(charId: number): void {
+  loescheMarkenBild(charId);
 }
 
 // --- VTT-Wundverfolgung ---

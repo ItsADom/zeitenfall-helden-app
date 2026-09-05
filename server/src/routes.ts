@@ -65,6 +65,9 @@ import {
   loeschePouchenFuer,
   hasPortrait,
   loadPortrait,
+  loadTokenImage,
+  saveTokenImage,
+  deleteTokenImage,
   manageAbilityList,
   migrateCharacterPeriphery,
   moveItem,
@@ -1718,6 +1721,53 @@ api.delete('/characters/:id/portrait', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
   deletePortrait(char.id);
+  res.json({ ok: true });
+});
+
+// --- Marken-Bild (VTT-Token-Bild) ---
+// Eigenes Bild fürs Brett, getrennt vom Porträt oben (siehe TODO.md/
+// Konzeptnotizen "VTT token appearance") — gleiche Zugriffsregel wie das
+// Porträt (Ansehen darf jeder mit Zugriff, Setzen/Löschen nur mit
+// Bearbeitungsrecht), aber nur eine Größe: der Token wird immer klein
+// gezeigt, keine Vergrößerungs-Ansicht nötig.
+api.get('/characters/:id/token-image', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || !characterAccess(req.user!, char)) {
+    res.status(404).end();
+    return;
+  }
+  const p = loadTokenImage(char.id);
+  if (!p) {
+    res.status(404).end();
+    return;
+  }
+  res.type(p.mime);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.send(p.data);
+});
+
+api.put(
+  '/characters/:id/token-image',
+  requireAuth,
+  express.raw({ type: ['image/jpeg', 'image/png', 'image/webp'], limit: '3mb' }),
+  (req, res) => {
+    const char = editableChar(req, res);
+    if (!char) return;
+    const buf = req.body as Buffer;
+    if (!Buffer.isBuffer(buf) || buf.length === 0) {
+      res.status(400).json({ error: 'Kein Bild empfangen' });
+      return;
+    }
+    const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
+    saveTokenImage(char.id, mime, buf);
+    res.json({ ok: true });
+  },
+);
+
+api.delete('/characters/:id/token-image', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  deleteTokenImage(char.id);
   res.json({ ok: true });
 });
 

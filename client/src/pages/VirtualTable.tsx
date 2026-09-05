@@ -380,6 +380,11 @@ function imageHref(groupId: number, assetSlug: string): string {
   return `/api/groups/${groupId}/board/images/${encodeURIComponent(assetSlug)}`;
 }
 
+/** GET .../characters/:id/token-image — same cookie-auth same-origin shape as imageHref above. */
+function tokenImageHref(characterId: number): string {
+  return `/api/characters/${characterId}/token-image`;
+}
+
 // Eine Zeile je Gitterlinie, zu EINEM <path> zusammengefasst — billiger als
 // ein Knoten je Zelle, siehe der Prototyp (Texturen.html).
 function gridLinesPath(cols: number, rows: number): string {
@@ -603,6 +608,18 @@ function TokenEditor({
           ✕
         </button>
       </div>
+
+      {/* Nur für die eigene Person — das Marken-Bild hängt am Charakter und
+          wird in Einstellungen gepflegt (siehe MarkenBild.tsx), nicht hier.
+          Für die Spielleitung wäre der Link ohnehin falsch: Einstellungen
+          zeigt nur die EIGENEN Charaktere (mine=1), ein fremder charId-
+          Parameter würde dort stillschweigend auf den eigenen ersten
+          Charakter zurückfallen. */}
+      {token.kind === 'character' && token.ownerUserId === myUserId && (
+        <p className="vtt-token-editor-note muted">
+          Eigenes Bild für diese Marke: <Link to={`/einstellungen?char=${token.characterId}#marke`}>Einstellungen</Link>
+        </p>
+      )}
 
       {/* Marker/monster tokens only — a character token's owner is implied
           by whoever plays that character, never independently settable or
@@ -2673,6 +2690,12 @@ function MapCanvas({
               <feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves={4} seed={board.seed % 100} />
               <feColorMatrix type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  .8 .8 .8 0 -.35" />
             </filter>
+            {/* Rundes Marken-Bild (siehe token-Render unten): objectBoundingBox
+                bezieht den Kreis auf die eigene <image>-BBox statt auf feste
+                Pixel, damit EINE Definition für jede Markengröße reicht. */}
+            <clipPath id="vtt-token-clip" clipPathUnits="objectBoundingBox">
+              <circle cx="0.5" cy="0.5" r="0.5" />
+            </clipPath>
           </defs>
 
           <rect x={0} y={0} width={totalW} height={totalH} fill="url(#vtt-grid)" />
@@ -3198,16 +3221,38 @@ function MapCanvas({
                       (Kreis+Icon) dreht sich (developer feedback). */}
                   {t.radius > 0 && <circle r={t.radius * CELL_PX} fill={t.radiusColor} stroke={t.radiusColor} strokeWidth={1.5} pointerEvents="none" />}
                   <g data-token-content transform={`rotate(${t.rotation})`}>
-                    <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
-                    <text
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={r * 0.7}
-                      fontWeight={700}
-                      fill={tinteFuer(t.color || DEFAULT_TOKEN_COLOR, TOKEN_INK_LIGHT, TOKEN_INK_DARK)}
-                    >
-                      {t.icon || initials(t.name)}
-                    </text>
+                    {t.characterId != null && t.tokenImage ? (
+                      // Eigenes Marken-Bild (Einstellungen, getrennt vom Bogen-
+                      // Porträt) statt Farbkreis+Initialen — objectBoundingBox-
+                      // Clip skaliert automatisch mit r, also EINE gemeinsame
+                      // clipPath-Definition für jede Markengröße (siehe <defs>).
+                      <>
+                        <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} />
+                        <image
+                          href={tokenImageHref(t.characterId)}
+                          x={-r}
+                          y={-r}
+                          width={r * 2}
+                          height={r * 2}
+                          preserveAspectRatio="xMidYMid slice"
+                          clipPath="url(#vtt-token-clip)"
+                        />
+                        <circle r={r} fill="none" stroke="var(--panel)" strokeWidth={2} />
+                      </>
+                    ) : (
+                      <>
+                        <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={r * 0.7}
+                          fontWeight={700}
+                          fill={tinteFuer(t.color || DEFAULT_TOKEN_COLOR, TOKEN_INK_LIGHT, TOKEN_INK_DARK)}
+                        >
+                          {t.icon || initials(t.name)}
+                        </text>
+                      </>
+                    )}
                   </g>
                   {t.cover && (
                     <text textAnchor="middle" dominantBaseline="central" fontSize={r * 1.3} opacity={0.75}>

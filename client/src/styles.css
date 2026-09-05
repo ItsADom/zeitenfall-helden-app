@@ -2867,6 +2867,43 @@ li {
   background: none;
   cursor: zoom-in;
 }
+
+/* VTT-Marken-Bild (components/MarkenBild.tsx) — wie .portrait, aber rund
+   statt abgerundetes Rechteck, weil so die Marke selbst auf dem Brett
+   aussieht (siehe VirtualTable.tsx's clipPath "vtt-token-clip"). */
+.marken-bild {
+  flex: none;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.marken-bild-img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--input-bg);
+}
+.marken-bild-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  border-style: dashed;
+  text-align: center;
+}
+.marken-bild-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.marken-bild-error {
+  font-size: 12px;
+}
 .portrait-lightbox {
   position: fixed;
   inset: 0;
@@ -6330,6 +6367,10 @@ tr:hover .probe-roll,
   gap: 10px;
   font-size: 12.5px;
   flex-wrap: wrap;
+}
+.vtt-token-editor-note {
+  margin: 0;
+  font-size: 12.5px;
 }
 .vtt-token-editor-row label {
   display: flex;

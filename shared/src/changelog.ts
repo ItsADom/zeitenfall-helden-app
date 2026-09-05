@@ -204,7 +204,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     added: [
       'Der Spezialenergien-Katalog kann jetzt auch festhalten, wie sich eine Energie regeneriert und wie sie in normale Energien (LE/AUS/AsE) umgerechnet wird. Beides erscheint auf dem Heldenbrief direkt neben der jeweiligen Energie.',
       'Ein Gegenstand, der zuletzt aus dem Inventar eines Charakters ins Gruppeninventar verschoben wurde, zeigt jetzt einen kleinen Hinweis „von …“ mit dem Namen dieses Charakters — praktisch, um zu sehen, wer zuletzt etwas beigesteuert hat.',
-      'Neben der Kooperationsprobe gibt es jetzt einen Wettstreit („/wettstreit" im Würfel-Chat, wie „/koop" aufgebaut): alle Beigetretenen würfeln beim Start gegeneinander statt gepoolt, und wer am besten abschneidet gewinnt — ein bestätigter kritischer Erfolg schlägt dabei immer einen gewöhnlichen Wurf, der wiederum immer einen bestätigten kritischen Fehlschlag schlägt; bei echtem Gleichstand gewinnen mehrere gemeinsam.',
+      'Neben der Kooperationsprobe gibt es jetzt einen Wettstreit (/wettstreit oder /contest im Würfel-Chat).',
+      'Ein Charakter kann jetzt ein eigenes Bild für seine Marke auf dem virtuellen Tisch hochladen (Einstellungen → „VTT-Marken-Bild“) — getrennt vom Porträt, z. B. für einen Top-down-Render einer eigenen Miniatur. Ohne eigenes Bild zeigt die Marke weiterhin Initialen in Charakterfarbe.',
     ],
     changed: [
       'Wiki-Seiten lassen sich jetzt von allen in den Papierkorb verschieben, nicht mehr nur von der Spielleitung — außer sie sind geschützt, das bleibt weiterhin Sache der Spielleitung. Der Knopf dafür steht direkt bei „Verlauf“ und „Bearbeiten“.',

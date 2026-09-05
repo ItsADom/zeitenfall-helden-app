@@ -17,7 +17,7 @@ import {
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { rollDie } from './dice.js';
-import { hasPortrait, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
+import { hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -96,6 +96,8 @@ export interface BoardTokenRow {
   coverAsset: string | null;
   /** Computed here from the linked character, never stored on the row itself. */
   portrait: boolean;
+  /** Computed here from the linked character's own token image (separate from the sheet portrait, see shared/src/boardProtocol.ts's doc comment), never stored on the row itself. */
+  tokenImage: boolean;
   /**
    * Computed here from the linked character (null for a marker/monster, no
    * characterId to hang wounds off) — see the small_wounds/big_wounds column
@@ -111,13 +113,14 @@ const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, 
   name, color, icon, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
 
 function toToken(
-  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'wounds'> & { hidden: number; statuses: string },
+  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'tokenImage' | 'wounds'> & { hidden: number; statuses: string },
 ): BoardTokenRow {
   return {
     ...r,
     hidden: !!r.hidden,
     statuses: JSON.parse(r.statuses || '[]'),
     portrait: r.characterId != null && hasPortrait(r.characterId),
+    tokenImage: r.characterId != null && hasTokenImage(r.characterId),
     wounds: r.characterId != null ? loadWounds(r.characterId) : null,
   };
 }
