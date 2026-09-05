@@ -1,5 +1,5 @@
 import { Fragment, useState } from 'react';
-import type { Item, KapazitaetArt } from '@shared/items';
+import type { Item, ItemLocation, KapazitaetArt } from '@shared/items';
 import { itemGewicht, itemsInContainer } from '@shared/items';
 import type { MoveTarget } from './itemDialogs';
 import { AddContainerDialog, AddItemDialog } from './itemDialogs';
@@ -13,15 +13,16 @@ import { usePersistedState } from './persist';
 // Shared inventories (docs/concepts/shared-inventories.md): the group pool and
 // the GM pool both need the same "pile of items, grouped by category, some of
 // them containers" view Inventar.tsx already has — but neither has a single
-// character to hang Traglast/body-zones/useChar() off of, and per the concept
-// (2.4) neither wants drag-and-drop ("GroupOverview.tsx needs no drop targets
-// and stays free of drag plumbing" — generalized here to both pools). This is
-// that view, extracted and simplified: no drag, no Traglast, category
-// re-filing happens by editing an item's category in the dialog instead of
-// dragging it onto a group header. A pool otherwise has no "packed gear"
-// fiction, so — unlike a character's Inventar — a loose item is a normal,
-// ongoing way to add something, not just migration leftovers: both "+
-// Behälter" and a plain "+ Gegenstand" are offered up front.
+// character to hang Traglast/body-zones/useChar() off of. Concept 2.4's "no
+// drag-and-drop" was about the cross-owner hand-out picker only (drag a chip
+// onto a roster card, superseded by the "Verschieben nach…" picker); it never
+// meant filing items around WITHIN a pool. Re-filing between categories/
+// containers and reordering use the same drag machinery as Inventar.tsx,
+// wired through `onMoveWithin` instead of a local setItems. A pool otherwise
+// has no "packed gear" fiction, so — unlike a character's Inventar — a loose
+// item is a normal, ongoing way to add something, not just migration
+// leftovers: both "+ Behälter" and a plain "+ Gegenstand" are offered up
+// front.
 //
 // `onMove`/`moveTargets` wire the "Verschieben nach…" picker (itemDialogs.tsx)
 // into every item's edit dialog — containers included, since AddItemDialog
@@ -47,11 +48,13 @@ function catsOf(list: Item[]): string[] {
 // Houses (docs/concepts/houses.md): Räume EINES Hauses in einer Item-Liste,
 // in Anzeigereihenfolge — dieselbe Herleitung wie catsOf (aus den
 // tatsächlich vorhandenen Items, nicht aus der verwalteten Liste, siehe
-// shared-inventories.md §3.1/3.2). '' steht für „nicht diesem Haus/Raum
-// zugeordnet" (kein Haus, oder ein anderes Haus als das gerade Betrachtete)
-// und läuft immer zuletzt.
+// shared-inventories.md §3.1/3.2). Betrachtet NUR Items, die tatsächlich zu
+// `haus` gehören (ein anderes/kein Haus zählt hier nicht mit — sonst würde
+// „alle Räume" beim Filtern eines Hauses Items aus JEDEM anderen Haus
+// durchlassen, siehe passtZuHaus/passtZuRaum unten). '' steht für „diesem
+// Haus zugeordnet, aber ohne bestimmten Raum" und läuft immer zuletzt.
 function raeumeVon(list: Item[], haus: string): string[] {
-  const set = new Set(list.map((it) => (it.haus === haus && haus ? it.raum : '')));
+  const set = new Set(list.filter((it) => it.haus === haus).map((it) => it.raum));
   const named = [...set].filter(Boolean).sort((a, b) => a.localeCompare(b, 'de'));
   return set.has('') ? [...named, ''] : named;
 }
@@ -72,6 +75,7 @@ export default function PoolInventory({
   onDelete,
   onPatchAnzahl,
   onMove,
+  onMoveWithin,
 }: {
   /** Eindeutiger Präfix fürs eingeklappt-Merken (localStorage) — Gruppenpool und
    * GM-Pool brauchen unabhängige Zustände. */
@@ -79,8 +83,8 @@ export default function PoolInventory({
   items: Item[];
   categories: string[];
   /** Houses (docs/concepts/houses.md): nur der Gruppenpool setzt beides — blendet
-   * den Kategorie-/Raum-Umschalter ein. Der SL-Vorrat lässt beide weg, keine
-   * Häuser dort (siehe AddItemDialog.houses). */
+   * den Raum-Filter ein. Der SL-Vorrat lässt beide weg, keine Häuser dort
+   * (siehe AddItemDialog.houses). */
   houses?: string[];
   roomsByHaus?: Record<string, string[]>;
   talents: TalentCatalogRow[];
@@ -93,6 +97,10 @@ export default function PoolInventory({
   onDelete: (uid: string) => void;
   onPatchAnzahl: (uid: string, anzahl: number) => void;
   onMove: (uid: string, target: MoveTarget) => void;
+  /** Ziehen INNERHALB des Pools (Kategorie/Behälter/Reihenfolge) — eigener Weg
+   * neben onSave, weil eine Umsortierung (beforeUid) das ganze Array betrifft,
+   * nicht nur ein Item; siehe reorderItems/dropHandlers unten. */
+  onMoveWithin: (uid: string, patch: Partial<Item>, beforeUid?: string) => void;
 }) {
   const ro = useReadOnly();
   const byUid = new Map(items.map((it) => [it.uid, it]));
@@ -104,21 +112,65 @@ export default function PoolInventory({
   const isColl = (k: string) => collapsed.includes(k);
   const toggleColl = (k: string) => setCollapsed((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
-  // Raum view (docs/concepts/houses.md): a Stauraum-Behälter sorts into its
-  // room here instead of keeping its own always-visible panel (see the
-  // raumView branch in the JSX below and groupedByRaum's container branch).
-  // Contents start collapsed so a furnished room doesn't turn into a wall of
-  // open wardrobes — reusing the same `collapsed` array with the membership
-  // test INVERTED (present = expanded) gets that "closed by default" for
-  // free, no separate default list to maintain.
-  const isContOpen = (uid: string) => collapsed.includes(`raumcont:${uid}`);
-  const toggleContOpen = (uid: string) => toggleColl(`raumcont:${uid}`);
+  // Drag-and-drop innerhalb des Pools (Kategorie/Behälter/Reihenfolge) —
+  // dieselbe Mechanik wie Inventar.tsx, nur über onMoveWithin statt einem
+  // lokalen setItems. `patch` trägt die Felder, die das Ziel festlegt
+  // (kategorie für eine Kategorie-Kopfzeile, haus/raum für eine Raum-Kopfzeile).
+  const [over, setOver] = useState<string | null>(null);
+  interface DropTarget {
+    location: ItemLocation;
+    containerUid?: string;
+    patch?: Partial<Item>;
+  }
+  const dropKey = (t: DropTarget) => `${t.location}:${t.containerUid ?? ''}:${JSON.stringify(t.patch ?? {})}`;
+  const ancestors = (uid: string): Set<string> => {
+    const seen = new Set<string>();
+    let cur = byUid.get(uid);
+    while (cur && cur.location === 'behaelter' && cur.containerUid) {
+      if (seen.has(cur.containerUid)) break;
+      seen.add(cur.containerUid);
+      cur = byUid.get(cur.containerUid);
+    }
+    return seen;
+  };
+  const moveTo = (uid: string, t: DropTarget, beforeUid?: string) => {
+    if (t.location === 'behaelter' && t.containerUid) {
+      if (t.containerUid === uid || ancestors(t.containerUid).has(uid)) return;
+    }
+    const patch: Partial<Item> = {
+      location: t.location,
+      containerUid: t.location === 'behaelter' ? (t.containerUid ?? '') : '',
+      ...t.patch,
+    };
+    onMoveWithin(uid, patch, beforeUid);
+  };
+  const isOver = (t: DropTarget, beforeUid?: string) => over === dropKey(t) + (beforeUid ? `::vor:${beforeUid}` : '');
+  const dropHandlers = (t: DropTarget, beforeUid?: string) => {
+    const key = dropKey(t) + (beforeUid ? `::vor:${beforeUid}` : '');
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        if (over !== key) setOver(key);
+      },
+      onDragLeave: () => setOver((o) => (o === key ? null : o)),
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setOver(null);
+        const uid = e.dataTransfer.getData('text/plain');
+        if (uid) moveTo(uid, t, beforeUid);
+      },
+    };
+  };
 
-  const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
-  const loose = items.filter((it) => !(it.location === 'behaelter') && !(it.istBehaelter && it.containerArt === 'storage'));
+  const allStorageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
+  const allLoose = items.filter((it) => !(it.location === 'behaelter') && !(it.istBehaelter && it.containerArt === 'storage'));
 
   const colgroup = (
     <colgroup>
+      <col style={{ width: 28 }} />
       <col style={{ width: '24em' }} />
       <col style={{ width: 72 }} />
       <col style={{ width: 78 }} />
@@ -126,28 +178,76 @@ export default function PoolInventory({
       <col />
     </colgroup>
   );
-  const cols = 5;
+  const cols = 6;
 
   const editingItem = editUid !== null ? byUid.get(editUid) : undefined;
 
-  // Houses (docs/concepts/houses.md): persistierte Ansicht — Kategorie- oder
-  // Raum-Gruppierung derselben Liste, plus welches Haus im Raum-Modus gerade
-  // betrachtet wird. Nur relevant, wenn houses gesetzt ist (Gruppenpool).
-  const [view, setView] = usePersistedState<'kategorie' | 'raum'>(`${storageKey}:view`, 'kategorie');
+  // Houses (docs/concepts/houses.md): welches Haus betrachtet wird. Nur
+  // relevant, wenn houses gesetzt ist (Gruppenpool). Die frühere separate
+  // Raum-Ansicht (eigene Gruppierung/Zeilenform je Behälter) ist einem reinen
+  // Filter gewichen (Entwickler-Entscheidung, siehe ALLE_RAEUME unten): immer
+  // Kategorie-gruppiert, ein Raum grenzt nur ein, WELCHE Items/Behälter
+  // überhaupt in die Kategorie-Gruppierung einfließen. Das erspart eine
+  // zweite Zeilenform samt eigenem Drop-Ziel (Behälter als Tabellenzeile
+  // statt als Panel, dessen Ziehfläche in der Praxis knapp und tückisch war).
+  const OHNE_HAUS = ' ohne-haus';
   const [activeHausRaw, setActiveHaus] = usePersistedState<string>(`${storageKey}:activeHaus`, '');
   // Wählbare Häuser sind die verwaltete Liste VEREINIGT mit jedem Haus-Wert,
   // der schon auf einem Item steht — dieselbe Regel wie catOptions für
   // Kategorien (shared-inventories.md §3.1): ein frisch auf ein Item
   // getipptes, noch nicht verwaltetes Haus soll sofort umschaltbar sein,
   // nicht erst nach einem Abstecher in „Häuser verwalten".
-  const availableHouses = houses
+  const namedHouses = houses
     ? [...new Set([...houses, ...items.map((it) => it.haus).filter(Boolean)])].sort((a, b) => a.localeCompare(b, 'de'))
     : undefined;
-  const activeHaus = availableHouses && availableHouses.includes(activeHausRaw) ? activeHausRaw : (availableHouses?.[0] ?? '');
-  const raumView = view === 'raum' && !!availableHouses;
+  const hatOhneHaus = houses && items.some((it) => !it.haus);
+  const availableHouses = namedHouses && (hatOhneHaus ? [...namedHouses, OHNE_HAUS] : namedHouses);
+  const activeHaus =
+    availableHouses && availableHouses.includes(activeHausRaw) ? activeHausRaw : (namedHouses?.[0] ?? OHNE_HAUS);
 
-  const row = (it: Item, hint?: string) => (
-    <tr key={it.uid} className="inv-row" title="Klicken für Details — Bearbeiten, Duplizieren, Löschen, Verschieben" onClick={() => setEditUid(it.uid)}>
+  // Ein Raum eingrenzen (Entwickler-Feedback): die Raumliste eines belebten
+  // Hauses kann lang werden, und Ziehen auf eine Behälter-Zeile ist in einer
+  // langen Liste knifflig zu treffen — ein Filter auf einen Raum hält die
+  // sichtbare Liste kurz. „Alle Räume" (Sentinel, kollidiert nicht mit dem
+  // „Nicht zugeordnet"-Raum, dessen Schlüssel '' ist) bleibt die Vorgabe.
+  const ALLE_RAEUME = ' alle';
+  const [activeRaumRaw, setActiveRaum] = usePersistedState<string>(`${storageKey}:activeRaum`, ALLE_RAEUME);
+  // Wie availableHouses: verwaltete Räume (roomsByHaus) VEREINIGT mit
+  // tatsächlich benutzten (raeumeVon) — ein frisch angelegter, noch leerer
+  // Raum soll sofort anwählbar sein, nicht erst, wenn ein Item darin liegt.
+  const raumHausKey = activeHaus === OHNE_HAUS ? '' : activeHaus;
+  const raumInUse = availableHouses ? raeumeVon([...allLoose, ...allStorageConts], raumHausKey) : [];
+  const raumNamed = [...new Set([...(activeHaus === OHNE_HAUS ? [] : (roomsByHaus?.[activeHaus] ?? [])), ...raumInUse.filter(Boolean)])].sort(
+    (a, b) => a.localeCompare(b, 'de'),
+  );
+  const raumOptions = raumInUse.includes('') ? [...raumNamed, ''] : raumNamed;
+  const activeRaum = activeRaumRaw === ALLE_RAEUME || raumOptions.includes(activeRaumRaw) ? activeRaumRaw : ALLE_RAEUME;
+  const passtZuHaus = (it: Item) => !availableHouses || it.haus === raumHausKey;
+  const passtZuRaum = (it: Item) => passtZuHaus(it) && (activeRaum === ALLE_RAEUME || it.raum === activeRaum);
+  const storageConts = allStorageConts.filter(passtZuRaum);
+  const loose = allLoose.filter(passtZuRaum);
+
+  const row = (it: Item, target: DropTarget, hint?: string) => (
+    <tr
+      key={it.uid}
+      className={`inv-row${isOver(target, it.uid) ? ' inv-row-drop-before' : ''}`}
+      title="Klicken für Details — Bearbeiten, Duplizieren, Löschen, Verschieben"
+      onClick={() => setEditUid(it.uid)}
+      {...dropHandlers(target, it.uid)}
+    >
+      <td className="grip-cell" onClick={(e) => e.stopPropagation()}>
+        <span
+          className="row-grip"
+          draggable
+          title="Ziehen zum Verschieben (Kategorie / Behälter)"
+          onDragStart={(e) => {
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', it.uid);
+          }}
+        >
+          ⠿
+        </span>
+      </td>
       <td>
         <span className="static-value static-text">
           {it.name || ' '}
@@ -183,15 +283,17 @@ export default function PoolInventory({
       </span>
     ) : null;
 
-  const groupedRows = (list: Item[], keyBase: string) =>
+  const groupedRows = (list: Item[], base: DropTarget) =>
     catsOf(list).map((cat) => {
       const rows = list.filter((it) => it.kategorie === cat);
       const sum = rows.reduce((s, it) => s + itemGewicht(it), 0);
+      const target: DropTarget = { ...base, patch: { ...base.patch, kategorie: cat } };
+      const keyBase = base.containerUid || '__loose';
       const catKey = `cat:${keyBase}:${cat}`;
       const open = !isColl(catKey);
       return (
         <Fragment key={cat || '__none'}>
-          <tr className="subtle-head cat-head-row">
+          <tr className={`subtle-head cat-head-row${isOver(target) ? ' drop-into' : ''}`} {...dropHandlers(target)}>
             <td colSpan={cols}>
               <button
                 type="button"
@@ -207,136 +309,34 @@ export default function PoolInventory({
               </button>
             </td>
           </tr>
-          {open && rows.map((it) => row(it, ortHinweis(it)))}
-        </Fragment>
-      );
-    });
-
-  // Raum view only (per developer decision — Kategorie view keeps a
-  // Stauraum-Behälter in its own always-visible panel, see the raumView
-  // branch below): renders a container as a normal row in its room's group
-  // instead of its own panel, collapsed by default (isContOpen/toggleContOpen
-  // above), expandable to its contents via groupedRows — same nesting the
-  // Kategorie-view panel uses, just tighter to fit inside an ordinary row.
-  const containerRoomRow = (c: Item) => {
-    const inside = itemsInContainer(items, c.uid);
-    const open = isContOpen(c.uid);
-    return (
-      <Fragment key={c.uid}>
-        <tr className="inv-row" title="Klicken für Details — Bearbeiten, Duplizieren, Löschen, Verschieben" onClick={() => setEditUid(c.uid)}>
-          <td>
-            <button
-              type="button"
-              className="cat-toggle"
-              aria-expanded={open}
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleContOpen(c.uid);
-              }}
-              title={open ? 'Behälter einklappen' : 'Behälter ausklappen'}
-            >
-              <span className="cat-chev" aria-hidden>{open ? '▾' : '▸'}</span>
-            </button>
-            <span className="static-value static-text">
-              {c.name || '(ohne Name)'}
-              {gebrachtBadge(c)}
-            </span>
-            <span className="muted" style={{ marginLeft: 8, fontSize: '0.85em' }}>
-              Behälter · {inside.length}
-              {c.kategorie && <> · {c.kategorie}</>}
-            </span>
-          </td>
-          <td className="num" onClick={(e) => e.stopPropagation()}>
-            <NumInput value={c.anzahl} min={0} onChange={(v) => onPatchAnzahl(c.uid, v)} />
-          </td>
-          <td className="num">
-            <span className="static-value static-num">{c.gewicht}</span>
-          </td>
-          <td className="computed">{kg(itemGewicht(c))}</td>
-          <td>
-            <CollapsedText text={c.notiz} className="static-value static-text" />
-          </td>
-        </tr>
-        {open && inside.length === 0 && (
-          <tr>
-            <td colSpan={cols} className="muted" style={{ paddingLeft: '2em' }}>
-              Leer
-            </td>
-          </tr>
-        )}
-        {open && groupedRows(inside, c.uid)}
-      </Fragment>
-    );
-  };
-
-  // Houses (docs/concepts/houses.md): dieselbe Gruppierungs-/Einklapp-Mechanik
-  // wie groupedRows, nur nach raum (innerhalb activeHaus) statt kategorie —
-  // '' fasst „nicht diesem Haus/Raum zugeordnet" zusammen (kein Haus, oder ein
-  // anderes Haus als das gerade betrachtete), läuft dank raeumeVon immer
-  // zuletzt. Jede Zeile zeigt ihre Kategorie als Hinweis statt des Orts, außer
-  // bei einem Stauraum-Behälter — der sortiert hier selbst mit ein (siehe
-  // containerRoomRow), statt in seinem eigenen Panel zu bleiben.
-  const groupedByRaum = (list: Item[], keyBase: string) =>
-    raeumeVon(list, activeHaus).map((raum) => {
-      const rows = list.filter((it) => (it.haus === activeHaus && activeHaus ? it.raum : '') === raum);
-      const sum = rows.reduce((s, it) => s + itemGewicht(it), 0);
-      const raumKey = `raum:${keyBase}:${raum}`;
-      const open = !isColl(raumKey);
-      return (
-        <Fragment key={raum || '__none'}>
-          <tr className="subtle-head cat-head-row">
-            <td colSpan={cols}>
-              <button
-                type="button"
-                className="cat-toggle"
-                aria-expanded={open}
-                onClick={() => toggleColl(raumKey)}
-                title={open ? 'Raum einklappen' : 'Raum ausklappen'}
-              >
-                <span className="cat-chev" aria-hidden>{open ? '▾' : '▸'}</span>
-                <span className="sticky-label">
-                  {raum || 'Nicht zugeordnet'} <span className="muted">· {rows.length} · {kg(sum)} kg</span>
-                </span>
-              </button>
-            </td>
-          </tr>
-          {open &&
-            rows.map((it) =>
-              it.istBehaelter && it.containerArt === 'storage'
-                ? containerRoomRow(it)
-                : row(it, it.kategorie || undefined),
-            )}
+          {open && rows.map((it) => row(it, target, ortHinweis(it)))}
         </Fragment>
       );
     });
 
   return (
     <>
-      {availableHouses && (
+      {availableHouses && (availableHouses.length > 1 || raumOptions.length > 0) && (
         <div className="panel inv-toolbar">
           {activeHaus && availableHouses.length > 1 && (
-            <select value={activeHaus} onChange={(e) => setActiveHaus(e.target.value)} disabled={!raumView}>
+            <select value={activeHaus} onChange={(e) => setActiveHaus(e.target.value)}>
               {availableHouses.map((h) => (
                 <option key={h} value={h}>
-                  {h}
+                  {h === OHNE_HAUS ? 'Ohne Haus' : h}
                 </option>
               ))}
             </select>
           )}
-          <div className="dlg-seg">
-            <button type="button" className={view === 'kategorie' ? 'active' : ''} onClick={() => setView('kategorie')}>
-              Kategorie
-            </button>
-            <button
-              type="button"
-              className={view === 'raum' ? 'active' : ''}
-              disabled={!activeHaus}
-              title={activeHaus ? undefined : 'Noch kein Haus angelegt'}
-              onClick={() => setView('raum')}
-            >
-              Raum
-            </button>
-          </div>
+          {raumOptions.length > 0 && (
+            <select value={activeRaum} onChange={(e) => setActiveRaum(e.target.value)} title="Auf einen Raum eingrenzen">
+              <option value={ALLE_RAEUME}>Alle Räume</option>
+              {raumOptions.map((r) => (
+                <option key={r || '__none'} value={r}>
+                  {r || 'Nicht zugeordnet'}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
@@ -351,16 +351,17 @@ export default function PoolInventory({
         </div>
       )}
 
-      {storageConts.length === 0 && loose.length === 0 && <p className="muted">Noch nichts abgelegt.</p>}
+      {storageConts.length === 0 && loose.length === 0 && (
+        <p className="muted">{activeRaum === ALLE_RAEUME ? 'Noch nichts abgelegt.' : 'Nichts in diesem Raum.'}</p>
+      )}
 
-      {/* Raum view sorts a Stauraum-Behälter into its room instead (see
-          containerRoomRow/groupedByRaum) — this panel stays Kategorie-view-only. */}
-      {!raumView && storageConts.map((c) => {
+      {storageConts.map((c) => {
         const inside = itemsInContainer(items, c.uid);
         const stueck = c.kapazitaetArt === 'stueck';
         const open = !isColl(c.uid);
+        const contBase: DropTarget = { location: 'behaelter', containerUid: c.uid };
         return (
-          <div className="panel" key={c.uid}>
+          <div className={`panel${isOver(contBase) ? ' drop-over' : ''}`} key={c.uid} {...dropHandlers(contBase)}>
             <h3
               className="collapsible"
               role="button"
@@ -434,7 +435,7 @@ export default function PoolInventory({
                           </td>
                         </tr>
                       )}
-                      {groupedRows(inside, c.uid)}
+                      {groupedRows(inside, contBase)}
                     </tbody>
                   </table>
                 </div>
@@ -451,12 +452,12 @@ export default function PoolInventory({
         );
       })}
 
-      {(loose.length > 0 || (raumView && storageConts.length > 0)) && (
+      {loose.length > 0 && (
         <div className="panel">
           <div className="table-wrap">
             <table className="sheet inv-table">
               {colgroup}
-              <tbody>{raumView ? groupedByRaum([...loose, ...storageConts], '__loose') : groupedRows(loose, '__loose')}</tbody>
+              <tbody>{groupedRows(loose, { location: 'inventar' })}</tbody>
             </table>
           </div>
         </div>

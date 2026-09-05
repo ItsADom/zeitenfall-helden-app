@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
-import { duplicateItem, makeItem } from '@shared/items';
+import { duplicateItem, makeItem, reorderItems } from '@shared/items';
 import type { CoinPouch } from '@shared/currency';
 import type { MoveTarget } from '../components/itemDialogs';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
@@ -259,8 +259,19 @@ export default function GroupPage() {
     ...data.characters.map((c) => ({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character' as const, toOwnerId: c.id })),
     { key: 'gm', label: 'Spielleiter-Vorrat', toOwnerType: 'gm' as const, toOwnerId: 0 },
   ];
+  const poolCatOptions = [...new Set([...data.itemCategories, ...itemPool.map((it) => it.kategorie).filter(Boolean)])].sort((a, b) =>
+    a.localeCompare(b, 'de'),
+  );
   const patchPoolItem = (uid: string, patch: Partial<Item>) =>
     setItemPool(itemPool.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  // Ziehen INNERHALB des Pools (siehe PoolInventory.tsx) — kombiniert
+  // Umsortieren (beforeUid) und Umeinordnen in einem Aufruf, damit beides über
+  // denselben diffItems-Abgleich läuft statt über zwei Zustandsänderungen
+  // nacheinander.
+  const moveWithinPool = (uid: string, patch: Partial<Item>, beforeUid?: string) => {
+    const base = beforeUid ? reorderItems(itemPool, uid, beforeUid) : itemPool;
+    setItemPool(base.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  };
   const movePoolItem = (uid: string, target: MoveTarget) =>
     void apiPost<{ items: Item[] }>(`${basePath}/items/${uid}/move`, { toOwnerType: target.toOwnerType, toOwnerId: target.toOwnerId }).then(
       (res) => replaceItemPool(res.items),
@@ -389,7 +400,7 @@ export default function GroupPage() {
                 <PoolInventory
                   storageKey={`grouppool:${groupId}`}
                   items={itemPool}
-                  categories={data.itemCategories}
+                  categories={poolCatOptions}
                   houses={data.houses}
                   roomsByHaus={data.roomsByHaus}
                   talents={catalogs.talents}
@@ -411,6 +422,7 @@ export default function GroupPage() {
                   }
                   onPatchAnzahl={(uid, anzahl) => patchPoolItem(uid, { anzahl })}
                   onMove={movePoolItem}
+                  onMoveWithin={moveWithinPool}
                 />
               ) : (
                 <p className="muted">Lade…</p>
