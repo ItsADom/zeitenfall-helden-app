@@ -34,7 +34,7 @@ export default function NavMenu({ kind }: { kind: 'charaktere' | 'gruppen' }) {
 
   // Aktuell geöffneter Eintrag (zum Hervorheben).
   const activeCharId = matchId(location.pathname, 'charakter');
-  const activeGroupId = matchId(location.pathname, 'gruppe');
+  const activeGroupId = matchId(location.pathname, 'gruppe') ?? matchId(location.pathname, 'event');
 
   return (
     <div className={`nav-menu${open ? ' open' : ''}`} ref={wrapRef} {...hoverProps}>
@@ -122,7 +122,7 @@ function GroupList({
   activeId,
   onPick,
 }: {
-  groups: { id: number; name: string }[];
+  groups: { id: number; name: string; isTemp: boolean }[];
   isGm: boolean;
   activeId: number | null;
   onPick: () => void;
@@ -130,27 +130,36 @@ function GroupList({
   if (groups.length === 0) return <p className="nav-flyout-empty muted">Keine Gruppen</p>;
   return (
     <div className="nav-flyout-list">
-      {[...groups].sort(byName).map((g) => (
-        <div className="nav-flyout-group" key={g.id}>
-          <div className={`nav-flyout-head${g.id === activeId ? ' active' : ''}`}>{g.name}</div>
-          <Link className="nav-flyout-item nav-flyout-subitem" to={`/gruppe/${g.id}/tisch`} role="menuitem" onClick={onPick}>
-            Spieltisch →
-          </Link>
-          <Link className="nav-flyout-item nav-flyout-subitem" to={`/gruppe/${g.id}`} role="menuitem" onClick={onPick}>
-            Gruppenseite →
-          </Link>
-          {isGm && (
-            <Link
-              className="nav-flyout-item nav-flyout-subitem"
-              to={`/gruppe/${g.id}/uebersicht`}
-              role="menuitem"
-              onClick={onPick}
-            >
-              Spielleiter-Übersicht →
+      {[...groups].sort(byName).map((g) => {
+        // Event-Gruppen leben unter /event/ statt /gruppe/ (siehe App.tsx) —
+        // vorher tauchten sie in diesem Menü gar nicht erst auf, weil
+        // /api/overview sie einem Spieler nicht mitgab.
+        const base = g.isTemp ? 'event' : 'gruppe';
+        return (
+          <div className="nav-flyout-group" key={g.id}>
+            <div className={`nav-flyout-head${g.id === activeId ? ' active' : ''}`}>
+              {g.name}
+              {g.isTemp && ' (Event)'}
+            </div>
+            <Link className="nav-flyout-item nav-flyout-subitem" to={`/${base}/${g.id}/tisch`} role="menuitem" onClick={onPick}>
+              Spieltisch →
             </Link>
-          )}
-        </div>
-      ))}
+            <Link className="nav-flyout-item nav-flyout-subitem" to={`/${base}/${g.id}`} role="menuitem" onClick={onPick}>
+              Gruppenseite →
+            </Link>
+            {isGm && (
+              <Link
+                className="nav-flyout-item nav-flyout-subitem"
+                to={`/${base}/${g.id}/uebersicht`}
+                role="menuitem"
+                onClick={onPick}
+              >
+                Spielleiter-Übersicht →
+              </Link>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -163,8 +172,8 @@ function CharLink({ c, active, onPick }: { c: CharItem; active: boolean; onPick:
   );
 }
 
-// Zieht die Zahl aus /charakter/<id> bzw. /gruppe/<id>; null, wenn nicht passend.
-function matchId(pathname: string, segment: 'charakter' | 'gruppe'): number | null {
+// Zieht die Zahl aus /charakter/<id> bzw. /gruppe/<id> oder /event/<id>; null, wenn nicht passend.
+function matchId(pathname: string, segment: 'charakter' | 'gruppe' | 'event'): number | null {
   const m = new RegExp(`^/${segment}/(\\d+)`).exec(pathname);
   return m ? Number(m[1]) : null;
 }

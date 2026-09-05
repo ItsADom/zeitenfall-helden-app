@@ -13,7 +13,9 @@ export interface Overview {
   // group_id ist NULL, solange der Charakter keiner Gruppe angehört (Selbst-
   // Anlage vor der Freigabe). requested_group_id trägt dann die erbetene Gruppe.
   characters: { id: number; name: string; group_id: number | null; requested_group_id: number | null }[];
-  groups: { id: number; name: string }[];
+  // isTemp: Event-Gruppe statt feste Gruppe — entscheidet zwischen /event/
+  // und /gruppe/ beim Verlinken (siehe NavMenu, GruppenPage).
+  groups: { id: number; name: string; isTemp: boolean }[];
 }
 
 interface OverviewCtxValue {
