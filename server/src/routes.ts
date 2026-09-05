@@ -442,17 +442,28 @@ api.get('/overview', requireAuth, (req, res) => {
   const characters = allScope
     ? db.prepare('SELECT * FROM characters ORDER BY name').all()
     : db.prepare('SELECT * FROM characters WHERE owner_user_id = ? ORDER BY name').all(user.id);
-  // is_temp = 0: diese Übersicht ist die feste Gruppenverwaltung — Event-
-  // Gruppen haben ihre eigene Verwaltung (/admin/temp-groups) und würden hier
-  // nur als scheinbar leere/verwaiste Gruppe auftauchen.
-  const groups = allScope
-    ? db.prepare('SELECT * FROM groups WHERE is_temp = 0 ORDER BY name').all()
-    : db
-        .prepare(
-          'SELECT DISTINCT g.* FROM groups g JOIN characters c ON c.group_id = g.id WHERE c.owner_user_id = ? ORDER BY g.name',
-        )
-        .all(user.id);
-  res.json({ characters, groups });
+  // is_temp = 0 für den GM-Rundumblick: diese Übersicht ist die feste
+  // Gruppenverwaltung — Event-Gruppen haben ihre eigene Verwaltung
+  // (/admin/temp-groups) und würden hier nur als scheinbar leere/verwaiste
+  // Gruppe auftauchen. Für einen Spieler gilt das nicht: eine Event-Gruppe ist
+  // dort die einzige Stelle, an der er seine Mitgliedschaft überhaupt sieht
+  // (bislang landete er nirgends — kein Menüpunkt führte zu /event/:id), also
+  // zählt hier zusätzlich die additive temp_group_members-Mitgliedschaft.
+  const groups = (
+    allScope
+      ? db.prepare('SELECT *, is_temp AS isTemp FROM groups WHERE is_temp = 0 ORDER BY name').all()
+      : db
+          .prepare(
+            `SELECT DISTINCT g.*, g.is_temp AS isTemp FROM groups g
+             LEFT JOIN characters c ON c.group_id = g.id AND c.owner_user_id = ?
+             LEFT JOIN temp_group_members tgm ON tgm.temp_group_id = g.id
+             LEFT JOIN characters tc ON tc.id = tgm.character_id AND tc.owner_user_id = ?
+             WHERE c.id IS NOT NULL OR tc.id IS NOT NULL
+             ORDER BY g.name`,
+          )
+          .all(user.id, user.id)
+  ) as { id: number; name: string; isTemp: number }[];
+  res.json({ characters, groups: groups.map((g) => ({ ...g, isTemp: !!g.isTemp })) });
 });
 
 // Alle Gruppennamen — damit ein Spieler bei der Selbst-Anlage eines Charakters
