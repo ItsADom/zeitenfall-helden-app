@@ -41,6 +41,7 @@ import {
   resolveProbeRoll,
   stripRepeatPrefix,
   tokenCells,
+  TOKEN_ICON_BY_KEY,
   waffenStatWert,
   type AttrRowCode,
   type DiceExpression,
@@ -234,6 +235,7 @@ function toWireToken(row: BoardTokenRow, viewer: BoardViewer): BoardToken {
     name: row.name,
     color: row.color,
     icon: row.icon,
+    iconAsset: row.iconAsset,
     x: row.x,
     y: row.y,
     size: row.size,
@@ -1571,6 +1573,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         if (typeof msg.radiusColor === 'string' && parseTileValue(msg.radiusColor)?.kind === 'color') input.radiusColor = msg.radiusColor;
         if (Array.isArray(msg.statuses)) input.statuses = msg.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
         if (typeof msg.cover === 'string' && (msg.cover === '' || msg.cover in BOARD_COVER_BY_KEY)) input.cover = msg.cover;
+        if (typeof msg.iconAsset === 'string' && (msg.iconAsset === '' || msg.iconAsset in TOKEN_ICON_BY_KEY)) input.iconAsset = msg.iconAsset;
       }
       const token = createBoardToken(board.id, input);
       const fogAtCreate = fogSet(board);
@@ -1595,6 +1598,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (typeof p.name === 'string') patch.name = p.name.slice(0, 60).trim();
       if (typeof p.color === 'string') patch.color = p.color.slice(0, 20);
       if (typeof p.icon === 'string') patch.icon = p.icon.slice(0, 4);
+      if (typeof p.iconAsset === 'string' && (p.iconAsset === '' || p.iconAsset in TOKEN_ICON_BY_KEY)) patch.iconAsset = p.iconAsset;
       // Bewusst NICHT über den Besitzer-Bypass oben erreichbar — „hidden"
       // ist der Spielleitung vorbehalten (siehe Spaltenkommentar in db.ts),
       // die Besitzerin eines Charakters bekommt sonst dieselben Rechte wie

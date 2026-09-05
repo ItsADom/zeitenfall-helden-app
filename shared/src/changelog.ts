@@ -206,6 +206,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Ein Gegenstand, der zuletzt aus dem Inventar eines Charakters ins Gruppeninventar verschoben wurde, zeigt jetzt einen kleinen Hinweis „von …“ mit dem Namen dieses Charakters — praktisch, um zu sehen, wer zuletzt etwas beigesteuert hat.',
       'Neben der Kooperationsprobe gibt es jetzt einen Wettstreit (/wettstreit oder /contest im Würfel-Chat).',
       'Ein Charakter kann jetzt ein eigenes Bild für seine Marke auf dem virtuellen Tisch hochladen (Einstellungen → „VTT-Marken-Bild“) — getrennt vom Porträt, z. B. für einen Top-down-Render einer eigenen Miniatur. Ohne eigenes Bild zeigt die Marke weiterhin Initialen in Charakterfarbe.',
+      'Marker-/Monster-Marken auf dem virtuellen Tisch können jetzt ein Bild aus einer mitgelieferten Bildersammlung bekommen, statt nur Initialen oder einem einzelnen Emoji zu zeigen — beim Bearbeiten einer Marke über „Bild“ mit Suche und Kategorien auswählbar.',
     ],
     changed: [
       'Wiki-Seiten lassen sich jetzt von allen in den Papierkorb verschieben, nicht mehr nur von der Spielleitung — außer sie sind geschützt, das bleibt weiterhin Sache der Spielleitung. Der Knopf dafür steht direkt bei „Verlauf“ und „Bearbeiten“.',

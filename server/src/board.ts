@@ -81,6 +81,8 @@ export interface BoardTokenRow {
   name: string;
   color: string;
   icon: string;
+  /** Key into TOKEN_ICONS (shared/src/tokenIcons.ts), '' = none — see the doc comment on BoardToken.iconAsset. */
+  iconAsset: string;
   x: number;
   y: number;
   size: number;
@@ -110,7 +112,7 @@ export interface BoardTokenRow {
 }
 
 const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, owner_user_id AS ownerUserId,
-  name, color, icon, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
+  name, color, icon, icon_asset AS iconAsset, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
 
 function toToken(
   r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'tokenImage' | 'wounds'> & { hidden: number; statuses: string },
@@ -148,6 +150,8 @@ export interface CreateTokenInput {
   name: string;
   color: string;
   icon: string;
+  /** Marker-only, like `icon` — ignored for kind: 'character'. See BoardToken.iconAsset. */
+  iconAsset?: string;
   x: number;
   y: number;
   size: number;
@@ -166,8 +170,8 @@ export function createToken(boardId: number, input: CreateTokenInput): BoardToke
     .n;
   const info = db
     .prepare(
-      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, x, y, size, radius, radius_color, statuses, cover, sort)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?)`,
+      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, icon_asset, x, y, size, radius, radius_color, statuses, cover, sort)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?)`,
     )
     .run(
       boardId,
@@ -177,6 +181,7 @@ export function createToken(boardId: number, input: CreateTokenInput): BoardToke
       input.name,
       input.color,
       input.icon,
+      input.iconAsset ?? '',
       input.x,
       input.y,
       input.size,
@@ -194,6 +199,7 @@ export interface TokenPatch {
   name?: string;
   color?: string;
   icon?: string;
+  iconAsset?: string;
   hidden?: boolean;
   statuses?: string[];
   cover?: string;
@@ -211,11 +217,12 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
   if (!existing) return undefined;
   const next = { ...existing, ...patch };
   db.prepare(
-    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ?, owner_user_id = ? WHERE id = ?`,
+    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, icon_asset = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ?, owner_user_id = ? WHERE id = ?`,
   ).run(
     next.name,
     next.color,
     next.icon,
+    next.iconAsset,
     next.hidden ? 1 : 0,
     JSON.stringify(next.statuses),
     next.cover,

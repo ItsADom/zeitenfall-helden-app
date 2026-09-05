@@ -1750,6 +1750,10 @@ db.exec('DROP TABLE IF EXISTS group_members');
   // ein neutraler Rückfall für jede bereits bestehende Marke, kein Nachrechnen
   // nötig.
   if (!cols.has('rotation')) db.exec('ALTER TABLE board_tokens ADD COLUMN rotation REAL NOT NULL DEFAULT 0');
+  // Migration: 'icon_asset'-Spalte (gewähltes Bild aus TOKEN_ICONS, siehe
+  // shared/src/tokenIcons.ts) — leer ist der richtige Rückfall für jede
+  // bereits bestehende Marke (kein Bild gewählt), kein Nachrechnen nötig.
+  if (!cols.has('icon_asset')) db.exec("ALTER TABLE board_tokens ADD COLUMN icon_asset TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: 'owner_user_id' an bestehende board_overlays ergänzen ("Limit

@@ -190,6 +190,14 @@ export interface BoardToken {
   name: string;
   color: string;
   icon: string;
+  /**
+   * Key into TOKEN_ICONS (shared/src/tokenIcons.ts), '' = none — a picked
+   * piece of curated art, marker/monster tokens only (a character token
+   * uses its own uploaded tokenImage instead, see below; never both).
+   * Overrides `icon`/initials when set, same override order tokenImage has
+   * over icon/initials for a character token.
+   */
+  iconAsset: string;
   x: number;
   y: number;
   size: number;
@@ -212,8 +220,8 @@ export interface BoardToken {
    * image (Einstellungen, separate upload from the sheet portrait — see
    * TODO.md/"VTT token appearance" concept notes), never stored on the token
    * row. Always false for a marker/monster token — that upload is
-   * character-only, markers stay icon/emoji-only until a curated icon picker
-   * exists (blocked on content, see TODO.md).
+   * character-only; a marker/monster picks from `iconAsset` instead (see
+   * above), never uploads its own image.
    */
   tokenImage: boolean;
   /**
@@ -233,11 +241,11 @@ export interface BoardToken {
 export type BoardClientMessage =
   // kind: 'character' needs characterId (server pulls name/portrait itself —
   // never trust a client-supplied name for someone else's character); kind:
-  // 'marker' takes name/color/icon as typed, ad hoc. radius/radiusColor/
-  // statuses/cover are marker-only (a pasted copy of another marker's full
-  // appearance, see VirtualTable.tsx's copy/paste gesture) — ignored for
-  // kind: 'character', same as the other cosmetic fields are for a linked
-  // character's own values.
+  // 'marker' takes name/color/icon/iconAsset as typed, ad hoc. radius/
+  // radiusColor/statuses/cover are marker-only (a pasted copy of another
+  // marker's full appearance, see VirtualTable.tsx's copy/paste gesture) —
+  // ignored for kind: 'character', same as the other cosmetic fields are for
+  // a linked character's own values.
   | {
       type: 'board.token.create';
       reqId: string;
@@ -246,6 +254,7 @@ export type BoardClientMessage =
       name?: string;
       color?: string;
       icon?: string;
+      iconAsset?: string;
       x: number;
       y: number;
       size?: number;
@@ -266,7 +275,7 @@ export type BoardClientMessage =
       type: 'board.token.update';
       reqId: string;
       tokenId: number;
-      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>;
+      patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'iconAsset' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>;
     }
   // One message per drag, sent on release — the client renders the whole
   // drag locally and never broadcasts a live position (settled with the

@@ -265,15 +265,21 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
-- [sketch] **VTT: curated icon picker for marker/monster/NPC tokens** (developer
-  feedback, Phase 10 initiative tracker; follow-up to the now-built character
-  token image below). Decided: markers/monsters get ONLY whatever a curated
-  icon set offers — no free-form upload like characters have (that stays
-  character-only). Blocked on content: no icon set exists yet. Once art
-  exists, same rendering hook as the character token image
-  (`t.characterId != null && t.tokenImage` in `VirtualTable.tsx`'s token
-  render — a marker branch would key off a chosen icon id instead) plus the
-  `vtt-token-clip` clipPath already in place.
+- [ready] **Follow-ups on the marker/monster token icon picker** (just built —
+  `shared/src/tokenIcons.ts`'s `TOKEN_ICONS`, `client/public/tokens/`,
+  `TokenIconPicker` in `VirtualTable.tsx`):
+   - Send Devin Night the courtesy heads-up email about using his free token
+     packs (he says a heads-up "is not necessary", but sending one anyway).
+   - The 467 imported icons' `label` field is currently the English source
+     filename, prettified — a German pass is a pure data edit in
+     `tokenIcons.ts`, no code/schema change.
+   - Only 12 of his 21 free packs got imported (the developer trimmed the
+     rest before import) — importing more later is the same
+     `import-tokens.js`-style pipeline, not a new mechanism.
+   - No credits/About page exists anywhere in the app yet — "token art by
+     Devin Night" (and later, if the game-icons.net picker idea ever gets
+     built for something else, those artists too) needs a home once one
+     does.
 - [sketch] **Native colour swatch reopens on a second click instead of
   closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
   used by token colour/ring colour, the tile/highlight picker, and the

@@ -355,6 +355,7 @@ interface DicePanelCtxValue {
     name?: string;
     color?: string;
     icon?: string;
+    iconAsset?: string;
     x: number;
     y: number;
     size?: number;
@@ -365,7 +366,7 @@ interface DicePanelCtxValue {
   }) => void;
   updateToken: (
     tokenId: number,
-    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>,
+    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'iconAsset' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>,
   ) => void;
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
@@ -1446,6 +1447,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       name?: string;
       color?: string;
       icon?: string;
+      iconAsset?: string;
       x: number;
       y: number;
       size?: number;
@@ -1460,7 +1462,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateTokenAction = useCallback(
-    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>) => {
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'iconAsset' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>) => {
       sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
     },
     [sendMsg],
