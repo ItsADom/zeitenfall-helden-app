@@ -11,6 +11,7 @@ import { useAuth } from '../App';
 import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
 import CharacterCard from '../components/CharacterCard';
 import type { Catalogs } from '../components/charSheet';
+import { Dialog } from '../components/Dialog';
 import { DisplayModeProvider } from '../components/displayMode';
 import { GeldPanel } from '../components/GeldPanel';
 import { applyHouseCascade, HouseManagerDialog } from '../components/HouseManagerDialog';
@@ -20,6 +21,87 @@ import { Portrait } from '../components/Portrait';
 import { useTabsHeight } from '../components/stickyChrome';
 import { usePoolItems } from '../components/usePoolItems';
 import ContentTabView from '../tabs/Sektionen';
+
+// Item movement log (TODO.md, 2026-09-03): GM-only audit trail of every
+// cross-owner move touching this group's pool — logged server-side by
+// moveItem, this dialog just reads it back. Same lazy-load-on-open shape as
+// AbilityLookupDialog (GroupOverview.tsx): reused nowhere else, so it lives
+// right next to its one caller instead of its own file.
+interface ItemMoveLogEntry {
+  id: number;
+  ts: number;
+  itemName: string;
+  anzahl: number;
+  fromLabel: string;
+  toLabel: string;
+  actingUser: string;
+}
+
+const zeitText = (ts: number) =>
+  new Date(ts).toLocaleString('de-DE', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function ItemMoveLogDialog({ groupId, onClose }: { groupId: number; onClose: () => void }) {
+  const [entries, setEntries] = useState<ItemMoveLogEntry[] | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    setEntries(null);
+    setError('');
+    apiGet<{ entries: ItemMoveLogEntry[] }>(`/api/groups/${groupId}/item-move-log`)
+      .then((d) => setEntries(d.entries))
+      .catch((e) => setError(e instanceof Error ? e.message : 'Fehler beim Laden.'));
+  }, [groupId]);
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Verlauf: Gruppeninventar"
+      wide
+      footer={
+        <button className="small" onClick={onClose}>
+          Schließen
+        </button>
+      }
+    >
+      {error && <p className="error">{error}</p>}
+      {!error && !entries && <p className="muted">Lade…</p>}
+      {entries && entries.length === 0 && <p className="muted">Noch keine Bewegungen protokolliert.</p>}
+      {entries && entries.length > 0 && (
+        // Dieselbe scroll-box-Falle wie bei AbilityLookupDialog: `.table-wrap
+        // scroll-box` allein macht die Box noch nicht scrollend, erst
+        // maxHeight+overflowY zusammen mit der Klasse ergeben einen sticky
+        // thead, der wirklich zur eigenen Box statt zum Dialog gehört.
+        <div className="table-wrap scroll-box" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>Zeitpunkt</th>
+                <th>Gegenstand</th>
+                <th>Anzahl</th>
+                <th>Von</th>
+                <th>Nach</th>
+                <th>Wer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {entries.map((e) => (
+                <tr key={e.id}>
+                  <td className="muted">{zeitText(e.ts)}</td>
+                  <td>{e.itemName}</td>
+                  <td className="num">{e.anzahl}</td>
+                  <td>{e.fromLabel}</td>
+                  <td>{e.toLabel}</td>
+                  <td className="muted">{e.actingUser}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Dialog>
+  );
+}
 
 interface GroupData {
   group: { id: number; name: string; portrait: boolean; isTemp: boolean };
@@ -72,6 +154,7 @@ export default function GroupPage() {
   const [poolEditing, setPoolEditing] = useState(false);
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [houseDialogOpen, setHouseDialogOpen] = useState(false);
+  const [moveLogOpen, setMoveLogOpen] = useState(false);
   // Geht in den React-Key des aktiven Tabs ein; bei stiller Aktualisierung
   // hochgezählt, damit ContentTabView (hält Zeilen in eigenem State) die
   // frischen Serverdaten übernimmt.
@@ -274,6 +357,11 @@ export default function GroupPage() {
                 <button className="small" onClick={() => setHouseDialogOpen(true)}>
                   Häuser verwalten
                 </button>
+                {user.isGm && (
+                  <button className="small" onClick={() => setMoveLogOpen(true)}>
+                    Verlauf
+                  </button>
+                )}
               </div>
               <CategoryManagerDialog
                 open={catDialogOpen}
@@ -296,6 +384,7 @@ export default function GroupPage() {
                   setItemPool(applyHouseCascade(itemPool, cascade));
                 }}
               />
+              {moveLogOpen && <ItemMoveLogDialog groupId={groupId} onClose={() => setMoveLogOpen(false)} />}
               {catalogs ? (
                 <PoolInventory
                   storageKey={`grouppool:${groupId}`}

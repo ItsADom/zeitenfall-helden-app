@@ -574,6 +574,27 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_group_rooms_group_haus ON group_rooms (group_id, haus, pos);
 
+  -- Item movement log (TODO.md, 2026-09-03): GM-only audit trail of every
+  -- cross-owner move touching a group pool (either direction). Kept forever
+  -- for now (no retention policy yet, see pruneItemMoveLogBefore in
+  -- characterData.ts) — deliberately NOT a group_id FK, so deleting a group
+  -- later can never cascade away its own history. item_name/anzahl are a
+  -- denormalized SNAPSHOT at move time (like char_items itself has no live
+  -- reference back to a deleted/renamed item), same for from_label/to_label
+  -- (a resolved character/group name at move time, not an id — a later
+  -- rename or delete must not turn old log rows into dangling references).
+  CREATE TABLE IF NOT EXISTS item_move_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    ts INTEGER NOT NULL,
+    item_name TEXT NOT NULL DEFAULT '',
+    anzahl REAL NOT NULL DEFAULT 0,
+    from_label TEXT NOT NULL DEFAULT '',
+    to_label TEXT NOT NULL DEFAULT '',
+    acting_user TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_move_log_group ON item_move_log (group_id, ts DESC);
+
   -- Einheitliches Zauber-/Fähigkeiten-Modell (Cluster 6): eine Quelle der
   -- Wahrheit je Charakter, aus der die Reiter „Zauber" (magisch=1) und
   -- „Fähigkeiten" (magisch=0) nur noch anzeigen. magierstufe liegt in
@@ -1258,6 +1279,14 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_typ
   const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('haus')) db.exec("ALTER TABLE char_items ADD COLUMN haus TEXT NOT NULL DEFAULT ''");
   if (!cols.has('raum')) db.exec("ALTER TABLE char_items ADD COLUMN raum TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration ("brought in by" marker, TODO.md 2026-09-03): mitgebracht_von auf
+// char_items — plain additive ALTER, same shape as haus/raum above. Server-set
+// only (moveItem), never part of the client-writable patch column set.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('mitgebracht_von')) db.exec("ALTER TABLE char_items ADD COLUMN mitgebracht_von TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.

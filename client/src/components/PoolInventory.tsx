@@ -104,6 +104,16 @@ export default function PoolInventory({
   const isColl = (k: string) => collapsed.includes(k);
   const toggleColl = (k: string) => setCollapsed((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
 
+  // Raum view (docs/concepts/houses.md): a Stauraum-Behälter sorts into its
+  // room here instead of keeping its own always-visible panel (see the
+  // raumView branch in the JSX below and groupedByRaum's container branch).
+  // Contents start collapsed so a furnished room doesn't turn into a wall of
+  // open wardrobes — reusing the same `collapsed` array with the membership
+  // test INVERTED (present = expanded) gets that "closed by default" for
+  // free, no separate default list to maintain.
+  const isContOpen = (uid: string) => collapsed.includes(`raumcont:${uid}`);
+  const toggleContOpen = (uid: string) => toggleColl(`raumcont:${uid}`);
+
   const storageConts = items.filter((it) => it.istBehaelter && it.containerArt === 'storage');
   const loose = items.filter((it) => !(it.location === 'behaelter') && !(it.istBehaelter && it.containerArt === 'storage'));
 
@@ -139,7 +149,10 @@ export default function PoolInventory({
   const row = (it: Item, hint?: string) => (
     <tr key={it.uid} className="inv-row" title="Klicken für Details — Bearbeiten, Duplizieren, Löschen, Verschieben" onClick={() => setEditUid(it.uid)}>
       <td>
-        <span className="static-value static-text">{it.name || ' '}</span>
+        <span className="static-value static-text">
+          {it.name || ' '}
+          {gebrachtBadge(it)}
+        </span>
         {hint && <span className="muted" style={{ marginLeft: 8, fontSize: '0.85em' }}>{hint}</span>}
       </td>
       <td className="num" onClick={(e) => e.stopPropagation()}>
@@ -157,6 +170,18 @@ export default function PoolInventory({
 
   // Ort-Hinweis für eine Kategorie-Zeile — nur, wenn ein Haus zugewiesen ist.
   const ortHinweis = (it: Item) => (it.haus ? `${it.haus}${it.raum ? ' · ' + it.raum : ''}` : undefined);
+  // "Gebracht von"-Marker (TODO.md, 2026-09-03): ein Glyph mit Tooltip statt
+  // ausgeschriebenem Text direkt neben dem Namen — ein Charaktername ist
+  // beliebig lang, und als Text angehängt ließ er die Zeile umbrechen, was bei
+  // vielen Items in der Liste spürbar Höhe kostete (Entwickler-Feedback). Ein
+  // Glyph hat immer dieselbe, minimale Breite, unabhängig vom Namen dahinter —
+  // der volle Name steht weiterhin im title-Tooltip.
+  const gebrachtBadge = (it: Pick<Item, 'mitgebrachtVon'>) =>
+    it.mitgebrachtVon ? (
+      <span className="muted" title={`Zuletzt aus dem Inventar von ${it.mitgebrachtVon} hierher verschoben`} style={{ marginLeft: 6 }}>
+        ↪
+      </span>
+    ) : null;
 
   const groupedRows = (list: Item[], keyBase: string) =>
     catsOf(list).map((cat) => {
@@ -187,11 +212,70 @@ export default function PoolInventory({
       );
     });
 
+  // Raum view only (per developer decision — Kategorie view keeps a
+  // Stauraum-Behälter in its own always-visible panel, see the raumView
+  // branch below): renders a container as a normal row in its room's group
+  // instead of its own panel, collapsed by default (isContOpen/toggleContOpen
+  // above), expandable to its contents via groupedRows — same nesting the
+  // Kategorie-view panel uses, just tighter to fit inside an ordinary row.
+  const containerRoomRow = (c: Item) => {
+    const inside = itemsInContainer(items, c.uid);
+    const open = isContOpen(c.uid);
+    return (
+      <Fragment key={c.uid}>
+        <tr className="inv-row" title="Klicken für Details — Bearbeiten, Duplizieren, Löschen, Verschieben" onClick={() => setEditUid(c.uid)}>
+          <td>
+            <button
+              type="button"
+              className="cat-toggle"
+              aria-expanded={open}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleContOpen(c.uid);
+              }}
+              title={open ? 'Behälter einklappen' : 'Behälter ausklappen'}
+            >
+              <span className="cat-chev" aria-hidden>{open ? '▾' : '▸'}</span>
+            </button>
+            <span className="static-value static-text">
+              {c.name || '(ohne Name)'}
+              {gebrachtBadge(c)}
+            </span>
+            <span className="muted" style={{ marginLeft: 8, fontSize: '0.85em' }}>
+              Behälter · {inside.length}
+              {c.kategorie && <> · {c.kategorie}</>}
+            </span>
+          </td>
+          <td className="num" onClick={(e) => e.stopPropagation()}>
+            <NumInput value={c.anzahl} min={0} onChange={(v) => onPatchAnzahl(c.uid, v)} />
+          </td>
+          <td className="num">
+            <span className="static-value static-num">{c.gewicht}</span>
+          </td>
+          <td className="computed">{kg(itemGewicht(c))}</td>
+          <td>
+            <CollapsedText text={c.notiz} className="static-value static-text" />
+          </td>
+        </tr>
+        {open && inside.length === 0 && (
+          <tr>
+            <td colSpan={cols} className="muted" style={{ paddingLeft: '2em' }}>
+              Leer
+            </td>
+          </tr>
+        )}
+        {open && groupedRows(inside, c.uid)}
+      </Fragment>
+    );
+  };
+
   // Houses (docs/concepts/houses.md): dieselbe Gruppierungs-/Einklapp-Mechanik
   // wie groupedRows, nur nach raum (innerhalb activeHaus) statt kategorie —
   // '' fasst „nicht diesem Haus/Raum zugeordnet" zusammen (kein Haus, oder ein
   // anderes Haus als das gerade betrachtete), läuft dank raeumeVon immer
-  // zuletzt. Jede Zeile zeigt ihre Kategorie als Hinweis statt des Orts.
+  // zuletzt. Jede Zeile zeigt ihre Kategorie als Hinweis statt des Orts, außer
+  // bei einem Stauraum-Behälter — der sortiert hier selbst mit ein (siehe
+  // containerRoomRow), statt in seinem eigenen Panel zu bleiben.
   const groupedByRaum = (list: Item[], keyBase: string) =>
     raeumeVon(list, activeHaus).map((raum) => {
       const rows = list.filter((it) => (it.haus === activeHaus && activeHaus ? it.raum : '') === raum);
@@ -216,7 +300,12 @@ export default function PoolInventory({
               </button>
             </td>
           </tr>
-          {open && rows.map((it) => row(it, it.kategorie || undefined))}
+          {open &&
+            rows.map((it) =>
+              it.istBehaelter && it.containerArt === 'storage'
+                ? containerRoomRow(it)
+                : row(it, it.kategorie || undefined),
+            )}
         </Fragment>
       );
     });
@@ -264,7 +353,9 @@ export default function PoolInventory({
 
       {storageConts.length === 0 && loose.length === 0 && <p className="muted">Noch nichts abgelegt.</p>}
 
-      {storageConts.map((c) => {
+      {/* Raum view sorts a Stauraum-Behälter into its room instead (see
+          containerRoomRow/groupedByRaum) — this panel stays Kategorie-view-only. */}
+      {!raumView && storageConts.map((c) => {
         const inside = itemsInContainer(items, c.uid);
         const stueck = c.kapazitaetArt === 'stueck';
         const open = !isColl(c.uid);
@@ -291,6 +382,7 @@ export default function PoolInventory({
                   <input className="cont-name" value={c.name} onChange={(e) => onSave(c.uid, { name: e.target.value })} placeholder="Behälter" />
                 </span>
               )}
+              {gebrachtBadge(c)}
               <span className="panel-info">
                 {inside.length} · {stueck ? c.kapazitaet : kg(c.kapazitaet)} {stueck ? 'Stück' : 'kg'}
                 {ortHinweis(c) && <> · {ortHinweis(c)}</>}
@@ -359,12 +451,12 @@ export default function PoolInventory({
         );
       })}
 
-      {loose.length > 0 && (
+      {(loose.length > 0 || (raumView && storageConts.length > 0)) && (
         <div className="panel">
           <div className="table-wrap">
             <table className="sheet inv-table">
               {colgroup}
-              <tbody>{raumView ? groupedByRaum(loose, '__loose') : groupedRows(loose, '__loose')}</tbody>
+              <tbody>{raumView ? groupedByRaum([...loose, ...storageConts], '__loose') : groupedRows(loose, '__loose')}</tbody>
             </table>
           </div>
         </div>

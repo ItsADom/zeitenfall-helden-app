@@ -182,6 +182,14 @@ export interface Item {
   // allgemeinen Gruppenpool.
   haus: string;
   raum: string;
+  // Item movement log / "brought in by" marker (TODO.md, 2026-09-03): the
+  // CHARACTER (not the acting user) whose inventory this item most recently
+  // arrived from, when it landed in a group pool via a cross-owner move. '' if
+  // never moved in, or if the source was the GM pool (no character there).
+  // Server-set only (moveItem), NOT part of ITEM_PATCH_KEYS — a player cannot
+  // set this by hand, it is purely a record of the last inbound move. Tracks
+  // only the latest move, no history (see the GM-only item move log for that).
+  mitgebrachtVon: string;
   location: ItemLocation;
   // Körperstelle, wenn location === 'getragen' (Name aus BODY_ZONES). Sonst ''.
   zone: string;
@@ -254,7 +262,7 @@ export function makeUid(): string {
 // Stelle steht.
 export function makeItem(over: Partial<Item>): Item {
   return {
-    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', haus: '', raum: '', location: 'inventar',
+    id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', haus: '', raum: '', mitgebrachtVon: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
     kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
     bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, waffenArt: '', waffenStats: [], ...over,
@@ -333,6 +341,11 @@ export const ITEM_MOVE_RESET_PATCH: Partial<Item> = {
   // or into the GM's prep pool would be a stale reference to nothing.
   haus: '',
   raum: '',
+  // "Brought in by" marker (TODO.md, 2026-09-03): same reasoning as haus/raum
+  // — only meaningful while the item sits in a group pool. Cleared on every
+  // move OUT; moveItem sets it again immediately after, but only when the
+  // move actually lands at owner_type: 'group' coming from a character.
+  mitgebrachtVon: '',
 };
 
 // --- Incremental item saves ---

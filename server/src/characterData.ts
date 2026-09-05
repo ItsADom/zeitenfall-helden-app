@@ -939,7 +939,7 @@ export function loadItems(charId: number): Item[] {
 export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
     .all(ownerType, ownerId) as {
     id: number;
@@ -950,6 +950,7 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     kategorie: string;
     haus: string;
     raum: string;
+    mitgebracht_von: string;
     location: string;
     zone: string;
     beidseitig: number;
@@ -1014,6 +1015,7 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     kategorie: r.kategorie,
     haus: r.haus,
     raum: r.raum,
+    mitgebrachtVon: r.mitgebracht_von,
     location: (ITEM_LOCATIONS as string[]).includes(r.location) ? (r.location as ItemLocation) : 'inventar',
     zone: r.zone,
     beidseitig: !!r.beidseitig,
@@ -1261,6 +1263,8 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
         );
         const working: WorkingItem = {
           id, uid, name: n.name, anzahl: n.anzahl, gewicht: n.gewicht, kategorie: n.kategorie, haus: n.haus, raum: n.raum,
+          // Server-set only via moveItem, never through an op — a freshly added item never arrived via a move.
+          mitgebrachtVon: '',
           location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
           istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
           kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
@@ -1762,10 +1766,17 @@ export function manageRoomsForHouse(groupId: number, haus: string, raw: unknown)
 // for that shape — mirrored by hand below, there is no shared SQL builder to
 // import it through) — descendants keep theirs, so a moved backpack's
 // contents stay exactly as packed.
-function collectSubtree(ownerType: ItemOwnerType, ownerId: number, rootUid: string): { rootId: number; ids: number[] } | null {
+// Root row also carries name/anzahl now (item movement log, TODO.md
+// 2026-09-03) — moveItem needs a snapshot of both BEFORE the move for the log
+// entry, and this is the one place that already reads the root row.
+function collectSubtree(
+  ownerType: ItemOwnerType,
+  ownerId: number,
+  rootUid: string,
+): { rootId: number; rootName: string; rootAnzahl: number; ids: number[] } | null {
   const rows = db
-    .prepare('SELECT id, uid, container_uid FROM char_items WHERE owner_type = ? AND owner_id = ?')
-    .all(ownerType, ownerId) as { id: number; uid: string; container_uid: string }[];
+    .prepare('SELECT id, uid, container_uid, name, anzahl FROM char_items WHERE owner_type = ? AND owner_id = ?')
+    .all(ownerType, ownerId) as { id: number; uid: string; container_uid: string; name: string; anzahl: number }[];
   const root = rows.find((r) => r.uid === rootUid);
   if (!root) return null;
   const childrenByContainerUid = new Map<string, typeof rows>();
@@ -1787,7 +1798,41 @@ function collectSubtree(ownerType: ItemOwnerType, ownerId: number, rootUid: stri
       queue.push(child.uid);
     }
   }
-  return { rootId: root.id, ids };
+  return { rootId: root.id, rootName: root.name, rootAnzahl: root.anzahl, ids };
+}
+
+// Human-readable label for a move-log endpoint — resolved and snapshotted
+// AT MOVE TIME (item_move_log stores the label, not the id), so a later
+// rename or delete of the character/group can never turn an old log row into
+// a dangling reference (same reasoning as the item name/anzahl snapshot).
+function ownerLabel(ref: { type: ItemOwnerType; id: number }): string {
+  if (ref.type === 'gm') return 'Spielleiter-Vorrat';
+  if (ref.type === 'character') {
+    const row = db.prepare('SELECT name FROM characters WHERE id = ?').get(ref.id) as { name: string } | undefined;
+    return row?.name ?? '(gelöschter Charakter)';
+  }
+  const row = db.prepare('SELECT name FROM groups WHERE id = ?').get(ref.id) as { name: string } | undefined;
+  return row?.name ?? '(gelöschte Gruppe)';
+}
+
+// Logs a move iff either side touches a group pool (TODO.md, 2026-09-03) — a
+// character<->GM move is nobody's business but that character's own player.
+// Filed under whichever side is the group (group<->group is unreachable
+// through the UI today, since no move target picker ever offers another
+// group's pool — see resolveMoveTarget's callers — but if it ever happened,
+// filing under `to` is an arbitrary-but-harmless choice).
+function logItemMoveIfRelevant(
+  from: { type: ItemOwnerType; id: number },
+  to: { type: ItemOwnerType; id: number },
+  itemName: string,
+  anzahl: number,
+  actingUserName: string,
+): void {
+  if (from.type !== 'group' && to.type !== 'group') return;
+  const groupId = to.type === 'group' ? to.id : from.id;
+  db.prepare(
+    'INSERT INTO item_move_log (group_id, ts, item_name, anzahl, from_label, to_label, acting_user) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  ).run(groupId, Date.now(), itemName, anzahl, ownerLabel(from), ownerLabel(to), actingUserName);
 }
 
 // Moves one item — and, if it's a container, everything inside it — from one
@@ -1795,22 +1840,84 @@ function collectSubtree(ownerType: ItemOwnerType, ownerId: number, rootUid: stri
 // (stale, or the same request retried after it already moved) or if the
 // target owner would exceed MAX_ITEMS; both are silent no-ops for the caller,
 // the same defensive posture applyItemOps already takes on its own caps.
-export function moveItem(from: { type: ItemOwnerType; id: number }, to: { type: ItemOwnerType; id: number }, uid: string): boolean {
+// `actingUserName` is the real account's display name (never the character) —
+// only used for the item movement log below, a no-op call for a move that
+// never touches a group pool.
+export function moveItem(
+  from: { type: ItemOwnerType; id: number },
+  to: { type: ItemOwnerType; id: number },
+  uid: string,
+  actingUserName: string,
+): boolean {
   const found = collectSubtree(from.type, from.id, uid);
   if (!found) return false;
   const targetCount = (
     db.prepare('SELECT COUNT(*) AS n FROM char_items WHERE owner_type = ? AND owner_id = ?').get(to.type, to.id) as { n: number }
   ).n;
   if (targetCount + found.ids.length > MAX_ITEMS) return false;
+  // "Brought in by" marker (TODO.md, 2026-09-03): set ONLY when the move lands
+  // at a group pool coming from a character — blank (already reset by the
+  // UPDATE below) for a GM-pool source, a same-owner reassignment can't reach
+  // here at all (moveItem is cross-owner only), and a hypothetical group<->
+  // group move (see logItemMoveIfRelevant) didn't come from a character either.
+  const mitgebrachtVon = to.type === 'group' && from.type === 'character' ? ownerLabel(from) : '';
   const tx = db.transaction(() => {
     const setOwner = db.prepare('UPDATE char_items SET owner_type = ?, owner_id = ? WHERE id = ?');
     for (const id of found.ids) setOwner.run(to.type, to.id, id);
     db.prepare(
-      "UPDATE char_items SET location = 'inventar', zone = '', beidseitig = 0, container_uid = '', haus = '', raum = '' WHERE id = ?",
-    ).run(found.rootId);
+      "UPDATE char_items SET location = 'inventar', zone = '', beidseitig = 0, container_uid = '', haus = '', raum = '', mitgebracht_von = ? WHERE id = ?",
+    ).run(mitgebrachtVon, found.rootId);
   });
   tx();
+  logItemMoveIfRelevant(from, to, found.rootName, found.rootAnzahl, actingUserName);
   return true;
+}
+
+export interface ItemMoveLogEntry {
+  id: number;
+  ts: number;
+  itemName: string;
+  anzahl: number;
+  fromLabel: string;
+  toLabel: string;
+  actingUser: string;
+}
+
+// Newest first, capped — the GM-only log dialog shows a scrollable table, not
+// paged history; a group with more moves than this in its lifetime is not a
+// case worth engineering pagination for yet.
+const MAX_MOVE_LOG_ROWS = 2000;
+
+export function loadItemMoveLog(groupId: number): ItemMoveLogEntry[] {
+  const rows = db
+    .prepare(
+      'SELECT id, ts, item_name, anzahl, from_label, to_label, acting_user FROM item_move_log WHERE group_id = ? ORDER BY ts DESC, id DESC LIMIT ?',
+    )
+    .all(groupId, MAX_MOVE_LOG_ROWS) as {
+    id: number;
+    ts: number;
+    item_name: string;
+    anzahl: number;
+    from_label: string;
+    to_label: string;
+    acting_user: string;
+  }[];
+  return rows.map((r) => ({
+    id: r.id,
+    ts: r.ts,
+    itemName: r.item_name,
+    anzahl: r.anzahl,
+    fromLabel: r.from_label,
+    toLabel: r.to_label,
+    actingUser: r.acting_user,
+  }));
+}
+
+// Retention placeholder (TODO.md, 2026-09-03): no UI trigger yet, nothing
+// calls this — exists so a future retention policy has a function to hook
+// into without re-deriving the table shape. Returns rows deleted.
+export function pruneItemMoveLogBefore(tsCutoff: number): number {
+  return db.prepare('DELETE FROM item_move_log WHERE ts < ?').run(tsCutoff).changes;
 }
 
 // Manuelles Aufräumen beim Löschen eines Charakters/einer Gruppe — die

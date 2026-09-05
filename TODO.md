@@ -131,38 +131,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [ready] **Show who last brought an item into the group pool** (user
-  feedback, concept agreed 2026-09-03). A small chip next to the item
-  name/row — same visual language as the existing `kategorie`/`haus` chips —
-  naming the **character** (not the acting user) whose inventory the item
-  most recently came from. **New:** a plain string field on `Item` (same role
-  as `haus`/`raum`: freeform, no FK), set only on an actual cross-owner move
-  landing at `owner_type: 'group'` (never on an in-pool house/room
-  reassignment — that's a same-owner patch, not a move) — blank if the source
-  was the GM pool (`owner_type: 'gm'` has no character). Tracks only the
-  latest inbound move, overwritten each time, no history (see the movement
-  log entry below for that). Cleared on the item's next cross-owner move OUT
-  of the group pool — same reset-on-move-out pattern `ITEM_MOVE_RESET_PATCH`
-  already applies to `haus`/`raum` (`docs/concepts/houses.md` §3.2).
-- [ready] **Item movement log for group inventories, GM-only** (user
-  feedback, concept agreed 2026-09-03). Logs every cross-owner move where
-  either side is `owner_type: 'group'` (both directions — into AND out of the
-  pool), NOT in-pool house/room reassignment. **New table in `helden.db`**
-  (kept forever for now — no retention policy yet, see below), one row per
-  move: item name + `anzahl` as a denormalized snapshot at move time (not a
-  live reference — the item can be renamed/deleted later and the log entry
-  should still read sensibly; no partial-stack moves to account for,
-  splitting a stack isn't possible today), from-owner, to-owner, the acting
-  **user's** display name (deliberately the real account, not the character —
-  makes a GM's own hand in a move unambiguous at a glance), timestamp.
-  GM-only endpoint + UI gate, same as the rest of the GM-only surface. UI: a
-  `Dialog` (`wide`, scrollable table body) opened from the Group page — same
-  shape as `AbilityLookupDialog` (`GroupOverview.tsx:74`): Zeitpunkt /
-  Gegenstand / Anzahl / Von / Nach / Wer. **Retention:** add a server-side
-  deletion/prune function now as a placeholder — no UI trigger, nothing calls
-  it yet — so a future retention policy has something to hook into without
-  re-deriving the table shape.
-
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 

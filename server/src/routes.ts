@@ -68,6 +68,7 @@ import {
   manageAbilityList,
   migrateCharacterPeriphery,
   moveItem,
+  loadItemMoveLog,
   savePortrait,
   manageItemCategories,
   manageItemCategoriesForOwner,
@@ -1374,7 +1375,7 @@ api.post('/characters/:id/items/:uid/move', requireAuth, (req, res) => {
     res.status(400).json({ error: 'Ungültiges Ziel' });
     return;
   }
-  const moved = moveItem({ type: 'character', id: char.id }, target, String(req.params.uid));
+  const moved = moveItem({ type: 'character', id: char.id }, target, String(req.params.uid), req.user!.displayName);
   if (!moved) {
     res.status(404).json({ error: 'Gegenstand nicht gefunden' });
     return;
@@ -1446,13 +1447,27 @@ api.post('/groups/:id/items/:uid/move', requireAuth, (req, res) => {
     res.status(400).json({ error: 'Ungültiges Ziel' });
     return;
   }
-  const moved = moveItem({ type: 'group', id: groupId }, target, String(req.params.uid));
+  const moved = moveItem({ type: 'group', id: groupId }, target, String(req.params.uid), req.user!.displayName);
   if (!moved) {
     res.status(404).json({ error: 'Gegenstand nicht gefunden' });
     return;
   }
   const items = loadItemsForOwner('group', groupId);
   res.json({ items: req.user!.isGm ? items : ohneVerborgeneItems(items) });
+});
+
+// Item movement log (TODO.md, 2026-09-03): GM-only audit trail of every
+// cross-owner move touching this group's pool (either direction) — logged by
+// moveItem itself, this just reads it back. requireGm, not editableGroup: a
+// player has no business seeing who moved what, even in their own group (the
+// acting user's real account name is deliberately part of the payload).
+api.get('/groups/:id/item-move-log', requireAuth, requireGm, (req, res) => {
+  const groupId = Number(req.params.id);
+  if (!db.prepare('SELECT 1 FROM groups WHERE id = ?').get(groupId)) {
+    res.status(404).json({ error: 'Gruppe nicht gefunden' });
+    return;
+  }
+  res.json({ entries: loadItemMoveLog(groupId) });
 });
 
 // --- GM-Pool (docs/concepts/shared-inventories.md) ---
@@ -1486,7 +1501,7 @@ api.post('/gm/items/:uid/move', requireAuth, requireGm, (req, res) => {
     res.status(400).json({ error: 'Ungültiges Ziel' });
     return;
   }
-  const moved = moveItem({ type: 'gm', id: 0 }, target, String(req.params.uid));
+  const moved = moveItem({ type: 'gm', id: 0 }, target, String(req.params.uid), req.user!.displayName);
   if (!moved) {
     res.status(404).json({ error: 'Gegenstand nicht gefunden' });
     return;
