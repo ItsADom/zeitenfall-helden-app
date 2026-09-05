@@ -6454,6 +6454,13 @@ tr:hover .probe-roll,
   margin: 0;
   font-size: 12px;
 }
+.vtt-token-icon-credit {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px;
+  text-align: center;
+}
 
 /* House-rule wound tracking (TODO.md "Wound tracking / count-display on VTT
    tokens") — only ever rendered when token.wounds is non-null, i.e. for the

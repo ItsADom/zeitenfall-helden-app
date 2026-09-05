@@ -391,6 +391,11 @@ function tokenIconHref(file: string): string {
   return `/tokens/${file}`;
 }
 
+/** Both languages shown together once labelDe actually differs from labelEn (i.e. once translated) — neither is ever hidden. */
+function tokenIconLabel(i: TokenIcon): string {
+  return i.labelDe === i.labelEn ? i.labelDe : `${i.labelDe} · ${i.labelEn}`;
+}
+
 // Eine Zeile je Gitterlinie, zu EINEM <path> zusammengefasst — billiger als
 // ein Knoten je Zelle, siehe der Prototyp (Texturen.html).
 function gridLinesPath(cols: number, rows: number): string {
@@ -4333,7 +4338,12 @@ function TokenIconPicker({
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>(TOKEN_ICON_CATEGORIES[0] ?? '');
   const q = search.trim().toLowerCase();
-  const shown: TokenIcon[] = q ? TOKEN_ICONS.filter((i) => i.label.toLowerCase().includes(q)) : TOKEN_ICONS.filter((i) => i.category === category);
+  // Beide Sprachen sind gültige Treffer, nie nur eine — labelDe ist noch nicht
+  // für jeden Eintrag übersetzt (siehe TokenIcon-Kommentar), labelEn bliebe
+  // sonst die einzige Suchspur für alles noch unübersetzte.
+  const shown: TokenIcon[] = q
+    ? TOKEN_ICONS.filter((i) => i.labelDe.toLowerCase().includes(q) || i.labelEn.toLowerCase().includes(q))
+    : TOKEN_ICONS.filter((i) => i.category === category);
 
   return (
     <div className="vtt-token-icon-picker">
@@ -4364,17 +4374,18 @@ function TokenIconPicker({
             key={i.key}
             type="button"
             className={`vtt-token-icon-swatch${value === i.key ? ' active' : ''}`}
-            title={i.label}
+            title={tokenIconLabel(i)}
             onClick={() => {
               onChange(i.key);
               onClose();
             }}
           >
-            <img src={tokenIconHref(i.file)} alt={i.label} loading="lazy" />
+            <img src={tokenIconHref(i.file)} alt={tokenIconLabel(i)} loading="lazy" />
           </button>
         ))}
       </div>
       {shown.length === 0 && <p className="muted vtt-token-icon-empty">Keine Treffer.</p>}
+      <p className="muted vtt-token-icon-credit">Bilder: Devin Night</p>
     </div>
   );
 }
