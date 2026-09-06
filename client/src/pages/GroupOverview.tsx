@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Ability } from '@shared/abilities';
 import type { Item } from '@shared/items';
-import { duplicateItem, makeItem } from '@shared/items';
+import { duplicateItem, makeItem, reorderItems } from '@shared/items';
 import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost } from '../api';
@@ -258,8 +258,17 @@ export default function GroupOverviewPage() {
     { key: 'group', label: `Gruppeninventar (${data.group.name})`, toOwnerType: 'group', toOwnerId: groupId },
     ...data.characters.map((c) => ({ key: `char:${c.id}`, label: c.name, toOwnerType: 'character' as const, toOwnerId: c.id })),
   ];
+  const gmPoolCatOptions = [...new Set([...data.gmPoolCategories, ...gmPool.map((it) => it.kategorie).filter(Boolean)])].sort((a, b) =>
+    a.localeCompare(b, 'de'),
+  );
   const patchGmPoolItem = (uid: string, patch: Partial<Item>) =>
     setGmPool(gmPool.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  // Ziehen INNERHALB des Pools (siehe PoolInventory.tsx / moveWithinPool in
+  // Group.tsx für dieselbe Zeile).
+  const moveWithinGmPool = (uid: string, patch: Partial<Item>, beforeUid?: string) => {
+    const base = beforeUid ? reorderItems(gmPool, uid, beforeUid) : gmPool;
+    setGmPool(base.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  };
   const moveGmPoolItem = (uid: string, target: MoveTarget) =>
     void apiPost<{ items: Item[] }>(`/api/gm/items/${uid}/move`, { toOwnerType: target.toOwnerType, toOwnerId: target.toOwnerId }).then(
       (res) => replaceGmPool(res.items),
@@ -507,7 +516,7 @@ export default function GroupOverviewPage() {
         <PoolInventory
           storageKey="gmpool"
           items={gmPool}
-          categories={data.gmPoolCategories}
+          categories={gmPoolCatOptions}
           talents={catalogs.talents}
           specialEnergies={catalogs.specialEnergies}
           isGm
@@ -527,6 +536,7 @@ export default function GroupOverviewPage() {
           }
           onPatchAnzahl={(uid, anzahl) => patchGmPoolItem(uid, { anzahl })}
           onMove={moveGmPoolItem}
+          onMoveWithin={moveWithinGmPool}
         />
       ) : (
         <p className="muted">Lade…</p>

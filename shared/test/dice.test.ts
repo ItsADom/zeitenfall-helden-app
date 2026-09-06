@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  computeCompetitiveVerdict,
   computeCoopVerdict,
   confirmationsNeeded,
   findCritTriggers,
@@ -8,6 +9,7 @@ import {
   resolveExpressionRoll,
   resolveProbeRoll,
   stripRepeatPrefix,
+  type CompetitiveEntrant,
   type CoopRollLike,
 } from '../src/dice.js';
 import type { FormulaNode } from '../src/formula.js';
@@ -600,6 +602,67 @@ describe('computeCoopVerdict', () => {
 
   it('is provisional while any participant still has an unresolved confirmation', () => {
     const v = computeCoopVerdict([roll({ resolved: true }), roll({ resolved: false })]);
+    expect(v.provisional).toBe(true);
+  });
+});
+
+describe('computeCompetitiveVerdict', () => {
+  function entrant(id: number, partial: Partial<CoopRollLike>): CompetitiveEntrant {
+    return { id, probeZahl: 10, adjustedSum: 10, criticalFailure: false, criticalSuccess: false, resolved: true, ...partial };
+  }
+
+  it('the best margin wins among ordinary rolls', () => {
+    const v = computeCompetitiveVerdict([
+      entrant(1, { probeZahl: 10, adjustedSum: 8 }), // margin 2
+      entrant(2, { probeZahl: 10, adjustedSum: 3 }), // margin 7 — best
+    ]);
+    expect(v.winnerIds).toEqual([2]);
+    expect(v.provisional).toBe(false);
+  });
+
+  it('a confirmed crit-success always outranks an ordinary roll, even with a worse margin', () => {
+    const v = computeCompetitiveVerdict([
+      entrant(1, { probeZahl: 10, adjustedSum: 1 }), // margin 9, ordinary
+      entrant(2, { probeZahl: 10, adjustedSum: 9, criticalSuccess: true }), // margin 1, but crit
+    ]);
+    expect(v.winnerIds).toEqual([2]);
+  });
+
+  it('an ordinary roll always outranks a confirmed crit-fail, even with a worse margin', () => {
+    const v = computeCompetitiveVerdict([
+      entrant(1, { probeZahl: 10, adjustedSum: 20, criticalFailure: true }), // margin -10, crit-fail
+      entrant(2, { probeZahl: 10, adjustedSum: 9 }), // margin 1, ordinary
+    ]);
+    expect(v.winnerIds).toEqual([2]);
+  });
+
+  it('when everyone in the top tier failed, the least-bad margin still wins — no success required to win', () => {
+    const v = computeCompetitiveVerdict([
+      entrant(1, { probeZahl: 10, adjustedSum: 15 }), // margin -5
+      entrant(2, { probeZahl: 10, adjustedSum: 11 }), // margin -1 — best (least bad)
+    ]);
+    expect(v.winnerIds).toEqual([2]);
+  });
+
+  it('an exact tie in the winning tier/margin reports every tied participant, no arbitrary tie-break', () => {
+    const v = computeCompetitiveVerdict([
+      entrant(1, { probeZahl: 10, adjustedSum: 5 }), // margin 5
+      entrant(2, { probeZahl: 12, adjustedSum: 7 }), // margin 5, tied
+      entrant(3, { probeZahl: 10, adjustedSum: 8 }), // margin 2
+    ]);
+    expect(v.winnerIds.sort()).toEqual([1, 2]);
+  });
+
+  it('ranks multiple crit-successes against each other by margin, within their own tier', () => {
+    const v = computeCompetitiveVerdict([
+      entrant(1, { probeZahl: 10, adjustedSum: 9, criticalSuccess: true }), // margin 1
+      entrant(2, { probeZahl: 10, adjustedSum: 2, criticalSuccess: true }), // margin 8 — best
+    ]);
+    expect(v.winnerIds).toEqual([2]);
+  });
+
+  it('is provisional while any participant still has an unresolved confirmation', () => {
+    const v = computeCompetitiveVerdict([entrant(1, { resolved: true }), entrant(2, { resolved: false })]);
     expect(v.provisional).toBe(true);
   });
 });

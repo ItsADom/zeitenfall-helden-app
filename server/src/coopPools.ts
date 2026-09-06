@@ -1,14 +1,16 @@
-// Open, self-serve Kooperationsprobe pools — see shared/src/diceProtocol.ts's
-// CoopPoolRequest doc comment for why this is a separate mechanism from
-// groupRolls.ts's GM-broadcast Gruppenprobe: any player proposes, others
-// join themselves, nobody rolls until the proposer/GM closes the pool.
+// Open, self-serve Kooperationsprobe/Wettstreit pools — see
+// shared/src/diceProtocol.ts's CoopPoolRequest doc comment for why this is a
+// separate mechanism from groupRolls.ts's GM-broadcast Gruppenprobe: any
+// player proposes, others join themselves, nobody rolls until the
+// proposer/GM closes the pool. `mode` only decides the verdict computed at
+// that point (ws.ts) — everything in this file is identical for both modes.
 //
 // In-memory only, like pendingRolls.ts/groupRolls.ts: a server restart drops
 // an open pool. No TTL here (unlike those two) — closing is a deliberate
 // manual action (roll.coop.start/roll.coop.cancel), not something that
 // should expire out from under a slow-forming group.
 import crypto from 'node:crypto';
-import type { CoopPoolMember, CoopPoolRequest, ProbeSource } from 'shared';
+import type { CoopPoolMember, CoopPoolRequest, PoolMode, ProbeSource } from 'shared';
 
 const pools = new Map<string, CoopPoolRequest>();
 
@@ -16,6 +18,7 @@ export function createCoopPool(input: {
   groupId: number;
   source: ProbeSource;
   label: string;
+  mode: PoolMode;
   initiatorUserId: number;
   initiatorName: string;
 }): CoopPoolRequest {
@@ -24,6 +27,7 @@ export function createCoopPool(input: {
     groupId: input.groupId,
     source: input.source,
     label: input.label,
+    mode: input.mode,
     initiatorUserId: input.initiatorUserId,
     initiatorName: input.initiatorName,
     members: [],

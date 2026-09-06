@@ -6,6 +6,7 @@ import type {
   GroupRollRequest,
   KinoAuftrag,
   PendingRollRequest,
+  PoolMode,
   ProbeSource,
   RollVisibility,
   ServerToClientMessage,
@@ -277,8 +278,8 @@ interface DicePanelCtxValue {
   revealGroupRequest: (groupRequestId: string) => void;
   /** Verwirft eine Sammelanfrage komplett, auch bereits zurückgehaltene Ergebnisse. */
   cancelGroupRequest: (groupRequestId: string) => void;
-  /** Schlägt einen offenen Kooperationsprobe-Pool vor — jeder darf, nicht nur die Spielleitung. */
-  proposeCoopPool: (groupId: number, source: ProbeSource) => void;
+  /** Schlägt einen offenen Kooperationsprobe-/Wettstreit-Pool vor — jeder darf, nicht nur die Spielleitung. */
+  proposeCoopPool: (groupId: number, source: ProbeSource, mode: PoolMode) => void;
   /** Tritt einem offenen Pool mit dem eigenen Charakter bei / verlässt ihn wieder. */
   joinCoopPool: (poolId: string) => void;
   leaveCoopPool: (poolId: string) => void;
@@ -354,6 +355,7 @@ interface DicePanelCtxValue {
     name?: string;
     color?: string;
     icon?: string;
+    iconAsset?: string;
     x: number;
     y: number;
     size?: number;
@@ -364,7 +366,7 @@ interface DicePanelCtxValue {
   }) => void;
   updateToken: (
     tokenId: number,
-    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>,
+    patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'iconAsset' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation' | 'ownerUserId'>>,
   ) => void;
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
@@ -1327,7 +1329,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const proposeCoopPool = useCallback(
-    (forGroupId: number, source: ProbeSource) => {
+    (forGroupId: number, source: ProbeSource, mode: PoolMode) => {
       // Kein eigener Charakter nötig — die Spielleitung hat nie einen, und
       // Vorschlagen tritt nicht automatisch bei (siehe roll.coop.propose im
       // Protokoll).
@@ -1336,7 +1338,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         if (option) applyRoom(option);
       }
       melde();
-      sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source });
+      sendMsg({ type: 'roll.coop.propose', reqId: crypto.randomUUID(), source, mode });
     },
     [myGroups, applyRoom, sendMsg, melde],
   );
@@ -1445,6 +1447,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       name?: string;
       color?: string;
       icon?: string;
+      iconAsset?: string;
       x: number;
       y: number;
       size?: number;
@@ -1459,7 +1462,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   );
 
   const updateTokenAction = useCallback(
-    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>) => {
+    (tokenId: number, patch: Partial<Pick<BoardToken, 'name' | 'color' | 'icon' | 'iconAsset' | 'hidden' | 'statuses' | 'cover' | 'size' | 'radius' | 'radiusColor' | 'rotation'>>) => {
       sendMsg({ type: 'board.token.update', reqId: crypto.randomUUID(), tokenId, patch });
     },
     [sendMsg],

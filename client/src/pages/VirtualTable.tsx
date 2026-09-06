@@ -4,6 +4,7 @@ import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, Boar
 import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { activeTurnOrder, cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
+import { TOKEN_ICONS, TOKEN_ICON_BY_KEY, TOKEN_ICON_CATEGORIES, type TokenIcon } from '@shared/tokenIcons';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
 import { CharSheetProvider } from '../components/charSheet';
@@ -380,6 +381,21 @@ function imageHref(groupId: number, assetSlug: string): string {
   return `/api/groups/${groupId}/board/images/${encodeURIComponent(assetSlug)}`;
 }
 
+/** GET .../characters/:id/token-image — same cookie-auth same-origin shape as imageHref above. */
+function tokenImageHref(characterId: number): string {
+  return `/api/characters/${characterId}/token-image`;
+}
+
+/** Static file under client/public/tokens/ — see shared/src/tokenIcons.ts. */
+function tokenIconHref(file: string): string {
+  return `/tokens/${file}`;
+}
+
+/** Both languages shown together once labelDe actually differs from labelEn (i.e. once translated) — neither is ever hidden. */
+function tokenIconLabel(i: TokenIcon): string {
+  return i.labelDe === i.labelEn ? i.labelDe : `${i.labelDe} · ${i.labelEn}`;
+}
+
 // Eine Zeile je Gitterlinie, zu EINEM <path> zusammengefasst — billiger als
 // ein Knoten je Zelle, siehe der Prototyp (Texturen.html).
 function gridLinesPath(cols: number, rows: number): string {
@@ -545,6 +561,7 @@ function TokenEditor({
   const { updateToken, deleteToken, setTokenWounds } = useDicePanel();
   const [name, setName] = useState(token.name);
   const [icon, setIcon] = useState(token.icon);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const [color, setColor] = useState(token.color || DEFAULT_TOKEN_COLOR);
   const [radiusHex, setRadiusHex] = useState(token.radiusColor.slice(0, 7));
   const [radiusOpacity, setRadiusOpacity] = useState(
@@ -560,6 +577,7 @@ function TokenEditor({
   useEffect(() => {
     setName(token.name);
     setIcon(token.icon);
+    setIconPickerOpen(false);
     setColor(token.color || DEFAULT_TOKEN_COLOR);
     setRadiusHex(token.radiusColor.slice(0, 7));
     setRadiusOpacity(token.radiusColor.length === 9 ? Math.round((parseInt(token.radiusColor.slice(7, 9), 16) / 255) * 100) : 100);
@@ -603,6 +621,18 @@ function TokenEditor({
           ✕
         </button>
       </div>
+
+      {/* Nur für die eigene Person — das Marken-Bild hängt am Charakter und
+          wird in Einstellungen gepflegt (siehe MarkenBild.tsx), nicht hier.
+          Für die Spielleitung wäre der Link ohnehin falsch: Einstellungen
+          zeigt nur die EIGENEN Charaktere (mine=1), ein fremder charId-
+          Parameter würde dort stillschweigend auf den eigenen ersten
+          Charakter zurückfallen. */}
+      {token.kind === 'character' && token.ownerUserId === myUserId && (
+        <p className="vtt-token-editor-note muted">
+          Eigenes Bild für diese Marke: <Link to={`/einstellungen?char=${token.characterId}#marke`}>Einstellungen</Link>
+        </p>
+      )}
 
       {/* Marker/monster tokens only — a character token's owner is implied
           by whoever plays that character, never independently settable or
@@ -673,6 +703,41 @@ function TokenEditor({
               />
             </label>
           </div>
+          {/* Nur Marker/Monster — ein Charakter-Token nutzt stattdessen sein
+              eigenes Marken-Bild (Einstellungen, siehe MarkenBild.tsx). Das
+              gewählte Bild ÜBERSCHREIBT Icon/Initialen beim Rendern (siehe
+              VirtualTable.tsx's Token-Render), das Icon-Feld bleibt aber
+              nutzbar als schneller Rückfall ohne Bild. */}
+          {token.kind === 'marker' && (
+            <div className="vtt-token-editor-row">
+              <label>
+                Bild{' '}
+                <button
+                  type="button"
+                  className={`small vtt-token-icon-current${token.iconAsset ? ' has-image' : ''}`}
+                  onClick={() => setIconPickerOpen((v) => !v)}
+                >
+                  {token.iconAsset && TOKEN_ICON_BY_KEY[token.iconAsset] ? (
+                    <img src={tokenIconHref(TOKEN_ICON_BY_KEY[token.iconAsset].file)} alt="" />
+                  ) : (
+                    'Wählen…'
+                  )}
+                </button>
+              </label>
+              {token.iconAsset && (
+                <button type="button" className="small" onClick={() => updateToken(token.id, { iconAsset: '' })}>
+                  Entfernen
+                </button>
+              )}
+              {iconPickerOpen && (
+                <TokenIconPicker
+                  value={token.iconAsset}
+                  onChange={(key) => updateToken(token.id, { iconAsset: key })}
+                  onClose={() => setIconPickerOpen(false)}
+                />
+              )}
+            </div>
+          )}
           <div className="vtt-token-editor-row">
             <label>
               Radius (Schritt){' '}
@@ -2124,15 +2189,16 @@ function MapCanvas({
   const selectedToken = tokens.find((t) => t.id === selectedTokenId) ?? null;
 
   // Ctrl/Cmd+C/V für Marken (developer feedback: NSC-Kopien für mehrere
-  // gleichartige Gegner) — kopiert nur das Aussehen (Name/Icon/Farbe/Größe/
-  // Reichweiten-Ring/Status/Cover), nie eine Verknüpfung zu einem Charakter,
-  // daher 'character'-Marken nicht kopierbar. Jedes Einfügen versetzt EINE
-  // Zelle diagonal weiter als das vorherige (nextX/nextY wandert mit), damit
-  // mehrfaches Einfügen auffächert statt exakt übereinanderzustapeln —
-  // dieselbe Konvention wie in den meisten Editoren.
+  // gleichartige Gegner) — kopiert nur das Aussehen (Name/Icon/Bild/Farbe/
+  // Größe/Reichweiten-Ring/Status/Cover), nie eine Verknüpfung zu einem
+  // Charakter, daher 'character'-Marken nicht kopierbar. Jedes Einfügen
+  // versetzt EINE Zelle diagonal weiter als das vorherige (nextX/nextY
+  // wandert mit), damit mehrfaches Einfügen auffächert statt exakt
+  // übereinanderzustapeln — dieselbe Konvention wie in den meisten Editoren.
   const tokenClipboardRef = useRef<{
     name: string;
     icon: string;
+    iconAsset: string;
     color: string;
     size: number;
     radius: number;
@@ -2157,6 +2223,7 @@ function MapCanvas({
         tokenClipboardRef.current = {
           name: selectedToken.name,
           icon: selectedToken.icon,
+          iconAsset: selectedToken.iconAsset,
           color: selectedToken.color,
           size: selectedToken.size,
           radius: selectedToken.radius,
@@ -2179,6 +2246,7 @@ function MapCanvas({
         kind: 'marker',
         name: clip.name,
         icon: clip.icon,
+        iconAsset: clip.iconAsset,
         color: clip.color,
         size: clip.size,
         radius: clip.radius,
@@ -2673,6 +2741,12 @@ function MapCanvas({
               <feTurbulence type="fractalNoise" baseFrequency="0.055" numOctaves={4} seed={board.seed % 100} />
               <feColorMatrix type="matrix" values="0 0 0 0 .5  0 0 0 0 .5  0 0 0 0 .5  .8 .8 .8 0 -.35" />
             </filter>
+            {/* Rundes Marken-Bild (siehe token-Render unten): objectBoundingBox
+                bezieht den Kreis auf die eigene <image>-BBox statt auf feste
+                Pixel, damit EINE Definition für jede Markengröße reicht. */}
+            <clipPath id="vtt-token-clip" clipPathUnits="objectBoundingBox">
+              <circle cx="0.5" cy="0.5" r="0.5" />
+            </clipPath>
           </defs>
 
           <rect x={0} y={0} width={totalW} height={totalH} fill="url(#vtt-grid)" />
@@ -3198,16 +3272,59 @@ function MapCanvas({
                       (Kreis+Icon) dreht sich (developer feedback). */}
                   {t.radius > 0 && <circle r={t.radius * CELL_PX} fill={t.radiusColor} stroke={t.radiusColor} strokeWidth={1.5} pointerEvents="none" />}
                   <g data-token-content transform={`rotate(${t.rotation})`}>
-                    <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
-                    <text
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={r * 0.7}
-                      fontWeight={700}
-                      fill={tinteFuer(t.color || DEFAULT_TOKEN_COLOR, TOKEN_INK_LIGHT, TOKEN_INK_DARK)}
-                    >
-                      {t.icon || initials(t.name)}
-                    </text>
+                    {t.characterId != null && t.tokenImage ? (
+                      // Eigenes Marken-Bild (Einstellungen, getrennt vom Bogen-
+                      // Porträt) statt Farbkreis+Initialen — objectBoundingBox-
+                      // Clip skaliert automatisch mit r, also EINE gemeinsame
+                      // clipPath-Definition für jede Markengröße (siehe <defs>).
+                      // "slice": ein Foto beliebigen Seitenverhältnisses soll
+                      // den Kreis füllen, nie mit Rand.
+                      <>
+                        <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} />
+                        <image
+                          href={tokenImageHref(t.characterId)}
+                          x={-r}
+                          y={-r}
+                          width={r * 2}
+                          height={r * 2}
+                          preserveAspectRatio="xMidYMid slice"
+                          clipPath="url(#vtt-token-clip)"
+                        />
+                        <circle r={r} fill="none" stroke="var(--panel)" strokeWidth={2} />
+                      </>
+                    ) : t.characterId == null && t.iconAsset && TOKEN_ICON_BY_KEY[t.iconAsset] ? (
+                      // Marker/Monster-Marke mit gewähltem Bild aus dem Katalog
+                      // (shared/src/tokenIcons.ts) — "meet" statt "slice": die
+                      // Vorlagen sind quadratisch mit durchsichtigem Rand um die
+                      // Figur, die Markenfarbe soll dort als Ring durchscheinen,
+                      // nicht beschnitten werden.
+                      <>
+                        <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} />
+                        <image
+                          href={tokenIconHref(TOKEN_ICON_BY_KEY[t.iconAsset].file)}
+                          x={-r}
+                          y={-r}
+                          width={r * 2}
+                          height={r * 2}
+                          preserveAspectRatio="xMidYMid meet"
+                          clipPath="url(#vtt-token-clip)"
+                        />
+                        <circle r={r} fill="none" stroke="var(--panel)" strokeWidth={2} />
+                      </>
+                    ) : (
+                      <>
+                        <circle r={r} fill={t.color || DEFAULT_TOKEN_COLOR} stroke="var(--panel)" strokeWidth={2} />
+                        <text
+                          textAnchor="middle"
+                          dominantBaseline="central"
+                          fontSize={r * 0.7}
+                          fontWeight={700}
+                          fill={tinteFuer(t.color || DEFAULT_TOKEN_COLOR, TOKEN_INK_LIGHT, TOKEN_INK_DARK)}
+                        >
+                          {t.icon || initials(t.name)}
+                        </text>
+                      </>
+                    )}
                   </g>
                   {t.cover && (
                     <text textAnchor="middle" dominantBaseline="central" fontSize={r * 1.3} opacity={0.75}>
@@ -4201,6 +4318,74 @@ function TilePicker({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+// Bild-Katalog für Marker/Monster-Marken (shared/src/tokenIcons.ts) — anders
+// als TilePicker (14 Materialien, alle Gruppen offen) braucht das hier bei
+// 467 Einträgen eine echte Suche: getippter Text durchsucht ALLE Kategorien
+// nach Namen, eine leere Suche zeigt stattdessen nur die gewählte Kategorie.
+function TokenIconPicker({
+  value,
+  onChange,
+  onClose,
+}: {
+  value: string;
+  onChange: (key: string) => void;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState<string>(TOKEN_ICON_CATEGORIES[0] ?? '');
+  const q = search.trim().toLowerCase();
+  // Beide Sprachen sind gültige Treffer, nie nur eine — labelDe ist noch nicht
+  // für jeden Eintrag übersetzt (siehe TokenIcon-Kommentar), labelEn bliebe
+  // sonst die einzige Suchspur für alles noch unübersetzte.
+  const shown: TokenIcon[] = q
+    ? TOKEN_ICONS.filter((i) => i.labelDe.toLowerCase().includes(q) || i.labelEn.toLowerCase().includes(q))
+    : TOKEN_ICONS.filter((i) => i.category === category);
+
+  return (
+    <div className="vtt-token-icon-picker">
+      <div className="vtt-tile-picker-row">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Suchen…"
+          style={{ flex: 1 }}
+          autoFocus
+        />
+        <button type="button" className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      {!q && (
+        <select value={category} onChange={(e) => setCategory(e.target.value)}>
+          {TOKEN_ICON_CATEGORIES.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </select>
+      )}
+      <div className="vtt-token-icon-grid">
+        {shown.map((i) => (
+          <button
+            key={i.key}
+            type="button"
+            className={`vtt-token-icon-swatch${value === i.key ? ' active' : ''}`}
+            title={tokenIconLabel(i)}
+            onClick={() => {
+              onChange(i.key);
+              onClose();
+            }}
+          >
+            <img src={tokenIconHref(i.file)} alt={tokenIconLabel(i)} loading="lazy" />
+          </button>
+        ))}
+      </div>
+      {shown.length === 0 && <p className="muted vtt-token-icon-empty">Keine Treffer.</p>}
+      <p className="muted vtt-token-icon-credit">Bilder: Devin Night</p>
     </div>
   );
 }

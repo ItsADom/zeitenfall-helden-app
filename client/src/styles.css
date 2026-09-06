@@ -2867,6 +2867,43 @@ li {
   background: none;
   cursor: zoom-in;
 }
+
+/* VTT-Marken-Bild (components/MarkenBild.tsx) — wie .portrait, aber rund
+   statt abgerundetes Rechteck, weil so die Marke selbst auf dem Brett
+   aussieht (siehe VirtualTable.tsx's clipPath "vtt-token-clip"). */
+.marken-bild {
+  flex: none;
+  width: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.marken-bild-img {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: var(--input-bg);
+}
+.marken-bild-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 13px;
+  border-style: dashed;
+  text-align: center;
+}
+.marken-bild-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.marken-bild-error {
+  font-size: 12px;
+}
 .portrait-lightbox {
   position: fixed;
   inset: 0;
@@ -6331,6 +6368,10 @@ tr:hover .probe-roll,
   font-size: 12.5px;
   flex-wrap: wrap;
 }
+.vtt-token-editor-note {
+  margin: 0;
+  font-size: 12.5px;
+}
 .vtt-token-editor-row label {
   display: flex;
   align-items: center;
@@ -6346,6 +6387,81 @@ tr:hover .probe-roll,
   border-color: var(--accent);
   color: var(--accent-dark);
 }
+/* Aktuelles Marken-Bild (shared/src/tokenIcons.ts), als Knopf mit Vorschau
+   statt reinem Text — dieselbe "aktueller Stand als anklickbare Vorschau"-
+   Idee wie ColorSwatchInput. */
+.vtt-token-icon-current {
+  overflow: hidden;
+}
+.vtt-token-icon-current.has-image {
+  padding: 0;
+  width: 28px;
+  height: 28px;
+}
+.vtt-token-icon-current img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+/* Bild-Katalog-Flyout (TokenIconPicker) — relativ zu .vtt-token-editor
+   positioniert (das selbst schon position: absolute ist, siehe oben, und
+   damit ein eigener Positionierungskontext für dieses Kind wird), rechts
+   daneben statt darüber, damit es die gerade bearbeiteten Felder nicht
+   verdeckt. */
+.vtt-token-icon-picker {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  margin-left: 8px;
+  z-index: 6;
+  width: 260px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.vtt-token-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+}
+.vtt-token-icon-swatch {
+  aspect-ratio: 1;
+  border-radius: 5px;
+  border: 2px solid var(--border);
+  padding: 2px;
+  cursor: pointer;
+  background: var(--surface-sunken);
+}
+.vtt-token-icon-swatch img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.vtt-token-icon-swatch.active {
+  border-color: var(--accent);
+  outline: 2px solid var(--accent-soft);
+}
+.vtt-token-icon-empty {
+  margin: 0;
+  font-size: 12px;
+}
+.vtt-token-icon-credit {
+  margin: 0;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px;
+  text-align: center;
+}
+
 /* House-rule wound tracking (TODO.md "Wound tracking / count-display on VTT
    tokens") — only ever rendered when token.wounds is non-null, i.e. for the
    token's owner or the GM (see TokenWounds's doc comment). */

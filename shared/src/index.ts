@@ -27,3 +27,4 @@ export * from './diceCinematic.js';
 export * from './board.js';
 export * from './boardTiles.js';
 export * from './boardStatus.js';
+export * from './tokenIcons.js';

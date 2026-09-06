@@ -1,19 +1,20 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { computeCoopVerdict, parseDiceExpression, stripRepeatPrefix } from '@shared/dice';
-import type { FeedEntry, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
+import { computeCompetitiveVerdict, computeCoopVerdict, parseDiceExpression, stripRepeatPrefix } from '@shared/dice';
+import type { FeedEntry, PoolMode, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
 import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import { useHoverFlyout } from '../useHoverFlyout';
 import CommandsDialog from './CommandsDialog';
+import CompetitivePoolCard from './CompetitivePoolCard';
 import CoopPoolCard from './CoopPoolCard';
 import { useDicePanel } from './DicePanelProvider';
 import FeedEntryView from './FeedEntryView';
 import ModifierPicker from './ModifierPicker';
 import GroupRequestCard from './GroupRequestCard';
 import PendingRequestCard from './PendingRequestCard';
-import { COOP, WICHTIG } from './labels';
+import { COOP, WETTSTREIT, WICHTIG } from './labels';
 import { PROBE_KIND_LABEL, type RollableProbe } from './rollableProbes';
 import SchicksalspunkteControl from './SchicksalspunkteControl';
 import ShortcutsFlyout from './ShortcutsFlyout';
@@ -63,6 +64,22 @@ function CoopVerdictLine({ entries }: { entries: FeedEntry[] }) {
       {text}
     </div>
   );
+}
+
+// Gewinner-Zeile eines aufgelösten Wettstreits — Gegenstück zu CoopVerdictLine,
+// aber kein Pool-Ergebnis: computeCompetitiveVerdict rankt die Teilnehmer statt
+// ihre Summen zu poolen, `id` ist hier der Feed-Eintrag selbst (eindeutig genug,
+// um den Gewinner-Namen zurückzufinden, ohne charId extra durchzureichen).
+function CompetitiveVerdictLine({ entries }: { entries: FeedEntry[] }) {
+  const rollEntries = entries.filter((e): e is FeedEntry & { kind: 'roll'; roll: ProbeRollPayload } => e.kind === 'roll' && e.roll.mode === 'probe');
+  if (rollEntries.length === 0) return null;
+  const verdict = computeCompetitiveVerdict(rollEntries.map((e) => ({ ...e.roll, id: e.id })));
+  if (verdict.provisional) {
+    return <div className="feed-coop-verdict feed-coop-verdict--provisional">{WETTSTREIT.verdictProvisional}</div>;
+  }
+  const winnerNames = rollEntries.filter((e) => verdict.winnerIds.includes(e.id)).map((e) => e.authorName);
+  const text = winnerNames.length > 1 ? WETTSTREIT.tie(winnerNames.join(', ')) : WETTSTREIT.winner(winnerNames[0] ?? '');
+  return <div className="feed-coop-verdict feed-coop-verdict--success">{text}</div>;
 }
 
 // Summenzeile für einen per führendem "Nx" wiederholten Wurf (siehe
@@ -174,14 +191,18 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const isValidDice =
     rollRest !== null && parseDiceExpression(stripRepeatPrefix(splitInlineTitle(rollRest).expr).rest) !== null;
   const koopMatch = /^\/(?:koop|coop)\s+(.*)$/i.exec(draft);
-  const koopMode = koopMatch !== null;
+  const wettstreitMatch = /^\/(?:wettstreit|contest)\s+(.*)$/i.exec(draft);
+  // Beide Pool-Befehle teilen sich dieselbe Vorschlagsliste/-logik unten —
+  // `poolMode` ist nur, WELCHES Verdikt am Ende berechnet wird (roll.coop.start).
+  const poolMode: PoolMode | null = koopMatch ? 'coop' : wettstreitMatch ? 'competitive' : null;
+  const poolMatch = koopMatch ?? wettstreitMatch;
   // Ein führendes "Nx" gilt genauso für eine benannte Probe ("2xAthletik") wie
   // für einen freien Ausdruck — abgetrennt VOR dem Namensabgleich, sonst würde
   // "2x" selbst als Teil des gesuchten Namens versucht.
   const probeSearch = rollRest !== null && !isValidDice ? stripRepeatPrefix(rollRest.trim()) : null;
-  const searchText = koopMode ? koopMatch[1].trim() : (probeSearch?.rest ?? '');
+  const searchText = poolMatch ? poolMatch[1].trim() : (probeSearch?.rest ?? '');
   const probeRepeat = probeSearch?.repeat ?? 1;
-  const suggestCharId = koopMode ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
+  const suggestCharId = poolMode !== null ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
   const showSuggestions = !suggestDismissed && suggestCharId !== null && searchText.length >= MIN_SEARCH_LEN;
 
   // Neu geladen jedes Mal, wenn die Vorschlagsliste aufklappt (nicht bei jedem
@@ -223,7 +244,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const matches =
     showSuggestions && probes
       ? probes
-          .filter((p) => !koopMode || p.kind === 'attribute' || p.kind === 'talent' || p.kind === 'sprache')
+          .filter((p) => poolMode === null || p.kind === 'attribute' || p.kind === 'talent' || p.kind === 'sprache')
           .filter((p) => p.label.toLowerCase().includes(q))
           .slice(0, MAX_SUGGESTIONS)
       : [];
@@ -235,11 +256,11 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
 
   const pickProbe = (p: RollableProbe) => {
     if (groupId === null) return;
-    if (!koopMode && charId === null) return;
+    if (poolMode === null && charId === null) return;
     setError('');
     setDraft('');
     setSuggestDismissed(false);
-    if (koopMode) proposeCoopPool(groupId, p.source);
+    if (poolMode !== null) proposeCoopPool(groupId, p.source, poolMode);
     else if (charId !== null) rollProbe(groupId, charId, p.source, visibility, undefined, probeRepeat);
   };
 
@@ -315,8 +336,10 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
       return;
     }
     const koop = /^\/(?:koop|coop)(?:\s+(.*))?$/i.exec(text);
-    if (koop) {
-      setError(`„${koop[1] ?? ''}" — noch keine Probe aus den Vorschlägen ausgewählt.`);
+    const wettstreit = /^\/(?:wettstreit|contest)(?:\s+(.*))?$/i.exec(text);
+    if (koop || wettstreit) {
+      const m = (koop ?? wettstreit) as RegExpExecArray;
+      setError(`„${m[1] ?? ''}" — noch keine Probe aus den Vorschlägen ausgewählt.`);
       return;
     }
     // „/i <Ausdruck>" (bzw. „/important"): wie „/r", aber der Wurf wird am
@@ -437,6 +460,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
               chunk.kind === 'group' ? (
                 <div className="feed-group-block" key={`group-${chunk.groupRollId}`}>
                   {chunk.entries[0]?.coop === true && <CoopVerdictLine entries={chunk.entries} />}
+                  {chunk.entries[0]?.competitive === true && <CompetitiveVerdictLine entries={chunk.entries} />}
                   {chunk.entries[0]?.repeat === true && <RepeatTotalLine entries={chunk.entries} />}
                   {chunk.entries.map((entry) => (
                     <FeedEntryView key={entry.id} entry={entry} grouped />
@@ -449,9 +473,13 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
             {groupRequests.map((r) => (
               <GroupRequestCard key={r.id} request={r} />
             ))}
-            {coopPools.map((p) => (
-              <CoopPoolCard key={p.id} request={p} />
-            ))}
+            {coopPools.map((p) =>
+              p.mode === 'competitive' ? (
+                <CompetitivePoolCard key={p.id} request={p} />
+              ) : (
+                <CoopPoolCard key={p.id} request={p} />
+              ),
+            )}
             {pendingRequests.map((r) => (
               <PendingRequestCard key={r.id} request={r} />
             ))}

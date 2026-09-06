@@ -41,6 +41,7 @@ import {
   resolveProbeRoll,
   stripRepeatPrefix,
   tokenCells,
+  TOKEN_ICON_BY_KEY,
   waffenStatWert,
   type AttrRowCode,
   type DiceExpression,
@@ -234,6 +235,7 @@ function toWireToken(row: BoardTokenRow, viewer: BoardViewer): BoardToken {
     name: row.name,
     color: row.color,
     icon: row.icon,
+    iconAsset: row.iconAsset,
     x: row.x,
     y: row.y,
     size: row.size,
@@ -244,6 +246,7 @@ function toWireToken(row: BoardTokenRow, viewer: BoardViewer): BoardToken {
     statuses: row.statuses,
     cover: row.cover,
     portrait: row.portrait,
+    tokenImage: row.tokenImage,
     wounds: woundsVisibleTo(row, viewer),
     sort: row.sort,
   };
@@ -823,7 +826,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           lastImportantRoll.set(meta.groupId, Date.now());
           broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
         } else {
-          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, false, repeat > 1);
+          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
         }
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -935,7 +938,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           narrow: result.narrow,
           criticalSuccess: result.criticalSuccess,
         };
-        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, false, repeat > 1);
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -1198,6 +1201,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         groupId: meta.groupId,
         source,
         label: computed.label,
+        mode: msg.mode,
         initiatorUserId: meta.userId,
         initiatorName: meta.displayName,
       });
@@ -1283,10 +1287,10 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         insertFeedMessage(
           meta.groupId,
           { userId: pool.initiatorUserId, charId: null, name: pool.initiatorName },
-          `schlägt eine Kooperationsprobe vor: ${pool.label}`,
+          pool.mode === 'competitive' ? `schlägt einen Wettstreit vor: ${pool.label}` : `schlägt eine Kooperationsprobe vor: ${pool.label}`,
           true,
         );
-        for (const r of rolls) insertFeedRoll(meta.groupId, r.author, null, 'public', r.roll, pool.id, true);
+        for (const r of rolls) insertFeedRoll(meta.groupId, r.author, null, 'public', r.roll, pool.id, pool.mode);
       }
       broadcastUngefiltert(meta.groupId, { type: 'roll.coop.closed', poolId: pool.id });
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -1307,7 +1311,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       insertFeedMessage(
         meta.groupId,
         { userId: meta.userId, charId: null, name: meta.displayName },
-        `verwirft die Kooperationsprobe: ${pool.label}`,
+        pool.mode === 'competitive' ? `verwirft den Wettstreit: ${pool.label}` : `verwirft die Kooperationsprobe: ${pool.label}`,
         true,
       );
       send(ws, { type: 'ack', reqId: msg.reqId });
@@ -1569,6 +1573,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         if (typeof msg.radiusColor === 'string' && parseTileValue(msg.radiusColor)?.kind === 'color') input.radiusColor = msg.radiusColor;
         if (Array.isArray(msg.statuses)) input.statuses = msg.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
         if (typeof msg.cover === 'string' && (msg.cover === '' || msg.cover in BOARD_COVER_BY_KEY)) input.cover = msg.cover;
+        if (typeof msg.iconAsset === 'string' && (msg.iconAsset === '' || msg.iconAsset in TOKEN_ICON_BY_KEY)) input.iconAsset = msg.iconAsset;
       }
       const token = createBoardToken(board.id, input);
       const fogAtCreate = fogSet(board);
@@ -1593,6 +1598,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (typeof p.name === 'string') patch.name = p.name.slice(0, 60).trim();
       if (typeof p.color === 'string') patch.color = p.color.slice(0, 20);
       if (typeof p.icon === 'string') patch.icon = p.icon.slice(0, 4);
+      if (typeof p.iconAsset === 'string' && (p.iconAsset === '' || p.iconAsset in TOKEN_ICON_BY_KEY)) patch.iconAsset = p.iconAsset;
       // Bewusst NICHT über den Besitzer-Bypass oben erreichbar — „hidden"
       // ist der Spielleitung vorbehalten (siehe Spaltenkommentar in db.ts),
       // die Besitzerin eines Charakters bekommt sonst dieselben Rechte wie

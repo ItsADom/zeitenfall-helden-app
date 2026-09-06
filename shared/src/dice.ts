@@ -308,6 +308,67 @@ export function computeCoopVerdict(rolls: CoopRollLike[]): CoopVerdict {
   };
 }
 
+/** Wie CoopRollLike, plus eine vom Aufrufer vergebene Kennung (z. B. charId), um Gewinner zurückzumelden. */
+export interface CompetitiveEntrant extends CoopRollLike {
+  id: number;
+}
+
+/** Rangstufe eines Teilnehmers — höher gewinnt gegen jede niedrigere Stufe, unabhängig vom Margin. */
+export type CompetitiveTier = 'critFail' | 'normal' | 'critSuccess';
+
+export interface CompetitiveResult {
+  id: number;
+  tier: CompetitiveTier;
+  /** probeZahl - adjustedSum: je größer, desto deutlicher unter dem Zielwert geblieben (kann negativ sein). */
+  margin: number;
+}
+
+export interface CompetitiveVerdict {
+  /** Jeder Teilnehmer mit seiner Stufe/seinem Margin, absteigend sortiert (Stufe zuerst, dann Margin). */
+  results: CompetitiveResult[];
+  /** Bestes Margin in der höchsten belegten Stufe — mehrere ids bei einem echten Gleichstand. */
+  winnerIds: number[];
+  /** True, solange irgendein Teilnehmer noch eine offene Bestätigung hat. */
+  provisional: boolean;
+}
+
+const TIER_RANK: Record<CompetitiveTier, number> = { critFail: 0, normal: 1, critSuccess: 2 };
+
+function tierOf(r: CoopRollLike): CompetitiveTier {
+  if (r.criticalFailure) return 'critFail';
+  if (r.criticalSuccess) return 'critSuccess';
+  return 'normal';
+}
+
+/**
+ * Wettstreit-Verdikt (siehe TODO.md „Competitive check"): anders als die
+ * Kooperationsprobe wird nichts gepoolt — jeder Teilnehmer tritt für sich an,
+ * und genau eine Person (oder ein echt gleichstehendes Grüppchen) gewinnt.
+ *
+ * 1. Ein bestätigter kritischer Erfolg schlägt jeden gewöhnlichen Wurf, der
+ *    wiederum jeden bestätigten kritischen Fehlschlag schlägt — eine Krit-
+ *    Stufe sticht jede andere Stufe unabhängig vom Margin.
+ * 2. Innerhalb einer Stufe entscheidet das Margin (probeZahl - adjustedSum,
+ *    größer = besser) — die beste Stufe muss dabei nicht selbst bestanden
+ *    haben: wer am wenigsten misslang, gewinnt trotzdem.
+ * 3. Ein echtes Gleichstand (gleiche Stufe, gleiches Margin) in der
+ *    Gewinner-Stufe zählt als gemeinsamer Sieg, kein weiterer Tie-Break.
+ */
+export function computeCompetitiveVerdict(rolls: CompetitiveEntrant[]): CompetitiveVerdict {
+  const results: CompetitiveResult[] = rolls
+    .map((r) => ({ id: r.id, tier: tierOf(r), margin: r.probeZahl - r.adjustedSum }))
+    .sort((a, b) => TIER_RANK[b.tier] - TIER_RANK[a.tier] || b.margin - a.margin);
+  const topTierRank = results.length > 0 ? Math.max(...results.map((r) => TIER_RANK[r.tier])) : -1;
+  const inTopTier = results.filter((r) => TIER_RANK[r.tier] === topTierRank);
+  const bestMargin = inTopTier.length > 0 ? Math.max(...inTopTier.map((r) => r.margin)) : 0;
+  const winnerIds = inTopTier.filter((r) => r.margin === bestMargin).map((r) => r.id);
+  return {
+    results,
+    winnerIds,
+    provisional: rolls.some((r) => !r.resolved),
+  };
+}
+
 // Ein freier Würfel-Ausdruck ist ab jetzt derselbe Baum wie überall sonst
 // (siehe formula.ts) — der Name bleibt "DiceExpression" für Bestandscode/
 // -Kommentare in diesem Modul, ist aber nur noch ein Alias.

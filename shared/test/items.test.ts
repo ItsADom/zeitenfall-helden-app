@@ -53,6 +53,7 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     kategorie: '',
     haus: '',
     raum: '',
+    mitgebrachtVon: '',
     location: 'inventar',
     zone: '',
     beidseitig: false,

@@ -114,6 +114,24 @@ export const COOP = {
   verdictFailureRescueless: 'Fehlschlag (kritischer Fehlschlag, nicht gerettet)',
 };
 
+/** Wettstreit-Pool-Karte — dieselbe Karte wie COOP, nur gegeneinander statt gepoolt (siehe computeCompetitiveVerdict). */
+export const WETTSTREIT = {
+  title: (initiatorName: string, label: string): string => `Wettstreit von ${initiatorName}: ${label}`,
+  join: 'Mitmachen',
+  leave: 'Verlassen',
+  /** Nur bei der vorschlagenden Person oder der Spielleitung. */
+  start: 'Starten',
+  startHint: 'Alle Beigetretenen treten jetzt gegeneinander an',
+  cancel: 'Verwerfen',
+  cancelHint: 'Verwirft den Wettstreit, ohne dass jemand würfelt',
+  empty: 'Noch niemand dabei.',
+  /** Gewinner-Zeile über den einzelnen Würfen. */
+  verdictProvisional: 'vorläufig …',
+  winner: (name: string): string => `Gewinnt: ${name}`,
+  /** Echter Gleichstand in der Gewinner-Stufe/im Gewinner-Margin — siehe computeCompetitiveVerdict. */
+  tie: (names: string): string => `Unentschieden: ${names}`,
+};
+
 /**
  * „/i" — der große Wurf: die Ansage an den ganzen Tisch.
  *

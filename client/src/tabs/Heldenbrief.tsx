@@ -557,10 +557,12 @@ export default function HeldenbriefTab() {
           <p className="muted">Energien aus dem Katalog des Spielleiters oben hinzufügen (z. B. Karma, Wut, Chi).</p>
         ) : (
           <div className="table-wrap">
-            <table className="sheet" style={{ minWidth: 360 }}>
+            <table className="sheet" style={{ minWidth: 640 }}>
               <thead>
                 <tr>
                   <th>Name</th>
+                  <th>Regeneration</th>
+                  <th>Umrechnung in normale Energien</th>
                   <th style={{ width: 70 }} title="Nur bei Formel-Energien: persönlicher Zuschlag (Talent, Gegenstand …), addiert auf das Formel-Ergebnis">
                     Bonus
                   </th>
@@ -591,6 +593,12 @@ export default function HeldenbriefTab() {
                     <tr key={i}>
                       <td title={s.catalogId == null ? 'Altbestand (frei benannt)' : catEntry?.beschreibung}>
                         {s.catalogId == null ? <TextInput value={s.name} onChange={(v) => setSpecialField(i, 'name', v)} /> : s.name}
+                      </td>
+                      <td className="formel" title={catEntry?.regeneration || undefined}>
+                        {catEntry?.regeneration || '—'}
+                      </td>
+                      <td className="formel" title={catEntry?.umrechnung || undefined}>
+                        {catEntry?.umrechnung || '—'}
                       </td>
                       <td>
                         {formulaMax != null ? (

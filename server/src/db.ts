@@ -278,12 +278,17 @@ db.exec(`
   -- Energien-Panel durch eine Auswahl aus vorgegebenen Namen. formula ist
   -- eine kleine Arithmetik-Formel über Attributen/Pool-Maxima (leer = rein
   -- manueller Eintrag, Spieler pflegt max/aktuell wie bisher selbst), siehe
-  -- evaluateEnergyFormula in shared/src/rules.ts.
+  -- evaluateEnergyFormula in shared/src/rules.ts. regeneration/umrechnung
+  -- sind reiner Freitext wie beschreibung (keine App-Berechnung) — wie
+  -- regeneriert sich die Energie, und wie rechnet sie in LE/AUS/AsE um
+  -- (z. B. "1 Punkt Drachenenergie = 5 AsE").
   CREATE TABLE IF NOT EXISTS special_energies_catalog (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     formula TEXT NOT NULL DEFAULT '',
     beschreibung TEXT NOT NULL DEFAULT '',
+    regeneration TEXT NOT NULL DEFAULT '',
+    umrechnung TEXT NOT NULL DEFAULT '',
     sort INTEGER NOT NULL DEFAULT 0
   );
 
@@ -568,6 +573,27 @@ db.exec(`
     name TEXT NOT NULL DEFAULT ''
   );
   CREATE INDEX IF NOT EXISTS idx_group_rooms_group_haus ON group_rooms (group_id, haus, pos);
+
+  -- Item movement log (TODO.md, 2026-09-03): GM-only audit trail of every
+  -- cross-owner move touching a group pool (either direction). Kept forever
+  -- for now (no retention policy yet, see pruneItemMoveLogBefore in
+  -- characterData.ts) — deliberately NOT a group_id FK, so deleting a group
+  -- later can never cascade away its own history. item_name/anzahl are a
+  -- denormalized SNAPSHOT at move time (like char_items itself has no live
+  -- reference back to a deleted/renamed item), same for from_label/to_label
+  -- (a resolved character/group name at move time, not an id — a later
+  -- rename or delete must not turn old log rows into dangling references).
+  CREATE TABLE IF NOT EXISTS item_move_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_id INTEGER NOT NULL,
+    ts INTEGER NOT NULL,
+    item_name TEXT NOT NULL DEFAULT '',
+    anzahl REAL NOT NULL DEFAULT 0,
+    from_label TEXT NOT NULL DEFAULT '',
+    to_label TEXT NOT NULL DEFAULT '',
+    acting_user TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_item_move_log_group ON item_move_log (group_id, ts DESC);
 
   -- Einheitliches Zauber-/Fähigkeiten-Modell (Cluster 6): eine Quelle der
   -- Wahrheit je Charakter, aus der die Reiter „Zauber" (magisch=1) und
@@ -986,6 +1012,17 @@ db.exec(`
   }
 }
 
+// Migration: 'regeneration'/'umrechnung'-Spalten an bestehenden
+// special_energies_catalog ergänzen (Freitext, s. Kommentar an der Tabelle
+// oben). Default '' ist für Altbestand korrekt, keine Nachzieh-Migration nötig.
+{
+  const cols = new Set(
+    (db.prepare('PRAGMA table_info(special_energies_catalog)').all() as { name: string }[]).map((c) => c.name),
+  );
+  if (!cols.has('regeneration')) db.exec("ALTER TABLE special_energies_catalog ADD COLUMN regeneration TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('umrechnung')) db.exec("ALTER TABLE special_energies_catalog ADD COLUMN umrechnung TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: 'AT-Deckel' (atMax) aus den Nahkampfwaffen entfernt. Bestehende
 // Werte dürfen nicht still verschwinden (höchstrangige Regel) — sie wandern
 // sichtbar in die Notiz der Zeile, danach wird atMax genullt, damit die einmalige
@@ -1010,6 +1047,30 @@ db.exec(`
       tx();
       console.log(`Migration: ${rows.length} AT-Deckel-Wert(e) in die Waffen-Notiz übernommen`);
     }
+  }
+}
+
+// Migration: verwaiste Schnellzugriff-Behälter (containerArt 'quick') zurück
+// sichtbar machen. AddContainerDialog bot 'quick' bis vor Kurzem auch aus dem
+// allgemeinen Inventar-/Gruppenpool-Dialog heraus an, setzte dabei aber nie
+// location — die Zeile blieb bei 'inventar' stehen. Ausruestung.tsx zeigt den
+// Inhalt eines Schnellzugriff-Behälters aber nur bei location 'getragen' oder
+// 'bench', Inventar.tsx/PoolInventory.tsx rendern 'quick'-Behälter überhaupt
+// nicht — solche Zeilen waren komplett unerreichbar, zählten aber weiter zur
+// Traglast. 'storage' ist der einzige Behälter-Typ, den beide je gerendert
+// haben, also der richtige sichtbare Zustand für einen so entstandenen
+// Behälter — echte, korrekt getragene Schnellzugriff-Behälter (location
+// 'getragen'/'bench') bleiben unangetastet. Idempotent: einmal umgeschrieben,
+// greift die WHERE-Bedingung beim nächsten Start nicht mehr.
+{
+  const verwaist = db
+    .prepare("SELECT COUNT(*) AS n FROM char_items WHERE ist_behaelter = 1 AND container_art = 'quick' AND location NOT IN ('getragen', 'bench')")
+    .get() as { n: number };
+  if (verwaist.n > 0) {
+    db.exec(
+      "UPDATE char_items SET container_art = 'storage' WHERE ist_behaelter = 1 AND container_art = 'quick' AND location NOT IN ('getragen', 'bench')",
+    );
+    console.log(`Migration: ${verwaist.n} verwaiste(r) Schnellzugriff-Behälter als Stauraum-Behälter sichtbar gemacht`);
   }
 }
 
@@ -1218,6 +1279,14 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_typ
   const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('haus')) db.exec("ALTER TABLE char_items ADD COLUMN haus TEXT NOT NULL DEFAULT ''");
   if (!cols.has('raum')) db.exec("ALTER TABLE char_items ADD COLUMN raum TEXT NOT NULL DEFAULT ''");
+}
+
+// Migration ("brought in by" marker, TODO.md 2026-09-03): mitgebracht_von auf
+// char_items — plain additive ALTER, same shape as haus/raum above. Server-set
+// only (moveItem), never part of the client-writable patch column set.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('mitgebracht_von')) db.exec("ALTER TABLE char_items ADD COLUMN mitgebracht_von TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.
@@ -1541,6 +1610,17 @@ if (hasTable('sec_techniken')) {
   if (!cols.has('is_repeat')) db.exec('ALTER TABLE group_feed ADD COLUMN is_repeat INTEGER NOT NULL DEFAULT 0');
 }
 
+// Migration: is_competitive an group_feed ergänzen — Gegenstück zu is_coop
+// für einen aufgelösten Wettstreit-Pool (server/src/coopPools.ts, PoolMode
+// 'competitive'), eigene Spalte statt Wiederverwendung von is_coop, damit
+// beide Pool-Arten unabhängig bleiben (nie beide 1 für dieselbe Zeile). 0 bei
+// jeder bestehenden Zeile ist der richtige Wert (Wettstreite gab es vorher
+// nicht), kein Nachziehen nötig.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(group_feed)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('is_competitive')) db.exec('ALTER TABLE group_feed ADD COLUMN is_competitive INTEGER NOT NULL DEFAULT 0');
+}
+
 // Migration: Event-Gruppen (bisher eine eigene temp_groups-Tabelle mit eigener
 // id-Folge) in groups zusammenführen, per is_temp unterschieden — damit
 // group_feed (und jede künftige Chat/Würfel-Tabelle) mit einer einzigen FK auf
@@ -1670,6 +1750,10 @@ db.exec('DROP TABLE IF EXISTS group_members');
   // ein neutraler Rückfall für jede bereits bestehende Marke, kein Nachrechnen
   // nötig.
   if (!cols.has('rotation')) db.exec('ALTER TABLE board_tokens ADD COLUMN rotation REAL NOT NULL DEFAULT 0');
+  // Migration: 'icon_asset'-Spalte (gewähltes Bild aus TOKEN_ICONS, siehe
+  // shared/src/tokenIcons.ts) — leer ist der richtige Rückfall für jede
+  // bereits bestehende Marke (kein Bild gewählt), kein Nachrechnen nötig.
+  if (!cols.has('icon_asset')) db.exec("ALTER TABLE board_tokens ADD COLUMN icon_asset TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: 'owner_user_id' an bestehende board_overlays ergänzen ("Limit

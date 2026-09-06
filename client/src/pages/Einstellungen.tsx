@@ -16,6 +16,7 @@ import { dauerAusBytes, eigenenKlangSetzen, eigenenKlangVergessen, vorhoeren } f
 import { BackToSheet } from '../components/BackToSheet';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { ExitGuard } from '../components/exitGuard';
+import { MarkenBild } from '../components/MarkenBild';
 import { useEinstHeadHeight, useEinstNavHeight } from '../components/stickyChrome';
 import { useAuth, useThemeControls } from '../App';
 import ThemePicker from '../components/ThemePicker';
@@ -80,6 +81,9 @@ export default function EinstellungenPage() {
   const [savedAttrExtern, setSavedAttrExtern] = useState<ExternalAttrPoint[]>([]);
   const [attrExternRows, setAttrExternRows] = useState<ExternalAttrPoint[]>([]);
   const [vis, setVis] = useState<Record<string, boolean>>({});
+  // Marken-Bild speichert sofort (wie das Konto-Klang-Upload oben), nicht über
+  // den Speichern-Knopf unten — dies ist nur der Anfangszustand fürs Mounten.
+  const [hasTokenImage, setHasTokenImage] = useState(false);
   const [tabRows, setTabRows] = useState<TabRow[]>([]);
   const [deletedIds, setDeletedIds] = useState<number[]>([]);
   // Ziehen zum Umsortieren der Reiter — dragKey ist der gezogene, overKey der
@@ -127,7 +131,14 @@ export default function EinstellungenPage() {
     setMsg('');
     return apiGet<{
       character: { theme?: string; chatName?: string; diceShortcuts?: string };
-      data?: { tabs?: DynTab[]; tabOrder?: string[]; visibility?: Record<string, boolean>; itemCategories?: string[]; attrExtern?: ExternalAttrPoint[] };
+      data?: {
+        tabs?: DynTab[];
+        tabOrder?: string[];
+        visibility?: Record<string, boolean>;
+        itemCategories?: string[];
+        attrExtern?: ExternalAttrPoint[];
+        tokenImage?: boolean;
+      };
     }>(`/api/characters/${id}`)
       .then((res) => {
         const theme = res.character.theme ?? '';
@@ -159,6 +170,7 @@ export default function EinstellungenPage() {
         setTabRows(rows);
         setSavedTabKey(rows.map((r) => `${r.key}:${r.name}`).join('|'));
         setDeletedIds([]);
+        setHasTokenImage(!!res.data?.tokenImage);
       })
       .catch(() => setMsg('Konnte den Charakter nicht laden.'))
       .finally(() => setLoading(false));
@@ -265,6 +277,7 @@ export default function EinstellungenPage() {
       ? ([
           ['farbwelt', 'Farbwelt'],
           ['chatname', 'Chat-Anzeigename'],
+          ['marke', 'VTT-Marken-Bild'],
           ['wuerfel', 'Würfel-Favoriten'],
           ['reiter', 'Reiter'],
           ['sichtbarkeit', 'Sichtbarkeit'],
@@ -420,6 +433,16 @@ export default function EinstellungenPage() {
                 placeholder={chars.find((c) => c.id === selId)?.name ?? ''}
               />
             </div>
+          </div>
+
+          <div className="panel" id="marke">
+            <h3>VTT-Marken-Bild</h3>
+            <p className="muted">
+              Eigenes Bild für die Marke dieses Charakters auf dem virtuellen Tisch — z. B. ein Top-down-Render einer
+              Miniatur. Getrennt vom Porträt oben: die Marke zeigt dieses Bild, der Bogen weiterhin das Porträt.
+              Ohne eigenes Bild zeigt die Marke wie bisher Initialen in Charakterfarbe.
+            </p>
+            <MarkenBild key={selId} charId={selId} initialHasImage={hasTokenImage} />
           </div>
 
           <div className="panel" id="wuerfel">

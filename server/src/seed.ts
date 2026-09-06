@@ -157,11 +157,17 @@ export function seed(): void {
         name: string;
         formula: string;
         beschreibung: string;
+        regeneration?: string;
+        umrechnung?: string;
         sort: number;
       }[];
-      const stmt = db.prepare('INSERT INTO special_energies_catalog (name, formula, beschreibung, sort) VALUES (?, ?, ?, ?)');
+      const stmt = db.prepare(
+        'INSERT INTO special_energies_catalog (name, formula, beschreibung, regeneration, umrechnung, sort) VALUES (?, ?, ?, ?, ?, ?)',
+      );
       const tx = db.transaction(() => {
-        for (const e of energies) stmt.run(e.name, e.formula, e.beschreibung, e.sort);
+        for (const e of energies) {
+          stmt.run(e.name, e.formula, e.beschreibung, e.regeneration ?? '', e.umrechnung ?? '', e.sort);
+        }
       });
       tx();
       console.log(`Spezialenergien-Katalog geladen: ${energies.length} Einträge`);

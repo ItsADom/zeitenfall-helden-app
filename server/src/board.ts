@@ -17,7 +17,7 @@ import {
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { rollDie } from './dice.js';
-import { hasPortrait, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
+import { hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -81,6 +81,8 @@ export interface BoardTokenRow {
   name: string;
   color: string;
   icon: string;
+  /** Key into TOKEN_ICONS (shared/src/tokenIcons.ts), '' = none — see the doc comment on BoardToken.iconAsset. */
+  iconAsset: string;
   x: number;
   y: number;
   size: number;
@@ -96,6 +98,8 @@ export interface BoardTokenRow {
   coverAsset: string | null;
   /** Computed here from the linked character, never stored on the row itself. */
   portrait: boolean;
+  /** Computed here from the linked character's own token image (separate from the sheet portrait, see shared/src/boardProtocol.ts's doc comment), never stored on the row itself. */
+  tokenImage: boolean;
   /**
    * Computed here from the linked character (null for a marker/monster, no
    * characterId to hang wounds off) — see the small_wounds/big_wounds column
@@ -108,16 +112,17 @@ export interface BoardTokenRow {
 }
 
 const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, owner_user_id AS ownerUserId,
-  name, color, icon, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
+  name, color, icon, icon_asset AS iconAsset, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
 
 function toToken(
-  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'wounds'> & { hidden: number; statuses: string },
+  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'tokenImage' | 'wounds'> & { hidden: number; statuses: string },
 ): BoardTokenRow {
   return {
     ...r,
     hidden: !!r.hidden,
     statuses: JSON.parse(r.statuses || '[]'),
     portrait: r.characterId != null && hasPortrait(r.characterId),
+    tokenImage: r.characterId != null && hasTokenImage(r.characterId),
     wounds: r.characterId != null ? loadWounds(r.characterId) : null,
   };
 }
@@ -145,6 +150,8 @@ export interface CreateTokenInput {
   name: string;
   color: string;
   icon: string;
+  /** Marker-only, like `icon` — ignored for kind: 'character'. See BoardToken.iconAsset. */
+  iconAsset?: string;
   x: number;
   y: number;
   size: number;
@@ -163,8 +170,8 @@ export function createToken(boardId: number, input: CreateTokenInput): BoardToke
     .n;
   const info = db
     .prepare(
-      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, x, y, size, radius, radius_color, statuses, cover, sort)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?)`,
+      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, icon_asset, x, y, size, radius, radius_color, statuses, cover, sort)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?)`,
     )
     .run(
       boardId,
@@ -174,6 +181,7 @@ export function createToken(boardId: number, input: CreateTokenInput): BoardToke
       input.name,
       input.color,
       input.icon,
+      input.iconAsset ?? '',
       input.x,
       input.y,
       input.size,
@@ -191,6 +199,7 @@ export interface TokenPatch {
   name?: string;
   color?: string;
   icon?: string;
+  iconAsset?: string;
   hidden?: boolean;
   statuses?: string[];
   cover?: string;
@@ -208,11 +217,12 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
   if (!existing) return undefined;
   const next = { ...existing, ...patch };
   db.prepare(
-    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ?, owner_user_id = ? WHERE id = ?`,
+    `UPDATE board_tokens SET name = ?, color = ?, icon = ?, icon_asset = ?, hidden = ?, statuses = ?, cover = ?, size = ?, radius = ?, radius_color = ?, rotation = ?, owner_user_id = ? WHERE id = ?`,
   ).run(
     next.name,
     next.color,
     next.icon,
+    next.iconAsset,
     next.hidden ? 1 : 0,
     JSON.stringify(next.statuses),
     next.cover,
@@ -763,19 +773,31 @@ export function addInitiativeEntry(boardId: number, token: BoardTokenRow, mode: 
 }
 
 /**
- * Removing an ACTIVE combatant mid-round can leave `turn_index` pointing past
- * the (now shorter) active order — clamped here rather than left to point at
- * nothing. This does not try to preserve exactly whose turn it logically
- * still is (the small-table, self-correcting philosophy this codebase
- * already applies to drag conflicts) — the GM sorts out fairness by eye.
+ * Removing an ACTIVE combatant mid-round shifts everyone after it one slot
+ * earlier in `activeTurnOrder` — `turn_index` is a plain array position, so
+ * leaving it untouched silently reassigns it to whoever now occupies that
+ * slot. Harmless when the removed combatant hadn't gone yet (nothing before
+ * `turn_index` changed), but removing someone who already had their turn
+ * this round — index strictly before `turn_index` — pulls everyone after
+ * them one slot forward, so the pointer now names the WRONG combatant as
+ * current, silently skipping the real one for the rest of the round (self-
+ * corrects at the next round's reroll, which is why it reads as a one-round
+ * desync rather than a lasting one). Decrementing in that case keeps it
+ * pointing at the same combatant it named before the removal. Removing the
+ * CURRENT combatant itself (index === turn_index) is deliberately left
+ * alone: the next person slides into that slot and rightly becomes current.
+ * The out-of-bounds clamp below still covers removing the last few entries.
  */
 export function removeInitiativeEntry(boardId: number, tokenId: number): void {
-  db.prepare('DELETE FROM board_initiative WHERE token_id = ?').run(tokenId);
   const board = getBoardById(boardId)!;
+  const removedIdx = board.round > 0 ? activeTurnOrderPure(loadInitiative(boardId)).findIndex((e) => e.tokenId === tokenId) : -1;
+  db.prepare('DELETE FROM board_initiative WHERE token_id = ?').run(tokenId);
   if (board.round > 0) {
+    const turnIndex = removedIdx >= 0 && removedIdx < board.turnIndex ? board.turnIndex - 1 : board.turnIndex;
     const activeCount = loadInitiative(boardId).filter((e) => e.activeThisRound).length;
-    if (board.turnIndex >= activeCount) {
-      db.prepare('UPDATE boards SET turn_index = ? WHERE id = ?').run(Math.max(0, activeCount - 1), boardId);
+    const clamped = activeCount > 0 ? Math.min(turnIndex, activeCount - 1) : 0;
+    if (clamped !== board.turnIndex) {
+      db.prepare('UPDATE boards SET turn_index = ? WHERE id = ?').run(clamped, boardId);
     }
   }
   bumpRev(boardId);

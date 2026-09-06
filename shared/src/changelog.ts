@@ -199,6 +199,28 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-09-06',
+    title: 'Ach du meine Token!',
+    version: '0.10.0',
+    added: [
+      'Der Spezialenergien-Katalog kann jetzt auch festhalten, wie sich eine Energie regeneriert und wie sie in normale Energien (LE/AUS/AsE) umgerechnet wird. Beides erscheint auf dem Heldenbrief direkt neben der jeweiligen Energie.',
+      'Ein Gegenstand, der zuletzt aus dem Inventar eines Charakters ins Gruppeninventar verschoben wurde, zeigt jetzt einen kleinen Hinweis „von …“ mit dem Namen dieses Charakters — praktisch, um zu sehen, wer zuletzt etwas beigesteuert hat.',
+      'Neben der Kooperationsprobe gibt es jetzt einen Wettstreit (/wettstreit oder /contest im Würfel-Chat).',
+      'Ein neues Icon zeigt jetzt dezent an, wenn gerade niemand auf seinen Monitor schaut.',
+      'Ein Charakter kann jetzt ein eigenes Bild für seine Marke auf dem virtuellen Tisch hochladen (Einstellungen → „VTT-Marken-Bild“) — getrennt vom Porträt, z. B. für einen Top-down-Render einer eigenen Miniatur. Ohne eigenes Bild zeigt die Marke weiterhin Initialen in Charakterfarbe.',
+      'Marker-/Monster-Marken auf dem virtuellen Tisch können jetzt ein Bild aus einer mitgelieferten Bildersammlung bekommen, statt nur Initialen oder einem einzelnen Emoji zu zeigen — beim Bearbeiten einer Marke über „Bild“ mit Suche und Kategorien auswählbar.',
+    ],
+    changed: [
+      'Wiki-Seiten lassen sich jetzt von allen in den Papierkorb verschieben, nicht mehr nur von der Spielleitung — außer sie sind geschützt, das bleibt weiterhin Sache der Spielleitung. Der Knopf dafür steht direkt bei „Verlauf“ und „Bearbeiten“.',
+    ],
+    fixed: [
+      'Der „Verschieben“-Knopf im Bearbeiten-Dialog eines Gegenstands war leicht zu übersehen — er hebt sich jetzt genauso hervor wie „Speichern“.',
+    ],
+    admin: [
+      '(Spielleiter) Ein neuer „Verlauf“-Knopf beim Gruppeninventar zeigt jede Verschiebung eines Gegenstands in den oder aus dem Gruppeninventar: Zeitpunkt, Gegenstand, Anzahl, von wo nach wo und welcher Account es ausgelöst hat.',
+    ],
+  },
+  {
     date: '2026-09-02',
     version: '0.9.0',
     title: 'Inventare, Items und Waffen',

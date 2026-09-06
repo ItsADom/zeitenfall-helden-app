@@ -8,7 +8,7 @@ import { ApiError } from '../api';
 import { useAuth } from '../App';
 import { useInhaltMelden } from './Inhalt';
 import WikiMarkup from './Markup';
-import WikiSeitenrechte from './Seitenrechte';
+import WikiSeitenrechte, { WikiLoeschAktion } from './Seitenrechte';
 import WikiVerweise from './Verweise';
 import { ladeSeite } from './api';
 
@@ -155,6 +155,7 @@ export default function WikiSeite() {
           <Link className="small" to={`/wiki/${seite.slug}/verlauf`}>
             Verlauf
           </Link>
+          {!user.isGm && seite.darfBearbeiten && <WikiLoeschAktion seite={seite} />}
           {seite.darfBearbeiten && (
             <Link className="primary" to={`/wiki/${seite.slug}/bearbeiten`}>
               Bearbeiten

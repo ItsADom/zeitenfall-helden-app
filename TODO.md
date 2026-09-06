@@ -59,39 +59,10 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Competitive check ("Wettstreit"): a second pool kind alongside the
-  Kooperationsprobe** (user feedback, concept agreed — rules confirmed with
-  the GM, since Zeitenfall's probe mechanics are homebrew, not DSA5).
-  Reuses the existing self-serve join/leave/start scaffolding
-  (`CoopPoolCard.tsx`, `roll.coop.propose/join/leave/start/cancel` in
-  `shared/src/diceProtocol.ts:395-434`, `server/src/coopPools.ts`) — same
-  UI shape, a new pool `mode: 'coop' | 'competitive'` instead of a
-  parallel set of message types. Only the verdict differs from
-  `computeCoopVerdict` (`shared/src/dice.ts:296-309`), which pools sums for a
-  joint pass/fail: a competitive verdict instead ranks participants and picks
-  ONE winner (or a tied set — see below), nobody's roll pooled with anyone
-  else's. **Decided verdict algorithm:**
-   1. Tier every participant by crit status: confirmed crit-success (top) >
-      ordinary roll > confirmed crit-fail (bottom) — a crit auto-outranks any
-      non-crit tier, same override precedence the coop pool already gives
-      crits over the sum-check.
-   2. Within a tier, rank by margin — `probeZahl - adjustedSum` (bigger =
-      beat target by more) — descending; the winner is the best margin in the
-      highest non-empty tier. **Decided: best margin always wins, even if
-      negative** — a participant does NOT need to have actually succeeded
-      their own probe to win the contest; if everyone in the top tier failed,
-      whoever failed by the least still wins.
-   3. **Decided (corollary, not separately asked): an exact tie within the
-      winning tier/margin is a genuine tie** — report all tied participants
-      as joint winners rather than picking one arbitrarily; no further
-      tie-break rule.
-   4. Multiple crit-successes (or multiple crit-fails) still get ranked
-      against each other by margin within their own tier — a crit only
-      outranks OTHER tiers, it doesn't flatten comparisons within its own.
-  **New:** `computeCompetitiveVerdict` in `shared/src/dice.ts`, parallel to
-  `computeCoopVerdict`, returning winner(s) + each participant's tier/margin
-  for display. UI: a `CompetitivePoolCard` alongside `CoopPoolCard`,
-  labels via a `WETTSTREIT`-style entry in `labels.ts`.
+- equipment presets
+  - e.g. a set for leisure, a set for combat etc.
+  - this could also need tracking for these items inside group inventories (needs dicsussion)
+
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;
@@ -114,6 +85,23 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   stops counting as filtered isn't clearly set either"), so the toggle is
   just flipped off by the player/GM when the GM calls it.
 
+- [ready] **Image gallery for houses** (user feedback, concept agreed
+  2026-09-03). Multiple images per house (floor plans, reference photos), not
+  just one — reuses the existing generic `assets` table
+  (`server/src/assets/store.ts`), which already supports several images per
+  owner via `pos` (exactly a gallery) and is the same mechanism the wiki and
+  portraits use. **New:** `OwnerTyp` value `'house'` (`store.ts:22`),
+  `owner_id = group_houses.id` (that row already has a stable id —
+  `docs/concepts/houses.md`'s `haus`/`raum` strings on `Item` stay untouched,
+  this hangs off the suggestion-list row instead). No `gm_only` restriction:
+  everyone uploads/sees/deletes, matching the flat, no-GM-gatekeeping
+  permission model houses already have. Delete: call `loescheAssetsFuer
+  ('house', id)` when a `group_houses` row is deleted or renamed away (same
+  "any new delete path must call this by hand" rule as every other owner
+  type, CLAUDE.md). UI: a small, unobtrusive icon button next to each house's
+  header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
+  (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
+  client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -160,6 +148,17 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      existing values (no-data-loss rule) — for rows whose old `entfernung`
      text doesn't cleanly parse into two numbers, fold the original string
      into the row's `notiz` instead of discarding it.
+   - [ready] **Cosmetic grouping for non-unique weapon stacks** (user
+     feedback, concept agreed 2026-09-03): throwing knives and the like get
+     `Duplizieren`'d into several separate rows today because durability must
+     stay independent per instance (`shared/src/items.ts:289-293` —
+     `duplicateItem` exists specifically so two identical weapons can diverge
+     in Haltbarkeit; `anzahl`-style stacking would collapse that to one
+     shared state, which is wrong here). **Decided: display-only** — the data
+     model doesn't change, still one `Item` row per instance. Group
+     functionally-identical weapon instances (same stats, differing at most
+     in Haltbarkeit) into one collapsed card in the reworked weapon tab,
+     expandable to the individual instances underneath.
    - [sketch] **Fold ammunition damage into the Fernkampf damage formula**
      (user feedback): every ranged weapon has its own `schaden` value today,
      but the ammunition actually loaded/used should add to it — currently
@@ -263,41 +262,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   yet written per Heldenkraft. Also needs a server-side reveal state — 34+/60
   perks are hidden until the GM unveils them, so they must not be sent, same
   rule as the wiki's ` ```gm ` regions.
-- [ready] **Audit log on characters - RECHECK CONCEPT WITH DEVELOPER** (on hold until a stable 1.0, so it isn't touched on
-  every system change). Concept to build when it comes off hold:
-   - Storage: SEPARATE SQLite file (`helden-audit.db`), NOT in `helden.db` —
-    `backup.ts` copies the whole file × KEEP, so history stays out of those
-    backups. Denormalize `actor_name` into each row (no cross-file FK).
-   - Diff, don't snapshot: in `saveSection` compare payload vs current DB, log only
-    changed fields (old→new); empty diff → skip (doubles as the no-op skipper).
-   - Coalesce: within ~5 min, same (character_id, actor, section, field) → UPDATE
-    new_val + ts, keep original old_val. Keeps size independent of the debounce.
-   - Granularity: scalar sections (bio/meta/attributes/baseValues/resources)
-    field-level; list/dyn sections COARSE only ('section X: +a/-b/~c Zeilen') —
-    rows are positional (DELETE+INSERT), so per-cell diffing is noisy.
-   - Fat values: numbers keep both; free text > ~120 chars truncate / '[geändert]'.
-   - Hook: `saveSection` (thread actor = `req.user.id`). Also `saveVisibility`,
-    dyn-row saves, portrait set/delete, GM char rename/reassign/delete. Skip
-    catalog/admin edits.
-   - Schema: `audit_log(id, character_id, actor_id, actor_name, ts, section, field
-    NULL=coarse, old_val, new_val)`, index (character_id, ts DESC).
-   - Retention: prune > ~90 days (or cap N per char) on the existing backup timer.
-   - Optional: read-only 'Verlauf' panel per char (GM sees all with user/character
-    filters; owner sees own, character filter).
 
 ## Low-Prio
 
-- [sketch] **VTT: a way to set a character token's own appearance (custom
-  image/icon), not just fall back to initials** (developer feedback,
-  Phase 10 initiative tracker). The initiative strip shows a real portrait
-  for a character with one uploaded (`client/src/pages/VirtualTable.tsx`,
-  `InitiativeStrip`'s `renderCard`), a dashed empty box otherwise — the
-  two-letter initials monogram used elsewhere on the map (`initials()`) reads
-  as stale/placeholder-ish for a token that's meant to represent a real
-  character across a whole session. No design decided yet on what a token's
-  own settable appearance would look like (a small icon picker? a distinct
-  upload separate from the character's sheet portrait?) — needs a concept
-  pass before building.
 - [sketch] **Native colour swatch reopens on a second click instead of
   closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
   used by token colour/ring colour, the tile/highlight picker, and the
@@ -430,13 +397,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   rollback onto older code still shows portraits. Once a release has gone by
   without needing one, delete the table and the fallback branches in
   `assets/portraits.ts`. Not before: it is the only copy an older build can see.
-
-- **wiki: inline span-level GM tagging** — the wiki marks GM-only content at
-  block level (a fenced ` ```gm ... ``` ` region). Marking a few words
-  *mid-sentence* as GM-only is the open piece, and it is harder than it looks:
-  the server strips GM regions from the response before sending, so an inline
-  marker has to survive that removal without leaving a hole that reads as a
-  typo.
 
 - **wiki: Steckbriefe, dann Vorlagen** (concept settled, deliberately deferred —
   the navigation/category/redirect round shipped without it). Two steps, in this
