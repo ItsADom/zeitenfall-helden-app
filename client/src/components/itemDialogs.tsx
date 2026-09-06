@@ -7,7 +7,7 @@ import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
 import { AlwaysEditable } from './displayMode';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
-import { NumInput } from './inputs';
+import { NumInput, TextInput } from './inputs';
 
 // --- Shared inventories: cross-owner move target picker (docs/concepts/
 // shared-inventories.md, 2.3) ---
@@ -882,7 +882,7 @@ export function AddItemDialog({
 
         <label className="dlg-field">
           Notiz
-          <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
+          <TextInput value={notiz} onChange={setNotiz} />
         </label>
 
         <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} isGm={isGm} />
@@ -996,7 +996,7 @@ export function AddContainerDialog({
 
       <label className="dlg-field">
         Notiz
-        <input value={notiz} onChange={(e) => setNotiz(e.target.value)} placeholder="optional…" />
+        <TextInput value={notiz} onChange={setNotiz} />
       </label>
     </Dialog>
   );
