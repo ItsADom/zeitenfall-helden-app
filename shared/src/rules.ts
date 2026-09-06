@@ -66,19 +66,8 @@ export function computeBaseValues(attrs: Attributes, inputs: BaseValueInputs): R
 
 export interface ResourceResult {
   vorergebnis: number;
-  /** Rechnerische Summe aus Formelwert + Gewährt + Gekauft — ungekappt. */
+  /** Maximum aus Formelwert + Rassenbonus + Gewährt + Gekauft — kein Hard-Cap mehr (TODO.md "remove hard-caps"). */
   ergebnis: number;
-  /** Ausbaugrenze: so hoch kann das Maximum überhaupt steigen. */
-  max: number | null;
-  /**
-   * Das tatsächlich nutzbare Maximum: `ergebnis`, an der Ausbaugrenze gekappt.
-   * Die Rohsumme bleibt daneben erhalten — sie ist die Buchführung darüber, was
-   * eingetragen wurde, und darf nicht stillschweigend verschwinden. Angezeigt
-   * wird `nutzbar`, und wo gekappt wurde, zusätzlich die Rohsumme.
-   */
-  nutzbar: number;
-  /** true, wenn die Rohsumme über der Ausbaugrenze liegt. */
-  gekappt: boolean;
 }
 
 export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey): number {
@@ -94,27 +83,13 @@ export function computeResourceVorergebnis(attrs: Attributes, key: ResourceKey):
 }
 
 export function computeResource(attrs: Attributes, key: ResourceKey, input: ResourceInput): ResourceResult {
-  const v = (c: AttrCode) => attrMax(attrs, c);
-  // Rassenbonus (races_catalog.le/.au/.ae) ist ein normaler Bonus auf Maximum
-  // und Ausbaugrenze, kein Bestandteil des Formelwerts — anders als
-  // resilienzBase bei den Basiswerten fließt er NICHT in vor/Formelwert ein.
+  // Rassenbonus (races_catalog.le/.au/.ase) ist ein normaler Bonus auf das
+  // Maximum, kein Bestandteil des Formelwerts — anders als resilienzBase bei
+  // den Basiswerten fließt er NICHT in vor/Formelwert ein.
   const vor = computeResourceVorergebnis(attrs, key);
   const raceBase = input.raceBase ?? 0;
   const ergebnis = vor + raceBase + input.permanent + input.kauf;
-  let max: number | null = null;
-  switch (key) {
-    case 'le':
-      max = ceil(vor + raceBase + (v('KK') + v('KO')) / 1.5 + input.kaufMax + input.maxPlus);
-      break;
-    case 'aus':
-      max = vor + raceBase + (v('KO') + v('GE')) + input.kaufMax + input.maxPlus;
-      break;
-    case 'ase':
-      max = vor + raceBase + (v('CH') + v('KL')) * 2 + input.kaufMax + input.maxPlus;
-      break;
-  }
-  const nutzbar = max === null ? ergebnis : Math.min(ergebnis, max);
-  return { vorergebnis: vor, ergebnis, max, nutzbar, gekappt: nutzbar < ergebnis };
+  return { vorergebnis: vor, ergebnis };
 }
 
 // --- Talente ---
@@ -324,7 +299,7 @@ export function wurfweiten(attrs: Attributes, stufen = 4): number[] {
 // parseProbeExpr bleibt bewusst unabhängig, siehe dort.
 export interface EnergyFormulaVars {
   attrs: Attributes;
-  /** Nutzbares Maximum (Resources[key].nutzbar), NICHT die rohe Ausbaugrenze. */
+  /** Maximum (Resources[key].ergebnis). */
   leMax: number;
   auMax: number;
   aseMax: number;

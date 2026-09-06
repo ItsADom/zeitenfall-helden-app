@@ -200,8 +200,9 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-06',
-    title: 'Kleine Politur',
+    title: 'Ausbaugrenze gefallen',
     changed: [
+      'Der Hard-Cap (die „Ausbaugrenze") auf Lebensenergie, Ausdauer und Astralenergie ist komplett entfallen — sie lassen sich jetzt uneingeschränkt weiter steigern. Die entsprechende zweite Spaltengruppe in der Energien-Tabelle ist damit auch verschwunden.',
       'Die Notiz eines Gegenstands kann jetzt mehrzeilig eingegeben werden, statt nur in eine einzelne Zeile zu passen.',
     ],
     fixed: [

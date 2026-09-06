@@ -251,7 +251,7 @@ function baseInputs(): BaseValueInputs {
 }
 
 function resourceInput(over: Partial<ResourceInput> = {}): ResourceInput {
-  return { permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '', raceBase: 0, ...over };
+  return { permanent: 0, kauf: 0, aktuell: 0, besonderes: '', raceBase: 0, ...over };
 }
 
 function talent(over: Partial<CharTalent> = {}): CharTalent {
@@ -363,7 +363,6 @@ describe('resourceInputMitBoni', () => {
     const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ uid: makeUid(), kind: 'resource', code: 'le', feld: '', wert: 2, verborgen: false }] })]);
     const out = resourceInputMitBoni(input, 'le', boni);
     expect(out.permanent).toBe(2);
-    expect(out.maxPlus).toBe(2);
     expect(out.aktuell).toBe(5);
   });
 

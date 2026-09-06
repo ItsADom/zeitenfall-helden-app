@@ -15,9 +15,9 @@
       "SO": { "akt": 10, "mod": 0 }
     },
     "energienEingaben": {
-      "le": { "permanent": 118, "kauf": 63, "kaufMax": 0, "maxPlus": 135, "aktuell": 238, "besonderes": "0" },
-      "aus": { "permanent": 39, "kauf": 65, "kaufMax": 0, "maxPlus": 50, "aktuell": 140, "besonderes": "↑ Schmerz ↑" },
-      "ase": { "permanent": 4, "kauf": 0, "kaufMax": 0, "maxPlus": 0, "aktuell": 0, "besonderes": "" }
+      "le": { "permanent": 118, "kauf": 63, "aktuell": 238, "besonderes": "0" },
+      "aus": { "permanent": 39, "kauf": 65, "aktuell": 140, "besonderes": "↑ Schmerz ↑" },
+      "ase": { "permanent": 4, "kauf": 0, "aktuell": 0, "besonderes": "" }
     },
     "basiswerteEingaben": {
       "mods": {
@@ -29,9 +29,9 @@
   },
 
   "energien": [
-    { "key": "le", "label": "Lebensenergie", "formel": "(KO+KO+KK):2", "vorergebnis": 57, "ergebnis": 238, "max": 239 },
-    { "key": "aus", "label": "Ausdauer", "formel": "(MU+GE+KO):2", "vorergebnis": 36, "ergebnis": 140, "max": 142 },
-    { "key": "ase", "label": "Astralenergie", "formel": "(MU+IN+CH):2", "vorergebnis": 23, "ergebnis": 27, "max": 77 }
+    { "key": "le", "label": "Lebensenergie", "formel": "(KO+KO+KK):2", "vorergebnis": 57, "ergebnis": 238 },
+    { "key": "aus", "label": "Ausdauer", "formel": "(MU+GE+KO):2", "vorergebnis": 36, "ergebnis": 140 },
+    { "key": "ase", "label": "Astralenergie", "formel": "(MU+IN+CH):2", "vorergebnis": 23, "ergebnis": 27 }
   ],
 
   "basiswerte": [

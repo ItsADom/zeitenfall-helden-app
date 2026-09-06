@@ -129,9 +129,9 @@ export function loadBaseValueInputsRaw(charId: number): BaseValueInputs {
 
 export function loadResourcesRaw(charId: number): Resources {
   const rows = db
-    .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
+    .prepare('SELECT key, permanent, kauf, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
     .all(charId) as ({ key: string } & Resources['le'])[];
-  const empty = () => ({ permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '', raceBase: 0 });
+  const empty = () => ({ permanent: 0, kauf: 0, aktuell: 0, besonderes: '', raceBase: 0 });
   const out = { le: empty(), aus: empty(), ase: empty() } as Resources;
   for (const r of rows) {
     if (RESOURCE_KEYS.includes(r.key as never)) {
@@ -231,9 +231,9 @@ export function loadStats(charId: number): CharStats {
 
   const vars: EnergyFormulaVars = {
     attrs,
-    leMax: computeResource(attrs, 'le', resources.le).nutzbar,
-    auMax: computeResource(attrs, 'aus', resources.aus).nutzbar,
-    aseMax: computeResource(attrs, 'ase', resources.ase).nutzbar,
+    leMax: computeResource(attrs, 'le', resources.le).ergebnis,
+    auMax: computeResource(attrs, 'aus', resources.aus).ergebnis,
+    aseMax: computeResource(attrs, 'ase', resources.ase).ergebnis,
     psycheMax: psycheMax(attrs, meta.psycheBase ?? 0, psycheBonus),
   };
   const formelnById = ladeSpezialenergieFormeln();
@@ -2482,7 +2482,7 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
       const stmt = db.prepare(
-        'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
+        'UPDATE char_resources SET permanent = ?, kauf = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
       for (const key of RESOURCE_KEYS) {
         const v = body[key];
@@ -2490,8 +2490,6 @@ export function saveSection(charId: number, section: string, data: unknown): voi
         const input: ResourceInput = {
           permanent: num(v.permanent),
           kauf: num(v.kauf),
-          kaufMax: num(v.kaufMax),
-          maxPlus: num(v.maxPlus),
           aktuell: num(v.aktuell),
           besonderes: str(v.besonderes),
           // Nicht vom Client editierbar (kommt aus der Rassen-Auswahl) — trotzdem
@@ -2500,22 +2498,12 @@ export function saveSection(charId: number, section: string, data: unknown): voi
           raceBase: num(v.raceBase),
         };
         // Aktuell wird NICHT gekappt, weder nach oben noch nach unten — ein
-        // Vorrat darf bewusst über sein nutzbares Maximum steigen (Überladung,
-        // siehe AktuellFeld.tsx) und ins Minus fallen. Ein Server-seitiges
-        // Kappen nach oben widersprach dieser Absicht: der Wert kam bei jedem
+        // Vorrat darf bewusst über sein Maximum steigen (Überladung, siehe
+        // AktuellFeld.tsx) und ins Minus fallen. Ein Server-seitiges Kappen
+        // nach oben widersprach dieser Absicht: der Wert kam bei jedem
         // Speichern (auch dem automatischen bei jeder Änderung) auf das
         // Maximum zurückgestutzt, was nach einem Neuladen wie ein Reset wirkte.
-        stmt.run(
-          input.permanent,
-          input.kauf,
-          input.kaufMax,
-          input.maxPlus,
-          input.aktuell,
-          input.besonderes,
-          input.raceBase,
-          charId,
-          key,
-        );
+        stmt.run(input.permanent, input.kauf, input.aktuell, input.besonderes, input.raceBase, charId, key);
       }
       return;
     }
@@ -2745,9 +2733,6 @@ export function buildSummary(charId: number) {
         label: RESOURCE_LABELS[key].label,
         aktuell: resources[key].aktuell,
         ergebnis: r.ergebnis,
-        max: r.max,
-        nutzbar: r.nutzbar,
-        gekappt: r.gekappt,
       };
     });
   }
@@ -2845,20 +2830,19 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       schicksalspunkteMax?: number;
     };
 
-    // Vitale Pools als Chips „aktuell/max". Als Maximum zählt der NUTZBARE Wert
-    // (Rohsumme über der Ausbaugrenze ist kein Vorrat) — gleiche Wahl wie im
-    // Heldenbrief. AsE nur, wenn der Charakter sie überhaupt nutzt: solange es
-    // kein „hat ASP"-Flag gibt (siehe TODO Spezialenergien), gilt als Näherung
-    // „irgendein AsE-Feld ist gesetzt". So verschwindet die Spalte bei reinen
-    // Nicht-Zauberern, ohne einem erschöpften Magier den Chip wegzunehmen.
+    // Vitale Pools als Chips „aktuell/max". AsE nur, wenn der Charakter sie
+    // überhaupt nutzt: solange es kein „hat ASP"-Flag gibt (siehe TODO
+    // Spezialenergien), gilt als Näherung „irgendein AsE-Feld ist gesetzt". So
+    // verschwindet die Spalte bei reinen Nicht-Zauberern, ohne einem
+    // erschöpften Magier den Chip wegzunehmen.
     const vitals: { key: string; aktuell: number; max: number }[] = [];
     for (const key of RESOURCE_KEYS) {
       const inp = resources[key];
-      if (key === 'ase' && !(inp.aktuell || inp.permanent || inp.kauf || inp.kaufMax || inp.maxPlus)) continue;
+      if (key === 'ase' && !(inp.aktuell || inp.permanent || inp.kauf)) continue;
       const r = computeResource(attributes, key, inp);
-      vitals.push({ key, aktuell: inp.aktuell, max: r.nutzbar });
+      vitals.push({ key, aktuell: inp.aktuell, max: r.ergebnis });
     }
-    // Psyche ist kein echter Vorrat (keine Ausbaugrenze); Max aus Rassenwert +
+    // Psyche ist kein echter Vorrat; Max aus Rassenwert +
     // Bonus + MU-Anteil — dieselbe Formel wie im Heldenbrief.
     vitals.push({
       key: 'psyche',

@@ -37,7 +37,6 @@ import ProbeRollButton from '../components/dice/ProbeRollButton';
 import { NumInput, TextInput } from '../components/inputs';
 import { BonusWert } from '../components/BonusWert';
 import { GeldPanel } from '../components/GeldPanel';
-import { MaximumWert } from '../components/MaximumWert';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { Portrait } from '../components/Portrait';
 import { overfilled, poolClass } from '../components/energie';
@@ -208,14 +207,13 @@ export default function HeldenbriefTab() {
   };
   const removeSpecial = (i: number) => setSpecial(special.filter((_, j) => j !== i));
   // Eingaben für Formel-Spezialenergien (evaluateEnergyFormula): Lp/Adp/Asp
-  // sind das NUTZBARE Maximum der festen Energien (an der Ausbaugrenze
-  // gekappt), nicht die rohe Summe — dieselbe Zahl, die in der Energien-Tabelle
-  // oben als „Maximum" steht.
+  // sind das Maximum der festen Energien — dieselbe Zahl, die in der
+  // Energien-Tabelle oben als „Maximum" steht.
   const energyFormulaVars = {
     attrs: attributesEff,
-    leMax: computeResource(attributesEff, 'le', resourceInputMitBoni(resources.le, 'le', stats)).nutzbar,
-    auMax: computeResource(attributesEff, 'aus', resourceInputMitBoni(resources.aus, 'aus', stats)).nutzbar,
-    aseMax: computeResource(attributesEff, 'ase', resourceInputMitBoni(resources.ase, 'ase', stats)).nutzbar,
+    leMax: computeResource(attributesEff, 'le', resourceInputMitBoni(resources.le, 'le', stats)).ergebnis,
+    auMax: computeResource(attributesEff, 'aus', resourceInputMitBoni(resources.aus, 'aus', stats)).ergebnis,
+    aseMax: computeResource(attributesEff, 'ase', resourceInputMitBoni(resources.ase, 'ase', stats)).ergebnis,
     psycheMax: psycheMax(attributesEff, meta.psycheBase ?? 0, (meta.psycheBonus ?? 0) + stats.psyche),
   };
   const setBio = (key: string, v: string) => update('bio', { ...bio, [key]: v });
@@ -384,45 +382,37 @@ export default function HeldenbriefTab() {
         <div className="table-wrap">
         <table className="sheet sheet-fluid">
           <thead>
-            {/* Zweizeiliger Kopf: oben das Ziel (Maximum bzw. Ausbaugrenze),
-                unten die Herkunft (gewährt bzw. mit AP gekauft). */}
+            {/* Zweizeiliger Kopf: oben das Ziel (Maximum), unten die Herkunft
+                (gewährt bzw. mit AP gekauft). */}
             <tr>
               <th rowSpan={2} style={{ width: '16%' }}>
                 Energie
               </th>
-              <th rowSpan={2} style={{ width: '28%' }}>
+              <th rowSpan={2} style={{ width: '24%' }}>
                 Formel
               </th>
-              <th rowSpan={2} style={{ width: '7%' }}>
+              <th rowSpan={2} style={{ width: '12%' }}>
                 {RC.formelwert}
               </th>
-              <th className="group" colSpan={3}>
+              <th className="group" colSpan={3} style={{ width: '36%' }}>
                 {RC.maximum}
               </th>
-              <th className="group" colSpan={3}>
-                {RC.ausbaugrenze}
-              </th>
-              <th rowSpan={2} style={{ width: '7%' }}>
+              <th rowSpan={2} style={{ width: '12%' }}>
                 {RC.aktuell}
               </th>
             </tr>
             <tr>
-              <th style={{ width: '7%' }}>{RC.bonus}</th>
-              <th style={{ width: '7%' }}>{RC.gekauft}</th>
-              <th style={{ width: '7%' }}>{RC.summe}</th>
-              <th style={{ width: '7%' }}>{RC.bonus}</th>
-              <th style={{ width: '7%' }}>{RC.gekauft}</th>
-              <th style={{ width: '7%' }}>{RC.summe}</th>
+              <th style={{ width: '12%' }}>{RC.bonus}</th>
+              <th style={{ width: '12%' }}>{RC.gekauft}</th>
+              <th style={{ width: '12%' }}>{RC.summe}</th>
             </tr>
           </thead>
           <tbody>
             {RESOURCE_KEYS.map((key) => {
               const r = computeResource(attributesEff, key, resourceInputMitBoni(resources[key], key, stats));
               const akt = resources[key].aktuell;
-              // Zehrung UND Überladung messen am nutzbaren Maximum — über der
-              // Ausbaugrenze liegende Rohsummen sind kein Vorrat.
-              const cls = poolClass(key, akt, r.nutzbar);
-              const ratio = r.nutzbar > 0 ? akt / r.nutzbar : 1;
+              const cls = poolClass(key, akt, r.ergebnis);
+              const ratio = r.ergebnis > 0 ? akt / r.ergebnis : 1;
               const quellen = stats.quellen[resourceBonusKey(key)];
               return (
                 <tr key={key}>
@@ -436,26 +426,15 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].kauf} onChange={(v) => setResource(key, 'kauf', v)} />
                   </td>
                   <td className="computed">
-                    <BonusWert quellen={quellen}>
-                      <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} />
-                    </BonusWert>
-                  </td>
-                  <td>
-                    <NumInput value={resources[key].maxPlus} onChange={(v) => setResource(key, 'maxPlus', v)} />
-                  </td>
-                  <td>
-                    <NumInput value={resources[key].kaufMax} onChange={(v) => setResource(key, 'kaufMax', v)} />
-                  </td>
-                  <td className="computed">
-                    <BonusWert quellen={quellen}>{r.max ?? '—'}</BonusWert>
+                    <BonusWert quellen={quellen}>{r.ergebnis}</BonusWert>
                   </td>
                   <td
                     className={cls || undefined}
                     title={
                       cls === 'res-over'
-                        ? `überladen: ${akt}/${r.nutzbar}`
+                        ? `überladen: ${akt}/${r.ergebnis}`
                         : cls
-                          ? `${Math.round(ratio * 100)} % — ${akt}/${r.nutzbar}`
+                          ? `${Math.round(ratio * 100)} % — ${akt}/${r.ergebnis}`
                           : undefined
                     }
                   >
@@ -465,7 +444,7 @@ export default function HeldenbriefTab() {
               );
             })}
             {/* Psyche: kein echter Vorrat wie LE/AUS/AsE — Max aus Rassengrundwert
-                + Bonus + MU-Anteil, OHNE Ausbaugrenze. Rassengrundwert steht in
+                + Bonus + MU-Anteil. Rassengrundwert steht in
                 der Bonus-Spalte, der Zusatz-Bonus in der Gekauft-Spalte (die
                 festen Kopfzeilen passen nicht 1:1, daher die title-Tooltips).
                 Rassengrundwert kommt aus dem Rassen-Katalog (races_catalog.psyche)

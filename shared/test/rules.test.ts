@@ -31,59 +31,24 @@ const raskirBaseInputs = reference.charakter.basiswerteEingaben as BaseValueInpu
 
 describe('Energien', () => {
   for (const e of reference.energien) {
-    it(`${e.label}: Vorergebnis ${e.vorergebnis}, Ergebnis ${e.ergebnis}, Max ${e.max ?? 'kein'}`, () => {
+    it(`${e.label}: Vorergebnis ${e.vorergebnis}, Ergebnis ${e.ergebnis}`, () => {
       const r = computeResource(raskir, e.key as ResourceKey, raskirResources[e.key as ResourceKey]);
       expect(r.vorergebnis).toBe(e.vorergebnis);
       expect(r.ergebnis).toBe(e.ergebnis);
-      expect(r.max).toBe(e.max);
     });
     it(`${e.label}: Formel in der App entspricht der Referenz`, () => {
       expect(RESOURCE_LABELS[e.key as ResourceKey].formel).toBe(e.formel);
     });
   }
 
-  // Die Referenzwerte liegen alle unter der Ausbaugrenze — die Kappung wird
-  // deshalb eigens geprüft.
-  describe('Kappung an der Ausbaugrenze', () => {
-    it('unterhalb der Ausbaugrenze bleibt die Rohsumme unangetastet', () => {
-      const r = computeResource(raskir, 'ase', raskirResources.ase);
-      expect(r.ergebnis).toBe(27);
-      expect(r.max).toBe(77);
-      expect(r.nutzbar).toBe(27);
-      expect(r.gekappt).toBe(false);
-    });
-
-    it('genau auf der Ausbaugrenze gilt noch nicht als gekappt', () => {
-      // ase: Vorergebnis 23, Ausbaugrenze 77 → permanent 54 trifft sie genau
-      const r = computeResource(raskir, 'ase', { ...raskirResources.ase, permanent: 54 });
-      expect(r.ergebnis).toBe(77);
-      expect(r.nutzbar).toBe(77);
-      expect(r.gekappt).toBe(false);
-    });
-
-    it('über der Ausbaugrenze wird gekappt, die Rohsumme bleibt erhalten', () => {
-      const r = computeResource(raskir, 'ase', { ...raskirResources.ase, permanent: 100 });
-      expect(r.ergebnis).toBe(123);
-      expect(r.max).toBe(77);
-      expect(r.nutzbar).toBe(77);
-      expect(r.gekappt).toBe(true);
-    });
-
-    it('Kauf-Max hebt die Ausbaugrenze und damit die Kappung', () => {
-      const input = { ...raskirResources.ase, permanent: 100, kaufMax: 50 };
-      const r = computeResource(raskir, 'ase', input);
-      expect(r.max).toBe(127);
-      expect(r.nutzbar).toBe(123);
-      expect(r.gekappt).toBe(false);
-    });
-  });
-
+  // Kein Hard-Cap mehr auf LE/AUS/AsE (TODO.md "remove hard-caps") — die
+  // Rohsumme aus Formelwert + Rassenbonus + Gewährt + Gekauft ist immer auch
+  // das nutzbare Maximum, ohne Kappung.
   describe('Rassenbonus', () => {
-    it('hebt Ergebnis und Ausbaugrenze an, aber nicht den Formelwert (Vorergebnis)', () => {
+    it('hebt das Ergebnis an, aber nicht den Formelwert (Vorergebnis)', () => {
       const r = computeResource(raskir, 'ase', { ...raskirResources.ase, raceBase: 10 });
       expect(r.vorergebnis).toBe(23);
       expect(r.ergebnis).toBe(37);
-      expect(r.max).toBe(87);
     });
   });
 });

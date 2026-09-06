@@ -162,7 +162,6 @@ db.exec(`
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     key TEXT NOT NULL,
     permanent REAL NOT NULL DEFAULT 0, kauf REAL NOT NULL DEFAULT 0,
-    kaufMax REAL NOT NULL DEFAULT 0, maxPlus REAL NOT NULL DEFAULT 0,
     aktuell REAL NOT NULL DEFAULT 0, besonderes TEXT NOT NULL DEFAULT '',
     -- Rassenbonus (races_catalog.le/.au/.ae), additiv zum Formelwert — vorbelegt
     -- bei Rassen-Auswahl, danach gesperrt (siehe ResourceInput.raceBase).
@@ -176,7 +175,7 @@ db.exec(`
   -- special_energies_catalog (NULL = Altbestand von vor dem Katalog, siehe
   -- SpecialResource in shared/src/types.ts); hat der Katalog-Eintrag eine
   -- Formel, ist max hier nur ein ungenutzter Snapshot und bonus fließt additiv
-  -- in das live berechnete Maximum ein (analog zu maxPlus bei LE/AUS/AsE).
+  -- in das live berechnete Maximum ein (analog zum Bonus bei LE/AUS/AsE).
   CREATE TABLE IF NOT EXISTS char_special_resources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
@@ -1798,6 +1797,18 @@ db.exec('DROP TABLE IF EXISTS group_members');
   const cols = new Set((db.prepare('PRAGMA table_info(board_initiative)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('round_order')) db.exec('ALTER TABLE board_initiative ADD COLUMN round_order INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('rolled_this_round')) db.exec('ALTER TABLE board_initiative ADD COLUMN rolled_this_round INTEGER NOT NULL DEFAULT 0');
+}
+
+// Migration: Hard-Cap auf LE/AUS/AsE entfernt (TODO.md "remove hard-caps") —
+// 'kaufMax'/'maxPlus' fielen aus char_resources.computeResource, das
+// tatsächlich nutzbare Maximum ist seither immer die ungekappte Rohsumme.
+// Die Werte, die früher über die Ausbaugrenze hinaus gekauft wurden, sind
+// spielerseitig bereits in permanent/kauf gewandert — nichts zu retten, die
+// Spalten fallen ersatzlos weg.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_resources)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('kaufMax')) db.exec('ALTER TABLE char_resources DROP COLUMN kaufMax');
+  if (cols.has('maxPlus')) db.exec('ALTER TABLE char_resources DROP COLUMN maxPlus');
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an

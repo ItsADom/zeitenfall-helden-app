@@ -1,7 +1,6 @@
 // Markiert eine Zelle als item-bonusiert: nur eine Farbe + ein Tooltip, das
 // die beitragenden Gegenstände nennt. Nimmt `children` statt eines eigenen
-// `value`/`format`, damit es sich um eine bereits fertige Anzeige legen lässt
-// (z. B. MaximumWert, das selbst schon sein eigenes Gekappt-Verhalten hat) —
+// `value`/`format`, damit es sich um eine bereits fertige Anzeige legen lässt —
 // eine Stelle für Heldenbrief, Talente und SidebarPools, siehe
 // docs/concepts/item-bonus-while-worn.md.
 export function BonusWert({ quellen, children }: { quellen: string[] | undefined; children: React.ReactNode }) {

@@ -745,16 +745,11 @@ export function baseInputsMitBoni(inputs: BaseValueInputs, boni: StatBoni): Base
 
 // Ressourcen-Eingabe (LE/AUS/AsE) mit Item-Boni überlagert. Der Bonus geht in
 // `permanent` — die Seite, die den tatsächlichen Vorrat bildet (ergebnis =
-// vor + raceBase + permanent + kauf, siehe computeResource) und die einzige,
-// die eine spätere Entfernung der Ausbaugrenze überlebt. Der Parallel-Eintrag
-// in `maxPlus` ist NUR nötig, solange die Ausbaugrenze (max = … + kaufMax +
-// maxPlus, nutzbar = min(ergebnis, max)) noch existiert — ohne ihn würde der
-// Hard-Cap den frischen Bonus sofort wieder wegkappen. Fällt die Ausbaugrenze
-// (geplant, siehe TODO.md), fällt dieser zweite Schreibzugriff ersatzlos weg.
+// vor + raceBase + permanent + kauf, siehe computeResource).
 export function resourceInputMitBoni(input: ResourceInput, key: ResourceKey, boni: StatBoni): ResourceInput {
   const bonus = boni.resources[key] ?? 0;
   if (!bonus) return input;
-  return { ...input, permanent: input.permanent + bonus, maxPlus: input.maxPlus + bonus };
+  return { ...input, permanent: input.permanent + bonus };
 }
 
 // Spezialenergie mit Item-Bonus überlagert — wirkt nur, wenn der Katalog-

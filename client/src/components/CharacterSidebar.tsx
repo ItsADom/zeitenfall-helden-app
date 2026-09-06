@@ -162,12 +162,12 @@ function SidebarPools() {
         {RESOURCE_KEYS.map((key) => {
           const r = computeResource(attributesEff, key, resourceInputMitBoni(resources[key], key, stats));
           const akt = resources[key].aktuell;
-          const cls = poolClass(key, akt, r.nutzbar);
-          const prozent = r.nutzbar > 0 ? Math.round((akt / r.nutzbar) * 100) : null;
+          const cls = poolClass(key, akt, r.ergebnis);
+          const prozent = r.ergebnis > 0 ? Math.round((akt / r.ergebnis) * 100) : null;
           return (
             <div className={`side-pool${cls ? ` ${cls}` : ''}`} key={key}>
               <PoolHead label={RES_ABBR[key]} title={RES_FULL[key]} prozent={prozent} />
-              <AktuellFeld value={akt} max={r.nutzbar} onChange={(v) => setAktuell(key, v)} />
+              <AktuellFeld value={akt} max={r.ergebnis} onChange={(v) => setAktuell(key, v)} />
             </div>
           );
         })}

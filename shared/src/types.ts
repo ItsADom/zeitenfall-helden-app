@@ -89,34 +89,25 @@ export const RESOURCE_LABELS: Record<ResourceKey, { label: string; formel: strin
 };
 
 // Spaltennamen der Energien-Tabellen — eine Stelle für Heldenbrief und Summary,
-// damit die Namen nicht auseinanderlaufen.
-//
-// Die vier Eingaben bilden ein Kreuz aus Herkunft und Ziel:
-//
-//                  → Maximum      → Ausbaugrenze
-//   Bonus          permanent      maxPlus
-//   gekauft (AP)   kauf           kaufMax
-//
-// Deshalb steht das Ziel in der Gruppenzeile und die Herkunft in der Spalte.
-// Die Paare je Ziel dürfen NICHT zusammengefasst werden, auch wenn die Formel
-// sie nur addiert: die Trennung ist der Nachweis, was mit Abenteuerpunkten
-// gekauft wurde. (Bei der MR gab es diesen Grund nicht — sie wurde deshalb zu
-// einem einzelnen Basiswert-Modifikator zusammengelegt.)
+// damit die Namen nicht auseinanderlaufen. Bonus (permanent) und Gekauft (AP)
+// bleiben getrennte Spalten, auch wenn die Formel sie nur addiert: die
+// Trennung ist der Nachweis, was mit Abenteuerpunkten gekauft wurde. (Bei der
+// MR gab es diesen Grund nicht — sie wurde deshalb zu einem einzelnen
+// Basiswert-Modifikator zusammengelegt.) Es gab früher eine zweite,
+// gespiegelte Spaltengruppe "Ausbaugrenze / Hard-Cap" (maxPlus/kaufMax) neben
+// dieser hier — entfernt, siehe TODO.md "remove hard-caps".
 export const RESOURCE_COLUMN_LABELS = {
   formelwert: 'Formelwert',
   bonus: 'Bonus',
   gekauft: 'Gekauft',
   summe: 'Summe',
   maximum: 'Maximum',
-  ausbaugrenze: 'Ausbaugrenze / Hard-Cap',
   aktuell: 'Aktuell',
 } as const;
 
 export interface ResourceInput {
   permanent: number;
   kauf: number;
-  kaufMax: number;
-  maxPlus: number;
   aktuell: number;
   besonderes: string;
   // Rassenbonus (races_catalog.le/.au/.ae) — additiv zum Formelwert, vorbelegt
@@ -137,7 +128,7 @@ export type Resources = Record<ResourceKey, ResourceInput>;
 // Hat der Katalog-Eintrag eine Formel, wird das gespeicherte `max` NICHT
 // benutzt — es wird wie LE/AUS/AsE bei jedem Rendern live aus den Attributen/
 // Pools neu berechnet PLUS `bonus` (evaluateEnergyFormula in rules.ts), analog
-// zu Bonus/maxPlus bei LE/AUS/AsE — ein Talent/Gegenstand, der NUR diese eine
+// zu Bonus bei LE/AUS/AsE — ein Talent/Gegenstand, der NUR diese eine
 // Energie anhebt, ohne die Formel selbst zu ändern. Hat der Eintrag KEINE
 // Formel (oder `catalogId` ist `null`), bleibt `max` frei vom Spieler
 // editierbar wie bisher und `bonus` ist ungenutzt (0, keine eigene Eingabe —
