@@ -3208,12 +3208,12 @@ li {
 /* Gegenstands-Chip: ziehbare Kachel mit Name, Menge, Gewicht. */
 .item-chip {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 2px;
   max-width: 100%;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--surface);
   font-size: 13px;
   cursor: grab;
