@@ -199,12 +199,14 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-09-02',
-    title: '',
+    date: '2026-09-06',
+    title: 'Ach du meine Token!',
+    version: '0.10.0',
     added: [
       'Der Spezialenergien-Katalog kann jetzt auch festhalten, wie sich eine Energie regeneriert und wie sie in normale Energien (LE/AUS/AsE) umgerechnet wird. Beides erscheint auf dem Heldenbrief direkt neben der jeweiligen Energie.',
       'Ein Gegenstand, der zuletzt aus dem Inventar eines Charakters ins Gruppeninventar verschoben wurde, zeigt jetzt einen kleinen Hinweis „von …“ mit dem Namen dieses Charakters — praktisch, um zu sehen, wer zuletzt etwas beigesteuert hat.',
       'Neben der Kooperationsprobe gibt es jetzt einen Wettstreit (/wettstreit oder /contest im Würfel-Chat).',
+      'Ein neues Icon zeigt jetzt dezent an, wenn gerade niemand auf seinen Monitor schaut.',
       'Ein Charakter kann jetzt ein eigenes Bild für seine Marke auf dem virtuellen Tisch hochladen (Einstellungen → „VTT-Marken-Bild“) — getrennt vom Porträt, z. B. für einen Top-down-Render einer eigenen Miniatur. Ohne eigenes Bild zeigt die Marke weiterhin Initialen in Charakterfarbe.',
       'Marker-/Monster-Marken auf dem virtuellen Tisch können jetzt ein Bild aus einer mitgelieferten Bildersammlung bekommen, statt nur Initialen oder einem einzelnen Emoji zu zeigen — beim Bearbeiten einer Marke über „Bild“ mit Suche und Kategorien auswählbar.',
     ],
