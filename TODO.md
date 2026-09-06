@@ -59,10 +59,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- equipment presets
-  - e.g. a set for leisure, a set for combat etc.
-  - this could also need tracking for these items inside group inventories (needs dicsussion)
-
 - [ready] **Percentage bonus for energies, and what "Filtern" actually is**
   (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
   first real mechanic). Lore: Astralenergie is made of 8 base elements;

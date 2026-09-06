@@ -51,6 +51,7 @@ import {
   instantiateStandardSections,
   loadAbilities,
   loadAbilityLists,
+  loadEquipmentPresets,
   loadFullCharacter,
   loadItemCategories,
   loadItemCategoriesForOwner,
@@ -78,6 +79,7 @@ import {
   manageHouses,
   manageRoomsForHouse,
   saveAbilities,
+  saveEquipmentPresets,
   saveItemCategories,
   saveItemCategoriesForOwner,
   seedItemCategoriesForOwner,
@@ -1315,6 +1317,16 @@ api.put('/characters/:id/pouches', requireAuth, (req, res) => {
   if (!char) return;
   savePouches(char.id, req.body);
   res.json({ pouches: loadPouches(char.id) });
+});
+
+// Ausrüstungs-Sets (docs/concepts/equipment-presets.md) — ganze Liste
+// ersetzen, wie /pouches; Anwenden selbst läuft NICHT hierüber, sondern über
+// den normalen Items-Op-Pfad (/items/ops), siehe Ausruestung.tsx.
+api.put('/characters/:id/equipment-presets', requireAuth, (req, res) => {
+  const char = editableChar(req, res);
+  if (!char) return;
+  saveEquipmentPresets(char.id, req.body);
+  res.json({ equipmentPresets: loadEquipmentPresets(char.id) });
 });
 
 api.put('/characters/:id/item-categories', requireAuth, (req, res) => {

@@ -201,6 +201,9 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-06',
     title: 'Ausbaugrenze gefallen',
+    added: [
+      'Ausrüstungs-Sets: über „Sets“ im Ausrüstungs-Reiter lässt sich der aktuell getragene Zustand unter einem Namen speichern (z. B. „Freizeit“, „Kampf“) und später per Klick wieder anlegen — alles, was nicht zum Set gehört, wird dabei automatisch abgelegt.',
+    ],
     changed: [
       'Der Hard-Cap (die „Ausbaugrenze") auf Lebensenergie, Ausdauer und Astralenergie ist komplett entfallen — sie lassen sich jetzt uneingeschränkt weiter steigern. Die entsprechende zweite Spaltengruppe in der Energien-Tabelle ist damit auch verschwunden.',
       'Die Notiz eines Gegenstands kann jetzt mehrzeilig eingegeben werden, statt nur in eine einzelne Zeile zu passen.',

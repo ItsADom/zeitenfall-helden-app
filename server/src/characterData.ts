@@ -64,6 +64,7 @@ import type {
   KapazitaetArt,
   DynColumn,
   EnergyFormulaVars,
+  EquipmentPreset,
   ExternalAttrPoint,
   Item,
   ItemBonus,
@@ -917,6 +918,7 @@ export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
     abilities: loadAbilities(charId),
     abilityLists: loadAbilityLists(charId),
     pouches: loadPouches(charId),
+    equipmentPresets: loadEquipmentPresets(charId),
   };
 }
 
@@ -1528,6 +1530,69 @@ export function savePouches(charId: number, raw: unknown): void {
         | undefined;
       insertOne({ systemId: firstSystem?.id ?? null, coins: {} }, true);
     }
+  });
+  tx();
+}
+
+// --- Ausrüstungs-Sets (docs/concepts/equipment-presets.md) ---
+//
+// Immer character-only (siehe db.ts-Kommentar) — kein owner_type/owner_id-
+// Paar nötig. Ganze Liste ersetzen wie savePouches: Delete+Insert, kein
+// Ops-Mechanismus, weil ein Charakter-eigenes Set nicht wie char_items
+// nebenläufig von zwei Betrachtern zugleich bearbeitet wird.
+
+const MAX_EQUIPMENT_PRESETS = 20;
+const MAX_EQUIPMENT_PRESET_ITEMS = 200;
+const MAX_PRESET_NAME = 100;
+
+export function loadEquipmentPresets(charId: number): EquipmentPreset[] {
+  const presets = db
+    .prepare('SELECT id, name FROM char_equipment_presets WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as { id: number; name: string }[];
+  const itemRows = db
+    .prepare(
+      `SELECT pi.preset_id, pi.item_uid, pi.item_name, pi.zone, pi.beidseitig
+       FROM char_equipment_preset_items pi
+       JOIN char_equipment_presets p ON p.id = pi.preset_id
+       WHERE p.character_id = ?
+       ORDER BY pi.pos, pi.id`,
+    )
+    .all(charId) as { preset_id: number; item_uid: string; item_name: string; zone: string; beidseitig: number }[];
+  const itemsByPreset = new Map<number, EquipmentPreset['items']>();
+  for (const r of itemRows) {
+    const arr = itemsByPreset.get(r.preset_id) ?? [];
+    arr.push({ itemUid: r.item_uid, itemName: r.item_name, zone: r.zone, beidseitig: !!r.beidseitig });
+    itemsByPreset.set(r.preset_id, arr);
+  }
+  return presets.map((p) => ({ id: p.id, name: p.name, items: itemsByPreset.get(p.id) ?? [] }));
+}
+
+export function saveEquipmentPresets(charId: number, raw: unknown): void {
+  const arr = Array.isArray(raw) ? (raw as Record<string, unknown>[]).slice(0, MAX_EQUIPMENT_PRESETS) : [];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_equipment_presets WHERE character_id = ?').run(charId);
+    const insPreset = db.prepare('INSERT INTO char_equipment_presets (character_id, pos, name) VALUES (?, ?, ?)');
+    const insItem = db.prepare(
+      'INSERT INTO char_equipment_preset_items (preset_id, pos, item_uid, item_name, zone, beidseitig) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    arr.forEach((rawPreset, pos) => {
+      const o = (rawPreset ?? {}) as Record<string, unknown>;
+      const name = String(o.name ?? '').slice(0, MAX_PRESET_NAME);
+      const presetId = Number(insPreset.run(charId, pos, name).lastInsertRowid);
+      const rawItems = Array.isArray(o.items) ? (o.items as Record<string, unknown>[]).slice(0, MAX_EQUIPMENT_PRESET_ITEMS) : [];
+      rawItems.forEach((rawItem, ipos) => {
+        const io = (rawItem ?? {}) as Record<string, unknown>;
+        const itemUid = String(io.itemUid ?? '').slice(0, 64);
+        // Eine Zeile ohne uid ist nutzlos (nichts, das sie beim Anwenden
+        // träfe) — gar nicht erst speichern statt eine leere Geisterzeile.
+        if (!itemUid) return;
+        const itemName = String(io.itemName ?? '').slice(0, MAX_ITEM_TEXT);
+        const zoneRaw = String(io.zone ?? '');
+        const zone = ZONE_SET.has(zoneRaw) ? zoneRaw : '';
+        const beidseitig = isPairedZone(zone) && io.beidseitig ? 1 : 0;
+        insItem.run(presetId, ipos, itemUid, itemName, zone, beidseitig);
+      });
+    });
   });
   tx();
 }

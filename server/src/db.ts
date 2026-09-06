@@ -340,6 +340,41 @@ db.exec(`
     PRIMARY KEY (pouch_id, denomination_id)
   );
 
+  -- Ausrüstungs-Sets (docs/concepts/equipment-presets.md): ein benannter
+  -- Schnappschuss, welche Items ein Charakter getragen hat (uid+Zone+
+  -- beidseitig) — Anwenden ist ein reiner Client-Vorgang (Ausruestung.tsx
+  -- berechnet die neue Item-Liste und speichert sie über den normalen
+  -- Items-Op-Pfad), diese beiden Tabellen halten nur die gespeicherten Sets
+  -- selbst. Anders als char_items/char_pouches braucht das KEIN
+  -- owner_type/owner_id-Paar: ein Set gehört immer und ausschließlich einem
+  -- Charakter (nie einer Gruppe oder dem SL-Vorrat, bewusst außerhalb des
+  -- Konzepts gehalten), also ein echter FK mit ON DELETE CASCADE wie bei
+  -- character_visibility oben.
+  CREATE TABLE IF NOT EXISTS char_equipment_presets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_equipment_presets_char ON char_equipment_presets(character_id, pos);
+  -- item_uid ist bewusst KEIN Fremdschlüssel — dieselbe Begründung wie
+  -- char_items.container_uid: Identität läuft über die client-vergebene uid,
+  -- nicht die DB-id, und ein ins Leere zeigender Verweis (Item gelöscht oder
+  -- per Cross-Owner-Move weggezogen) ist ein erwarteter, im Client behandelter
+  -- Fall (übersprungen + Hinweis vor dem Anwenden), keine Constraint-Verletzung.
+  -- item_name ist ein Schnappschuss-Cache vom Speicherzeitpunkt, einzig für
+  -- diesen Hinweistext — nie mechanisch gelesen.
+  CREATE TABLE IF NOT EXISTS char_equipment_preset_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    preset_id INTEGER NOT NULL REFERENCES char_equipment_presets(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    item_uid TEXT NOT NULL DEFAULT '',
+    item_name TEXT NOT NULL DEFAULT '',
+    zone TEXT NOT NULL DEFAULT '',
+    beidseitig INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_equipment_preset_items_preset ON char_equipment_preset_items(preset_id);
+
   -- Freitext-GM-Notiz je Charakter: bewusst eigene Tabelle statt char_bio
   -- (dort hat der Besitzer 'edit'-Zugriff) — nur der Spielleiter sieht/ändert
   -- das, unabhängig von der Sichtbarkeits-/Bearbeitungsrechten des Heldenbriefs.

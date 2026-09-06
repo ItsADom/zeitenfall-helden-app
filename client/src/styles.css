@@ -3146,6 +3146,42 @@ li {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Flyout wie
+   .vtt-tile-picker (gleiche Panel-Optik), aber am eigenen Auslöser-Knopf
+   verankert statt an einer festen Position im VTT-Toolbar-Rahmen. */
+.equip-preset-anchor {
+  position: relative;
+}
+.equip-preset-flyout {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  z-index: 6;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.equip-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.equip-preset-row .text-input,
+.equip-preset-row .static-text {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Körperzonen-Raster: kompakte Kacheln, je eine Zone mit Titel + Wurf-Bereich. */
 .zone-grid {
   display: grid;
