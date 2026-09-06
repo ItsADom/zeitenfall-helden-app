@@ -213,6 +213,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Ausrüstungskarten mit langem oder mehrzeiligem Namen zeigten ihre Zusatz-Symbole (Rüstungsschutz, Boni, Zustand) verrutscht an und wurden von den stark abgerundeten Ecken der Karte beschnitten.',
       'Das Ausklappen einer langen Notiz im Inventar über „…“ öffnete versehentlich zusätzlich den Bearbeiten-Dialog des Gegenstands.',
       'Eine vorgeschlagene Kooperationsprobe oder ein Wettstreit scrollte den Würfel-Chat nicht ans Ende — anders als jede neue Nachricht oder Probenanfrage.',
+      'Ein Klick auf eine Marke bei aktivem Mess-, Bemal-, Hervorheb-, Nebel- oder Beschriften-Werkzeug verschob versehentlich die Marke, statt das Werkzeug dort anzusetzen.',
     ],
   },
   {

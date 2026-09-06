@@ -1838,6 +1838,12 @@ function MapCanvas({
   };
 
   const startTokenDrag = (e: React.PointerEvent, token: BoardToken) => {
+    // Jedes ANDERE Werkzeug (Bemalen/Hervorheben/Nebel/Messen/Beschriften)
+    // muss auf den Zellen unter einer Marke wirken können — ohne
+    // stopPropagation bubbelt das Event zum Wrap hoch (onWrapPointerDown),
+    // genau als stünde die Marke gar nicht im Weg (derselbe Kniff wie bei
+    // startImageDrag).
+    if (tool !== 'select') return;
     // Rechtsklick verschiebt/wählt nicht — ein Rechtsklick OHNE Ziehen öffnet
     // stattdessen das Kontextmenü (siehe onContextMenu am selben <g> unten,
     // ein separates Browser-Event, das unabhängig von diesem Abbruch feuert).
