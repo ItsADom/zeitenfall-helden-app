@@ -200,13 +200,14 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-06',
-    title: 'Kleine Ausrüstungs-Politur',
+    title: 'Kleine Politur',
     changed: [
       'Die Notiz eines Gegenstands kann jetzt mehrzeilig eingegeben werden, statt nur in eine einzelne Zeile zu passen.',
     ],
     fixed: [
       'Ausrüstungskarten mit langem oder mehrzeiligem Namen zeigten ihre Zusatz-Symbole (Rüstungsschutz, Boni, Zustand) verrutscht an und wurden von den stark abgerundeten Ecken der Karte beschnitten.',
       'Das Ausklappen einer langen Notiz im Inventar über „…“ öffnete versehentlich zusätzlich den Bearbeiten-Dialog des Gegenstands.',
+      'Eine vorgeschlagene Kooperationsprobe oder ein Wettstreit scrollte den Würfel-Chat nicht ans Ende — anders als jede neue Nachricht oder Probenanfrage.',
     ],
   },
   {
