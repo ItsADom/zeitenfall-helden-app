@@ -378,7 +378,7 @@ function validateMeasureData(raw: unknown): MeasureOverlayData | null {
   const d = raw as Record<string, unknown> | null;
   if (!d || typeof d.kind !== 'string') return null;
   const extra = measureLabelColor(d);
-  if (d.kind === 'ruler' || d.kind === 'rectangle') {
+  if (d.kind === 'ruler' || d.kind === 'trail' || d.kind === 'rectangle') {
     const from = measurePoint(d.from);
     const to = measurePoint(d.to);
     if (!from || !to) return null;

@@ -36,6 +36,7 @@ type MeasureOverlay = Extract<BoardOverlay, { kind: 'measure' }>;
 const CONE_SPREAD_DEFAULT = 60;
 const MEASURE_KIND_LABEL: Record<MeasureOverlayData['kind'], string> = {
   ruler: 'Linie',
+  trail: 'Schrittzähler',
   circle: 'Kreis',
   rectangle: 'Rechteck',
   cone: 'Kegel',
@@ -110,6 +111,7 @@ function buildMeasureData(
   coneSpread: number,
 ): MeasureOverlayData {
   if (kind === 'ruler') return { kind: 'ruler', from: origin, to: current };
+  if (kind === 'trail') return { kind: 'trail', from: origin, to: current };
   if (kind === 'rectangle') return { kind: 'rectangle', from: origin, to: current };
   const dx = current.x - origin.x;
   const dy = current.y - origin.y;
@@ -121,24 +123,21 @@ function buildMeasureData(
 function shiftMeasureData(base: MeasureOverlayData, dx: number, dy: number): MeasureOverlayData {
   // Immer von `base` spreaden statt die Form neu zu bauen — sonst gehen
   // optionale Felder (label/color) bei jedem Verschieben verloren.
-  if (base.kind === 'ruler' || base.kind === 'rectangle') {
+  if (base.kind === 'ruler' || base.kind === 'trail' || base.kind === 'rectangle') {
     return { ...base, from: { x: base.from.x + dx, y: base.from.y + dy }, to: { x: base.to.x + dx, y: base.to.y + dy } };
   }
   return { ...base, origin: { x: base.origin.x + dx, y: base.origin.y + dy } };
 }
 
 /**
- * Ein Lineal auf eine exakte Länge (Chebyshev, siehe gridDistance) setzen —
- * `from` bleibt der Anker, `to` wird entlang der bestehenden Richtung neu
- * skaliert. Ziehen auf genau 5 Schritt ist fummelig, Eintippen nicht (siehe
- * MeasureEditor). Ohne Richtung (from === to, sollte über die UI nicht
- * vorkommen) fällt das auf eine waagerechte Linie zurück, statt eine 0er-
- * Division zu erzeugen.
+ * Ein Lineal (oder ein Schrittzähler — identische from/to-Form) auf eine
+ * exakte Länge (Chebyshev, siehe gridDistance) setzen — `from` bleibt der
+ * Anker, `to` wird entlang der bestehenden Richtung neu skaliert. Ziehen auf
+ * genau 5 Schritt ist fummelig, Eintippen nicht (siehe MeasureEditor). Ohne
+ * Richtung (from === to, sollte über die UI nicht vorkommen) fällt das auf
+ * eine waagerechte Linie zurück, statt eine 0er-Division zu erzeugen.
  */
-function resizeRulerLength(
-  base: Extract<MeasureOverlayData, { kind: 'ruler' }>,
-  length: number,
-): Extract<MeasureOverlayData, { kind: 'ruler' }> {
+function resizeRulerLength<T extends Extract<MeasureOverlayData, { kind: 'ruler' | 'trail' }>>(base: T, length: number): T {
   const dx = base.to.x - base.from.x;
   const dy = base.to.y - base.from.y;
   const current = Math.max(Math.abs(dx), Math.abs(dy));
@@ -166,7 +165,7 @@ type CellBounds = { minX: number; minY: number; maxX: number; maxY: number };
  * genau genug für den einzigen Zweck: die Kamera darf bis dorthin schwenken.
  */
 function measureOverlayBounds(data: MeasureOverlayData): CellBounds {
-  if (data.kind === 'ruler' || data.kind === 'rectangle') {
+  if (data.kind === 'ruler' || data.kind === 'trail' || data.kind === 'rectangle') {
     return {
       minX: Math.min(data.from.x, data.to.x), minY: Math.min(data.from.y, data.to.y),
       maxX: Math.max(data.from.x, data.to.x), maxY: Math.max(data.from.y, data.to.y),
@@ -228,7 +227,7 @@ function computeContentBounds(cols: number, rows: number, tokens: BoardToken[], 
  * bzw. die eigene Blickrichtung `angle`) und ziehen von dort aus.
  */
 function measureHandlePoint(data: MeasureOverlayData): { x: number; y: number } {
-  if (data.kind === 'ruler' || data.kind === 'rectangle') return data.to;
+  if (data.kind === 'ruler' || data.kind === 'trail' || data.kind === 'rectangle') return data.to;
   if (data.kind === 'circle') return { x: data.origin.x + data.radius, y: data.origin.y };
   const rad = (data.angle * Math.PI) / 180;
   return { x: data.origin.x + data.length * Math.cos(rad), y: data.origin.y + data.length * Math.sin(rad) };
@@ -244,7 +243,7 @@ function measureHandlePoint(data: MeasureOverlayData): { x: number; y: number } 
  * nicht über das hinauswachsen, was der Server ohnehin zurechtstutzen würde.
  */
 function resizeMeasureData(base: MeasureOverlayData, target: { x: number; y: number }): MeasureOverlayData {
-  if (base.kind === 'ruler' || base.kind === 'rectangle') return { ...base, to: target };
+  if (base.kind === 'ruler' || base.kind === 'trail' || base.kind === 'rectangle') return { ...base, to: target };
   if (base.kind === 'circle') {
     const radius = Math.min(50, Math.max(0.15, Math.hypot(target.x - base.origin.x, target.y - base.origin.y)));
     return { ...base, radius };
@@ -277,6 +276,11 @@ interface MeasureEls {
   // ohne eigenen Ref bliebe er während eines laufenden Zugs zurück, statt live
   // mitzuwandern.
   centerEl?: SVGCircleElement | null;
+  // Schrittzähler: fester Pool aus MAX_TRAIL_CELLS Quadrat+Zahl-Paaren, exakt
+  // dasselbe Muster wie der Marken-Zieh-Trail (trailElsRef) — nur hier EIN
+  // Pool je Messform statt einem einzigen globalen, weil mehrere Schrittzähler
+  // gleichzeitig auf dem Brett stehen können.
+  trailCellEls?: ({ rectEl: SVGRectElement | null; textEl: SVGTextElement | null } | undefined)[];
 }
 
 /**
@@ -294,7 +298,7 @@ function measureCenterPoint(data: MeasureOverlayData): { x: number; y: number } 
 /** Position des optionalen Benutzer-Labels — dieselbe Formel wie im JSX unten (siehe labelEl), hier geteilt, damit writeMeasureVisual sie beim Ziehen/Skalieren live nachschreiben kann. */
 function measureLabelPos(data: MeasureOverlayData): { x: number; y: number } {
   if (data.kind === 'rectangle') return { x: ((data.from.x + data.to.x) / 2) * CELL_PX, y: ((data.from.y + data.to.y) / 2) * CELL_PX };
-  if (data.kind === 'ruler') return { x: ((data.from.x + data.to.x) / 2) * CELL_PX, y: ((data.from.y + data.to.y) / 2) * CELL_PX - 14 };
+  if (data.kind === 'ruler' || data.kind === 'trail') return { x: ((data.from.x + data.to.x) / 2) * CELL_PX, y: ((data.from.y + data.to.y) / 2) * CELL_PX - 14 };
   if (data.kind === 'circle') return { x: data.origin.x * CELL_PX, y: data.origin.y * CELL_PX - data.radius * CELL_PX - 8 };
   return { x: data.origin.x * CELL_PX, y: data.origin.y * CELL_PX - 8 };
 }
@@ -322,6 +326,36 @@ function writeMeasureVisual(data: MeasureOverlayData, els: MeasureEls): void {
       els.textEl.setAttribute('x', String(((data.from.x + data.to.x) / 2) * CELL_PX));
       els.textEl.setAttribute('y', String(((data.from.y + data.to.y) / 2) * CELL_PX));
       els.textEl.textContent = `${gridDistance(data.from, data.to).toFixed(1)} Schritt`;
+    }
+    return;
+  }
+  if (data.kind === 'trail') {
+    // Ganzzahlige Zellindizes für chebyshevPath — from/to selbst bleiben
+    // kontinuierlich (derselbe freie Zug wie beim Lineal), gerundet wird nur
+    // hier fürs Nummerieren, dieselbe Rundung wie beim Marken-Zieh-Trail.
+    const path = chebyshevPath(
+      { x: Math.round(data.from.x), y: Math.round(data.from.y) },
+      { x: Math.round(data.to.x), y: Math.round(data.to.y) },
+    );
+    const cellEls = els.trailCellEls;
+    if (cellEls) {
+      for (let i = 0; i < MAX_TRAIL_CELLS; i++) {
+        const c = cellEls[i];
+        if (!c?.rectEl || !c.textEl) continue;
+        if (i < path.length) {
+          const cell = path[i];
+          c.rectEl.style.display = '';
+          c.rectEl.setAttribute('x', String(cell.x * CELL_PX));
+          c.rectEl.setAttribute('y', String(cell.y * CELL_PX));
+          c.textEl.style.display = '';
+          c.textEl.setAttribute('x', String((cell.x + 0.5) * CELL_PX));
+          c.textEl.setAttribute('y', String((cell.y + 0.5) * CELL_PX));
+          c.textEl.textContent = String(i);
+        } else {
+          c.rectEl.style.display = 'none';
+          c.textEl.style.display = 'none';
+        }
+      }
     }
     return;
   }
@@ -1639,7 +1673,7 @@ function MapCanvas({
     // mindestens ein Feld ergab.
     if (data.kind === 'circle' && data.radius < 0.15) return;
     if (data.kind === 'cone' && data.length < 0.15) return;
-    if (data.kind === 'ruler' && gridDistance(data.from, data.to) < 0.15) return;
+    if ((data.kind === 'ruler' || data.kind === 'trail') && gridDistance(data.from, data.to) < 0.15) return;
     if (data.kind === 'rectangle' && Math.hypot(data.to.x - data.from.x, data.to.y - data.from.y) < 0.15) return;
     createOverlay('measure', data);
   };
@@ -2931,6 +2965,66 @@ function MapCanvas({
                       </text>
                       {labelEl}
                     </>
+                  ) : data.kind === 'trail' ? (
+                    <>
+                      {/* Fester Pool aus MAX_TRAIL_CELLS Quadrat+Zahl-Paaren,
+                          genau wie der Marken-Zieh-Trail (trailElsRef) — hier
+                          aber als PERSISTENTE Messform, deshalb aus `data`
+                          direkt gerendert statt nur während eines Zugs
+                          gemountet. Zellen jenseits des tatsächlichen Pfads
+                          bleiben display:none. */}
+                      {(() => {
+                        const path = chebyshevPath(
+                          { x: Math.round(data.from.x), y: Math.round(data.from.y) },
+                          { x: Math.round(data.to.x), y: Math.round(data.to.y) },
+                        );
+                        return Array.from({ length: MAX_TRAIL_CELLS }, (_, i) => {
+                        const cell = path[i];
+                        return (
+                          <g key={i} style={{ display: cell ? '' : 'none' }}>
+                            <rect
+                              ref={(el) => {
+                                const els = measureElsRef.current.get(o.id) ?? {};
+                                const arr = els.trailCellEls ?? [];
+                                arr[i] = { rectEl: el, textEl: arr[i]?.textEl ?? null };
+                                els.trailCellEls = arr;
+                                measureElsRef.current.set(o.id, els);
+                              }}
+                              x={(cell?.x ?? 0) * CELL_PX}
+                              y={(cell?.y ?? 0) * CELL_PX}
+                              width={CELL_PX}
+                              height={CELL_PX}
+                              fill={fill}
+                              stroke={stroke}
+                              strokeWidth={1.5}
+                            />
+                            <text
+                              ref={(el) => {
+                                const els = measureElsRef.current.get(o.id) ?? {};
+                                const arr = els.trailCellEls ?? [];
+                                arr[i] = { rectEl: arr[i]?.rectEl ?? null, textEl: el };
+                                els.trailCellEls = arr;
+                                measureElsRef.current.set(o.id, els);
+                              }}
+                              x={((cell?.x ?? 0) + 0.5) * CELL_PX}
+                              y={((cell?.y ?? 0) + 0.5) * CELL_PX}
+                              textAnchor="middle"
+                              dominantBaseline="central"
+                              fontSize={13}
+                              fontWeight={700}
+                              fill="var(--text)"
+                              stroke="var(--panel)"
+                              strokeWidth={3}
+                              paintOrder="stroke"
+                            >
+                              {i}
+                            </text>
+                          </g>
+                        );
+                        });
+                      })()}
+                      {labelEl}
+                    </>
                   ) : data.kind === 'circle' ? (
                     <>
                       <circle
@@ -3072,6 +3166,48 @@ function MapCanvas({
                   >
                     0 Schritt
                   </text>
+                </>
+              ) : measureDraftKind === 'trail' ? (
+                <>
+                  {/* Derselbe feste Pool wie bei einer bestehenden Trail-Form
+                      (siehe trailCellEls oben) — nur zu Zugbeginn komplett
+                      verborgen, onMeasurePointerMove blendet die ersten
+                      Zellen über writeMeasureVisual erst ein. */}
+                  {Array.from({ length: MAX_TRAIL_CELLS }, (_, i) => (
+                    <g key={i}>
+                      <rect
+                        ref={(el) => {
+                          if (!measureDragRef.current) return;
+                          const arr = measureDragRef.current.trailCellEls ?? [];
+                          arr[i] = { rectEl: el, textEl: arr[i]?.textEl ?? null };
+                          measureDragRef.current.trailCellEls = arr;
+                        }}
+                        width={CELL_PX}
+                        height={CELL_PX}
+                        fill={MEASURE_FILL}
+                        stroke={MEASURE_STROKE}
+                        strokeWidth={1.5}
+                        style={{ display: 'none' }}
+                      />
+                      <text
+                        ref={(el) => {
+                          if (!measureDragRef.current) return;
+                          const arr = measureDragRef.current.trailCellEls ?? [];
+                          arr[i] = { rectEl: arr[i]?.rectEl ?? null, textEl: el };
+                          measureDragRef.current.trailCellEls = arr;
+                        }}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        fontSize={13}
+                        fontWeight={700}
+                        fill="var(--text)"
+                        stroke="var(--panel)"
+                        strokeWidth={3}
+                        paintOrder="stroke"
+                        style={{ display: 'none' }}
+                      />
+                    </g>
+                  ))}
                 </>
               ) : measureDraftKind === 'circle' ? (
                 <circle
@@ -3731,7 +3867,9 @@ function MeasureEditor({
   const summary =
     data.kind === 'ruler'
       ? `${gridDistance(data.from, data.to).toFixed(1)} Schritt`
-      : data.kind === 'circle'
+      : data.kind === 'trail'
+        ? `${Math.round(gridDistance(data.from, data.to))} Schritte`
+        : data.kind === 'circle'
         ? `Radius ${data.radius.toFixed(1)} Schritt`
         : data.kind === 'rectangle'
           ? `${Math.abs(data.to.x - data.from.x).toFixed(1)} × ${Math.abs(data.to.y - data.from.y).toFixed(1)} Schritt`
@@ -3785,7 +3923,7 @@ function MeasureEditor({
           onCommit={(v) => onChange({ radius: v })}
         />
       )}
-      {data.kind === 'ruler' && (
+      {(data.kind === 'ruler' || data.kind === 'trail') && (
         <MeasureSizeField
           key={overlay.id}
           label="Länge"
@@ -4017,6 +4155,13 @@ const MEASURE_KIND_ICON: Record<MeasureOverlayData['kind'], ReactNode> = {
   ruler: (
     <svg viewBox="0 0 40 40" width={32} height={32} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
       <line x1="8" y1="30" x2="32" y2="10" />
+    </svg>
+  ),
+  trail: (
+    <svg viewBox="0 0 40 40" width={32} height={32} fill="none" stroke="currentColor" strokeWidth={2}>
+      <rect x="6" y="24" width="8" height="8" rx="1" />
+      <rect x="16" y="16" width="8" height="8" rx="1" />
+      <rect x="26" y="8" width="8" height="8" rx="1" />
     </svg>
   ),
   rectangle: (

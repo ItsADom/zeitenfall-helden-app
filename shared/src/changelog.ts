@@ -203,6 +203,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Item-Sets',
     added: [
       'Ausrüstungs-Sets: über „Sets“ im Ausrüstungs-Reiter lässt sich der aktuell getragene Zustand unter einem Namen speichern (z. B. „Freizeit“, „Kampf“) und später per Klick wieder anlegen — alles, was nicht zum Set gehört, wird dabei automatisch abgelegt.',
+      'Das Messen-Werkzeug auf dem virtuellen Tisch hat jetzt einen Schrittzähler: eine Linie ziehen zeigt jedes überquerte Feld einzeln nummeriert, statt nur eine Gesamtstrecke anzugeben.',
     ],
     changed: [
       'Der Hard-Cap (die „Ausbaugrenze") auf Lebensenergie, Ausdauer und Astralenergie ist komplett entfallen — sie lassen sich jetzt uneingeschränkt weiter steigern. Die entsprechende zweite Spaltengruppe in der Energien-Tabelle ist damit auch verschwunden.',
