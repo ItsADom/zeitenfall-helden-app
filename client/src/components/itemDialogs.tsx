@@ -428,6 +428,8 @@ export function AddItemDialog({
   categories,
   houses,
   roomsByHaus,
+  initialHaus,
+  initialRaum,
   initialMode = 'allgemein',
   item,
   talents,
@@ -448,6 +450,11 @@ export function AddItemDialog({
    * Charakter- und SL-Vorrat lassen beide weg, keine Häuser dort. */
   houses?: string[];
   roomsByHaus?: Record<string, string[]>;
+  /** Vorbelegung aus dem gerade aktiven Raum-Filter (PoolInventory) — nur im
+   * Anlegen-Modus wirksam (der `item`-Zweig unten seedet immer aus dem
+   * bestehenden Item). Bleibt im Dialog änderbar. */
+  initialHaus?: string;
+  initialRaum?: string;
   initialMode?: 'allgemein' | 'ausruestung' | 'waffe';
   /** Gesetzt → Bearbeiten-Modus für ein bestehendes Item statt Anlegen. */
   item?: Item;
@@ -550,8 +557,8 @@ export function AddItemDialog({
       setMode(initialMode);
       setName('');
       setKategorie('');
-      setHaus('');
-      setRaum('');
+      setHaus(initialHaus ?? '');
+      setRaum(initialRaum ?? '');
       setAnzahl(1);
       setGewicht(0);
       setRs(0);
@@ -570,7 +577,7 @@ export function AddItemDialog({
       setWaffenStats([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, item?.uid, initialMode]);
+  }, [open, item?.uid, initialMode, initialHaus, initialRaum]);
 
   const close = () => onClose();
 
@@ -894,21 +901,50 @@ export function AddItemDialog({
 export function AddContainerDialog({
   open,
   onClose,
+  houses,
+  roomsByHaus,
+  initialHaus,
+  initialRaum,
   onAdd,
 }: {
   open: boolean;
   onClose: () => void;
+  /** Houses (docs/concepts/houses.md): nur im Gruppeninventar gesetzt — blendet
+   * die Haus-/Raum-Felder ein, genau wie bei AddItemDialog. */
+  houses?: string[];
+  roomsByHaus?: Record<string, string[]>;
+  /** Vorbelegung aus dem gerade aktiven Raum-Filter (PoolInventory) — ein neu
+   * angelegter Behälter landet dort, wo man gerade hinschaut, statt immer
+   * „ohne Haus". Nur ein Vorschlag: bleibt im Dialog änderbar. */
+  initialHaus?: string;
+  initialRaum?: string;
   onAdd: (fields: Partial<Item>) => void;
 }) {
+  const hausListId = useId();
+  const raumListId = useId();
   const [name, setName] = useState('');
+  const [haus, setHaus] = useState('');
+  const [raum, setRaum] = useState('');
   const [gewicht, setGewicht] = useState(0);
   const [kapazitaet, setKapazitaet] = useState(0);
   const [kapazitaetArt, setKapazitaetArt] = useState<KapazitaetArt>('gewicht');
   const [gewichtsreduktion, setGewichtsreduktion] = useState(0);
   const [notiz, setNotiz] = useState('');
 
+  // Beim Öffnen aus dem aktiven Raum-Filter seeden — dasselbe Muster wie
+  // AddItemDialogs Seed-Effekt (siehe dort), nur ohne `item`-Zweig, da dieser
+  // Dialog reine Anlage bleibt.
+  useEffect(() => {
+    if (!open) return;
+    setHaus(initialHaus ?? '');
+    setRaum(initialRaum ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialHaus, initialRaum]);
+
   const reset = () => {
     setName('');
+    setHaus('');
+    setRaum('');
     setGewicht(0);
     setKapazitaet(0);
     setKapazitaetArt('gewicht');
@@ -938,6 +974,9 @@ export function AddContainerDialog({
       kapazitaetArt,
       gewichtsreduktion: kapazitaetArt === 'stueck' ? 0 : gewichtsreduktion,
       notiz,
+      // Wie bei AddItemDialog: nur einbeziehen, wenn die Felder auch sichtbar
+      // waren (houses gesetzt) — sonst nie stillschweigend haus/raum setzen.
+      ...(houses ? { haus, raum: haus ? raum : '' } : {}),
     });
     close();
   };
@@ -967,6 +1006,40 @@ export function AddContainerDialog({
           onKeyDown={(e) => e.key === 'Enter' && commit()}
         />
       </label>
+
+      {houses && (
+        <div className="dlg-row2">
+          <label className="dlg-field">
+            Haus
+            <input
+              value={haus}
+              onChange={(e) => setHaus(e.target.value)}
+              placeholder="— ohne Haus —"
+              list={hausListId}
+            />
+            <datalist id={hausListId}>
+              {houses.map((h) => (
+                <option key={h} value={h} />
+              ))}
+            </datalist>
+          </label>
+          <label className="dlg-field">
+            Raum
+            <input
+              value={raum}
+              onChange={(e) => setRaum(e.target.value)}
+              disabled={!haus}
+              placeholder={haus ? '— ohne Raum —' : '— erst ein Haus wählen —'}
+              list={raumListId}
+            />
+            <datalist id={raumListId}>
+              {(roomsByHaus?.[haus] ?? []).map((r) => (
+                <option key={r} value={r} />
+              ))}
+            </datalist>
+          </label>
+        </div>
+      )}
 
       <div className="dlg-row2">
         <label className="dlg-field">

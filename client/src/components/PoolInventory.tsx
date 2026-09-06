@@ -227,6 +227,15 @@ export default function PoolInventory({
   const storageConts = allStorageConts.filter(passtZuRaum);
   const loose = allLoose.filter(passtZuRaum);
 
+  // Prefill item data on filter (developer request): a new top-level item/
+  // container should land where the Haus/Raum filter is currently looking,
+  // not always at "kein Haus". Only meaningful for top-level adds (+ Behälter,
+  // loose + Gegenstand) — an item added INTO a container never gets its own
+  // room (houses.md §3.3), so addItemFor below stays unaffected. "Alle Räume"
+  // has no single room to suggest, so raum is left unset in that case.
+  const prefillHaus = availableHouses ? (activeHaus === OHNE_HAUS ? '' : activeHaus) : undefined;
+  const prefillRaum = availableHouses && activeRaum !== ALLE_RAEUME ? activeRaum : undefined;
+
   const row = (it: Item, target: DropTarget, hint?: string) => (
     <tr
       key={it.uid}
@@ -463,13 +472,23 @@ export default function PoolInventory({
         </div>
       )}
 
-      <AddContainerDialog open={addContainerOpen} onClose={() => setAddContainerOpen(false)} onAdd={onAdd} />
+      <AddContainerDialog
+        open={addContainerOpen}
+        onClose={() => setAddContainerOpen(false)}
+        houses={houses}
+        roomsByHaus={roomsByHaus}
+        initialHaus={prefillHaus}
+        initialRaum={prefillRaum}
+        onAdd={onAdd}
+      />
       <AddItemDialog
         open={addLooseOpen}
         onClose={() => setAddLooseOpen(false)}
         categories={categories}
         houses={houses}
         roomsByHaus={roomsByHaus}
+        initialHaus={prefillHaus}
+        initialRaum={prefillRaum}
         talents={talents}
         specialEnergies={specialEnergies}
         isGm={isGm}
