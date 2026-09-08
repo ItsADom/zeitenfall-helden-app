@@ -360,8 +360,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 - FAQ - like a little manual or easy to miss features
 
-- **Notifications** let players know, when things have changed (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
-
 - **drop `char_portraits`** — portraits now live in `helden-assets.db`; the old
   table was deliberately kept as a read fallback (copied, not moved) so a
   rollback onto older code still shows portraits. Once a release has gone by

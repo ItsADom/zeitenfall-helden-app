@@ -210,7 +210,6 @@ export const CHANGELOG: ChangelogEntry[] = [
     changed: [
       'Waffenloser Kampf (Raufen/Ringen) zeigt sich im Waffen-Reiter jetzt als Karten wie echte Waffen, mit berechneter und direkt würfelbarer Attacke-/Parade-/Block-Probe sowie Schaden-Wurf, statt als schlichte Tabelle.',
       'Der Anlegen-/Bearbeiten-Dialog für Gegenstände führt jetzt als kleiner Assistent durch Art, Grunddaten, Eigenschaften, Füllverhalten und Boni/Notiz, statt alle Felder auf einmal zu zeigen — beim Bearbeiten eines bestehenden Gegenstands bleiben alle Schritte frei anklickbar.',
-      'Die Regeltabelle „Zauber erschaffen“ (in „Zauber & Fähigkeiten verwalten“) ist jetzt farblich gestaltet statt eine schlichte, unformatierte Tabelle.',
     ],
   },
   {
