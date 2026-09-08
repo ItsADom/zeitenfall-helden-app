@@ -1470,6 +1470,54 @@ table.sheet tbody tr:hover td.res-crit {
 table.sheet tbody tr:hover td.res-over {
   background: var(--over-soft);
 }
+
+/* Reine Lese-Regeltabelle (z. B. "Zauber erschaffen" in AbilityManager.tsx):
+   kein Eingabegitter, deshalb eigene Optik statt table.sheet (dessen Sticky-Kopf/
+   -Spalte für editierbare Datentabellen gedacht ist und hier nur störte). Trägt
+   Rahmen/Rundung selbst statt über .table-wrap, damit `overflow: hidden` fürs
+   Eckenrunden nicht mit der geteilten Sticky-Logik anderer Tabellen kollidiert. */
+.rules-table {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+.rules-table th,
+.rules-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rules-table thead th {
+  background: var(--surface-head);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border-strong);
+}
+.rules-table tbody tr:last-child th,
+.rules-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.rules-table tbody tr:nth-child(even) th,
+.rules-table tbody tr:nth-child(even) td {
+  background: var(--surface-sunken);
+}
+.rules-table tbody tr:hover th,
+.rules-table tbody tr:hover td {
+  background: var(--surface-hover);
+}
+.rules-table th[scope='row'] {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* Zell-eigenes Label: für Zeilen, deren Eingaben nicht zur geteilten Kopfzeile
    passen (z. B. Psyche mit Rassenwert/Bonus). Kleine, gedämpfte Aufschrift über
    dem Feld — der Tabellenkopf bleibt für alle anderen Zeilen unverändert.

@@ -356,16 +356,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   default-script field on `sprache`-kind catalog rows (or a join table), plus
   how to surface it in the UI (sub-label on the Sprachen row, auto-suggest in
   the Schriften table, …).
-- [sketch] **Spell creation table — theme it, make it feel less like a plain
-  table** (user feedback): `AbilityManager.tsx`'s "Regeltabelle: Zauber
-  erschaffen" panel (`SPELL_CREATION_ROWS`, ~line 12) renders as a plain
-  `<table className="sheet">` (3 cols, 8 static rows) with none of the app's
-  card/chip theming — unlike the rest of the same page's ability list, which
-  already uses the `abil-row`/`abil-compact` card pattern, or `WaffenNeu.tsx`'s
-  `.wpn-card` / `Ausruestung.tsx`'s `.item-chip` styling used elsewhere. Needs
-  a concept pass: restyle as themed table variant, or restructure as cards
-  (one per attribute row)?
-
 ## Unsorted ideas (treat all as [sketch])
 
 - FAQ - like a little manual or easy to miss features

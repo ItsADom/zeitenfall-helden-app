@@ -262,26 +262,24 @@ export default function AbilityManagerPage() {
           Wer im Spiel einen neuen Zauber erschafft, bespricht mit der Spielleitung Wirkung und Element, wählt dann
           passend zur Tabelle die Attribute für die Probe (und die Kosten) und probiert den Zauber im Spiel aus.
         </p>
-        <div className="table-wrap">
-          <table className="sheet">
-            <thead>
-              <tr>
-                <th>Attribut</th>
-                <th>Geschoss</th>
-                <th>Erschaffen</th>
+        <table className="rules-table">
+          <thead>
+            <tr>
+              <th>Attribut</th>
+              <th>Geschoss</th>
+              <th>Erschaffen</th>
+            </tr>
+          </thead>
+          <tbody>
+            {SPELL_CREATION_ROWS.map((r) => (
+              <tr key={r.attribut}>
+                <th scope="row">{r.attribut}</th>
+                <td>{r.geschoss}</td>
+                <td>{r.erschaffen}</td>
               </tr>
-            </thead>
-            <tbody>
-              {SPELL_CREATION_ROWS.map((r) => (
-                <tr key={r.attribut}>
-                  <th scope="row">{r.attribut}</th>
-                  <td>{r.geschoss}</td>
-                  <td>{r.erschaffen}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       </CollapsiblePanel>
 
       {abilities.length === 0 && hasOldTab && (
