@@ -2,13 +2,17 @@ import { useState } from 'react';
 import { computeBaseValues, weaponProbe, weaponProbes } from '@shared/rules';
 import { attrsMitBoni, baseInputsMitBoni, talentMitBoni } from '@shared/items';
 import type { Item, WaffenStatFeld } from '@shared/items';
-import { makeItem, waffenStatWert, waffenStatZahl, waffenStatZeile, waffenStatsFuerArt } from '@shared/items';
-import { NOTIZ_KEY, listSectionById } from '@shared/sections';
-import type { ColumnDef } from '@shared/sections';
+import {
+  effektiverSchaden, handRs, istMunitionKategorie, kombiniereFormeln, makeItem, munitionFuer, munitionProbenBonusFuer, patchWaffenStat,
+  waffenStatWert, waffenStatZahl, waffenStatZeile, waffenStatsFuerArt,
+} from '@shared/items';
+import type { ProbeSource } from '@shared/diceProtocol';
+import { listSectionById } from '@shared/sections';
 import { CollapseChevron, CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import WeaponDamageRollButton from '../components/dice/WeaponDamageRollButton';
+import WaffenlosDamageRollButton from '../components/dice/WaffenlosDamageRollButton';
 import { ListEditor, NumInput, TextInput } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useDisplayMode, useReadOnly } from '../components/displayMode';
@@ -50,12 +54,15 @@ import type { TalentCatalogRow } from '../pages/Character';
 // genau wie eine Item-Bonus-Zeile („Hidden/revealable Ausrüstung stats",
 // TODO.md, hier auf jedes Waffenfeld erweitert statt nur RS/Haltbarkeit).
 //
-// Waffenloser Kampf / Kampfstile / Pfeile-Bolzen (Munition) hängen unten noch
-// dran, unverändert mit der generischen `ListEditor`-Tabelle: sie waren nie
-// Teil dieser Migration und leben weiter in den alten Listen-Sektionen.
-// Munition bekommt mit dem geplanten Nachschlage-Katalog (siehe TODO.md)
-// ohnehin eine eigene Lösung; Waffenloser Kampf und Kampfstile warten noch
-// auf ihren eigenen Kartenumbau.
+// Waffenloser Kampf / Kampfstile hängen unten noch dran, unverändert mit der
+// generischen `ListEditor`-Tabelle: sie waren nie Teil dieser Migration und
+// leben weiter in ihren alten Listen-Sektionen, warten noch auf ihren eigenen
+// Kartenumbau. Munition (Pfeile/Bolzen) hatte hier mal eine dritte, ebenso
+// generische Tabelle — die ist inzwischen komplett entfallen: Munition ist
+// jetzt ein ganz normales Inventar-Item (Kategorie „Munition", siehe
+// MUNITION_KATEGORIE/effektiverSchaden in shared/src/items.ts), das eine
+// Fernkampfwaffe über ihr `munitionUid`-Feld direkt auswählt (siehe FernCards
+// unten) — kein eigener Reiter mehr nötig.
 
 export default function WaffenNeuTab() {
   const { data, catalogs, stats, update } = useChar();
@@ -82,8 +89,31 @@ export default function WaffenNeuTab() {
     const talentId = Number(waffenStatWert(item, 'talentId')) || 0;
     const raw = talents.get(talentId);
     const t = raw ? talentMitBoni(raw, stats) : undefined;
-    return weaponProbe(waffenStatZahl(item, 'atMod'), bv.fk.ergebnis, t?.at ?? 0);
+    // Ammunition (TODO.md): Proben-Bonus der per munitionUid gewählten
+    // Munition wirkt wie ein zusätzlicher atMod.
+    const atMod = waffenStatZahl(item, 'atMod') + munitionProbenBonusFuer(item, data.items);
+    return weaponProbe(atMod, bv.fk.ergebnis, t?.at ?? 0);
   };
+  // Waffenloser Kampf ist KEIN Item (siehe WaffenlosCards-Kommentar unten) —
+  // dieselbe weaponProbes()-Formel wie probesFor oben, aber auf einer rohen
+  // `Row` statt einem `Item`. Nur Raufen/Ringen existieren (Spieler-
+  // Entscheidung: die einzigen beiden Kampftalente für Waffenlosen Kampf) —
+  // das Kampftalent wird deshalb NICHT mehr aus der Zeile gelesen (kein
+  // Auswahlfeld mehr), sondern jedes Mal frisch über den Namen aus dem
+  // Katalog aufgelöst, robuster als eine gespeicherte id.
+  const waffenlosProbesFor = (technik: 'Raufen' | 'Ringen', row: Row) => {
+    const talentId = kampfTalente.find((t) => t.name === technik)?.id ?? 0;
+    const raw = talents.get(talentId);
+    const t = raw ? talentMitBoni(raw, stats) : undefined;
+    return weaponProbes(
+      { at: Number(row.at) || 0, pa: Number(row.pa) || 0, bl: Number(row.bl) || 0 },
+      base,
+      { at: t?.at ?? 0, pa: t?.pa ?? 0, bl: t?.bl ?? 0 },
+    );
+  };
+  // Spieler-Feedback: Faustschlag-Schaden (Raufen) wird vom RS eines an einer
+  // Hand getragenen Gegenstands (Stahlhandschuhe, Schlagringe) geboostet.
+  const handRsBonus = handRs(data.items);
 
   return (
     <>
@@ -110,60 +140,18 @@ export default function WaffenNeuTab() {
           isGm={user.isGm}
         />
       </CollapsiblePanel>
-      <div className="grid2">
-        <CollapsiblePanel collapseKey="list:waffenlos" title="Waffenloser Kampf" rows={data.lists.waffenlos.length}>
-          <ListEditor
-            def={listSectionById('waffenlos')!}
-            rows={data.lists.waffenlos}
-            onChange={(rows) => update('waffenlos', rows)}
-            customCell={talentCell(kampfTalente)}
-          />
-        </CollapsiblePanel>
-        <CollapsiblePanel collapseKey="list:munition" title="Pfeile/Bolzen" rows={data.lists.munition.length}>
-          <ListEditor def={listSectionById('munition')!} rows={data.lists.munition} onChange={(rows) => update('munition', rows)} />
-        </CollapsiblePanel>
-      </div>
+      <CollapsiblePanel collapseKey="list:waffenlos" title="Waffenloser Kampf" rows={2}>
+        <WaffenlosCards
+          rows={data.lists.waffenlos}
+          onChange={(rows) => update('waffenlos', rows)}
+          probesFor={waffenlosProbesFor}
+          handRsBonus={handRsBonus}
+        />
+      </CollapsiblePanel>
       <CollapsiblePanel collapseKey="list:kampfstile" title="Kampfstile" rows={data.lists.kampfstile.length}>
         <ListEditor def={listSectionById('kampfstile')!} rows={data.lists.kampfstile} onChange={(rows) => update('kampfstile', rows)} />
       </CollapsiblePanel>
     </>
-  );
-}
-
-/**
- * Kampftalent-Spalte für die drei Listen, die (noch) nicht auf Karten
- * umgestellt sind (Waffenloser Kampf; Kampfstile/Munition haben gar kein
- * Talent-Feld). Dieselbe Vorsicht wie bei `TalentSelect` weiter unten: ein
- * `<select>` läuft nicht durch NumInput/TextInput und bliebe ungegated auch
- * auf einem schreibgeschützten Blatt bedienbar — siehe die identische
- * Begründung dort.
- */
-function talentCell(kampfTalente: TalentCatalogRow[]) {
-  return (col: ColumnDef, row: Row, updateRow: (r: Row) => void) => {
-    if (col.key !== 'talentId') return undefined;
-    const id = Number(row.talentId) || 0;
-    return <TalentCell id={id} kampfTalente={kampfTalente} onChange={(v) => updateRow({ ...row, talentId: v })} />;
-  };
-}
-
-function TalentCell({
-  id,
-  kampfTalente,
-  onChange,
-}: {
-  id: number;
-  kampfTalente: TalentCatalogRow[];
-  onChange: (id: number) => void;
-}) {
-  const ro = useReadOnly();
-  if (ro) return <span className="static-value static-text">{kampfTalente.find((t) => t.id === id)?.name ?? ''}</span>;
-  return (
-    <select value={id} onChange={(e) => onChange(Number(e.target.value))}>
-      <option value={0}>—</option>
-      {kampfTalente.map((t) => (
-        <option key={t.id} value={t.id}>{t.name}</option>
-      ))}
-    </select>
   );
 }
 
@@ -295,17 +283,18 @@ function WaffenFeld({
 // Der Server schlägt die Waffe über ihre Item-id nach; ein frisch angelegtes,
 // noch nicht gespeichertes Item hat keine — dort bleibt der Würfel-Knopf weg,
 // bis gespeichert wurde.
-function rollFor(item: Item, probe: 'at' | 'pa' | 'bl' | 'fk') {
-  return item.id ? { itemId: item.id, probe } : undefined;
+function rollFor(item: Item, probe: 'at' | 'pa' | 'bl' | 'fk'): ProbeSource | undefined {
+  return item.id ? { kind: 'weapon', itemId: item.id, probe } : undefined;
 }
 
 // Dieselbe Grund-Bedingung wie rollFor: keine gespeicherte Zeile, kein Würfel-
 // Knopf. Zusätzlich ohne Schaden-Text kein Knopf — sonst würfelt man gegen
 // eine leere Formel und bekommt nur eine Fehlermeldung. Liest den EFFEKTIVEN
-// Wert (waffenStatWert) — eine noch verdeckte Schaden-Formel ist noch nicht
-// würfelbar, auch nicht für die SL selbst (siehe WaffenFeld-Kommentar oben).
-function damageRollFor(item: Item): number | undefined {
-  return item.id && waffenStatWert(item, 'schaden').trim() ? item.id : undefined;
+// Wert (effektiverSchaden, inkl. Munitions-Zusatz falls gewählt) — eine noch
+// verdeckte Schaden-Formel ist noch nicht würfelbar, auch nicht für die SL
+// selbst (siehe WaffenFeld-Kommentar oben).
+function damageRollFor(item: Item, allItems: Item[]): { kind: 'item'; itemId: number } | undefined {
+  return item.id && effektiverSchaden(item, allItems).trim() ? { kind: 'item', itemId: item.id } : undefined;
 }
 
 /**
@@ -323,23 +312,28 @@ function ProbeChip({
   label: string;
   value: number;
   title: string;
-  roll?: { itemId: number; probe: 'at' | 'pa' | 'bl' | 'fk' };
+  roll?: ProbeSource;
 }) {
   return (
     <span className="wpn-chip" title={title}>
       <span className="wpn-chip-label">{label}</span>
       <span className="wpn-chip-val">{value}</span>
-      {roll && <ProbeRollButton source={{ kind: 'weapon', ...roll }} title={`${title} (${label})`} />}
+      {roll && <ProbeRollButton source={roll} title={`${title} (${label})`} />}
     </span>
   );
 }
+
+/** Welche Art Würfel-Knopf der Schaden-Chip zeigt — ein echtes Item (Nah-/
+ * Fernkampfwaffe) oder eine Waffenlos-Technik (kein Item, siehe
+ * roll.waffenlosDamage). Genau EIN Knopf-Typ, nie beide zugleich. */
+type DamageRoll = { kind: 'item'; itemId: number } | { kind: 'waffenlos'; technik: 'Raufen' | 'Ringen' };
 
 function CardHead({
   name,
   sub,
   schaden,
   rd,
-  damageRollId,
+  damageRoll,
   ranged,
   notiz,
   open,
@@ -353,7 +347,7 @@ function CardHead({
   /** Rüstungsdurchdringung — steht mit im Schaden-Chip, eigener Wert wäre hier zu klein. */
   rd: string;
   /** Gesetzt (siehe damageRollFor), wenn diese Zeile Schaden würfelbar ist. */
-  damageRollId?: number;
+  damageRoll?: DamageRoll;
   ranged: boolean;
   notiz: string;
   open: boolean;
@@ -387,8 +381,11 @@ function CardHead({
           <span className="wpn-chip" title="Schaden">
             <span className="wpn-chip-label">Schaden</span>
             <span className="wpn-chip-val">{schaden}{rd && ` · RD ${rd}`}</span>
-            {damageRollId != null && (
-              <WeaponDamageRollButton itemId={damageRollId} title={`${name || 'Waffe'} — Schaden`} />
+            {damageRoll?.kind === 'item' && (
+              <WeaponDamageRollButton itemId={damageRoll.itemId} title={`${name || 'Waffe'} — Schaden`} />
+            )}
+            {damageRoll?.kind === 'waffenlos' && (
+              <WaffenlosDamageRollButton technik={damageRoll.technik} title={`${name} — Schaden`} />
             )}
           </span>
         )}
@@ -430,6 +427,34 @@ function TalentSelect({
       <option value={0}>—</option>
       {kampfTalente.map((t) => (
         <option key={t.id} value={t.id}>{t.name}</option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * Munitions-Auswahl (Ammunition, TODO.md) — wie TalentSelect, aber die Liste
+ * kommt aus den eigenen Inventar-Items mit Kategorie "Munition" statt einem
+ * Katalog: kein globaler Munitions-Katalog, jeder Charakter führt seine
+ * eigene Munition.
+ */
+function MunitionSelect({
+  raw,
+  munitionItems,
+  onChange,
+}: {
+  raw: string;
+  munitionItems: Item[];
+  onChange: (uid: string) => void;
+}) {
+  const ro = useReadOnly();
+  const selected = munitionItems.find((it) => it.uid === raw);
+  if (ro) return <span className="static-value static-text">{selected?.name ?? ''}</span>;
+  return (
+    <select value={raw} onChange={(e) => onChange(e.target.value)}>
+      <option value="">—</option>
+      {munitionItems.map((it) => (
+        <option key={it.uid} value={it.uid}>{it.name || '(ohne Name)'}</option>
       ))}
     </select>
   );
@@ -489,8 +514,12 @@ function NahCards({
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(allItems.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  // Upsert (patchWaffenStat), nicht reines Map/Find: eine Waffe, die vor
+  // Einführung eines Felds angelegt wurde (z. B. jede Fernkampfwaffe vor
+  // munitionUid), hat dafür noch keine Zeile — ein reiner Find/Map-Patch liefe
+  // dann ins Leere und der Klick verschwände stillschweigend.
   const patchStat = (item: Item, feld: WaffenStatFeld, wert: string) =>
-    patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, wert } : s)) });
+    patchItem(item.uid, { waffenStats: patchWaffenStat(item.waffenStats, feld, wert, isGm) });
   const revealStat = (item: Item, feld: WaffenStatFeld) =>
     patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, verborgen: false } : s)) });
   const removeItem = (uid: string) => setItems(allItems.filter((it) => it.uid !== uid));
@@ -514,9 +543,9 @@ function NahCards({
               <CardHead
                 name={item.name}
                 sub={sub}
-                schaden={waffenStatWert(item, 'schaden')}
+                schaden={effektiverSchaden(item, allItems)}
                 rd={waffenStatWert(item, 'rd')}
-                damageRollId={damageRollFor(item)}
+                damageRoll={damageRollFor(item, allItems)}
                 ranged={false}
                 notiz={notiz}
                 open={open}
@@ -614,14 +643,21 @@ function FernCards({
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(allItems.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
+  // Upsert (patchWaffenStat), nicht reines Map/Find: eine Waffe, die vor
+  // Einführung eines Felds angelegt wurde (z. B. jede Fernkampfwaffe vor
+  // munitionUid), hat dafür noch keine Zeile — ein reiner Find/Map-Patch liefe
+  // dann ins Leere und der Klick verschwände stillschweigend.
   const patchStat = (item: Item, feld: WaffenStatFeld, wert: string) =>
-    patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, wert } : s)) });
+    patchItem(item.uid, { waffenStats: patchWaffenStat(item.waffenStats, feld, wert, isGm) });
   const revealStat = (item: Item, feld: WaffenStatFeld) =>
     patchItem(item.uid, { waffenStats: item.waffenStats.map((s) => (s.feld === feld ? { ...s, verborgen: false } : s)) });
   const removeItem = (uid: string) => setItems(allItems.filter((it) => it.uid !== uid));
   const addWaffe = () =>
     setItems([...allItems, makeItem({ waffenArt: 'fern', waffenStats: waffenStatsFuerArt('fern').map((s) => ({ ...s, verborgen: isGm })) })]);
   const rawStat = (item: Item, feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
+  // Ammunition (TODO.md): eigene Munition, kein globaler Katalog — jedes Item
+  // mit Kategorie "Munition" im eigenen Inventar/Ausrüstung ist wählbar.
+  const munitionItems = allItems.filter((it) => istMunitionKategorie(it.kategorie));
 
   return (
     <>
@@ -629,6 +665,7 @@ function FernCards({
         {items.map((item, i) => {
           const notiz = item.notiz;
           const open = isOpen(i);
+          const munition = munitionFuer(item, allItems);
           return (
             <div className={`wpn-card${open ? ' open' : ''}`} key={item.uid}>
               {/* Kein Beiwerk im Kopf: das Kampftalent steckt schon in der
@@ -636,9 +673,9 @@ function FernCards({
               <CardHead
                 name={item.name}
                 sub=""
-                schaden={waffenStatWert(item, 'schaden')}
+                schaden={effektiverSchaden(item, allItems)}
                 rd={waffenStatWert(item, 'rd')}
-                damageRollId={damageRollFor(item)}
+                damageRoll={damageRollFor(item, allItems)}
                 ranged
                 notiz={notiz}
                 open={open}
@@ -674,6 +711,15 @@ function FernCards({
                   <WaffenFeld item={item} feld="atMod" label="AT-Mod" title="Modifikator dieser Waffe auf die Fernkampfprobe" isGm={isGm} onReveal={() => revealStat(item, 'atMod')}>
                     <NumInput value={Number(rawStat(item, 'atMod')) || 0} onChange={(v) => patchStat(item, 'atMod', String(v))} />
                   </WaffenFeld>
+                  <WaffenFeld item={item} feld="munitionUid" label="Munition" title="Munition aus dem eigenen Inventar (Kategorie „Munition“)" isGm={isGm} onReveal={() => revealStat(item, 'munitionUid')}>
+                    <MunitionSelect raw={rawStat(item, 'munitionUid')} munitionItems={munitionItems} onChange={(uid) => patchStat(item, 'munitionUid', uid)} />
+                  </WaffenFeld>
+                  {munition && (
+                    <label title="Bestand der gewählten Munition — bearbeitet direkt das zugehörige Inventar-Item">
+                      Munitionsbestand
+                      <NumInput value={munition.anzahl} min={0} onChange={(v) => patchItem(munition.uid, { anzahl: v })} />
+                    </label>
+                  )}
                   <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
                     <TextInput value={rawStat(item, 'besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
                   </WaffenFeld>
@@ -696,5 +742,121 @@ function FernCards({
         <button className="small add-row" onClick={addWaffe}>+ Waffe</button>
       )}
     </>
+  );
+}
+
+// Die einzigen beiden Kampftalente für Waffenlosen Kampf (Spieler-
+// Entscheidung) — feste Reihenfolge, feste Beschriftung, kein Freitext-Name
+// und kein Kampftalent-Auswahlfeld mehr nötig: welche Karte welches Talent
+// meint, steht von vornherein fest.
+const WAFFENLOS_TECHNIKEN = ['Raufen', 'Ringen'] as const;
+type WaffenlosTechnik = (typeof WAFFENLOS_TECHNIKEN)[number];
+
+/**
+ * Waffenloser Kampf bekommt dieselbe Karten-Optik wie echte Waffen — bleibt
+ * aber bewusst KEIN `Item`: eine Technik hat kein Gewicht, keine Körperstelle,
+ * ist nicht handelbar und existiert einfach, solange der Charakter sie kennt.
+ * Sie in char_items zu stecken würde sie zwangsläufig auch in Inventar/
+ * Ausrüstung auftauchen lassen (jedes Item hat eine `location`), was für eine
+ * reine Kampftechnik keinen Sinn ergibt. Bleibt deshalb die alte
+ * `sec_waffenlos`-Zeilenliste (weiterhin ein Ganze-Liste-Ersatz über
+ * `update('waffenlos', rows)`, wie jede andere Listen-Sektion — anders als
+ * Items ist das hier weder gemeinsam genutzt noch nebenläufig bearbeitet),
+ * nur die Darstellung wechselt von der generischen `ListEditor`-Tabelle auf
+ * `wpn-card`. Kein Item heißt aber NICHT „nicht würfelbar" — AT/PA/BL und
+ * Schaden werden serverseitig genauso frisch aus den Charakterwerten plus
+ * dieser Zeile berechnet wie bei einer echten Waffe (siehe ProbeSource
+ * kind: 'waffenlos' und roll.waffenlosDamage, ws.ts/diceSource.ts), nur ohne
+ * den Umweg über eine Item-id.
+ *
+ * Genau zwei Karten, Raufen und Ringen (siehe WAFFENLOS_TECHNIKEN) — kein
+ * Hinzufügen/Löschen mehr, jede vorhandene Zeile mit einem ANDEREN
+ * `technik`-Wert bleibt beim Speichern unangetastet stehen (no-data-loss
+ * rule), auch wenn die aktuelle Karten-Ansicht sie nicht mehr zeigt.
+ */
+function WaffenlosCards({
+  rows,
+  onChange,
+  probesFor,
+  handRsBonus,
+}: {
+  rows: Row[];
+  onChange: (rows: Row[]) => void;
+  probesFor: (technik: WaffenlosTechnik, row: Row) => { at: number; pa: number; bl: number };
+  /** Spieler-Feedback: RS eines an einer Hand getragenen Gegenstands, boostet Raufens Schaden. */
+  handRsBonus: number;
+}) {
+  const ro = useReadOnly();
+  const { isOpen, toggle } = useWeaponCards();
+  const slotFor = (technik: WaffenlosTechnik): Row =>
+    rows.find((r) => r.technik === technik) ?? { technik, tpKk: '', ini: 0, at: 0, pa: 0, bl: 0, notiz: '' };
+  const setSlot = (technik: WaffenlosTechnik, patch: Partial<Row>) => {
+    const idx = rows.findIndex((r) => r.technik === technik);
+    if (idx >= 0) onChange(rows.map((r, j) => (j === idx ? { ...r, ...patch } : r)));
+    else onChange([...rows, { ...slotFor(technik), ...patch }]);
+  };
+
+  return (
+    <div className="wpn-list">
+      {WAFFENLOS_TECHNIKEN.map((technik, i) => {
+        const row = slotFor(technik);
+        const probes = probesFor(technik, row);
+        const schadenBasis = String(row.tpKk ?? '');
+        const notiz = String(row.notiz ?? '');
+        const boost = technik === 'Raufen' ? handRsBonus : 0;
+        const schaden = kombiniereFormeln(schadenBasis, boost > 0 ? `+${boost}` : '');
+        const open = isOpen(i);
+        return (
+          <div className={`wpn-card${open ? ' open' : ''}`} key={technik}>
+            <CardHead
+              name={technik}
+              sub=""
+              schaden={schaden}
+              rd=""
+              damageRoll={schaden.trim() ? { kind: 'waffenlos', technik } : undefined}
+              ranged={false}
+              notiz={notiz}
+              open={open}
+              onToggle={() => toggle(i)}
+            >
+              <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={{ kind: 'waffenlos', technik, probe: 'at' }} />
+              <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={{ kind: 'waffenlos', technik, probe: 'pa' }} />
+              <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={{ kind: 'waffenlos', technik, probe: 'bl' }} />
+            </CardHead>
+            {open && (
+              <div className="chip-editor">
+                <Feld label="Schaden" leer={!schadenBasis}>
+                  <TextInput value={schadenBasis} onChange={(v) => setSlot(technik, { tpKk: v })} />
+                </Feld>
+                {boost > 0 && (
+                  <Feld
+                    label="Handschutz-Bonus"
+                    leer={false}
+                    title="Höchster RS eines an einer Hand-Zone getragenen Gegenstands (Stahlhandschuhe, Schlagringe o.Ä.) — wird oben automatisch auf den Schaden addiert."
+                  >
+                    <span className="static-value">+{boost}</span>
+                  </Feld>
+                )}
+                <Feld label="INI" leer={!Number(row.ini)}>
+                  <NumInput value={Number(row.ini) || 0} onChange={(v) => setSlot(technik, { ini: v })} />
+                </Feld>
+                <Feld label="AT-Bonus" leer={!Number(row.at)}>
+                  <NumInput value={Number(row.at) || 0} onChange={(v) => setSlot(technik, { at: v })} />
+                </Feld>
+                <Feld label="PA-Bonus" leer={!Number(row.pa)}>
+                  <NumInput value={Number(row.pa) || 0} onChange={(v) => setSlot(technik, { pa: v })} />
+                </Feld>
+                <Feld label="BL-Bonus" leer={!Number(row.bl)}>
+                  <NumInput value={Number(row.bl) || 0} onChange={(v) => setSlot(technik, { bl: v })} />
+                </Feld>
+                <Feld label="Notiz" leer={!notiz} wide>
+                  <TextInput value={notiz} onChange={(v) => setSlot(technik, { notiz: v })} />
+                </Feld>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
   );
 }

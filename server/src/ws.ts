@@ -32,6 +32,9 @@ import {
   activeTurnOrder,
   attrMax,
   cellKey,
+  effektiverSchaden,
+  handRs,
+  kombiniereFormeln,
   MAX_REPEAT_COUNT,
   overlayCell,
   parseCellKey,
@@ -48,7 +51,7 @@ import {
 } from 'shared';
 import crypto from 'node:crypto';
 import { getSessionToken, userForToken } from './auth.js';
-import { loadItems, loadStats } from './characterData.js';
+import { loadItems, loadList, loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
@@ -847,12 +850,15 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // nie vom Client übernommen — derselbe Grund wie bei probeZahl. Seit
       // "Weapons become real items" (TODO.md) ist das ein normaler char_items-
       // Eintrag mit waffenArt gesetzt, kein `ranged`-Flag vom Client mehr nötig.
-      const item = loadItems(char.id).find((it) => it.id === Number(msg.itemId) && it.waffenArt);
+      const items = loadItems(char.id);
+      const item = items.find((it) => it.id === Number(msg.itemId) && it.waffenArt);
       if (!item) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Waffe nicht gefunden' });
         return;
       }
-      const expression = parseDiceExpression(waffenStatWert(item, 'schaden'));
+      // Ammunition (TODO.md): effektiverSchaden hängt den Schaden-Zusatz der
+      // per munitionUid gewählten Munition an, falls vorhanden.
+      const expression = parseDiceExpression(effektiverSchaden(item, items));
       if (!expression) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Waffe hinterlegt' });
         return;
@@ -878,6 +884,56 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         adjustedSum: result.adjustedSum,
         flagged: result.flagged,
         ...(rd ? { rd } : {}),
+      };
+      insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), gmUserId, visibility, roll);
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    case 'roll.waffenlosDamage': {
+      // Wie roll.weaponDamage, aber ohne Item: die Zeile kommt aus
+      // sec_waffenlos, identifiziert über `technik` statt einer Item-id.
+      const charId = Number(msg.charId);
+      const char = db.prepare('SELECT id FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
+        | { id: number }
+        | undefined;
+      if (!char || !charBelongsToRoom(char.id, meta.groupId)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Charakter gehört nicht zu dieser Gruppe' });
+        return;
+      }
+      const technik = msg.technik === 'Raufen' || msg.technik === 'Ringen' ? msg.technik : null;
+      if (!technik) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Technik' });
+        return;
+      }
+      const row = loadList('waffenlos', char.id).find((r) => r.technik === technik);
+      // Spieler-Feedback: Faustschlag-Schaden (Raufen) wird vom RS eines an
+      // einer Hand getragenen Gegenstands geboostet — Ringen bleibt unangetastet.
+      const boost = technik === 'Raufen' ? handRs(loadItems(char.id)) : 0;
+      const schaden = kombiniereFormeln(String(row?.tpKk ?? ''), boost > 0 ? `+${boost}` : '');
+      const expression = parseDiceExpression(schaden);
+      if (!expression) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Technik hinterlegt' });
+        return;
+      }
+      const resolved = resolveMessageVisibility(ws, meta, msg);
+      if (!resolved) return;
+      const { visibility, gmUserId } = resolved;
+      const result = performExpressionRoll(expression);
+      if (!result) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Kein gültiger Schadenswert bei dieser Technik hinterlegt' });
+        return;
+      }
+      const roll: ExpressionRollPayload = {
+        mode: 'expr',
+        label: `${technik} (Schaden)`,
+        expression: result.expression,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        flagged: result.flagged,
       };
       insertFeedRoll(meta.groupId, resolveAuthor(meta, char.id), gmUserId, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });
