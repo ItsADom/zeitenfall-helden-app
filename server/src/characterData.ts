@@ -30,6 +30,7 @@ import {
   DYN_SLOTS_KEY,
   INVENTAR_KATEGORIEN,
   isPairedZone,
+  ELEMENT_BONUS_FELDER,
   ITEM_BONUS_KINDS,
   ITEM_LOCATIONS,
   makeUid,
@@ -66,6 +67,7 @@ import type {
   EnergyFormulaVars,
   EquipmentPreset,
   ExternalAttrPoint,
+  ElementBonusFeld,
   Item,
   ItemBonus,
   ItemBonusKind,
@@ -929,7 +931,22 @@ const MAX_ITEM_TEXT = 4000;
 const MAX_CATEGORIES = 200;
 const MAX_CATEGORY_LEN = 200;
 const MAX_BONUSSE_PRO_ITEM = 20;
-const MAX_BONUS_CODE = 64;
+// War 64 (genug für talentId/attrCode-artige kurze Codes) — jetzt gleich
+// MAX_CATEGORY_LEN, weil kind === 'element' hier einen vollen Elementnamen
+// speichert (siehe manageAbilityList-Kaskade unten); zwei unterschiedliche
+// Kappungen für denselben Namen würden ihn inkonsistent verkürzen.
+const MAX_BONUS_CODE = MAX_CATEGORY_LEN;
+
+// Boni-Zeile: `feld` whitelisten, je nach `kind` — talent kennt TALENT_BONUS_
+// FELDER, element kennt ELEMENT_BONUS_FELDER, alles andere trägt kein feld.
+// Eine Stelle statt der (zuvor zweimal separat ausgeschriebenen) talent-only-
+// Prüfung, jetzt für beide Fälle gemeinsam genutzt von den Lade-Stellen UND
+// normalizedBonusFields (Op-Anwendung).
+function normalizeStoredFeld(kind: ItemBonusKind, feld: string): TalentBonusFeld | ElementBonusFeld | '' {
+  if (kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(feld)) return feld as TalentBonusFeld;
+  if (kind === 'element' && (ELEMENT_BONUS_FELDER as string[]).includes(feld)) return feld as ElementBonusFeld;
+  return '';
+}
 
 const clampMin = (v: unknown, min = 0): number => {
   const n = Number(v);
@@ -989,7 +1006,7 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
       uid: r.uid || makeUid(),
       kind: r.kind as ItemBonusKind,
       code: r.code,
-      feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+      feld: normalizeStoredFeld(r.kind as ItemBonusKind, r.feld),
       wert: Number(r.wert) || 0,
       verborgen: !!r.verborgen,
     });
@@ -1123,8 +1140,8 @@ function nextVerborgen(existing: boolean, incoming: unknown): boolean {
 // Boni-Zeile: Ziel/Feld normalisieren, ungültige kind-Werte verwerfen (wie
 // savePouches mit veralteten Katalog-Verweisen umgeht) — Aufrufer prüft vorher
 // bereits, ob kind überhaupt geändert werden darf.
-function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>): { code: string; feld: TalentBonusFeld | '' } {
-  const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(o.feld)) ? (String(o.feld) as TalentBonusFeld) : '';
+function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>): { code: string; feld: TalentBonusFeld | ElementBonusFeld | '' } {
+  const feld = normalizeStoredFeld(kind, String(o.feld ?? ''));
   const code = kind === 'psyche' || kind === 'traglast' ? '' : String(o.code ?? '').slice(0, MAX_BONUS_CODE);
   return { code, feld };
 }
@@ -1170,7 +1187,7 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
       if (!item || !(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
       item.bonusse.push({
         dbId: r.id, uid: r.uid || makeUid(), kind: r.kind as ItemBonusKind, code: r.code,
-        feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+        feld: normalizeStoredFeld(r.kind as ItemBonusKind, r.feld),
         wert: Number(r.wert) || 0, verborgen: !!r.verborgen,
       });
     }
@@ -2161,6 +2178,18 @@ export function manageAbilityList(charId: number, kind: string, raw: unknown): A
       const up = db.prepare('UPDATE char_abilities SET element = ? WHERE character_id = ? AND element = ?');
       for (const r of renamePairs) up.run(r.to, charId, r.from);
       for (const n of removeSet) up.run('', charId, n);
+      // Item-Boni ziehen mit: ein Bonus mit kind === 'element' speichert den
+      // Elementnamen als `code` (siehe ItemBonusKind in shared/src/items.ts) —
+      // ohne diese Kaskade würde ein Umbenennen/Entfernen die Bonus-Zeile
+      // stillschweigend verwaisen lassen (zeigt dann auf ein nicht mehr
+      // existierendes Element). Nur Items DIESES Charakters, wie oben.
+      const upBonus = db.prepare(
+        `UPDATE char_item_bonuses SET code = ? WHERE kind = 'element' AND code = ? AND item_id IN (
+           SELECT id FROM char_items WHERE owner_type = 'character' AND owner_id = ?
+         )`,
+      );
+      for (const r of renamePairs) upBonus.run(r.to, r.from, charId);
+      for (const n of removeSet) upBonus.run('', n, charId);
     } else {
       // 'kategorien' ist ein JSON-Array je Zeile — Umbenennen/Entfernen muss
       // innerhalb jedes Arrays passieren, nicht als exakter Spaltenvergleich.

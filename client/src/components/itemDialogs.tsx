@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from 'react';
-import type { Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
+import type { ElementBonusFeld, Item, ItemBonus, ItemBonusKind, ItemOwnerType, KapazitaetArt, TalentBonusFeld, WaffenArt, WaffenStat, WaffenStatFeld } from '@shared/items';
 import { makeUid, waffenFelderFuerArt, waffenStatsFuerArt } from '@shared/items';
 import { ATTR_CODES, ATTR_LABELS, BASE_VALUE_KEYS, BASE_VALUE_LABELS, RESOURCE_KEYS, RESOURCE_LABELS } from '@shared/types';
 import { apiGet } from '../api';
@@ -101,12 +101,17 @@ function BonusRowsEditor({
   onChange,
   talents,
   specialEnergies,
+  elements,
   isGm,
 }: {
   bonusse: ItemBonus[];
   onChange: (next: ItemBonus[]) => void;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
+  /** Elementnamen des Charakters (AbilityLists.element, siehe abilities.ts) —
+   * dieselbe Liste, aus der Zauber/Fähigkeiten ihr Element wählen. Kein eigener
+   * Katalog: ein Element-Bonus zielt auf genau diese Namen. */
+  elements: string[];
   /** Hidden/revealable Ausrüstung stats (TODO.md): nur die SL kann Bonus-Zeilen
    * verborgen anlegen/aufdecken — Spieler sehen weder Umschalter noch verdeckte
    * Zeilen (die kommen serverseitig nie in `bonusse` an, siehe ohneVerborgeneItems). */
@@ -148,7 +153,7 @@ function BonusRowsEditor({
               value={bonusOptionValue(b.kind, b.code)}
               onChange={(e) => {
                 const { kind, code } = parseBonusOptionValue(e.target.value);
-                const feld = kind === 'talent' ? (istKampftalent(code) ? 'at' : 'taw') : '';
+                const feld = kind === 'talent' ? (istKampftalent(code) ? 'at' : 'taw') : kind === 'element' ? 'probe' : '';
                 patchRow(i, { kind, code, feld });
               }}
             >
@@ -191,6 +196,15 @@ function BonusRowsEditor({
                   ))}
                 </optgroup>
               )}
+              {elements.length > 0 && (
+                <optgroup label="Element">
+                  {elements.map((el) => (
+                    <option key={el} value={bonusOptionValue('element', el)}>
+                      {el}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
               <optgroup label="Sonstiges">
                 <option value={bonusOptionValue('psyche', '')}>Psyche</option>
                 <option value={bonusOptionValue('traglast', '')}>Traglast (kg)</option>
@@ -214,6 +228,22 @@ function BonusRowsEditor({
                     </option>
                   </>
                 )}
+              </select>
+            )}
+            {b.kind === 'element' && (
+              <select value={b.feld} onChange={(e) => patchRow(i, { feld: e.target.value as ElementBonusFeld })}>
+                <option value="probe" title="Direkte Erschwernis/Erleichterung auf die Probe-Zahl von Zaubern/Fähigkeiten dieses Elements.">
+                  Probe
+                </option>
+                {RESOURCE_KEYS.map((key) => (
+                  <option
+                    key={key}
+                    value={key}
+                    title="Nur eine Anmerkung neben den Kosten — die Kosten sind Freitext und werden nicht automatisch verrechnet."
+                  >
+                    Kosten: {RESOURCE_LABELS[key].label}
+                  </option>
+                ))}
               </select>
             )}
             <NumInput value={b.wert} onChange={(v) => patchRow(i, { wert: v })} />
@@ -434,6 +464,7 @@ export function AddItemDialog({
   item,
   talents,
   specialEnergies,
+  elements,
   isGm,
   onAdd,
   onSave,
@@ -460,6 +491,9 @@ export function AddItemDialog({
   item?: Item;
   talents: TalentCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
+  /** Elementnamen des Charakters, fürs Boni-Editor „Element"-Optgroup — siehe
+   * BonusRowsEditor. */
+  elements: string[];
   /** Hidden/revealable Ausrüstung stats (TODO.md): nur die SL bekommt den
    * Verborgen-Zustand/Aufdecken-Knopf zu sehen. Von der SL neu angelegte
    * RS/Haltbarkeit/Bonus-Zeilen starten verdeckt (kein Verstecken-Knopf nötig —
@@ -892,7 +926,7 @@ export function AddItemDialog({
           <TextInput value={notiz} onChange={setNotiz} />
         </label>
 
-        <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} isGm={isGm} />
+        <BonusRowsEditor bonusse={bonusse} onChange={setBonusse} talents={talents} specialEnergies={specialEnergies} elements={elements} isGm={isGm} />
       </AlwaysEditable>
     </Dialog>
   );

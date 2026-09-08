@@ -491,6 +491,11 @@ export default function PoolInventory({
         initialRaum={prefillRaum}
         talents={talents}
         specialEnergies={specialEnergies}
+        // Kein Element-Bonus im Gruppen-/SL-Pool: die "Element"-Optgroup im
+        // Boni-Editor braucht EINEN Charakter, dessen Zauber-Elemente sie
+        // anbietet — Pool-Items gehören keinem, `getragen` (und damit
+        // wornBoni) greift hier ohnehin nie. Leer blendet die Optgroup aus.
+        elements={[]}
         isGm={isGm}
         onAdd={(fields) => onAdd({ ...fields, location: 'inventar' })}
       />
@@ -503,6 +508,7 @@ export default function PoolInventory({
         categories={categories}
         talents={talents}
         specialEnergies={specialEnergies}
+        elements={[]}
         isGm={isGm}
         onAdd={(fields) => onAdd({ ...fields, location: 'behaelter', containerUid: addItemFor! })}
       />
@@ -515,6 +521,7 @@ export default function PoolInventory({
         item={editingItem}
         talents={talents}
         specialEnergies={specialEnergies}
+        elements={[]}
         isGm={isGm}
         onSave={(patch) => editUid && onSave(editUid, patch)}
         onDuplicate={() => editUid && onDuplicate(editUid)}

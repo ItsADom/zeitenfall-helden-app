@@ -10,6 +10,7 @@ import {
   attrMax,
   BASE_VALUE_LABELS,
   computeBaseValues,
+  elementProbeBonus,
   erleichterung,
   parseProbeExpr,
   probeExprZahl,
@@ -149,8 +150,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     }
     case 'ability': {
       const row = db
-        .prepare('SELECT name, probe FROM char_abilities WHERE character_id = ? AND id = ?')
-        .get(characterId, source.abilityId) as { name: string; probe: string } | undefined;
+        .prepare('SELECT name, probe, element FROM char_abilities WHERE character_id = ? AND id = ?')
+        .get(characterId, source.abilityId) as { name: string; probe: string; element: string } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
       if (!parts) return null;
@@ -161,8 +162,16 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       if (hasWeaponTerm && !weapon) return null;
       const probeZahl = abilityProbeZahl(attrs, row.probe, weapon);
       if (probeZahl === null) return null;
+      // + elementProbeBonus: direkte Probe-Erschwernis/-Erleichterung eines
+      // Item-Bonus auf dieses Element (kind === 'element', feld === 'probe'),
+      // dasselbe Prinzip wie talentProbeBonus oben.
       const attrParts = parts.filter((p): p is AttrCode => p !== 'AT' && p !== 'PA' && p !== 'BL');
-      return { n: parts.length, probeZahl, label: row.name, attrParts: attrParts.length ? attrParts : undefined };
+      return {
+        n: parts.length,
+        probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni),
+        label: row.name,
+        attrParts: attrParts.length ? attrParts : undefined,
+      };
     }
     case 'sprache': {
       const row = db

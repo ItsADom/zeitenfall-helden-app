@@ -440,6 +440,7 @@ export default function InventarTab() {
         categories={catOptions}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'behaelter', containerUid: addItemFor! })])}
       />
@@ -450,6 +451,7 @@ export default function InventarTab() {
         item={editUid !== null ? byUid.get(editUid) : undefined}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}

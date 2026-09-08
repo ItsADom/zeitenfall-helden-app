@@ -53,6 +53,10 @@ function bonusLabel(b: ItemBonus, talents: TalentCatalogRow[], specialEnergies: 
       return `Psyche ${sign}${b.wert}`;
     case 'traglast':
       return `Traglast ${sign}${b.wert} kg`;
+    case 'element': {
+      const ziel = b.feld === 'probe' ? 'Probe' : b.feld ? `Kosten: ${RESOURCE_LABELS[b.feld as ResourceKey]?.label ?? b.feld}` : '?';
+      return `${b.code || '?'} (${ziel}) ${sign}${b.wert}`;
+    }
   }
 }
 
@@ -474,6 +478,7 @@ export default function AusruestungTab() {
         initialMode="ausruestung"
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'bench' })])}
       />
@@ -484,6 +489,7 @@ export default function AusruestungTab() {
         item={editUid !== null ? byUid.get(editUid) : undefined}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}

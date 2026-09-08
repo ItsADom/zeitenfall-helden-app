@@ -199,6 +199,13 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-09-08',
+    title: 'Element-Boni',
+    added: [
+      'Ausrüstungsboni können jetzt gezielt ein Zauber-Element treffen: entweder eine Erschwernis/Erleichterung auf die Probe von Zaubern und Fähigkeiten dieses Elements, oder eine Anmerkung neben den Zauberkosten (LE/Ausdauer/AsE) — praktisch für Elementarringe, Blutmagie-Artefakte & Co. Auswählbar sind die Elemente, die der Charakter schon bei seinen eigenen Zaubern/Fähigkeiten führt.',
+    ],
+  },
+  {
     date: '2026-09-09',
     title: 'Item-Sets',
     version: '0.10.1',

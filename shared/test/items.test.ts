@@ -10,6 +10,8 @@ import {
   diffItems,
   duplicateItem,
   effektiverRs,
+  elementKostenBoni,
+  elementProbeBonus,
   getrageneLast,
   haltbarkeitPct,
   itemGewicht,
@@ -438,6 +440,68 @@ describe('talentProbeBonus', () => {
     ]);
     expect(talentMitBoni(talent({ talentId: 42, taw: 8 }), boni).taw).toBe(13);
     expect(talentProbeBonus(42, boni)).toBe(2);
+  });
+});
+
+describe('elementProbeBonus', () => {
+  it('liefert den direkten Probe-Bonus eines Elements', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Feuerring', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 2, verborgen: false }] })]);
+    expect(elementProbeBonus('Feuer', boni)).toBe(2);
+  });
+
+  it('trifft nur das gewählte Element, andere bleiben unberührt', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Feuerring', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 2, verborgen: false }] })]);
+    expect(elementProbeBonus('Wasser', boni)).toBe(0);
+  });
+
+  it('summiert über mehrere getragene Items', () => {
+    const a = item({ location: 'getragen', name: 'A', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 1, verborgen: false }] });
+    const b = item({ location: 'getragen', name: 'B', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: -3, verborgen: false }] });
+    expect(elementProbeBonus('Feuer', wornBoni([a, b]))).toBe(-2);
+  });
+
+  it('ohne Bonus 0', () => {
+    expect(elementProbeBonus('Feuer', wornBoni([]))).toBe(0);
+  });
+});
+
+describe('elementKostenBoni', () => {
+  it('liefert eine Energie->Bonus-Zuordnung fürs gewählte Element', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Blutdolch', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Blutmagie', feld: 'le', wert: -1, verborgen: false }] })]);
+    expect(elementKostenBoni('Blutmagie', boni)).toEqual({ le: -1 });
+  });
+
+  it('mischt mehrere Energien desselben Elements aus getrennten Bonus-Zeilen', () => {
+    const boni = wornBoni([
+      item({
+        location: 'getragen',
+        name: 'Blutdolch',
+        bonusse: [
+          { uid: makeUid(), kind: 'element', code: 'Blutmagie', feld: 'le', wert: -1, verborgen: false },
+          { uid: makeUid(), kind: 'element', code: 'Blutmagie', feld: 'ase', wert: -2, verborgen: false },
+        ],
+      }),
+    ]);
+    expect(elementKostenBoni('Blutmagie', boni)).toEqual({ le: -1, ase: -2 });
+  });
+
+  it('probe- und Kosten-Boni auf demselben Element bleiben unabhängig', () => {
+    const boni = wornBoni([
+      item({
+        location: 'getragen',
+        name: 'Ring',
+        bonusse: [
+          { uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 2, verborgen: false },
+          { uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'aus', wert: -1, verborgen: false },
+        ],
+      }),
+    ]);
+    expect(elementProbeBonus('Feuer', boni)).toBe(2);
+    expect(elementKostenBoni('Feuer', boni)).toEqual({ aus: -1 });
+  });
+
+  it('ohne Bonus ein leeres Objekt', () => {
+    expect(elementKostenBoni('Feuer', wornBoni([]))).toEqual({});
   });
 });
 
