@@ -199,8 +199,9 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '2026-09-06',
+    date: '2026-09-09',
     title: 'Item-Sets',
+    version: '0.10.1',
     added: [
       'Ausrüstungs-Sets: über „Sets“ im Ausrüstungs-Reiter lässt sich der aktuell getragene Zustand unter einem Namen speichern (z. B. „Freizeit“, „Kampf“) und später per Klick wieder anlegen — alles, was nicht zum Set gehört, wird dabei automatisch abgelegt.',
       'Das Messen-Werkzeug auf dem virtuellen Tisch hat jetzt einen Schrittzähler: eine Linie ziehen zeigt jedes überquerte Feld einzeln nummeriert, statt nur eine Gesamtstrecke anzugeben.',
@@ -214,7 +215,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Ausrüstungskarten mit langem oder mehrzeiligem Namen zeigten ihre Zusatz-Symbole (Rüstungsschutz, Boni, Zustand) verrutscht an und wurden von den stark abgerundeten Ecken der Karte beschnitten.',
       'Das Ausklappen einer langen Notiz im Inventar über „…“ öffnete versehentlich zusätzlich den Bearbeiten-Dialog des Gegenstands.',
       'Eine vorgeschlagene Kooperationsprobe oder ein Wettstreit scrollte den Würfel-Chat nicht ans Ende — anders als jede neue Nachricht oder Probenanfrage.',
-      'Ein Klick auf eine Marke bei aktivem Mess-, Bemal-, Hervorheb-, Nebel- oder Beschriften-Werkzeug verschob versehentlich die Marke, statt das Werkzeug dort anzusetzen.',
+      'Ein Klick auf einen Token bei aktivem Mess-, Bemal-, Hervorheb-, Nebel- oder Beschriften-Werkzeug verschob versehentlich die Marke, statt das Werkzeug dort anzusetzen.',
       'Eine Wiki-Seite speichern, bei der nur die Kategorien geändert wurden, hat die Änderung nicht übernommen.',
     ],
   },
