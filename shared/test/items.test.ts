@@ -68,12 +68,17 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     rs: 0,
     haltbarkeitMax: 0,
     haltbarkeitAktuell: 0,
+    ladungMax: 0,
+    ladungAktuell: 0,
+    ladungPortion: 1,
     notiz: '',
     bonusse: [],
     rsVerborgen: false,
     haltbarkeitVerborgen: false,
     waffenArt: '',
     waffenStats: [],
+    munitionSchaden: '',
+    munitionProbenBonus: 0,
     ...partial,
   };
 }

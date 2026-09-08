@@ -511,6 +511,12 @@ db.exec(`
     -- in shared/src/items.ts).
     haltbarkeit_max REAL NOT NULL DEFAULT 0,
     haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
+    -- Ladung (TODO.md "Potion charges"): gleiches current/max-Muster wie
+    -- Haltbarkeit, 0 = nicht verfolgt. ladung_portion ist, wie viel EINE
+    -- Nutzung verbraucht (siehe shared/src/items.ts).
+    ladung_max REAL NOT NULL DEFAULT 0,
+    ladung_aktuell REAL NOT NULL DEFAULT 0,
+    ladung_portion REAL NOT NULL DEFAULT 1,
     notiz TEXT NOT NULL DEFAULT '',
     -- Hidden/revealable Ausrüstung stats (TODO.md): rs/haltbarkeit bleiben als
     -- Felder sichtbar, zeigen aber „???" statt der Zahl, solange verborgen.
@@ -520,7 +526,13 @@ db.exec(`
     -- Weapons as real items (TODO.md): '' = kein Waffe, sonst 'nah'/'fern'.
     -- Routet die Karte in den Waffen-Reiter/den richtigen Feldsatz; die
     -- tatsächlichen Waffenwerte liegen in char_item_weapon_stats.
-    waffen_art TEXT NOT NULL DEFAULT ''
+    waffen_art TEXT NOT NULL DEFAULT '',
+    -- Ammunition (TODO.md): nur sinnvoll bei kategorie = 'Munition' (siehe
+    -- MUNITION_KATEGORIE, shared/src/items.ts) — an die Schaden-Formel/FK-Probe
+    -- der Fernkampfwaffe angehängt, die diese Zeile per munitionUid (eigenes
+    -- WaffenStat-Feld) gewählt hat.
+    munition_schaden TEXT NOT NULL DEFAULT '',
+    munition_proben_bonus REAL NOT NULL DEFAULT 0
   );
   -- Der Index auf (owner_type, owner_id, pos) steht NICHT hier, sondern erst
   -- nach der owner_type-Migration weiter unten: auf einer bestehenden DB mit
@@ -1164,6 +1176,14 @@ db.exec(`
   if (!cols.has('waffen_art')) db.exec("ALTER TABLE char_items ADD COLUMN waffen_art TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration: Ammunition (TODO.md) — munition_schaden/munition_proben_bonus
+// auf char_items. Default '' / 0 hält bestehende Zeilen unverändert.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('munition_schaden')) db.exec("ALTER TABLE char_items ADD COLUMN munition_schaden TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('munition_proben_bonus')) db.exec('ALTER TABLE char_items ADD COLUMN munition_proben_bonus REAL NOT NULL DEFAULT 0');
+}
+
 // Migration (shared inventories, docs/concepts/shared-inventories.md):
 // char_items/char_item_categories gain owner_type/owner_id instead of a hard
 // character_id FK, so an item or a curated category list can belong to a
@@ -1323,6 +1343,17 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_typ
   if (!cols.has('mitgebracht_von')) db.exec("ALTER TABLE char_items ADD COLUMN mitgebracht_von TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration (Ladung, TODO.md "Potion charges"): ladung_max/aktuell/portion auf
+// char_items — plain additive ALTERs, same shape as haus/raum/mitgebracht_von
+// above. Default 0 for max/aktuell keeps existing rows "not tracked"; portion
+// defaults to 1 (a meaningful "one use" even before anyone opts in).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('ladung_max')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_max REAL NOT NULL DEFAULT 0');
+  if (!cols.has('ladung_aktuell')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_aktuell REAL NOT NULL DEFAULT 0');
+  if (!cols.has('ladung_portion')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_portion REAL NOT NULL DEFAULT 1');
+}
+
 // Migration: Magieresistenz von den Energien zu den Basiswerten.
 // Früher lag sie in char_resources mit getrenntem permanent/kauf; da beides in
 // der Praxis dasselbe war, wird es zu einem einzelnen Basiswert-Modifikator
@@ -1480,6 +1511,47 @@ for (const s of LIST_SECTIONS) {
     const migrate = db.transaction(() => {
       migrateTable('sec_waffenNahNeu', NAH_FELDER, 'nah', 2_000_000);
       migrateTable('sec_waffenFernNeu', FERN_FELDER, 'fern', 3_000_000);
+    });
+    migrate();
+  }
+}
+
+// Migration: Ammunition (TODO.md) — die alte generische Pfeile/Bolzen-Tabelle
+// (sec_munition) entfällt zugunsten echter Munitions-Items (kategorie
+// 'Munition', siehe MUNITION_KATEGORIE in shared/src/items.ts), die eine
+// Fernkampfwaffe jetzt direkt referenziert. Bestehende Zeilen wandern einmalig
+// nach char_items, dann wird sec_munition gelöscht (wie sec_techniken/
+// sec_liturgien/sec_allgemeinzauber oben) — reine Altlast ohne weitere Nutzung.
+// `anzahl`/`fuerWaffe` waren beide Freitext (t(), nicht n() — siehe
+// sections.ts): eine `anzahl`, die sich nicht als reine Zahl lesen lässt, und
+// jedes `fuerWaffe` (dafür gibt es auf dem neuen Modell kein Gegenstück — die
+// Referenz läuft jetzt umgekehrt, die Waffe wählt ihre Munition) gehen NICHT
+// verloren, sondern in die Notiz (no-data-loss rule, dieselbe Behandlung wie
+// parseHaltbarkeit oben).
+{
+  const tableExists = (name: string): boolean =>
+    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name);
+  if (tableExists('sec_munition')) {
+    const newUid = (): string => (db.prepare('SELECT lower(hex(randomblob(16))) AS u').get() as { u: string }).u;
+    const nextPos = db.prepare("SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_items WHERE owner_type='character' AND owner_id=?");
+    const insItem = db.prepare(
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, kategorie, notiz)
+       VALUES ('character', ?, ?, ?, ?, ?, 'Munition', ?)`,
+    );
+    const migrate = db.transaction(() => {
+      const rows = db.prepare('SELECT * FROM sec_munition ORDER BY character_id, pos, id').all() as
+        { character_id: number; art: string; anzahl: string; fuerWaffe: string }[];
+      for (const row of rows) {
+        const anzahlText = String(row.anzahl ?? '').trim();
+        const numeric = /^\d+([.,]\d+)?$/.test(anzahlText) ? Number(anzahlText.replace(',', '.')) : null;
+        const notizParts = [
+          numeric === null && anzahlText ? `Anzahl: ${anzahlText}` : '',
+          String(row.fuerWaffe ?? '').trim() ? `Für Waffe: ${String(row.fuerWaffe).trim()}` : '',
+        ].filter(Boolean);
+        const pos = (nextPos.get(row.character_id) as { p: number }).p;
+        insItem.run(row.character_id, pos, newUid(), String(row.art ?? ''), numeric ?? 1, notizParts.join('\n'));
+      }
+      db.exec('DROP TABLE sec_munition;');
     });
     migrate();
   }

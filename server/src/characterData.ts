@@ -960,7 +960,7 @@ export function loadItems(charId: number): Item[] {
 export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
     .all(ownerType, ownerId) as {
     id: number;
@@ -984,10 +984,15 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     rs: number;
     haltbarkeit_max: number;
     haltbarkeit_aktuell: number;
+    ladung_max: number;
+    ladung_aktuell: number;
+    ladung_portion: number;
     notiz: string;
     rs_verborgen: number;
     haltbarkeit_verborgen: number;
     waffen_art: string;
+    munition_schaden: string;
+    munition_proben_bonus: number;
   }[];
   // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
   // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
@@ -1049,12 +1054,17 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     rs: r.rs,
     haltbarkeitMax: r.haltbarkeit_max,
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
+    ladungMax: r.ladung_max,
+    ladungAktuell: r.ladung_aktuell,
+    ladungPortion: r.ladung_portion,
     notiz: r.notiz,
     bonusse: bonusesByItem.get(r.id) ?? [],
     waffenArt: (WAFFEN_ARTEN as string[]).includes(r.waffen_art) ? (r.waffen_art as WaffenArt) : '',
     waffenStats: weaponStatsByItem.get(r.id) ?? [],
     rsVerborgen: !!r.rs_verborgen,
     haltbarkeitVerborgen: !!r.haltbarkeit_verborgen,
+    munitionSchaden: r.munition_schaden,
+    munitionProbenBonus: r.munition_proben_bonus,
   }));
 }
 
@@ -1089,6 +1099,9 @@ function normalizedItemRow(o: Record<string, unknown>) {
   const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
   const haltbarkeitMax = clampMin(o.haltbarkeitMax);
   const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
+  const ladungMax = clampMin(o.ladungMax);
+  const ladungAktuell = Math.min(ladungMax, clampMin(o.ladungAktuell));
+  const ladungPortion = clampMin(o.ladungPortion, 1);
   const waffenArt = (WAFFEN_ARTEN as string[]).includes(String(o.waffenArt)) ? (String(o.waffenArt) as WaffenArt) : '';
   return {
     name: String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
@@ -1109,18 +1122,24 @@ function normalizedItemRow(o: Record<string, unknown>) {
     rs: clampMin(o.rs),
     haltbarkeitMax,
     haltbarkeitAktuell,
+    ladungMax,
+    ladungAktuell,
+    ladungPortion,
     notiz: String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
     rsVerborgen: o.rsVerborgen ? 1 : 0,
     haltbarkeitVerborgen: o.haltbarkeitVerborgen ? 1 : 0,
     waffenArt,
+    munitionSchaden: String(o.munitionSchaden ?? '').slice(0, MAX_ITEM_TEXT),
+    munitionProbenBonus: Number(o.munitionProbenBonus) || 0,
   };
 }
 
-const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=? WHERE id=?`;
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, ladung_max=?, ladung_aktuell=?, ladung_portion=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=?, munition_schaden=?, munition_proben_bonus=? WHERE id=?`;
 const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
   n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
   n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
-  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, id,
+  n.ladungMax, n.ladungAktuell, n.ladungPortion,
+  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, n.munitionSchaden, n.munitionProbenBonus, id,
 ];
 
 const MAX_ITEM_OPS = 500;
@@ -1209,8 +1228,8 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
 
   const tx = db.transaction(() => {
     const insItem = db.prepare(
-      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updItem = db.prepare(ITEM_UPDATE_SQL);
     const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
@@ -1247,8 +1266,10 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
         location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
         istBehaelter: !!merged.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
         kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
-        haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+        haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell,
+        ladungMax: n.ladungMax, ladungAktuell: n.ladungAktuell, ladungPortion: n.ladungPortion, notiz: n.notiz,
         rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+        munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus,
       });
     };
 
@@ -1279,7 +1300,9 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
           insItem.run(
             ownerType, ownerId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig,
             n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
-            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
+            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.ladungMax, n.ladungAktuell, n.ladungPortion,
+            n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
+            n.munitionSchaden, n.munitionProbenBonus,
           ).lastInsertRowid,
         );
         const working: WorkingItem = {
@@ -1289,8 +1312,10 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
           location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
           istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
           kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
-          haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+          haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell,
+          ladungMax: n.ladungMax, ladungAktuell: n.ladungAktuell, ladungPortion: n.ladungPortion, notiz: n.notiz,
           rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+          munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus,
           bonusse: [], waffenStats: [],
         };
         byUid.set(uid, working);
