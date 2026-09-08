@@ -266,6 +266,7 @@ export default function PoolInventory({
         <span className="static-value static-text">
           {it.name || ' '}
           {gebrachtBadge(it)}
+          {ladungBadge(it)}
         </span>
         {hint && <span className="muted" style={{ marginLeft: 8, fontSize: '0.85em' }}>{hint}</span>}
       </td>
@@ -294,6 +295,18 @@ export default function PoolInventory({
     it.mitgebrachtVon ? (
       <span className="muted" title={`Zuletzt aus dem Inventar von ${it.mitgebrachtVon} hierher verschoben`} style={{ marginLeft: 6 }}>
         ↪
+      </span>
+    ) : null;
+  // Ladung (TODO.md "Potion charges"): direkt in der Liste sichtbar statt nur
+  // im Bearbeiten-Dialog, gleiches Muster wie gebrachtBadge oben.
+  const ladungBadge = (it: Pick<Item, 'ladungMax' | 'ladungAktuell'>) =>
+    it.ladungMax > 0 ? (
+      <span
+        className={`item-ladung${it.ladungAktuell / it.ladungMax <= 0.25 ? ' item-ladung--low' : ''}`}
+        title="Ladung"
+        style={{ marginLeft: 6 }}
+      >
+        ⚡{it.ladungAktuell}/{it.ladungMax}
       </span>
     ) : null;
 

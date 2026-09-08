@@ -21,6 +21,20 @@ import { useChar } from '../pages/Character';
 
 const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 3 });
 
+// Ladung (TODO.md "Potion charges"): direkt in der Liste sichtbar statt nur im
+// Bearbeiten-Dialog — betrifft hier hauptsächlich Proviant/Tränke (Spieler-
+// Feedback), aber generisch für jedes Item mit ladungMax > 0.
+const ladungBadge = (it: Pick<Item, 'ladungMax' | 'ladungAktuell'>) =>
+  it.ladungMax > 0 ? (
+    <span
+      className={`item-ladung${it.ladungAktuell / it.ladungMax <= 0.25 ? ' item-ladung--low' : ''}`}
+      title="Ladung"
+      style={{ marginLeft: 6 }}
+    >
+      ⚡{it.ladungAktuell}/{it.ladungMax}
+    </span>
+  ) : null;
+
 interface DropTarget {
   location: ItemLocation;
   containerUid?: string;
@@ -182,7 +196,10 @@ export default function InventarTab() {
         </span>
       </td>
       <td>
-        <span className="static-value static-text">{it.name || ' '}</span>
+        <span className="static-value static-text">
+          {it.name || ' '}
+          {ladungBadge(it)}
+        </span>
       </td>
       <td className="num" onClick={(e) => e.stopPropagation()}>
         <AlwaysEditable>

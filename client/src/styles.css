@@ -3294,6 +3294,18 @@ li {
   color: var(--error-text);
   font-weight: 700;
 }
+/* Ladung (TODO.md "Potion charges") — selbe Farblogik wie .chip-haltbarkeit,
+   aber eigene Klasse: gebraucht sowohl im Ausrüstungs-Chip als auch in den
+   Tabellenzeilen von Inventar/PoolInventory, wo Haltbarkeit gar nicht erst
+   angezeigt wird. */
+.item-ladung {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.item-ladung--low {
+  color: var(--error-text);
+  font-weight: 700;
+}
 /* Hidden/revealable Ausrüstung stats (TODO.md): noch nicht aufgedeckte
    RS/Haltbarkeit — „???" statt der Zahl, gedämpft statt der Akzentfarbe, damit
    es klar als „unbekannt", nicht als echter Wert liest. */

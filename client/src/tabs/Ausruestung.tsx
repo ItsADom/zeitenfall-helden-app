@@ -595,6 +595,15 @@ function ItemChip({
             );
           })()
         )}
+        {item.ladungMax > 0 && (
+          <span
+            className={`item-ladung${item.ladungAktuell / item.ladungMax <= 0.25 ? ' item-ladung--low' : ''}`}
+            title="Ladung"
+          >
+            {' '}
+            ⚡{item.ladungAktuell}/{item.ladungMax}
+          </span>
+        )}
         {item.beidseitig && (
           <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>
         )}
