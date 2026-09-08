@@ -123,15 +123,28 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
   shown next to the name in the collapsed head, full field grid on expand;
   follows the Ausrüstung item-chip pattern). Remaining:
-   - `client/src/tabs/Waffen.tsx` (the retired generic-list tab, unreachable
-     but still on disk) is dead code — safe to delete once nobody needs it
-     for reference.
-   - `Waffenloser Kampf`/`Kampfstile` (still the old generic `ListEditor`
-     table inside `WaffenNeu.tsx`, unstyled as cards) still want their own
-     card treatment eventually, same reasoning as the weapon rework itself.
-   - `Pfeile-Bolzen` (Munition, same old-table situation) gets its own
-     solution once the planned lookup catalogue exists (see „Look-up lists"
-     below) — low priority, don't card-ify it first.
+   - `Kampfstile` (still the old generic `ListEditor` table inside
+     `WaffenNeu.tsx`, unstyled as cards) still wants its own card treatment
+     eventually, same reasoning as the weapon rework itself.
+     `Pfeile-Bolzen` (Munition) used to sit here too but is gone — ammunition
+     is a real Inventar-Item now (kategorie „Munition", see `MUNITION_KATEGORIE`
+     in `shared/src/items.ts`), picked directly on the Fernkampf card via its
+     new `munitionUid` field. `Waffenloser Kampf` also got its card treatment
+     (`WaffenlosCards`) — but deliberately stayed on the `sec_waffenlos` row
+     list rather than becoming real `char_items` (fists have no weight/location
+     and would otherwise clutter Inventar/Ausrüstung). Fixed to exactly two
+     cards, Raufen and Ringen (the only two unarmed-combat talents) — no more
+     free-text technique name or Kampftalent picker, both are implied by which
+     card it is; full AT/PA/BL and a Schaden field (renamed from TP/KK — TP(A)
+     dropped, had no real data anywhere). Raufen's Schaden also picks up a
+     "Handschutz-Bonus" automatically (the RS of whatever is worn in the
+     Hand-links/Hand-rechts zone, see `handRs` in `shared/src/items.ts`) —
+     Ringen is unaffected. Despite not being an Item, AT/PA/BL and Schaden are
+     all rollable: a new `ProbeSource` kind (`'waffenlos'`) and a new
+     `roll.waffenlosDamage` message recompute straight from the character's
+     base values + this row + the Raufen/Ringen talent split, entirely
+     server-side, the same trust model as a real weapon (see diceSource.ts,
+     ws.ts, `WaffenlosDamageRollButton.tsx`).
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
      THe actual statuses can be hardcoded, no need for settings.
@@ -155,18 +168,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      functionally-identical weapon instances (same stats, differing at most
      in Haltbarkeit) into one collapsed card in the reworked weapon tab,
      expandable to the individual instances underneath.
-   - [sketch] **Fold ammunition damage into the Fernkampf damage formula**
-     (user feedback): every ranged weapon has its own `schaden` value today,
-     but the ammunition actually loaded/used should add to it — currently
-     nothing links the two, so a weapon's shown/computed damage ignores which
-     ammo is equipped. Blocked on the **Ammunition** catalogue (Low-Prio,
-     below) existing first, since there's no per-ammo damage value to pull in
-     yet; once that catalogue has one, wire it into the Fernkampf damage
-     calc (and presumably the collapsed-head Schaden display above). Needs a
-     concept pass: how ammo gets selected/tracked per weapon (a field on the
-     Fern row referencing the ammo catalogue? current stock/inventory-linked?),
-     and how its damage combines with the weapon's own (added flat, or
-     replaces part of the dice formula).
 - [ready] **Editing dialog for abilities** (user feedback; supersedes
   the old "reuse the item-creation Dialog for spells/abilities and weapons"
   note that used to live in Low-Prio). The items half of this shipped —
@@ -276,17 +277,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   happening before trying a third fix — or consider swapping to a custom
   (non-native) colour picker instead, which would sidestep the browser
   quirk entirely.
-- [sketch] **Potion charges** (user feedback): no charge concept exists
-  today — the closest precedent is `Item.anzahl` (plain stack count).
-  Decided: a charge is a portion/dose — potions come in three fixed sizes
-  with a fixed charge count (klein = 1, mittel = 2, groß = 4), tracked as a
-  current/max pair similar to the existing Haltbarkeit pattern, decrementing
-  on use. Still open: how this interacts with `anzahl` when several
-  identical potions are stacked — a single Item row's current/max charge
-  pair can't represent "3 potions, each at a different remaining charge" any
-  more than Haltbarkeit can today. Needs a concept pass on whether a
-  partially-drunk potion has to split off the stack into its own row, or
-  charges only make sense while `anzahl === 1`.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -300,19 +290,13 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   `helden-assets.db`, or a shared marker linking a DB pair together — exact
   approach still open.
 - [sketch] **CSS tidy-up**: check for components than can be combined
- - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
- - splitting CSS into more fitting files
+   - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
+   - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
 - [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
   talents/languages) so a worn piece picks a material and shows its RS. Today RS is
   a manual per-piece number on the item.
-- [sketch] **Ammunition**: damage values and effects (new catalogue). Once it
-  has a per-ammo damage value, wire it into the Fernkampf damage formula (see
-  „Fold ammunition damage into the Fernkampf damage formula" under the Weapon
-  tab rework, Mid-Prio) — currently blocking that item.
-  This feature will need the players to keep their own list of ammunitions and damage values for them, which then feeds the damage formula. ranged weapons then pick which ammunition is used.
-  Ammunition can have bonus on AT too.
 - [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
   - Andergast as colorless
   - Orkland dark green, Bornland lighter green
@@ -386,7 +370,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 - FAQ - like a little manual or easy to miss features
 
-- **Notifications** let players know, when things have changend (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
+- **Notifications** let players know, when things have changed (approved characters, new changelog entries [which include 'Demnächst' and 'Bekannte Fehler'])
 
 - **drop `char_portraits`** — portraits now live in `helden-assets.db`; the old
   table was deliberately kept as a read fallback (copied, not moved) so a
