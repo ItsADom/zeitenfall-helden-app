@@ -73,6 +73,7 @@ export default function PoolInventory({
   onSave,
   onDuplicate,
   onDelete,
+  onUseLadung,
   onPatchAnzahl,
   onMove,
   onMoveWithin,
@@ -95,6 +96,10 @@ export default function PoolInventory({
   onSave: (uid: string, patch: Partial<Item>) => void;
   onDuplicate: (uid: string) => void;
   onDelete: (uid: string) => void;
+  /** Ladung (TODO.md "Potion charges") — reine Array-Funktion beim Aufrufer
+   * (siehe verwendeLadung, shared/src/items.ts), hier nur durchgereicht wie
+   * onDuplicate/onDelete. */
+  onUseLadung: (uid: string) => void;
   onPatchAnzahl: (uid: string, anzahl: number) => void;
   onMove: (uid: string, target: MoveTarget) => void;
   /** Ziehen INNERHALB des Pools (Kategorie/Behälter/Reihenfolge) — eigener Weg
@@ -526,6 +531,7 @@ export default function PoolInventory({
         onSave={(patch) => editUid && onSave(editUid, patch)}
         onDuplicate={() => editUid && onDuplicate(editUid)}
         onDelete={() => editUid && onDelete(editUid)}
+        onUseLadung={() => editUid && onUseLadung(editUid)}
         moveTargets={moveTargets}
         onMove={(target) => editUid && onMove(editUid, target)}
       />

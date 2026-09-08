@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type { Ability } from '@shared/abilities';
 import type { Item } from '@shared/items';
-import { duplicateItem, makeItem, reorderItems } from '@shared/items';
+import { duplicateItem, makeItem, reorderItems, verwendeLadung } from '@shared/items';
 import type { AttrRowCode } from '@shared/types';
 import { ATTR_LABELS } from '@shared/types';
 import { apiDelete, apiGet, apiPost } from '../api';
@@ -534,6 +534,7 @@ export default function GroupOverviewPage() {
                 .map((it) => (it.containerUid === uid ? { ...it, location: 'inventar', containerUid: '' } : it)),
             )
           }
+          onUseLadung={(uid) => setGmPool(verwendeLadung(gmPool, uid))}
           onPatchAnzahl={(uid, anzahl) => patchGmPoolItem(uid, { anzahl })}
           onMove={moveGmPoolItem}
           onMoveWithin={moveWithinGmPool}

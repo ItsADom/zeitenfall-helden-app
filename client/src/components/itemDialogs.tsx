@@ -544,6 +544,7 @@ export function AddItemDialog({
   onSave,
   onDuplicate,
   onDelete,
+  onUseLadung,
   moveTargets,
   onMove,
 }: {
@@ -581,6 +582,10 @@ export function AddItemDialog({
   onDuplicate?: () => void;
   /** Bearbeiten-Modus: Löschen-Knopf im Fuß, falls gesetzt. */
   onDelete?: () => void;
+  /** Bearbeiten-Modus: „Ladung verwenden"-Knopf im Fuß (TODO.md "Potion
+   * charges") — nur sinnvoll (und daher nur gerendert), wenn das Item
+   * überhaupt Ladung führt, siehe der `item.ladungMax > 0`-Guard unten. */
+  onUseLadung?: () => void;
   /** Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
    * nach…"-Ziele. Nur im Bearbeiten-Modus sinnvoll (ein noch nicht
    * gespeichertes Item hat keine uid zum Verschieben) — leer/undefined blendet
@@ -814,7 +819,7 @@ export function AddItemDialog({
       wide
       footer={
         <>
-          {item && (onDuplicate || onDelete || (onMove && moveTargets && moveTargets.length > 0)) && (
+          {item && (onDuplicate || onDelete || onUseLadung || (onMove && moveTargets && moveTargets.length > 0)) && (
             <span className="dlg-foot-left">
               {onMove && moveTargets && moveTargets.length > 0 && (
                 <>
@@ -845,6 +850,19 @@ export function AddItemDialog({
                     Verschieben
                   </button>
                 </>
+              )}
+              {onUseLadung && item.ladungMax > 0 && item.ladungAktuell > 0 && (
+                <button
+                  type="button"
+                  className="small"
+                  title={`Verbraucht ${item.ladungPortion} Ladung(en). Bei mehreren Exemplaren (Anzahl > 1) wird eines mit dem verminderten Stand abgespalten, der Rest des Stapels bleibt unangetastet.`}
+                  onClick={() => {
+                    onUseLadung();
+                    close();
+                  }}
+                >
+                  ⚡ Ladung verwenden
+                </button>
               )}
               {onDuplicate && (
                 <button

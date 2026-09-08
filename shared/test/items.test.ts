@@ -26,6 +26,7 @@ import {
   specialMitBoni,
   talentMitBoni,
   talentProbeBonus,
+  verwendeLadung,
   wornBoni,
   zaehltZurLast,
   zoneView,
@@ -249,6 +250,56 @@ describe('bonusse (Item-Boni-Datenmodell)', () => {
     expect(copy.bonusse[0].uid).not.toBe(ring.bonusse[0].uid);
     expect(copy.id).toBe(0);
     expect(copy.uid).not.toBe(ring.uid);
+  });
+});
+
+describe('verwendeLadung (TODO.md "Potion charges")', () => {
+  it('anzahl === 1: vermindert in-place um die Portionsgröße, keine neue Zeile', () => {
+    const trank = item({ name: 'Trank', anzahl: 1, ladungMax: 2, ladungAktuell: 2, ladungPortion: 1 });
+    const out = verwendeLadung([trank], trank.uid);
+    expect(out).toHaveLength(1);
+    expect(out[0].uid).toBe(trank.uid);
+    expect(out[0].anzahl).toBe(1);
+    expect(out[0].ladungAktuell).toBe(1);
+  });
+
+  it('anzahl > 1: spaltet EIN Exemplar mit dem verminderten Stand ab, der Rest des Stapels bleibt unverändert', () => {
+    const traenke = item({ name: 'Trank', anzahl: 3, ladungMax: 4, ladungAktuell: 4, ladungPortion: 1 });
+    const out = verwendeLadung([traenke], traenke.uid);
+    expect(out).toHaveLength(2);
+    // Der ursprüngliche Stapel: anzahl -1, Ladung UNVERÄNDERT (repräsentiert weiterhin die unangetasteten Exemplare).
+    expect(out[0].uid).toBe(traenke.uid);
+    expect(out[0].anzahl).toBe(2);
+    expect(out[0].ladungAktuell).toBe(4);
+    // Das abgespaltene Exemplar: eigene uid, anzahl 1, verminderter Stand.
+    expect(out[1].uid).not.toBe(traenke.uid);
+    expect(out[1].anzahl).toBe(1);
+    expect(out[1].ladungAktuell).toBe(3);
+    expect(out[1].ladungMax).toBe(4);
+  });
+
+  it('Portionsgröße > 1 (Spieler-Beispiel: 200 von 1000 „Kraftpunkten" einer Waffe)', () => {
+    const waffe = item({ name: 'Zauberstab', anzahl: 1, ladungMax: 1000, ladungAktuell: 1000, ladungPortion: 200 });
+    const out = verwendeLadung([waffe], waffe.uid);
+    expect(out[0].ladungAktuell).toBe(800);
+  });
+
+  it('klemmt bei 0, statt negativ zu werden (letzte, unvollständige Portion erlaubt)', () => {
+    const rest = item({ name: 'Trank', anzahl: 1, ladungMax: 5, ladungAktuell: 1, ladungPortion: 5 });
+    const out = verwendeLadung([rest], rest.uid);
+    expect(out[0].ladungAktuell).toBe(0);
+  });
+
+  it('keine Wirkung, wenn nicht verfolgt (ladungMax = 0) oder schon leer (ladungAktuell = 0)', () => {
+    const nichtVerfolgt = item({ name: 'Seil', ladungMax: 0, ladungAktuell: 0 });
+    expect(verwendeLadung([nichtVerfolgt], nichtVerfolgt.uid)).toEqual([nichtVerfolgt]);
+    const leer = item({ name: 'Trank', ladungMax: 4, ladungAktuell: 0 });
+    expect(verwendeLadung([leer], leer.uid)).toEqual([leer]);
+  });
+
+  it('unbekannte uid: Liste bleibt inhaltlich unverändert', () => {
+    const trank = item({ name: 'Trank', ladungMax: 2, ladungAktuell: 2 });
+    expect(verwendeLadung([trank], 'nicht-vorhanden')).toEqual([trank]);
   });
 });
 

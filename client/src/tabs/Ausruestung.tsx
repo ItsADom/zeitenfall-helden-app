@@ -12,6 +12,7 @@ import {
   makeItem,
   reorderItems,
   TRAGLAST_BONUS_KEY,
+  verwendeLadung,
   zoneView,
 } from '@shared/items';
 import type { EquipmentPreset, EquipmentPresetItem } from '@shared/equipmentPresets';
@@ -144,6 +145,9 @@ export default function AusruestungTab() {
   // Kopie erst suchen gehen.
   const duplicateItemAt = (uid: string) =>
     setItems(items.flatMap((it) => (it.uid === uid ? [it, duplicateItem(it)] : [it])));
+  // Ladung (TODO.md "Potion charges"): reine Array-Funktion, spaltet bei
+  // anzahl > 1 selbst ein Exemplar ab (siehe verwendeLadung in shared/src/items.ts).
+  const useLadungAt = (uid: string) => setItems(verwendeLadung(items, uid));
 
   const removeItem = (uid: string) =>
     setItems(
@@ -494,6 +498,7 @@ export default function AusruestungTab() {
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}
         onDelete={() => editUid && removeItem(editUid)}
+        onUseLadung={() => editUid && useLadungAt(editUid)}
         moveTargets={moveTargets}
         onMove={(target) => editUid && moveItemTo(editUid, target)}
       />
