@@ -1705,6 +1705,31 @@ input[type='checkbox'] {
   accent-color: var(--accent);
   transform: scale(1.15);
 }
+/* Der generische input-Rahmen/-Padding oben passt nicht auf type=file: der
+   native Button-plus-Dateiname-Bereich wird davon nicht gleich, sondern nur
+   uneinheitlich zwischen den Browsern verzerrt. Kasten zurücksetzen, stattdessen
+   nur den ::file-selector-button wie einen normalen Button einfärben. */
+input[type='file'] {
+  width: auto;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+input[type='file']::file-selector-button {
+  font: inherit;
+  color: inherit;
+  padding: 4px 10px;
+  margin-right: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+input[type='file']::file-selector-button:hover {
+  border-color: var(--border-hover);
+  background: var(--border-soft);
+}
 
 /* Nur-Lesen und Druck: Werte stehen als fester Text da statt in einem
    Eingabefeld. Innenabstand und der (durchsichtige) Rahmen sind dieselben wie

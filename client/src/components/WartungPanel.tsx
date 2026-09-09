@@ -94,7 +94,7 @@ export function WartungPanel() {
             laufendLabel="Loslassen bricht ab —"
             onComplete={() => void ausloesen()}
           />
-          <button type="button" onClick={() => setSchritt('aus')}>
+          <button type="button" className="small" onClick={() => setSchritt('aus')}>
             Abbrechen
           </button>
         </div>
@@ -110,7 +110,7 @@ export function WartungPanel() {
         title="Neue Version ausrollen"
         footer={
           <>
-            <button type="button" onClick={() => setSchritt('aus')}>
+            <button type="button" className="small" onClick={() => setSchritt('aus')}>
               Abbrechen
             </button>
             <button type="button" className="primary" onClick={() => setSchritt('rueckfrage')}>
@@ -134,7 +134,7 @@ export function WartungPanel() {
         title="Wirklich jetzt?"
         footer={
           <>
-            <button type="button" onClick={() => setSchritt('aus')}>
+            <button type="button" className="small" onClick={() => setSchritt('aus')}>
               Nein, abbrechen
             </button>
             <button type="button" className="primary" onClick={() => setSchritt('halten')}>
