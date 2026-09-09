@@ -271,6 +271,7 @@ PORT=3001
 SECURE_COOKIES=1
 HELDEN_DB=/srv/helden/data/helden.db
 HELDEN_ASSETS_DB=/srv/helden/data/helden-assets.db
+EASTER_EGG_DIR=/srv/helden/data/easter-eggs
 BACKUP_DIR=/srv/helden/backups
 BACKUP_KEEP=14
 BACKUP_INTERVAL_HOURS=24
@@ -317,6 +318,13 @@ Wozu die einzelnen Werte dienen:
 - **`ADMIN_USER`/`ADMIN_PASSWORD`** legen ein zweites Spielleiter-Konto an (für
   dich als Betreiber, getrennt vom Konto der Spielleitung). Idempotent: ein
   bestehendes Konto wird nie zurückgesetzt.
+- **`EASTER_EGG_DIR`** ist der Ordner für die von Hand abgelegten Easter-Egg-Bilder
+  (`server/src/index.ts`), gitignored wie `files/`. Muss unter `/srv/helden/data`
+  liegen, nicht im Code-Verzeichnis: `ProtectSystem=strict` erlaubt Schreiben nur
+  unter `ReadWritePaths`, ein code-relativer Pfad läge dagegen unter `/srv/helden/app`
+  (schreibgeschützt) und würde beim ersten Start mit `EROFS` abbrechen, sobald der
+  Ordner (gitignored, also in keinem frischen Release enthalten) neu angelegt werden
+  muss.
 
 Es gibt bewusst **keinen `.env`-Loader** in der App — die Variablen kommen
 ausschließlich aus dieser Datei über systemd.
