@@ -311,8 +311,15 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
       setDraft('');
       setError('');
       setInfo('');
-      apiPost<{ nummer: number }>('/api/easter-eggs/easteregg')
+      apiPost<{ nummer: number | null }>('/api/easter-eggs/easteregg')
         .then(({ nummer }) => {
+          // null: Admin-Konto, zählt absichtlich nicht mit (Code-Zugriff
+          // wäre kein echter Fund) — server/src/routes.ts. Keine Chat-Zeile,
+          // kein Zähler-Verbrauch, nur ein leiser Hinweis nur für sie selbst.
+          if (nummer === null) {
+            setInfo('Als Admin zählt das nicht als Fund. Dein Versuch bleibt unter uns.');
+            return;
+          }
           sendChat(`${user.displayName} hat Ei Nr. ${nummer} gefunden`, visibility, visibilityTarget ?? undefined);
           reportEasterEggFound('easteregg');
         })

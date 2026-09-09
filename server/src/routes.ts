@@ -436,7 +436,16 @@ api.put('/me/displayName', requireAuth, (req, res) => {
 // wiederholt von derselben Person). Deshalb kein *_ENABLED-Schalter wie bei
 // den anderen vieren — die hängen vom noch fehlenden generischen Tracker ab,
 // dieses Ei nicht.
+//
+// Admins zählen NIE mit (hier wie beim generischen Tracker unten) — sie
+// haben Code-Zugriff und könnten sich jeden Auslöser einfach nachlesen,
+// statt ihn wie alle anderen zu suchen. `nummer: null` sagt dem Client, die
+// Chat-Nachricht zu unterdrücken, statt eine ungezählte Admin-Zeile zu posten.
 api.post('/easter-eggs/easteregg', requireAuth, (req, res) => {
+  if (req.user!.isAdmin) {
+    res.json({ nummer: null });
+    return;
+  }
   db.prepare('INSERT INTO easteregg_command_uses (user_id, used_at) VALUES (?, ?)').run(req.user!.id, Date.now());
   const row = db.prepare('SELECT COUNT(*) AS n FROM easteregg_command_uses').get() as { n: number };
   res.json({ nummer: row.n });
@@ -447,13 +456,21 @@ api.post('/easter-eggs/easteregg', requireAuth, (req, res) => {
 // Auslöser aufgerufen. Das Konto zählt, nicht der gerade offene Charakter:
 // req.user!.id kommt aus der Sitzung, unabhängig davon, welcher Charakter
 // gerade geöffnet ist oder in wessen Namen zuletzt gewürfelt wurde.
+//
+// Admins werden absichtlich NICHT eingetragen: sie könnten sich per
+// Code-Zugriff jeden Auslöser einfach nachlesen und echten Spielern so die
+// Erstfund-Ehre wegschnappen, ohne wirklich gesucht zu haben. Antwortet
+// trotzdem mit ok, damit reportEasterEggFound() (feuert-und-vergisst) das
+// nicht als Fehler behandelt.
 api.post('/easter-eggs/:key/found', requireAuth, (req, res) => {
   const { key } = req.params;
   if (!EASTER_EGG_CATALOG.some((e) => e.key === key)) {
     res.status(404).json({ error: 'Unbekanntes Easter Egg' });
     return;
   }
-  db.prepare('INSERT OR IGNORE INTO easter_egg_finds (egg_key, user_id, found_at) VALUES (?, ?, ?)').run(key, req.user!.id, Date.now());
+  if (!req.user!.isAdmin) {
+    db.prepare('INSERT OR IGNORE INTO easter_egg_finds (egg_key, user_id, found_at) VALUES (?, ?, ?)').run(key, req.user!.id, Date.now());
+  }
   res.json({ ok: true });
 });
 

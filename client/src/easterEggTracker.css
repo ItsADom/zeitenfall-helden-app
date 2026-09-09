@@ -32,6 +32,19 @@
   line-height: 1.5;
 }
 
+.egg-tracker-reveal {
+  border: 1px solid var(--mastery);
+  border-radius: var(--radius-panel);
+  background: color-mix(in srgb, var(--mastery) 16%, var(--panel));
+  color: var(--mastery);
+  font-weight: 600;
+  padding: 9px 18px;
+  cursor: pointer;
+}
+.egg-tracker-reveal:hover {
+  background: color-mix(in srgb, var(--mastery) 26%, var(--panel));
+}
+
 .egg-tracker-list {
   list-style: none;
   margin: 0;
