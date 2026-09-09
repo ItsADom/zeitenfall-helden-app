@@ -9,6 +9,8 @@ import './wiki.css';
 // Same reasoning as wiki.css: a self-contained feature gets its own file
 // rather than more lines in styles.css. Every rule is named .dice-kino-.
 import './kino.css';
+// Same reasoning again — the Konami-code Easter Egg's own rules, .konami-.
+import './konamiParty.css';
 
 // Ein Data Router (statt <BrowserRouter>) — App bringt ihre eigene, tief
 // verschachtelte <Routes>/<Route>-Struktur mit, die als Nachfahre eines Data

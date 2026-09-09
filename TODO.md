@@ -277,7 +277,24 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      comment in `server/src/index.ts`, which now also serves that folder at
      `/easter-eggs/`). Same `WUERFELGOTT_ENABLED = false` gating, this time in
      `FeedColumn.tsx`, flip alongside the other two once the tracker is live.
-   - Goal before building the tracker itself: a baseline of 5 eggs. Two more
+   - A fourth egg, "konami" (key `konami`), is the Konami code
+     (↑↑↓↓←→←→BA) on the keyboard, ignored while typing in an input/textarea.
+     Takes over the whole screen with a deliberately silly "party": a cat gif
+     that bounces off the viewport edges DVD-screensaver-style (colour-shifts
+     on every bounce, plain rAF physics — `KonamiPartyOverlay.tsx`'s
+     `DvdKatze`) plus explosion gifs popping up at random spots on a repeating
+     interval (`ExplosionSchicht`). Entirely local, no server call, no chat
+     entry, nobody else sees it. Unlike every other egg it has NO automatic
+     end at all (by design) — runs until clicked/Esc or the page reloads,
+     only a generous 10-minute safety cutoff as a backstop. The images are
+     deliberately NOT in the repo (copyright — a well-known meme gif isn't
+     something to embed here no matter how often it's reposted elsewhere):
+     `server/data/easter-eggs/konami-cat.gif` and `konami-explosion-1..3.gif`,
+     same server-owner-places-it-by-hand pattern as the würfelgott photo,
+     served from the same `/easter-eggs/` static mount. Missing files just
+     render as broken `<img>` icons, nothing breaks. Same `KONAMI_ENABLED =
+     false` gating, mounted in `App.tsx`.
+   - Goal before building the tracker itself: a baseline of 5 eggs. One more
      to design after this one.
    - **Decided:** the list itself is a normal, always-reachable page — NOT an
      egg to find (considered, dropped: paradoxical to gate a "how many eggs

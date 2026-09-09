@@ -27,6 +27,7 @@ import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProv
 import { WartungProvider } from './components/wartung';
 import { NeustartOverlay } from './components/NeustartOverlay';
 import WichtigerWurfOverlay from './components/dice/WichtigerWurfOverlay';
+import KonamiPartyOverlay from './components/KonamiPartyOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
@@ -269,6 +270,9 @@ export default function App() {
       {/* Over the dock (which it ends by flying into), but under the restart
           screen: a redeploy beats any performance. */}
       <WichtigerWurfOverlay />
+      {/* Geheimes Easter Egg (Konami-Code) — siehe KonamiPartyOverlay.tsx.
+          Hört global auf die Tastatur, nicht nur im Chat-Eingabefeld. */}
+      <KonamiPartyOverlay />
       {/* Ganz zuletzt und außerhalb von <main>: der Wartebildschirm muss alles
           überdecken, den Würfel-Dock eingeschlossen. */}
       <NeustartOverlay />
