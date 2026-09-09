@@ -827,6 +827,17 @@ db.exec(`
     current_count INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_board_round_trackers_board_id ON board_round_trackers(board_id);
+
+  -- „/easteregg" Chat-Befehl (routes.ts, FeedColumn.tsx): jede Nutzung ein
+  -- Eintrag, absichtlich append-only statt eines einzelnen Zählers — die
+  -- laufende Nummer ist COUNT(*) nach dem Insert. Anders als die anderen vier
+  -- Easter Eggs ist dieses hier bewusst öffentlich und ungedeckelt, nicht
+  -- first-finder-only, siehe der Kommentar bei der Route.
+  CREATE TABLE IF NOT EXISTS easteregg_command_uses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    used_at INTEGER NOT NULL
+  );
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).

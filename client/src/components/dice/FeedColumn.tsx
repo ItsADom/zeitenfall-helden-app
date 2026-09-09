@@ -3,7 +3,7 @@ import { computeCompetitiveVerdict, computeCoopVerdict, parseDiceExpression, str
 import type { FeedEntry, PoolMode, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
-import { apiGet } from '../../api';
+import { apiGet, apiPost } from '../../api';
 import { usePersistedState } from '../persist';
 import { useHoverFlyout } from '../useHoverFlyout';
 import CommandsDialog from './CommandsDialog';
@@ -299,6 +299,27 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     if (WUERFELGOTT_ENABLED && text.toLowerCase().includes('würfelgott')) {
       setWuerfelgottOpen(true);
       reportEasterEggFound('wuerfelgott');
+    }
+    // Fünftes Easter Egg: ein "/"-Befehl wie /mute, /master usw., aber nicht
+    // in /commands gelistet — wer nach dem Lesen der Liste rät, ob es noch
+    // einen ungelisteten gibt, wird hier fündig. Anders als die anderen vier
+    // ist dieses Ei ABSICHTLICH öffentlich und dauerhaft: die laufende
+    // Nummer kommt vom Server (routes.ts zählt JEDE Nutzung, siehe dort) und
+    // landet als normale, für die ganze Gruppe sichtbare Chat-Zeile — kein
+    // *_ENABLED-Schalter nötig, das hängt nicht am noch fehlenden Tracker.
+    if (/^\/easteregg$/i.test(text)) {
+      setDraft('');
+      setError('');
+      setInfo('');
+      apiPost<{ nummer: number }>('/api/easter-eggs/easteregg')
+        .then(({ nummer }) => {
+          sendChat(`${user.displayName} hat Ei Nr. ${nummer} gefunden`, visibility, visibilityTarget ?? undefined);
+          reportEasterEggFound('easteregg');
+        })
+        .catch(() => {
+          setError('Das Ei wollte sich gerade nicht einlösen lassen — versuch es nochmal.');
+        });
+      return;
     }
     if (/^-{3,}$/.test(text) || /^\/line$/i.test(text)) {
       sendChat('---');

@@ -294,8 +294,24 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      served from the same `/easter-eggs/` static mount. Missing files just
      render as broken `<img>` icons, nothing breaks. Same `KONAMI_ENABLED =
      false` gating, mounted in `App.tsx`.
-   - Goal before building the tracker itself: a baseline of 5 eggs. One more
-     to design after this one.
+   - A fifth egg, "easteregg" (key `easteregg`), is the chat command
+     `/easteregg` — deliberately not listed in `/commands`
+     (`CommandsDialog.tsx`), so finding it means noticing the list exists and
+     wondering if there's more. Unlike the other four this one is
+     intentionally PUBLIC and PERMANENT rather than local: it posts a normal,
+     persistent chat message into whatever room is open — "`<Anzeigename>` hat
+     Ei Nr. `<N>` gefunden" — where N is a running count of every use by
+     everyone, not a first-finder-only count (`FeedColumn.tsx`'s `send()`,
+     new `POST /api/easter-eggs/easteregg` in `routes.ts`, backed by the
+     append-only `easteregg_command_uses` table in `db.ts`). Because the
+     count itself IS the "who found it and when" record, this one does NOT
+     wait on the generic tracker and has no `_ENABLED` flag — it's live now.
+     It still calls `reportEasterEggFound('easteregg')` too, so the future
+     generic tracker's own "first unique finder" naturally agrees with
+     whoever got Ei Nr. 1.
+   - Baseline of 5 eggs reached. Next: build the tracker itself (see the task
+     details above) and flip `CHAOS_MODE_ENABLED`/`UPSIDE_DOWN_ENABLED`/
+     `WUERFELGOTT_ENABLED`/`KONAMI_ENABLED` to `true` as its last step.
    - **Decided:** the list itself is a normal, always-reachable page — NOT an
      egg to find (considered, dropped: paradoxical to gate a "how many eggs
      have been found" page behind being found itself).

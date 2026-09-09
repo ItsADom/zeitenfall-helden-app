@@ -425,6 +425,22 @@ api.put('/me/displayName', requireAuth, (req, res) => {
   res.json({ displayName });
 });
 
+// --- Easter Eggs ---
+
+// „/easteregg" (client/src/components/dice/FeedColumn.tsx): anders als die
+// anderen vier Eier ist das hier ABSICHTLICH öffentlich und dauerhaft — die
+// Nachricht, die der Chat davon zeigt, IST die Zählung, kein separater
+// generischer Tracker nötig (der künftige Tracker aus TODO.md zählt ohnehin
+// nur EINDEUTIGE Erstfunde pro Person; hier zählt JEDE Nutzung, auch
+// wiederholt von derselben Person). Deshalb kein *_ENABLED-Schalter wie bei
+// den anderen vieren — die hängen vom noch fehlenden generischen Tracker ab,
+// dieses Ei nicht.
+api.post('/easter-eggs/easteregg', requireAuth, (req, res) => {
+  db.prepare('INSERT INTO easteregg_command_uses (user_id, used_at) VALUES (?, ?)').run(req.user!.id, Date.now());
+  const row = db.prepare('SELECT COUNT(*) AS n FROM easteregg_command_uses').get() as { n: number };
+  res.json({ nummer: row.n });
+});
+
 // --- Kataloge ---
 
 api.get('/catalogs', requireAuth, (_req, res) => {
