@@ -30,6 +30,7 @@ import {
   DYN_SLOTS_KEY,
   INVENTAR_KATEGORIEN,
   isPairedZone,
+  ELEMENT_BONUS_FELDER,
   ITEM_BONUS_KINDS,
   ITEM_LOCATIONS,
   makeUid,
@@ -64,7 +65,9 @@ import type {
   KapazitaetArt,
   DynColumn,
   EnergyFormulaVars,
+  EquipmentPreset,
   ExternalAttrPoint,
+  ElementBonusFeld,
   Item,
   ItemBonus,
   ItemBonusKind,
@@ -129,9 +132,9 @@ export function loadBaseValueInputsRaw(charId: number): BaseValueInputs {
 
 export function loadResourcesRaw(charId: number): Resources {
   const rows = db
-    .prepare('SELECT key, permanent, kauf, kaufMax, maxPlus, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
+    .prepare('SELECT key, permanent, kauf, aktuell, besonderes, raceBase FROM char_resources WHERE character_id = ?')
     .all(charId) as ({ key: string } & Resources['le'])[];
-  const empty = () => ({ permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '', raceBase: 0 });
+  const empty = () => ({ permanent: 0, kauf: 0, aktuell: 0, besonderes: '', raceBase: 0 });
   const out = { le: empty(), aus: empty(), ase: empty() } as Resources;
   for (const r of rows) {
     if (RESOURCE_KEYS.includes(r.key as never)) {
@@ -231,9 +234,9 @@ export function loadStats(charId: number): CharStats {
 
   const vars: EnergyFormulaVars = {
     attrs,
-    leMax: computeResource(attrs, 'le', resources.le).nutzbar,
-    auMax: computeResource(attrs, 'aus', resources.aus).nutzbar,
-    aseMax: computeResource(attrs, 'ase', resources.ase).nutzbar,
+    leMax: computeResource(attrs, 'le', resources.le).ergebnis,
+    auMax: computeResource(attrs, 'aus', resources.aus).ergebnis,
+    aseMax: computeResource(attrs, 'ase', resources.ase).ergebnis,
     psycheMax: psycheMax(attrs, meta.psycheBase ?? 0, psycheBonus),
   };
   const formelnById = ladeSpezialenergieFormeln();
@@ -917,6 +920,7 @@ export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
     abilities: loadAbilities(charId),
     abilityLists: loadAbilityLists(charId),
     pouches: loadPouches(charId),
+    equipmentPresets: loadEquipmentPresets(charId),
   };
 }
 
@@ -927,7 +931,22 @@ const MAX_ITEM_TEXT = 4000;
 const MAX_CATEGORIES = 200;
 const MAX_CATEGORY_LEN = 200;
 const MAX_BONUSSE_PRO_ITEM = 20;
-const MAX_BONUS_CODE = 64;
+// War 64 (genug für talentId/attrCode-artige kurze Codes) — jetzt gleich
+// MAX_CATEGORY_LEN, weil kind === 'element' hier einen vollen Elementnamen
+// speichert (siehe manageAbilityList-Kaskade unten); zwei unterschiedliche
+// Kappungen für denselben Namen würden ihn inkonsistent verkürzen.
+const MAX_BONUS_CODE = MAX_CATEGORY_LEN;
+
+// Boni-Zeile: `feld` whitelisten, je nach `kind` — talent kennt TALENT_BONUS_
+// FELDER, element kennt ELEMENT_BONUS_FELDER, alles andere trägt kein feld.
+// Eine Stelle statt der (zuvor zweimal separat ausgeschriebenen) talent-only-
+// Prüfung, jetzt für beide Fälle gemeinsam genutzt von den Lade-Stellen UND
+// normalizedBonusFields (Op-Anwendung).
+function normalizeStoredFeld(kind: ItemBonusKind, feld: string): TalentBonusFeld | ElementBonusFeld | '' {
+  if (kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(feld)) return feld as TalentBonusFeld;
+  if (kind === 'element' && (ELEMENT_BONUS_FELDER as string[]).includes(feld)) return feld as ElementBonusFeld;
+  return '';
+}
 
 const clampMin = (v: unknown, min = 0): number => {
   const n = Number(v);
@@ -941,7 +960,7 @@ export function loadItems(charId: number): Item[] {
 export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
     .all(ownerType, ownerId) as {
     id: number;
@@ -965,10 +984,15 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     rs: number;
     haltbarkeit_max: number;
     haltbarkeit_aktuell: number;
+    ladung_max: number;
+    ladung_aktuell: number;
+    ladung_portion: number;
     notiz: string;
     rs_verborgen: number;
     haltbarkeit_verborgen: number;
     waffen_art: string;
+    munition_schaden: string;
+    munition_proben_bonus: number;
   }[];
   // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
   // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
@@ -987,7 +1011,7 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
       uid: r.uid || makeUid(),
       kind: r.kind as ItemBonusKind,
       code: r.code,
-      feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+      feld: normalizeStoredFeld(r.kind as ItemBonusKind, r.feld),
       wert: Number(r.wert) || 0,
       verborgen: !!r.verborgen,
     });
@@ -1030,12 +1054,17 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     rs: r.rs,
     haltbarkeitMax: r.haltbarkeit_max,
     haltbarkeitAktuell: r.haltbarkeit_aktuell,
+    ladungMax: r.ladung_max,
+    ladungAktuell: r.ladung_aktuell,
+    ladungPortion: r.ladung_portion,
     notiz: r.notiz,
     bonusse: bonusesByItem.get(r.id) ?? [],
     waffenArt: (WAFFEN_ARTEN as string[]).includes(r.waffen_art) ? (r.waffen_art as WaffenArt) : '',
     waffenStats: weaponStatsByItem.get(r.id) ?? [],
     rsVerborgen: !!r.rs_verborgen,
     haltbarkeitVerborgen: !!r.haltbarkeit_verborgen,
+    munitionSchaden: r.munition_schaden,
+    munitionProbenBonus: r.munition_proben_bonus,
   }));
 }
 
@@ -1070,6 +1099,9 @@ function normalizedItemRow(o: Record<string, unknown>) {
   const kapArt = (KAPAZITAET_ARTEN as string[]).includes(String(o.kapazitaetArt)) ? String(o.kapazitaetArt) : 'gewicht';
   const haltbarkeitMax = clampMin(o.haltbarkeitMax);
   const haltbarkeitAktuell = Math.min(haltbarkeitMax, clampMin(o.haltbarkeitAktuell));
+  const ladungMax = clampMin(o.ladungMax);
+  const ladungAktuell = Math.min(ladungMax, clampMin(o.ladungAktuell));
+  const ladungPortion = clampMin(o.ladungPortion, 1);
   const waffenArt = (WAFFEN_ARTEN as string[]).includes(String(o.waffenArt)) ? (String(o.waffenArt) as WaffenArt) : '';
   return {
     name: String(o.name ?? '').slice(0, MAX_ITEM_TEXT),
@@ -1090,18 +1122,24 @@ function normalizedItemRow(o: Record<string, unknown>) {
     rs: clampMin(o.rs),
     haltbarkeitMax,
     haltbarkeitAktuell,
+    ladungMax,
+    ladungAktuell,
+    ladungPortion,
     notiz: String(o.notiz ?? '').slice(0, MAX_ITEM_TEXT),
     rsVerborgen: o.rsVerborgen ? 1 : 0,
     haltbarkeitVerborgen: o.haltbarkeitVerborgen ? 1 : 0,
     waffenArt,
+    munitionSchaden: String(o.munitionSchaden ?? '').slice(0, MAX_ITEM_TEXT),
+    munitionProbenBonus: Number(o.munitionProbenBonus) || 0,
   };
 }
 
-const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=? WHERE id=?`;
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, ladung_max=?, ladung_aktuell=?, ladung_portion=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=?, munition_schaden=?, munition_proben_bonus=? WHERE id=?`;
 const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
   n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
   n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
-  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, id,
+  n.ladungMax, n.ladungAktuell, n.ladungPortion,
+  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, n.munitionSchaden, n.munitionProbenBonus, id,
 ];
 
 const MAX_ITEM_OPS = 500;
@@ -1121,8 +1159,8 @@ function nextVerborgen(existing: boolean, incoming: unknown): boolean {
 // Boni-Zeile: Ziel/Feld normalisieren, ungültige kind-Werte verwerfen (wie
 // savePouches mit veralteten Katalog-Verweisen umgeht) — Aufrufer prüft vorher
 // bereits, ob kind überhaupt geändert werden darf.
-function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>): { code: string; feld: TalentBonusFeld | '' } {
-  const feld = kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(String(o.feld)) ? (String(o.feld) as TalentBonusFeld) : '';
+function normalizedBonusFields(kind: ItemBonusKind, o: Record<string, unknown>): { code: string; feld: TalentBonusFeld | ElementBonusFeld | '' } {
+  const feld = normalizeStoredFeld(kind, String(o.feld ?? ''));
   const code = kind === 'psyche' || kind === 'traglast' ? '' : String(o.code ?? '').slice(0, MAX_BONUS_CODE);
   return { code, feld };
 }
@@ -1168,7 +1206,7 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
       if (!item || !(ITEM_BONUS_KINDS as string[]).includes(r.kind)) continue;
       item.bonusse.push({
         dbId: r.id, uid: r.uid || makeUid(), kind: r.kind as ItemBonusKind, code: r.code,
-        feld: r.kind === 'talent' && (TALENT_BONUS_FELDER as string[]).includes(r.feld) ? (r.feld as TalentBonusFeld) : '',
+        feld: normalizeStoredFeld(r.kind as ItemBonusKind, r.feld),
         wert: Number(r.wert) || 0, verborgen: !!r.verborgen,
       });
     }
@@ -1190,8 +1228,8 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
 
   const tx = db.transaction(() => {
     const insItem = db.prepare(
-      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updItem = db.prepare(ITEM_UPDATE_SQL);
     const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
@@ -1228,8 +1266,10 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
         location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
         istBehaelter: !!merged.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
         kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
-        haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+        haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell,
+        ladungMax: n.ladungMax, ladungAktuell: n.ladungAktuell, ladungPortion: n.ladungPortion, notiz: n.notiz,
         rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+        munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus,
       });
     };
 
@@ -1260,7 +1300,9 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
           insItem.run(
             ownerType, ownerId, pos, uid, n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig,
             n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
-            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
+            n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.ladungMax, n.ladungAktuell, n.ladungPortion,
+            n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
+            n.munitionSchaden, n.munitionProbenBonus,
           ).lastInsertRowid,
         );
         const working: WorkingItem = {
@@ -1270,8 +1312,10 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
           location: n.location as ItemLocation, zone: n.zone, beidseitig: !!n.beidseitig, containerUid: n.containerUid,
           istBehaelter: !!fields.istBehaelter, containerArt: n.containerArt as ContainerArt, kapazitaet: n.kapazitaet,
           kapazitaetArt: n.kapazitaetArt as KapazitaetArt, gewichtsreduktion: n.gewichtsreduktion, rs: n.rs,
-          haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell, notiz: n.notiz,
+          haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell,
+          ladungMax: n.ladungMax, ladungAktuell: n.ladungAktuell, ladungPortion: n.ladungPortion, notiz: n.notiz,
           rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
+          munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus,
           bonusse: [], waffenStats: [],
         };
         byUid.set(uid, working);
@@ -1528,6 +1572,69 @@ export function savePouches(charId: number, raw: unknown): void {
         | undefined;
       insertOne({ systemId: firstSystem?.id ?? null, coins: {} }, true);
     }
+  });
+  tx();
+}
+
+// --- Ausrüstungs-Sets (docs/concepts/equipment-presets.md) ---
+//
+// Immer character-only (siehe db.ts-Kommentar) — kein owner_type/owner_id-
+// Paar nötig. Ganze Liste ersetzen wie savePouches: Delete+Insert, kein
+// Ops-Mechanismus, weil ein Charakter-eigenes Set nicht wie char_items
+// nebenläufig von zwei Betrachtern zugleich bearbeitet wird.
+
+const MAX_EQUIPMENT_PRESETS = 20;
+const MAX_EQUIPMENT_PRESET_ITEMS = 200;
+const MAX_PRESET_NAME = 100;
+
+export function loadEquipmentPresets(charId: number): EquipmentPreset[] {
+  const presets = db
+    .prepare('SELECT id, name FROM char_equipment_presets WHERE character_id = ? ORDER BY pos, id')
+    .all(charId) as { id: number; name: string }[];
+  const itemRows = db
+    .prepare(
+      `SELECT pi.preset_id, pi.item_uid, pi.item_name, pi.zone, pi.beidseitig
+       FROM char_equipment_preset_items pi
+       JOIN char_equipment_presets p ON p.id = pi.preset_id
+       WHERE p.character_id = ?
+       ORDER BY pi.pos, pi.id`,
+    )
+    .all(charId) as { preset_id: number; item_uid: string; item_name: string; zone: string; beidseitig: number }[];
+  const itemsByPreset = new Map<number, EquipmentPreset['items']>();
+  for (const r of itemRows) {
+    const arr = itemsByPreset.get(r.preset_id) ?? [];
+    arr.push({ itemUid: r.item_uid, itemName: r.item_name, zone: r.zone, beidseitig: !!r.beidseitig });
+    itemsByPreset.set(r.preset_id, arr);
+  }
+  return presets.map((p) => ({ id: p.id, name: p.name, items: itemsByPreset.get(p.id) ?? [] }));
+}
+
+export function saveEquipmentPresets(charId: number, raw: unknown): void {
+  const arr = Array.isArray(raw) ? (raw as Record<string, unknown>[]).slice(0, MAX_EQUIPMENT_PRESETS) : [];
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM char_equipment_presets WHERE character_id = ?').run(charId);
+    const insPreset = db.prepare('INSERT INTO char_equipment_presets (character_id, pos, name) VALUES (?, ?, ?)');
+    const insItem = db.prepare(
+      'INSERT INTO char_equipment_preset_items (preset_id, pos, item_uid, item_name, zone, beidseitig) VALUES (?, ?, ?, ?, ?, ?)',
+    );
+    arr.forEach((rawPreset, pos) => {
+      const o = (rawPreset ?? {}) as Record<string, unknown>;
+      const name = String(o.name ?? '').slice(0, MAX_PRESET_NAME);
+      const presetId = Number(insPreset.run(charId, pos, name).lastInsertRowid);
+      const rawItems = Array.isArray(o.items) ? (o.items as Record<string, unknown>[]).slice(0, MAX_EQUIPMENT_PRESET_ITEMS) : [];
+      rawItems.forEach((rawItem, ipos) => {
+        const io = (rawItem ?? {}) as Record<string, unknown>;
+        const itemUid = String(io.itemUid ?? '').slice(0, 64);
+        // Eine Zeile ohne uid ist nutzlos (nichts, das sie beim Anwenden
+        // träfe) — gar nicht erst speichern statt eine leere Geisterzeile.
+        if (!itemUid) return;
+        const itemName = String(io.itemName ?? '').slice(0, MAX_ITEM_TEXT);
+        const zoneRaw = String(io.zone ?? '');
+        const zone = ZONE_SET.has(zoneRaw) ? zoneRaw : '';
+        const beidseitig = isPairedZone(zone) && io.beidseitig ? 1 : 0;
+        insItem.run(presetId, ipos, itemUid, itemName, zone, beidseitig);
+      });
+    });
   });
   tx();
 }
@@ -2096,6 +2203,18 @@ export function manageAbilityList(charId: number, kind: string, raw: unknown): A
       const up = db.prepare('UPDATE char_abilities SET element = ? WHERE character_id = ? AND element = ?');
       for (const r of renamePairs) up.run(r.to, charId, r.from);
       for (const n of removeSet) up.run('', charId, n);
+      // Item-Boni ziehen mit: ein Bonus mit kind === 'element' speichert den
+      // Elementnamen als `code` (siehe ItemBonusKind in shared/src/items.ts) —
+      // ohne diese Kaskade würde ein Umbenennen/Entfernen die Bonus-Zeile
+      // stillschweigend verwaisen lassen (zeigt dann auf ein nicht mehr
+      // existierendes Element). Nur Items DIESES Charakters, wie oben.
+      const upBonus = db.prepare(
+        `UPDATE char_item_bonuses SET code = ? WHERE kind = 'element' AND code = ? AND item_id IN (
+           SELECT id FROM char_items WHERE owner_type = 'character' AND owner_id = ?
+         )`,
+      );
+      for (const r of renamePairs) upBonus.run(r.to, r.from, charId);
+      for (const n of removeSet) upBonus.run('', n, charId);
     } else {
       // 'kategorien' ist ein JSON-Array je Zeile — Umbenennen/Entfernen muss
       // innerhalb jedes Arrays passieren, nicht als exakter Spaltenvergleich.
@@ -2482,7 +2601,7 @@ export function saveSection(charId: number, section: string, data: unknown): voi
     if (section === 'resources') {
       const body = (data ?? {}) as Record<string, Record<string, unknown>>;
       const stmt = db.prepare(
-        'UPDATE char_resources SET permanent = ?, kauf = ?, kaufMax = ?, maxPlus = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
+        'UPDATE char_resources SET permanent = ?, kauf = ?, aktuell = ?, besonderes = ?, raceBase = ? WHERE character_id = ? AND key = ?',
       );
       for (const key of RESOURCE_KEYS) {
         const v = body[key];
@@ -2490,8 +2609,6 @@ export function saveSection(charId: number, section: string, data: unknown): voi
         const input: ResourceInput = {
           permanent: num(v.permanent),
           kauf: num(v.kauf),
-          kaufMax: num(v.kaufMax),
-          maxPlus: num(v.maxPlus),
           aktuell: num(v.aktuell),
           besonderes: str(v.besonderes),
           // Nicht vom Client editierbar (kommt aus der Rassen-Auswahl) — trotzdem
@@ -2500,22 +2617,12 @@ export function saveSection(charId: number, section: string, data: unknown): voi
           raceBase: num(v.raceBase),
         };
         // Aktuell wird NICHT gekappt, weder nach oben noch nach unten — ein
-        // Vorrat darf bewusst über sein nutzbares Maximum steigen (Überladung,
-        // siehe AktuellFeld.tsx) und ins Minus fallen. Ein Server-seitiges
-        // Kappen nach oben widersprach dieser Absicht: der Wert kam bei jedem
+        // Vorrat darf bewusst über sein Maximum steigen (Überladung, siehe
+        // AktuellFeld.tsx) und ins Minus fallen. Ein Server-seitiges Kappen
+        // nach oben widersprach dieser Absicht: der Wert kam bei jedem
         // Speichern (auch dem automatischen bei jeder Änderung) auf das
         // Maximum zurückgestutzt, was nach einem Neuladen wie ein Reset wirkte.
-        stmt.run(
-          input.permanent,
-          input.kauf,
-          input.kaufMax,
-          input.maxPlus,
-          input.aktuell,
-          input.besonderes,
-          input.raceBase,
-          charId,
-          key,
-        );
+        stmt.run(input.permanent, input.kauf, input.aktuell, input.besonderes, input.raceBase, charId, key);
       }
       return;
     }
@@ -2745,9 +2852,6 @@ export function buildSummary(charId: number) {
         label: RESOURCE_LABELS[key].label,
         aktuell: resources[key].aktuell,
         ergebnis: r.ergebnis,
-        max: r.max,
-        nutzbar: r.nutzbar,
-        gekappt: r.gekappt,
       };
     });
   }
@@ -2845,20 +2949,19 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       schicksalspunkteMax?: number;
     };
 
-    // Vitale Pools als Chips „aktuell/max". Als Maximum zählt der NUTZBARE Wert
-    // (Rohsumme über der Ausbaugrenze ist kein Vorrat) — gleiche Wahl wie im
-    // Heldenbrief. AsE nur, wenn der Charakter sie überhaupt nutzt: solange es
-    // kein „hat ASP"-Flag gibt (siehe TODO Spezialenergien), gilt als Näherung
-    // „irgendein AsE-Feld ist gesetzt". So verschwindet die Spalte bei reinen
-    // Nicht-Zauberern, ohne einem erschöpften Magier den Chip wegzunehmen.
+    // Vitale Pools als Chips „aktuell/max". AsE nur, wenn der Charakter sie
+    // überhaupt nutzt: solange es kein „hat ASP"-Flag gibt (siehe TODO
+    // Spezialenergien), gilt als Näherung „irgendein AsE-Feld ist gesetzt". So
+    // verschwindet die Spalte bei reinen Nicht-Zauberern, ohne einem
+    // erschöpften Magier den Chip wegzunehmen.
     const vitals: { key: string; aktuell: number; max: number }[] = [];
     for (const key of RESOURCE_KEYS) {
       const inp = resources[key];
-      if (key === 'ase' && !(inp.aktuell || inp.permanent || inp.kauf || inp.kaufMax || inp.maxPlus)) continue;
+      if (key === 'ase' && !(inp.aktuell || inp.permanent || inp.kauf)) continue;
       const r = computeResource(attributes, key, inp);
-      vitals.push({ key, aktuell: inp.aktuell, max: r.nutzbar });
+      vitals.push({ key, aktuell: inp.aktuell, max: r.ergebnis });
     }
-    // Psyche ist kein echter Vorrat (keine Ausbaugrenze); Max aus Rassenwert +
+    // Psyche ist kein echter Vorrat; Max aus Rassenwert +
     // Bonus + MU-Anteil — dieselbe Formel wie im Heldenbrief.
     vitals.push({
       key: 'psyche',

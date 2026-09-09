@@ -1,6 +1,6 @@
 import { Fragment, useState } from 'react';
 import type { Item, ItemLocation, KapazitaetArt } from '@shared/items';
-import { containerFuellungAnzeige, duplicateItem, itemGewicht, itemsInContainer, lastInfo, makeItem, reorderItems } from '@shared/items';
+import { containerFuellungAnzeige, duplicateItem, itemGewicht, itemsInContainer, lastInfo, makeItem, reorderItems, verwendeLadung } from '@shared/items';
 import { apiPost } from '../api';
 import { useAuth } from '../App';
 import { applyCategoryCascade, CategoryManagerDialog } from '../components/CategoryManagerDialog';
@@ -20,6 +20,20 @@ import { useChar } from '../pages/Character';
 // Ziehen und das Ändern der Anzahl gehen auch im Nur-Lesen-Modus.
 
 const kg = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 3 });
+
+// Ladung (TODO.md "Potion charges"): direkt in der Liste sichtbar statt nur im
+// Bearbeiten-Dialog — betrifft hier hauptsächlich Proviant/Tränke (Spieler-
+// Feedback), aber generisch für jedes Item mit ladungMax > 0.
+const ladungBadge = (it: Pick<Item, 'ladungMax' | 'ladungAktuell'>) =>
+  it.ladungMax > 0 ? (
+    <span
+      className={`item-ladung${it.ladungAktuell / it.ladungMax <= 0.25 ? ' item-ladung--low' : ''}`}
+      title="Ladung"
+      style={{ marginLeft: 6 }}
+    >
+      ⚡{it.ladungAktuell}/{it.ladungMax}
+    </span>
+  ) : null;
 
 interface DropTarget {
   location: ItemLocation;
@@ -61,6 +75,9 @@ export default function InventarTab() {
   // Kopie erst suchen gehen.
   const duplicateItemAt = (uid: string) =>
     setItems(items.flatMap((it) => (it.uid === uid ? [it, duplicateItem(it)] : [it])));
+  // Ladung (TODO.md "Potion charges"): reine Array-Funktion, spaltet bei
+  // anzahl > 1 selbst ein Exemplar ab (siehe verwendeLadung in shared/src/items.ts).
+  const useLadungAt = (uid: string) => setItems(verwendeLadung(items, uid));
 
   const removeItem = (uid: string) =>
     setItems(
@@ -179,7 +196,10 @@ export default function InventarTab() {
         </span>
       </td>
       <td>
-        <span className="static-value static-text">{it.name || ' '}</span>
+        <span className="static-value static-text">
+          {it.name || ' '}
+          {ladungBadge(it)}
+        </span>
       </td>
       <td className="num" onClick={(e) => e.stopPropagation()}>
         <AlwaysEditable>
@@ -440,6 +460,7 @@ export default function InventarTab() {
         categories={catOptions}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'behaelter', containerUid: addItemFor! })])}
       />
@@ -450,10 +471,12 @@ export default function InventarTab() {
         item={editUid !== null ? byUid.get(editUid) : undefined}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}
         onDelete={() => editUid && removeItem(editUid)}
+        onUseLadung={() => editUid && useLadungAt(editUid)}
         moveTargets={moveTargets}
         onMove={(target) => editUid && moveItemToOwner(editUid, target)}
       />

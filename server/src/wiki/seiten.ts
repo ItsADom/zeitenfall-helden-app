@@ -88,6 +88,13 @@ function tagsVon(pageId: number): string[] {
   }[]).map((r) => r.tag);
 }
 
+/** Sorted tag_keys for a change comparison — key, not display text, since that is what identity/dedup already goes by (see normalizeWikiTags). */
+function tagKeysVon(pageId: number): string[] {
+  return (db.prepare('SELECT tag_key FROM wiki_page_tags WHERE page_id = ? ORDER BY tag_key').all(pageId) as {
+    tag_key: string;
+  }[]).map((r) => r.tag_key);
+}
+
 function letzteFassung(pageId: number): RevRow | undefined {
   return db
     .prepare('SELECT * FROM wiki_revisions WHERE page_id = ? AND text IS NOT NULL ORDER BY nr DESC LIMIT 1')
@@ -473,9 +480,16 @@ export function speichereSeite(
 
   const textGeaendert = text !== altText;
   const titelGeaendert = titel !== seite.titel;
+  // Tags live in their own table (wiki_page_tags), not in text/titel — a save
+  // that only touched the category picker must not be swallowed by the
+  // no-op guard below, or the tag change is silently lost (schreibeAbgeleitetes,
+  // the only place that rewrites wiki_page_tags, is never reached).
+  const alteTagKeys = tagKeysVon(seite.id);
+  const neueTagKeys = [...tags.map((t) => t.key)].sort();
+  const tagsGeaendert = JSON.stringify(alteTagKeys) !== JSON.stringify(neueTagKeys);
   // A save that changed nothing writes no log row at all: the change log should
   // record changes, not visits to the editor.
-  if (!textGeaendert && !titelGeaendert) return seite;
+  if (!textGeaendert && !titelGeaendert && !tagsGeaendert) return seite;
 
   // The namespace follows the title, so a rename can move a page into the
   // category namespace or back out of it. Refused only when the target category

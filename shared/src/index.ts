@@ -3,6 +3,7 @@ export * from './rules.js';
 export * from './sections.js';
 export * from './dynamicSections.js';
 export * from './items.js';
+export * from './equipmentPresets.js';
 export * from './currency.js';
 export * from './abilities.js';
 export * from './tableLayout.js';

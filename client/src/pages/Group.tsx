@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import type { Attributes } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item } from '@shared/items';
-import { duplicateItem, makeItem, reorderItems } from '@shared/items';
+import { duplicateItem, makeItem, reorderItems, verwendeLadung } from '@shared/items';
 import type { CoinPouch } from '@shared/currency';
 import type { MoveTarget } from '../components/itemDialogs';
 import { apiDelete, apiGet, apiPost, apiPut } from '../api';
@@ -420,6 +420,7 @@ export default function GroupPage() {
                         .map((it) => (it.containerUid === uid ? { ...it, location: 'inventar', containerUid: '' } : it)),
                     )
                   }
+                  onUseLadung={(uid) => setItemPool(verwendeLadung(itemPool, uid))}
                   onPatchAnzahl={(uid, anzahl) => patchPoolItem(uid, { anzahl })}
                   onMove={movePoolItem}
                   onMoveWithin={moveWithinPool}

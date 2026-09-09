@@ -657,8 +657,8 @@ export function getInitiativeEntry(tokenId: number): BoardInitiativeRow | undefi
  * Attributes/resources/base values, straight from the character's own
  * sheet — never trust a client-supplied Initiative-Basis or LP. `lp` is the
  * `aktuell` field as typed on the sheet, same as `overviewForChars` in
- * characterData.ts reads it for the GM roster (not the capped/derived
- * `nutzbar`, which is a maximum, not a current value).
+ * characterData.ts reads it for the GM roster (not the derived maximum,
+ * `computeResource(...).ergebnis`, which is a maximum, not a current value).
  */
 function characterCombatStats(characterId: number): { iniBasis: number; lp: number; todesschwelle: number } {
   const stats = loadStats(characterId);

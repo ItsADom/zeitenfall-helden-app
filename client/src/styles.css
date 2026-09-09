@@ -1470,6 +1470,54 @@ table.sheet tbody tr:hover td.res-crit {
 table.sheet tbody tr:hover td.res-over {
   background: var(--over-soft);
 }
+
+/* Reine Lese-Regeltabelle (z. B. "Zauber erschaffen" in AbilityManager.tsx):
+   kein Eingabegitter, deshalb eigene Optik statt table.sheet (dessen Sticky-Kopf/
+   -Spalte für editierbare Datentabellen gedacht ist und hier nur störte). Trägt
+   Rahmen/Rundung selbst statt über .table-wrap, damit `overflow: hidden` fürs
+   Eckenrunden nicht mit der geteilten Sticky-Logik anderer Tabellen kollidiert. */
+.rules-table {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+}
+.rules-table th,
+.rules-table td {
+  padding: 8px 12px;
+  text-align: left;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-soft);
+}
+.rules-table thead th {
+  background: var(--surface-head);
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border-strong);
+}
+.rules-table tbody tr:last-child th,
+.rules-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.rules-table tbody tr:nth-child(even) th,
+.rules-table tbody tr:nth-child(even) td {
+  background: var(--surface-sunken);
+}
+.rules-table tbody tr:hover th,
+.rules-table tbody tr:hover td {
+  background: var(--surface-hover);
+}
+.rules-table th[scope='row'] {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* Zell-eigenes Label: für Zeilen, deren Eingaben nicht zur geteilten Kopfzeile
    passen (z. B. Psyche mit Rassenwert/Bonus). Kleine, gedämpfte Aufschrift über
    dem Feld — der Tabellenkopf bleibt für alle anderen Zeilen unverändert.
@@ -1495,20 +1543,6 @@ table.sheet tbody tr:hover td.res-over {
 .cell-value {
   text-align: center;
 }
-/* Maximum über der Ausbaugrenze: gekappter Wert zählt, Rohsumme daneben
-   durchgestrichen — wie ein durchgestrichener alter Preis. */
-.gekappt {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  cursor: help;
-}
-.gekappt-roh {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--muted);
-  text-decoration-thickness: 1px;
-}
 /* Item-bonusierter Wert (BonusWert.tsx) — dieselbe Färbung wie .chip-rs/
    .chip-bonus, damit "von einem Gegenstand angehoben" überall gleich aussieht. */
 .bonus-mark {
@@ -1517,7 +1551,7 @@ table.sheet tbody tr:hover td.res-over {
   cursor: help;
 }
 
-/* Gruppenkopf über den Energien-Spalten (Maximum / Ausbaugrenze) */
+/* Gruppenkopf über den Energien-Spalten (Maximum) */
 table.sheet th.group {
   text-align: center;
   color: var(--accent-dark);
@@ -1732,6 +1766,19 @@ table.sheet select:focus,
 table.sheet textarea.text-input:focus {
   border-color: var(--accent);
   background: var(--input-bg);
+}
+/* Native Spinner-Pfeile weg — bei einer schmalen Tabellenspalte schneiden sie
+   die Zahl an, sobald sie mehr als 2-3 Stellen hat (siehe .side-pool weiter
+   unten, gleicher Grund). Ohne Ausbaugrenze/Hard-Cap (TODO.md "remove
+   hard-caps") ist eine mehrstellige Energien-Summe kein Rand-, sondern ein
+   Normalfall. */
+table.sheet input[type='number']::-webkit-inner-spin-button,
+table.sheet input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+table.sheet input[type='number'] {
+  -moz-appearance: textfield;
 }
 
 /* ---------- Buttons ---------- */
@@ -3147,6 +3194,42 @@ li {
   font-variant-numeric: tabular-nums;
 }
 
+/* Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Flyout wie
+   .vtt-tile-picker (gleiche Panel-Optik), aber am eigenen Auslöser-Knopf
+   verankert statt an einer festen Position im VTT-Toolbar-Rahmen. */
+.equip-preset-anchor {
+  position: relative;
+}
+.equip-preset-flyout {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 6px;
+  z-index: 6;
+  width: 320px;
+  max-width: calc(100vw - 32px);
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.equip-preset-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.equip-preset-row .text-input,
+.equip-preset-row .static-text {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Körperzonen-Raster: kompakte Kacheln, je eine Zone mit Titel + Wurf-Bereich. */
 .zone-grid {
   display: grid;
@@ -3208,12 +3291,12 @@ li {
 /* Gegenstands-Chip: ziehbare Kachel mit Name, Menge, Gewicht. */
 .item-chip {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 2px;
   max-width: 100%;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 10px;
   background: var(--surface);
   font-size: 13px;
   cursor: grab;
@@ -3256,6 +3339,18 @@ li {
   font-variant-numeric: tabular-nums;
 }
 .chip-haltbarkeit--low {
+  color: var(--error-text);
+  font-weight: 700;
+}
+/* Ladung (TODO.md "Potion charges") — selbe Farblogik wie .chip-haltbarkeit,
+   aber eigene Klasse: gebraucht sowohl im Ausrüstungs-Chip als auch in den
+   Tabellenzeilen von Inventar/PoolInventory, wo Haltbarkeit gar nicht erst
+   angezeigt wird. */
+.item-ladung {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.item-ladung--low {
   color: var(--error-text);
   font-weight: 700;
 }
@@ -3619,6 +3714,13 @@ li {
   color: var(--on-accent-fill);
   font-weight: 600;
 }
+.dlg-seg button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.dlg-seg button.active:disabled {
+  opacity: 1;
+}
 
 .dlg-field {
   display: block;
@@ -3672,6 +3774,15 @@ li {
   letter-spacing: 0.06em;
   color: var(--muted);
   margin-bottom: 8px;
+}
+.dlg-checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text);
+  cursor: pointer;
 }
 
 /* ---------- Einstellungen-Seite ---------- */

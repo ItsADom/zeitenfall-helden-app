@@ -12,18 +12,22 @@ import {
   makeItem,
   reorderItems,
   TRAGLAST_BONUS_KEY,
+  verwendeLadung,
   zoneView,
 } from '@shared/items';
+import type { EquipmentPreset, EquipmentPresetItem } from '@shared/equipmentPresets';
+import { applyEquipmentPreset, equipmentPresetItemsFromWorn, missingPresetItems } from '@shared/equipmentPresets';
 import type { AttrCode, BaseValueKey, ResourceKey } from '@shared/types';
 import { ATTR_LABELS, BASE_VALUE_LABELS, RESOURCE_LABELS } from '@shared/types';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from '../components/charSheet';
 import { apiPost } from '../api';
 import { useAuth } from '../App';
 import { BonusWert } from '../components/BonusWert';
+import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { useReadOnly } from '../components/displayMode';
 import { AddItemDialog, useMoveTargets } from '../components/itemDialogs';
 import type { MoveTarget } from '../components/itemDialogs';
-import { NumInput } from '../components/inputs';
+import { NumInput, TextInput } from '../components/inputs';
 import { useChar } from '../pages/Character';
 
 // Kurzbeschreibung eines Bonus fürs Chip-Tooltip (siehe .chip-bonus) — dieselbe
@@ -50,6 +54,10 @@ function bonusLabel(b: ItemBonus, talents: TalentCatalogRow[], specialEnergies: 
       return `Psyche ${sign}${b.wert}`;
     case 'traglast':
       return `Traglast ${sign}${b.wert} kg`;
+    case 'element': {
+      const ziel = b.feld === 'probe' ? 'Probe' : b.feld ? `Kosten: ${RESOURCE_LABELS[b.feld as ResourceKey]?.label ?? b.feld}` : '?';
+      return `${b.code || '?'} (${ziel}) ${sign}${b.wert}`;
+    }
   }
 }
 
@@ -100,10 +108,46 @@ export default function AusruestungTab() {
       toOwnerId: target.toOwnerId,
     }).then((res) => update('items', res.items));
 
+  // Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Anwenden ist ein
+  // reiner Client-Vorgang auf `items` (kein eigener Endpunkt) — die Sets
+  // selbst speichern über ihre eigene, ganze-Liste-ersetzende Route, wie
+  // itemCategories. Index-basierte Mutation statt uid, wie GeldPanel es für
+  // Beutel schon hält: mehrere neu angelegte, noch ungespeicherte Sets tragen
+  // alle id 0, der Index bleibt trotzdem eindeutig.
+  const presets = data.equipmentPresets;
+  const setPresets = (next: EquipmentPreset[]) => update('equipmentPresets', next);
+  const setPreset = (i: number, patch: Partial<EquipmentPreset>) =>
+    setPresets(presets.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const addPreset = () => setPresets([...presets, { id: 0, name: 'Neues Set', items: equipmentPresetItemsFromWorn(items) }]);
+  const resavePreset = (i: number) => setPreset(i, { items: equipmentPresetItemsFromWorn(items) });
+  const removePreset = (i: number) => setPresets(presets.filter((_, j) => j !== i));
+
+  const [presetFlyoutOpen, setPresetFlyoutOpen] = useState(false);
+  // Hinweis vor dem Anwenden (docs/concepts/equipment-presets.md §2.4): steht
+  // nur, solange mindestens ein Preset-Eintrag keine passende uid im
+  // aktuellen Bestand findet (Item gelöscht oder weggezogen).
+  const [pendingApply, setPendingApply] = useState<{ preset: EquipmentPreset; missing: EquipmentPresetItem[] } | null>(null);
+  const doApplyPreset = (preset: EquipmentPreset) => {
+    setItems(applyEquipmentPreset(items, preset));
+    setPendingApply(null);
+    setPresetFlyoutOpen(false);
+  };
+  // Anwenden geht auch im Nur-Lesen-Modus (wie jedes Umrüsten hier) — nur
+  // Anlegen/Umbenennen/Neu-speichern/Löschen eines Sets ist eine strukturelle,
+  // bearbeiten-gebundene Aktion (siehe die !ro-Gates im Markup unten).
+  const requestApplyPreset = (preset: EquipmentPreset) => {
+    const missing = missingPresetItems(items, preset);
+    if (missing.length > 0) setPendingApply({ preset, missing });
+    else doApplyPreset(preset);
+  };
+
   // Direkt neben dem Original einfügen, nicht ans Ende — sonst muss man die
   // Kopie erst suchen gehen.
   const duplicateItemAt = (uid: string) =>
     setItems(items.flatMap((it) => (it.uid === uid ? [it, duplicateItem(it)] : [it])));
+  // Ladung (TODO.md "Potion charges"): reine Array-Funktion, spaltet bei
+  // anzahl > 1 selbst ein Exemplar ab (siehe verwendeLadung in shared/src/items.ts).
+  const useLadungAt = (uid: string) => setItems(verwendeLadung(items, uid));
 
   const removeItem = (uid: string) =>
     setItems(
@@ -285,7 +329,66 @@ export default function AusruestungTab() {
 
       {/* Am Körper — Körperzonen */}
       <div className="panel">
-        <h3>Am Körper</h3>
+        <div className="subhead-row equip-preset-anchor">
+          <h3>Am Körper</h3>
+          <button
+            className="small"
+            onClick={() => {
+              setPresetFlyoutOpen((o) => !o);
+              setPendingApply(null);
+            }}
+          >
+            Sets{presets.length > 0 ? ` (${presets.length})` : ''}
+          </button>
+          {presetFlyoutOpen && (
+            <div className="equip-preset-flyout">
+              {pendingApply ? (
+                <>
+                  <div className="muted">
+                    Nicht im Inventar: {pendingApply.missing.map((m) => m.itemName || '(ohne Name)').join(', ')} — werden übersprungen.
+                  </div>
+                  <div className="equip-preset-row">
+                    <button className="small" onClick={() => doApplyPreset(pendingApply.preset)}>
+                      Trotzdem anwenden
+                    </button>
+                    <button className="small" onClick={() => setPendingApply(null)}>
+                      Abbrechen
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {presets.length === 0 && <p className="muted">Noch kein Set gespeichert.</p>}
+                  {presets.map((preset, i) => (
+                    <div className="equip-preset-row" key={preset.id || `neu-${i}`}>
+                      <TextInput value={preset.name} onChange={(v) => setPreset(i, { name: v })} />
+                      <button className="small" title="Dieses Set anziehen" onClick={() => requestApplyPreset(preset)}>
+                        Anwenden
+                      </button>
+                      {!ro && (
+                        <>
+                          <button
+                            className="small"
+                            title="Set mit den aktuell getragenen Gegenständen überschreiben"
+                            onClick={() => resavePreset(i)}
+                          >
+                            Neu speichern
+                          </button>
+                          <ConfirmDeleteButton onConfirm={() => removePreset(i)} title="Set löschen" />
+                        </>
+                      )}
+                    </div>
+                  ))}
+                  {!ro && (
+                    <button className="small add-row" onClick={addPreset}>
+                      + Set aus aktuellem Zustand
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
         <div className="zone-grid">
           {BODY_ZONES.map((z) => {
             // zoneView: die hier abgelegten Gegenstände PLUS die beidseitig
@@ -379,6 +482,7 @@ export default function AusruestungTab() {
         initialMode="ausruestung"
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onAdd={(fields) => setItems([...items, makeItem({ ...fields, location: 'bench' })])}
       />
@@ -389,10 +493,12 @@ export default function AusruestungTab() {
         item={editUid !== null ? byUid.get(editUid) : undefined}
         talents={catalogs.talents}
         specialEnergies={catalogs.specialEnergies}
+        elements={data.abilityLists.element}
         isGm={user.isGm}
         onSave={(patch) => editUid && patchItem(editUid, patch)}
         onDuplicate={() => editUid && duplicateItemAt(editUid)}
         onDelete={() => editUid && removeItem(editUid)}
+        onUseLadung={() => editUid && useLadungAt(editUid)}
         moveTargets={moveTargets}
         onMove={(target) => editUid && moveItemTo(editUid, target)}
       />
@@ -488,6 +594,15 @@ function ItemChip({
               </span>
             );
           })()
+        )}
+        {item.ladungMax > 0 && (
+          <span
+            className={`item-ladung${item.ladungAktuell / item.ladungMax <= 0.25 ? ' item-ladung--low' : ''}`}
+            title="Ladung"
+          >
+            {' '}
+            ⚡{item.ladungAktuell}/{item.ladungMax}
+          </span>
         )}
         {item.beidseitig && (
           <span className="chip-both" title="Beidseitig getragen — dasselbe Stück erscheint auf beiden Seiten"> ⇄</span>

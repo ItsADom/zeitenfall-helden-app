@@ -270,13 +270,13 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
 
   useEffect(() => {
     const last = feed.length > 0 ? feed[feed.length - 1].id : null;
-    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}|${groupRequests.map((r) => r.id).join(',')}|${presenceNotes.map((p) => p.key).join(',')}`;
+    const marker = `${last ?? ''}|${pendingRequests.map((r) => r.id).join(',')}|${groupRequests.map((r) => r.id).join(',')}|${coopPools.map((p) => p.id).join(',')}|${presenceNotes.map((p) => p.key).join(',')}`;
     if (marker !== lastIdRef.current) {
       const el = scrollRef.current;
       if (el) el.scrollTop = el.scrollHeight;
     }
     lastIdRef.current = marker;
-  }, [feed, pendingRequests, groupRequests, presenceNotes]);
+  }, [feed, pendingRequests, groupRequests, coopPools, presenceNotes]);
 
   const send = () => {
     const text = draft.trim();

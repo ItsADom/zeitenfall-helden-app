@@ -10,7 +10,9 @@ import {
   attrMax,
   BASE_VALUE_LABELS,
   computeBaseValues,
+  elementProbeBonus,
   erleichterung,
+  munitionProbenBonusFuer,
   parseProbeExpr,
   probeExprZahl,
   schreibenProbe,
@@ -22,7 +24,7 @@ import {
 } from 'shared';
 import { waffenStatWert, waffenStatZahl } from 'shared';
 import { db } from './db.js';
-import { loadItems, loadStats } from './characterData.js';
+import { loadItems, loadList, loadStats } from './characterData.js';
 import type { CharStats } from './characterData.js';
 
 export interface ComputedProbe {
@@ -78,6 +80,11 @@ export function parseProbeSource(raw: unknown): ProbeSource | null {
       if (!itemId) return null;
       if (s.probe !== 'at' && s.probe !== 'pa' && s.probe !== 'bl' && s.probe !== 'fk') return null;
       return { kind: 'weapon', itemId, probe: s.probe };
+    }
+    case 'waffenlos': {
+      if (s.technik !== 'Raufen' && s.technik !== 'Ringen') return null;
+      if (s.probe !== 'at' && s.probe !== 'pa' && s.probe !== 'bl') return null;
+      return { kind: 'waffenlos', technik: s.technik, probe: s.probe };
     }
     case 'baseValue': {
       return s.key === 'ausweichen' || s.key === 'ini' ? { kind: 'baseValue', key: s.key } : null;
@@ -149,8 +156,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     }
     case 'ability': {
       const row = db
-        .prepare('SELECT name, probe FROM char_abilities WHERE character_id = ? AND id = ?')
-        .get(characterId, source.abilityId) as { name: string; probe: string } | undefined;
+        .prepare('SELECT name, probe, element FROM char_abilities WHERE character_id = ? AND id = ?')
+        .get(characterId, source.abilityId) as { name: string; probe: string; element: string } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
       if (!parts) return null;
@@ -161,8 +168,16 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       if (hasWeaponTerm && !weapon) return null;
       const probeZahl = abilityProbeZahl(attrs, row.probe, weapon);
       if (probeZahl === null) return null;
+      // + elementProbeBonus: direkte Probe-Erschwernis/-Erleichterung eines
+      // Item-Bonus auf dieses Element (kind === 'element', feld === 'probe'),
+      // dasselbe Prinzip wie talentProbeBonus oben.
       const attrParts = parts.filter((p): p is AttrCode => p !== 'AT' && p !== 'PA' && p !== 'BL');
-      return { n: parts.length, probeZahl, label: row.name, attrParts: attrParts.length ? attrParts : undefined };
+      return {
+        n: parts.length,
+        probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni),
+        label: row.name,
+        attrParts: attrParts.length ? attrParts : undefined,
+      };
     }
     case 'sprache': {
       const row = db
@@ -184,14 +199,18 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     }
     case 'weapon': {
       const wantsArt = source.probe === 'fk' ? 'fern' : 'nah';
-      const item = loadItems(characterId).find((it) => it.id === source.itemId && it.waffenArt === wantsArt);
+      const items = loadItems(characterId);
+      const item = items.find((it) => it.id === source.itemId && it.waffenArt === wantsArt);
       if (!item) return null;
       const talentId = Number(waffenStatWert(item, 'talentId')) || 0;
       const talent = stats.talente.find((t) => t.talentId === talentId);
       const bv = computeBaseValues(attrs, stats.baseInputs);
       const label = item.name;
       if (source.probe === 'fk') {
-        const probeZahl = weaponProbe(waffenStatZahl(item, 'atMod'), bv.fk.ergebnis, talent?.at ?? 0);
+        // Ammunition (TODO.md): der Proben-Bonus der per munitionUid
+        // gewählten Munition wirkt wie ein zusätzlicher atMod.
+        const atMod = waffenStatZahl(item, 'atMod') + munitionProbenBonusFuer(item, items);
+        const probeZahl = weaponProbe(atMod, bv.fk.ergebnis, talent?.at ?? 0);
         return { n: 1, probeZahl, label: `${label} (FK)` };
       }
       const weaponMod = waffenStatZahl(item, source.probe);
@@ -199,6 +218,22 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const talentSplit = talent?.[source.probe] ?? 0;
       const probeZahl = weaponProbe(weaponMod, baseErgebnis, talentSplit);
       return { n: 1, probeZahl, label: `${label} (${source.probe.toUpperCase()})` };
+    }
+    // Waffenloser Kampf (Raufen/Ringen) — wie 'weapon', aber ohne Item: die
+    // Zeile kommt aus sec_waffenlos (WaffenlosCards, client/src/tabs/
+    // WaffenNeu.tsx), identifiziert über `technik` statt einer Item-id; das
+    // Kampftalent wird über seinen Namen im Katalog aufgelöst (kein
+    // gespeichertes talentId-Feld mehr, siehe sections.ts).
+    case 'waffenlos': {
+      const talentRow = db
+        .prepare(`SELECT id FROM talents_catalog WHERE kategorie = 'kampf' AND name = ?`)
+        .get(source.technik) as { id: number } | undefined;
+      const talent = stats.talente.find((t) => t.talentId === (talentRow?.id ?? 0));
+      const row = loadList('waffenlos', characterId).find((r) => r.technik === source.technik);
+      const bv = computeBaseValues(attrs, stats.baseInputs);
+      const weaponMod = Number(row?.[source.probe]) || 0;
+      const probeZahl = weaponProbe(weaponMod, bv[source.probe].ergebnis, talent?.[source.probe] ?? 0);
+      return { n: 1, probeZahl, label: `${source.technik} (${source.probe.toUpperCase()})` };
     }
     case 'baseValue': {
       const bv = computeBaseValues(attrs, stats.baseInputs);

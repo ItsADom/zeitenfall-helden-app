@@ -10,6 +10,8 @@ import {
   diffItems,
   duplicateItem,
   effektiverRs,
+  elementKostenBoni,
+  elementProbeBonus,
   getrageneLast,
   haltbarkeitPct,
   itemGewicht,
@@ -24,6 +26,7 @@ import {
   specialMitBoni,
   talentMitBoni,
   talentProbeBonus,
+  verwendeLadung,
   wornBoni,
   zaehltZurLast,
   zoneView,
@@ -66,12 +69,17 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     rs: 0,
     haltbarkeitMax: 0,
     haltbarkeitAktuell: 0,
+    ladungMax: 0,
+    ladungAktuell: 0,
+    ladungPortion: 1,
     notiz: '',
     bonusse: [],
     rsVerborgen: false,
     haltbarkeitVerborgen: false,
     waffenArt: '',
     waffenStats: [],
+    munitionSchaden: '',
+    munitionProbenBonus: 0,
     ...partial,
   };
 }
@@ -245,13 +253,63 @@ describe('bonusse (Item-Boni-Datenmodell)', () => {
   });
 });
 
+describe('verwendeLadung (TODO.md "Potion charges")', () => {
+  it('anzahl === 1: vermindert in-place um die Portionsgröße, keine neue Zeile', () => {
+    const trank = item({ name: 'Trank', anzahl: 1, ladungMax: 2, ladungAktuell: 2, ladungPortion: 1 });
+    const out = verwendeLadung([trank], trank.uid);
+    expect(out).toHaveLength(1);
+    expect(out[0].uid).toBe(trank.uid);
+    expect(out[0].anzahl).toBe(1);
+    expect(out[0].ladungAktuell).toBe(1);
+  });
+
+  it('anzahl > 1: spaltet EIN Exemplar mit dem verminderten Stand ab, der Rest des Stapels bleibt unverändert', () => {
+    const traenke = item({ name: 'Trank', anzahl: 3, ladungMax: 4, ladungAktuell: 4, ladungPortion: 1 });
+    const out = verwendeLadung([traenke], traenke.uid);
+    expect(out).toHaveLength(2);
+    // Der ursprüngliche Stapel: anzahl -1, Ladung UNVERÄNDERT (repräsentiert weiterhin die unangetasteten Exemplare).
+    expect(out[0].uid).toBe(traenke.uid);
+    expect(out[0].anzahl).toBe(2);
+    expect(out[0].ladungAktuell).toBe(4);
+    // Das abgespaltene Exemplar: eigene uid, anzahl 1, verminderter Stand.
+    expect(out[1].uid).not.toBe(traenke.uid);
+    expect(out[1].anzahl).toBe(1);
+    expect(out[1].ladungAktuell).toBe(3);
+    expect(out[1].ladungMax).toBe(4);
+  });
+
+  it('Portionsgröße > 1 (Spieler-Beispiel: 200 von 1000 „Kraftpunkten" einer Waffe)', () => {
+    const waffe = item({ name: 'Zauberstab', anzahl: 1, ladungMax: 1000, ladungAktuell: 1000, ladungPortion: 200 });
+    const out = verwendeLadung([waffe], waffe.uid);
+    expect(out[0].ladungAktuell).toBe(800);
+  });
+
+  it('klemmt bei 0, statt negativ zu werden (letzte, unvollständige Portion erlaubt)', () => {
+    const rest = item({ name: 'Trank', anzahl: 1, ladungMax: 5, ladungAktuell: 1, ladungPortion: 5 });
+    const out = verwendeLadung([rest], rest.uid);
+    expect(out[0].ladungAktuell).toBe(0);
+  });
+
+  it('keine Wirkung, wenn nicht verfolgt (ladungMax = 0) oder schon leer (ladungAktuell = 0)', () => {
+    const nichtVerfolgt = item({ name: 'Seil', ladungMax: 0, ladungAktuell: 0 });
+    expect(verwendeLadung([nichtVerfolgt], nichtVerfolgt.uid)).toEqual([nichtVerfolgt]);
+    const leer = item({ name: 'Trank', ladungMax: 4, ladungAktuell: 0 });
+    expect(verwendeLadung([leer], leer.uid)).toEqual([leer]);
+  });
+
+  it('unbekannte uid: Liste bleibt inhaltlich unverändert', () => {
+    const trank = item({ name: 'Trank', ladungMax: 2, ladungAktuell: 2 });
+    expect(verwendeLadung([trank], 'nicht-vorhanden')).toEqual([trank]);
+  });
+});
+
 function baseInputs(): BaseValueInputs {
   const mods = Object.fromEntries(BASE_VALUE_KEYS.map((k) => [k, 0])) as BaseValueInputs['mods'];
   return { mods, gsBase: 0, resilienzBase: 0, mrBase: 0, akBase: 0 };
 }
 
 function resourceInput(over: Partial<ResourceInput> = {}): ResourceInput {
-  return { permanent: 0, kauf: 0, kaufMax: 0, maxPlus: 0, aktuell: 0, besonderes: '', raceBase: 0, ...over };
+  return { permanent: 0, kauf: 0, aktuell: 0, besonderes: '', raceBase: 0, ...over };
 }
 
 function talent(over: Partial<CharTalent> = {}): CharTalent {
@@ -363,7 +421,6 @@ describe('resourceInputMitBoni', () => {
     const boni = wornBoni([item({ location: 'getragen', name: 'Ring', bonusse: [{ uid: makeUid(), kind: 'resource', code: 'le', feld: '', wert: 2, verborgen: false }] })]);
     const out = resourceInputMitBoni(input, 'le', boni);
     expect(out.permanent).toBe(2);
-    expect(out.maxPlus).toBe(2);
     expect(out.aktuell).toBe(5);
   });
 
@@ -439,6 +496,68 @@ describe('talentProbeBonus', () => {
     ]);
     expect(talentMitBoni(talent({ talentId: 42, taw: 8 }), boni).taw).toBe(13);
     expect(talentProbeBonus(42, boni)).toBe(2);
+  });
+});
+
+describe('elementProbeBonus', () => {
+  it('liefert den direkten Probe-Bonus eines Elements', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Feuerring', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 2, verborgen: false }] })]);
+    expect(elementProbeBonus('Feuer', boni)).toBe(2);
+  });
+
+  it('trifft nur das gewählte Element, andere bleiben unberührt', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Feuerring', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 2, verborgen: false }] })]);
+    expect(elementProbeBonus('Wasser', boni)).toBe(0);
+  });
+
+  it('summiert über mehrere getragene Items', () => {
+    const a = item({ location: 'getragen', name: 'A', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 1, verborgen: false }] });
+    const b = item({ location: 'getragen', name: 'B', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: -3, verborgen: false }] });
+    expect(elementProbeBonus('Feuer', wornBoni([a, b]))).toBe(-2);
+  });
+
+  it('ohne Bonus 0', () => {
+    expect(elementProbeBonus('Feuer', wornBoni([]))).toBe(0);
+  });
+});
+
+describe('elementKostenBoni', () => {
+  it('liefert eine Energie->Bonus-Zuordnung fürs gewählte Element', () => {
+    const boni = wornBoni([item({ location: 'getragen', name: 'Blutdolch', bonusse: [{ uid: makeUid(), kind: 'element', code: 'Blutmagie', feld: 'le', wert: -1, verborgen: false }] })]);
+    expect(elementKostenBoni('Blutmagie', boni)).toEqual({ le: -1 });
+  });
+
+  it('mischt mehrere Energien desselben Elements aus getrennten Bonus-Zeilen', () => {
+    const boni = wornBoni([
+      item({
+        location: 'getragen',
+        name: 'Blutdolch',
+        bonusse: [
+          { uid: makeUid(), kind: 'element', code: 'Blutmagie', feld: 'le', wert: -1, verborgen: false },
+          { uid: makeUid(), kind: 'element', code: 'Blutmagie', feld: 'ase', wert: -2, verborgen: false },
+        ],
+      }),
+    ]);
+    expect(elementKostenBoni('Blutmagie', boni)).toEqual({ le: -1, ase: -2 });
+  });
+
+  it('probe- und Kosten-Boni auf demselben Element bleiben unabhängig', () => {
+    const boni = wornBoni([
+      item({
+        location: 'getragen',
+        name: 'Ring',
+        bonusse: [
+          { uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'probe', wert: 2, verborgen: false },
+          { uid: makeUid(), kind: 'element', code: 'Feuer', feld: 'aus', wert: -1, verborgen: false },
+        ],
+      }),
+    ]);
+    expect(elementProbeBonus('Feuer', boni)).toBe(2);
+    expect(elementKostenBoni('Feuer', boni)).toEqual({ aus: -1 });
+  });
+
+  it('ohne Bonus ein leeres Objekt', () => {
+    expect(elementKostenBoni('Feuer', wornBoni([]))).toEqual({});
   });
 });
 

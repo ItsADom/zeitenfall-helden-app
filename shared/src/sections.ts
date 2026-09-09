@@ -94,20 +94,22 @@ const RAW_SECTIONS: ListSectionDef[] = [
       t('schaden', 'Schaden', 2), n('talentId', 'Kampftalent', 2), n('atMod', 'AT-Mod', 1),
     ],
   },
+  // Nur Raufen/Ringen (siehe WAFFENLOS_TECHNIKEN, WaffenNeu.tsx) — talentId
+  // und tpa sind bewusst KEINE Spalten mehr: welches Kampftalent gilt, steht
+  // schon über `technik` fest (Spieler-Entscheidung, redundantes Auswahlfeld
+  // entfernt), tpa hatte in der Praxis nie einen Wert (siehe TODO.md-Notiz zur
+  // sec_munition-Migration für dieselbe Prüfung) und ist ersatzlos entfallen.
+  // tpKk bleibt der interne Spalten-Name (Schema-Stabilität), auch wenn die
+  // Karte ihn längst "Schaden" nennt.
   {
     id: 'waffenlos',
     label: 'Waffenloser Kampf',
-    columns: [t('technik', 'Technik', 2), t('tpKk', 'TP/KK', 1), n('ini', 'INI', 1), n('at', 'AT', 1), n('pa', 'PA', 1), t('tpa', 'TP(A)', 1), n('talentId', 'Kampftalent', 2)],
+    columns: [t('technik', 'Technik', 2), t('tpKk', 'Schaden', 1), n('ini', 'INI', 1), n('at', 'AT', 1), n('pa', 'PA', 1), n('bl', 'BL', 1)],
   },
   {
     id: 'kampfstile',
     label: 'Kampfstile',
     columns: [t('name', 'Kampfstil', 3), t('besonderes', 'Besonderes', 6)],
-  },
-  {
-    id: 'munition',
-    label: 'Pfeile/Bolzen',
-    columns: [t('art', 'Art', 3), t('anzahl', 'Anzahl', 1), t('fuerWaffe', 'für Waffe', 3)],
   },
   // Zauber: frei benennbare Sektionen je Charakter, Einträge referenzieren die Sektion per Name
   {

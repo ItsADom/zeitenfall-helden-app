@@ -9,7 +9,7 @@
 //   inventar   mitgeführt an oberster Stelle (Behälter selbst;  → Inventar
 //              plus ein loser Alt-Topf aus der Migration)
 import type { AttrCode, Attributes, BaseValueInputs, BaseValueKey, CharTalent, ResourceInput, ResourceKey, SpecialResource } from './types.js';
-import { ATTR_ROW_CODES } from './types.js';
+import { ATTR_ROW_CODES, RESOURCE_KEYS } from './types.js';
 import { maximaleLast } from './rules.js';
 
 export type ItemLocation = 'inventar' | 'getragen' | 'behaelter' | 'bench';
@@ -55,7 +55,7 @@ export const BODY_ZONES = [
 export type BodyZone = (typeof BODY_ZONES)[number];
 
 // Bonus, den ein Gegenstand verleiht, solange er getragen wird (location ===
-// 'getragen', siehe wornBoni in Kürze) — sieben Zielräume ohne gemeinsamen
+// 'getragen', siehe wornBoni in Kürze) — acht Zielräume ohne gemeinsamen
 // Schlüsseltyp heute, daher eine Discriminated Union statt eines flachen
 // Strings. `code` bedeutet je nach `kind` etwas anderes:
 //   attr       AttrCode (MU/KL/…)
@@ -66,9 +66,13 @@ export type BodyZone = (typeof BODY_ZONES)[number];
 //              Eintrag eine Formel trägt (siehe SpecialResource), sonst tote Zeile
 //   psyche     kein Ziel-Code nötig, code bleibt ''
 //   traglast   kein Ziel-Code nötig, code bleibt '' — wert in kg
+//   element    Elementname (aus AbilityLists.element, abilities.ts) — WELCHER
+//              Aspekt eines Elements sagt `feld` (siehe ElementBonusFeld unten)
 // Negative Werte sind erlaubt (ein verfluchter Gegenstand ist derselbe Mechanismus).
-export type ItemBonusKind = 'attr' | 'baseValue' | 'resource' | 'talent' | 'spezial' | 'psyche' | 'traglast';
-export const ITEM_BONUS_KINDS: ItemBonusKind[] = ['attr', 'baseValue', 'resource', 'talent', 'spezial', 'psyche', 'traglast'];
+export type ItemBonusKind = 'attr' | 'baseValue' | 'resource' | 'talent' | 'spezial' | 'psyche' | 'traglast' | 'element';
+export const ITEM_BONUS_KINDS: ItemBonusKind[] = [
+  'attr', 'baseValue', 'resource', 'talent', 'spezial', 'psyche', 'traglast', 'element',
+];
 
 // Nur bei kind === 'talent' relevant: was der Bonus trifft. Kampftalente
 // führen TaW/AT/PA/BL als vier UNABHÄNGIGE Werte (siehe Talente.tsx
@@ -83,6 +87,19 @@ export const ITEM_BONUS_KINDS: ItemBonusKind[] = ['attr', 'baseValue', 'resource
 // werden könnte.
 export type TalentBonusFeld = 'taw' | 'at' | 'pa' | 'bl' | 'probe';
 export const TALENT_BONUS_FELDER: TalentBonusFeld[] = ['taw', 'at', 'pa', 'bl', 'probe'];
+
+// Nur bei kind === 'element' relevant: was der Bonus innerhalb des Elements
+// trifft. 'probe' ist wie bei talent eine direkte, unskalierte Erschwernis/
+// Erleichterung auf die Probe-Zahl (siehe elementProbeBonus() unten). Die
+// drei ResourceKeys (le/aus/ase) zielen auf die Zauberkosten — ABER: `kosten`
+// bei Ability ist Freitext ("2 bis X", "min 20") und Kosten können mehrere
+// Energien gleichzeitig mischen (z. B. Blutmagie: LE + AsP), es gibt also
+// keine einheitliche Formel, die ein Bonus rechnerisch anfassen könnte. Ein
+// Kosten-Bonus wirkt deshalb NICHT auf die Formel selbst, sondern wird nur
+// als beschriftete Anmerkung danebengestellt (siehe elementKostenBoni()) —
+// eine Zeile pro betroffener Energie, falls die Kosten gemischt sind.
+export type ElementBonusFeld = 'probe' | ResourceKey;
+export const ELEMENT_BONUS_FELDER: ElementBonusFeld[] = ['probe', ...RESOURCE_KEYS];
 
 // Weapons as real items (TODO.md, "Weapons become real items"): eine Waffe ist
 // ein ganz normales Item, `waffenArt` entscheidet nur, welcher Karten-
@@ -100,15 +117,24 @@ export const WAFFEN_ARTEN: WaffenArt[] = ['nah', 'fern'];
 // Entscheidung: lieber ein einheitlicher Mechanismus als zwei schlankere).
 export type WaffenStatFeld =
   | 'talentId' | 'schaden' | 'material' | 'rd' | 'reichweite' | 'iniBonus' | 'anforderung'
-  | 'expLevel' | 'at' | 'pa' | 'bl' | 'besonderes' | 'eBE' | 'entfernung' | 'atMod';
+  | 'expLevel' | 'at' | 'pa' | 'bl' | 'besonderes' | 'eBE' | 'entfernung' | 'atMod' | 'munitionUid';
 
 // Feldsatz je Waffenart — 1:1 die Felder, die WaffenNeu.tsx heute schon als
 // Karten-Grid zeigt (siehe emptyNahRow/emptyFernRow, client/src/tabs/WaffenNeu.tsx).
 export const WAFFEN_NAH_FELDER: readonly WaffenStatFeld[] = [
   'talentId', 'schaden', 'material', 'rd', 'reichweite', 'iniBonus', 'anforderung', 'expLevel', 'at', 'pa', 'bl', 'besonderes',
 ];
+// munitionUid: Munitions-Verknüpfung (nur Fernkampf — Nahkampf kennt kein
+// wechselbares "Geschoss"). Referenziert wie talentId eine fremde Zeile per
+// stabiler uid, hier aber die uid eines ANDEREN Items (kein WaffenStatFeld
+// zeigt sonst auf ein fremdes Item) — nämlich eines eigenen Inventar-Items
+// mit Kategorie "Munition" (siehe MUNITION_KATEGORIE unten). Leer = keine
+// Munition gewählt. Server prüft die Referenz bewusst NICHT auf Existenz
+// (wie talentId auch keine Katalog-id-Existenz prüft) — ein Verweis auf eine
+// inzwischen gelöschte/umkategorisierte Munition läuft über munitionFuer()
+// einfach ins Leere, statt einen Fehler zu werfen.
 export const WAFFEN_FERN_FELDER: readonly WaffenStatFeld[] = [
-  'talentId', 'schaden', 'eBE', 'rd', 'entfernung', 'atMod', 'besonderes',
+  'talentId', 'schaden', 'eBE', 'rd', 'entfernung', 'atMod', 'munitionUid', 'besonderes',
 ];
 export function waffenFelderFuerArt(art: WaffenArt): readonly WaffenStatFeld[] {
   return art === 'nah' ? WAFFEN_NAH_FELDER : art === 'fern' ? WAFFEN_FERN_FELDER : [];
@@ -144,6 +170,21 @@ export function waffenStatsFuerArt(art: WaffenArt): WaffenStat[] {
   return waffenFelderFuerArt(art).map((feld) => ({ uid: makeUid(), feld, wert: '', verborgen: false }));
 }
 
+// Einen Waffen-Stat-Wert setzen — UPSERT statt reinem Map/Find: eine Waffe, die
+// angelegt wurde BEVOR `feld` zu WAFFEN_NAH_FELDER/WAFFEN_FERN_FELDER kam
+// (z. B. munitionUid auf jeder Fernkampfwaffe von vor „Ammunition", TODO.md),
+// hat für dieses Feld schlicht noch KEINE Zeile in ihren waffenStats — anders
+// als eine neu angelegte Waffe, die waffenStatsFuerArt() immer komplett
+// mitbekommt (siehe dort). Ein reines `.map(s => s.feld === feld ? … : s)`
+// liefe für so eine Zeile ins Leere (kein Treffer, Array unverändert) und der
+// Klick des Nutzers verschwände stillschweigend. Neu erzeugte Zeilen starten
+// verdeckt, wenn `verborgenWennNeu` gesetzt ist — dieselbe Konvention wie eine
+// frisch von der SL angelegte Waffe (siehe addWaffe in WaffenNeu.tsx).
+export function patchWaffenStat(stats: readonly WaffenStat[], feld: WaffenStatFeld, wert: string, verborgenWennNeu: boolean): WaffenStat[] {
+  if (stats.some((s) => s.feld === feld)) return stats.map((s) => (s.feld === feld ? { ...s, wert } : s));
+  return [...stats, { uid: makeUid(), feld, wert, verborgen: verborgenWennNeu }];
+}
+
 export interface ItemBonus {
   // Stabile, client-vergebene Kennung — wie Item.uid, aus demselben Grund:
   // incremental item saves (siehe ItemOp weiter unten) müssen EINE Bonus-Zeile
@@ -154,7 +195,7 @@ export interface ItemBonus {
   uid: string;
   kind: ItemBonusKind;
   code: string; // Bedeutung je nach kind, siehe oben; '' bei psyche/traglast
-  feld: TalentBonusFeld | ''; // nur bei kind === 'talent', sonst ''
+  feld: TalentBonusFeld | ElementBonusFeld | ''; // nur bei kind === 'talent'/'element', sonst ''
   wert: number;
   // Verdeckte Bonus-Zeile (Hidden/revealable Ausrüstung stats, TODO.md):
   // solange true, existiert die Zeile für einen Nicht-SL nicht — weder Ziel
@@ -224,6 +265,21 @@ export interface Item {
   // 0 = nicht verfolgt (Standard; blendet die %-Anzeige aus, siehe haltbarkeitPct).
   haltbarkeitMax: number;
   haltbarkeitAktuell: number;
+  // Ladung (TODO.md "Potion charges"): generisches Gauge-Feld nach demselben
+  // current/max-Muster wie Haltbarkeit — deckt Zaubertrank-Dosen genauso ab
+  // wie Schlucke aus einem Wasserschlauch oder die Zauber-Ladungen einer
+  // magischen Waffe. 0 = nicht verfolgt (Standard, siehe AddItemDialog
+  // Schritt „Grunddaten" — die Checkbox „Hat Ladungen" ist nichts als dieser
+  // Nullpunkt).
+  ladungMax: number;
+  ladungAktuell: number;
+  // Wie viel EINE Nutzung verbraucht — meist 1 (ein Schluck/eine Dosis bei
+  // einem Trank), aber frei wählbar für Fälle, die keine „1 Stück = 1 Nutzung"-
+  // Beziehung haben (Spieler-Beispiel: eine Waffe mit 1000 „Kraftpunkten",
+  // von denen ein Zauber 200 verbraucht). Getrennt von ladungMax/Aktuell
+  // gehalten statt as Divisor hineingerechnet, damit „4 von 4 Ladungen"
+  // weiterhin die tatsächliche Anzeige bleibt, keine abgeleitete Zahl.
+  ladungPortion: number;
   notiz: string;
   // Boni, die dieser Gegenstand verleiht, solange location === 'getragen' ist
   // (siehe ItemBonus oben). Leer für die allermeisten Items.
@@ -241,6 +297,29 @@ export interface Item {
   // (inkl. talentId) liegen in waffenStats, nicht als eigene Item-Felder.
   waffenArt: WaffenArt;
   waffenStats: WaffenStat[];
+  // Ammunition (TODO.md "Ammunition"): nur sinnvoll, wenn kategorie die
+  // reservierte Munitions-Kategorie trägt (siehe MUNITION_KATEGORIE) — kein
+  // eigener Item-„Modus" wie waffenArt, sondern zwei schlichte Zusatzfelder,
+  // die im Dialog nur bei dieser Kategorie auftauchen (Spieler-Entscheidung:
+  // ein eigener Dialog-Reiter wäre für zwei Felder Overkill). munitionSchaden
+  // ist wie schaden Freitext (deckt sowohl feste Werte "+2" als auch eigene
+  // Würfelterme "+1W2" ab) und wird an die Schaden-Formel der Fernkampfwaffe
+  // angehängt, die diese Munition per munitionUid gewählt hat (siehe
+  // effektiverSchaden). munitionProbenBonus wirkt wie ein zusätzlicher atMod
+  // auf deren FK-Probe (siehe munitionProbenBonusFuer).
+  munitionSchaden: string;
+  munitionProbenBonus: number;
+}
+
+// Reservierte Kategorie, über die ein Item als Munition gilt — dieselbe Rolle
+// wie AUSRUESTUNG_KATEGORIE/WAFFE_KATEGORIE im Item-Dialog (client/src/
+// components/itemDialogs.tsx), nur OHNE eigenen Dialog-Modus: „Munition" ist
+// im normalen Kategorie-Freitextfeld eintippbar (als angepinnte Vorschlags-
+// option), keine dritte erzwungene Kategorie wie bei Ausrüstung/Waffe. Der
+// Vergleich läuft daher getrimmt/case-insensitiv, nicht strikt wie dort.
+export const MUNITION_KATEGORIE = 'Munition';
+export function istMunitionKategorie(kategorie: string): boolean {
+  return kategorie.trim().toLowerCase() === MUNITION_KATEGORIE.toLowerCase();
 }
 
 // Haltbarkeit als Prozentsatz (0–100), oder null wenn nicht verfolgt (max = 0).
@@ -264,8 +343,9 @@ export function makeItem(over: Partial<Item>): Item {
   return {
     id: 0, uid: makeUid(), name: '', anzahl: 1, gewicht: 0, kategorie: '', haus: '', raum: '', mitgebrachtVon: '', location: 'inventar',
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
-    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, notiz: '',
-    bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, waffenArt: '', waffenStats: [], ...over,
+    kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, ladungMax: 0, ladungAktuell: 0, ladungPortion: 1, notiz: '',
+    bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, waffenArt: '', waffenStats: [],
+    munitionSchaden: '', munitionProbenBonus: 0, ...over,
   };
 }
 
@@ -308,6 +388,31 @@ export function duplicateItem(item: Item): Item {
     bonusse: item.bonusse.map((b) => ({ ...b, uid: makeUid() })),
     waffenStats: item.waffenStats.map((s) => ({ ...s, uid: makeUid() })),
   };
+}
+
+// Eine Portion Ladung verbrauchen (TODO.md "Potion charges"). Bei anzahl > 1
+// kann EIN current/max-Paar nicht "3 Tränke, unterschiedlich weit geleert"
+// abbilden — genau das Problem, das duplicateItem für Haltbarkeit schon löst.
+// Statt das der Spielerin manuell aufzubürden (erst Duplizieren, dann
+// verbrauchen), spaltet diese Funktion automatisch EINE Instanz mit dem
+// verminderten Wert ab und lässt den Rest des Stapels unangetastet auf dem
+// bisherigen (meist vollen) Stand — bei anzahl === 1 gibt es nichts
+// abzuspalten, dort wird schlicht in-place vermindert.
+export function verwendeLadung(items: readonly Item[], uid: string): Item[] {
+  const idx = items.findIndex((it) => it.uid === uid);
+  if (idx < 0) return items.slice();
+  const item = items[idx];
+  if (item.ladungMax <= 0 || item.ladungAktuell <= 0) return items.slice();
+  const rest = Math.max(0, item.ladungAktuell - Math.max(1, item.ladungPortion));
+  const out = items.slice();
+  if (item.anzahl <= 1) {
+    out[idx] = { ...item, ladungAktuell: rest };
+    return out;
+  }
+  const einzelnes = { ...duplicateItem(item), anzahl: 1, ladungAktuell: rest };
+  out[idx] = { ...item, anzahl: item.anzahl - 1 };
+  out.splice(idx + 1, 0, einzelnes);
+  return out;
 }
 
 // --- Shared inventories: ownership (docs/concepts/shared-inventories.md) ---
@@ -381,7 +486,8 @@ export type ItemOp =
 const ITEM_PATCH_KEYS = [
   'name', 'anzahl', 'gewicht', 'kategorie', 'haus', 'raum', 'location', 'zone', 'beidseitig', 'containerUid',
   'istBehaelter', 'containerArt', 'kapazitaet', 'kapazitaetArt', 'gewichtsreduktion',
-  'rs', 'haltbarkeitMax', 'haltbarkeitAktuell', 'notiz', 'rsVerborgen', 'haltbarkeitVerborgen', 'waffenArt',
+  'rs', 'haltbarkeitMax', 'haltbarkeitAktuell', 'ladungMax', 'ladungAktuell', 'ladungPortion', 'notiz', 'rsVerborgen', 'haltbarkeitVerborgen', 'waffenArt',
+  'munitionSchaden', 'munitionProbenBonus',
 ] as const satisfies readonly (keyof Item)[];
 
 const BONUS_PATCH_KEYS = ['kind', 'code', 'feld', 'wert', 'verborgen'] as const satisfies readonly (keyof ItemBonus)[];
@@ -594,6 +700,18 @@ export function effektiverRs(items: readonly Item[]): number {
   return items.reduce((m, it) => (it.location === 'getragen' ? Math.max(m, Number(it.rs) || 0) : m), 0);
 }
 
+// Waffenloser Kampf (Spieler-Feedback): der RS von etwas, das an einer der
+// beiden Hand-Zonen getragen wird (Stahlhandschuhe, Schlagringe o.Ä.), boostet
+// den Faustschlag-Schaden von Raufen — siehe handRsBonus in WaffenNeu.tsx.
+// Wie effektiverRs NICHT summiert (höchster Wert zählt), nur auf die beiden
+// Hand-Zonen eingeschränkt statt auf alle getragenen Teile.
+export function handRs(items: readonly Item[]): number {
+  return items.reduce(
+    (m, it) => (it.location === 'getragen' && (it.zone === 'Hand links' || it.zone === 'Hand rechts') ? Math.max(m, Number(it.rs) || 0) : m),
+    0,
+  );
+}
+
 // --- Item-Boni ---
 //
 // Summierte Boni aus allen GETRAGENEN Items, über den vollen Zielraum von
@@ -611,6 +729,12 @@ export interface StatBoni {
   psyche: number;
   traglast: number;
   talente: Record<number, Partial<Record<TalentBonusFeld, number>>>;
+  // Elementname -> Probe-Erschwernis/-Erleichterung (feld === 'probe').
+  elementProbe: Record<string, number>;
+  // Elementname -> Energie -> Bonuszahl (feld === le/aus/ase). Reine
+  // Anzeige-Anmerkung neben dem Freitext-`kosten`-Feld einer Ability, siehe
+  // ElementBonusFeld — es gibt keine Formel, in die das mechanisch einfließt.
+  elementKosten: Record<string, Partial<Record<ResourceKey, number>>>;
   // Zielschlüssel ("attr:MU", "talent:42:taw", "psyche", …) -> Namen der
   // beitragenden Items, fürs Tooltip. NUR von Boni ungleich 0 befüllt — ein
   // angelegter, aber noch leerer Bonus (wert: 0) trägt zahlenmäßig nichts bei
@@ -628,11 +752,16 @@ export const baseValueBonusKey = (key: BaseValueKey): string => `baseValue:${key
 export const resourceBonusKey = (key: ResourceKey): string => `resource:${key}`;
 export const talentBonusKey = (talentId: number, feld: TalentBonusFeld): string => `talent:${talentId}:${feld}`;
 export const spezialBonusKey = (catalogId: number): string => `spezial:${catalogId}`;
+export const elementProbeBonusKey = (element: string): string => `element:${element}:probe`;
+export const elementKostenBonusKey = (element: string, resource: ResourceKey): string => `element:${element}:${resource}`;
 export const PSYCHE_BONUS_KEY = 'psyche';
 export const TRAGLAST_BONUS_KEY = 'traglast';
 
 function leererStatBoni(): StatBoni {
-  return { attrs: {}, baseValues: {}, resources: {}, spezial: {}, psyche: 0, traglast: 0, talente: {}, quellen: {} };
+  return {
+    attrs: {}, baseValues: {}, resources: {}, spezial: {}, psyche: 0, traglast: 0, talente: {},
+    elementProbe: {}, elementKosten: {}, quellen: {},
+  };
 }
 
 // Summiert die Boni aller getragenen Items zu EINEM StatBoni. Reine Funktion,
@@ -683,10 +812,15 @@ export function wornBoni(items: readonly Item[]): StatBoni {
         case 'talent': {
           const talentId = Number(b.code);
           if (!Number.isFinite(talentId) || !b.feld) break;
+          // b.feld ist auf ItemBonus nicht je nach kind eingeschränkt (keine
+          // Discriminated Union) — bei kind === 'talent' liefert die Whitelist
+          // (normalizedBonusFields/TALENT_BONUS_FELDER) aber immer einen
+          // TalentBonusFeld, nie ein ElementBonusFeld wie 'le'.
+          const feld = b.feld as TalentBonusFeld;
           const rec = boni.talente[talentId] ?? {};
-          rec[b.feld] = (rec[b.feld] ?? 0) + wert;
+          rec[feld] = (rec[feld] ?? 0) + wert;
           boni.talente[talentId] = rec;
-          addQuelle(talentBonusKey(talentId, b.feld), item.name, wert);
+          addQuelle(talentBonusKey(talentId, feld), item.name, wert);
           break;
         }
         case 'spezial': {
@@ -694,6 +828,22 @@ export function wornBoni(items: readonly Item[]): StatBoni {
           if (!Number.isFinite(catalogId)) break;
           boni.spezial[catalogId] = (boni.spezial[catalogId] ?? 0) + wert;
           addQuelle(spezialBonusKey(catalogId), item.name, wert);
+          break;
+        }
+        case 'element': {
+          if (!b.feld) break;
+          if (b.feld === 'probe') {
+            addNum(boni.elementProbe, b.code, wert);
+            addQuelle(elementProbeBonusKey(b.code), item.name, wert);
+          } else {
+            // Wie beim talent-Zweig: bei kind === 'element' liefert die
+            // Whitelist (ELEMENT_BONUS_FELDER) hier nur einen ResourceKey.
+            const resource = b.feld as ResourceKey;
+            const rec = boni.elementKosten[b.code] ?? {};
+            rec[resource] = (rec[resource] ?? 0) + wert;
+            boni.elementKosten[b.code] = rec;
+            addQuelle(elementKostenBonusKey(b.code, resource), item.name, wert);
+          }
           break;
         }
         case 'psyche':
@@ -745,16 +895,11 @@ export function baseInputsMitBoni(inputs: BaseValueInputs, boni: StatBoni): Base
 
 // Ressourcen-Eingabe (LE/AUS/AsE) mit Item-Boni überlagert. Der Bonus geht in
 // `permanent` — die Seite, die den tatsächlichen Vorrat bildet (ergebnis =
-// vor + raceBase + permanent + kauf, siehe computeResource) und die einzige,
-// die eine spätere Entfernung der Ausbaugrenze überlebt. Der Parallel-Eintrag
-// in `maxPlus` ist NUR nötig, solange die Ausbaugrenze (max = … + kaufMax +
-// maxPlus, nutzbar = min(ergebnis, max)) noch existiert — ohne ihn würde der
-// Hard-Cap den frischen Bonus sofort wieder wegkappen. Fällt die Ausbaugrenze
-// (geplant, siehe TODO.md), fällt dieser zweite Schreibzugriff ersatzlos weg.
+// vor + raceBase + permanent + kauf, siehe computeResource).
 export function resourceInputMitBoni(input: ResourceInput, key: ResourceKey, boni: StatBoni): ResourceInput {
   const bonus = boni.resources[key] ?? 0;
   if (!bonus) return input;
-  return { ...input, permanent: input.permanent + bonus, maxPlus: input.maxPlus + bonus };
+  return { ...input, permanent: input.permanent + bonus };
 }
 
 // Spezialenergie mit Item-Bonus überlagert — wirkt nur, wenn der Katalog-
@@ -795,6 +940,19 @@ export function talentMitBoni(talent: CharTalent, boni: StatBoni): CharTalent {
 // Ergebnis hier separat.
 export function talentProbeBonus(talentId: number, boni: StatBoni): number {
   return boni.talente[talentId]?.probe ?? 0;
+}
+
+// Direkte, unskalierte Probe-Erschwernis/-Erleichterung für ALLE Ability-
+// Einträge (Zauber wie Fähigkeiten, siehe abilities.ts) eines Elements —
+// dasselbe Prinzip wie talentProbeBonus, additiv auf die berechnete Probe-Zahl.
+export function elementProbeBonus(element: string, boni: StatBoni): number {
+  return boni.elementProbe[element] ?? 0;
+}
+
+// Kosten-Anmerkung für ein Element: Energie -> Bonuszahl, reine Anzeige (siehe
+// ElementBonusFeld) — es gibt kein Feld, das mechanisch verändert würde.
+export function elementKostenBoni(element: string, boni: StatBoni): Partial<Record<ResourceKey, number>> {
+  return boni.elementKosten[element] ?? {};
 }
 
 // --- Sichten auf denselben Bestand ---
@@ -912,4 +1070,43 @@ export function waffenStatZahl(item: Pick<Item, 'waffenStats'>, feld: WaffenStat
 // muss, nicht nur den effektiven Wert.
 export function waffenStatZeile(item: Pick<Item, 'waffenStats'>, feld: WaffenStatFeld): WaffenStat | undefined {
   return item.waffenStats.find((s) => s.feld === feld);
+}
+
+// Ammunition (TODO.md "Ammunition"): die aktuell an einer Fernkampfwaffe
+// gewählte Munition, oder undefined (kein Feld/keine Auswahl/inzwischen
+// umkategorisiert/gelöscht — bewusst kein Fehler, siehe munitionUid oben).
+// waffenStatWert liefert für eine verdeckte Zeile '' (siehe dort), eine noch
+// nicht aufgedeckte Munitionswahl wirkt also automatisch noch nicht, ohne
+// dass diese Funktion selbst verdeckungs-bewusst sein müsste.
+export function munitionFuer(item: Pick<Item, 'waffenStats'>, allItems: readonly Item[]): Item | undefined {
+  const uid = waffenStatWert(item, 'munitionUid');
+  if (!uid) return undefined;
+  return allItems.find((it) => it.uid === uid && istMunitionKategorie(it.kategorie));
+}
+
+// Zwei Formel-Strings zusammenführen (Waffenschaden + Munitions-Zusatz;
+// Waffenloser-Kampf-Schaden + Handschutz-Bonus, siehe handRs) — reine
+// String-Verkettung, keine eigene Arithmetik: ein Zusatz ist immer mit
+// Vorzeichen geschrieben ("+1W2", "-1"), ein fehlendes Vorzeichen wird wie
+// "+" behandelt, damit auch "1W2" (statt "+1W2") nicht zu "1W6+1W2"
+// verschluckt wird, sondern korrekt mit "+" verbunden bleibt.
+export function kombiniereFormeln(basis: string, zusatz: string): string {
+  const b = basis.trim();
+  const z = zusatz.trim();
+  if (!z) return b;
+  if (!b) return z;
+  return /^[+-]/.test(z) ? `${b}${z}` : `${b}+${z}`;
+}
+
+// Schaden-Formel der Waffe + Schaden-Zusatz der gewählten Munition, als EINE
+// an parseDiceExpression übergebbare Formel (siehe roll.weaponDamage in
+// server/src/ws.ts).
+export function effektiverSchaden(item: Pick<Item, 'waffenStats'>, allItems: readonly Item[]): string {
+  return kombiniereFormeln(waffenStatWert(item, 'schaden'), munitionFuer(item, allItems)?.munitionSchaden ?? '');
+}
+
+// Proben-Bonus der gewählten Munition (0 ohne Auswahl) — wirkt wie ein
+// zusätzlicher atMod auf die FK-Probe (siehe diceSource.ts/WaffenNeu.tsx).
+export function munitionProbenBonusFuer(item: Pick<Item, 'waffenStats'>, allItems: readonly Item[]): number {
+  return munitionFuer(item, allItems)?.munitionProbenBonus ?? 0;
 }

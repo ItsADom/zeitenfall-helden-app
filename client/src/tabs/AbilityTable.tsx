@@ -2,7 +2,12 @@ import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Ability, Attributes } from '@shared/abilities';
 import { groupAbilities } from '@shared/abilities';
+import type { StatBoni } from '@shared/items';
+import { elementKostenBoni, elementKostenBonusKey, elementProbeBonus, elementProbeBonusKey } from '@shared/items';
 import { probeExprHasWeaponTerm, probeExprZahl } from '@shared/rules';
+import { RESOURCE_KEYS } from '@shared/types';
+import type { ResourceKey } from '@shared/types';
+import { BonusWert } from '../components/BonusWert';
 import { AlwaysEditable } from '../components/displayMode';
 import AbilityWeaponRollButton from '../components/dice/AbilityWeaponRollButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
@@ -11,6 +16,9 @@ import { Field, NumInput } from '../components/inputs';
 import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
 import { useChar } from '../pages/Character';
+
+// Kürzel wie in der Charakterbogen-Seitenleiste (CharacterSidebar.tsx RES_ABBR).
+const RES_ABBR: Record<ResourceKey, string> = { le: 'LP', aus: 'AUS', ase: 'ASP' };
 
 // Gemeinsame Ansicht für die Reiter „Zauber" und „Fähigkeiten": eine reine
 // Anzeige auf die Stammliste (verwaltet unter „Zauber & Fähigkeiten verwalten").
@@ -39,7 +47,7 @@ export function AbilityTable({
   groupOptions: GroupBy[];
   listSortLabel?: string;
 }) {
-  const { data, update, charId } = useChar();
+  const { data, update, charId, stats } = useChar();
   const list = data.abilities.filter((a) => a.magisch === magisch);
   // Voreinstellung: keine Gruppierung — die Liste läuft flach durch. Wer aktiv
   // eine Gruppierung wählt, behält sie (persistiert je Nutzer).
@@ -206,11 +214,11 @@ export function AbilityTable({
             </thead>
             <tbody>
               {sig && (
-                <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} pinned onFort={(v) => setFort(sig.uid, v)} onFavorit={(v) => setFavorit(sig.uid, v)} />
+                <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} stats={stats} pinned onFort={(v) => setFort(sig.uid, v)} onFavorit={(v) => setFavorit(sig.uid, v)} />
               )}
               {by === 'none'
                 ? [...rest].sort(sortFn).map((a) => (
-                    <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
+                    <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} stats={stats} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
                   ))
                 : [...groups!.entries()].map(([key, rows]) => (
                     <Fragment key={key || '__none'}>
@@ -222,7 +230,7 @@ export function AbilityTable({
                         </td>
                       </tr>
                       {[...rows].sort(sortFn).map((a) => (
-                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
+                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} stats={stats} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
                       ))}
                     </Fragment>
                   ))}
@@ -239,6 +247,7 @@ function AbilityRow({
   a,
   magisch,
   attrs,
+  stats,
   onFort,
   onFavorit,
   pinned,
@@ -246,12 +255,18 @@ function AbilityRow({
   a: Ability;
   magisch: boolean;
   attrs: Attributes;
+  stats: StatBoni;
   onFort: (v: number) => void;
   onFavorit: (v: boolean) => void;
   pinned?: boolean;
 }) {
-  const pz = probeExprZahl(attrs, a.probe);
+  const pzBase = probeExprZahl(attrs, a.probe);
+  const pz = pzBase != null ? pzBase + elementProbeBonus(a.element, stats) : pzBase;
   const needsWeapon = probeExprHasWeaponTerm(a.probe);
+  // Anmerkung neben `kosten` statt Verrechnung — siehe elementKostenBoni
+  // (shared/src/items.ts): kosten ist Freitext und kann mehrere Energien
+  // mischen (z. B. Blutmagie LE+AsP), es gibt keine Formel zum Anfassen.
+  const kostenBoni = elementKostenBoni(a.element, stats);
   return (
     <tr className={pinned ? 'abil-pinned' : undefined}>
       <td>
@@ -261,7 +276,22 @@ function AbilityRow({
       </td>
       <td className="num">{a.stufe}</td>
       {magisch && <td className="num">{a.komplexitaet}</td>}
-      <td className="num">{a.kosten}</td>
+      <td className="num">
+        {a.kosten}
+        {RESOURCE_KEYS.map((k) => {
+          const v = kostenBoni[k];
+          if (!v) return null;
+          return (
+            <BonusWert key={k} quellen={stats.quellen[elementKostenBonusKey(a.element, k)]}>
+              <span className="muted">
+                {' '}
+                {v > 0 ? '+' : ''}
+                {v} {RES_ABBR[k]}
+              </span>
+            </BonusWert>
+          );
+        })}
+      </td>
       <td className="abil-probe">
         {a.probe}
         {needsWeapon ? (
@@ -269,7 +299,9 @@ function AbilityRow({
         ) : (
           pz != null && (
             <>
-              <span className="muted"> ({pz})</span>
+              <BonusWert quellen={stats.quellen[elementProbeBonusKey(a.element)]}>
+                <span className="muted"> ({pz})</span>
+              </BonusWert>
               <ProbeRollButton source={{ kind: 'ability', abilityId: a.id }} title={a.name} />
             </>
           )

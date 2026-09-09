@@ -162,7 +162,6 @@ db.exec(`
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
     key TEXT NOT NULL,
     permanent REAL NOT NULL DEFAULT 0, kauf REAL NOT NULL DEFAULT 0,
-    kaufMax REAL NOT NULL DEFAULT 0, maxPlus REAL NOT NULL DEFAULT 0,
     aktuell REAL NOT NULL DEFAULT 0, besonderes TEXT NOT NULL DEFAULT '',
     -- Rassenbonus (races_catalog.le/.au/.ae), additiv zum Formelwert — vorbelegt
     -- bei Rassen-Auswahl, danach gesperrt (siehe ResourceInput.raceBase).
@@ -176,7 +175,7 @@ db.exec(`
   -- special_energies_catalog (NULL = Altbestand von vor dem Katalog, siehe
   -- SpecialResource in shared/src/types.ts); hat der Katalog-Eintrag eine
   -- Formel, ist max hier nur ein ungenutzter Snapshot und bonus fließt additiv
-  -- in das live berechnete Maximum ein (analog zu maxPlus bei LE/AUS/AsE).
+  -- in das live berechnete Maximum ein (analog zum Bonus bei LE/AUS/AsE).
   CREATE TABLE IF NOT EXISTS char_special_resources (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
@@ -341,6 +340,41 @@ db.exec(`
     PRIMARY KEY (pouch_id, denomination_id)
   );
 
+  -- Ausrüstungs-Sets (docs/concepts/equipment-presets.md): ein benannter
+  -- Schnappschuss, welche Items ein Charakter getragen hat (uid+Zone+
+  -- beidseitig) — Anwenden ist ein reiner Client-Vorgang (Ausruestung.tsx
+  -- berechnet die neue Item-Liste und speichert sie über den normalen
+  -- Items-Op-Pfad), diese beiden Tabellen halten nur die gespeicherten Sets
+  -- selbst. Anders als char_items/char_pouches braucht das KEIN
+  -- owner_type/owner_id-Paar: ein Set gehört immer und ausschließlich einem
+  -- Charakter (nie einer Gruppe oder dem SL-Vorrat, bewusst außerhalb des
+  -- Konzepts gehalten), also ein echter FK mit ON DELETE CASCADE wie bei
+  -- character_visibility oben.
+  CREATE TABLE IF NOT EXISTS char_equipment_presets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_equipment_presets_char ON char_equipment_presets(character_id, pos);
+  -- item_uid ist bewusst KEIN Fremdschlüssel — dieselbe Begründung wie
+  -- char_items.container_uid: Identität läuft über die client-vergebene uid,
+  -- nicht die DB-id, und ein ins Leere zeigender Verweis (Item gelöscht oder
+  -- per Cross-Owner-Move weggezogen) ist ein erwarteter, im Client behandelter
+  -- Fall (übersprungen + Hinweis vor dem Anwenden), keine Constraint-Verletzung.
+  -- item_name ist ein Schnappschuss-Cache vom Speicherzeitpunkt, einzig für
+  -- diesen Hinweistext — nie mechanisch gelesen.
+  CREATE TABLE IF NOT EXISTS char_equipment_preset_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    preset_id INTEGER NOT NULL REFERENCES char_equipment_presets(id) ON DELETE CASCADE,
+    pos INTEGER NOT NULL DEFAULT 0,
+    item_uid TEXT NOT NULL DEFAULT '',
+    item_name TEXT NOT NULL DEFAULT '',
+    zone TEXT NOT NULL DEFAULT '',
+    beidseitig INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_equipment_preset_items_preset ON char_equipment_preset_items(preset_id);
+
   -- Freitext-GM-Notiz je Charakter: bewusst eigene Tabelle statt char_bio
   -- (dort hat der Besitzer 'edit'-Zugriff) — nur der Spielleiter sieht/ändert
   -- das, unabhängig von der Sichtbarkeits-/Bearbeitungsrechten des Heldenbriefs.
@@ -477,6 +511,12 @@ db.exec(`
     -- in shared/src/items.ts).
     haltbarkeit_max REAL NOT NULL DEFAULT 0,
     haltbarkeit_aktuell REAL NOT NULL DEFAULT 0,
+    -- Ladung (TODO.md "Potion charges"): gleiches current/max-Muster wie
+    -- Haltbarkeit, 0 = nicht verfolgt. ladung_portion ist, wie viel EINE
+    -- Nutzung verbraucht (siehe shared/src/items.ts).
+    ladung_max REAL NOT NULL DEFAULT 0,
+    ladung_aktuell REAL NOT NULL DEFAULT 0,
+    ladung_portion REAL NOT NULL DEFAULT 1,
     notiz TEXT NOT NULL DEFAULT '',
     -- Hidden/revealable Ausrüstung stats (TODO.md): rs/haltbarkeit bleiben als
     -- Felder sichtbar, zeigen aber „???" statt der Zahl, solange verborgen.
@@ -486,7 +526,13 @@ db.exec(`
     -- Weapons as real items (TODO.md): '' = kein Waffe, sonst 'nah'/'fern'.
     -- Routet die Karte in den Waffen-Reiter/den richtigen Feldsatz; die
     -- tatsächlichen Waffenwerte liegen in char_item_weapon_stats.
-    waffen_art TEXT NOT NULL DEFAULT ''
+    waffen_art TEXT NOT NULL DEFAULT '',
+    -- Ammunition (TODO.md): nur sinnvoll bei kategorie = 'Munition' (siehe
+    -- MUNITION_KATEGORIE, shared/src/items.ts) — an die Schaden-Formel/FK-Probe
+    -- der Fernkampfwaffe angehängt, die diese Zeile per munitionUid (eigenes
+    -- WaffenStat-Feld) gewählt hat.
+    munition_schaden TEXT NOT NULL DEFAULT '',
+    munition_proben_bonus REAL NOT NULL DEFAULT 0
   );
   -- Der Index auf (owner_type, owner_id, pos) steht NICHT hier, sondern erst
   -- nach der owner_type-Migration weiter unten: auf einer bestehenden DB mit
@@ -1130,6 +1176,14 @@ db.exec(`
   if (!cols.has('waffen_art')) db.exec("ALTER TABLE char_items ADD COLUMN waffen_art TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration: Ammunition (TODO.md) — munition_schaden/munition_proben_bonus
+// auf char_items. Default '' / 0 hält bestehende Zeilen unverändert.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('munition_schaden')) db.exec("ALTER TABLE char_items ADD COLUMN munition_schaden TEXT NOT NULL DEFAULT ''");
+  if (!cols.has('munition_proben_bonus')) db.exec('ALTER TABLE char_items ADD COLUMN munition_proben_bonus REAL NOT NULL DEFAULT 0');
+}
+
 // Migration (shared inventories, docs/concepts/shared-inventories.md):
 // char_items/char_item_categories gain owner_type/owner_id instead of a hard
 // character_id FK, so an item or a curated category list can belong to a
@@ -1289,6 +1343,17 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_typ
   if (!cols.has('mitgebracht_von')) db.exec("ALTER TABLE char_items ADD COLUMN mitgebracht_von TEXT NOT NULL DEFAULT ''");
 }
 
+// Migration (Ladung, TODO.md "Potion charges"): ladung_max/aktuell/portion auf
+// char_items — plain additive ALTERs, same shape as haus/raum/mitgebracht_von
+// above. Default 0 for max/aktuell keeps existing rows "not tracked"; portion
+// defaults to 1 (a meaningful "one use" even before anyone opts in).
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_items)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('ladung_max')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_max REAL NOT NULL DEFAULT 0');
+  if (!cols.has('ladung_aktuell')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_aktuell REAL NOT NULL DEFAULT 0');
+  if (!cols.has('ladung_portion')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_portion REAL NOT NULL DEFAULT 1');
+}
+
 // Migration: Magieresistenz von den Energien zu den Basiswerten.
 // Früher lag sie in char_resources mit getrenntem permanent/kauf; da beides in
 // der Praxis dasselbe war, wird es zu einem einzelnen Basiswert-Modifikator
@@ -1446,6 +1511,47 @@ for (const s of LIST_SECTIONS) {
     const migrate = db.transaction(() => {
       migrateTable('sec_waffenNahNeu', NAH_FELDER, 'nah', 2_000_000);
       migrateTable('sec_waffenFernNeu', FERN_FELDER, 'fern', 3_000_000);
+    });
+    migrate();
+  }
+}
+
+// Migration: Ammunition (TODO.md) — die alte generische Pfeile/Bolzen-Tabelle
+// (sec_munition) entfällt zugunsten echter Munitions-Items (kategorie
+// 'Munition', siehe MUNITION_KATEGORIE in shared/src/items.ts), die eine
+// Fernkampfwaffe jetzt direkt referenziert. Bestehende Zeilen wandern einmalig
+// nach char_items, dann wird sec_munition gelöscht (wie sec_techniken/
+// sec_liturgien/sec_allgemeinzauber oben) — reine Altlast ohne weitere Nutzung.
+// `anzahl`/`fuerWaffe` waren beide Freitext (t(), nicht n() — siehe
+// sections.ts): eine `anzahl`, die sich nicht als reine Zahl lesen lässt, und
+// jedes `fuerWaffe` (dafür gibt es auf dem neuen Modell kein Gegenstück — die
+// Referenz läuft jetzt umgekehrt, die Waffe wählt ihre Munition) gehen NICHT
+// verloren, sondern in die Notiz (no-data-loss rule, dieselbe Behandlung wie
+// parseHaltbarkeit oben).
+{
+  const tableExists = (name: string): boolean =>
+    !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?").get(name);
+  if (tableExists('sec_munition')) {
+    const newUid = (): string => (db.prepare('SELECT lower(hex(randomblob(16))) AS u').get() as { u: string }).u;
+    const nextPos = db.prepare("SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_items WHERE owner_type='character' AND owner_id=?");
+    const insItem = db.prepare(
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, kategorie, notiz)
+       VALUES ('character', ?, ?, ?, ?, ?, 'Munition', ?)`,
+    );
+    const migrate = db.transaction(() => {
+      const rows = db.prepare('SELECT * FROM sec_munition ORDER BY character_id, pos, id').all() as
+        { character_id: number; art: string; anzahl: string; fuerWaffe: string }[];
+      for (const row of rows) {
+        const anzahlText = String(row.anzahl ?? '').trim();
+        const numeric = /^\d+([.,]\d+)?$/.test(anzahlText) ? Number(anzahlText.replace(',', '.')) : null;
+        const notizParts = [
+          numeric === null && anzahlText ? `Anzahl: ${anzahlText}` : '',
+          String(row.fuerWaffe ?? '').trim() ? `Für Waffe: ${String(row.fuerWaffe).trim()}` : '',
+        ].filter(Boolean);
+        const pos = (nextPos.get(row.character_id) as { p: number }).p;
+        insItem.run(row.character_id, pos, newUid(), String(row.art ?? ''), numeric ?? 1, notizParts.join('\n'));
+      }
+      db.exec('DROP TABLE sec_munition;');
     });
     migrate();
   }
@@ -1798,6 +1904,18 @@ db.exec('DROP TABLE IF EXISTS group_members');
   const cols = new Set((db.prepare('PRAGMA table_info(board_initiative)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('round_order')) db.exec('ALTER TABLE board_initiative ADD COLUMN round_order INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('rolled_this_round')) db.exec('ALTER TABLE board_initiative ADD COLUMN rolled_this_round INTEGER NOT NULL DEFAULT 0');
+}
+
+// Migration: Hard-Cap auf LE/AUS/AsE entfernt (TODO.md "remove hard-caps") —
+// 'kaufMax'/'maxPlus' fielen aus char_resources.computeResource, das
+// tatsächlich nutzbare Maximum ist seither immer die ungekappte Rohsumme.
+// Die Werte, die früher über die Ausbaugrenze hinaus gekauft wurden, sind
+// spielerseitig bereits in permanent/kauf gewandert — nichts zu retten, die
+// Spalten fallen ersatzlos weg.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_resources)').all() as { name: string }[]).map((c) => c.name));
+  if (cols.has('kaufMax')) db.exec('ALTER TABLE char_resources DROP COLUMN kaufMax');
+  if (cols.has('maxPlus')) db.exec('ALTER TABLE char_resources DROP COLUMN maxPlus');
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an

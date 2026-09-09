@@ -227,6 +227,17 @@ interface DicePanelCtxValue {
     visibility: RollVisibility,
     targetUserId?: number,
   ) => void;
+  /**
+   * Schaden von Waffenlosem Kampf (Raufen) würfeln (siehe roll.waffenlosDamage
+   * im Protokoll) — wie rollWeaponDamage, nur ohne Item.
+   */
+  rollWaffenlosDamage: (
+    groupId: number,
+    charId: number,
+    technik: 'Raufen' | 'Ringen',
+    visibility: RollVisibility,
+    targetUserId?: number,
+  ) => void;
   /** Offenen Bestätigungswurf erledigen — werfen, oder mit skip verwerfen. */
   confirmDie: (entryId: number, dieIndex: number, skip?: boolean) => void;
   /** Offene „SL + Spieler"-Anfragen, die diesen Nutzer betreffen. */
@@ -469,6 +480,7 @@ export function useDicePanel(): DicePanelCtxValue {
       rollExpr: () => {},
       rollProbe: () => {},
       rollWeaponDamage: () => {},
+      rollWaffenlosDamage: () => {},
       confirmDie: () => {},
       pendingRequests: [],
       groupRequests: [],
@@ -1246,6 +1258,25 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [myGroups, applyRoom, sendMsg, melde],
   );
 
+  const rollWaffenlosDamage = useCallback(
+    (forGroupId: number, forCharId: number, technik: 'Raufen' | 'Ringen', visibility: RollVisibility, targetUserId?: number) => {
+      if (groupIdRef.current !== forGroupId) {
+        const option = myGroups.find((g) => g.id === forGroupId);
+        if (option) applyRoom(option);
+      }
+      melde();
+      sendMsg({
+        type: 'roll.waffenlosDamage',
+        reqId: crypto.randomUUID(),
+        charId: forCharId,
+        technik,
+        visibility,
+        targetUserId,
+      });
+    },
+    [myGroups, applyRoom, sendMsg, melde],
+  );
+
   const confirmDie = useCallback(
     (entryId: number, dieIndex: number, skip = false) => {
       sendMsg({ type: 'roll.confirm', reqId: crypto.randomUUID(), entryId, dieIndex, skip });
@@ -1649,6 +1680,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         rollExpr,
         rollProbe,
         rollWeaponDamage,
+        rollWaffenlosDamage,
         confirmDie,
         pendingRequests,
         groupRequests,

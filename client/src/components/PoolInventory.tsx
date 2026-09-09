@@ -73,6 +73,7 @@ export default function PoolInventory({
   onSave,
   onDuplicate,
   onDelete,
+  onUseLadung,
   onPatchAnzahl,
   onMove,
   onMoveWithin,
@@ -95,6 +96,10 @@ export default function PoolInventory({
   onSave: (uid: string, patch: Partial<Item>) => void;
   onDuplicate: (uid: string) => void;
   onDelete: (uid: string) => void;
+  /** Ladung (TODO.md "Potion charges") — reine Array-Funktion beim Aufrufer
+   * (siehe verwendeLadung, shared/src/items.ts), hier nur durchgereicht wie
+   * onDuplicate/onDelete. */
+  onUseLadung: (uid: string) => void;
   onPatchAnzahl: (uid: string, anzahl: number) => void;
   onMove: (uid: string, target: MoveTarget) => void;
   /** Ziehen INNERHALB des Pools (Kategorie/Behälter/Reihenfolge) — eigener Weg
@@ -227,6 +232,15 @@ export default function PoolInventory({
   const storageConts = allStorageConts.filter(passtZuRaum);
   const loose = allLoose.filter(passtZuRaum);
 
+  // Prefill item data on filter (developer request): a new top-level item/
+  // container should land where the Haus/Raum filter is currently looking,
+  // not always at "kein Haus". Only meaningful for top-level adds (+ Behälter,
+  // loose + Gegenstand) — an item added INTO a container never gets its own
+  // room (houses.md §3.3), so addItemFor below stays unaffected. "Alle Räume"
+  // has no single room to suggest, so raum is left unset in that case.
+  const prefillHaus = availableHouses ? (activeHaus === OHNE_HAUS ? '' : activeHaus) : undefined;
+  const prefillRaum = availableHouses && activeRaum !== ALLE_RAEUME ? activeRaum : undefined;
+
   const row = (it: Item, target: DropTarget, hint?: string) => (
     <tr
       key={it.uid}
@@ -252,6 +266,7 @@ export default function PoolInventory({
         <span className="static-value static-text">
           {it.name || ' '}
           {gebrachtBadge(it)}
+          {ladungBadge(it)}
         </span>
         {hint && <span className="muted" style={{ marginLeft: 8, fontSize: '0.85em' }}>{hint}</span>}
       </td>
@@ -280,6 +295,18 @@ export default function PoolInventory({
     it.mitgebrachtVon ? (
       <span className="muted" title={`Zuletzt aus dem Inventar von ${it.mitgebrachtVon} hierher verschoben`} style={{ marginLeft: 6 }}>
         ↪
+      </span>
+    ) : null;
+  // Ladung (TODO.md "Potion charges"): direkt in der Liste sichtbar statt nur
+  // im Bearbeiten-Dialog, gleiches Muster wie gebrachtBadge oben.
+  const ladungBadge = (it: Pick<Item, 'ladungMax' | 'ladungAktuell'>) =>
+    it.ladungMax > 0 ? (
+      <span
+        className={`item-ladung${it.ladungAktuell / it.ladungMax <= 0.25 ? ' item-ladung--low' : ''}`}
+        title="Ladung"
+        style={{ marginLeft: 6 }}
+      >
+        ⚡{it.ladungAktuell}/{it.ladungMax}
       </span>
     ) : null;
 
@@ -463,15 +490,30 @@ export default function PoolInventory({
         </div>
       )}
 
-      <AddContainerDialog open={addContainerOpen} onClose={() => setAddContainerOpen(false)} onAdd={onAdd} />
+      <AddContainerDialog
+        open={addContainerOpen}
+        onClose={() => setAddContainerOpen(false)}
+        houses={houses}
+        roomsByHaus={roomsByHaus}
+        initialHaus={prefillHaus}
+        initialRaum={prefillRaum}
+        onAdd={onAdd}
+      />
       <AddItemDialog
         open={addLooseOpen}
         onClose={() => setAddLooseOpen(false)}
         categories={categories}
         houses={houses}
         roomsByHaus={roomsByHaus}
+        initialHaus={prefillHaus}
+        initialRaum={prefillRaum}
         talents={talents}
         specialEnergies={specialEnergies}
+        // Kein Element-Bonus im Gruppen-/SL-Pool: die "Element"-Optgroup im
+        // Boni-Editor braucht EINEN Charakter, dessen Zauber-Elemente sie
+        // anbietet — Pool-Items gehören keinem, `getragen` (und damit
+        // wornBoni) greift hier ohnehin nie. Leer blendet die Optgroup aus.
+        elements={[]}
         isGm={isGm}
         onAdd={(fields) => onAdd({ ...fields, location: 'inventar' })}
       />
@@ -484,6 +526,7 @@ export default function PoolInventory({
         categories={categories}
         talents={talents}
         specialEnergies={specialEnergies}
+        elements={[]}
         isGm={isGm}
         onAdd={(fields) => onAdd({ ...fields, location: 'behaelter', containerUid: addItemFor! })}
       />
@@ -496,10 +539,12 @@ export default function PoolInventory({
         item={editingItem}
         talents={talents}
         specialEnergies={specialEnergies}
+        elements={[]}
         isGm={isGm}
         onSave={(patch) => editUid && onSave(editUid, patch)}
         onDuplicate={() => editUid && onDuplicate(editUid)}
         onDelete={() => editUid && onDelete(editUid)}
+        onUseLadung={() => editUid && onUseLadung(editUid)}
         moveTargets={moveTargets}
         onMove={(target) => editUid && onMove(editUid, target)}
       />

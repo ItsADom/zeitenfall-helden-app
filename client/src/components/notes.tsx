@@ -49,7 +49,14 @@ export function CollapsedText({
     <div className={className}>
       {open ? text : truncate(text, limit, lineLimit)}
       {open ? ' ' : ''}
-      <button type="button" className="note-toggle" onClick={() => setOpen((o) => !o)}>
+      <button
+        type="button"
+        className="note-toggle"
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
         {open ? 'weniger' : '…'}
       </button>
     </div>

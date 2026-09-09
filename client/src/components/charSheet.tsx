@@ -11,6 +11,7 @@ import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAtt
 import type { DynTab } from '@shared/dynamicSections';
 import type { Item, StatBoni } from '@shared/items';
 import { diffItems, wornBoni } from '@shared/items';
+import type { EquipmentPreset } from '@shared/equipmentPresets';
 import type { Ability } from '@shared/abilities';
 import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { apiGet, apiPost, apiPut } from '../api';
@@ -48,6 +49,10 @@ export interface FullData {
   // verwalteten Kategorien. Speichert über eigene Routen, nicht /section/:s.
   items: Item[];
   itemCategories: string[];
+  // Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Anwenden ist ein
+  // reiner Client-Vorgang auf `items` (kein eigener Endpunkt, siehe dort) —
+  // nur die gespeicherten Sets selbst laufen über ihre eigene Route.
+  equipmentPresets: EquipmentPreset[];
   // Zauber & Fähigkeiten (Cluster 6): ein Bestand, aus dem die Reiter „Zauber"
   // und „Fähigkeiten" nur anzeigen. Gepflegt wird in der Werkstatt; im Reiter
   // ändert sich einzig der Fortschritt. Speichert über eine eigene Route.
@@ -307,6 +312,7 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
             setData((prev) => (prev ? { ...prev, items: res.items } : prev));
           }
         } else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
+        else if (s === 'equipmentPresets') await apiPut(`/api/characters/${charId}/equipment-presets`, d.equipmentPresets);
         else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities`, d.abilities);
         else if (s === 'pouches') await apiPut(`/api/characters/${charId}/pouches`, d.pouches);
         else {
@@ -347,6 +353,7 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
         if (section === 'visibility') return { ...prev, visibility: value as FullData['visibility'] };
         if (section === 'items') return { ...prev, items: value as Item[] };
         if (section === 'itemCategories') return { ...prev, itemCategories: value as string[] };
+        if (section === 'equipmentPresets') return { ...prev, equipmentPresets: value as EquipmentPreset[] };
         if (section === 'abilities') return { ...prev, abilities: value as Ability[] };
         if (section === 'pouches') return { ...prev, pouches: value as CoinPouch[] };
         return { ...prev, lists: { ...prev.lists, [section]: value as Row[] } };

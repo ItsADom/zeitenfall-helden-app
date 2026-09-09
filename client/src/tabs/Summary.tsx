@@ -2,7 +2,6 @@ import { Link } from 'react-router-dom';
 import { RESOURCE_COLUMN_LABELS as RC, VISIBILITY_LABELS } from '@shared/types';
 import type { Attributes } from '@shared/types';
 import { computeProbeCell, DYN_NOTIZ_KEY } from '@shared/dynamicSections';
-import { MaximumWert } from '../components/MaximumWert';
 import { PortraitView } from '../components/PortraitView';
 import type { DynColumn, DynRow, DynSection } from '@shared/dynamicSections';
 
@@ -159,7 +158,6 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
                 <th>Energie</th>
                 <th>{RC.aktuell}</th>
                 <th>{RC.maximum}</th>
-                <th>{RC.ausbaugrenze}</th>
               </tr>
             </thead>
             <tbody>
@@ -169,18 +167,12 @@ export default function SummaryView({ info, summary }: { info: Info; summary: Su
                   label: string;
                   aktuell: number;
                   ergebnis: number;
-                  max: number | null;
-                  nutzbar: number;
-                  gekappt: boolean;
                 }[]
               ).map((r) => (
                 <tr key={r.key}>
                   <td>{r.label}</td>
                   <td className="num">{r.aktuell}</td>
-                  <td className="computed">
-                    <MaximumWert nutzbar={r.nutzbar} roh={r.ergebnis} gekappt={r.gekappt} />
-                  </td>
-                  <td className="computed">{r.max ?? '—'}</td>
+                  <td className="computed">{r.ergebnis}</td>
                 </tr>
               ))}
             </tbody>

@@ -59,6 +59,7 @@ export interface LabelOverlayData {
  */
 export type MeasureOverlayData =
   | { kind: 'ruler'; from: CellCoord; to: CellCoord; label?: string; color?: string }
+  | { kind: 'trail'; from: CellCoord; to: CellCoord; label?: string; color?: string }
   | { kind: 'circle'; origin: CellCoord; radius: number; label?: string; color?: string }
   | { kind: 'rectangle'; from: CellCoord; to: CellCoord; label?: string; color?: string }
   | { kind: 'cone'; origin: CellCoord; angle: number; length: number; spread: number; label?: string; color?: string };

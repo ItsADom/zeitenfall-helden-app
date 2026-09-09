@@ -24,6 +24,11 @@ export type ProbeSource =
   | { kind: 'ability'; abilityId: number; weapon?: { kind: 'item'; itemId: number } | { kind: 'talent'; talentId: number } }
   | { kind: 'sprache'; languageId: number; mode: 'sprechen' | 'schreiben' }
   | { kind: 'weapon'; itemId: number; probe: 'at' | 'pa' | 'bl' | 'fk' }
+  // Waffenloser Kampf (Raufen/Ringen) — wie 'weapon', aber ohne Item: die
+  // beiden Zeilen leben in sec_waffenlos (siehe WaffenlosCards, client/src/
+  // tabs/WaffenNeu.tsx), identifiziert über ihren festen Technik-Namen statt
+  // einer Item-id. Kein 'fk' (Waffenloser Kampf kennt keinen Fernkampf).
+  | { kind: 'waffenlos'; technik: 'Raufen' | 'Ringen'; probe: 'at' | 'pa' | 'bl' }
   // Basiswert-Probe: ein W20 gegen den Basiswert selbst — Ausweichen (die
   // einzige Verteidigungsprobe ohne eigenen Waffen-Bezug) und Initiative.
   | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen' | 'ini'> };
@@ -378,6 +383,18 @@ export type ClientToServerMessage =
       reqId: string;
       charId: number;
       itemId: number;
+      visibility: RollVisibility;
+      targetUserId?: number;
+    }
+  // Schaden von Waffenlosem Kampf (Raufen) würfeln — dasselbe Prinzip wie
+  // roll.weaponDamage, nur ohne Item: die Formel (samt Handschutz-Bonus, siehe
+  // handRs in shared/src/items.ts) kommt server-seitig aus der sec_waffenlos-
+  // Zeile, identifiziert über `technik` statt einer Item-id.
+  | {
+      type: 'roll.waffenlosDamage';
+      reqId: string;
+      charId: number;
+      technik: 'Raufen' | 'Ringen';
       visibility: RollVisibility;
       targetUserId?: number;
     }
