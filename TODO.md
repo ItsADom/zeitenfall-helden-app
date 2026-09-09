@@ -223,21 +223,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
-- [sketch] **Native colour swatch reopens on a second click instead of
-  closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
-  used by token colour/ring colour, the tile/highlight picker, and the
-  measure-shape colour field): clicking a `<input type="color">` swatch
-  while its native browser dialog is already open should close it, but the
-  browser reopens it instead. Two fix attempts (a tracked "believed open"
-  ref + `blur()`, then a `document.activeElement` check + `blur()`) both
-  failed live testing — a native colour dialog isn't part of the DOM, so it
-  can't be driven/observed by this session's automated browser tooling
-  either, which made both attempts guesswork. Confirmed minor/cosmetic by
-  the developer, not blocking. Whoever picks this up next needs to actually
-  reproduce it live (real browser, real clicks) to see what's really
-  happening before trying a third fix — or consider swapping to a custom
-  (non-native) colour picker instead, which would sidestep the browser
-  quirk entirely.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -255,13 +240,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
-- [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
-  talents/languages) so a worn piece picks a material and shows its RS. Today RS is
-  a manual per-piece number on the item.
-- [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
-  - Andergast as colorless
-  - Orkland dark green, Bornland lighter green
-  - Efferdia light blue
 - [ready] **Easter egg tracker** (concept agreed; visual reference at
   `docs/concepts/easter-egg-tracker.html`): a public page listing every
   easter egg that exists, who found it first, and when — first-finder-only,

@@ -6890,6 +6890,163 @@ tr:hover .probe-roll,
   outline: 2px solid var(--accent-soft);
 }
 
+/* ---------- Farb-Picker (components/ColorPicker.tsx) ----------
+   Ersetzt das native <input type="color"> überall auf der Tischplatte —
+   siehe den Doc-Kommentar am Komponentenanfang. Das Popover wird per Portal
+   ans body-Ende gehängt und dort `position: fixed` mit von der Komponente
+   berechneten Pixel-Koordinaten platziert (nicht `position: absolute` relativ
+   zum Swatch): der Swatch steckt oft in einem Flyout mit eigenem niedrigen
+   z-index (.vtt-tile-picker: 6) und/oder eigenem `overflow`, beides würde ein
+   normales In-Flow-Popover abschneiden bzw. hinter der Kopfleiste verschwinden
+   lassen — z-index gilt nur innerhalb des Stapelkontexts seines Elternteils. */
+.color-picker {
+  position: relative;
+  display: inline-block;
+}
+.color-picker-swatch {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+.color-picker-swatch:hover {
+  border-color: var(--border-hover);
+}
+.color-picker-popover {
+  position: fixed;
+  z-index: 50;
+  width: 200px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.color-picker-sv {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  border-radius: 6px;
+  /* Weiß→transparent (Sättigung, links→rechts) über Schwarz→transparent
+     (Hellwert, unten→oben) — die Grundfarbe selbst kommt inline vom
+     Farbton (background-color, siehe Komponente), damit dieser Layer hier
+     nicht bei jedem Farbton neu geschrieben werden muss. */
+  background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+  cursor: crosshair;
+  touch-action: none;
+}
+.color-picker-sv-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.color-picker-hue {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  touch-action: none;
+}
+.color-picker-hue-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.color-picker-fields-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.color-picker-preview {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+}
+.color-picker-eyedrop {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+.color-picker-eyedrop:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.color-picker-fields {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.color-picker-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.color-picker-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 2px;
+  text-align: center;
+  font-size: 12px;
+}
+.color-picker-field-hex {
+  flex: 2;
+}
+.color-picker-field span {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.color-picker-mode-toggle {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.color-picker-mode-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 /* ---------- VTT Phase 8 (slice 3/3): Messformen — Kachelraster im Flyout ---------- */
 .vtt-measure-kind-grid {
   display: grid;

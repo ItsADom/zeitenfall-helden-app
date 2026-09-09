@@ -205,6 +205,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Zauber und Fähigkeiten werden in der Werkstatt jetzt über einen eigenen Dialog angelegt und bearbeitet, statt direkt in der Zeile — im Reiter selbst bleiben Lernfortschritt und Würfel-Favorit weiterhin direkt änderbar.',
       'Zauber und Fähigkeiten lassen sich jetzt zu einer aufgewerteten Fassung weiterentwickeln (Basis → Aufgewertet → Potenzial): im Bearbeiten-Dialog die neue Fassung einfach als „Aufgewertet von“ auf die vorherige verweisen lassen — der Grad wird automatisch berechnet und steht dann neben dem Namen.',
     ],
+    changed: [
+      'Die Farb-Swatches auf der virtuellen Tischplatte (Marken-/Ring-Farbe, Kachel- und Einfärbe-Werkzeug, Messform-Farbe) öffnen jetzt ein eigenes, einheitliches Farbwähler-Popup (Fläche + Farbton-Regler, umschaltbar zwischen Hex/RGB/HSL, Bildschirm-Pipette wo der Browser das unterstützt) statt des je nach Browser unterschiedlichen nativen Dialogs — behebt dabei auch, dass ein zweiter Klick den nativen Dialog erneut öffnete statt ihn zu schließen.',
+    ],
+    fixed: [
+      'Würfelt man aus dem Charakterbogen heraus, wird nun der aktuell geöffnete Chat das Ziel des Wurfs (solange der Charakter dazu passt). Vorher gingen Würfe immer in die Hauptgruppe des Charakters.'
+    ],
     admin: [
       '(Verwaltung) Ein importierter Charakter (Kataloge & Nutzer → „Charakter importieren“) hat Ausrüstung/Inventar, Zauber & Fähigkeiten und Geldbeutel stillschweigend verloren — nur Basiswerte, Talente und selbst angelegte Reiter kamen an. Alle Bereiche werden jetzt vollständig übernommen.',
     ],
