@@ -199,31 +199,23 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    date: '',
-    title: '',
+    date: '2026-09-09',
+    title: 'Alles am Mann',
+    version: '0.10.1',
     added: [
+      'Ausrüstungs-Sets: über „Sets“ im Ausrüstungs-Reiter lässt sich der aktuell getragene Zustand unter einem Namen speichern (z. B. „Freizeit“, „Kampf“) und später per Klick wieder anlegen — alles, was nicht zum Set gehört, wird dabei automatisch abgelegt.',
+      'Das Messen-Werkzeug auf dem virtuellen Tisch hat jetzt einen Schrittzähler: eine Linie ziehen zeigt jedes überquerte Feld einzeln nummeriert, statt nur eine Gesamtstrecke anzugeben.',
       'Ausrüstungsboni können jetzt gezielt ein Zauber-Element treffen: entweder eine Erschwernis/Erleichterung auf die Probe von Zaubern und Fähigkeiten dieses Elements, oder eine Anmerkung neben den Zauberkosten (LE/Ausdauer/AsE). Auswählbar sind die Elemente, die der Charakter schon bei seinen eigenen Zaubern/Fähigkeiten führt.',
       'Munition: ein Inventar-Gegenstand mit der Kategorie „Munition“ bekommt zwei eigene Felder für einen Schaden- und einen Probe-Zusatz. An der Fernkampfwaffe lässt sich damit die gerade verwendete Munition auswählen — ihr Bonus fließt automatisch in die Schaden-Formel und die Fernkampf-Probe ein, der aktuelle Bestand ist direkt an der Waffe einsehbar und änderbar.',
       'Faustschlag-Schaden (Raufen) wird jetzt automatisch durch den Rüstungsschutz von Handschuhen o.Ä. verstärkt, die gerade an einer Hand getragen werden.',
       'Gegenstände können jetzt eine Ladung führen (Zaubertrank-Dosen, Züge aus einem Wasserschlauch, die Zauber-Ladungen einer Waffe …) — mit einstellbarem Verbrauch pro Nutzung. Sind mehrere gleiche Exemplare gestapelt, spaltet „Ladung verwenden“ automatisch eines mit dem neuen Stand ab, der Rest des Stapels bleibt unangetastet.',
     ],
     changed: [
-      'Waffenloser Kampf (Raufen/Ringen) zeigt sich im Waffen-Reiter jetzt als Karten wie echte Waffen, mit berechneter und direkt würfelbarer Attacke-/Parade-/Block-Probe sowie Schaden-Wurf, statt als schlichte Tabelle.',
-      'Der Anlegen-/Bearbeiten-Dialog für Gegenstände führt jetzt als kleiner Assistent durch Art, Grunddaten, Eigenschaften, Füllverhalten und Boni/Notiz, statt alle Felder auf einmal zu zeigen — beim Bearbeiten eines bestehenden Gegenstands bleiben alle Schritte frei anklickbar.',
-    ],
-  },
-  {
-    date: '2026-09-09',
-    title: 'Item-Sets',
-    version: '0.10.1',
-    added: [
-      'Ausrüstungs-Sets: über „Sets“ im Ausrüstungs-Reiter lässt sich der aktuell getragene Zustand unter einem Namen speichern (z. B. „Freizeit“, „Kampf“) und später per Klick wieder anlegen — alles, was nicht zum Set gehört, wird dabei automatisch abgelegt.',
-      'Das Messen-Werkzeug auf dem virtuellen Tisch hat jetzt einen Schrittzähler: eine Linie ziehen zeigt jedes überquerte Feld einzeln nummeriert, statt nur eine Gesamtstrecke anzugeben.',
-    ],
-    changed: [
       'Der Hard-Cap (die „Ausbaugrenze") auf Lebensenergie, Ausdauer und Astralenergie ist komplett entfallen — sie lassen sich jetzt uneingeschränkt weiter steigern. Die entsprechende zweite Spaltengruppe in der Energien-Tabelle ist damit auch verschwunden.',
       'Die Notiz eines Gegenstands kann jetzt mehrzeilig eingegeben werden, statt nur in eine einzelne Zeile zu passen.',
       'Ein neuer Gegenstand oder Behälter im Gruppeninventar übernimmt jetzt automatisch Haus und Raum des gerade aktiven Filters, statt immer „ohne Haus" zu starten.',
+      'Waffenloser Kampf (Raufen/Ringen) zeigt sich im Waffen-Reiter jetzt als Karten wie echte Waffen, mit berechneter und direkt würfelbarer Attacke-/Parade-/Block-Probe sowie Schaden-Wurf, statt als schlichte Tabelle.',
+      'Der Anlegen-/Bearbeiten-Dialog für Gegenstände führt jetzt als kleiner Assistent durch Art, Grunddaten, Eigenschaften, Füllverhalten und Boni/Notiz, statt alle Felder auf einmal zu zeigen — beim Bearbeiten eines bestehenden Gegenstands bleiben alle Schritte frei anklickbar.',
     ],
     fixed: [
       'Ausrüstungskarten mit langem oder mehrzeiligem Namen zeigten ihre Zusatz-Symbole (Rüstungsschutz, Boni, Zustand) verrutscht an und wurden von den stark abgerundeten Ecken der Karte beschnitten.',
