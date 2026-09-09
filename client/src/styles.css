@@ -3963,6 +3963,7 @@ li {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-sunken);
+  overflow: hidden;
 }
 .abil-compact {
   display: flex;
@@ -3971,71 +3972,20 @@ li {
   padding: 5px 8px;
   flex-wrap: wrap;
 }
-.abil-chev {
-  border: none;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.9em;
-  padding: 0 2px;
-}
 .abil-compact .abil-name {
   flex: 2 1 12em;
   min-width: 10em;
 }
-/* Element/Kategorie dürfen mitwachsen, damit lange Namen nicht abgeschnitten
-   werden — sie brechen bei echter Enge in die nächste Zeile um. */
-.abil-compact .abil-el,
-.abil-compact .abil-kat {
-  flex: 1 1 9em;
-  min-width: 8em;
-  width: auto;
+/* Werkstatt-Zeile ist seit dem Bearbeiten-Dialog (AbilityEditDialog) nur noch
+   eine Anzeige, kein Formular mehr — der ganze Zeilenkörper öffnet ihn per
+   Klick, daher der Zeiger. Der Zieh-Griff meldet seinen eigenen Klick separat
+   ab (siehe onClick stopPropagation in AbilityManager.tsx), damit Ziehen zum
+   Umsortieren nicht versehentlich den Dialog aufreißt. */
+.abil-compact-ro {
+  cursor: pointer;
 }
-.abil-num {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.82em;
-  color: var(--muted);
-}
-.abil-num input {
-  width: 3.6em;
-}
-.abil-passiv {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.82em;
-  color: var(--muted);
-}
-.abil-del {
-  margin-left: auto;
-}
-.abil-detail {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px 12px;
-  padding: 8px 10px 12px;
-  border-top: 1px dashed var(--border);
-}
-.abil-detail label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 0.82em;
-  color: var(--muted);
-}
-.abil-detail input,
-.abil-detail textarea {
-  font: inherit;
-  width: 100%;
-  box-sizing: border-box;
-}
-.abil-detail textarea {
-  resize: vertical;
-}
-.abil-detail .abil-wide {
-  grid-column: 1 / -1;
+.abil-compact-ro:hover {
+  background: var(--surface-head);
 }
 .werk-lists {
   display: flex;

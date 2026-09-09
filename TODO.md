@@ -168,34 +168,20 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      functionally-identical weapon instances (same stats, differing at most
      in Haltbarkeit) into one collapsed card in the reworked weapon tab,
      expandable to the individual instances underneath.
-- [ready] **Editing dialog for abilities** (user feedback; supersedes
-  the old "reuse the item-creation Dialog for spells/abilities and weapons"
-  note that used to live in Low-Prio). The items half of this shipped —
-  `AddItemDialog` (`client/src/components/itemDialogs.tsx`) is dual-purpose
-  now, opening pre-filled for an existing item (click the chip/row on
-  Ausrüstung or Inventar, in either read-only or edit mode), with
-  Duplizieren/Löschen in its footer and a repeatable Boni-beim-Tragen list.
-  Item bonuses while worn are fully wired end to end, including the server
-  dice-roll path — see `docs/concepts/item-bonus-while-worn.md` for the build
-  history; that's the precedent to copy for the remaining shape, not
-  re-derive. **Weapons no longer need their own pass here** — weapons are
-  now real `Item` rows (`waffenArt`/`waffenStats`), and `AddItemDialog`
-  already has a complete `mode === 'waffe'` editor (stat rows, AT/PA/BL/
-  damage fields) alongside its `allgemein`/`ausruestung` modes, so weapon
-  structural editing already goes through the same dialog pattern this task
-  was trying to reach. Only abilities are left:
-   - **Move ability editing into the same dialog pattern.**
-     `AbilityManager.tsx` still edits everything inline/on-card. **Decided:
-     hybrid, not a full replacement** — the highest-frequency actions stay
-     inline; a dialog handles the structural fields, same split already
-     proven on items. `AbilityManager.tsx`'s `emptyAbility()` is a shape of
-     its own with no overlap with the `Item` schema, so it needs its own
-     field-selection pass rather than reusing `AddItemDialog` directly.
-   - **Open: do abilities want an item-bonus-style effect list too?**
-     Not decided. If yes, it's the same generalization the "Player-set
-     structured bonuses" entry below already plans for Vorteile/Nachteile —
-     do that generalization once, shared by both, rather than two parallel
-     bonus mechanisms.
+- [sketch] **Ability bonus list (deferred from the ability-editing-dialog
+  build)**: abilities now have their own `AbilityEditDialog`
+  (`client/src/components/AbilityEditDialog.tsx`, opened from
+  `AbilityManager.tsx`), mirroring `AddItemDialog`'s create/edit-in-one-
+  component shape — but deliberately shipped WITHOUT an item-bonus-style
+  repeatable effect list. Explicitly deferred, not forgotten: **user
+  feedback when deferring — such a list would only ever make sense on
+  `passiv` entries; an active talent/spell never grants a standing bonus by
+  existing, its effect happens when it's actively used**, so the field (if
+  built) should probably only show/apply for `passiv === true`, not for
+  every ability. If this gets picked up, it's the same generalization the
+  "Player-set structured bonuses" entry below already plans for Vorteile/
+  Nachteile — do that generalization once, shared by both, rather than two
+  parallel bonus mechanisms.
 - [sketch] **Player-set structured bonuses for Vorteile/Nachteile/Titel/
   Professionsboni** (user feedback): these currently live in plain free-text
   dynamic-table sections under the locked "Vorteile & Nachteile" tab
@@ -215,31 +201,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   for attaching a structured effect to a free-text dynamic-table row (a
   per-row dialog like the item one, or a new `DynColumn` type?), and whether a
   row gets one effect or a repeatable list like items do.
-- [ready] **Graded (fortified) spells/skills** (user feedback, concept
-  agreed): `Ability.stufe` (`shared/src/abilities.ts:30`) already caps at
-  `ABILITY_STUFE_MAX = 10` (`:82`) — reaching that cap is meant to let the
-  player create a fortified version of the same spell/skill, and this can
-  happen twice (three grades total). **Decided:** no automation on granting —
-  the player creates the new `Ability` entry themselves exactly like any
-  other, same as today. **Decided:** a new `derivedFrom` field (an `Ability`
-  `uid` reference, empty by default) drives the grade: unset = grade 1
-  ("Basis"), set = one more than the referenced ability's own grade
-  ("Aufgewertet" = 2, "Potenzial" = 3 — names supplied by the GM). Grade is
-  **display-only**, shown next to the name — it does not feed the
-  Stufe×Komplexität Magiepunkte formula or any other calculation. **Decided:**
-  the picker only offers abilities of the same `magisch` value (spell derives
-  from spell, skill from skill only) — same partition `zauberOf`/
-  `faehigkeitenOf` already use (`abilities.ts:43-48`). **Decided:** the server
-  enforces both the max-grade-3 rule and cycle prevention at save time (reject
-  a `derivedFrom` that would push grade past 3, or that would loop back on
-  itself) — `saveAbilities` (`characterData.ts:1107`) already has the same
-  shape of per-save validation for the one-signatur-spell rule
-  (`signaturVergeben`, `:1111`) and uid dedup (`seenUids`, `:1109`), so this
-  follows the same pattern rather than adding a new validation style. Needs a
-  build pass: `derivedFrom` on the `Ability` type + `char_abilities` column,
-  a grade-computation helper (walk the chain, same file as `spellPunkte`/
-  `istTrivial`), the derive-from picker in `AbilityManager.tsx`, and the
-  grade label next to the ability name.
 - [sketch] **20+ perk picker** — source PDF analysed and written up at
   `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
   no prerequisite edges, ~160 effects classified into 6 computable and 8

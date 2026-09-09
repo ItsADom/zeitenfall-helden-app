@@ -200,7 +200,11 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-09',
-    title: 'Import repariert',
+    title: 'Zauber & Fähigkeiten: eigener Bearbeiten-Dialog',
+    added: [
+      'Zauber und Fähigkeiten werden in der Werkstatt jetzt über einen eigenen Dialog angelegt und bearbeitet, statt direkt in der Zeile — im Reiter selbst bleiben Lernfortschritt und Würfel-Favorit weiterhin direkt änderbar.',
+      'Zauber und Fähigkeiten lassen sich jetzt zu einer aufgewerteten Fassung weiterentwickeln (Basis → Aufgewertet → Potenzial): im Bearbeiten-Dialog die neue Fassung einfach als „Aufgewertet von“ auf die vorherige verweisen lassen — der Grad wird automatisch berechnet und steht dann neben dem Namen.',
+    ],
     admin: [
       '(Verwaltung) Ein importierter Charakter (Kataloge & Nutzer → „Charakter importieren“) hat Ausrüstung/Inventar, Zauber & Fähigkeiten und Geldbeutel stillschweigend verloren — nur Basiswerte, Talente und selbst angelegte Reiter kamen an. Alle Bereiche werden jetzt vollständig übernommen.',
     ],

@@ -663,7 +663,11 @@ db.exec(`
     effekt TEXT NOT NULL DEFAULT '',
     fortschritt REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT '',
-    favorit INTEGER NOT NULL DEFAULT 0
+    favorit INTEGER NOT NULL DEFAULT 0,
+    -- Aufgewertete Fassung desselben Zaubers/Fähigkeit (uid-Bezug, '' = Grad 1
+    -- „Basis"). Grad ist rein abgeleitet (Kette laufen bis zum Ende), siehe
+    -- abilityGrade in shared/src/abilities.ts.
+    derived_from TEXT NOT NULL DEFAULT ''
   );
   -- Selbst verwaltete Element- und Kategorie-Listen je Charakter (kind trennt
   -- die beiden Achsen, nach denen die Reiter gruppieren können).
@@ -1916,6 +1920,15 @@ db.exec('DROP TABLE IF EXISTS group_members');
   const cols = new Set((db.prepare('PRAGMA table_info(char_resources)').all() as { name: string }[]).map((c) => c.name));
   if (cols.has('kaufMax')) db.exec('ALTER TABLE char_resources DROP COLUMN kaufMax');
   if (cols.has('maxPlus')) db.exec('ALTER TABLE char_resources DROP COLUMN maxPlus');
+}
+
+// Migration: 'derived_from'-Spalte an bestehende char_abilities ergänzen
+// (gestufte/aufgewertete Zauber & Fähigkeiten, TODO.md "Graded spells/skills").
+// Leer ('') für jede Bestandszeile — bedeutet weiterhin Grad 1 „Basis", exakt
+// das bisherige Verhalten, kein Nachziehen nötig.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_abilities)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('derived_from')) db.exec("ALTER TABLE char_abilities ADD COLUMN derived_from TEXT NOT NULL DEFAULT ''");
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
