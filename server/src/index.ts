@@ -95,14 +95,26 @@ app.use(express.json({ limit: '2mb' }));
 app.use(attachUser);
 app.use('/api', api);
 
-// Statische Bilder für Easter Eggs (server/data/easter-eggs, wie helden.db und
-// helden-assets.db außerhalb von client/dist — überlebt also ein Redeploy,
-// der nur den Client neu baut. Der Server-Owner legt Dateien dort von Hand ab,
-// kein Upload-Weg. Ungeschützt (kein /api, kein attachUser-Gate): ein albernes
-// Bild ist keine sensible Information, wie der Client-Bundle auch.
-const easterEggAssets = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'easter-eggs');
-fs.mkdirSync(easterEggAssets, { recursive: true });
-app.use('/easter-eggs', express.static(easterEggAssets));
+// Statische Bilder für Easter Eggs. Server-owner legt Dateien dort von Hand
+// ab, kein Upload-Weg. Ungeschützt (kein /api, kein attachUser-Gate): ein
+// albernes Bild ist keine sensible Information, wie der Client-Bundle auch.
+//
+// Pfad kommt wie bei HELDEN_DB/HELDEN_ASSETS_DB/BACKUP_DIR aus einer env var,
+// NICHT aus einem code-relativen Pfad: der Ordner ist gitignored (Bilder sind
+// urheberrechtlich nicht ins Repo zu legen) und existiert deshalb in keinem
+// frischen Release. Ein code-relativer Pfad läge unter /srv/helden/app, das
+// unter ProtectSystem=strict schreibgeschützt ist — mkdirSync auf einen dort
+// noch nicht existierenden Ordner brach mit EROFS beim Start ab und riss den
+// ganzen Dienst in eine Restart-Schleife (502). Der Ordner muss in
+// /srv/helden/data liegen, das in ReadWritePaths steht, genau wie helden.db.
+const easterEggAssets =
+  process.env.EASTER_EGG_DIR ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'easter-eggs');
+try {
+  fs.mkdirSync(easterEggAssets, { recursive: true });
+  app.use('/easter-eggs', express.static(easterEggAssets));
+} catch (err) {
+  console.warn(`Easter-Egg-Ordner nicht anlegbar (${easterEggAssets}), Route bleibt aus:`, err);
+}
 
 // Produktionsmodus: gebauten Client ausliefern (client/dist), SPA-Fallback auf index.html
 const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'dist');
