@@ -44,6 +44,10 @@ not general DSA5 knowledge.
   iterating on a `shared/src/changelog.ts` entry's wording or tone may stay
   German, since it's a direct working draft of German user-facing copy, not
   an internal note.
+- **No em-dashes (—) in changelog/user-facing text.** Use a period, comma,
+  colon, semicolon, or parentheses instead, whichever reads best for the
+  sentence. Applies to `shared/src/changelog.ts` entries and other
+  player-facing copy.
 
 ## Commits
 
