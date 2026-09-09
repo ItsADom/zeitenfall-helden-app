@@ -157,7 +157,21 @@ function DvdKatze({ ruhe }: { ruhe: boolean }) {
     return () => cancelAnimationFrame(raf);
   }, [ruhe]);
 
-  return <img ref={ref} src={DVD_KATZE_SRC} alt="" aria-hidden className="konami-dvd-katze" style={{ width: DVD_KATZE_GROESSE, height: DVD_KATZE_GROESSE }} />;
+  return (
+    <img
+      ref={ref}
+      src={DVD_KATZE_SRC}
+      alt=""
+      aria-hidden
+      className="konami-dvd-katze"
+      style={{ width: DVD_KATZE_GROESSE, height: DVD_KATZE_GROESSE }}
+      // Fehlt die Datei (noch nicht vom Server-Owner abgelegt), lieber
+      // unsichtbar bleiben als als kaputtes Icon durchs Bild zu hüpfen.
+      onError={(e) => {
+        e.currentTarget.style.display = 'none';
+      }}
+    />
+  );
 }
 
 /**
@@ -170,8 +184,12 @@ function ExplosionSchicht() {
 
   useEffect(() => {
     const timeouts: ReturnType<typeof setTimeout>[] = [];
+    // Nur von DIESEM Effekt-Durchlauf erzeugte Explosionen — siehe die
+    // Aufräumfunktion unten für den Grund.
+    const meineIds = new Set<number>();
     const spawn = () => {
       const id = Date.now() + Math.random();
+      meineIds.add(id);
       const x = Math.random() * Math.max(0, window.innerWidth - EXPLOSION_GROESSE);
       const y = Math.random() * Math.max(0, window.innerHeight - EXPLOSION_GROESSE);
       const src = EXPLOSION_SRCS[Math.floor(Math.random() * EXPLOSION_SRCS.length)];
@@ -183,6 +201,14 @@ function ExplosionSchicht() {
     return () => {
       clearInterval(intervall);
       for (const t of timeouts) clearTimeout(t);
+      // StrictMode ruft diese Aufräumfunktion zwischen den zwei
+      // Entwicklungs-Mounts auf — VOR dem 900ms-Timeout des allerersten
+      // spawn()-Aufrufs. clearTimeout oben verhindert dessen VERZÖGERTE
+      // Entfernung, aber die Explosion selbst steht zu diesem Zeitpunkt
+      // schon im (über den Mount-Wechsel hinweg erhaltenen) State — ohne
+      // diese Zeile bliebe genau sie für immer auf dem Bildschirm stehen,
+      // während jede spätere ganz normal nach ihrer Zeit verschwindet.
+      setBooms((b) => b.filter((e) => !meineIds.has(e.id)));
     };
   }, []);
 
@@ -196,6 +222,11 @@ function ExplosionSchicht() {
           aria-hidden
           className="konami-explosion"
           style={{ width: EXPLOSION_GROESSE, height: EXPLOSION_GROESSE, transform: `translate(${b.x}px, ${b.y}px)` }}
+          // EXPLOSION_SRCS listet alle drei fest, unabhängig davon, ob der
+          // Server-Owner schon alle drei Dateien abgelegt hat — eine fehlende
+          // sofort wieder entfernen, statt sie als kaputtes Icon stehen zu
+          // lassen, bis ihr eigener Timeout abläuft.
+          onError={() => setBooms((cur) => cur.filter((e) => e.id !== b.id))}
         />
       ))}
     </>
