@@ -2769,6 +2769,29 @@ export function importFullCharacter(
       if (listSectionById(sid)) saveSection(charId, sid, rows);
     }
 
+    // Gegenstände (Cluster 5) laufen NICHT über saveSection — char_items ist
+    // ein eigenes Modell mit stabilen uids (siehe applyItemOps oben). Ein
+    // frischer Import-Charakter hat noch keine Zeilen, also ist ein Batch aus
+    // lauter 'add'-Ops unbedenklich: jede trägt ihr Item MIT Boni und Waffen-
+    // Stat-Zeilen in einem Rutsch ein und behält die ursprüngliche uid, auf
+    // die equipmentPresets unten per itemUid verweisen. In MAX_ITEM_OPS-
+    // großen Häppchen, falls ein Charakter mehr Gegenstände hat als ein
+    // einzelner Batch fasst.
+    if (Array.isArray(data.items) && data.items.length) {
+      const ops = data.items.map((item) => ({ op: 'add' as const, item }));
+      for (let i = 0; i < ops.length; i += MAX_ITEM_OPS) {
+        applyItemOpsForOwner('character', charId, ops.slice(i, i + MAX_ITEM_OPS), true);
+      }
+    }
+    if (data.itemCategories) saveItemCategories(charId, data.itemCategories);
+    if (data.equipmentPresets) saveEquipmentPresets(charId, data.equipmentPresets);
+    if (data.abilities) saveAbilities(charId, data.abilities);
+    if (data.abilityLists) {
+      manageAbilityList(charId, 'element', { order: data.abilityLists.element ?? [] });
+      manageAbilityList(charId, 'kategorie', { order: data.abilityLists.kategorie ?? [] });
+    }
+    if (data.pouches) savePouches(charId, data.pouches);
+
     // Beim Import bekommen die Reiter neue IDs. Die Zuordnung alt→neu wird
     // mitgeschrieben, damit die gespeicherte Reihenfolge (die Reiter über ihre
     // ID benennt) den Import übersteht.
