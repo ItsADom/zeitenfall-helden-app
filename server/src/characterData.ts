@@ -1,4 +1,5 @@
 import {
+  ABILITY_GRADE_MAX,
   ATTR_CODES,
   ATTR_LABELS,
   ATTR_ROW_CODES,
@@ -2066,7 +2067,7 @@ function parseKategorien(raw: string): string[] {
 export function loadAbilities(charId: number): Ability[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
+      'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit, derived_from FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
     )
     .all(charId) as {
     id: number;
@@ -2085,6 +2086,7 @@ export function loadAbilities(charId: number): Ability[] {
     fortschritt: number;
     notiz: string;
     favorit: number;
+    derived_from: string;
   }[];
   return rows.map((r) => ({
     id: r.id,
@@ -2103,6 +2105,7 @@ export function loadAbilities(charId: number): Ability[] {
     fortschritt: r.fortschritt,
     notiz: r.notiz,
     favorit: !!r.favorit,
+    derivedFrom: r.derived_from,
   }));
 }
 
@@ -2110,19 +2113,59 @@ export function loadAbilities(charId: number): Ability[] {
 export function saveAbilities(charId: number, raw: unknown): void {
   const arr = Array.isArray(raw) ? raw.slice(0, MAX_ABILITIES) : [];
   const seenUids = new Set<string>();
+
+  // Erste Runde: uid je Eintrag endgültig festlegen (Dedupe wie bisher), BEVOR
+  // derivedFrom aufgelöst wird — die Kettenprüfung unten braucht einen
+  // stabilen uid→(magisch, roher derivedFrom)-Schnappschuss über das GANZE
+  // Array, unabhängig davon, in welcher Reihenfolge die Einträge stehen (ein
+  // Eintrag darf auf einen SPÄTEREN im selben Array verweisen).
+  const prepared = arr.map((it) => {
+    const o = (it ?? {}) as Record<string, unknown>;
+    let uid = String(o.uid ?? '').slice(0, 64);
+    if (!uid || seenUids.has(uid)) uid = makeUid();
+    seenUids.add(uid);
+    return { o, uid };
+  });
+  const magischByUid = new Map(prepared.map((p) => [p.uid, !!p.o.magisch]));
+  const rawDerivedByUid = new Map(prepared.map((p) => [p.uid, String(p.o.derivedFrom ?? '').slice(0, 64)]));
+
+  // Grad EINES Eintrags über seine eigene (rohe) Kette laufen: Zyklus, eine
+  // unbekannte uid, ein magisch-Wechsel (Zauber leitet sich nur von Zauber ab,
+  // Fähigkeit nur von Fähigkeit — dieselbe Trennung wie zauberOf/
+  // faehigkeitenOf) oder ein Grad über ABILITY_GRADE_MAX hinaus macht die
+  // Kette ab dort ungültig. Reiner Lesevorgang auf den Snapshots oben, daher
+  // unabhängig von der Bearbeitungsreihenfolge der Einträge unten sicher.
+  const chainValid = (startUid: string): boolean => {
+    let grade = 1;
+    let cur = startUid;
+    const seenChain = new Set<string>([startUid]);
+    for (;;) {
+      const next = rawDerivedByUid.get(cur) ?? '';
+      if (!next) return true;
+      if (seenChain.has(next)) return false; // Zyklus
+      if (!magischByUid.has(next)) return false; // Ziel existiert nicht (mehr)
+      if (magischByUid.get(next) !== magischByUid.get(cur)) return false; // Zauber/Fähigkeit gemischt
+      seenChain.add(next);
+      grade++;
+      if (grade > ABILITY_GRADE_MAX) return false;
+      cur = next;
+    }
+  };
+  const resolvedDerivedByUid = new Map<string, string>();
+  for (const uid of magischByUid.keys()) {
+    const raw = rawDerivedByUid.get(uid) ?? '';
+    resolvedDerivedByUid.set(uid, raw && chainValid(uid) ? raw : '');
+  }
+
   // Nur EIN Signatur-Zauber je Charakter: der erste markierte gewinnt.
   let signaturVergeben = false;
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
     const ins = db.prepare(
-      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_abilities (character_id, pos, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit, derived_from)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    arr.forEach((it, i) => {
-      const o = (it ?? {}) as Record<string, unknown>;
-      let uid = String(o.uid ?? '').slice(0, 64);
-      if (!uid || seenUids.has(uid)) uid = makeUid();
-      seenUids.add(uid);
+    prepared.forEach(({ o, uid }, i) => {
       const signatur = o.signatur && !signaturVergeben ? 1 : 0;
       if (signatur) signaturVergeben = true;
       const kategorien = Array.isArray(o.kategorien)
@@ -2146,6 +2189,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
         clampMin(o.fortschritt),
         String(o.notiz ?? '').slice(0, MAX_ABILITY_TEXT),
         o.favorit ? 1 : 0,
+        resolvedDerivedByUid.get(uid) ?? '',
       );
     });
   });
@@ -2768,6 +2812,29 @@ export function importFullCharacter(
     for (const [sid, rows] of Object.entries(data.lists ?? {})) {
       if (listSectionById(sid)) saveSection(charId, sid, rows);
     }
+
+    // Gegenstände (Cluster 5) laufen NICHT über saveSection — char_items ist
+    // ein eigenes Modell mit stabilen uids (siehe applyItemOps oben). Ein
+    // frischer Import-Charakter hat noch keine Zeilen, also ist ein Batch aus
+    // lauter 'add'-Ops unbedenklich: jede trägt ihr Item MIT Boni und Waffen-
+    // Stat-Zeilen in einem Rutsch ein und behält die ursprüngliche uid, auf
+    // die equipmentPresets unten per itemUid verweisen. In MAX_ITEM_OPS-
+    // großen Häppchen, falls ein Charakter mehr Gegenstände hat als ein
+    // einzelner Batch fasst.
+    if (Array.isArray(data.items) && data.items.length) {
+      const ops = data.items.map((item) => ({ op: 'add' as const, item }));
+      for (let i = 0; i < ops.length; i += MAX_ITEM_OPS) {
+        applyItemOpsForOwner('character', charId, ops.slice(i, i + MAX_ITEM_OPS), true);
+      }
+    }
+    if (data.itemCategories) saveItemCategories(charId, data.itemCategories);
+    if (data.equipmentPresets) saveEquipmentPresets(charId, data.equipmentPresets);
+    if (data.abilities) saveAbilities(charId, data.abilities);
+    if (data.abilityLists) {
+      manageAbilityList(charId, 'element', { order: data.abilityLists.element ?? [] });
+      manageAbilityList(charId, 'kategorie', { order: data.abilityLists.kategorie ?? [] });
+    }
+    if (data.pouches) savePouches(charId, data.pouches);
 
     // Beim Import bekommen die Reiter neue IDs. Die Zuordnung alt→neu wird
     // mitgeschrieben, damit die gespeicherte Reihenfolge (die Reiter über ihre

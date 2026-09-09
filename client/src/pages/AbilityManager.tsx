@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { Ability } from '@shared/abilities';
-import { ABILITY_STUFE_MAX, makeAbilityUid } from '@shared/abilities';
+import { abilityGrade, abilityGradeLabel } from '@shared/abilities';
 import { apiGet, apiPost, apiPut } from '../api';
 import { useThemeControls } from '../App';
+import { AbilityEditDialog } from '../components/AbilityEditDialog';
 import { BackToSheet } from '../components/BackToSheet';
 import { CollapsiblePanel } from '../components/collapse';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { ExitGuard } from '../components/exitGuard';
-import { FavPin } from '../components/FavPin';
 import { Field } from '../components/inputs';
 
 // Regeltabelle fürs Erschaffen neuer Zauber im Spiel: pro Attribut, was es beim
@@ -27,7 +27,11 @@ const SPELL_CREATION_ROWS: { attribut: string; geschoss: string; erschaffen: str
 // „Zauber & Fähigkeiten verwalten" (Cluster 6): die dedizierte Bearbeitungsseite
 // und „einzige Quelle der Wahrheit". Zwei getrennte Listen — Zauber (magisch) und
 // Fähigkeiten (mundan). Die Reiter auf dem Bogen zeigen daraus nur an (und lassen
-// einzig den Fortschritt zu). Änderungen hier sind erst mit „Speichern" verbindlich.
+// einzig den Fortschritt/Würfel-Favorit zu). Änderungen hier sind erst mit
+// „Speichern" verbindlich. Strukturelle Felder werden ausschließlich über
+// AbilityEditDialog bearbeitet (kein Inline-/Aufklapp-Bearbeiten mehr in der
+// Zeile) — derselbe Anlegen/Bearbeiten-in-einem-Dialog-Zuschnitt wie beim
+// Gegenstands-Dialog, siehe TODO.md „Editing dialog for abilities".
 
 const ZAUBER_TAB_NAME = 'Zauber/Fähigkeiten';
 
@@ -40,32 +44,6 @@ interface LoadResp {
     tabs?: { id: number; name: string }[];
   };
 }
-
-function emptyAbility(magisch: boolean): Ability {
-  return {
-    id: 0,
-    uid: makeAbilityUid(),
-    magisch,
-    passiv: false,
-    signatur: false,
-    favorit: false,
-    name: '',
-    element: '',
-    kategorien: [],
-    stufe: magisch ? 1 : 0,
-    komplexitaet: magisch ? 1 : 0,
-    kosten: '',
-    probe: '',
-    effekt: '',
-    fortschritt: 0,
-    notiz: '',
-  };
-}
-
-const num = (v: string): number => {
-  const n = Number(v.replace(',', '.'));
-  return Number.isFinite(n) ? Math.max(0, n) : 0;
-};
 
 export default function AbilityManagerPage() {
   const { id } = useParams();
@@ -91,7 +69,9 @@ export default function AbilityManagerPage() {
   const [abilities, setAbilities] = useState<Ability[]>([]);
   const [elements, setElements] = useState<string[]>([]);
   const [kategorien, setKategorien] = useState<string[]>([]);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // Dialogzustand: uid !== null → Bearbeiten dieser Fähigkeit; uid === null →
+  // Anlegen (magisch legt fest, in welcher der beiden Listen).
+  const [dlg, setDlg] = useState<{ uid: string | null; magisch: boolean } | null>(null);
 
   const [saved, setSaved] = useState({ abilities: '', elements: '', kategorien: '' });
 
@@ -140,20 +120,20 @@ export default function AbilityManagerPage() {
   const zauber = useMemo(() => abilities.filter((a) => a.magisch), [abilities]);
   const faehig = useMemo(() => abilities.filter((a) => !a.magisch), [abilities]);
 
+  // Signatur ist einzigartig: sobald ein Patch sie anfasst, gewinnt der
+  // bearbeitete Eintrag und alle anderen werden zurückgesetzt — dieselbe
+  // blunte Rundum-Zurücksetzung wie beim früheren Inline-Umschalter.
   const patch = (uid: string, p: Partial<Ability>) =>
-    setAbilities((list) => list.map((a) => (a.uid === uid ? { ...a, ...p } : a)));
-  // Signatur ist einzigartig: den einen setzen, alle anderen zurücknehmen (Umschalter).
-  const toggleSignatur = (uid: string) =>
     setAbilities((list) => {
-      const willSet = !list.find((a) => a.uid === uid)?.signatur;
-      return list.map((a) => ({ ...a, signatur: a.uid === uid ? willSet : false }));
+      const next = list.map((a) => (a.uid === uid ? { ...a, ...p } : a));
+      return 'signatur' in p ? next.map((a) => (a.uid === uid ? a : { ...a, signatur: false })) : next;
+    });
+  const addNew = (a: Ability) =>
+    setAbilities((list) => {
+      const next = [...list, a];
+      return a.signatur ? next.map((x) => (x.uid === a.uid ? x : { ...x, signatur: false })) : next;
     });
   const remove = (uid: string) => setAbilities((list) => list.filter((a) => a.uid !== uid));
-  const add = (magisch: boolean) => {
-    const a = emptyAbility(magisch);
-    setAbilities((list) => [...list, a]);
-    setExpanded((s) => new Set(s).add(a.uid));
-  };
   // Ziehen zum Umsortieren: den gezogenen Eintrag vor das Ziel setzen — aber nur
   // innerhalb derselben Liste (Zauber bzw. Fähigkeiten).
   const reorder = (dragUid: string, targetUid: string) =>
@@ -167,13 +147,6 @@ export default function AbilityManagerPage() {
       const insertAt = arr.findIndex((a) => a.uid === targetUid);
       arr.splice(insertAt, 0, item);
       return arr;
-    });
-  const toggleExpand = (uid: string) =>
-    setExpanded((s) => {
-      const next = new Set(s);
-      if (next.has(uid)) next.delete(uid);
-      else next.add(uid);
-      return next;
     });
 
   const seed = async () => {
@@ -238,6 +211,8 @@ export default function AbilityManagerPage() {
       </>
     );
 
+  const editingAbility = dlg?.uid ? abilities.find((a) => a.uid === dlg.uid) : undefined;
+
   return (
     <>
       <ExitGuard dirty={dirty} />
@@ -253,8 +228,9 @@ export default function AbilityManagerPage() {
         <BackToSheet charId={charId} tab={fromTab} name={name} />
       </div>
       <p className="muted">
-        Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Hier wird alles gepflegt; im Reiter selbst
-        wird nur der Lernfortschritt geändert. Änderungen sind erst mit „Speichern" verbindlich.
+        Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Ein Eintrag anklicken öffnet ihn zum
+        Bearbeiten; im Reiter selbst werden nur Lernfortschritt und Würfel-Favorit geändert. Änderungen sind erst mit „Speichern"
+        verbindlich.
       </p>
 
       <CollapsiblePanel collapseKey="spellCreationTable" standardZu title="Regeltabelle: Zauber erschaffen" rows={SPELL_CREATION_ROWS.length}>
@@ -324,29 +300,24 @@ export default function AbilityManagerPage() {
         title="Zauber"
         magisch
         list={zauber}
+        allAbilities={abilities}
         elements={elements}
         kategorien={kategorien}
-        expanded={expanded}
-        onToggle={toggleExpand}
-        onPatch={patch}
-        onRemove={remove}
         onReorder={reorder}
-        onSignatur={toggleSignatur}
-        onAdd={() => add(true)}
+        onEdit={(uid) => setDlg({ uid, magisch: true })}
+        onAddNew={() => setDlg({ uid: null, magisch: true })}
       />
 
       <AbilityListPanel
         title="Fähigkeiten"
         magisch={false}
         list={faehig}
+        allAbilities={abilities}
         elements={elements}
         kategorien={kategorien}
-        expanded={expanded}
-        onToggle={toggleExpand}
-        onPatch={patch}
-        onRemove={remove}
         onReorder={reorder}
-        onAdd={() => add(false)}
+        onEdit={(uid) => setDlg({ uid, magisch: false })}
+        onAddNew={() => setDlg({ uid: null, magisch: false })}
       />
 
       <div className="panel">
@@ -357,6 +328,19 @@ export default function AbilityManagerPage() {
           <StringListEditor label="Kategorien" items={kategorien} onChange={setKategorien} />
         </div>
       </div>
+
+      <AbilityEditDialog
+        open={dlg !== null}
+        onClose={() => setDlg(null)}
+        ability={editingAbility}
+        magisch={dlg?.magisch ?? true}
+        abilities={abilities}
+        elements={elements}
+        kategorien={kategorien}
+        onSave={(p) => dlg?.uid && patch(dlg.uid, p)}
+        onAdd={addNew}
+        onDelete={() => dlg?.uid && remove(dlg.uid)}
+      />
     </>
   );
 }
@@ -367,21 +351,16 @@ interface ListPanelProps {
   title: string;
   magisch: boolean;
   list: Ability[];
+  /** Beide Listen zusammen — für die Grad-Anzeige (derivedFrom kann auf jede uid zeigen). */
+  allAbilities: Ability[];
   elements: string[];
   kategorien: string[];
-  expanded: Set<string>;
-  onToggle: (uid: string) => void;
-  onPatch: (uid: string, p: Partial<Ability>) => void;
-  onRemove: (uid: string) => void;
   onReorder: (dragUid: string, targetUid: string) => void;
-  onSignatur?: (uid: string) => void;
-  onAdd: () => void;
+  onEdit: (uid: string) => void;
+  onAddNew: () => void;
 }
 
-function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded, onToggle, onPatch, onRemove, onReorder, onSignatur, onAdd }: ListPanelProps) {
-  const elId = `elemente-${magisch ? 'z' : 'f'}`;
-  const katId = `kategorien-${magisch ? 'z' : 'f'}`;
-
+function AbilityListPanel({ title, magisch, list, allAbilities, elements, kategorien, onReorder, onEdit, onAddNew }: ListPanelProps) {
   const [q, setQ] = useState('');
   const [fEl, setFEl] = useState('');
   const [fKat, setFKat] = useState('');
@@ -389,6 +368,8 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
   const [dragUid, setDragUid] = useState<string | null>(null);
   const [overUid, setOverUid] = useState<string | null>(null);
   const filtering = q.trim() !== '' || fEl !== '' || fKat !== '' || fPassiv !== '';
+
+  const byUid = useMemo(() => new Map(allAbilities.map((a) => [a.uid, a])), [allAbilities]);
 
   // Filter-Optionen: Vorschlagsliste UND die tatsächlich vergebenen Werte
   // (sonst fehlt ein Filter, wenn die Vorschlagsliste noch leer ist).
@@ -411,16 +392,6 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
       <h3>
         {title} <span className="muted">· {list.length}{filtering ? ` (${shown.length} sichtbar)` : ''}</span>
       </h3>
-      <datalist id={elId}>
-        {elemOptions.map((e) => (
-          <option key={e} value={e} />
-        ))}
-      </datalist>
-      <datalist id={katId}>
-        {katOptions.map((k) => (
-          <option key={k} value={k} />
-        ))}
-      </datalist>
 
       <div className="abil-toolbar werk-controls">
         <Field label="Suchen" className="notch-search" active={needle !== ''}>
@@ -466,116 +437,58 @@ function AbilityListPanel({ title, magisch, list, elements, kategorien, expanded
 
       {filtering && <p className="muted abil-count">Zum Umsortieren die Suche/Filter zurücksetzen.</p>}
       <div className="abil-list">
-        {shown.map((a) => (
-          <div
-            className={`abil-row${dragUid === a.uid ? ' dragging' : ''}${overUid === a.uid && dragUid && dragUid !== a.uid ? ' drop-before' : ''}`}
-            key={a.uid}
-            onDragOver={(e) => {
-              if (!dragUid || filtering) return;
-              e.preventDefault();
-              if (overUid !== a.uid) setOverUid(a.uid);
-            }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const from = e.dataTransfer.getData('text/plain') || dragUid;
-              if (from) onReorder(from, a.uid);
-              setDragUid(null);
-              setOverUid(null);
-            }}
-          >
-            <div className="abil-compact">
-              <span
-                className={`abil-grip${filtering ? ' disabled' : ''}`}
-                draggable={!filtering}
-                title={filtering ? 'Zum Umsortieren Suche/Filter zurücksetzen' : 'Ziehen zum Umsortieren'}
-                onDragStart={(e) => {
-                  e.dataTransfer.effectAllowed = 'move';
-                  e.dataTransfer.setData('text/plain', a.uid);
-                  setDragUid(a.uid);
-                }}
-                onDragEnd={() => {
-                  setDragUid(null);
-                  setOverUid(null);
-                }}
-              >
-                ⠿
-              </span>
-              <button className="abil-chev" onClick={() => onToggle(a.uid)} title={expanded.has(a.uid) ? 'zuklappen' : 'aufklappen'} aria-label="Details">
-                {expanded.has(a.uid) ? '▾' : '▸'}
-              </button>
-              <input className="abil-name" value={a.name} placeholder="Name" onChange={(e) => onPatch(a.uid, { name: e.target.value })} />
-              {magisch && (
-                <input className="abil-el" list={elId} value={a.element} placeholder="Element" onChange={(e) => onPatch(a.uid, { element: e.target.value })} />
-              )}
-              <input
-                className="abil-kat"
-                list={katId}
-                defaultValue={a.kategorien.join(', ')}
-                placeholder="Kategorie(n), mit Komma trennen"
-                title="Mehrere Kategorien mit Komma trennen — ein Eintrag kann in mehreren zugleich stehen."
-                key={a.uid + a.kategorien.join(' ')}
-                onBlur={(e) =>
-                  onPatch(a.uid, {
-                    kategorien: [...new Set(e.target.value.split(',').map((s) => s.trim()).filter(Boolean))],
-                  })
-                }
-              />
-              <label className="abil-num" title="Stufe (max. 10)">
-                St
-                <input type="number" min={0} max={ABILITY_STUFE_MAX} value={a.stufe} onChange={(e) => onPatch(a.uid, { stufe: Math.min(ABILITY_STUFE_MAX, num(e.target.value)) })} />
-              </label>
-              {magisch && (
-                <label className="abil-num" title="Komplexität (Richtwert bis 5)">
-                  Kx
-                  <input type="number" min={0} value={a.komplexitaet} onChange={(e) => onPatch(a.uid, { komplexitaet: num(e.target.value) })} />
-                </label>
-              )}
-              <label className="abil-passiv" title="Passiv (Dauerwirkung)">
-                <input type="checkbox" checked={a.passiv} onChange={(e) => onPatch(a.uid, { passiv: e.target.checked })} />
-                passiv
-              </label>
-              {magisch && onSignatur && (
-                <button
-                  className={`abil-sig${a.signatur ? ' on' : ''}`}
-                  title={a.signatur ? 'Signatur-Zauber (klicken zum Aufheben)' : 'Als Signatur-Zauber markieren (nur einer)'}
-                  aria-pressed={a.signatur}
-                  onClick={() => onSignatur(a.uid)}
+        {shown.map((a) => {
+          const grade = abilityGrade(a, byUid);
+          return (
+            <div
+              className={`abil-row${dragUid === a.uid ? ' dragging' : ''}${overUid === a.uid && dragUid && dragUid !== a.uid ? ' drop-before' : ''}`}
+              key={a.uid}
+              onDragOver={(e) => {
+                if (!dragUid || filtering) return;
+                e.preventDefault();
+                if (overUid !== a.uid) setOverUid(a.uid);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const from = e.dataTransfer.getData('text/plain') || dragUid;
+                if (from) onReorder(from, a.uid);
+                setDragUid(null);
+                setOverUid(null);
+              }}
+            >
+              <div className="abil-compact abil-compact-ro" onClick={() => onEdit(a.uid)} role="button" tabIndex={0} title="Bearbeiten">
+                <span
+                  className={`abil-grip${filtering ? ' disabled' : ''}`}
+                  draggable={!filtering}
+                  title={filtering ? 'Zum Umsortieren Suche/Filter zurücksetzen' : 'Ziehen zum Umsortieren'}
+                  onClick={(e) => e.stopPropagation()}
+                  onDragStart={(e) => {
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', a.uid);
+                    setDragUid(a.uid);
+                  }}
+                  onDragEnd={() => {
+                    setDragUid(null);
+                    setOverUid(null);
+                  }}
                 >
-                  {a.signatur ? '★' : '☆'}
-                </button>
-              )}
-              <FavPin active={a.favorit} onClick={() => onPatch(a.uid, { favorit: !a.favorit })} />
-              <ConfirmDeleteButton className="small abil-del" title="Entfernen" onConfirm={() => onRemove(a.uid)} />
-            </div>
-            {expanded.has(a.uid) && (
-              <div className="abil-detail">
-                <label>
-                  Kosten
-                  <input value={a.kosten} placeholder="AP, frei" onChange={(e) => onPatch(a.uid, { kosten: e.target.value })} />
-                </label>
-                <label>
-                  Probe
-                  <input value={a.probe} placeholder="FF+FF+KL" onChange={(e) => onPatch(a.uid, { probe: e.target.value })} />
-                </label>
-                <label>
-                  Fortschritt
-                  <input type="number" min={0} value={a.fortschritt} onChange={(e) => onPatch(a.uid, { fortschritt: num(e.target.value) })} />
-                </label>
-                <label className="abil-wide">
-                  Effekt
-                  <textarea value={a.effekt} rows={2} onChange={(e) => onPatch(a.uid, { effekt: e.target.value })} />
-                </label>
-                <label className="abil-wide">
-                  Notiz
-                  <textarea value={a.notiz} rows={2} onChange={(e) => onPatch(a.uid, { notiz: e.target.value })} />
-                </label>
+                  ⠿
+                </span>
+                {a.signatur && <span className="abil-sig-star" title="Signatur-Zauber">★</span>}
+                <span className="abil-name">{a.name || '—'}</span>
+                {magisch && a.element && <span className="muted">{a.element}</span>}
+                {a.kategorien.length > 0 && <span className="muted">{a.kategorien.join(', ')}</span>}
+                <span className="muted">St {a.stufe}{magisch ? ` · Kx ${a.komplexitaet}` : ''}</span>
+                {a.passiv && <span className="abil-badge">passiv</span>}
+                {grade > 1 && <span className="abil-badge">{abilityGradeLabel(grade)}</span>}
+                {a.favorit && <span title="Würfel-Favorit">📌</span>}
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          );
+        })}
         {list.length === 0 && <p className="muted">Noch nichts.</p>}
         {list.length > 0 && shown.length === 0 && <p className="muted">Nichts gefunden.</p>}
-        <button className="small" onClick={onAdd}>
+        <button className="small" onClick={onAddNew}>
           + {title === 'Zauber' ? 'Zauber' : 'Fähigkeit'}
         </button>
       </div>

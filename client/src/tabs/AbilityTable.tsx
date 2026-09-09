@@ -1,7 +1,7 @@
 import { Fragment, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Ability, Attributes } from '@shared/abilities';
-import { groupAbilities } from '@shared/abilities';
+import { abilityGrade, abilityGradeLabel, groupAbilities } from '@shared/abilities';
 import type { StatBoni } from '@shared/items';
 import { elementKostenBoni, elementKostenBonusKey, elementProbeBonus, elementProbeBonusKey } from '@shared/items';
 import { probeExprHasWeaponTerm, probeExprZahl } from '@shared/rules';
@@ -49,6 +49,10 @@ export function AbilityTable({
 }) {
   const { data, update, charId, stats } = useChar();
   const list = data.abilities.filter((a) => a.magisch === magisch);
+  // Für die Grad-Anzeige (Ability.derivedFrom, siehe abilityGrade) — über den
+  // ganzen Bestand, nicht nur diesen Reiter, aus demselben Grund wie in der
+  // Werkstatt (AbilityManager.tsx).
+  const byUid = new Map(data.abilities.map((a) => [a.uid, a]));
   // Voreinstellung: keine Gruppierung — die Liste läuft flach durch. Wer aktiv
   // eine Gruppierung wählt, behält sie (persistiert je Nutzer).
   const [stored, setGroupBy] = usePersistedState<Grouping>(`${persistKey}:group`, 'none');
@@ -214,11 +218,11 @@ export function AbilityTable({
             </thead>
             <tbody>
               {sig && (
-                <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} stats={stats} pinned onFort={(v) => setFort(sig.uid, v)} onFavorit={(v) => setFavorit(sig.uid, v)} />
+                <AbilityRow key={sig.uid} a={sig} magisch={magisch} attrs={data.attributes} stats={stats} byUid={byUid} pinned onFort={(v) => setFort(sig.uid, v)} onFavorit={(v) => setFavorit(sig.uid, v)} />
               )}
               {by === 'none'
                 ? [...rest].sort(sortFn).map((a) => (
-                    <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} stats={stats} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
+                    <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} stats={stats} byUid={byUid} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
                   ))
                 : [...groups!.entries()].map(([key, rows]) => (
                     <Fragment key={key || '__none'}>
@@ -230,7 +234,7 @@ export function AbilityTable({
                         </td>
                       </tr>
                       {[...rows].sort(sortFn).map((a) => (
-                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} stats={stats} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
+                        <AbilityRow key={a.uid} a={a} magisch={magisch} attrs={data.attributes} stats={stats} byUid={byUid} onFort={(v) => setFort(a.uid, v)} onFavorit={(v) => setFavorit(a.uid, v)} />
                       ))}
                     </Fragment>
                   ))}
@@ -248,6 +252,7 @@ function AbilityRow({
   magisch,
   attrs,
   stats,
+  byUid,
   onFort,
   onFavorit,
   pinned,
@@ -256,10 +261,12 @@ function AbilityRow({
   magisch: boolean;
   attrs: Attributes;
   stats: StatBoni;
+  byUid: ReadonlyMap<string, Ability>;
   onFort: (v: number) => void;
   onFavorit: (v: boolean) => void;
   pinned?: boolean;
 }) {
+  const grade = abilityGrade(a, byUid);
   const pzBase = probeExprZahl(attrs, a.probe);
   const pz = pzBase != null ? pzBase + elementProbeBonus(a.element, stats) : pzBase;
   const needsWeapon = probeExprHasWeaponTerm(a.probe);
@@ -273,6 +280,7 @@ function AbilityRow({
         {a.signatur && <span className="abil-sig-star" title="Signatur-Zauber">★</span>}
         <span className="abil-name">{a.name || '—'}</span>
         {a.passiv && <span className="abil-badge">passiv</span>}
+        {grade > 1 && <span className="abil-badge">{abilityGradeLabel(grade)}</span>}
       </td>
       <td className="num">{a.stufe}</td>
       {magisch && <td className="num">{a.komplexitaet}</td>}

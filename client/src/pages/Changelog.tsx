@@ -1,4 +1,5 @@
 import { CHANGELOG, COMING_SOON, KNOWN_BUGS, changelogGroups } from '../changelog';
+import EasterEggTracker from '../components/EasterEggTracker';
 
 const fmtDate = (iso: string) => {
   const d = new Date(iso);
@@ -105,6 +106,8 @@ export default function ChangelogPage() {
         Diese App läuft auf privat finanzierten Servern. Wer die Serverkosten
         unterstützen möchte, findet im Profil-Menü oben rechts eine Kaffeekasse.
       </p>
+
+      <EasterEggTracker />
     </>
   );
 }

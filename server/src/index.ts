@@ -95,6 +95,15 @@ app.use(express.json({ limit: '2mb' }));
 app.use(attachUser);
 app.use('/api', api);
 
+// Statische Bilder für Easter Eggs (server/data/easter-eggs, wie helden.db und
+// helden-assets.db außerhalb von client/dist — überlebt also ein Redeploy,
+// der nur den Client neu baut. Der Server-Owner legt Dateien dort von Hand ab,
+// kein Upload-Weg. Ungeschützt (kein /api, kein attachUser-Gate): ein albernes
+// Bild ist keine sensible Information, wie der Client-Bundle auch.
+const easterEggAssets = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'easter-eggs');
+fs.mkdirSync(easterEggAssets, { recursive: true });
+app.use('/easter-eggs', express.static(easterEggAssets));
+
 // Produktionsmodus: gebauten Client ausliefern (client/dist), SPA-Fallback auf index.html
 const clientDist = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'client', 'dist');
 if (fs.existsSync(clientDist)) {

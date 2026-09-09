@@ -1,0 +1,110 @@
+/* „Konami-Party" — geheimes Easter Egg (KonamiPartyOverlay.tsx), eigene Datei
+ * aus demselben Grund wie wiki.css/kino.css: ein in sich geschlossenes Extra,
+ * jede Regel mit .konami- benannt, nichts hiervon leckt in den Rest der App.
+ *
+ * Bewusst KEIN Bezug zu kino.css/.dice-kino: das ist die ernsthafte „großer
+ * Wurf"-Ansage, dieses hier ist reine Albernheit ohne festes Ende — beide
+ * sollen unabhängig voneinander bleiben.
+ */
+
+.konami-party {
+  position: fixed;
+  inset: 0;
+  z-index: 250;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #0a0a12;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 500ms ease;
+  cursor: pointer;
+  touch-action: none;
+}
+.konami-party--an {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Ein langsamer Farbumlauf im Hintergrund — "visuell extrem", ohne zu
+   flackern (schnelles Blitzen wäre ein Anfalls-Risiko, siehe die Regel unten). */
+@keyframes konamiPartyHue {
+  from {
+    filter: hue-rotate(0deg);
+  }
+  to {
+    filter: hue-rotate(360deg);
+  }
+}
+.konami-party--an:not(.konami-party--ruhe) {
+  animation: konamiPartyHue 4s linear infinite;
+}
+
+.konami-dvd-katze {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  will-change: transform;
+  filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.5));
+}
+/* Reduced motion: DvdKatze läuft dann ohne rAF-Loop (siehe Komponente) und
+   bleibt an ihrer Startposition stehen — kein hue-rotate-Zappeln dazu. */
+.konami-party--ruhe .konami-dvd-katze {
+  position: relative;
+  filter: none;
+}
+
+@keyframes konamiKnall {
+  0% {
+    opacity: 0;
+    scale: 0.4;
+  }
+  15% {
+    opacity: 1;
+    scale: 1.05;
+  }
+  25% {
+    scale: 1;
+  }
+  75% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.konami-explosion {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+  animation: konamiKnall 900ms ease-out 1;
+}
+
+.konami-party-hinweis {
+  position: absolute;
+  bottom: 1.4rem;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  text-align: center;
+  margin: 0;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: #fff;
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* Reduced motion entfernt die BEWEGUNG, nicht das gefundene Ei: die Übernahme
+   bleibt sichtbar (dunkler Grund, stillstehende Katze, Hinweistext), nur ohne
+   Hue-Umlauf, Sprung-Physik oder Explosionen (die Komponente rendert
+   ExplosionSchicht dann erst gar nicht). */
+@media (prefers-reduced-motion: reduce) {
+  .konami-party {
+    transition: none;
+  }
+}

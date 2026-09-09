@@ -37,6 +37,46 @@ export interface Ability {
   // Favorit fürs Würfel-Dock (📌 in AbilityManager/AbilityTable) — taucht dann
   // zusätzlich in der Würfel-Favoriten-Flyout auf (ShortcutsFlyout.tsx).
   favorit: boolean;
+  // Aufgewertete Fassung: uid der Fähigkeit/des Zaubers eine Stufe darunter,
+  // '' = Grad 1 „Basis" (keine Vorstufe). Der Grad selbst ist rein abgeleitet
+  // (siehe abilityGrade) — dieses Feld ist die einzige von Hand gepflegte
+  // Angabe. Der Server erzwingt beim Speichern denselben magisch-Wert wie das
+  // Original, Grad ≤ ABILITY_GRADE_MAX und keine Zyklen.
+  derivedFrom: string;
+}
+
+// Höchster erreichbarer Grad (Basis + zweimal aufwerten). Rein anzeigend —
+// fließt in keine Formel ein (siehe Ability.derivedFrom).
+export const ABILITY_GRADE_MAX = 3;
+
+export const ABILITY_GRADE_LABELS: Record<number, string> = {
+  1: 'Basis',
+  2: 'Aufgewertet',
+  3: 'Potenzial',
+};
+
+export function abilityGradeLabel(grade: number): string {
+  return ABILITY_GRADE_LABELS[grade] ?? `Grad ${grade}`;
+}
+
+// Grad einer Fähigkeit/eines Zaubers: 1, sofern derivedFrom leer ist, sonst
+// eine Stufe mehr als die referenzierte Fähigkeit — bis zu ABILITY_GRADE_MAX.
+// Läuft die Kette gegen eine unbekannte uid oder einen Zyklus (sollte dank der
+// Server-Validierung in saveAbilities nicht vorkommen, aber ein unsauberer
+// Zwischenstand beim Bearbeiten im Dialog ist clientseitig möglich), bricht
+// sie dort einfach ab statt zu hängen.
+export function abilityGrade(ability: Pick<Ability, 'uid' | 'derivedFrom'>, byUid: ReadonlyMap<string, Ability>): number {
+  let grade = 1;
+  let cur: Pick<Ability, 'uid' | 'derivedFrom'> = ability;
+  const seen = new Set<string>([ability.uid]);
+  while (cur.derivedFrom && grade < ABILITY_GRADE_MAX) {
+    const parent = byUid.get(cur.derivedFrom);
+    if (!parent || seen.has(parent.uid)) break;
+    seen.add(parent.uid);
+    grade++;
+    cur = parent;
+  }
+  return grade;
 }
 
 // Neue Kennung — dieselbe Quelle wie bei Item (crypto.randomUUID / Fallback).

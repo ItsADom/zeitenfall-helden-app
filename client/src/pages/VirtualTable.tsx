@@ -10,6 +10,7 @@ import { useAuth } from '../App';
 import { CharSheetProvider } from '../components/charSheet';
 import CharacterSidebar from '../components/CharacterSidebar';
 import { useCollapsed } from '../components/collapse';
+import { ColorPicker } from '../components/ColorPicker';
 import { useDicePanel } from '../components/dice/DicePanelProvider';
 import { tinteFuer } from '../components/dice/cinematic/kontrast';
 import FeedColumn from '../components/dice/FeedColumn';
@@ -716,7 +717,7 @@ function TokenEditor({
             </label>
             <label>
               Farbe{' '}
-              <ColorSwatchInput
+              <ColorPicker
                 value={color}
                 onChange={(v) => {
                   setColor(v);
@@ -785,7 +786,7 @@ function TokenEditor({
                 title="Reichweiten-Ring um die Marke — 0 = kein Ring. Für Zauber-AOE, Fackel-/Sichtweite."
               />
             </label>
-            <ColorSwatchInput
+            <ColorPicker
               value={radiusHex}
               onChange={(v) => {
                 setRadiusHex(v);
@@ -3900,7 +3901,7 @@ function MeasureEditor({
           }}
           maxLength={60}
         />
-        <ColorSwatchInput
+        <ColorPicker
           value={color}
           onChange={(v) => {
             setColor(v);
@@ -4282,26 +4283,6 @@ function withOpacity(hex: string, opacityPct: number): string {
   return `${hex.slice(0, 7)}${alphaHex}`;
 }
 
-/**
- * A plain <input type="color"> reopens the browser's native colour dialog on
- * every click — including a SECOND click meant to close the one already
- * open, which reads as a bug ("I click it again and it just reopens"). There
- * is no DOM property to ask "is the picker open", so this tracks it itself:
- * a mousedown while we believe it's already open force-closes it via
- * `blur()` instead of letting the browser reopen it. Used everywhere a plain
- * colour swatch appears on this page (token colour/ring, tile/highlight
- * picker, measure-shape colour), so the fix lands once, not four times.
- */
-// Two attempts at making a second click close the browser's native colour
-// dialog instead of reopening it (a tracked-ref version, then an
-// activeElement-check version) both failed live testing — see TODO.md for
-// the follow-up. Left as a thin, unstyled wrapper for now: still the one
-// place all four colour swatches on this page go through, so a future fix
-// (or swapping to a custom colour picker entirely) lands once.
-function ColorSwatchInput({ value, onChange, title }: { value: string; onChange: (v: string) => void; title?: string }) {
-  return <input type="color" value={value} title={title} onChange={(e) => onChange(e.target.value)} />;
-}
-
 // Der Farbe/Deckkraft/Pipette/Radierer-Block ist identisch für die
 // Kachel-Ebene (TilePicker, plus Texturen) und die Einfärbe-Ebene
 // (HighlightPicker, keine Texturen) — nur Titel/Beschriftungen unterscheiden
@@ -4357,7 +4338,7 @@ function ColorOpacityFields({
         </button>
       </div>
       <div className="vtt-tile-picker-row">
-        <ColorSwatchInput
+        <ColorPicker
           value={customColor}
           onChange={(v) => {
             setCustomColor(v);

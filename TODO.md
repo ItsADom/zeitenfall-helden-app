@@ -168,34 +168,20 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      functionally-identical weapon instances (same stats, differing at most
      in Haltbarkeit) into one collapsed card in the reworked weapon tab,
      expandable to the individual instances underneath.
-- [ready] **Editing dialog for abilities** (user feedback; supersedes
-  the old "reuse the item-creation Dialog for spells/abilities and weapons"
-  note that used to live in Low-Prio). The items half of this shipped —
-  `AddItemDialog` (`client/src/components/itemDialogs.tsx`) is dual-purpose
-  now, opening pre-filled for an existing item (click the chip/row on
-  Ausrüstung or Inventar, in either read-only or edit mode), with
-  Duplizieren/Löschen in its footer and a repeatable Boni-beim-Tragen list.
-  Item bonuses while worn are fully wired end to end, including the server
-  dice-roll path — see `docs/concepts/item-bonus-while-worn.md` for the build
-  history; that's the precedent to copy for the remaining shape, not
-  re-derive. **Weapons no longer need their own pass here** — weapons are
-  now real `Item` rows (`waffenArt`/`waffenStats`), and `AddItemDialog`
-  already has a complete `mode === 'waffe'` editor (stat rows, AT/PA/BL/
-  damage fields) alongside its `allgemein`/`ausruestung` modes, so weapon
-  structural editing already goes through the same dialog pattern this task
-  was trying to reach. Only abilities are left:
-   - **Move ability editing into the same dialog pattern.**
-     `AbilityManager.tsx` still edits everything inline/on-card. **Decided:
-     hybrid, not a full replacement** — the highest-frequency actions stay
-     inline; a dialog handles the structural fields, same split already
-     proven on items. `AbilityManager.tsx`'s `emptyAbility()` is a shape of
-     its own with no overlap with the `Item` schema, so it needs its own
-     field-selection pass rather than reusing `AddItemDialog` directly.
-   - **Open: do abilities want an item-bonus-style effect list too?**
-     Not decided. If yes, it's the same generalization the "Player-set
-     structured bonuses" entry below already plans for Vorteile/Nachteile —
-     do that generalization once, shared by both, rather than two parallel
-     bonus mechanisms.
+- [sketch] **Ability bonus list (deferred from the ability-editing-dialog
+  build)**: abilities now have their own `AbilityEditDialog`
+  (`client/src/components/AbilityEditDialog.tsx`, opened from
+  `AbilityManager.tsx`), mirroring `AddItemDialog`'s create/edit-in-one-
+  component shape — but deliberately shipped WITHOUT an item-bonus-style
+  repeatable effect list. Explicitly deferred, not forgotten: **user
+  feedback when deferring — such a list would only ever make sense on
+  `passiv` entries; an active talent/spell never grants a standing bonus by
+  existing, its effect happens when it's actively used**, so the field (if
+  built) should probably only show/apply for `passiv === true`, not for
+  every ability. If this gets picked up, it's the same generalization the
+  "Player-set structured bonuses" entry below already plans for Vorteile/
+  Nachteile — do that generalization once, shared by both, rather than two
+  parallel bonus mechanisms.
 - [sketch] **Player-set structured bonuses for Vorteile/Nachteile/Titel/
   Professionsboni** (user feedback): these currently live in plain free-text
   dynamic-table sections under the locked "Vorteile & Nachteile" tab
@@ -215,31 +201,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   for attaching a structured effect to a free-text dynamic-table row (a
   per-row dialog like the item one, or a new `DynColumn` type?), and whether a
   row gets one effect or a repeatable list like items do.
-- [ready] **Graded (fortified) spells/skills** (user feedback, concept
-  agreed): `Ability.stufe` (`shared/src/abilities.ts:30`) already caps at
-  `ABILITY_STUFE_MAX = 10` (`:82`) — reaching that cap is meant to let the
-  player create a fortified version of the same spell/skill, and this can
-  happen twice (three grades total). **Decided:** no automation on granting —
-  the player creates the new `Ability` entry themselves exactly like any
-  other, same as today. **Decided:** a new `derivedFrom` field (an `Ability`
-  `uid` reference, empty by default) drives the grade: unset = grade 1
-  ("Basis"), set = one more than the referenced ability's own grade
-  ("Aufgewertet" = 2, "Potenzial" = 3 — names supplied by the GM). Grade is
-  **display-only**, shown next to the name — it does not feed the
-  Stufe×Komplexität Magiepunkte formula or any other calculation. **Decided:**
-  the picker only offers abilities of the same `magisch` value (spell derives
-  from spell, skill from skill only) — same partition `zauberOf`/
-  `faehigkeitenOf` already use (`abilities.ts:43-48`). **Decided:** the server
-  enforces both the max-grade-3 rule and cycle prevention at save time (reject
-  a `derivedFrom` that would push grade past 3, or that would loop back on
-  itself) — `saveAbilities` (`characterData.ts:1107`) already has the same
-  shape of per-save validation for the one-signatur-spell rule
-  (`signaturVergeben`, `:1111`) and uid dedup (`seenUids`, `:1109`), so this
-  follows the same pattern rather than adding a new validation style. Needs a
-  build pass: `derivedFrom` on the `Ability` type + `char_abilities` column,
-  a grade-computation helper (walk the chain, same file as `spellPunkte`/
-  `istTrivial`), the derive-from picker in `AbilityManager.tsx`, and the
-  grade label next to the ability name.
 - [sketch] **20+ perk picker** — source PDF analysed and written up at
   `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
   no prerequisite edges, ~160 effects classified into 6 computable and 8
@@ -262,21 +223,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 
 ## Low-Prio
 
-- [sketch] **Native colour swatch reopens on a second click instead of
-  closing** (VTT, `ColorSwatchInput` in `client/src/pages/VirtualTable.tsx`,
-  used by token colour/ring colour, the tile/highlight picker, and the
-  measure-shape colour field): clicking a `<input type="color">` swatch
-  while its native browser dialog is already open should close it, but the
-  browser reopens it instead. Two fix attempts (a tracked "believed open"
-  ref + `blur()`, then a `document.activeElement` check + `blur()`) both
-  failed live testing — a native colour dialog isn't part of the DOM, so it
-  can't be driven/observed by this session's automated browser tooling
-  either, which made both attempts guesswork. Confirmed minor/cosmetic by
-  the developer, not blocking. Whoever picks this up next needs to actually
-  reproduce it live (real browser, real clicks) to see what's really
-  happening before trying a third fix — or consider swapping to a custom
-  (non-native) colour picker instead, which would sidestep the browser
-  quirk entirely.
 - [sketch] **Asset sweep: sanity-check before deleting** (`server/src/assets/sweep.ts`):
   `fegeVerwaisteBilder` treats every asset whose owner id isn't in `helden.db`
   as orphaned and deletes it from `helden-assets.db`. That's correct when both
@@ -294,42 +240,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - splitting CSS into more fitting files
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
-- [sketch] **Armor-material catalogue**: a GM-editable material→RS list (like
-  talents/languages) so a worn piece picks a material and shows its RS. Today RS is
-  a manual per-piece number on the item.
-- [sketch] **A more neutral default theme** than Khôm (red) and more themes in general.
-  - Andergast as colorless
-  - Orkland dark green, Bornland lighter green
-  - Efferdia light blue
-- [ready] **Easter egg tracker** (concept agreed; visual reference at
-  `docs/concepts/easter-egg-tracker.html`): a public page listing every
-  easter egg that exists, who found it first, and when — first-finder-only,
-  deliberately competitive/leaderboard in tone, visible to all players.
-   - Generic across eggs so adding a new egg later is a code change only, no
-     schema change: catalog table `easter_eggs(key, name, added_at)` (one row
-     per egg, `key` a stable slug like `chaos-mode`), plus
-     `easter_egg_finds(id, egg_key, user_id, found_at)` with
-     `UNIQUE(egg_key, user_id)` — insert-or-ignore, so only the first trigger
-     per (player, egg) sticks and later triggers are silently no-ops.
-   - The "chaos mode" egg is built (`App.tsx`'s `handleBannerClick`, chaos
-     palette in `styles.css`) and already calls a `reportEasterEggFound(key)`
-     hook (`client/src/easterEggs.ts`) on trigger — today a no-op stub. This
-     task's server piece is turning that stub into a real
-     `POST /easter-eggs/:key/found`, not adding new wiring on the egg itself.
-     **Currently disabled** (`CHAOS_MODE_ENABLED = false` in `App.tsx`) so
-     nobody finds it while finds go untracked — flip that flag true once the
-     tracker + real POST are live, as the last step of this task.
-   - **Decided:** the list itself is a normal, always-reachable page — NOT an
-     egg to find (considered, dropped: paradoxical to gate a "how many eggs
-     have been found" page behind being found itself).
-   - **Decided:** found eggs show name/description/finder/date, unveiled for
-     everyone once triggered. Unfound eggs are NOT individually listed (no
-     per-egg "???" row, no exact remaining count) — instead, a single trailing
-     "???" line is appended to the list ONLY while at least one egg is still
-     unfound, just to tease that more exist. That line disappears once every
-     known egg has been found.
-   - Still open before a build plan: exact route/entry point for the public
-     page.
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
    - Tables break across pages mid-section — add break-inside handling / keep
     sections together / repeat table headers.

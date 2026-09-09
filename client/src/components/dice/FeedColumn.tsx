@@ -3,10 +3,12 @@ import { computeCompetitiveVerdict, computeCoopVerdict, parseDiceExpression, str
 import type { FeedEntry, PoolMode, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
-import { apiGet } from '../../api';
+import { apiGet, apiPost } from '../../api';
 import { usePersistedState } from '../persist';
 import { useHoverFlyout } from '../useHoverFlyout';
 import CommandsDialog from './CommandsDialog';
+import WuerfelgottDialog from './WuerfelgottDialog';
+import { reportEasterEggFound } from '../../easterEggs';
 import CompetitivePoolCard from './CompetitivePoolCard';
 import CoopPoolCard from './CoopPoolCard';
 import { useDicePanel } from './DicePanelProvider';
@@ -31,6 +33,15 @@ import VisibilityPicker from './VisibilityPicker';
 const MIN_SEARCH_LEN = 2;
 const MAX_SUGGESTIONS = 30;
 const HISTORY_SIZE = 5;
+
+// Geheimes Easter Egg (Schwester-Ei zu Chaos-Modus/Kopfüber-Modus, App.tsx):
+// "würfelgott" irgendwo in einer gesendeten Chat-Nachricht öffnet lokal ein
+// Bild-Popup (WuerfelgottDialog) — nur bei der schreibenden Person, die
+// Nachricht selbst geht normal raus, wird nicht abgefangen wie ein "/"-Befehl.
+// Vorerst ABGESCHALTET, gleiche Begründung wie die anderen beiden Eier:
+// reportEasterEggFound() ist noch ein Stub (siehe easterEggs.ts, TODO.md
+// „Easter egg tracker"). Auf true stellen, sobald der Tracker steht.
+const WUERFELGOTT_ENABLED = true;
 
 type FeedChunk = { kind: 'single'; entry: FeedEntry } | { kind: 'group'; groupRollId: string; entries: FeedEntry[] };
 
@@ -153,6 +164,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [commandsOpen, setCommandsOpen] = useState(false);
+  const [wuerfelgottOpen, setWuerfelgottOpen] = useState(false);
   // The note that „/i" overrides the visibility picker is shown exactly once
   // per device. On every roll it would be noise.
   const [wichtigHinweisGesehen, setWichtigHinweisGesehen] = usePersistedState<boolean>('dice:i-hinweis', false);
@@ -281,6 +293,41 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const send = () => {
     const text = draft.trim();
     if (!text || groupId === null) return;
+    // Nur der Trigger, kein "/"-Befehl: fängt die Nachricht nicht ab, die geht
+    // unten normal raus. `includes` statt Wortgrenze — soll auch mitten im
+    // Satz greifen ("würfelgott sei mit dir").
+    if (WUERFELGOTT_ENABLED && text.toLowerCase().includes('würfelgott')) {
+      setWuerfelgottOpen(true);
+      reportEasterEggFound('wuerfelgott');
+    }
+    // Fünftes Easter Egg: ein "/"-Befehl wie /mute, /master usw., aber nicht
+    // in /commands gelistet — wer nach dem Lesen der Liste rät, ob es noch
+    // einen ungelisteten gibt, wird hier fündig. Anders als die anderen vier
+    // ist dieses Ei ABSICHTLICH öffentlich und dauerhaft: die laufende
+    // Nummer kommt vom Server (routes.ts zählt JEDE Nutzung, siehe dort) und
+    // landet als normale, für die ganze Gruppe sichtbare Chat-Zeile — kein
+    // *_ENABLED-Schalter nötig, das hängt nicht am noch fehlenden Tracker.
+    if (/^\/easteregg$/i.test(text)) {
+      setDraft('');
+      setError('');
+      setInfo('');
+      apiPost<{ nummer: number | null }>('/api/easter-eggs/easteregg')
+        .then(({ nummer }) => {
+          // null: Admin-Konto, zählt absichtlich nicht mit (Code-Zugriff
+          // wäre kein echter Fund) — server/src/routes.ts. Keine Chat-Zeile,
+          // kein Zähler-Verbrauch, nur ein leiser Hinweis nur für sie selbst.
+          if (nummer === null) {
+            setInfo('Als Admin zählt das nicht als Fund. Dein Versuch bleibt unter uns.');
+            return;
+          }
+          sendChat(`${user.displayName} hat Ei Nr. ${nummer} gefunden`, visibility, visibilityTarget ?? undefined);
+          reportEasterEggFound('easteregg');
+        })
+        .catch(() => {
+          setError('Das Ei wollte sich gerade nicht einlösen lassen — versuch es nochmal.');
+        });
+      return;
+    }
     if (/^-{3,}$/.test(text) || /^\/line$/i.test(text)) {
       sendChat('---');
       setError('');
@@ -607,6 +654,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
         </button>
       </div>
       <CommandsDialog open={commandsOpen} onClose={() => setCommandsOpen(false)} />
+      <WuerfelgottDialog open={wuerfelgottOpen} onClose={() => setWuerfelgottOpen(false)} />
     </>
   );
 });

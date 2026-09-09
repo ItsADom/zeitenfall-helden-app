@@ -663,7 +663,11 @@ db.exec(`
     effekt TEXT NOT NULL DEFAULT '',
     fortschritt REAL NOT NULL DEFAULT 0,
     notiz TEXT NOT NULL DEFAULT '',
-    favorit INTEGER NOT NULL DEFAULT 0
+    favorit INTEGER NOT NULL DEFAULT 0,
+    -- Aufgewertete Fassung desselben Zaubers/Fähigkeit (uid-Bezug, '' = Grad 1
+    -- „Basis"). Grad ist rein abgeleitet (Kette laufen bis zum Ende), siehe
+    -- abilityGrade in shared/src/abilities.ts.
+    derived_from TEXT NOT NULL DEFAULT ''
   );
   -- Selbst verwaltete Element- und Kategorie-Listen je Charakter (kind trennt
   -- die beiden Achsen, nach denen die Reiter gruppieren können).
@@ -823,6 +827,33 @@ db.exec(`
     current_count INTEGER NOT NULL DEFAULT 0
   );
   CREATE INDEX IF NOT EXISTS idx_board_round_trackers_board_id ON board_round_trackers(board_id);
+
+  -- „/easteregg" Chat-Befehl (routes.ts, FeedColumn.tsx): jede Nutzung ein
+  -- Eintrag, absichtlich append-only statt eines einzelnen Zählers — die
+  -- laufende Nummer ist COUNT(*) nach dem Insert. Anders als die anderen vier
+  -- Easter Eggs ist dieses hier bewusst öffentlich und ungedeckelt, nicht
+  -- first-finder-only, siehe der Kommentar bei der Route.
+  CREATE TABLE IF NOT EXISTS easteregg_command_uses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    used_at INTEGER NOT NULL
+  );
+
+  -- Genereller Easter-Egg-Tracker (TODO.md), für alle fünf Eier gemeinsam —
+  -- WER welches egg_key zuerst gefunden hat, sonst nichts. Name/Beschreibung/
+  -- Symbol stehen NICHT hier, die kommen aus dem statischen Katalog in
+  -- server/src/easterEggs.ts (ein neues Ei ist damit ein Code-Change, keine
+  -- Migration). UNIQUE(egg_key, user_id) macht INSERT OR IGNORE zum
+  -- kompletten Fund-Mechanismus: der erste erfolgreiche Insert je egg_key
+  -- (kleinste id) ist per Definition der Erstfund, jeder weitere Versuch
+  -- derselben Person verpufft wirkungslos.
+  CREATE TABLE IF NOT EXISTS easter_egg_finds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    egg_key TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    found_at INTEGER NOT NULL,
+    UNIQUE (egg_key, user_id)
+  );
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).
@@ -1916,6 +1947,15 @@ db.exec('DROP TABLE IF EXISTS group_members');
   const cols = new Set((db.prepare('PRAGMA table_info(char_resources)').all() as { name: string }[]).map((c) => c.name));
   if (cols.has('kaufMax')) db.exec('ALTER TABLE char_resources DROP COLUMN kaufMax');
   if (cols.has('maxPlus')) db.exec('ALTER TABLE char_resources DROP COLUMN maxPlus');
+}
+
+// Migration: 'derived_from'-Spalte an bestehende char_abilities ergänzen
+// (gestufte/aufgewertete Zauber & Fähigkeiten, TODO.md "Graded spells/skills").
+// Leer ('') für jede Bestandszeile — bedeutet weiterhin Grad 1 „Basis", exakt
+// das bisherige Verhalten, kein Nachziehen nötig.
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(char_abilities)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('derived_from')) db.exec("ALTER TABLE char_abilities ADD COLUMN derived_from TEXT NOT NULL DEFAULT ''");
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an

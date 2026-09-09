@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ABILITY_GRADE_MAX,
+  abilityGrade,
+  abilityGradeLabel,
   faehigkeitenOf,
   groupAbilities,
   istTrivial,
@@ -29,6 +32,7 @@ function ability(partial: Partial<Ability>): Ability {
     fortschritt: 0,
     notiz: '',
     favorit: false,
+    derivedFrom: '',
     ...partial,
   };
 }
@@ -117,5 +121,35 @@ describe('Sichten & Gruppieren', () => {
     const byKategorie = groupAbilities(zauberOf(list), 'kategorie');
     // der zweite Zauber steht in Heilmagie UND Kampfmagie zugleich
     expect(byKategorie.get('Kampfmagie')).toHaveLength(2);
+  });
+});
+
+describe('abilityGrade (gestufte/aufgewertete Zauber & Fähigkeiten)', () => {
+  it('Grad 1 ("Basis") ohne derivedFrom', () => {
+    const a = ability({ uid: 'base', derivedFrom: '' });
+    expect(abilityGrade(a, new Map([['base', a]]))).toBe(1);
+  });
+  it('jede Stufe der Kette zählt einen Grad mehr', () => {
+    const base = ability({ uid: 'base', derivedFrom: '' });
+    const auf = ability({ uid: 'auf', derivedFrom: 'base' });
+    const pot = ability({ uid: 'pot', derivedFrom: 'auf' });
+    const byUid = new Map([base, auf, pot].map((a) => [a.uid, a]));
+    expect(abilityGrade(base, byUid)).toBe(1);
+    expect(abilityGrade(auf, byUid)).toBe(2);
+    expect(abilityGrade(pot, byUid)).toBe(3);
+    expect(abilityGradeLabel(1)).toBe('Basis');
+    expect(abilityGradeLabel(2)).toBe('Aufgewertet');
+    expect(abilityGradeLabel(3)).toBe('Potenzial');
+  });
+  it('bricht bei einem Zyklus ab statt zu hängen, statt ABILITY_GRADE_MAX zu überschreiten', () => {
+    const a = ability({ uid: 'a', derivedFrom: 'b' });
+    const b = ability({ uid: 'b', derivedFrom: 'a' });
+    const byUid = new Map([a, b].map((x) => [x.uid, x]));
+    expect(abilityGrade(a, byUid)).toBeLessThanOrEqual(ABILITY_GRADE_MAX);
+    expect(abilityGrade(b, byUid)).toBeLessThanOrEqual(ABILITY_GRADE_MAX);
+  });
+  it('bricht ab, wenn das Ziel unbekannt ist (gelöscht/nie gespeichert)', () => {
+    const a = ability({ uid: 'a', derivedFrom: 'ghost' });
+    expect(abilityGrade(a, new Map([['a', a]]))).toBe(1);
   });
 });

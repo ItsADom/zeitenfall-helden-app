@@ -200,8 +200,8 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-09',
-    title: 'Alles am Mann',
-    version: '0.10.1',
+    title: 'Sets, Schritte und Spielereien',
+    version: '0.10.5',
     added: [
       'Ausrüstungs-Sets: über „Sets“ im Ausrüstungs-Reiter lässt sich der aktuell getragene Zustand unter einem Namen speichern (z. B. „Freizeit“, „Kampf“) und später per Klick wieder anlegen — alles, was nicht zum Set gehört, wird dabei automatisch abgelegt.',
       'Das Messen-Werkzeug auf dem virtuellen Tisch hat jetzt einen Schrittzähler: eine Linie ziehen zeigt jedes überquerte Feld einzeln nummeriert, statt nur eine Gesamtstrecke anzugeben.',
@@ -209,8 +209,11 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Munition: ein Inventar-Gegenstand mit der Kategorie „Munition“ bekommt zwei eigene Felder für einen Schaden- und einen Probe-Zusatz. An der Fernkampfwaffe lässt sich damit die gerade verwendete Munition auswählen — ihr Bonus fließt automatisch in die Schaden-Formel und die Fernkampf-Probe ein, der aktuelle Bestand ist direkt an der Waffe einsehbar und änderbar.',
       'Faustschlag-Schaden (Raufen) wird jetzt automatisch durch den Rüstungsschutz von Handschuhen o.Ä. verstärkt, die gerade an einer Hand getragen werden.',
       'Gegenstände können jetzt eine Ladung führen (Zaubertrank-Dosen, Züge aus einem Wasserschlauch, die Zauber-Ladungen einer Waffe …) — mit einstellbarem Verbrauch pro Nutzung. Sind mehrere gleiche Exemplare gestapelt, spaltet „Ladung verwenden“ automatisch eines mit dem neuen Stand ab, der Rest des Stapels bleibt unangetastet.',
+      'Zauber und Fähigkeiten werden in der Werkstatt jetzt über einen eigenen Dialog angelegt und bearbeitet, statt direkt in der Zeile — im Reiter selbst bleiben Lernfortschritt und Würfel-Favorit weiterhin direkt änderbar.',
+      'Zauber und Fähigkeiten lassen sich jetzt zu einer aufgewerteten Fassung weiterentwickeln (Basis → Aufgewertet → Potenzial): im Bearbeiten-Dialog die neue Fassung einfach als „Aufgewertet von“ auf die vorherige verweisen lassen — der Grad wird automatisch berechnet und steht dann neben dem Namen.',
     ],
     changed: [
+      'Die Farb-Wechsler am virtuellen Tisch öffnen jetzt ein eigenes, einheitliches Farbwähler-Popup statt des je nach Browser unterschiedlichen nativen Dialogs — behebt dabei auch, dass ein zweiter Klick den nativen Dialog erneut öffnete statt ihn zu schließen.',
       'Der Hard-Cap (die „Ausbaugrenze") auf Lebensenergie, Ausdauer und Astralenergie ist komplett entfallen — sie lassen sich jetzt uneingeschränkt weiter steigern. Die entsprechende zweite Spaltengruppe in der Energien-Tabelle ist damit auch verschwunden.',
       'Die Notiz eines Gegenstands kann jetzt mehrzeilig eingegeben werden, statt nur in eine einzelne Zeile zu passen.',
       'Ein neuer Gegenstand oder Behälter im Gruppeninventar übernimmt jetzt automatisch Haus und Raum des gerade aktiven Filters, statt immer „ohne Haus" zu starten.',
@@ -220,9 +223,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     fixed: [
       'Ausrüstungskarten mit langem oder mehrzeiligem Namen zeigten ihre Zusatz-Symbole (Rüstungsschutz, Boni, Zustand) verrutscht an und wurden von den stark abgerundeten Ecken der Karte beschnitten.',
       'Das Ausklappen einer langen Notiz im Inventar über „…“ öffnete versehentlich zusätzlich den Bearbeiten-Dialog des Gegenstands.',
+      'Würfelt man aus dem Charakterbogen heraus, wird nun der aktuell geöffnete Chat das Ziel des Wurfs (solange der Charakter dazu passt). Vorher gingen Würfe immer in die Hauptgruppe des Charakters.',
       'Eine vorgeschlagene Kooperationsprobe oder ein Wettstreit scrollte den Würfel-Chat nicht ans Ende — anders als jede neue Nachricht oder Probenanfrage.',
       'Ein Klick auf einen Token bei aktivem Mess-, Bemal-, Hervorheb-, Nebel- oder Beschriften-Werkzeug verschob versehentlich die Marke, statt das Werkzeug dort anzusetzen.',
       'Eine Wiki-Seite speichern, bei der nur die Kategorien geändert wurden, hat die Änderung nicht übernommen.',
+    ],
+    admin: [
+      '(Verwaltung) Ein importierter Charakter (Kataloge & Nutzer → „Charakter importieren“) hat Ausrüstung/Inventar, Zauber & Fähigkeiten und Geldbeutel stillschweigend verloren — nur Basiswerte, Talente und selbst angelegte Reiter kamen an. Alle Bereiche werden jetzt vollständig übernommen.',
     ],
   },
   {

@@ -380,6 +380,44 @@
 }
 :root[data-theme='chaos'][data-anim='off'] .chaos-hue-wrap { animation: none; }
 
+/* "Kopfüber"-Modus — geheimes Easter Egg (Schwester-Ei zum Chaos-Modus
+   oben), KEIN Eintrag in THEMES: dreht die ganze Oberfläche auf den Kopf,
+   dauerhaft bis zum nächsten Klick auf die Kompassrose oder einem Reload
+   (Session-State in App.tsx, kein data-theme-Wert — läuft unabhängig von
+   der Farbwelt und kann mit Chaos gleichzeitig aktiv sein).
+   :not([data-flip-suspended]) nimmt den virtuellen Tisch aus: eine
+   gespiegelte Kartenansicht würde dort das Spiel stören statt nur zu
+   albern sein (App.tsx setzt das Attribut nach der aktuellen Route). */
+:root[data-orientation='flipped'] .orientation-wrap:not([data-flip-suspended='true']) {
+  transform: rotate(180deg);
+}
+/* Jeder Vorfahr mit transform wird zum containing block für position:sticky-
+   Nachkommen (dasselbe Prinzip, das oben schon den Dock/Overlays ihren Platz
+   außerhalb der Hülle verordnet — hier geht es nicht anders, der Kopfbereich
+   MUSS mit drehen). Sticky bezieht sich dann auf .orientation-wrap statt auf
+   den echten Scrollport und "klebt" irgendwo Falsches — daher hier schlicht
+   abgeschaltet, solange gedreht ist: alles scrollt normal mit statt zu kleben.
+   Liste MUSS mit den `position: sticky`-Stellen oben Schritt halten — jede
+   neue Klebeleiste (wie schon bei den `--*-h`-Versätzen) hier ergänzen. */
+:root[data-orientation='flipped'] .orientation-wrap:not([data-flip-suspended='true']) :is(
+  header.topbar,
+  .char-header,
+  .tabs,
+  .table-wrap table.sheet thead,
+  .table-wrap table.sheet thead tr:first-child th:first-child,
+  .table-wrap table.sheet td:first-child,
+  .sticky-label,
+  .talent-search,
+  .char-sidebar,
+  .einst-nav,
+  .inv-equip-drop,
+  .einst-head,
+  .abil-controls,
+  .werk-controls
+) {
+  position: static;
+}
+
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
 .theme-dropdown {
   position: relative;
@@ -1081,9 +1119,16 @@ tr.subtle-head.clickable:hover td {
 }
 
 /* Kompassrose hinter der Wortmarke — groß, stark zurückgenommen, rechts
-   angeschnitten. Färbt sich über currentColor in --on-accent. */
+   angeschnitten. Färbt sich über currentColor in --on-accent.
+   pointer-events: auto trotz aria-hidden (wie .banner-fx unten): das
+   geheime Kopfüber-Easter-Egg (App.tsx) hört hier auf Klicks. z-index: 2
+   hebt sie über .hero-body (z-index: 1) an — sonst fängt die Übertitel-
+   Zeile (ein Block über die volle Breite, auch dort wo kein Text steht)
+   die Klicks ab, statt sie durchzulassen. Bei opacity 0.1 unsichtbar,
+   ob sie über oder unter dem Text liegt. */
 .hero-compass {
   position: absolute;
+  z-index: 2;
   right: clamp(-40px, -2vw, -8px);
   top: 50%;
   transform: translateY(-50%);
@@ -1091,7 +1136,7 @@ tr.subtle-head.clickable:hover td {
   height: clamp(180px, 34vw, 360px);
   color: var(--on-accent);
   opacity: 0.1;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .hero-body {
@@ -1704,6 +1749,31 @@ input[type='checkbox'] {
   width: auto;
   accent-color: var(--accent);
   transform: scale(1.15);
+}
+/* Der generische input-Rahmen/-Padding oben passt nicht auf type=file: der
+   native Button-plus-Dateiname-Bereich wird davon nicht gleich, sondern nur
+   uneinheitlich zwischen den Browsern verzerrt. Kasten zurücksetzen, stattdessen
+   nur den ::file-selector-button wie einen normalen Button einfärben. */
+input[type='file'] {
+  width: auto;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+input[type='file']::file-selector-button {
+  font: inherit;
+  color: inherit;
+  padding: 4px 10px;
+  margin-right: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+input[type='file']::file-selector-button:hover {
+  border-color: var(--border-hover);
+  background: var(--border-soft);
 }
 
 /* Nur-Lesen und Druck: Werte stehen als fester Text da statt in einem
@@ -3938,6 +4008,7 @@ li {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--surface-sunken);
+  overflow: hidden;
 }
 .abil-compact {
   display: flex;
@@ -3946,71 +4017,20 @@ li {
   padding: 5px 8px;
   flex-wrap: wrap;
 }
-.abil-chev {
-  border: none;
-  background: none;
-  color: var(--text);
-  cursor: pointer;
-  font-size: 0.9em;
-  padding: 0 2px;
-}
 .abil-compact .abil-name {
   flex: 2 1 12em;
   min-width: 10em;
 }
-/* Element/Kategorie dürfen mitwachsen, damit lange Namen nicht abgeschnitten
-   werden — sie brechen bei echter Enge in die nächste Zeile um. */
-.abil-compact .abil-el,
-.abil-compact .abil-kat {
-  flex: 1 1 9em;
-  min-width: 8em;
-  width: auto;
+/* Werkstatt-Zeile ist seit dem Bearbeiten-Dialog (AbilityEditDialog) nur noch
+   eine Anzeige, kein Formular mehr — der ganze Zeilenkörper öffnet ihn per
+   Klick, daher der Zeiger. Der Zieh-Griff meldet seinen eigenen Klick separat
+   ab (siehe onClick stopPropagation in AbilityManager.tsx), damit Ziehen zum
+   Umsortieren nicht versehentlich den Dialog aufreißt. */
+.abil-compact-ro {
+  cursor: pointer;
 }
-.abil-num {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.82em;
-  color: var(--muted);
-}
-.abil-num input {
-  width: 3.6em;
-}
-.abil-passiv {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.82em;
-  color: var(--muted);
-}
-.abil-del {
-  margin-left: auto;
-}
-.abil-detail {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px 12px;
-  padding: 8px 10px 12px;
-  border-top: 1px dashed var(--border);
-}
-.abil-detail label {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 0.82em;
-  color: var(--muted);
-}
-.abil-detail input,
-.abil-detail textarea {
-  font: inherit;
-  width: 100%;
-  box-sizing: border-box;
-}
-.abil-detail textarea {
-  resize: vertical;
-}
-.abil-detail .abil-wide {
-  grid-column: 1 / -1;
+.abil-compact-ro:hover {
+  background: var(--surface-head);
 }
 .werk-lists {
   display: flex;
@@ -6868,6 +6888,163 @@ tr:hover .probe-roll,
 .vtt-tile-swatch.active {
   border-color: var(--accent);
   outline: 2px solid var(--accent-soft);
+}
+
+/* ---------- Farb-Picker (components/ColorPicker.tsx) ----------
+   Ersetzt das native <input type="color"> überall auf der Tischplatte —
+   siehe den Doc-Kommentar am Komponentenanfang. Das Popover wird per Portal
+   ans body-Ende gehängt und dort `position: fixed` mit von der Komponente
+   berechneten Pixel-Koordinaten platziert (nicht `position: absolute` relativ
+   zum Swatch): der Swatch steckt oft in einem Flyout mit eigenem niedrigen
+   z-index (.vtt-tile-picker: 6) und/oder eigenem `overflow`, beides würde ein
+   normales In-Flow-Popover abschneiden bzw. hinter der Kopfleiste verschwinden
+   lassen — z-index gilt nur innerhalb des Stapelkontexts seines Elternteils. */
+.color-picker {
+  position: relative;
+  display: inline-block;
+}
+.color-picker-swatch {
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border-strong);
+  cursor: pointer;
+}
+.color-picker-swatch:hover {
+  border-color: var(--border-hover);
+}
+.color-picker-popover {
+  position: fixed;
+  z-index: 50;
+  width: 200px;
+  background: var(--panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.color-picker-sv {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  border-radius: 6px;
+  /* Weiß→transparent (Sättigung, links→rechts) über Schwarz→transparent
+     (Hellwert, unten→oben) — die Grundfarbe selbst kommt inline vom
+     Farbton (background-color, siehe Komponente), damit dieser Layer hier
+     nicht bei jedem Farbton neu geschrieben werden muss. */
+  background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+  cursor: crosshair;
+  touch-action: none;
+}
+.color-picker-sv-handle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.color-picker-hue {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  touch-action: none;
+}
+.color-picker-hue-handle {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.color-picker-fields-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.color-picker-preview {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--border-strong);
+}
+.color-picker-eyedrop {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+}
+.color-picker-eyedrop:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.color-picker-fields {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+.color-picker-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.color-picker-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 3px 2px;
+  text-align: center;
+  font-size: 12px;
+}
+.color-picker-field-hex {
+  flex: 2;
+}
+.color-picker-field span {
+  font-size: 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.color-picker-mode-toggle {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.color-picker-mode-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 /* ---------- VTT Phase 8 (slice 3/3): Messformen — Kachelraster im Flyout ---------- */

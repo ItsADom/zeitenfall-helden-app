@@ -17,6 +17,10 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3001',
       '/ws': { target: 'ws://localhost:3001', ws: true },
+      // Easter-egg images (server/data/easter-eggs, siehe server/src/index.ts)
+      // liegen NICHT unter /api — ohne diesen Eintrag fängt Vites eigener
+      // SPA-Fallback die Anfrage ab und liefert index.html statt des Bildes.
+      '/easter-eggs': 'http://localhost:3001',
     },
   },
 });

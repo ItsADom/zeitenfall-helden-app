@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import type { UserInfo } from '@shared/types';
 import { apiGet, apiPost, setUnauthorizedHandler } from './api';
 import LoginPage from './pages/Login';
@@ -27,6 +27,7 @@ import { DicePanelProvider, useDicePanel } from './components/dice/DicePanelProv
 import { WartungProvider } from './components/wartung';
 import { NeustartOverlay } from './components/NeustartOverlay';
 import WichtigerWurfOverlay from './components/dice/WichtigerWurfOverlay';
+import KonamiPartyOverlay from './components/KonamiPartyOverlay';
 import DicePanel from './components/dice/DicePanel';
 import BannerFx from './components/BannerFx';
 import { useTopbarHeight } from './components/stickyChrome';
@@ -42,11 +43,22 @@ import { reportEasterEggFound } from './easterEggs';
 // Server, kein Tracker — siehe TODO.md „Easter egg tracker"). Wer das Ei
 // jetzt schon findet, würde einen ungetrackten Vorsprung haben, sobald die
 // Rangliste live geht. Auf true stellen, sobald der Tracker steht.
-const CHAOS_MODE_ENABLED = false;
+const CHAOS_MODE_ENABLED = true;
 const CHAOS_THEME_ID = 'chaos';
 const CHAOS_CLICKS_NEEDED = 5;
 const CHAOS_CLICK_WINDOW_MS = 1500;
 const CHAOS_DURATION_MS = 12000;
+
+// Geheimer "Kopfüber"-Modus (Schwester-Ei zum Chaos-Modus): 3x schnell auf
+// die Kompassrose der Startseite klicken dreht die ganze Oberfläche für die
+// Session auf den Kopf — bewusst OHNE Timeout, bleibt bis zum nächsten Klick
+// oder Reload so (kein localStorage: muss weder Reload noch Gerät überleben).
+// Ausgenommen der virtuelle Tisch (data-flip-suspended in App/styles.css) —
+// eine gespiegelte Kartenansicht würde dort tatsächlich stören, nicht nur
+// albern sein. Gleiche Abschalt-Begründung wie beim Chaos-Modus oben.
+const UPSIDE_DOWN_ENABLED = true;
+const UPSIDE_DOWN_CLICKS_NEEDED = 3;
+const UPSIDE_DOWN_CLICK_WINDOW_MS = 1500;
 
 interface AuthContextValue {
   user: UserInfo;
@@ -126,6 +138,27 @@ export default function App() {
     window.clearTimeout(chaosTimeoutRef.current);
     chaosTimeoutRef.current = window.setTimeout(() => setChaosMode(false), CHAOS_DURATION_MS);
   };
+  // Kopfüber-Modus: eigener Schalter, kein Timeout (bleibt bis zum nächsten
+  // Klick oder Reload). data-flip-suspended setzt den virtuellen Tisch davon
+  // aus — location.pathname statt einer Route-spezifischen Prop, weil der
+  // Wrapper hier ganz oben sitzt, weit außerhalb der Tisch-Seite selbst.
+  const [upsideDown, setUpsideDown] = useState(false);
+  const upsideDownClicksRef = useRef<number[]>([]);
+  const location = useLocation();
+  const isVttRoute = location.pathname.endsWith('/tisch');
+  useEffect(() => {
+    document.documentElement.dataset.orientation = upsideDown ? 'flipped' : 'normal';
+  }, [upsideDown]);
+  const handleCompassClick = () => {
+    if (!UPSIDE_DOWN_ENABLED) return;
+    const now = Date.now();
+    const recent = [...upsideDownClicksRef.current, now].filter((t) => now - t <= UPSIDE_DOWN_CLICK_WINDOW_MS);
+    upsideDownClicksRef.current = recent;
+    if (recent.length < UPSIDE_DOWN_CLICKS_NEEDED) return;
+    upsideDownClicksRef.current = [];
+    setUpsideDown((v) => !v);
+    reportEasterEggFound('upside-down');
+  };
   // Die Kopfleiste klebt oben; was darunter kleben soll, braucht ihre Höhe.
   const topbarRef = useTopbarHeight();
 
@@ -167,7 +200,7 @@ export default function App() {
           Nachkommen, und der Würfel-Dock/die Overlays unten sind bewusst
           außerhalb dieser Hülle, damit sie beim Scrollen während des Chaos-
           Fensters weiter am echten Viewport kleben. */}
-      <div className="chaos-hue-wrap">
+      <div className="chaos-hue-wrap orientation-wrap" data-flip-suspended={isVttRoute ? 'true' : undefined}>
       <header className="topbar" ref={topbarRef}>
         <div className="banner-fx" aria-hidden="true" onClick={handleBannerClick}>
           {/* animate mit in den Key: ändert der Nutzer den Schalter, baut sich
@@ -201,7 +234,7 @@ export default function App() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomePage onCompassClick={handleCompassClick} />} />
           <Route path="/charaktere" element={<CharaktereePage />} />
           <Route path="/gruppen" element={<GruppenPage />} />
           <Route path="/profil" element={<ProfilPage />} />
@@ -237,6 +270,9 @@ export default function App() {
       {/* Over the dock (which it ends by flying into), but under the restart
           screen: a redeploy beats any performance. */}
       <WichtigerWurfOverlay />
+      {/* Geheimes Easter Egg (Konami-Code) — siehe KonamiPartyOverlay.tsx.
+          Hört global auf die Tastatur, nicht nur im Chat-Eingabefeld. */}
+      <KonamiPartyOverlay />
       {/* Ganz zuletzt und außerhalb von <main>: der Wartebildschirm muss alles
           überdecken, den Würfel-Dock eingeschlossen. */}
       <NeustartOverlay />

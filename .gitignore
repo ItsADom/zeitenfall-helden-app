@@ -8,3 +8,4 @@ dist/
 files/
 .claude/
 server/data/backups/
+server/data/easter-eggs/
