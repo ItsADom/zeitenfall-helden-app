@@ -11,6 +11,8 @@ import './wiki.css';
 import './kino.css';
 // Same reasoning again — the Konami-code Easter Egg's own rules, .konami-.
 import './konamiParty.css';
+// Same reasoning again — the tracker at the bottom of Changelog, .egg-tracker-.
+import './easterEggTracker.css';
 
 // Ein Data Router (statt <BrowserRouter>) — App bringt ihre eigene, tief
 // verschachtelte <Routes>/<Route>-Struktur mit, die als Nachfahre eines Data

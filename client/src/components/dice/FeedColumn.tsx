@@ -41,7 +41,7 @@ const HISTORY_SIZE = 5;
 // Vorerst ABGESCHALTET, gleiche Begründung wie die anderen beiden Eier:
 // reportEasterEggFound() ist noch ein Stub (siehe easterEggs.ts, TODO.md
 // „Easter egg tracker"). Auf true stellen, sobald der Tracker steht.
-const WUERFELGOTT_ENABLED = false;
+const WUERFELGOTT_ENABLED = true;
 
 type FeedChunk = { kind: 'single'; entry: FeedEntry } | { kind: 'group'; groupRollId: string; entries: FeedEntry[] };
 

@@ -15,7 +15,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { reportEasterEggFound } from '../easterEggs';
 
-const KONAMI_ENABLED = false;
+const KONAMI_ENABLED = true;
 const KONAMI_SEQUENCE = ['ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowLeft', 'ArrowRight', 'b', 'a'];
 
 // Sehr großzügiger Not-Aus für den Fall, dass mal etwas hängen bleibt — die

@@ -43,7 +43,7 @@ import { reportEasterEggFound } from './easterEggs';
 // Server, kein Tracker — siehe TODO.md „Easter egg tracker"). Wer das Ei
 // jetzt schon findet, würde einen ungetrackten Vorsprung haben, sobald die
 // Rangliste live geht. Auf true stellen, sobald der Tracker steht.
-const CHAOS_MODE_ENABLED = false;
+const CHAOS_MODE_ENABLED = true;
 const CHAOS_THEME_ID = 'chaos';
 const CHAOS_CLICKS_NEEDED = 5;
 const CHAOS_CLICK_WINDOW_MS = 1500;
@@ -56,7 +56,7 @@ const CHAOS_DURATION_MS = 12000;
 // Ausgenommen der virtuelle Tisch (data-flip-suspended in App/styles.css) —
 // eine gespiegelte Kartenansicht würde dort tatsächlich stören, nicht nur
 // albern sein. Gleiche Abschalt-Begründung wie beim Chaos-Modus oben.
-const UPSIDE_DOWN_ENABLED = false;
+const UPSIDE_DOWN_ENABLED = true;
 const UPSIDE_DOWN_CLICKS_NEEDED = 3;
 const UPSIDE_DOWN_CLICK_WINDOW_MS = 1500;
 

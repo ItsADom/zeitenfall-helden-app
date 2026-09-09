@@ -1,0 +1,123 @@
+/* Easter-Egg-Tracker (TODO.md), ganz am Ende der Changelog-Seite. Eigene
+ * Datei aus demselben Grund wie wiki.css/kino.css/konamiParty.css — jede
+ * Regel mit .egg-tracker- benannt. Bewusst NICHT im Stil des restlichen
+ * Changelogs: ein deutlicher, goldener Bruch im ruhigen Ton darüber, damit
+ * wer bis hierher scrollt, es nicht übersehen kann.
+ */
+
+.egg-tracker {
+  margin-top: 48px;
+  padding: 28px 26px;
+  border: 2px solid var(--mastery);
+  border-radius: var(--radius-panel);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--mastery) 14%, var(--panel)) 0%, var(--panel) 65%);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--mastery) 40%, transparent),
+    0 8px 28px color-mix(in srgb, var(--mastery) 25%, transparent);
+}
+
+.egg-tracker-head {
+  margin: 0 0 6px;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 24px;
+  color: var(--mastery);
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--mastery) 30%, transparent);
+}
+
+.egg-tracker-intro {
+  margin: 0 0 18px;
+  color: var(--muted);
+  font-size: 13.5px;
+  max-width: 52ch;
+  line-height: 1.5;
+}
+
+.egg-tracker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.egg-tracker-item {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.egg-tracker-item:last-child {
+  border-bottom: none;
+}
+
+.egg-tracker-medallion {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  background: color-mix(in srgb, var(--mastery) 16%, var(--panel));
+  border: 1px solid var(--mastery);
+  color: var(--mastery);
+  margin-top: 1px;
+}
+
+.egg-tracker-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.egg-tracker-name {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15.5px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 3px;
+}
+
+.egg-tracker-desc {
+  margin: 0 0 7px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.egg-tracker-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.egg-tracker-finder {
+  font-weight: 600;
+  color: var(--mastery);
+}
+.egg-tracker-sep {
+  color: var(--border-strong);
+}
+
+.egg-tracker-item--teaser {
+  align-items: center;
+}
+.egg-tracker-item--teaser .egg-tracker-medallion {
+  background: var(--surface-head);
+  color: var(--muted);
+  border-style: dashed;
+  border-color: var(--border-strong);
+}
+.egg-tracker-item--teaser .egg-tracker-name {
+  font-family: inherit;
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  font-size: 13px;
+  margin: 0;
+}

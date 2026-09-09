@@ -29,6 +29,7 @@ import {
 } from './assets/portraits.js';
 import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chimes.js';
 import { db, initCharacterRows } from './db.js';
+import { EASTER_EGG_CATALOG } from './easterEggs.js';
 import { loadFeedPage } from './feed.js';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
 import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
@@ -439,6 +440,53 @@ api.post('/easter-eggs/easteregg', requireAuth, (req, res) => {
   db.prepare('INSERT INTO easteregg_command_uses (user_id, used_at) VALUES (?, ?)').run(req.user!.id, Date.now());
   const row = db.prepare('SELECT COUNT(*) AS n FROM easteregg_command_uses').get() as { n: number };
   res.json({ nummer: row.n });
+});
+
+// Generischer Tracker (TODO.md), hinter reportEasterEggFound() in
+// client/src/easterEggs.ts — von allen fünf Eiern an ihrem jeweiligen
+// Auslöser aufgerufen. Das Konto zählt, nicht der gerade offene Charakter:
+// req.user!.id kommt aus der Sitzung, unabhängig davon, welcher Charakter
+// gerade geöffnet ist oder in wessen Namen zuletzt gewürfelt wurde.
+api.post('/easter-eggs/:key/found', requireAuth, (req, res) => {
+  const { key } = req.params;
+  if (!EASTER_EGG_CATALOG.some((e) => e.key === key)) {
+    res.status(404).json({ error: 'Unbekanntes Easter Egg' });
+    return;
+  }
+  db.prepare('INSERT OR IGNORE INTO easter_egg_finds (egg_key, user_id, found_at) VALUES (?, ?, ?)').run(key, req.user!.id, Date.now());
+  res.json({ ok: true });
+});
+
+// Für die Tracker-Seite (client/src/pages/Changelog.tsx, ganz unten): NUR
+// Eier mit mindestens einem Fund kommen mit Name/Beschreibung/Symbol zurück.
+// Ein noch unentdecktes Ei darf nicht einmal in der Antwort auftauchen —
+// sonst könnte es jeder über die Netzwerk-Ansicht vorab nachlesen, „nicht
+// anzeigen" reicht nicht (gleiches Prinzip wie bei den GM-Blöcken im Wiki).
+// moreToFind trägt nur noch die Ja/Nein-Information für die „???"-Zeile.
+api.get('/easter-eggs', requireAuth, (_req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT e.egg_key AS eggKey, e.found_at AS foundAt, u.display_name AS finderDisplayName
+       FROM easter_egg_finds e
+       JOIN users u ON u.id = e.user_id
+       WHERE e.id IN (SELECT MIN(id) FROM easter_egg_finds GROUP BY egg_key)`,
+    )
+    .all() as { eggKey: string; foundAt: number; finderDisplayName: string }[];
+  const byKey = new Map(rows.map((r) => [r.eggKey, r]));
+  const found = EASTER_EGG_CATALOG.filter((e) => byKey.has(e.key))
+    .map((e) => {
+      const r = byKey.get(e.key)!;
+      return {
+        key: e.key,
+        name: e.name,
+        medallion: e.medallion,
+        description: e.description,
+        finderDisplayName: r.finderDisplayName,
+        foundAt: r.foundAt,
+      };
+    })
+    .sort((a, b) => a.foundAt - b.foundAt);
+  res.json({ found, moreToFind: found.length < EASTER_EGG_CATALOG.length });
 });
 
 // --- Kataloge ---

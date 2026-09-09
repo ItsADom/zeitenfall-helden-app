@@ -1,7 +1,12 @@
-// Hook point for the not-yet-built easter-egg tracker (TODO.md "Easter egg
-// tracker"): once that public leaderboard/backend exists, this should POST
-// to `/easter-eggs/:key/found`. Until then it's a no-op, so a trigger can be
-// wired up to it from the start instead of bolting the call on later.
+import { apiPost } from './api';
+
+// Feuert-und-vergisst, an jedem der fünf Eier-Auslöser aufgerufen (App.tsx,
+// FeedColumn.tsx, KonamiPartyOverlay.tsx). Der Server dedupliziert selbst
+// (UNIQUE(egg_key, user_id), siehe routes.ts) — hier gibt es also nichts zu
+// prüfen oder zu warten, ein Fehlschlag (z. B. offline) ist einfach ein Fund,
+// der nicht ankam, keine Absturzursache.
 export function reportEasterEggFound(key: string): void {
-  void key;
+  apiPost(`/api/easter-eggs/${key}/found`).catch(() => {
+    // Ein verlorener Fund ist kein Absturz wert.
+  });
 }

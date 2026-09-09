@@ -838,6 +838,22 @@ db.exec(`
     user_id INTEGER NOT NULL REFERENCES users(id),
     used_at INTEGER NOT NULL
   );
+
+  -- Genereller Easter-Egg-Tracker (TODO.md), für alle fünf Eier gemeinsam —
+  -- WER welches egg_key zuerst gefunden hat, sonst nichts. Name/Beschreibung/
+  -- Symbol stehen NICHT hier, die kommen aus dem statischen Katalog in
+  -- server/src/easterEggs.ts (ein neues Ei ist damit ein Code-Change, keine
+  -- Migration). UNIQUE(egg_key, user_id) macht INSERT OR IGNORE zum
+  -- kompletten Fund-Mechanismus: der erste erfolgreiche Insert je egg_key
+  -- (kleinste id) ist per Definition der Erstfund, jeder weitere Versuch
+  -- derselben Person verpufft wirkungslos.
+  CREATE TABLE IF NOT EXISTS easter_egg_finds (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    egg_key TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    found_at INTEGER NOT NULL,
+    UNIQUE (egg_key, user_id)
+  );
 `);
 
 // Migration: 'magierstufe'-Spalte an bestehende char_meta ergänzen (Cluster 6a).
