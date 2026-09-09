@@ -200,6 +200,13 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-09',
+    title: 'Import repariert',
+    admin: [
+      '(Verwaltung) Ein importierter Charakter (Kataloge & Nutzer → „Charakter importieren“) hat Ausrüstung/Inventar, Zauber & Fähigkeiten und Geldbeutel stillschweigend verloren — nur Basiswerte, Talente und selbst angelegte Reiter kamen an. Alle Bereiche werden jetzt vollständig übernommen.',
+    ],
+  },
+  {
+    date: '2026-09-09',
     title: 'Alles am Mann',
     version: '0.10.1',
     added: [
