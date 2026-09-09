@@ -16,6 +16,7 @@ import type { Ability } from '@shared/abilities';
 import type { CoinPouch, CurrencySystem } from '@shared/currency';
 import { apiGet, apiPost, apiPut } from '../api';
 import { useAuth, useThemeControls } from '../App';
+import { useDicePanel } from './dice/DicePanelProvider';
 import type { Row } from './inputs';
 
 export interface FullData {
@@ -384,14 +385,27 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
     };
   }, [loadCharacter]);
 
+  // Ein Wurf gehört in den Raum, den man gerade offen hat (z.B. die virtuelle
+  // Tischplatte eines Events), NICHT stur in die feste Heimat-Gruppe — sofern
+  // der Charakter dort tatsächlich Mitglied ist (Heimat-Gruppe oder eine
+  // seiner Event-Gruppen aus tempGroups). Sonst (kein Raum offen, oder ein
+  // Raum, dem dieser Charakter gar nicht angehört) bleibt die Heimat-Gruppe
+  // der Fallback.
+  const { groupId: activeRoomId } = useDicePanel();
+  const rollGroupId =
+    info && info.groupId != null
+      ? activeRoomId != null && (activeRoomId === info.groupId || info.tempGroups.some((g) => g.id === activeRoomId))
+        ? activeRoomId
+        : info.groupId
+      : null;
   // Würfeln nur vom eigenen Bogen und nur mit Gruppe — ein Spielleiter, der
   // einen fremden Bogen offen hat, würfelt hier NICHT für den Spieler (dafür
   // ist der SL-Anfrage-Fluss da), und ohne Gruppe gibt es keinen Feed.
-  const rollCtx = info && info.groupId != null && info.ownerUserId === user.id ? { groupId: info.groupId, charId } : null;
+  const rollCtx = info && rollGroupId != null && info.ownerUserId === user.id ? { groupId: rollGroupId, charId } : null;
   // Spielleitung auf einem fremden Bogen: anfragen statt würfeln.
   const requestCtx =
-    info && info.groupId != null && user.isGm && info.ownerUserId !== user.id
-      ? { groupId: info.groupId, charId, targetUserId: info.ownerUserId }
+    info && rollGroupId != null && user.isGm && info.ownerUserId !== user.id
+      ? { groupId: rollGroupId, charId, targetUserId: info.ownerUserId }
       : null;
 
   // Einmal pro data.items-Wechsel berechnet, nicht in jedem Reiter neu — siehe
