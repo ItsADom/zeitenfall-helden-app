@@ -380,6 +380,44 @@
 }
 :root[data-theme='chaos'][data-anim='off'] .chaos-hue-wrap { animation: none; }
 
+/* "Kopfüber"-Modus — geheimes Easter Egg (Schwester-Ei zum Chaos-Modus
+   oben), KEIN Eintrag in THEMES: dreht die ganze Oberfläche auf den Kopf,
+   dauerhaft bis zum nächsten Klick auf die Kompassrose oder einem Reload
+   (Session-State in App.tsx, kein data-theme-Wert — läuft unabhängig von
+   der Farbwelt und kann mit Chaos gleichzeitig aktiv sein).
+   :not([data-flip-suspended]) nimmt den virtuellen Tisch aus: eine
+   gespiegelte Kartenansicht würde dort das Spiel stören statt nur zu
+   albern sein (App.tsx setzt das Attribut nach der aktuellen Route). */
+:root[data-orientation='flipped'] .orientation-wrap:not([data-flip-suspended='true']) {
+  transform: rotate(180deg);
+}
+/* Jeder Vorfahr mit transform wird zum containing block für position:sticky-
+   Nachkommen (dasselbe Prinzip, das oben schon den Dock/Overlays ihren Platz
+   außerhalb der Hülle verordnet — hier geht es nicht anders, der Kopfbereich
+   MUSS mit drehen). Sticky bezieht sich dann auf .orientation-wrap statt auf
+   den echten Scrollport und "klebt" irgendwo Falsches — daher hier schlicht
+   abgeschaltet, solange gedreht ist: alles scrollt normal mit statt zu kleben.
+   Liste MUSS mit den `position: sticky`-Stellen oben Schritt halten — jede
+   neue Klebeleiste (wie schon bei den `--*-h`-Versätzen) hier ergänzen. */
+:root[data-orientation='flipped'] .orientation-wrap:not([data-flip-suspended='true']) :is(
+  header.topbar,
+  .char-header,
+  .tabs,
+  .table-wrap table.sheet thead,
+  .table-wrap table.sheet thead tr:first-child th:first-child,
+  .table-wrap table.sheet td:first-child,
+  .sticky-label,
+  .talent-search,
+  .char-sidebar,
+  .einst-nav,
+  .inv-equip-drop,
+  .einst-head,
+  .abil-controls,
+  .werk-controls
+) {
+  position: static;
+}
+
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
 .theme-dropdown {
   position: relative;
@@ -1081,9 +1119,16 @@ tr.subtle-head.clickable:hover td {
 }
 
 /* Kompassrose hinter der Wortmarke — groß, stark zurückgenommen, rechts
-   angeschnitten. Färbt sich über currentColor in --on-accent. */
+   angeschnitten. Färbt sich über currentColor in --on-accent.
+   pointer-events: auto trotz aria-hidden (wie .banner-fx unten): das
+   geheime Kopfüber-Easter-Egg (App.tsx) hört hier auf Klicks. z-index: 2
+   hebt sie über .hero-body (z-index: 1) an — sonst fängt die Übertitel-
+   Zeile (ein Block über die volle Breite, auch dort wo kein Text steht)
+   die Klicks ab, statt sie durchzulassen. Bei opacity 0.1 unsichtbar,
+   ob sie über oder unter dem Text liegt. */
 .hero-compass {
   position: absolute;
+  z-index: 2;
   right: clamp(-40px, -2vw, -8px);
   top: 50%;
   transform: translateY(-50%);
@@ -1091,7 +1136,7 @@ tr.subtle-head.clickable:hover td {
   height: clamp(180px, 34vw, 360px);
   color: var(--on-accent);
   opacity: 0.1;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .hero-body {

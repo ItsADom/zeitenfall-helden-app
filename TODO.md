@@ -280,6 +280,27 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      **Currently disabled** (`CHAOS_MODE_ENABLED = false` in `App.tsx`) so
      nobody finds it while finds go untracked — flip that flag true once the
      tracker + real POST are live, as the last step of this task.
+   - A second egg, "upside-down" (key `upside-down`), is built the same way:
+     3x clicking the homepage's compass rose (`Home.tsx`'s `CompassRose`,
+     wired through `App.tsx`'s `handleCompassClick`) flips the whole app
+     180° via `data-orientation` in `styles.css`, excluding the virtual table
+     (`data-flip-suspended`). Unlike chaos mode it doesn't self-expire —
+     stays flipped until re-triggered or a reload, session state only (no
+     localStorage). Same `UPSIDE_DOWN_ENABLED = false` gating in `App.tsx`,
+     flip alongside `CHAOS_MODE_ENABLED` once the tracker is live.
+   - A third egg, "wuerfelgott" (key `wuerfelgott`), lives in the dice chat:
+     typing "würfelgott" anywhere in a sent chat message opens a local image
+     popup (`FeedColumn.tsx`'s `send()`, `WuerfelgottDialog.tsx`) — doesn't
+     intercept the message, it still sends normally. Local-only, like the
+     other two: fires for the sender, not for others reading the message.
+     The image itself is deliberately NOT in the repo — it's a real photo of
+     the GM, placed by hand at `server/data/easter-eggs/wuerfelgott.jpg`
+     (server-owner's job, outside git so it survives a redeploy — see the
+     comment in `server/src/index.ts`, which now also serves that folder at
+     `/easter-eggs/`). Same `WUERFELGOTT_ENABLED = false` gating, this time in
+     `FeedColumn.tsx`, flip alongside the other two once the tracker is live.
+   - Goal before building the tracker itself: a baseline of 5 eggs. Two more
+     to design after this one.
    - **Decided:** the list itself is a normal, always-reachable page — NOT an
      egg to find (considered, dropped: paradoxical to gate a "how many eggs
      have been found" page behind being found itself).

@@ -13,9 +13,11 @@ const fmtDate = (iso: string) => {
 // Kompassrose hinter der Wortmarke — das Signaturbild der Startseite: der
 // „Zeitenkompass", der die aus ihrer Zeit gefallenen Helden orientiert. Rein
 // dekorativ (aria-hidden), färbt sich über currentColor in --on-accent ein.
-function CompassRose() {
+// onClick trägt zusätzlich das geheime Kopfüber-Easter-Egg (App.tsx) — daher
+// pointer-events: auto trotz aria-hidden, siehe styles.css.
+function CompassRose({ onClick }: { onClick?: () => void }) {
   return (
-    <svg className="hero-compass" viewBox="0 0 100 100" aria-hidden="true">
+    <svg className="hero-compass" viewBox="0 0 100 100" aria-hidden="true" onClick={onClick}>
       <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="0.6" />
       <circle cx="50" cy="50" r="34" fill="none" stroke="currentColor" strokeWidth="0.4" />
       {/* Nebenstrahlen (diagonal), schlank */}
@@ -29,7 +31,7 @@ function CompassRose() {
   );
 }
 
-export default function HomePage() {
+export default function HomePage({ onCompassClick }: { onCompassClick?: () => void }) {
   const { user } = useAuth();
   const data = useOverview();
   const isGm = user.isGm || user.isAdmin;
@@ -43,7 +45,7 @@ export default function HomePage() {
   return (
     <div className="home">
       <section className="hero">
-        <CompassRose />
+        <CompassRose onClick={onCompassClick} />
         <div className="hero-body">
           <h1 className="hero-wordmark">Zeitenkompass</h1>
           <p className="hero-tagline">

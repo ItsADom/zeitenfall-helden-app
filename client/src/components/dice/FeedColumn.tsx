@@ -7,6 +7,8 @@ import { apiGet } from '../../api';
 import { usePersistedState } from '../persist';
 import { useHoverFlyout } from '../useHoverFlyout';
 import CommandsDialog from './CommandsDialog';
+import WuerfelgottDialog from './WuerfelgottDialog';
+import { reportEasterEggFound } from '../../easterEggs';
 import CompetitivePoolCard from './CompetitivePoolCard';
 import CoopPoolCard from './CoopPoolCard';
 import { useDicePanel } from './DicePanelProvider';
@@ -31,6 +33,15 @@ import VisibilityPicker from './VisibilityPicker';
 const MIN_SEARCH_LEN = 2;
 const MAX_SUGGESTIONS = 30;
 const HISTORY_SIZE = 5;
+
+// Geheimes Easter Egg (Schwester-Ei zu Chaos-Modus/Kopfüber-Modus, App.tsx):
+// "würfelgott" irgendwo in einer gesendeten Chat-Nachricht öffnet lokal ein
+// Bild-Popup (WuerfelgottDialog) — nur bei der schreibenden Person, die
+// Nachricht selbst geht normal raus, wird nicht abgefangen wie ein "/"-Befehl.
+// Vorerst ABGESCHALTET, gleiche Begründung wie die anderen beiden Eier:
+// reportEasterEggFound() ist noch ein Stub (siehe easterEggs.ts, TODO.md
+// „Easter egg tracker"). Auf true stellen, sobald der Tracker steht.
+const WUERFELGOTT_ENABLED = false;
 
 type FeedChunk = { kind: 'single'; entry: FeedEntry } | { kind: 'group'; groupRollId: string; entries: FeedEntry[] };
 
@@ -153,6 +164,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [commandsOpen, setCommandsOpen] = useState(false);
+  const [wuerfelgottOpen, setWuerfelgottOpen] = useState(false);
   // The note that „/i" overrides the visibility picker is shown exactly once
   // per device. On every roll it would be noise.
   const [wichtigHinweisGesehen, setWichtigHinweisGesehen] = usePersistedState<boolean>('dice:i-hinweis', false);
@@ -281,6 +293,13 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const send = () => {
     const text = draft.trim();
     if (!text || groupId === null) return;
+    // Nur der Trigger, kein "/"-Befehl: fängt die Nachricht nicht ab, die geht
+    // unten normal raus. `includes` statt Wortgrenze — soll auch mitten im
+    // Satz greifen ("würfelgott sei mit dir").
+    if (WUERFELGOTT_ENABLED && text.toLowerCase().includes('würfelgott')) {
+      setWuerfelgottOpen(true);
+      reportEasterEggFound('wuerfelgott');
+    }
     if (/^-{3,}$/.test(text) || /^\/line$/i.test(text)) {
       sendChat('---');
       setError('');
@@ -607,6 +626,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
         </button>
       </div>
       <CommandsDialog open={commandsOpen} onClose={() => setCommandsOpen(false)} />
+      <WuerfelgottDialog open={wuerfelgottOpen} onClose={() => setWuerfelgottOpen(false)} />
     </>
   );
 });
