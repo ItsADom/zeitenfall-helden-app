@@ -5,6 +5,7 @@ import { BOARD_COVERS, BOARD_STATUSES } from '@shared/boardStatus';
 import { activeTurnOrder, cellKey, gridDistance, parseCellKey, parseTileValue, type CellCoord } from '@shared/board';
 import { TILE_MATERIALS, TILE_MATERIAL_BY_KEY } from '@shared/boardTiles';
 import { TOKEN_ICONS, TOKEN_ICON_BY_KEY, TOKEN_ICON_CATEGORIES, type TokenIcon } from '@shared/tokenIcons';
+import { detectTripleEvent, diceSidesForExpression, type TripleEvent } from '@shared/dice';
 import { apiGet } from '../api';
 import { useAuth } from '../App';
 import { CharSheetProvider } from '../components/charSheet';
@@ -14,6 +15,7 @@ import { ColorPicker } from '../components/ColorPicker';
 import { useDicePanel } from '../components/dice/DicePanelProvider';
 import { tinteFuer } from '../components/dice/cinematic/kontrast';
 import FeedColumn from '../components/dice/FeedColumn';
+import { TRIPLE } from '../components/dice/labels';
 import { usePersistedState } from '../components/persist';
 import { PortraitView } from '../components/PortraitView';
 import VttRoster from '../components/VttRoster';
@@ -976,6 +978,7 @@ function MapCanvas({
     pingCell,
     boardCellPing,
     boardTokenTrail,
+    feed,
   } = useDicePanel();
   const { user } = useAuth();
   const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
@@ -1382,6 +1385,35 @@ function MapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [boardViewCenter]);
   useEffect(() => () => void (viewToastTimerRef.current && clearTimeout(viewToastTimerRef.current)), []);
+
+  // Drei gleiche Würfel (1/13/20, siehe detectTripleEvent) irgendwo im Feed —
+  // derselbe Feed-Kontext, den der Chat schon hält, kein eigener WS-Weg dafür.
+  // `primedRef` verhindert, dass der zuletzt aus der REST-Historie geladene
+  // Eintrag beim ersten Rendern fälschlich als „gerade eben" gilt.
+  const [tripleToast, setTripleToast] = useState<{ event: TripleEvent; author: string; seq: number } | null>(null);
+  const tripleToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastFeedIdRef = useRef<number | null>(null);
+  const primedRef = useRef(false);
+  useEffect(() => {
+    const last = feed[feed.length - 1];
+    if (!last) return;
+    if (!primedRef.current) {
+      primedRef.current = true;
+      lastFeedIdRef.current = last.id;
+      return;
+    }
+    if (lastFeedIdRef.current === last.id) return;
+    lastFeedIdRef.current = last.id;
+    if (last.kind !== 'roll') return;
+    const { roll } = last;
+    const diceSides = roll.mode === 'probe' ? roll.dice.map(() => 20) : diceSidesForExpression(roll.expression);
+    const event = detectTripleEvent(roll.dice, diceSides);
+    if (!event) return;
+    setTripleToast({ event, author: last.authorName, seq: last.id });
+    if (tripleToastTimerRef.current) clearTimeout(tripleToastTimerRef.current);
+    tripleToastTimerRef.current = setTimeout(() => setTripleToast(null), 4000);
+  }, [feed]);
+  useEffect(() => () => void (tripleToastTimerRef.current && clearTimeout(tripleToastTimerRef.current)), []);
 
   // "Point at a cell" ping — several can be in flight at once (two people
   // pointing at once, or the same cell twice in a row), so this is a list
@@ -2689,6 +2721,13 @@ function MapCanvas({
         {viewToast && (
           <div className="vtt-view-toast" key={viewToast.seq}>
             {viewToast.by} hat die Ansicht für alle zentriert
+          </div>
+        )}
+        {/* Drei gleiche Würfel irgendwo im Feed — rein kosmetisch, siehe
+            detectTripleEvent (shared/src/dice.ts). */}
+        {tripleToast && (
+          <div className={`vtt-triple-toast vtt-triple-toast--${tripleToast.event}`} key={tripleToast.seq}>
+            {TRIPLE[tripleToast.event].title}
           </div>
         )}
         <InitiativeTurnAction entries={boardInitiative} tokens={tokens} round={board.round} turnIndex={board.turnIndex} isGm={isGm} myUserId={user.id} />

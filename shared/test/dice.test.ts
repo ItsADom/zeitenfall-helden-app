@@ -3,6 +3,7 @@ import {
   computeCompetitiveVerdict,
   computeCoopVerdict,
   confirmationsNeeded,
+  detectTripleEvent,
   findCritTriggers,
   parseDiceExpression,
   parseDiceShortcuts,
@@ -664,5 +665,41 @@ describe('computeCompetitiveVerdict', () => {
   it('is provisional while any participant still has an unresolved confirmation', () => {
     const v = computeCompetitiveVerdict([entrant(1, { resolved: true }), entrant(2, { resolved: false })]);
     expect(v.provisional).toBe(true);
+  });
+});
+
+describe('detectTripleEvent', () => {
+  it('recognises three identical 1s as luck', () => {
+    expect(detectTripleEvent([1, 1, 1], 20)).toBe('luck');
+  });
+
+  it('recognises three identical 20s as abyss', () => {
+    expect(detectTripleEvent([20, 20, 20], 20)).toBe('abyss');
+  });
+
+  it('recognises three identical 13s as nameless', () => {
+    expect(detectTripleEvent([13, 13, 13], 20)).toBe('nameless');
+  });
+
+  it('is null for any other identical triple', () => {
+    expect(detectTripleEvent([7, 7, 7], 20)).toBeNull();
+  });
+
+  it('is null when the three dice differ', () => {
+    expect(detectTripleEvent([20, 20, 1], 20)).toBeNull();
+  });
+
+  it('is null for anything but exactly three dice', () => {
+    expect(detectTripleEvent([20, 20], 20)).toBeNull();
+    expect(detectTripleEvent([1], 20)).toBeNull();
+    expect(detectTripleEvent([20, 20, 20, 20], 20)).toBeNull();
+  });
+
+  it('is null when a die in the triple is not a d20 (mixed expression)', () => {
+    expect(detectTripleEvent([1, 1, 1], [6, 20, 20])).toBeNull();
+  });
+
+  it('accepts a parallel sides array as long as every die is a d20', () => {
+    expect(detectTripleEvent([20, 20, 20], [20, 20, 20])).toBe('abyss');
   });
 });

@@ -5459,6 +5459,35 @@ body.resizing-dice {
 .feed-roll--crit .feed-roll-outcome {
   color: var(--mastery);
 }
+/* Drei gleiche Würfel (1/13/20) — siehe detectTripleEvent, shared/src/dice.ts.
+   Eigene Zeile statt Randfarbe: der Erfolg/Fehlschlag-Rand links am Wurf
+   bleibt dabei unverändert ablesbar, das hier kommt obendrauf. */
+.feed-triple {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+/* Glück (drei 1er) — dieselbe „Glück"-Farbe wie im großen Wurf (Vorstellung),
+   dort effektFarben.glueck genannt. */
+.feed-triple--luck {
+  color: var(--over-line);
+  background: color-mix(in srgb, var(--over-line) 12%, transparent);
+}
+/* Abgrund (drei 20er) — dieselbe Patzer-Farbe wie im großen Wurf. In diesem
+   Regelwerk ist die 20 der Unglückswert, nicht die 1. */
+.feed-triple--abyss {
+  color: var(--crit-line);
+  background: color-mix(in srgb, var(--crit-line) 12%, transparent);
+}
+/* Der Namenlose (drei 13er) — eigener Ton, unabhängig vom Krit-System: die
+   13 trägt sonst keine Regelbedeutung, nur diese. */
+.feed-triple--nameless {
+  color: var(--die-w10);
+  background: color-mix(in srgb, var(--die-w10) 12%, transparent);
+}
 .feed-confirms {
   display: flex;
   flex-direction: column;
@@ -6914,6 +6943,36 @@ tr:hover .probe-roll,
     opacity: 0;
     transform: translate(-50%, -50%) scale(1);
   }
+}
+/* Drei gleiche Würfel (1/13/20) irgendwo im Feed — siehe detectTripleEvent,
+   shared/src/dice.ts. Eigener Anker oben statt Bildschirmmitte wie
+   .vtt-view-toast, damit sich beide nie überlappen; dieselben Töne wie
+   .feed-triple im Chat, damit es als dasselbe Ereignis wiedererkennbar bleibt. */
+.vtt-triple-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  padding: 10px 24px;
+  font-size: 15px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: vtt-view-toast-fade 4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.vtt-triple-toast--luck {
+  color: var(--over-line);
+  background: color-mix(in srgb, var(--over-line) 16%, var(--panel));
+}
+.vtt-triple-toast--abyss {
+  color: var(--crit-line);
+  background: color-mix(in srgb, var(--crit-line) 16%, var(--panel));
+}
+.vtt-triple-toast--nameless {
+  color: var(--die-w10);
+  background: color-mix(in srgb, var(--die-w10) 16%, var(--panel));
 }
 /* "Point at a cell" ping — the <g> just fades the whole thing (ring + name)
    in and out, the ring's own animation grows it outward at the same time. */
