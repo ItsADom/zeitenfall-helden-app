@@ -4,12 +4,13 @@ import { applyFilterBonus, computeResource, psycheMax, psycheProzent } from '@sh
 import { attrsMitBoni, resourceInputMitBoni } from '@shared/items';
 import { pouchUeberfuellt } from '@shared/currency';
 import { BOARD_STATUS_BY_KEY } from '@shared/boardStatus';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { apiPut } from '../api';
 import { useChar } from '../pages/Character';
 import { AktuellFeld } from './AktuellFeld';
 import { useDicePanel } from './dice/DicePanelProvider';
 import { TextInput } from './inputs';
-import { AlwaysEditable } from './displayMode';
+import { AlwaysEditable, useDisplayMode } from './displayMode';
 import { useCollapsed } from './collapse';
 import { useHoverFlyout } from './useHoverFlyout';
 import { overfilled, poolClass } from './energie';
@@ -117,6 +118,7 @@ export default function CharacterSidebar({ side = 'right' }: { side?: 'left' | '
         <SidebarGeld />
 
         <AlwaysEditable>
+          <SidebarWounds />
           <SidebarTraining />
           <SidebarNotiz />
         </AlwaysEditable>
@@ -268,6 +270,78 @@ function SidebarZustaende() {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+// Wunden (leicht/schwer) — dieselben zwei Zähler wie die VTT-Marke
+// (setTokenWounds, siehe VirtualTable.tsx), hier zusätzlich außerhalb des
+// Tisches editierbar. Eigener lokaler Zustand statt über data.meta/update:
+// eine eigene Route (PUT .../wounds, siehe routes.ts) schreibt direkt in
+// char_meta, OHNE die ganze meta-Zeile aus einem möglicherweise veralteten
+// Bogen-Snapshot zurückzuschreiben — sonst könnte ein hier offen gebliebener
+// Bogen-Tab einen frischen VTT-Eintrag beim nächsten Speichern einer ganz
+// anderen Meta-Sektion (z. B. Ruf) stillschweigend überschreiben.
+// data.meta trägt small_wounds/big_wounds zwar mit (roher Spalten-Dump aus
+// char_meta), dient hier aber nur als Startwert — danach lebt der Zähler
+// eigenständig, genau wie boardTokens es für die Marke tut.
+function SidebarWounds() {
+  const { charId, data } = useChar();
+  const mode = useDisplayMode();
+  // Wie AlwaysEditable selbst entscheidet: bearbeitbar außer unter
+  // inspect/print — Verwaltung sieht die Zahlen (siehe Konzept-Entscheidung),
+  // ändert sie aber nicht, und der Druck kennt ohnehin keine Eingabefelder.
+  const canEdit = mode !== 'inspect' && mode !== 'print';
+  const [wounds, setWounds] = useState(() => ({
+    small: data.meta.small_wounds ?? 0,
+    big: data.meta.big_wounds ?? 0,
+  }));
+  useEffect(() => {
+    setWounds({ small: data.meta.small_wounds ?? 0, big: data.meta.big_wounds ?? 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [charId]);
+
+  const set = (small: number, big: number) => {
+    const next = { small: Math.max(0, small), big: Math.max(0, big) };
+    setWounds(next);
+    apiPut<{ small: number; big: number }>(`/api/characters/${charId}/wounds`, next)
+      .then(setWounds)
+      .catch(() => {});
+  };
+
+  return (
+    <div className="side-block">
+      <h4 title="Leichte und schwere Wunden — dieselben Zähler wie die Marke auf dem virtuellen Tisch">Wunden</h4>
+      <div className="side-wounds">
+        <div className="side-wound-row">
+          <span title="Leichte Wunden">🩹</span>
+          {canEdit && (
+            <button className="small" onClick={() => set(wounds.small - 1, wounds.big)}>
+              −
+            </button>
+          )}
+          <span className="side-wound-value">{wounds.small}</span>
+          {canEdit && (
+            <button className="small" onClick={() => set(wounds.small + 1, wounds.big)}>
+              +
+            </button>
+          )}
+        </div>
+        <div className="side-wound-row">
+          <span title="Schwere Wunden">💥</span>
+          {canEdit && (
+            <button className="small" onClick={() => set(wounds.small, wounds.big - 1)}>
+              −
+            </button>
+          )}
+          <span className="side-wound-value">{wounds.big}</span>
+          {canEdit && (
+            <button className="small" onClick={() => set(wounds.small, wounds.big + 1)}>
+              +
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

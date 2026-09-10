@@ -34,7 +34,7 @@ import { loadFeedPage } from './feed.js';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
 import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
 import { listFavoriteProbes, listRollableProbes } from './diceSource.js';
-import { broadcastWartung, pushSchicksalspunkte } from './ws.js';
+import { broadcastWartung, pushSchicksalspunkte, pushWoundsBoardSync } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
 import {
   MAX_TABLE_COLUMNS,
@@ -91,6 +91,7 @@ import {
   saveTabOrder,
   saveTableWidths,
   saveVisibility,
+  saveWounds,
   seedAbilitiesFromZauber,
   retireOldZauberTab,
 } from './characterData.js';
@@ -852,6 +853,27 @@ api.put('/characters/:id/schicksalspunkte', requireAuth, (req, res) => {
     char.id,
   );
   res.json({ aktuell, max });
+});
+
+// Wunden (leicht/schwer), auch außerhalb des Tisches — bisher nur über die
+// VTT-Marke (board.token.wounds.set) pflegbar, jetzt zusätzlich hier für die
+// Seitenleiste des Charakterbogens (CharacterSidebar.tsx). Eigene Route statt
+// über /section/meta: dieser Zähler wird live von der Marke aus geändert,
+// während /section/meta die GANZE char_meta-Zeile aus dem zuletzt geladenen
+// Bogen-Snapshot zurückschreibt — ein veralteter Bogen-Tab würde damit einen
+// frischen Marken-Eintrag stillschweigend wieder überschreiben (dieselbe
+// Klasse Bug wie beim alten Items-Voll-Save, siehe CLAUDE.md). saveWounds
+// klemmt bereits auf [0, 20].
+api.put('/characters/:id/wounds', requireAuth, (req, res) => {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return;
+  }
+  const body = (req.body ?? {}) as { small?: unknown; big?: unknown };
+  const wounds = saveWounds(char.id, { small: Number(body.small) || 0, big: Number(body.big) || 0 });
+  if (char.group_id != null) pushWoundsBoardSync(char.group_id, char.id);
+  res.json(wounds);
 });
 
 // GM-Sammel-Reset für eine ganze Gruppe („Neuer Spieltag") — setzt jeden
