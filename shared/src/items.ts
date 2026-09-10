@@ -309,6 +309,15 @@ export interface Item {
   // auf deren FK-Probe (siehe munitionProbenBonusFuer).
   munitionSchaden: string;
   munitionProbenBonus: number;
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks", revised from an earlier automatic equality-matching approach):
+  // '' means standalone; any weapons (same waffenArt) sharing the same
+  // non-empty, trimmed waffenGruppe collapse into one stack card in the
+  // Waffen tab (see groupWeaponItems), REGARDLESS of any other field —
+  // a player's own judgement call ("these are all my throwing knives"), not
+  // a computed sameness. Display-only, same as before: still one char_items
+  // row per instance.
+  waffenGruppe: string;
 }
 
 // Reservierte Kategorie, über die ein Item als Munition gilt — dieselbe Rolle
@@ -345,7 +354,7 @@ export function makeItem(over: Partial<Item>): Item {
     zone: '', beidseitig: false, containerUid: '', istBehaelter: false, containerArt: 'storage', kapazitaet: 0,
     kapazitaetArt: 'gewicht', gewichtsreduktion: 0, rs: 0, haltbarkeitMax: 0, haltbarkeitAktuell: 0, ladungMax: 0, ladungAktuell: 0, ladungPortion: 1, notiz: '',
     bonusse: [], rsVerborgen: false, haltbarkeitVerborgen: false, waffenArt: '', waffenStats: [],
-    munitionSchaden: '', munitionProbenBonus: 0, ...over,
+    munitionSchaden: '', munitionProbenBonus: 0, waffenGruppe: '', ...over,
   };
 }
 
@@ -390,38 +399,24 @@ export function duplicateItem(item: Item): Item {
   };
 }
 
-// Cosmetic grouping for non-unique weapon stacks (TODO.md "Weapon tab rework"):
-// a key that's equal for two Items iff they're "the same weapon" in every
-// respect except id/uid and Haltbarkeit (haltbarkeitMax/haltbarkeitAktuell) —
-// the one thing duplicateItem exists to let diverge (see its comment above).
-// Destructuring instead of an explicit field allowlist so a FUTURE Item field
-// defaults to being compared — favors under- over over-grouping if someone
-// forgets to touch this when adding a field. waffenStats/bonusse rows get
-// fresh uids from duplicateItem too, so they compare by content
-// (feld/kind/code/wert/verborgen), not by their own uid, sorted so row order
-// doesn't matter.
-export function weaponGroupKey(item: Item): string {
-  const { id, uid, haltbarkeitMax, haltbarkeitAktuell, waffenStats, bonusse, ...rest } = item;
-  void id;
-  void uid;
-  void haltbarkeitMax;
-  void haltbarkeitAktuell;
-  const statsKey = waffenStats.map((s) => `${s.feld}:${s.wert}:${s.verborgen}`).sort();
-  const bonusKey = bonusse.map((b) => `${b.kind}:${b.code}:${b.feld}:${b.wert}:${b.verborgen}`).sort();
-  return JSON.stringify({ ...rest, statsKey, bonusKey });
-}
-
-// Groups Items by weaponGroupKey, preserving first-occurrence order — for the
-// weapon tab's cosmetic stack display (see WaffenNeu.tsx). A group of size 1
-// is just the item on its own; size >1 is a stack of functionally-identical
-// instances differing at most in Haltbarkeit, shown as one collapsed card
-// expandable to the individual instances (display-only, no data model change
-// — still one char_items row per instance).
+// Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+// stacks" — revised from an earlier automatic equality-matching approach,
+// see git history, to a player-set tag): groups Items by their trimmed
+// waffenGruppe, preserving first-occurrence order, for the weapon tab's stack
+// display (see WaffenNeu.tsx). Empty tag NEVER stacks with anything, not even
+// another empty-tag item — each such item gets its own singleton group, same
+// as a weapon nobody has grouped. A group of size >1 can otherwise hold
+// weapons that differ in every other respect (Schaden, Notiz, Haltbarkeit,
+// even name) — that's the point: the player decides what belongs together,
+// not the app (display-only, no data model change — still one char_items row
+// per instance).
 export function groupWeaponItems(items: readonly Item[]): Item[][] {
   const order: string[] = [];
   const byKey = new Map<string, Item[]>();
+  let ungroupedSeq = 0;
   for (const it of items) {
-    const key = weaponGroupKey(it);
+    const tag = it.waffenGruppe.trim();
+    const key = tag ? `g:${tag}` : `u:${ungroupedSeq++}`;
     let group = byKey.get(key);
     if (!group) {
       group = [];
@@ -530,7 +525,7 @@ const ITEM_PATCH_KEYS = [
   'name', 'anzahl', 'gewicht', 'kategorie', 'haus', 'raum', 'location', 'zone', 'beidseitig', 'containerUid',
   'istBehaelter', 'containerArt', 'kapazitaet', 'kapazitaetArt', 'gewichtsreduktion',
   'rs', 'haltbarkeitMax', 'haltbarkeitAktuell', 'ladungMax', 'ladungAktuell', 'ladungPortion', 'notiz', 'rsVerborgen', 'haltbarkeitVerborgen', 'waffenArt',
-  'munitionSchaden', 'munitionProbenBonus',
+  'munitionSchaden', 'munitionProbenBonus', 'waffenGruppe',
 ] as const satisfies readonly (keyof Item)[];
 
 const BONUS_PATCH_KEYS = ['kind', 'code', 'feld', 'wert', 'verborgen'] as const satisfies readonly (keyof ItemBonus)[];

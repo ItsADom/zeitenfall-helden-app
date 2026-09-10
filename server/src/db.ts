@@ -1403,6 +1403,11 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_typ
   if (!cols.has('ladung_max')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_max REAL NOT NULL DEFAULT 0');
   if (!cols.has('ladung_aktuell')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_aktuell REAL NOT NULL DEFAULT 0');
   if (!cols.has('ladung_portion')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_portion REAL NOT NULL DEFAULT 1');
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks"): a player-set tag, empty = standalone. See Item.waffenGruppe in
+  // shared/src/items.ts and seedWeaponGruppenFromEquality() in
+  // characterData.ts (one-time migration for weapons already identical today).
+  if (!cols.has('waffen_gruppe')) db.exec("ALTER TABLE char_items ADD COLUMN waffen_gruppe TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.

@@ -839,6 +839,61 @@ export function migrateAusruestungToItems(): void {
   tx();
 }
 
+// Weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon stacks")
+// started as automatic equality-matching (two weapons stacked iff identical
+// except id/uid/Haltbarkeit), then got replaced by a player-set
+// `waffenGruppe` tag before it ever shipped a released version — a manual tag
+// lets a player stack e.g. "throwing knives of all kinds and shapes" that the
+// old rule would have kept apart, and drops the surprise of an edit silently
+// un-stacking a weapon. This ONE-TIME migration (PRAGMA user_version = 5)
+// seeds that tag for weapons that are ALREADY identical under the OLD rule,
+// using their shared name, so nobody's existing "Duplizieren for separate
+// Haltbarkeit" stack visibly falls apart the moment this ships. Deliberately
+// scoped to owner (character/group/gm) + kind: a stack never spans two
+// different owners' inventories, and matches the WaffenNeu.tsx tab split
+// (Nah/Fern render as separate lists, but both can carry a tag — no reason to
+// restrict the migration to one, the display grouping already stays within
+// its own waffenArt list regardless of what the tag says).
+function legacyWeaponEqualityKey(item: Item): string {
+  const { id, uid, haltbarkeitMax, haltbarkeitAktuell, waffenGruppe, waffenStats, bonusse, ...rest } = item;
+  void id;
+  void uid;
+  void haltbarkeitMax;
+  void haltbarkeitAktuell;
+  void waffenGruppe;
+  const statsKey = waffenStats.map((s) => `${s.feld}:${s.wert}:${s.verborgen}`).sort();
+  const bonusKey = bonusse.map((b) => `${b.kind}:${b.code}:${b.feld}:${b.wert}:${b.verborgen}`).sort();
+  return JSON.stringify({ ...rest, statsKey, bonusKey });
+}
+
+export function seedWeaponGruppenFromEquality(): void {
+  if (Number(db.pragma('user_version', { simple: true })) >= 5) return;
+  const owners = db
+    .prepare("SELECT DISTINCT owner_type AS ownerType, owner_id AS ownerId FROM char_items WHERE waffen_art IN ('nah', 'fern')")
+    .all() as { ownerType: ItemOwnerType; ownerId: number }[];
+  const tx = db.transaction(() => {
+    const setGruppe = db.prepare('UPDATE char_items SET waffen_gruppe = ? WHERE id = ?');
+    for (const { ownerType, ownerId } of owners) {
+      const weapons = loadItemsForOwner(ownerType, ownerId).filter((it) => it.waffenArt === 'nah' || it.waffenArt === 'fern');
+      const byKey = new Map<string, Item[]>();
+      for (const it of weapons) {
+        const key = legacyWeaponEqualityKey(it);
+        const group = byKey.get(key);
+        if (group) group.push(it);
+        else byKey.set(key, [it]);
+      }
+      for (const group of byKey.values()) {
+        if (group.length < 2) continue;
+        const tag = group[0].name.trim();
+        if (!tag) continue; // nothing to name the stack with — stays ungrouped, player can tag it
+        for (const it of group) setGruppe.run(tag, it.id);
+      }
+    }
+    db.pragma('user_version = 5');
+  });
+  tx();
+}
+
 // Bestehende Listendaten in Tabs mit Sektionen überführen (idempotent).
 export function migrateCharacterPeriphery(charId: number): { created: number } {
   const already = (db.prepare('SELECT COUNT(*) AS n FROM char_tabs WHERE character_id = ?').get(charId) as { n: number }).n;
@@ -962,7 +1017,7 @@ export function loadItems(charId: number): Item[] {
 export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): Item[] {
   const rows = db
     .prepare(
-      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
+      'SELECT id, uid, name, anzahl, gewicht, kategorie, haus, raum, mitgebracht_von, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus, waffen_gruppe FROM char_items WHERE owner_type = ? AND owner_id = ? ORDER BY pos, id',
     )
     .all(ownerType, ownerId) as {
     id: number;
@@ -995,6 +1050,7 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     waffen_art: string;
     munition_schaden: string;
     munition_proben_bonus: number;
+    waffen_gruppe: string;
   }[];
   // Zweite Abfrage + Gruppierung in JS statt JOIN, gleiche Form wie loadPouches
   // für char_pouch_coins — ein Item hat 0..N Boni, ein JOIN würde Items ohne
@@ -1067,6 +1123,7 @@ export function loadItemsForOwner(ownerType: ItemOwnerType, ownerId: number): It
     haltbarkeitVerborgen: !!r.haltbarkeit_verborgen,
     munitionSchaden: r.munition_schaden,
     munitionProbenBonus: r.munition_proben_bonus,
+    waffenGruppe: r.waffen_gruppe,
   }));
 }
 
@@ -1133,15 +1190,16 @@ function normalizedItemRow(o: Record<string, unknown>) {
     waffenArt,
     munitionSchaden: String(o.munitionSchaden ?? '').slice(0, MAX_ITEM_TEXT),
     munitionProbenBonus: Number(o.munitionProbenBonus) || 0,
+    waffenGruppe: String(o.waffenGruppe ?? '').slice(0, MAX_ITEM_TEXT),
   };
 }
 
-const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, ladung_max=?, ladung_aktuell=?, ladung_portion=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=?, munition_schaden=?, munition_proben_bonus=? WHERE id=?`;
+const ITEM_UPDATE_SQL = `UPDATE char_items SET name=?, anzahl=?, gewicht=?, kategorie=?, haus=?, raum=?, location=?, zone=?, beidseitig=?, container_uid=?, ist_behaelter=?, container_art=?, kapazitaet=?, kapazitaet_art=?, gewichtsreduktion=?, rs=?, haltbarkeit_max=?, haltbarkeit_aktuell=?, ladung_max=?, ladung_aktuell=?, ladung_portion=?, notiz=?, rs_verborgen=?, haltbarkeit_verborgen=?, waffen_art=?, munition_schaden=?, munition_proben_bonus=?, waffen_gruppe=? WHERE id=?`;
 const itemUpdateParams = (n: ReturnType<typeof normalizedItemRow>, id: number) => [
   n.name, n.anzahl, n.gewicht, n.kategorie, n.haus, n.raum, n.location, n.zone, n.beidseitig, n.containerUid, n.istBehaelter,
   n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion, n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell,
   n.ladungMax, n.ladungAktuell, n.ladungPortion,
-  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, n.munitionSchaden, n.munitionProbenBonus, id,
+  n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt, n.munitionSchaden, n.munitionProbenBonus, n.waffenGruppe, id,
 ];
 
 const MAX_ITEM_OPS = 500;
@@ -1230,8 +1288,8 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
 
   const tx = db.transaction(() => {
     const insItem = db.prepare(
-      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO char_items (owner_type, owner_id, pos, uid, name, anzahl, gewicht, kategorie, haus, raum, location, zone, beidseitig, container_uid, ist_behaelter, container_art, kapazitaet, kapazitaet_art, gewichtsreduktion, rs, haltbarkeit_max, haltbarkeit_aktuell, ladung_max, ladung_aktuell, ladung_portion, notiz, rs_verborgen, haltbarkeit_verborgen, waffen_art, munition_schaden, munition_proben_bonus, waffen_gruppe)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const updItem = db.prepare(ITEM_UPDATE_SQL);
     const delItem = db.prepare('DELETE FROM char_items WHERE id=?');
@@ -1271,7 +1329,7 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
         haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell,
         ladungMax: n.ladungMax, ladungAktuell: n.ladungAktuell, ladungPortion: n.ladungPortion, notiz: n.notiz,
         rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
-        munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus,
+        munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus, waffenGruppe: n.waffenGruppe,
       });
     };
 
@@ -1304,7 +1362,7 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
             n.containerUid, n.istBehaelter, n.containerArt, n.kapazitaet, n.kapazitaetArt, n.gewichtsreduktion,
             n.rs, n.haltbarkeitMax, n.haltbarkeitAktuell, n.ladungMax, n.ladungAktuell, n.ladungPortion,
             n.notiz, n.rsVerborgen, n.haltbarkeitVerborgen, n.waffenArt,
-            n.munitionSchaden, n.munitionProbenBonus,
+            n.munitionSchaden, n.munitionProbenBonus, n.waffenGruppe,
           ).lastInsertRowid,
         );
         const working: WorkingItem = {
@@ -1317,7 +1375,7 @@ export function applyItemOpsForOwner(ownerType: ItemOwnerType, ownerId: number, 
           haltbarkeitMax: n.haltbarkeitMax, haltbarkeitAktuell: n.haltbarkeitAktuell,
           ladungMax: n.ladungMax, ladungAktuell: n.ladungAktuell, ladungPortion: n.ladungPortion, notiz: n.notiz,
           rsVerborgen: !!n.rsVerborgen, haltbarkeitVerborgen: !!n.haltbarkeitVerborgen, waffenArt: n.waffenArt,
-          munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus,
+          munitionSchaden: n.munitionSchaden, munitionProbenBonus: n.munitionProbenBonus, waffenGruppe: n.waffenGruppe,
           bonusse: [], waffenStats: [],
         };
         byUid.set(uid, working);

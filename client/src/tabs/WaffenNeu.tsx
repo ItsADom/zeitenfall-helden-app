@@ -13,7 +13,7 @@ import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import WeaponDamageRollButton from '../components/dice/WeaponDamageRollButton';
 import WaffenlosDamageRollButton from '../components/dice/WaffenlosDamageRollButton';
-import { ListEditor, NumInput, TextInput } from '../components/inputs';
+import { ListEditor, NumInput, SuggestInput, TextInput } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useDisplayMode, useReadOnly } from '../components/displayMode';
 import { useAuth } from '../App';
@@ -374,11 +374,14 @@ function CardHead({
   notiz: string;
   open: boolean;
   onToggle: () => void;
-  /** Cosmetic grouping (TODO.md): Anzahl baugleicher Exemplare — nur bei einer
-   * Stapel-Kopfzeile gesetzt (>1), eine einzelne Waffe zeigt kein Abzeichen. */
+  /** Manual weapon stacking (TODO.md): Anzahl Waffen in der Gruppe — nur bei
+   * einer Stapel-Kopfzeile gesetzt (>1), eine einzelne Waffe zeigt kein
+   * Abzeichen. Stapel-Mitglieder müssen sich sonst in NICHTS gleichen (siehe
+   * Item.waffenGruppe), daher zeigt die Kopfzeile keine Proben/Schaden mehr,
+   * sobald count gesetzt ist (siehe die Aufrufstelle in NahCards/FernCards). */
   count?: number;
-  /** Die Proben-Chips. */
-  children: React.ReactNode;
+  /** Die Proben-Chips — bei einer Stapel-Kopfzeile weggelassen (siehe count). */
+  children?: React.ReactNode;
 }) {
   return (
     <div
@@ -398,7 +401,7 @@ function CardHead({
       <CollapseChevron open={open} />
       <span className="wpn-name">{name || '(ohne Name)'}</span>
       {!!count && count > 1 && (
-        <span className="wpn-count" title={`${count} baugleiche Exemplare — unten einzeln aufklappbar`}>
+        <span className="wpn-count" title={`${count} Waffen in dieser Gruppe — unten einzeln aufklappbar`}>
           ×{count}
         </span>
       )}
@@ -547,6 +550,7 @@ function NahCard({
   patchItem,
   patchStat,
   revealStat,
+  groupSuggestions,
 }: {
   item: Item;
   allItems: Item[];
@@ -559,6 +563,9 @@ function NahCard({
   patchItem: (uid: string, patch: Partial<Item>) => void;
   patchStat: (item: Item, feld: WaffenStatFeld, wert: string) => void;
   revealStat: (item: Item, feld: WaffenStatFeld) => void;
+  /** Manual weapon stacking (TODO.md): bereits vergebene Gruppen-Namen anderer
+   * Nahkampfwaffen dieses Charakters, als Vorschlagsliste im Gruppe-Feld. */
+  groupSuggestions: string[];
 }) {
   const ro = useReadOnly();
   const probes = probesFor(item);
@@ -595,6 +602,13 @@ function NahCard({
               <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
             </Feld>
           )}
+          <Feld
+            label="Gruppe"
+            leer={!item.waffenGruppe}
+            title="Waffen mit demselben Text hier stapeln sich zu einer Karte im Waffen-Reiter — unabhängig von ihren übrigen Werten. Leer lassen für eine eigene Karte."
+          >
+            <SuggestInput value={item.waffenGruppe} options={groupSuggestions} placeholder="— eigene Karte —" onChange={(v) => patchItem(item.uid, { waffenGruppe: v })} />
+          </Feld>
           <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
             <TextInput value={rawStat('schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
           </WaffenFeld>
@@ -679,14 +693,21 @@ function NahCards({
   const addWaffe = () =>
     setItems([...allItems, makeItem({ waffenArt: 'nah', waffenStats: waffenStatsFuerArt('nah').map((s) => ({ ...s, verborgen: isGm })) })]);
 
-  // Cosmetic grouping (TODO.md "Weapon tab rework"): baugleiche Instanzen
-  // (gleiche Waffenwerte, nur Haltbarkeit darf abweichen, siehe
-  // weaponGroupKey) zeigen sich als EINE Stapel-Kopfzeile mit „×N"-Abzeichen,
-  // aufklappbar zu den einzelnen Karten darunter. Der Index im flachen
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks"): items sharing a non-empty item.waffenGruppe (player-set, see
+  // groupWeaponItems) show as ONE Stapel-Kopfzeile with a „×N"-Abzeichen,
+  // aufklappbar zu den einzelnen Karten darunter. Members can otherwise
+  // differ in every respect, so the collapsed header shows only the group
+  // name + count — no shared probes/Schaden/roll button, since those could
+  // silently apply the wrong instance's numbers. Der Index im flachen
   // `items` bleibt für useWeaponCards' offen/zu-Zustand maßgeblich — auch
-  // innerhalb eines Stapels klappt jede Instanz einzeln auf.
+  // innerhalb eines Stapels klappt jede Instanz einzeln auf. Der Gruppen-
+  // Schlüssel selbst ist der Tag-Text (nicht z. B. die uid des ersten
+  // Mitglieds) — bleibt stabil, auch wenn sich die Reihenfolge ändert oder
+  // ausgerechnet das bisher erste Mitglied gelöscht wird.
   const indexByUid = new Map(items.map((it, i) => [it.uid, i]));
   const groups = groupWeaponItems(items);
+  const groupSuggestions = [...new Set(items.map((it) => it.waffenGruppe.trim()).filter(Boolean))].sort();
 
   return (
     <>
@@ -709,32 +730,26 @@ function NahCards({
                 patchItem={patchItem}
                 patchStat={patchStat}
                 revealStat={revealStat}
+                groupSuggestions={groupSuggestions}
               />
             );
           }
-          const groupKey = first.uid;
+          const groupKey = first.waffenGruppe.trim();
           const groupOpen = isGroupOpen(groupKey);
-          const probes = probesFor(first);
-          const exp = waffenStatWert(first, 'expLevel');
-          const sub = exp ? `EXP/LVL ${exp}` : '';
+          const anyNote = group.some((it) => it.notiz.trim());
           return (
             <div className="wpn-card wpn-group" key={groupKey}>
               <CardHead
-                name={first.name}
-                sub={sub}
-                schaden={effektiverSchaden(first, allItems)}
-                rd={waffenStatWert(first, 'rd')}
-                damageRoll={damageRollFor(first, allItems)}
+                name={groupKey}
+                sub=""
+                schaden=""
+                rd=""
                 ranged={false}
-                notiz={first.notiz}
+                notiz={anyNote ? 'Mindestens ein Exemplar hat eine Notiz — siehe unten' : ''}
                 open={groupOpen}
                 onToggle={() => toggleGroup(groupKey)}
                 count={group.length}
-              >
-                <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={rollFor(first, 'at')} />
-                <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={rollFor(first, 'pa')} />
-                <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={rollFor(first, 'bl')} />
-              </CardHead>
+              />
               {groupOpen && (
                 <div className="wpn-group-items">
                   {group.map((instance) => {
@@ -753,6 +768,7 @@ function NahCards({
                         patchItem={patchItem}
                         patchStat={patchStat}
                         revealStat={revealStat}
+                        groupSuggestions={groupSuggestions}
                       />
                     );
                   })}
@@ -787,6 +803,7 @@ function FernCard({
   patchItem,
   patchStat,
   revealStat,
+  groupSuggestions,
 }: {
   item: Item;
   allItems: Item[];
@@ -800,6 +817,9 @@ function FernCard({
   patchItem: (uid: string, patch: Partial<Item>) => void;
   patchStat: (item: Item, feld: WaffenStatFeld, wert: string) => void;
   revealStat: (item: Item, feld: WaffenStatFeld) => void;
+  /** Manual weapon stacking (TODO.md): bereits vergebene Gruppen-Namen anderer
+   * Fernkampfwaffen dieses Charakters, als Vorschlagsliste im Gruppe-Feld. */
+  groupSuggestions: string[];
 }) {
   const ro = useReadOnly();
   const notiz = item.notiz;
@@ -832,6 +852,13 @@ function FernCard({
               <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
             </Feld>
           )}
+          <Feld
+            label="Gruppe"
+            leer={!item.waffenGruppe}
+            title="Waffen mit demselben Text hier stapeln sich zu einer Karte im Waffen-Reiter — unabhängig von ihren übrigen Werten. Leer lassen für eine eigene Karte."
+          >
+            <SuggestInput value={item.waffenGruppe} options={groupSuggestions} placeholder="— eigene Karte —" onChange={(v) => patchItem(item.uid, { waffenGruppe: v })} />
+          </Feld>
           <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
             <TextInput value={rawStat('schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
           </WaffenFeld>
@@ -911,10 +938,11 @@ function FernCards({
   // mit Kategorie "Munition" im eigenen Inventar/Ausrüstung ist wählbar.
   const munitionItems = allItems.filter((it) => istMunitionKategorie(it.kategorie));
 
-  // Cosmetic grouping (TODO.md "Weapon tab rework") — siehe Kommentar in
-  // NahCards, hier identisch angewandt.
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks") — siehe Kommentar in NahCards, hier identisch angewandt.
   const indexByUid = new Map(items.map((it, i) => [it.uid, i]));
   const groups = groupWeaponItems(items);
+  const groupSuggestions = [...new Set(items.map((it) => it.waffenGruppe.trim()).filter(Boolean))].sort();
 
   return (
     <>
@@ -938,27 +966,26 @@ function FernCards({
                 patchItem={patchItem}
                 patchStat={patchStat}
                 revealStat={revealStat}
+                groupSuggestions={groupSuggestions}
               />
             );
           }
-          const groupKey = first.uid;
+          const groupKey = first.waffenGruppe.trim();
           const groupOpen = isGroupOpen(groupKey);
+          const anyNote = group.some((it) => it.notiz.trim());
           return (
             <div className="wpn-card wpn-group" key={groupKey}>
               <CardHead
-                name={first.name}
+                name={groupKey}
                 sub=""
-                schaden={effektiverSchaden(first, allItems)}
-                rd={waffenStatWert(first, 'rd')}
-                damageRoll={damageRollFor(first, allItems)}
+                schaden=""
+                rd=""
                 ranged
-                notiz={first.notiz}
+                notiz={anyNote ? 'Mindestens ein Exemplar hat eine Notiz — siehe unten' : ''}
                 open={groupOpen}
                 onToggle={() => toggleGroup(groupKey)}
                 count={group.length}
-              >
-                <ProbeChip label="FK" value={fkProbeFor(first)} title="Fernkampf — fertige Probe" roll={rollFor(first, 'fk')} />
-              </CardHead>
+              />
               {groupOpen && (
                 <div className="wpn-group-items">
                   {group.map((instance) => {
@@ -978,6 +1005,7 @@ function FernCards({
                         patchItem={patchItem}
                         patchStat={patchStat}
                         revealStat={revealStat}
+                        groupSuggestions={groupSuggestions}
                       />
                     );
                   })}

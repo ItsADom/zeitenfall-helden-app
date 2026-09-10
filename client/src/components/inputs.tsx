@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { NOTIZ_KEY } from '@shared/sections';
 import type { ColumnDef, ListSectionDef } from '@shared/sections';
 import { fitSoon, observeAutosize } from './autosize';
@@ -159,6 +159,38 @@ export function TextInput({
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
     />
+  );
+}
+
+// Einzeiliges Freitextfeld mit Vorschlagsliste (natives <datalist>) — wie
+// TextInput, aber ein <input> statt <textarea>, weil ein <datalist> nur an
+// einem <input> hängen kann. Für kurze, eintippbare Werte mit bekannten
+// Vorschlägen (z. B. eine Waffen-Gruppen-Bezeichnung), nicht für langen
+// Freitext. useId() statt einer festen id, damit mehrere Instanzen auf
+// derselben Seite (eine je Karte) sich nicht dieselbe Datalist teilen.
+export function SuggestInput({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}) {
+  const readOnly = useReadOnly();
+  const listId = useId();
+  if (readOnly) return <div className="static-value static-text">{value || ' '}</div>;
+  return (
+    <>
+      <input type="text" value={value} placeholder={placeholder} list={listId} onChange={(e) => onChange(e.target.value)} />
+      <datalist id={listId}>
+        {options.map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+    </>
   );
 }
 
