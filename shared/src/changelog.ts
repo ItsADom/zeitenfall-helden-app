@@ -199,6 +199,13 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-09-10',
+    title: 'Filtern',
+    added: [
+      'Astralenergie lässt sich jetzt „filtern“: ein Schalter an der AsE-Zeile hebt ihr Maximum um einen selbst hinterlegten Prozentsatz an, solange er aktiv ist (von Hand ein- und ausgeschaltet, passend zur laufenden Szene).',
+    ],
+  },
+  {
     date: '2026-09-09',
     title: 'Sets, Schritte und Spielereien',
     version: '0.10.5',

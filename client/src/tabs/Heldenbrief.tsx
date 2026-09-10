@@ -13,6 +13,7 @@ import { Fragment, useRef, useState } from 'react';
 import {
   attrPointsActualTotal,
   attrPointsTheoreticalTotal,
+  applyFilterBonus,
   computeBaseValues,
   computeResource,
   evaluateEnergyFormula,
@@ -411,8 +412,10 @@ export default function HeldenbriefTab() {
             {RESOURCE_KEYS.map((key) => {
               const r = computeResource(attributesEff, key, resourceInputMitBoni(resources[key], key, stats));
               const akt = resources[key].aktuell;
-              const cls = poolClass(key, akt, r.ergebnis);
-              const ratio = r.ergebnis > 0 ? akt / r.ergebnis : 1;
+              const gefiltert = key === 'ase' && !!meta.gefiltert;
+              const maxEff = key === 'ase' ? applyFilterBonus(r.ergebnis, meta.filterBonusMax ?? 0, gefiltert) : r.ergebnis;
+              const cls = poolClass(key, akt, maxEff);
+              const ratio = maxEff > 0 ? akt / maxEff : 1;
               const quellen = stats.quellen[resourceBonusKey(key)];
               return (
                 <tr key={key}>
@@ -427,14 +430,40 @@ export default function HeldenbriefTab() {
                   </td>
                   <td className="computed">
                     <BonusWert quellen={quellen}>{r.ergebnis}</BonusWert>
+                    {key === 'ase' && (
+                      <div
+                        className="cell-labeled filter-control"
+                        title="Filtern: manuell umgelegt, solange die Fiktion es hergibt (kein Timer/Ablauf in der App) — hebt das AsE-Maximum um den eingetragenen Prozentsatz an."
+                      >
+                        <label className="filter-toggle">
+                          <input
+                            type="checkbox"
+                            checked={!!meta.gefiltert}
+                            disabled={readOnly}
+                            onChange={(e) => setMeta('gefiltert', e.target.checked ? 1 : 0)}
+                          />
+                          gefiltert
+                        </label>
+                        <span className="filter-percent">
+                          <NumInput
+                            value={meta.filterBonusMax ?? 0}
+                            min={0}
+                            width={48}
+                            onChange={(v) => setMeta('filterBonusMax', v)}
+                          />
+                          %
+                        </span>
+                        {gefiltert && <span className="cell-label">→ {maxEff}</span>}
+                      </div>
+                    )}
                   </td>
                   <td
                     className={cls || undefined}
                     title={
                       cls === 'res-over'
-                        ? `überladen: ${akt}/${r.ergebnis}`
+                        ? `überladen: ${akt}/${maxEff}`
                         : cls
-                          ? `${Math.round(ratio * 100)} % — ${akt}/${r.ergebnis}`
+                          ? `${Math.round(ratio * 100)} % — ${akt}/${maxEff}`
                           : undefined
                     }
                   >

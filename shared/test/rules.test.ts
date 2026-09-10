@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   apThresholdForLevel,
+  applyFilterBonus,
   computeBaseValues,
   computeResource,
   erleichterung,
@@ -49,6 +50,20 @@ describe('Energien', () => {
       const r = computeResource(raskir, 'ase', { ...raskirResources.ase, raceBase: 10 });
       expect(r.vorergebnis).toBe(23);
       expect(r.ergebnis).toBe(37);
+    });
+  });
+
+  describe('Filtern (applyFilterBonus)', () => {
+    it('lässt das Ergebnis unverändert, solange nicht gefiltert', () => {
+      expect(applyFilterBonus(20, 25, false)).toBe(20);
+      expect(applyFilterBonus(20, 25, 0)).toBe(20);
+    });
+    it('lässt das Ergebnis unverändert, wenn kein Prozentsatz gesetzt ist', () => {
+      expect(applyFilterBonus(20, 0, true)).toBe(20);
+    });
+    it('hebt das Ergebnis aufgerundet um den Prozentsatz an, wenn gefiltert', () => {
+      expect(applyFilterBonus(20, 25, true)).toBe(25); // 20 + 5
+      expect(applyFilterBonus(21, 25, 1)).toBe(27); // 21 + ceil(5.25)
     });
   });
 });

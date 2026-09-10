@@ -59,28 +59,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Percentage bonus for energies, and what "Filtern" actually is**
-  (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
-  first real mechanic). Lore: Astralenergie is made of 8 base elements;
-  filtering shifts a mage's elemental balance to boost efficiency with one
-  element. The app doesn't track elements numerically, so the existing
-  "overcharge" mechanism (any pool's `aktuell` may already sit above its
-  computed max, freely typed, no clamp — `client/src/components/energie.ts`
-  `overfilled()`/`poolClass()` → `res-over` styling, `AktuellFeld.tsx`) is
-  reused as the *display*, but it isn't itself "Filtern" — filtering needs its
-  own gating. **Decided:** AsE only (not LE/AUS). **Decided:** a new
-  per-character stored value — "max Filterbonus %" — reflecting how well
-  *that* character can filter (set directly, not derived from a formula).
-  **Decided:** an all-or-nothing "gefiltert" toggle; when on, it raises AsE's
-  effective/displayed max by that stored percentage, computed after the
-  normal `computeResource()` result (i.e. a final multiplier, not baked into
-  `mods`/`permanent`). **Decided:** triggering/ending is entirely manual — a
-  player adds "Filtern" as an ordinary rollable ability/spell entry (same
-  pattern as the special-checks catalog below) and rolls for it in the
-  fiction; there's no in-app duration/expiry ("the point where a character
-  stops counting as filtered isn't clearly set either"), so the toggle is
-  just flipped off by the player/GM when the GM calls it.
-
 - [ready] **Image gallery for houses** (user feedback, concept agreed
   2026-09-03). Multiple images per house (floor plans, reference photos), not
   just one — reuses the existing generic `assets` table

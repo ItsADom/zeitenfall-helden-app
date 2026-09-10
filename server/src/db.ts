@@ -889,6 +889,14 @@ db.exec(`
   // hatte vor dieser Spalte je eine eingetragene Wunde.
   if (!cols.has('small_wounds')) db.exec('ALTER TABLE char_meta ADD COLUMN small_wounds INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('big_wounds')) db.exec('ALTER TABLE char_meta ADD COLUMN big_wounds INTEGER NOT NULL DEFAULT 0');
+  // Filtern (TODO.md "Percentage bonus for energies, and what 'Filtern'
+  // actually is"): filterBonusMax ist der vom Spieler direkt gesetzte
+  // Prozentsatz (keine Formel-Herleitung), gefiltert das manuelle An/Aus.
+  // Beides beeinflusst nur die Anzeige/den Vergleich gegen "Aktuell" (siehe
+  // applyFilterBonus in shared/src/rules.ts) — 0 ist für jeden bestehenden
+  // Charakter der richtige Rückfall (niemand galt vor dieser Spalte als gefiltert).
+  if (!cols.has('filterBonusMax')) db.exec('ALTER TABLE char_meta ADD COLUMN filterBonusMax REAL NOT NULL DEFAULT 0');
+  if (!cols.has('gefiltert')) db.exec('ALTER TABLE char_meta ADD COLUMN gefiltert INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.

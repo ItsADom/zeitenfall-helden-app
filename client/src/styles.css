@@ -1588,6 +1588,30 @@ table.sheet tbody tr:hover td.res-over {
 .cell-value {
   text-align: center;
 }
+/* Filtern (AsE-Zeile, Heldenbrief.tsx): kleine An/Aus- + Prozent-Steuerung
+   unter der berechneten Summe. Eigene Zeile statt eigener Spalte, weil das
+   Feature nur AsE betrifft (die anderen beiden Energien-Zeilen brauchen
+   nichts Zusätzliches) — eine eigene Spalte stünde dort leer. */
+.filter-control {
+  margin-top: 3px;
+  gap: 2px;
+}
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.75em;
+  color: var(--muted);
+  cursor: pointer;
+}
+.filter-percent {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 0.75em;
+  color: var(--muted);
+}
+
 /* Item-bonusierter Wert (BonusWert.tsx) — dieselbe Färbung wie .chip-rs/
    .chip-bonus, damit "von einem Gegenstand angehoben" überall gleich aussieht. */
 .bonus-mark {

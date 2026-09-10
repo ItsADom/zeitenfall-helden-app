@@ -18,6 +18,7 @@ import {
   levelForAp,
   computeBaseValues,
   computeResource,
+  applyFilterBonus,
   evaluateEnergyFormula,
   psycheMax,
   dynTabId,
@@ -2893,6 +2894,7 @@ export function buildSummary(charId: number) {
   const { attrs: attributes, resources } = stats;
   const baseValues = computeBaseValues(attributes, stats.baseInputs);
   const bio = loadSingleRow('char_bio', charId);
+  const meta = loadSingleRow('char_meta', charId) as { filterBonusMax?: number; gefiltert?: number };
   const lists = loadAllLists(charId);
 
   const sections: Record<string, unknown> = {};
@@ -2914,11 +2916,13 @@ export function buildSummary(charId: number) {
   if (visibility.ressourcen) {
     sections.ressourcen = RESOURCE_KEYS.map((key) => {
       const r = computeResource(attributes, key, resources[key]);
+      const ergebnis =
+        key === 'ase' ? applyFilterBonus(r.ergebnis, meta.filterBonusMax ?? 0, meta.gefiltert ?? 0) : r.ergebnis;
       return {
         key,
         label: RESOURCE_LABELS[key].label,
         aktuell: resources[key].aktuell,
-        ergebnis: r.ergebnis,
+        ergebnis,
       };
     });
   }
@@ -3014,6 +3018,8 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       psycheBase?: number;
       schicksalspunkteAktuell?: number;
       schicksalspunkteMax?: number;
+      filterBonusMax?: number;
+      gefiltert?: number;
     };
 
     // Vitale Pools als Chips „aktuell/max". AsE nur, wenn der Charakter sie
@@ -3026,7 +3032,8 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       const inp = resources[key];
       if (key === 'ase' && !(inp.aktuell || inp.permanent || inp.kauf)) continue;
       const r = computeResource(attributes, key, inp);
-      vitals.push({ key, aktuell: inp.aktuell, max: r.ergebnis });
+      const max = key === 'ase' ? applyFilterBonus(r.ergebnis, meta.filterBonusMax ?? 0, meta.gefiltert ?? 0) : r.ergebnis;
+      vitals.push({ key, aktuell: inp.aktuell, max });
     }
     // Psyche ist kein echter Vorrat; Max aus Rassenwert +
     // Bonus + MU-Anteil — dieselbe Formel wie im Heldenbrief.

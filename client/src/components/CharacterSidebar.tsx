@@ -1,6 +1,6 @@
 import { ATTR_CODES, ATTR_LABELS, RESOURCE_KEYS } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
-import { computeResource, psycheMax, psycheProzent } from '@shared/rules';
+import { applyFilterBonus, computeResource, psycheMax, psycheProzent } from '@shared/rules';
 import { attrsMitBoni, resourceInputMitBoni } from '@shared/items';
 import { pouchUeberfuellt } from '@shared/currency';
 import { BOARD_STATUS_BY_KEY } from '@shared/boardStatus';
@@ -162,12 +162,13 @@ function SidebarPools() {
         {RESOURCE_KEYS.map((key) => {
           const r = computeResource(attributesEff, key, resourceInputMitBoni(resources[key], key, stats));
           const akt = resources[key].aktuell;
-          const cls = poolClass(key, akt, r.ergebnis);
-          const prozent = r.ergebnis > 0 ? Math.round((akt / r.ergebnis) * 100) : null;
+          const maxEff = key === 'ase' ? applyFilterBonus(r.ergebnis, meta.filterBonusMax ?? 0, meta.gefiltert) : r.ergebnis;
+          const cls = poolClass(key, akt, maxEff);
+          const prozent = maxEff > 0 ? Math.round((akt / maxEff) * 100) : null;
           return (
             <div className={`side-pool${cls ? ` ${cls}` : ''}`} key={key}>
-              <PoolHead label={RES_ABBR[key]} title={RES_FULL[key]} prozent={prozent} />
-              <AktuellFeld value={akt} max={r.ergebnis} onChange={(v) => setAktuell(key, v)} />
+              <PoolHead label={RES_ABBR[key]} title={key === 'ase' && meta.gefiltert ? `${RES_FULL[key]} (gefiltert)` : RES_FULL[key]} prozent={prozent} />
+              <AktuellFeld value={akt} max={maxEff} onChange={(v) => setAktuell(key, v)} />
             </div>
           );
         })}
