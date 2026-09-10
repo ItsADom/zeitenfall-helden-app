@@ -205,6 +205,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       'Astralenergie lässt sich jetzt „filtern“: ein Schalter an der AsE-Zeile hebt ihr Maximum um einen selbst hinterlegten Prozentsatz an, solange er aktiv ist.',
       'Sprachen und Schriften zeigen jetzt an, welche jeweils zueinander gehören (z. B. welche Schrift(en) eine Sprache verwendet, und umgekehrt).',
       'Nah-/Fernkampfwaffen lassen sich im Waffen-Reiter jetzt über ein neues Feld „Gruppe“ frei zu einer Stapel-Karte zusammenfassen (z. B. mehrere Wurfmesser mit unterschiedlichen Werten).',
+      'Leichte und schwere Wunden lassen sich jetzt auch direkt im Charakterbogen (Seitenleiste, neben Training/Lesen) eintragen, nicht mehr nur über die Marke auf dem virtuellen Tisch. Beide Stellen führen denselben Zähler.',
     ],
     admin: [
       '(Verwaltung) Im Sprachen-Katalog lässt sich jetzt je Sprache eintragen, welche Schrift(en) zu ihr gehören.',
