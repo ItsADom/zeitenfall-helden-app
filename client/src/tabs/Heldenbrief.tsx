@@ -429,32 +429,39 @@ export default function HeldenbriefTab() {
                     <NumInput value={resources[key].kauf} onChange={(v) => setResource(key, 'kauf', v)} />
                   </td>
                   <td className="computed">
-                    <BonusWert quellen={quellen}>{r.ergebnis}</BonusWert>
-                    {key === 'ase' && (
-                      <div
-                        className="cell-labeled filter-control"
-                        title="Filtern: manuell umgelegt, solange die Fiktion es hergibt (kein Timer/Ablauf in der App) — hebt das AsE-Maximum um den eingetragenen Prozentsatz an."
-                      >
-                        <label className="filter-toggle">
+                    {key === 'ase' ? (
+                      <div className="cell-labeled filter-control">
+                        <span className="filter-summe-line">
+                          <BonusWert quellen={quellen}>{r.ergebnis}</BonusWert>
+                          {gefiltert && (
+                            <>
+                              {' → '}
+                              <span className="filter-result">{maxEff}</span>
+                            </>
+                          )}
+                        </span>
+                        <label
+                          className="filter-toggle"
+                          title="Filtern: manuell umgelegt, solange die Fiktion es hergibt (kein Timer/Ablauf in der App) — hebt das AsE-Maximum um den eingetragenen Prozentsatz an."
+                        >
                           <input
                             type="checkbox"
                             checked={!!meta.gefiltert}
                             disabled={readOnly}
                             onChange={(e) => setMeta('gefiltert', e.target.checked ? 1 : 0)}
                           />
-                          gefiltert
-                        </label>
-                        <span className="filter-percent">
+                          Filtern →
                           <NumInput
                             value={meta.filterBonusMax ?? 0}
                             min={0}
-                            width={48}
+                            width={38}
                             onChange={(v) => setMeta('filterBonusMax', v)}
                           />
                           %
-                        </span>
-                        {gefiltert && <span className="cell-label">→ {maxEff}</span>}
+                        </label>
                       </div>
+                    ) : (
+                      <BonusWert quellen={quellen}>{r.ergebnis}</BonusWert>
                     )}
                   </td>
                   <td

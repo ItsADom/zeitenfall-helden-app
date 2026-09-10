@@ -1595,21 +1595,56 @@ table.sheet tbody tr:hover td.res-over {
 .filter-control {
   margin-top: 3px;
   gap: 2px;
+  align-items: center;
+}
+.filter-summe-line {
+  white-space: nowrap;
 }
 .filter-toggle {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 3px;
-  font-size: 0.75em;
   color: var(--muted);
   cursor: pointer;
+  white-space: nowrap;
 }
-.filter-percent {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 0.75em;
-  color: var(--muted);
+/* Custom statt nativ: manche Browser (Opera GX) ignorieren color-scheme fürs
+   Kästchen und zeigen es unabhängig vom Theme weiß an. Selbst gemalt statt
+   verlassen auf native Einfärbung, damit es überall gleich aussieht — bewusst
+   nur hier, nicht global (die anderen 18 Checkboxen der App bleiben nativ). */
+.filter-toggle input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--input-bg);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transform: none;
+}
+.filter-toggle input[type='checkbox']::after {
+  content: '';
+  width: 9px;
+  height: 9px;
+  transform: scale(0);
+  background: var(--accent);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.filter-toggle input[type='checkbox']:checked::after {
+  transform: scale(1);
+}
+.filter-toggle input[type='checkbox']:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.filter-result {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 /* Sprache↔Schrift-Verknüpfung (Sprachen.tsx): kleine, gedämpfte Namensliste
