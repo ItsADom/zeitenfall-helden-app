@@ -6152,6 +6152,23 @@ tr:hover .probe-roll,
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Cosmetic grouping (TODO.md "Weapon tab rework"): „×N"-Abzeichen auf einer
+   Stapel-Kopfzeile — klein genug, um wie ein Anhängsel des Namens zu wirken,
+   nicht wie ein eigener Proben-Chip. */
+.wpn-count {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+/* Aufgeklappter Stapel: die einzelnen Instanz-Karten darunter, leicht
+   eingerückt, damit die Zugehörigkeit zur Stapel-Kopfzeile erkennbar bleibt. */
+.wpn-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px 24px;
+}
 /* Kampftalent und Stufe stehen klein hinter den Proben — Beiwerk, das Name und
    Zahlen überstimmen dürfen; bei Platzmangel verschwindet es zuerst. */
 .wpn-sub {

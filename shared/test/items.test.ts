@@ -13,6 +13,7 @@ import {
   elementKostenBoni,
   elementProbeBonus,
   getrageneLast,
+  groupWeaponItems,
   haltbarkeitPct,
   itemGewicht,
   itemsInContainer,
@@ -27,11 +28,12 @@ import {
   talentMitBoni,
   talentProbeBonus,
   verwendeLadung,
+  weaponGroupKey,
   wornBoni,
   zaehltZurLast,
   zoneView,
 } from '../src/items.js';
-import type { Item, ItemBonus, ItemLocation } from '../src/items.js';
+import type { Item, ItemBonus, ItemLocation, WaffenStat } from '../src/items.js';
 import type { AttrCode, Attributes, BaseValueInputs, CharTalent, ResourceInput, SpecialResource } from '../src/types.js';
 import { ATTR_ROW_CODES, BASE_VALUE_KEYS } from '../src/types.js';
 
@@ -772,5 +774,65 @@ describe('diffItems (incremental item saves)', () => {
     const b = { ...a, name: 'Schwert (umbenannt)' };
     const ops = diffItems([a], [b]);
     expect(ops).toEqual([{ op: 'patch', uid: a.uid, patch: { name: 'Schwert (umbenannt)' } }]);
+  });
+});
+
+function stat(over: Partial<WaffenStat> = {}): WaffenStat {
+  return { uid: makeUid(), feld: 'schaden', wert: '1W6+2', verborgen: false, ...over };
+}
+
+// Cosmetic grouping for non-unique weapon stacks (TODO.md "Weapon tab
+// rework"): duplicateItem is the one place two "identical" weapons are
+// meant to diverge only in Haltbarkeit — these tests pin exactly that.
+describe('weaponGroupKey / groupWeaponItems', () => {
+  it('gruppiert zwei Duplikate trotz unterschiedlicher id/uid/Haltbarkeit', () => {
+    const original = item({
+      name: 'Wurfmesser', waffenArt: 'nah', haltbarkeitMax: 10, haltbarkeitAktuell: 10,
+      waffenStats: [stat({ feld: 'schaden', wert: '1W6' }), stat({ feld: 'rd', wert: '1' })],
+    });
+    const kopie = { ...duplicateItem(original), haltbarkeitAktuell: 3 };
+    expect(weaponGroupKey(original)).toBe(weaponGroupKey(kopie));
+    expect(groupWeaponItems([original, kopie])).toEqual([[original, kopie]]);
+  });
+
+  it('trennt Instanzen, sobald sich ein echter Waffen-Stat unterscheidet', () => {
+    const a = item({ name: 'Wurfmesser', waffenArt: 'nah', waffenStats: [stat({ feld: 'schaden', wert: '1W6' })] });
+    const b = { ...duplicateItem(a), waffenStats: [stat({ feld: 'schaden', wert: '1W6+1' })] };
+    expect(weaponGroupKey(a)).not.toBe(weaponGroupKey(b));
+    expect(groupWeaponItems([a, b])).toEqual([[a], [b]]);
+  });
+
+  it('trennt Instanzen, wenn sich ein Waffen-Stat nur im verborgen-Flag unterscheidet', () => {
+    const a = item({ name: 'Speer', waffenArt: 'nah', waffenStats: [stat({ feld: 'schaden', verborgen: false })] });
+    const b = { ...duplicateItem(a), waffenStats: [stat({ feld: 'schaden', verborgen: true })] };
+    expect(weaponGroupKey(a)).not.toBe(weaponGroupKey(b));
+  });
+
+  it('ist unabhängig von der Reihenfolge der waffenStats/bonusse-Zeilen', () => {
+    const s1 = stat({ feld: 'schaden', wert: '1W6' });
+    const s2 = stat({ feld: 'rd', wert: '2' });
+    const b1 = bonus({ code: 'MU', wert: 1 });
+    const b2 = bonus({ code: 'KL', wert: 2 });
+    const a = item({ name: 'Beil', waffenArt: 'nah', waffenStats: [s1, s2], bonusse: [b1, b2] });
+    const b = item({ name: 'Beil', waffenArt: 'nah', waffenStats: [s2, s1], bonusse: [b2, b1] });
+    expect(weaponGroupKey(a)).toBe(weaponGroupKey(b));
+  });
+
+  it('trennt Instanzen mit unterschiedlicher Notiz (nicht Teil der erlaubten Abweichung)', () => {
+    const a = item({ name: 'Dolch', waffenArt: 'nah', notiz: '' });
+    const b = { ...duplicateItem(a), notiz: 'von Großvater geerbt' };
+    expect(weaponGroupKey(a)).not.toBe(weaponGroupKey(b));
+  });
+
+  it('behält bei einer Mischung mehrerer Stapel die erste-Auftreten-Reihenfolge bei', () => {
+    const messerA = item({ name: 'Messer', waffenArt: 'nah', uid: 'm1' });
+    const schwert = item({ name: 'Schwert', waffenArt: 'nah', uid: 's1' });
+    const messerB = { ...duplicateItem(messerA), uid: 'm2' };
+    expect(groupWeaponItems([messerA, schwert, messerB])).toEqual([[messerA, messerB], [schwert]]);
+  });
+
+  it('lässt einzelne (ungruppierte) Waffen als eigene Ein-Item-Gruppe', () => {
+    const a = item({ name: 'Axt', waffenArt: 'nah' });
+    expect(groupWeaponItems([a])).toEqual([[a]]);
   });
 });

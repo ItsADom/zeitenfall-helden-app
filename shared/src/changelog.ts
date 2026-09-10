@@ -203,7 +203,8 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Filtern',
     added: [
       'Astralenergie lässt sich jetzt „filtern“: ein Schalter an der AsE-Zeile hebt ihr Maximum um einen selbst hinterlegten Prozentsatz an, solange er aktiv ist.',
-      'Sprachen und Schriften zeigen jetzt an, welche jeweils zueinander gehören (z. B. welche Schrift(en) eine Sprache verwendet, und umgekehrt) – rein informativ auf dem Sprachen-Tab.',
+      'Sprachen und Schriften zeigen jetzt an, welche jeweils zueinander gehören (z. B. welche Schrift(en) eine Sprache verwendet, und umgekehrt).',
+      'Baugleiche Nah-/Fernkampfwaffen (z. B. mehrere Wurfmesser) fassen sich im Waffen-Reiter jetzt zu einer Stapel-Karte mit „×N“ zusammen, aufklappbar zu den einzelnen Exemplaren mit ihrer je eigenen Haltbarkeit.',
     ],
     admin: [
       '(Verwaltung) Im Sprachen-Katalog lässt sich jetzt je Sprache eintragen, welche Schrift(en) zu ihr gehören.',

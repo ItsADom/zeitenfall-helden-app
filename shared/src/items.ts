@@ -390,6 +390,49 @@ export function duplicateItem(item: Item): Item {
   };
 }
 
+// Cosmetic grouping for non-unique weapon stacks (TODO.md "Weapon tab rework"):
+// a key that's equal for two Items iff they're "the same weapon" in every
+// respect except id/uid and Haltbarkeit (haltbarkeitMax/haltbarkeitAktuell) —
+// the one thing duplicateItem exists to let diverge (see its comment above).
+// Destructuring instead of an explicit field allowlist so a FUTURE Item field
+// defaults to being compared — favors under- over over-grouping if someone
+// forgets to touch this when adding a field. waffenStats/bonusse rows get
+// fresh uids from duplicateItem too, so they compare by content
+// (feld/kind/code/wert/verborgen), not by their own uid, sorted so row order
+// doesn't matter.
+export function weaponGroupKey(item: Item): string {
+  const { id, uid, haltbarkeitMax, haltbarkeitAktuell, waffenStats, bonusse, ...rest } = item;
+  void id;
+  void uid;
+  void haltbarkeitMax;
+  void haltbarkeitAktuell;
+  const statsKey = waffenStats.map((s) => `${s.feld}:${s.wert}:${s.verborgen}`).sort();
+  const bonusKey = bonusse.map((b) => `${b.kind}:${b.code}:${b.feld}:${b.wert}:${b.verborgen}`).sort();
+  return JSON.stringify({ ...rest, statsKey, bonusKey });
+}
+
+// Groups Items by weaponGroupKey, preserving first-occurrence order — for the
+// weapon tab's cosmetic stack display (see WaffenNeu.tsx). A group of size 1
+// is just the item on its own; size >1 is a stack of functionally-identical
+// instances differing at most in Haltbarkeit, shown as one collapsed card
+// expandable to the individual instances (display-only, no data model change
+// — still one char_items row per instance).
+export function groupWeaponItems(items: readonly Item[]): Item[][] {
+  const order: string[] = [];
+  const byKey = new Map<string, Item[]>();
+  for (const it of items) {
+    const key = weaponGroupKey(it);
+    let group = byKey.get(key);
+    if (!group) {
+      group = [];
+      byKey.set(key, group);
+      order.push(key);
+    }
+    group.push(it);
+  }
+  return order.map((key) => byKey.get(key)!);
+}
+
 // Eine Portion Ladung verbrauchen (TODO.md "Potion charges"). Bei anzahl > 1
 // kann EIN current/max-Paar nicht "3 Tränke, unterschiedlich weit geleert"
 // abbilden — genau das Problem, das duplicateItem für Haltbarkeit schon löst.

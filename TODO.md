@@ -59,6 +59,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
+- similar search-functionality like talents do in all inventories
 - [ready] **Image gallery for houses** (user feedback, concept agreed
   2026-09-03). Multiple images per house (floor plans, reference photos), not
   just one — reuses the existing generic `assets` table
@@ -101,51 +102,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
   shown next to the name in the collapsed head, full field grid on expand;
   follows the Ausrüstung item-chip pattern). Remaining:
-   - `Kampfstile` (still the old generic `ListEditor` table inside
-     `WaffenNeu.tsx`, unstyled as cards) still wants its own card treatment
-     eventually, same reasoning as the weapon rework itself.
-     `Pfeile-Bolzen` (Munition) used to sit here too but is gone — ammunition
-     is a real Inventar-Item now (kategorie „Munition", see `MUNITION_KATEGORIE`
-     in `shared/src/items.ts`), picked directly on the Fernkampf card via its
-     new `munitionUid` field. `Waffenloser Kampf` also got its card treatment
-     (`WaffenlosCards`) — but deliberately stayed on the `sec_waffenlos` row
-     list rather than becoming real `char_items` (fists have no weight/location
-     and would otherwise clutter Inventar/Ausrüstung). Fixed to exactly two
-     cards, Raufen and Ringen (the only two unarmed-combat talents) — no more
-     free-text technique name or Kampftalent picker, both are implied by which
-     card it is; full AT/PA/BL and a Schaden field (renamed from TP/KK — TP(A)
-     dropped, had no real data anywhere). Raufen's Schaden also picks up a
-     "Handschutz-Bonus" automatically (the RS of whatever is worn in the
-     Hand-links/Hand-rechts zone, see `handRs` in `shared/src/items.ts`) —
-     Ringen is unaffected. Despite not being an Item, AT/PA/BL and Schaden are
-     all rollable: a new `ProbeSource` kind (`'waffenlos'`) and a new
-     `roll.waffenlosDamage` message recompute straight from the character's
-     base values + this row + the Raufen/Ringen talent split, entirely
-     server-side, the same trust model as a real weapon (see diceSource.ts,
-     ws.ts, `WaffenlosDamageRollButton.tsx`).
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
-     THe actual statuses can be hardcoded, no need for settings.
-     THe actual statuses can be hardcoded, no need for settings.
-   - [ready] **Structured min/max range for Fernkampf** (user feedback):
-     `entfernung` (`WaffenNeu.tsx:520-522`, `sections.ts:92-93`) is a single
-     freeform text field, historically hand-written like "10/20/30". Decided:
-     replace it with structured numeric `reichweiteMin`/`reichweiteMax`
-     fields rather than adding alongside. Migration must not silently drop
-     existing values (no-data-loss rule) — for rows whose old `entfernung`
-     text doesn't cleanly parse into two numbers, fold the original string
-     into the row's `notiz` instead of discarding it.
-   - [ready] **Cosmetic grouping for non-unique weapon stacks** (user
-     feedback, concept agreed 2026-09-03): throwing knives and the like get
-     `Duplizieren`'d into several separate rows today because durability must
-     stay independent per instance (`shared/src/items.ts:289-293` —
-     `duplicateItem` exists specifically so two identical weapons can diverge
-     in Haltbarkeit; `anzahl`-style stacking would collapse that to one
-     shared state, which is wrong here). **Decided: display-only** — the data
-     model doesn't change, still one `Item` row per instance. Group
-     functionally-identical weapon instances (same stats, differing at most
-     in Haltbarkeit) into one collapsed card in the reworked weapon tab,
-     expandable to the individual instances underneath.
+     The actual statuses can be hardcoded, no need for settings.
 - [sketch] **Ability bonus list (deferred from the ability-editing-dialog
   build)**: abilities now have their own `AbilityEditDialog`
   (`client/src/components/AbilityEditDialog.tsx`, opened from
@@ -179,7 +138,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   for attaching a structured effect to a free-text dynamic-table row (a
   per-row dialog like the item one, or a new `DynColumn` type?), and whether a
   row gets one effect or a repeatable list like items do.
-- [sketch] **20+ perk picker** — source PDF analysed and written up at
+- [onHold] **20+ perk picker** — source PDF analysed and written up at
   `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
   no prerequisite edges, ~160 effects classified into 6 computable and 8
   display-only categories). Rules confirmed: pool = `attribut − 20`, one point
