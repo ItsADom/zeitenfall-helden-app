@@ -513,9 +513,6 @@ export default function HeldenbriefTab() {
                   <td className="computed">
                     <BonusWert quellen={pQuellen}>{pMax}</BonusWert>
                   </td>
-                  <td className="computed">—</td>
-                  <td className="computed">—</td>
-                  <td className="computed">—</td>
                   <td
                     className={overfilled(pAkt, pMax) ? 'res-over' : undefined}
                     title={overfilled(pAkt, pMax) ? `überladen: ${pAkt}/${pMax}` : undefined}
