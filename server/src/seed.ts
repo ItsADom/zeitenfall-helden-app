@@ -108,6 +108,45 @@ export function seed(): void {
     }
   }
 
+  // Sprache↔Schrift-Verknüpfungen (TODO.md "Link spoken languages to their
+  // writing system"): eigener Count-Guard statt an langCount gehängt, damit
+  // eine bereits bestehende languages_catalog (Alt-DB) die Verknüpfungen trotzdem
+  // einmalig nachgezogen bekommt. Läuft NUR, solange die Tabelle leer ist — ein
+  // von der SL über den Katalog-Editor gelöschter Link darf beim nächsten
+  // Serverstart nicht stillschweigend zurückkommen (anders als ein reines
+  // INSERT OR IGNORE bei jedem Start es täte).
+  const languageScriptCount = (db.prepare('SELECT COUNT(*) AS n FROM language_scripts').get() as { n: number }).n;
+  if (languageScriptCount === 0) {
+    const file = path.join(dataDir, 'languageScripts.json');
+    if (fs.existsSync(file)) {
+      const pairs = JSON.parse(fs.readFileSync(file, 'utf8')) as { sprache: string; familie?: string; schrift: string }[];
+      const findSprache = db.prepare("SELECT id FROM languages_catalog WHERE kind = 'sprache' AND name = ?");
+      const findSpracheInFamilie = db.prepare("SELECT id FROM languages_catalog WHERE kind = 'sprache' AND name = ? AND familie = ?");
+      const findSchrift = db.prepare("SELECT id FROM languages_catalog WHERE kind = 'schrift' AND name = ?");
+      const insLink = db.prepare('INSERT OR IGNORE INTO language_scripts (sprache_id, schrift_id) VALUES (?, ?)');
+      let linked = 0;
+      const skipped: string[] = [];
+      const tx = db.transaction(() => {
+        for (const p of pairs) {
+          const spracheRow = p.familie
+            ? (findSpracheInFamilie.get(p.sprache, p.familie) as { id: number } | undefined)
+            : (findSprache.get(p.sprache) as { id: number } | undefined);
+          const schriftRow = findSchrift.get(p.schrift) as { id: number } | undefined;
+          if (!spracheRow || !schriftRow) {
+            skipped.push(`${p.sprache} → ${p.schrift}`);
+            continue;
+          }
+          insLink.run(spracheRow.id, schriftRow.id);
+          linked++;
+        }
+      });
+      tx();
+      console.log(`Sprache-Schrift-Verknüpfungen geladen: ${linked} Einträge${skipped.length ? `, übersprungen: ${skipped.join('; ')}` : ''}`);
+    } else {
+      console.warn('server/data/languageScripts.json fehlt — Sprache-Schrift-Verknüpfungen leer');
+    }
+  }
+
   const raceCount = (db.prepare('SELECT COUNT(*) AS n FROM races_catalog').get() as { n: number }).n;
   if (raceCount === 0) {
     const file = path.join(dataDir, 'races.json');

@@ -235,6 +235,18 @@ db.exec(`
     muttersprache INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (character_id, language_id)
   );
+  -- Welche Schrift(en) zu welcher gesprochenen Sprache gehören (TODO.md "Link
+  -- spoken languages to their writing system"): eine echte m:n-Beziehung, KEIN
+  -- schriftId-Feld auf der Sprache-Zeile — eine Sprache kann mehrere Schriften
+  -- haben (z. B. Tulamidya: Kusliker Zeichen, Tulamidva, G. Glyphen v. Unau)
+  -- und eine Schrift dient mehreren Sprachen (Kusliker Zeichen: acht davon).
+  -- Rein informativ (Sprachen.tsx zeigt sie nur an), daher kein Bezug zu
+  -- char_languages — löschen ist immer erlaubt.
+  CREATE TABLE IF NOT EXISTS language_scripts (
+    sprache_id INTEGER NOT NULL REFERENCES languages_catalog(id) ON DELETE CASCADE,
+    schrift_id INTEGER NOT NULL REFERENCES languages_catalog(id) ON DELETE CASCADE,
+    PRIMARY KEY (sprache_id, schrift_id)
+  );
 
   -- Merkmale-Katalog (GM-Tags, z.B. "Hat Gefahreninstinkt"): frei vom
   -- Spielleiter gepflegt (wie Talente/Sprachen), auf der GM-Übersicht je

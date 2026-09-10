@@ -1612,6 +1612,64 @@ table.sheet tbody tr:hover td.res-over {
   color: var(--muted);
 }
 
+/* Sprache↔Schrift-Verknüpfung (Sprachen.tsx): kleine, gedämpfte Namensliste
+   unter dem Sprache-/Schrift-Namen — rein informativ, kein eigenes Eingabefeld. */
+.lang-related {
+  font-size: 0.75em;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: normal;
+}
+
+/* Sprache↔Schrift-Verknüpfung, SL-Seite (Admin.tsx, SprachenKatalogPanel):
+   verknüpfte Schriften als kleine Pillen, darunter ein Suchfeld, das
+   Treffer zum Klicken auflistet — kein Häkchen-Feld über den ganzen
+   Schriften-Katalog (siehe Kommentar an LanguageScriptPicker). */
+.lang-script-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+.lang-script-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.lang-script-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+.lang-script-chip button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9em;
+  line-height: 1;
+}
+.lang-script-chip button:hover {
+  color: var(--accent);
+}
+.lang-script-picker input[type='text'] {
+  font-size: 0.85em;
+  padding: 2px 4px;
+}
+.lang-script-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
 /* Item-bonusierter Wert (BonusWert.tsx) — dieselbe Färbung wie .chip-rs/
    .chip-bonus, damit "von einem Gegenstand angehoben" überall gleich aussieht. */
 .bonus-mark {

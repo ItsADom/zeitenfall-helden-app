@@ -15,15 +15,26 @@ interface CatalogColumn {
   width?: number;
 }
 
+// Zusätzliche, nicht-generische Spalte am rechten Rand vor den Zeilen-Knöpfen
+// (z. B. die Sprache↔Schrift-Verknüpfung) — die Zeile selbst bleibt dem
+// CatalogPanel unbekannt, `render` bekommt sie nur roh gereicht. Gleiches
+// Muster wie `ExtraColumn` in components/inputs.tsx (ListEditor).
+interface CatalogExtraColumn {
+  label: string;
+  render: (row: Record<string, unknown>) => React.ReactNode;
+}
+
 // Editierbarer Katalog (Talente / Sprachen / Rassen) — speichert je Feld beim Verlassen
 function CatalogPanel({
   type,
   title,
   columns,
+  extraColumns = [],
 }: {
   type: 'talents' | 'languages' | 'tags' | 'races' | 'specialEnergies';
   title: string;
   columns: CatalogColumn[];
+  extraColumns?: CatalogExtraColumn[];
 }) {
   const [rows, setRows] = useState<Record<string, unknown>[]>([]);
   const [error, setError] = useState('');
@@ -93,6 +104,9 @@ function CatalogPanel({
                   {c.label}
                 </th>
               ))}
+              {extraColumns.map((c) => (
+                <th key={c.label}>{c.label}</th>
+              ))}
               <th style={{ width: 40 }} />
             </tr>
           </thead>
@@ -110,6 +124,9 @@ function CatalogPanel({
                       }}
                     />
                   </td>
+                ))}
+                {extraColumns.map((c) => (
+                  <td key={c.label}>{c.render(r)}</td>
                 ))}
                 <td style={{ whiteSpace: 'nowrap' }}>
                   <button className="small" title="Vor diesem Eintrag einfügen" onClick={() => insertAt('before', r.id)}>
@@ -165,6 +182,125 @@ function CatalogPanel({
         </button>
       </div>
     </details>
+  );
+}
+
+// Sprache↔Schrift-Verknüpfung (TODO.md "Link spoken languages to their
+// writing system"): pro Sprache-Zeile ein Inline-Textsuchfeld, das gefundene
+// Schriften einzeln zur Liste hinzufügt — bewusst kein Häkchen-/Auswahlfeld
+// über alle ~30 Schriften (bei jeder der ~35 Sprachen zu durchsuchen wäre
+// das Gegenteil von leichtgewichtig). Bereits verknüpfte Schriften erscheinen
+// als kleine Pillen mit Entfernen-Knopf darunter.
+function LanguageScriptPicker({
+  spracheId,
+  schriftRows,
+  linkedIds,
+  onChange,
+}: {
+  spracheId: number;
+  schriftRows: { id: number; name: string }[];
+  linkedIds: number[];
+  onChange: () => void;
+}) {
+  const [q, setQ] = useState('');
+  const linkedSet = new Set(linkedIds);
+  const ql = q.trim().toLowerCase();
+  const matches = ql ? schriftRows.filter((s) => !linkedSet.has(s.id) && s.name.toLowerCase().includes(ql)).slice(0, 8) : [];
+
+  const add = async (schriftId: number) => {
+    setQ('');
+    await apiPost('/api/admin/language-scripts', { spracheId, schriftId });
+    onChange();
+  };
+  const remove = async (schriftId: number) => {
+    await apiDelete(`/api/admin/language-scripts/${spracheId}/${schriftId}`);
+    onChange();
+  };
+
+  return (
+    <div className="lang-script-picker">
+      {linkedIds.length > 0 && (
+        <div className="lang-script-chips">
+          {linkedIds.map((id) => (
+            <span className="lang-script-chip" key={id}>
+              {schriftRows.find((s) => s.id === id)?.name ?? '?'}
+              <button type="button" title="Verknüpfung entfernen" onClick={() => remove(id)}>
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        type="text"
+        placeholder="Schrift suchen…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && matches[0]) add(matches[0].id);
+        }}
+      />
+      {matches.length > 0 && (
+        <div className="lang-script-matches">
+          {matches.map((s) => (
+            <button type="button" className="small" key={s.id} onClick={() => add(s.id)}>
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Umhüllt CatalogPanel für den Sprachen-Katalog um die Verknüpfungs-Spalte
+// (nur bei kind==='sprache' befüllt — die Schrift-Zeilen selbst bleiben in
+// dieser Spalte leer, die Verknüpfung wird ausschließlich von der Sprache
+// aus gepflegt). Eigener, zweiter /api/catalogs-Abruf statt CatalogPanels
+// internen Zustand anzufassen: die Verknüpfungen sind keine Spalte von
+// languages_catalog, also auch kein Feld, das CatalogPanels generisches
+// Speichern je Zelle betrifft.
+function SprachenKatalogPanel() {
+  const [links, setLinks] = useState<{ spracheId: number; schriftId: number }[]>([]);
+  const [schriften, setSchriften] = useState<{ id: number; name: string }[]>([]);
+
+  const reload = () => {
+    apiGet<{
+      languages: { id: number; kind: string; name: string }[];
+      languageScripts: { spracheId: number; schriftId: number }[];
+    }>('/api/catalogs').then((c) => {
+      setLinks(c.languageScripts);
+      setSchriften(c.languages.filter((l) => l.kind === 'schrift').map((l) => ({ id: l.id, name: l.name })));
+    });
+  };
+  useEffect(reload, []);
+
+  return (
+    <CatalogPanel
+      type="languages"
+      title="Sprachen-Katalog"
+      columns={[
+        { key: 'kind', label: 'Art', width: 100 },
+        { key: 'familie', label: 'Familie', width: 200 },
+        { key: 'name', label: 'Name' },
+        { key: 'komplexitaet', label: 'Komplexität', width: 110 },
+        { key: 'sort', label: 'Sortierung', width: 80 },
+      ]}
+      extraColumns={[
+        {
+          label: 'Schriften',
+          render: (row) =>
+            row.kind === 'sprache' ? (
+              <LanguageScriptPicker
+                spracheId={Number(row.id)}
+                schriftRows={schriften}
+                linkedIds={links.filter((l) => l.spracheId === Number(row.id)).map((l) => l.schriftId)}
+                onChange={reload}
+              />
+            ) : null,
+        },
+      ]}
+    />
   );
 }
 
@@ -1175,17 +1311,7 @@ export default function AdminPage() {
           { key: 'sort', label: 'Sortierung', width: 80 },
         ]}
       />
-      <CatalogPanel
-        type="languages"
-        title="Sprachen-Katalog"
-        columns={[
-          { key: 'kind', label: 'Art', width: 100 },
-          { key: 'familie', label: 'Familie', width: 200 },
-          { key: 'name', label: 'Name' },
-          { key: 'komplexitaet', label: 'Komplexität', width: 110 },
-          { key: 'sort', label: 'Sortierung', width: 80 },
-        ]}
-      />
+      <SprachenKatalogPanel />
       <CatalogPanel
         type="tags"
         title="Merkmale-Katalog"

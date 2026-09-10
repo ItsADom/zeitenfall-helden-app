@@ -109,9 +109,18 @@ export interface SpecialEnergyCatalogRow {
   umrechnung: string;
   sort: number;
 }
+// Sprache↔Schrift-Verknüpfung (TODO.md "Link spoken languages to their
+// writing system"): eine echte m:n-Beziehung (eine Sprache kann mehrere
+// Schriften haben und umgekehrt, siehe language_scripts in server/src/db.ts),
+// rein informativ auf dem Sprachen-Tab — kein schriftId-Feld auf der Zeile.
+export interface LanguageScriptLink {
+  spracheId: number;
+  schriftId: number;
+}
 export interface Catalogs {
   talents: TalentCatalogRow[];
   languages: LanguageCatalogRow[];
+  languageScripts: LanguageScriptLink[];
   races: RaceCatalogRow[];
   specialEnergies: SpecialEnergyCatalogRow[];
   currencies: CurrencySystem[];

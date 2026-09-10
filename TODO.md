@@ -236,14 +236,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 - [sketch] **Liturgien catalogue** (waits until the catalogue content is finished): read
   the character's priest level to unlock Liturgien accordingly. Priest-level
   requirements are still not fleshed out.
-- [sketch] **Link spoken languages to their writing system** (user feedback):
-  `Sprachen.tsx` treats languages and scripts as two entirely separate,
-  unlinked catalogs (`kind: 'sprache' | 'schrift'`), rendered by the same
-  generic `LanguageTable` and grouped by `familie` — no field anywhere says
-  "spoken language X uses script Y". Needs a concept pass: a `schriftId` /
-  default-script field on `sprache`-kind catalog rows (or a join table), plus
-  how to surface it in the UI (sub-label on the Sprachen row, auto-suggest in
-  the Schriften table, …).
 ## Unsorted ideas (treat all as [sketch])
 
 - FAQ - like a little manual or easy to miss features

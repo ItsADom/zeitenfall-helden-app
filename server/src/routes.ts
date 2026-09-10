@@ -511,11 +511,12 @@ api.get('/easter-eggs', requireAuth, (_req, res) => {
 api.get('/catalogs', requireAuth, (_req, res) => {
   const talents = db.prepare('SELECT * FROM talents_catalog ORDER BY sort').all();
   const languages = db.prepare('SELECT * FROM languages_catalog ORDER BY sort').all();
+  const languageScripts = db.prepare('SELECT sprache_id AS spracheId, schrift_id AS schriftId FROM language_scripts').all();
   const tags = db.prepare('SELECT * FROM tags_catalog ORDER BY sort').all();
   const races = db.prepare('SELECT * FROM races_catalog ORDER BY sort').all();
   const specialEnergies = db.prepare('SELECT * FROM special_energies_catalog ORDER BY sort').all();
   const currencies = currencySystemsList();
-  res.json({ talents, languages, tags, races, specialEnergies, currencies });
+  res.json({ talents, languages, languageScripts, tags, races, specialEnergies, currencies });
 });
 
 // --- Dashboard / Gruppen ---
@@ -2486,6 +2487,32 @@ api.post('/admin/catalogs/:type/renumber', requireAuth, requireGmOrAdmin, (req, 
   db.transaction(() => {
     rows.forEach((r, i) => upd.run((i + 1) * 100, r.id));
   })();
+  res.json({ ok: true });
+});
+
+// Sprache↔Schrift-Verknüpfung (TODO.md "Link spoken languages to their writing
+// system"): eine echte m:n-Beziehung (siehe language_scripts in db.ts), passt
+// nicht ins generische CATALOGS-Muster oben (eine Tabelle, flache Zeilen) —
+// daher eigene Routen. Kein "wird verwendet"-Löschschutz wie bei den Katalog-
+// Zeilen selbst nötig: die Verknüpfung ist rein informativ, nichts hält eine
+// Referenz darauf außer der Anzeige.
+api.post('/admin/language-scripts', requireAuth, requireGmOrAdmin, (req, res) => {
+  const { spracheId, schriftId } = (req.body ?? {}) as { spracheId?: unknown; schriftId?: unknown };
+  const s = Number(spracheId);
+  const c = Number(schriftId);
+  if (!s || !c) {
+    res.status(400).json({ error: 'spracheId und schriftId erforderlich' });
+    return;
+  }
+  db.prepare('INSERT OR IGNORE INTO language_scripts (sprache_id, schrift_id) VALUES (?, ?)').run(s, c);
+  res.json({ ok: true });
+});
+
+api.delete('/admin/language-scripts/:spracheId/:schriftId', requireAuth, requireGmOrAdmin, (req, res) => {
+  db.prepare('DELETE FROM language_scripts WHERE sprache_id = ? AND schrift_id = ?').run(
+    Number(req.params.spracheId),
+    Number(req.params.schriftId),
+  );
   res.json({ ok: true });
 });
 
