@@ -59,7 +59,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- similar search-functionality like talents do in all inventories
 - [ready] **Image gallery for houses** (user feedback, concept agreed
   2026-09-03). Multiple images per house (floor plans, reference photos), not
   just one — reuses the existing generic `assets` table
