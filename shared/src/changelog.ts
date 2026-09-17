@@ -201,6 +201,7 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-09-18',
     title: 'Filtern und Suchen',
+    version: '0.11.0',
     added: [
       'Astralenergie lässt sich jetzt „filtern“: ein Schalter an der AsE-Zeile hebt ihr Maximum um einen selbst hinterlegten Prozentsatz an, solange er aktiv ist.',
       'Sprachen und Schriften zeigen jetzt an, welche jeweils zueinander gehören (z. B. welche Schrift(en) eine Sprache verwendet, und umgekehrt).',
