@@ -133,6 +133,16 @@ export const WETTSTREIT = {
 };
 
 /**
+ * Drei gleiche Würfel in einer 3-W20-Probe (siehe detectTripleEvent,
+ * shared/src/dice.ts) — rein kosmetisch, ändert nichts am Ergebnis.
+ */
+export const TRIPLE = {
+  luck: { title: 'Die Fäden fügen sich' },
+  abyss: { title: 'Der Abgrund grinst' },
+  nameless: { title: 'Der Namenlose lächelt wohlwollend' },
+};
+
+/**
  * „/i" — der große Wurf: die Ansage an den ganzen Tisch.
  *
  * Wie alles andere hier reiner Text. WANN eine Vorstellung läuft und was in ihr

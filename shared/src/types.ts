@@ -211,6 +211,16 @@ export interface Meta {
   // zustimmt — reine Zählung (siehe DicePanel), kein eigener Wurf-Mechanismus.
   schicksalspunkteAktuell: number;
   schicksalspunkteMax: number;
+  // Filtern (Astralenergie-Umverteilung, TODO.md "Percentage bonus for
+  // energies, and what 'Filtern' actually is"): AsE-only. filterBonusMax ist
+  // direkt vom Spieler gesetzt (keine Formel-Herleitung — wie gut DIESER
+  // Charakter filtern kann); gefiltert ist ein reines manuelles An/Aus (kein
+  // In-App-Timer/Ablauf — der Spieler/die SL schaltet es um, wenn die Fiktion
+  // es hergibt). Ist es an, hebt es AsE's Maximum NACH computeResource() um
+  // den Prozentsatz an (applyFilterBonus in rules.ts) — kein Bestandteil von
+  // mods/permanent.
+  filterBonusMax: number;
+  gefiltert: number;
 }
 
 // Talente

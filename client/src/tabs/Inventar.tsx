@@ -8,9 +8,10 @@ import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import { AlwaysEditable, useReadOnly } from '../components/displayMode';
 import { AddContainerDialog, AddItemDialog, useMoveTargets } from '../components/itemDialogs';
 import type { MoveTarget } from '../components/itemDialogs';
-import { NumInput } from '../components/inputs';
+import { Field, NumInput } from '../components/inputs';
 import { CollapsedText } from '../components/notes';
 import { usePersistedState } from '../components/persist';
+import { useSearchHeight } from '../components/stickyChrome';
 import { useChar } from '../pages/Character';
 
 // Inventar (Cluster 5b): verfolgt nur, was IN Behältern steckt (plus einen losen
@@ -65,6 +66,14 @@ export default function InventarTab() {
   const [collapsed, setCollapsed] = usePersistedState<string[]>('inv:collapsed', []);
   const isColl = (k: string) => collapsed.includes(k);
   const toggleColl = (k: string) => setCollapsed((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  // Suche (Spieler-Feedback, große Gruppeninventare): dasselbe Muster wie
+  // Talente.tsx — sticky Suchleiste, klebende Höhe gemessen, Groß-/Kleinschreibung
+  // egal. Ein Treffer im Behälter- oder Kategorie-Namen öffnet die Suche
+  // trotzdem NICHT dessen Kollaps-Zustand dauerhaft, nur solange gesucht wird.
+  const [search, setSearch] = useState('');
+  const searchRef = useSearchHeight();
+  const q = search.trim().toLowerCase();
+  const matches = (it: Item) => it.name.toLowerCase().includes(q) || it.notiz.toLowerCase().includes(q);
   // Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
   // nach…"-Ziele fürs Item-Dialog — siehe Ausruestung.tsx für dieselbe Zeile.
   const moveTargets = useMoveTargets(groupId, { type: 'character', id: charId });
@@ -229,7 +238,7 @@ export default function InventarTab() {
       const sum = rows.reduce((s, it) => s + itemGewicht(it), 0);
       const target: DropTarget = { ...base, kategorie: cat };
       const catKey = `cat:${keyBase}:${cat}`;
-      const open = !isColl(catKey);
+      const open = q !== '' || !isColl(catKey);
       return (
         <Fragment key={cat || '__none'}>
           <tr className={`subtle-head cat-head-row${isOver(target) ? ' drop-into' : ''}`} {...dropHandlers(target)}>
@@ -254,8 +263,23 @@ export default function InventarTab() {
     });
   };
 
+  const looseFiltered = q ? loose.filter(matches) : loose;
+  const contVisible = (c: Item) => q === '' || matches(c) || itemsInContainer(items, c.uid).some(matches);
+  const visibleConts = q ? storageConts.filter(contVisible) : storageConts;
+  const nothingFound = q !== '' && visibleConts.length === 0 && looseFiltered.length === 0;
+
   return (
     <>
+      <div className="talent-search" ref={searchRef}>
+        <Field label="Gegenstand suchen" className="notch-search" active={search !== ''}>
+          <input type="text" placeholder="Name, Notiz…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </Field>
+        {search && (
+          <button className="small" onClick={() => setSearch('')} title="Suche zurücksetzen">
+            ✕
+          </button>
+        )}
+      </div>
       <div className="panel">
         <h3>Traglast</h3>
         <div className={`last-meter${load.ueberladen ? ' over' : ''}`}>
@@ -307,20 +331,22 @@ export default function InventarTab() {
         }}
       />
 
-      {storageConts.length === 0 && loose.length === 0 && (
+      {q === '' && storageConts.length === 0 && loose.length === 0 && (
         <p className="muted">
           Noch nichts verstaut.{!ro && ' Lege oben einen Behälter an und füge unten Gegenstände hinzu.'}
         </p>
       )}
+      {nothingFound && <p className="muted">Kein Gegenstand gefunden.</p>}
 
-      {storageConts.map((c) => {
+      {visibleConts.map((c) => {
         const inside = itemsInContainer(items, c.uid);
+        const insideFiltered = q ? inside.filter(matches) : inside;
         // Gegen das Fassungsvermögen zählt bei Gewicht-Behältern das effektive
         // (reduzierte) Gewicht, bei Stück-Behältern die Stückzahl des Inhalts.
         const stueck = c.kapazitaetArt === 'stueck';
         const fuell = containerFuellungAnzeige(items, c);
         const voll = c.kapazitaet > 0 && fuell > c.kapazitaet;
-        const open = !isColl(c.uid);
+        const open = q !== '' || !isColl(c.uid);
         const base: DropTarget = { location: 'behaelter', containerUid: c.uid };
         return (
           <div className={`panel${isOver(base) ? ' drop-over' : ''}`} key={c.uid} {...dropHandlers(base)}>
@@ -392,14 +418,14 @@ export default function InventarTab() {
                   <table className="sheet inv-table">
                     {colgroup}
                     <tbody>
-                      {inside.length === 0 && (
+                      {insideFiltered.length === 0 && (
                         <tr>
                           <td colSpan={cols} className="muted">
-                            Leer — Gegenstände hierher ziehen{!ro && ' oder unten hinzufügen'}
+                            {q !== '' ? 'Kein Treffer in diesem Behälter' : `Leer — Gegenstände hierher ziehen${!ro ? ' oder unten hinzufügen' : ''}`}
                           </td>
                         </tr>
                       )}
-                      {groupedRows(inside, base)}
+                      {groupedRows(insideFiltered, base)}
                     </tbody>
                   </table>
                 </div>
@@ -416,7 +442,7 @@ export default function InventarTab() {
         );
       })}
 
-      {loose.length > 0 && (
+      {looseFiltered.length > 0 && (
         <div className="panel">
           <h3
             className="collapsible"
@@ -436,13 +462,13 @@ export default function InventarTab() {
               Alt-Bestand und frisch zugeschobene Gegenstände — in einen Behälter ziehen oder zu Ausrüstung
             </span>
             <span className="head-rule" aria-hidden />
-            <span className="chev" aria-hidden>{isColl('__loose') ? '▸' : '▾'}</span>
+            <span className="chev" aria-hidden>{q !== '' || !isColl('__loose') ? '▾' : '▸'}</span>
           </h3>
-          {!isColl('__loose') && (
+          {(q !== '' || !isColl('__loose')) && (
             <div className="table-wrap">
               <table className="sheet inv-table">
                 {colgroup}
-                <tbody>{groupedRows(loose, { location: 'inventar' })}</tbody>
+                <tbody>{groupedRows(looseFiltered, { location: 'inventar' })}</tbody>
               </table>
             </div>
           )}

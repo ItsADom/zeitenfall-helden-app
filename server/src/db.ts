@@ -235,6 +235,18 @@ db.exec(`
     muttersprache INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (character_id, language_id)
   );
+  -- Welche Schrift(en) zu welcher gesprochenen Sprache gehören (TODO.md "Link
+  -- spoken languages to their writing system"): eine echte m:n-Beziehung, KEIN
+  -- schriftId-Feld auf der Sprache-Zeile — eine Sprache kann mehrere Schriften
+  -- haben (z. B. Tulamidya: Kusliker Zeichen, Tulamidva, G. Glyphen v. Unau)
+  -- und eine Schrift dient mehreren Sprachen (Kusliker Zeichen: acht davon).
+  -- Rein informativ (Sprachen.tsx zeigt sie nur an), daher kein Bezug zu
+  -- char_languages — löschen ist immer erlaubt.
+  CREATE TABLE IF NOT EXISTS language_scripts (
+    sprache_id INTEGER NOT NULL REFERENCES languages_catalog(id) ON DELETE CASCADE,
+    schrift_id INTEGER NOT NULL REFERENCES languages_catalog(id) ON DELETE CASCADE,
+    PRIMARY KEY (sprache_id, schrift_id)
+  );
 
   -- Merkmale-Katalog (GM-Tags, z.B. "Hat Gefahreninstinkt"): frei vom
   -- Spielleiter gepflegt (wie Talente/Sprachen), auf der GM-Übersicht je
@@ -889,6 +901,14 @@ db.exec(`
   // hatte vor dieser Spalte je eine eingetragene Wunde.
   if (!cols.has('small_wounds')) db.exec('ALTER TABLE char_meta ADD COLUMN small_wounds INTEGER NOT NULL DEFAULT 0');
   if (!cols.has('big_wounds')) db.exec('ALTER TABLE char_meta ADD COLUMN big_wounds INTEGER NOT NULL DEFAULT 0');
+  // Filtern (TODO.md "Percentage bonus for energies, and what 'Filtern'
+  // actually is"): filterBonusMax ist der vom Spieler direkt gesetzte
+  // Prozentsatz (keine Formel-Herleitung), gefiltert das manuelle An/Aus.
+  // Beides beeinflusst nur die Anzeige/den Vergleich gegen "Aktuell" (siehe
+  // applyFilterBonus in shared/src/rules.ts) — 0 ist für jeden bestehenden
+  // Charakter der richtige Rückfall (niemand galt vor dieser Spalte als gefiltert).
+  if (!cols.has('filterBonusMax')) db.exec('ALTER TABLE char_meta ADD COLUMN filterBonusMax REAL NOT NULL DEFAULT 0');
+  if (!cols.has('gefiltert')) db.exec('ALTER TABLE char_meta ADD COLUMN gefiltert INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration (Cluster 6): 'gruppe' und 'kategorie' waren dieselbe Achse doppelt.
@@ -1383,6 +1403,11 @@ db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_typ
   if (!cols.has('ladung_max')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_max REAL NOT NULL DEFAULT 0');
   if (!cols.has('ladung_aktuell')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_aktuell REAL NOT NULL DEFAULT 0');
   if (!cols.has('ladung_portion')) db.exec('ALTER TABLE char_items ADD COLUMN ladung_portion REAL NOT NULL DEFAULT 1');
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks"): a player-set tag, empty = standalone. See Item.waffenGruppe in
+  // shared/src/items.ts and seedWeaponGruppenFromEquality() in
+  // characterData.ts (one-time migration for weapons already identical today).
+  if (!cols.has('waffen_gruppe')) db.exec("ALTER TABLE char_items ADD COLUMN waffen_gruppe TEXT NOT NULL DEFAULT ''");
 }
 
 // Migration: Magieresistenz von den Energien zu den Basiswerten.

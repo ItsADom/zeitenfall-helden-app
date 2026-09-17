@@ -458,6 +458,29 @@ export function resolveExpressionRoll(
   };
 }
 
+/**
+ * Drei gleiche Würfel in einem 3-W20-Wurf (Talent-/Zauber-/Sprachenprobe oder
+ * ein freier „3w20") — rein kosmetisch, siehe FeedEntryView.tsx/labels.ts.
+ * Ändert nichts an resolveProbeRoll/resolveExpressionRoll: Erfolg, Patzer und
+ * kritischer Erfolg laufen unverändert über dieselbe Bestätigungsmechanik.
+ *
+ * Nur diese drei Zahlen tragen im System eine eigene Bedeutung: 1 ist die
+ * glücksbringende Zahl (rettet vor dem Patzer), 20 löst ihn aus, 13 ist die
+ * Zahl des Namenlosen — des 13. Gottes.
+ */
+export type TripleEvent = 'luck' | 'abyss' | 'nameless';
+
+const TRIPLE_FACES: Readonly<Record<number, TripleEvent>> = { 1: 'luck', 13: 'nameless', 20: 'abyss' };
+
+export function detectTripleEvent(dice: readonly number[], sides: number | readonly number[]): TripleEvent | null {
+  if (dice.length !== 3) return null;
+  const sidesFor = (i: number): number => (typeof sides === 'number' ? sides : sides[i]);
+  if (sidesFor(0) !== 20 || sidesFor(1) !== 20 || sidesFor(2) !== 20) return null;
+  const [a, b, c] = dice;
+  if (a !== b || b !== c) return null;
+  return TRIPLE_FACES[a] ?? null;
+}
+
 // „/master" und „/wild": ein W6 gegen eine feste Ergebnisliste, Index 0 = Auge
 // 1. Serverseitig gewürfelt und nachgeschlagen wie probeZahl — der Spieler
 // wählt nur den Befehl, nie das Ergebnis. Bei „/wild" bleibt der zusätzlich

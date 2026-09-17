@@ -91,6 +91,7 @@ import {
   getOrCreateBoard,
   getOverlay as getBoardOverlay,
   getToken as getBoardToken,
+  getTokenByCharacter as getBoardTokenByCharacter,
   labelVisibleTo,
   loadInitiative as loadBoardInitiative,
   loadOverlays as loadBoardOverlays,
@@ -508,6 +509,23 @@ export function broadcastWartung(durch: string): void {
  */
 export function pushSchicksalspunkte(groupId: number, ownerUserId: number, charId: number, aktuell: number, max: number): void {
   sendToUserInGroup(groupId, ownerUserId, { type: 'schicksalspunkte.update', charId, aktuell, max });
+}
+
+/**
+ * Nach einem Wunden-Eintrag außerhalb des Tisches (Seitenleiste des
+ * Charakterbogens, siehe PUT .../wounds in routes.ts) einen schon offenen VTT
+ * frisch halten. Die Wunden selbst können nie veralten (loadWounds liest bei
+ * jedem Marken-Aufbau frisch aus char_meta, siehe board.ts) — hier geht es
+ * nur um den WS-Push, denselben, den setTokenWounds bei einer Änderung von
+ * der Marke aus auslöst. No-op, wenn der Charakter gerade keine Marke auf dem
+ * Brett dieser Gruppe hat.
+ */
+export function pushWoundsBoardSync(groupId: number, charId: number): void {
+  const board = getOrCreateBoard(groupId);
+  const token = getBoardTokenByCharacter(board.id, charId);
+  if (!token) return;
+  const fog = fogSet(board);
+  broadcastBuilt(groupId, (v) => (tokenVisibleTo(token, fog, v) ? { type: 'board.token.updated', token: toWireToken(token, v) } : null));
 }
 
 // Wer postet: der Charakter, wenn einer mitgeschickt wurde UND er dem Absender

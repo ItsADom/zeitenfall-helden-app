@@ -20,6 +20,19 @@ export default function SprachenTab() {
     update('languages', next);
   };
 
+  // Sprache↔Schrift-Verknüpfung (TODO.md "Link spoken languages to their
+  // writing system"): rein informativ, daher hier nur zu Namenslisten je
+  // Richtung aufgelöst — kein Einfluss auf `values`/`setValue` oben.
+  const nameById = new Map(catalogs.languages.map((l) => [l.id, l.name]));
+  const schriftenBySprache = new Map<number, string[]>();
+  const sprachenBySchrift = new Map<number, string[]>();
+  for (const link of catalogs.languageScripts) {
+    const schriftName = nameById.get(link.schriftId);
+    const spracheName = nameById.get(link.spracheId);
+    if (schriftName) schriftenBySprache.set(link.spracheId, [...(schriftenBySprache.get(link.spracheId) ?? []), schriftName]);
+    if (spracheName) sprachenBySchrift.set(link.schriftId, [...(sprachenBySchrift.get(link.schriftId) ?? []), spracheName]);
+  }
+
   return (
     <div className="grid2">
       <LanguageTable
@@ -33,6 +46,7 @@ export default function SprachenTab() {
         entries={catalogs.languages.filter((l) => l.kind === 'sprache')}
         values={values}
         setValue={setValue}
+        related={schriftenBySprache}
       />
       <LanguageTable
         kind="schrift"
@@ -46,6 +60,7 @@ export default function SprachenTab() {
         entries={catalogs.languages.filter((l) => l.kind === 'schrift')}
         values={values}
         setValue={setValue}
+        related={sprachenBySchrift}
       />
     </div>
   );
@@ -61,6 +76,7 @@ function LanguageTable({
   entries,
   values,
   setValue,
+  related,
 }: {
   kind: 'sprache' | 'schrift';
   title: string;
@@ -68,6 +84,9 @@ function LanguageTable({
   entries: LanguageCatalogRow[];
   values: Map<number, CharLanguage>;
   setValue: (id: number, patch: Partial<CharLanguage>) => void;
+  /** Verknüpfte Namen der jeweils anderen Sorte (Schriften je Sprache bzw.
+   * Sprachen je Schrift), rein informativ unter dem Namen angezeigt. */
+  related: Map<number, string[]>;
 }) {
   const readOnly = useReadOnly();
   const heads = kind === 'sprache' ? ['Name', 'Komplexität', 'TaW', 'Muttersprache'] : ['Name', 'Komplexität', 'TaW'];
@@ -89,6 +108,7 @@ function LanguageTable({
       );
     }
     const v = values.get(e.id);
+    const relatedNames = related.get(e.id) ?? [];
     rows.push(
       <tr key={e.id}>
         <td title={e.name}>
@@ -100,6 +120,12 @@ function LanguageTable({
             source={{ kind: 'sprache', languageId: e.id, mode: kind === 'sprache' ? 'sprechen' : 'schreiben' }}
             title={e.name}
           />
+          {/* Sprache↔Schrift-Verknüpfung: rein informativ, siehe SprachenTab. */}
+          {relatedNames.length > 0 && (
+            <div className="lang-related" title={relatedNames.join(', ')}>
+              {relatedNames.join(', ')}
+            </div>
+          )}
         </td>
         <td className="num muted">{e.komplexitaet}</td>
         <td className="num">

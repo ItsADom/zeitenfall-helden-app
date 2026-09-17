@@ -6,9 +6,10 @@ import { AddContainerDialog, AddItemDialog } from './itemDialogs';
 import type { SpecialEnergyCatalogRow, TalentCatalogRow } from './charSheet';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { useReadOnly } from './displayMode';
-import { NumInput } from './inputs';
+import { Field, NumInput } from './inputs';
 import { CollapsedText } from './notes';
 import { usePersistedState } from './persist';
+import { useSearchHeight } from './stickyChrome';
 
 // Shared inventories (docs/concepts/shared-inventories.md): the group pool and
 // the GM pool both need the same "pile of items, grouped by category, some of
@@ -116,6 +117,13 @@ export default function PoolInventory({
   const [collapsed, setCollapsed] = usePersistedState<string[]>(`${storageKey}:collapsed`, []);
   const isColl = (k: string) => collapsed.includes(k);
   const toggleColl = (k: string) => setCollapsed((prev) => (prev.includes(k) ? prev.filter((x) => x !== k) : [...prev, k]));
+  // Suche (Spieler-Feedback, Gruppeninventare werden schnell groß): dasselbe
+  // Muster wie Talente.tsx/Inventar.tsx — sticky Suchleiste, Kollaps-Zustand
+  // wird nur solange ignoriert, wie gesucht wird.
+  const [search, setSearch] = useState('');
+  const searchRef = useSearchHeight();
+  const q = search.trim().toLowerCase();
+  const matches = (it: Item) => it.name.toLowerCase().includes(q) || it.notiz.toLowerCase().includes(q);
 
   // Drag-and-drop innerhalb des Pools (Kategorie/Behälter/Reihenfolge) —
   // dieselbe Mechanik wie Inventar.tsx, nur über onMoveWithin statt einem
@@ -317,7 +325,7 @@ export default function PoolInventory({
       const target: DropTarget = { ...base, patch: { ...base.patch, kategorie: cat } };
       const keyBase = base.containerUid || '__loose';
       const catKey = `cat:${keyBase}:${cat}`;
-      const open = !isColl(catKey);
+      const open = q !== '' || !isColl(catKey);
       return (
         <Fragment key={cat || '__none'}>
           <tr className={`subtle-head cat-head-row${isOver(target) ? ' drop-into' : ''}`} {...dropHandlers(target)}>
@@ -341,8 +349,23 @@ export default function PoolInventory({
       );
     });
 
+  const looseFiltered = q ? loose.filter(matches) : loose;
+  const contVisible = (c: Item) => q === '' || matches(c) || itemsInContainer(items, c.uid).some(matches);
+  const visibleConts = q ? storageConts.filter(contVisible) : storageConts;
+  const nothingFound = q !== '' && visibleConts.length === 0 && looseFiltered.length === 0;
+
   return (
     <>
+      <div className="talent-search" ref={searchRef}>
+        <Field label="Gegenstand suchen" className="notch-search" active={search !== ''}>
+          <input type="text" placeholder="Name, Notiz…" value={search} onChange={(e) => setSearch(e.target.value)} />
+        </Field>
+        {search && (
+          <button className="small" onClick={() => setSearch('')} title="Suche zurücksetzen">
+            ✕
+          </button>
+        )}
+      </div>
       {availableHouses && (availableHouses.length > 1 || raumOptions.length > 0) && (
         <div className="panel inv-toolbar">
           {activeHaus && availableHouses.length > 1 && (
@@ -378,14 +401,16 @@ export default function PoolInventory({
         </div>
       )}
 
-      {storageConts.length === 0 && loose.length === 0 && (
+      {q === '' && storageConts.length === 0 && loose.length === 0 && (
         <p className="muted">{activeRaum === ALLE_RAEUME ? 'Noch nichts abgelegt.' : 'Nichts in diesem Raum.'}</p>
       )}
+      {nothingFound && <p className="muted">Kein Gegenstand gefunden.</p>}
 
-      {storageConts.map((c) => {
+      {visibleConts.map((c) => {
         const inside = itemsInContainer(items, c.uid);
+        const insideFiltered = q ? inside.filter(matches) : inside;
         const stueck = c.kapazitaetArt === 'stueck';
-        const open = !isColl(c.uid);
+        const open = q !== '' || !isColl(c.uid);
         const contBase: DropTarget = { location: 'behaelter', containerUid: c.uid };
         return (
           <div className={`panel${isOver(contBase) ? ' drop-over' : ''}`} key={c.uid} {...dropHandlers(contBase)}>
@@ -455,14 +480,14 @@ export default function PoolInventory({
                   <table className="sheet inv-table">
                     {colgroup}
                     <tbody>
-                      {inside.length === 0 && (
+                      {insideFiltered.length === 0 && (
                         <tr>
                           <td colSpan={cols} className="muted">
-                            Leer — unten hinzufügen
+                            {q !== '' ? 'Kein Treffer in diesem Behälter' : 'Leer — unten hinzufügen'}
                           </td>
                         </tr>
                       )}
-                      {groupedRows(inside, contBase)}
+                      {groupedRows(insideFiltered, contBase)}
                     </tbody>
                   </table>
                 </div>
@@ -479,12 +504,12 @@ export default function PoolInventory({
         );
       })}
 
-      {loose.length > 0 && (
+      {looseFiltered.length > 0 && (
         <div className="panel">
           <div className="table-wrap">
             <table className="sheet inv-table">
               {colgroup}
-              <tbody>{groupedRows(loose, { location: 'inventar' })}</tbody>
+              <tbody>{groupedRows(looseFiltered, { location: 'inventar' })}</tbody>
             </table>
           </div>
         </div>

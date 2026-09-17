@@ -7,7 +7,7 @@ import { apiGet, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
 import { ladeZiele } from '../wiki/api';
-import type { Catalogs, FullData, LanguageCatalogRow, RaceCatalogRow, TalentCatalogRow } from '../components/charSheet';
+import type { Catalogs, FullData, LanguageCatalogRow, LanguageScriptLink, RaceCatalogRow, TalentCatalogRow } from '../components/charSheet';
 import { CharCtx, useCharSheet, useChar } from '../components/charSheet';
 import { DisplayModeProvider } from '../components/displayMode';
 import { useCharHeadHeight, useTabsHeight } from '../components/stickyChrome';
@@ -34,7 +34,7 @@ import SummaryView from '../tabs/Summary';
 // Handvoll Reiter- und Seitenleisten-Dateien, die nur `useChar` importieren,
 // keine Änderung brauchen.
 export { useChar };
-export type { Catalogs, FullData, LanguageCatalogRow, RaceCatalogRow, TalentCatalogRow };
+export type { Catalogs, FullData, LanguageCatalogRow, LanguageScriptLink, RaceCatalogRow, TalentCatalogRow };
 
 // Eingebaute Reiter, deren Anzeigetext vom Schlüssel abweicht (siehe
 // MOVABLE_BUILTIN_TAB_KEYS in tabOrder.ts).

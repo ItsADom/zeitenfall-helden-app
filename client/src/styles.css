@@ -1588,6 +1588,123 @@ table.sheet tbody tr:hover td.res-over {
 .cell-value {
   text-align: center;
 }
+/* Filtern (AsE-Zeile, Heldenbrief.tsx): kleine An/Aus- + Prozent-Steuerung
+   unter der berechneten Summe. Eigene Zeile statt eigener Spalte, weil das
+   Feature nur AsE betrifft (die anderen beiden Energien-Zeilen brauchen
+   nichts Zusätzliches) — eine eigene Spalte stünde dort leer. */
+.filter-control {
+  margin-top: 3px;
+  gap: 2px;
+  align-items: center;
+}
+.filter-summe-line {
+  white-space: nowrap;
+}
+.filter-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+/* Custom statt nativ: manche Browser (Opera GX) ignorieren color-scheme fürs
+   Kästchen und zeigen es unabhängig vom Theme weiß an. Selbst gemalt statt
+   verlassen auf native Einfärbung, damit es überall gleich aussieht — bewusst
+   nur hier, nicht global (die anderen 18 Checkboxen der App bleiben nativ). */
+.filter-toggle input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: var(--input-bg);
+  display: inline-grid;
+  place-content: center;
+  cursor: pointer;
+  transform: none;
+}
+.filter-toggle input[type='checkbox']::after {
+  content: '';
+  width: 9px;
+  height: 9px;
+  transform: scale(0);
+  background: var(--accent);
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+.filter-toggle input[type='checkbox']:checked::after {
+  transform: scale(1);
+}
+.filter-toggle input[type='checkbox']:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.filter-result {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Sprache↔Schrift-Verknüpfung (Sprachen.tsx): kleine, gedämpfte Namensliste
+   unter dem Sprache-/Schrift-Namen — rein informativ, kein eigenes Eingabefeld. */
+.lang-related {
+  font-size: 0.75em;
+  line-height: 1.2;
+  color: var(--muted);
+  white-space: normal;
+}
+
+/* Sprache↔Schrift-Verknüpfung, SL-Seite (Admin.tsx, SprachenKatalogPanel):
+   verknüpfte Schriften als kleine Pillen, darunter ein Suchfeld, das
+   Treffer zum Klicken auflistet — kein Häkchen-Feld über den ganzen
+   Schriften-Katalog (siehe Kommentar an LanguageScriptPicker). */
+.lang-script-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 160px;
+}
+.lang-script-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.lang-script-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  font-size: 0.8em;
+  white-space: nowrap;
+}
+.lang-script-chip button {
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.9em;
+  line-height: 1;
+}
+.lang-script-chip button:hover {
+  color: var(--accent);
+}
+.lang-script-picker input[type='text'] {
+  font-size: 0.85em;
+  padding: 2px 4px;
+}
+.lang-script-matches {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+}
+
 /* Item-bonusierter Wert (BonusWert.tsx) — dieselbe Färbung wie .chip-rs/
    .chip-bonus, damit "von einem Gegenstand angehoben" überall gleich aussieht. */
 .bonus-mark {
@@ -2524,6 +2641,26 @@ button.side-attr:active {
 }
 .side-geld strong {
   color: var(--accent);
+}
+
+/* Wunden (SidebarWounds, CharacterSidebar.tsx) — dieselben zwei Zähler wie
+   die VTT-Marke (.vtt-wound-row), hier zweispaltig nebeneinander statt
+   gestapelt, damit sie neben Training/Lesen keine eigene Zeile Höhe kostet. */
+.side-wounds {
+  display: flex;
+  gap: 10px;
+}
+.side-wound-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+}
+.side-wound-value {
+  min-width: 16px;
+  text-align: center;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Notizfeld der Seitenleiste: volle Breite, wächst mit dem Inhalt. Außerhalb
@@ -5342,6 +5479,35 @@ body.resizing-dice {
 .feed-roll--crit .feed-roll-outcome {
   color: var(--mastery);
 }
+/* Drei gleiche Würfel (1/13/20) — siehe detectTripleEvent, shared/src/dice.ts.
+   Eigene Zeile statt Randfarbe: der Erfolg/Fehlschlag-Rand links am Wurf
+   bleibt dabei unverändert ablesbar, das hier kommt obendrauf. */
+.feed-triple {
+  display: inline-block;
+  margin-top: 3px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+/* Glück (drei 1er) — dieselbe „Glück"-Farbe wie im großen Wurf (Vorstellung),
+   dort effektFarben.glueck genannt. */
+.feed-triple--luck {
+  color: var(--over-line);
+  background: color-mix(in srgb, var(--over-line) 12%, transparent);
+}
+/* Abgrund (drei 20er) — dieselbe Patzer-Farbe wie im großen Wurf. In diesem
+   Regelwerk ist die 20 der Unglückswert, nicht die 1. */
+.feed-triple--abyss {
+  color: var(--crit-line);
+  background: color-mix(in srgb, var(--crit-line) 12%, transparent);
+}
+/* Der Namenlose (drei 13er) — eigener Ton, unabhängig vom Krit-System: die
+   13 trägt sonst keine Regelbedeutung, nur diese. */
+.feed-triple--nameless {
+  color: var(--die-w10);
+  background: color-mix(in srgb, var(--die-w10) 12%, transparent);
+}
 .feed-confirms {
   display: flex;
   flex-direction: column;
@@ -6070,6 +6236,23 @@ tr:hover .probe-roll,
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* Cosmetic grouping (TODO.md "Weapon tab rework"): „×N"-Abzeichen auf einer
+   Stapel-Kopfzeile — klein genug, um wie ein Anhängsel des Namens zu wirken,
+   nicht wie ein eigener Proben-Chip. */
+.wpn-count {
+  flex: none;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+/* Aufgeklappter Stapel: die einzelnen Instanz-Karten darunter, leicht
+   eingerückt, damit die Zugehörigkeit zur Stapel-Kopfzeile erkennbar bleibt. */
+.wpn-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px 24px;
+}
 /* Kampftalent und Stufe stehen klein hinter den Proben — Beiwerk, das Name und
    Zahlen überstimmen dürfen; bei Platzmangel verschwindet es zuerst. */
 .wpn-sub {
@@ -6780,6 +6963,36 @@ tr:hover .probe-roll,
     opacity: 0;
     transform: translate(-50%, -50%) scale(1);
   }
+}
+/* Drei gleiche Würfel (1/13/20) irgendwo im Feed — siehe detectTripleEvent,
+   shared/src/dice.ts. Eigener Anker oben statt Bildschirmmitte wie
+   .vtt-view-toast, damit sich beide nie überlappen; dieselben Töne wie
+   .feed-triple im Chat, damit es als dasselbe Ereignis wiedererkennbar bleibt. */
+.vtt-triple-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  padding: 10px 24px;
+  font-size: 15px;
+  font-weight: 700;
+  pointer-events: none;
+  animation: vtt-view-toast-fade 4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.vtt-triple-toast--luck {
+  color: var(--over-line);
+  background: color-mix(in srgb, var(--over-line) 16%, var(--panel));
+}
+.vtt-triple-toast--abyss {
+  color: var(--crit-line);
+  background: color-mix(in srgb, var(--crit-line) 16%, var(--panel));
+}
+.vtt-triple-toast--nameless {
+  color: var(--die-w10);
+  background: color-mix(in srgb, var(--die-w10) 16%, var(--panel));
 }
 /* "Point at a cell" ping — the <g> just fades the whole thing (ring + name)
    in and out, the ring's own animation grows it outward at the same time. */

@@ -139,6 +139,21 @@ export function getToken(tokenId: number): BoardTokenRow | undefined {
   return row && toToken(row);
 }
 
+/**
+ * The character's own token on this board, if it has one — used to keep an
+ * already-open VTT view fresh after wounds are edited from outside it (the
+ * character sheet sidebar, see routes.ts's PUT .../wounds). Wounds themselves
+ * are never stale (loadWounds is read fresh on every toToken call, see above);
+ * this is purely about pushing a live update to whoever already has the board
+ * open, same as setTokenWounds's own caller does.
+ */
+export function getTokenByCharacter(boardId: number, characterId: number): BoardTokenRow | undefined {
+  const row = db.prepare(`SELECT ${TOKEN_COLS} FROM board_tokens WHERE board_id = ? AND character_id = ?`).get(boardId, characterId) as
+    | Parameters<typeof toToken>[0]
+    | undefined;
+  return row && toToken(row);
+}
+
 function bumpRev(boardId: number): void {
   db.prepare('UPDATE boards SET rev = rev + 1, updated_at = ? WHERE id = ?').run(Date.now(), boardId);
 }

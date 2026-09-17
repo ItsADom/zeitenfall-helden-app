@@ -13,6 +13,7 @@ import {
   elementKostenBoni,
   elementProbeBonus,
   getrageneLast,
+  groupWeaponItems,
   haltbarkeitPct,
   itemGewicht,
   itemsInContainer,
@@ -31,7 +32,7 @@ import {
   zaehltZurLast,
   zoneView,
 } from '../src/items.js';
-import type { Item, ItemBonus, ItemLocation } from '../src/items.js';
+import type { Item, ItemBonus, ItemLocation, WaffenStat } from '../src/items.js';
 import type { AttrCode, Attributes, BaseValueInputs, CharTalent, ResourceInput, SpecialResource } from '../src/types.js';
 import { ATTR_ROW_CODES, BASE_VALUE_KEYS } from '../src/types.js';
 
@@ -80,6 +81,7 @@ function item(partial: Partial<Item> & { location?: ItemLocation }): Item {
     waffenStats: [],
     munitionSchaden: '',
     munitionProbenBonus: 0,
+    waffenGruppe: '',
     ...partial,
   };
 }
@@ -772,5 +774,57 @@ describe('diffItems (incremental item saves)', () => {
     const b = { ...a, name: 'Schwert (umbenannt)' };
     const ops = diffItems([a], [b]);
     expect(ops).toEqual([{ op: 'patch', uid: a.uid, patch: { name: 'Schwert (umbenannt)' } }]);
+  });
+});
+
+function stat(over: Partial<WaffenStat> = {}): WaffenStat {
+  return { uid: makeUid(), feld: 'schaden', wert: '1W6+2', verborgen: false, ...over };
+}
+
+// Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+// stacks" — a player-set tag, not computed sameness; see the comment on
+// Item.waffenGruppe and groupWeaponItems for why this replaced an earlier
+// automatic equality-matching design).
+describe('groupWeaponItems', () => {
+  it('stapelt zwei Waffen mit gleicher Gruppe, obwohl sich sonst alles unterscheidet', () => {
+    const a = item({
+      name: 'Wurfmesser (vergiftet)', waffenArt: 'nah', waffenGruppe: 'Wurfmesser', notiz: 'Nervengift',
+      waffenStats: [stat({ feld: 'schaden', wert: '1W6+4' })],
+    });
+    const b = item({
+      name: 'Wurfmesser (normal)', waffenArt: 'nah', waffenGruppe: 'Wurfmesser',
+      waffenStats: [stat({ feld: 'schaden', wert: '1W6' })],
+    });
+    expect(groupWeaponItems([a, b])).toEqual([[a, b]]);
+  });
+
+  it('lässt Waffen ohne Gruppe einzeln, auch wenn sie ansonsten identisch sind (Duplikate)', () => {
+    const a = item({ name: 'Dolch', waffenArt: 'nah' });
+    const b = duplicateItem(a);
+    expect(groupWeaponItems([a, b])).toEqual([[a], [b]]);
+  });
+
+  it('trennt zwei unterschiedliche Gruppen-Namen', () => {
+    const a = item({ name: 'Messer', waffenArt: 'nah', waffenGruppe: 'Wurfmesser' });
+    const b = item({ name: 'Beil', waffenArt: 'nah', waffenGruppe: 'Wurfbeile' });
+    expect(groupWeaponItems([a, b])).toEqual([[a], [b]]);
+  });
+
+  it('ignoriert führende/nachgestellte Leerzeichen im Gruppen-Namen', () => {
+    const a = item({ name: 'Messer A', waffenArt: 'nah', waffenGruppe: 'Wurfmesser' });
+    const b = item({ name: 'Messer B', waffenArt: 'nah', waffenGruppe: '  Wurfmesser  ' });
+    expect(groupWeaponItems([a, b])).toEqual([[a, b]]);
+  });
+
+  it('behält bei einer Mischung mehrerer Stapel die erste-Auftreten-Reihenfolge bei', () => {
+    const messerA = item({ name: 'Messer A', waffenArt: 'nah', waffenGruppe: 'Wurfmesser' });
+    const schwert = item({ name: 'Schwert', waffenArt: 'nah' });
+    const messerB = item({ name: 'Messer B', waffenArt: 'nah', waffenGruppe: 'Wurfmesser' });
+    expect(groupWeaponItems([messerA, schwert, messerB])).toEqual([[messerA, messerB], [schwert]]);
+  });
+
+  it('lässt einzelne (ungruppierte) Waffen als eigene Ein-Item-Gruppe', () => {
+    const a = item({ name: 'Axt', waffenArt: 'nah' });
+    expect(groupWeaponItems([a])).toEqual([[a]]);
   });
 });

@@ -92,6 +92,16 @@ export function computeResource(attrs: Attributes, key: ResourceKey, input: Reso
   return { vorergebnis: vor, ergebnis };
 }
 
+// Filtern (AsE-only, siehe Meta.gefiltert/filterBonusMax in shared/src/types.ts):
+// ein manuell umgelegter Multiplikator auf ein bereits fertiges
+// computeResource()-Ergebnis, kein Formel-Bestandteil — deshalb hier separat
+// statt in computeResource selbst. Aufgerundet wie die übrigen Formeln dieser
+// Datei.
+export function applyFilterBonus(ergebnis: number, filterBonusMax: number, gefiltert: boolean | number): number {
+  if (!gefiltert || filterBonusMax <= 0) return ergebnis;
+  return ergebnis + ceil((ergebnis * filterBonusMax) / 100);
+}
+
 // --- Talente ---
 
 // Erleichterung: TaW/5 aufgerundet (negativer TaW zählt direkt)

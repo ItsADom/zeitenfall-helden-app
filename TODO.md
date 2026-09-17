@@ -59,28 +59,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ## User feedback
 
-- [ready] **Percentage bonus for energies, and what "Filtern" actually is**
-  (concept agreed — this also gives the Low-Prio "Filtern" sketch below its
-  first real mechanic). Lore: Astralenergie is made of 8 base elements;
-  filtering shifts a mage's elemental balance to boost efficiency with one
-  element. The app doesn't track elements numerically, so the existing
-  "overcharge" mechanism (any pool's `aktuell` may already sit above its
-  computed max, freely typed, no clamp — `client/src/components/energie.ts`
-  `overfilled()`/`poolClass()` → `res-over` styling, `AktuellFeld.tsx`) is
-  reused as the *display*, but it isn't itself "Filtern" — filtering needs its
-  own gating. **Decided:** AsE only (not LE/AUS). **Decided:** a new
-  per-character stored value — "max Filterbonus %" — reflecting how well
-  *that* character can filter (set directly, not derived from a formula).
-  **Decided:** an all-or-nothing "gefiltert" toggle; when on, it raises AsE's
-  effective/displayed max by that stored percentage, computed after the
-  normal `computeResource()` result (i.e. a final multiplier, not baked into
-  `mods`/`permanent`). **Decided:** triggering/ending is entirely manual — a
-  player adds "Filtern" as an ordinary rollable ability/spell entry (same
-  pattern as the special-checks catalog below) and rolls for it in the
-  fiction; there's no in-app duration/expiry ("the point where a character
-  stops counting as filtered isn't clearly set either"), so the toggle is
-  just flipped off by the player/GM when the GM calls it.
-
 - [ready] **Image gallery for houses** (user feedback, concept agreed
   2026-09-03). Multiple images per house (floor plans, reference photos), not
   just one — reuses the existing generic `assets` table
@@ -123,51 +101,9 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe
   shown next to the name in the collapsed head, full field grid on expand;
   follows the Ausrüstung item-chip pattern). Remaining:
-   - `Kampfstile` (still the old generic `ListEditor` table inside
-     `WaffenNeu.tsx`, unstyled as cards) still wants its own card treatment
-     eventually, same reasoning as the weapon rework itself.
-     `Pfeile-Bolzen` (Munition) used to sit here too but is gone — ammunition
-     is a real Inventar-Item now (kategorie „Munition", see `MUNITION_KATEGORIE`
-     in `shared/src/items.ts`), picked directly on the Fernkampf card via its
-     new `munitionUid` field. `Waffenloser Kampf` also got its card treatment
-     (`WaffenlosCards`) — but deliberately stayed on the `sec_waffenlos` row
-     list rather than becoming real `char_items` (fists have no weight/location
-     and would otherwise clutter Inventar/Ausrüstung). Fixed to exactly two
-     cards, Raufen and Ringen (the only two unarmed-combat talents) — no more
-     free-text technique name or Kampftalent picker, both are implied by which
-     card it is; full AT/PA/BL and a Schaden field (renamed from TP/KK — TP(A)
-     dropped, had no real data anywhere). Raufen's Schaden also picks up a
-     "Handschutz-Bonus" automatically (the RS of whatever is worn in the
-     Hand-links/Hand-rechts zone, see `handRs` in `shared/src/items.ts`) —
-     Ringen is unaffected. Despite not being an Item, AT/PA/BL and Schaden are
-     all rollable: a new `ProbeSource` kind (`'waffenlos'`) and a new
-     `roll.waffenlosDamage` message recompute straight from the character's
-     base values + this row + the Raufen/Ringen talent split, entirely
-     server-side, the same trust model as a real weapon (see diceSource.ts,
-     ws.ts, `WaffenlosDamageRollButton.tsx`).
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
-     THe actual statuses can be hardcoded, no need for settings.
-     THe actual statuses can be hardcoded, no need for settings.
-   - [ready] **Structured min/max range for Fernkampf** (user feedback):
-     `entfernung` (`WaffenNeu.tsx:520-522`, `sections.ts:92-93`) is a single
-     freeform text field, historically hand-written like "10/20/30". Decided:
-     replace it with structured numeric `reichweiteMin`/`reichweiteMax`
-     fields rather than adding alongside. Migration must not silently drop
-     existing values (no-data-loss rule) — for rows whose old `entfernung`
-     text doesn't cleanly parse into two numbers, fold the original string
-     into the row's `notiz` instead of discarding it.
-   - [ready] **Cosmetic grouping for non-unique weapon stacks** (user
-     feedback, concept agreed 2026-09-03): throwing knives and the like get
-     `Duplizieren`'d into several separate rows today because durability must
-     stay independent per instance (`shared/src/items.ts:289-293` —
-     `duplicateItem` exists specifically so two identical weapons can diverge
-     in Haltbarkeit; `anzahl`-style stacking would collapse that to one
-     shared state, which is wrong here). **Decided: display-only** — the data
-     model doesn't change, still one `Item` row per instance. Group
-     functionally-identical weapon instances (same stats, differing at most
-     in Haltbarkeit) into one collapsed card in the reworked weapon tab,
-     expandable to the individual instances underneath.
+     The actual statuses can be hardcoded, no need for settings.
 - [sketch] **Ability bonus list (deferred from the ability-editing-dialog
   build)**: abilities now have their own `AbilityEditDialog`
   (`client/src/components/AbilityEditDialog.tsx`, opened from
@@ -201,7 +137,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   for attaching a structured effect to a free-text dynamic-table row (a
   per-row dialog like the item one, or a new `DynColumn` type?), and whether a
   row gets one effect or a repeatable list like items do.
-- [sketch] **20+ perk picker** — source PDF analysed and written up at
+- [onHold] **20+ perk picker** — source PDF analysed and written up at
   `docs/concepts/perk-trees.md` (8 attribute trees, uniform 10/5/3/1/1 tier grid,
   no prerequisite edges, ~160 effects classified into 6 computable and 8
   display-only categories). Rules confirmed: pool = `attribut − 20`, one point
@@ -258,14 +194,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 - [sketch] **Liturgien catalogue** (waits until the catalogue content is finished): read
   the character's priest level to unlock Liturgien accordingly. Priest-level
   requirements are still not fleshed out.
-- [sketch] **Link spoken languages to their writing system** (user feedback):
-  `Sprachen.tsx` treats languages and scripts as two entirely separate,
-  unlinked catalogs (`kind: 'sprache' | 'schrift'`), rendered by the same
-  generic `LanguageTable` and grouped by `familie` — no field anywhere says
-  "spoken language X uses script Y". Needs a concept pass: a `schriftId` /
-  default-script field on `sprache`-kind catalog rows (or a join table), plus
-  how to surface it in the UI (sub-label on the Sprachen row, auto-suggest in
-  the Schriften table, …).
 ## Unsorted ideas (treat all as [sketch])
 
 - FAQ - like a little manual or easy to miss features

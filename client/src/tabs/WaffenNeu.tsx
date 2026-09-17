@@ -3,8 +3,8 @@ import { computeBaseValues, weaponProbe, weaponProbes } from '@shared/rules';
 import { attrsMitBoni, baseInputsMitBoni, talentMitBoni } from '@shared/items';
 import type { Item, WaffenStatFeld } from '@shared/items';
 import {
-  effektiverSchaden, handRs, istMunitionKategorie, kombiniereFormeln, makeItem, munitionFuer, munitionProbenBonusFuer, patchWaffenStat,
-  waffenStatWert, waffenStatZahl, waffenStatZeile, waffenStatsFuerArt,
+  effektiverSchaden, groupWeaponItems, handRs, istMunitionKategorie, kombiniereFormeln, makeItem, munitionFuer, munitionProbenBonusFuer,
+  patchWaffenStat, waffenStatWert, waffenStatZahl, waffenStatZeile, waffenStatsFuerArt,
 } from '@shared/items';
 import type { ProbeSource } from '@shared/diceProtocol';
 import { listSectionById } from '@shared/sections';
@@ -13,7 +13,7 @@ import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
 import ProbeRollButton from '../components/dice/ProbeRollButton';
 import WeaponDamageRollButton from '../components/dice/WeaponDamageRollButton';
 import WaffenlosDamageRollButton from '../components/dice/WaffenlosDamageRollButton';
-import { ListEditor, NumInput, TextInput } from '../components/inputs';
+import { ListEditor, NumInput, SuggestInput, TextInput } from '../components/inputs';
 import type { Row } from '../components/inputs';
 import { useDisplayMode, useReadOnly } from '../components/displayMode';
 import { useAuth } from '../App';
@@ -186,6 +186,27 @@ function useWeaponCards() {
 }
 
 /**
+ * Aufgeklappt-Zustand einer Stapel-Kopfzeile (cosmetic grouping, TODO.md) —
+ * eigenes, string-geschlüsseltes Pendant zu useWeaponCards oben (dort zählt
+ * die Position im flachen `items`, hier die uid des Stapel-Erstglieds, siehe
+ * groupWeaponItems). Kein `dropAt` nötig: verschwindet ein Stapel (weil nur
+ * noch eine oder keine Waffe übrig ist), verschwindet auch sein Schlüssel
+ * einfach aus dem nächsten Render, kein Index, der sonst verrutschen könnte.
+ */
+function useWeaponGroupCards() {
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const forPrint = useDisplayMode() === 'print';
+  const toggle = (key: string) =>
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  return { isOpen: (key: string) => forPrint || open.has(key), toggle };
+}
+
+/**
  * Ein beschriftetes Feld im aufgeklappten Block. `leer` sagt, ob nichts drin
  * steht — in Nur-Lesen fällt das Feld dann ganz weg, im Bearbeiten bleibt es
  * stehen, damit es befüllbar ist. Für plain Item-Felder (Name, Notiz) ohne
@@ -338,6 +359,7 @@ function CardHead({
   notiz,
   open,
   onToggle,
+  count,
   children,
 }: {
   name: string;
@@ -352,8 +374,14 @@ function CardHead({
   notiz: string;
   open: boolean;
   onToggle: () => void;
-  /** Die Proben-Chips. */
-  children: React.ReactNode;
+  /** Manual weapon stacking (TODO.md): Anzahl Waffen in der Gruppe — nur bei
+   * einer Stapel-Kopfzeile gesetzt (>1), eine einzelne Waffe zeigt kein
+   * Abzeichen. Stapel-Mitglieder müssen sich sonst in NICHTS gleichen (siehe
+   * Item.waffenGruppe), daher zeigt die Kopfzeile keine Proben/Schaden mehr,
+   * sobald count gesetzt ist (siehe die Aufrufstelle in NahCards/FernCards). */
+  count?: number;
+  /** Die Proben-Chips — bei einer Stapel-Kopfzeile weggelassen (siehe count). */
+  children?: React.ReactNode;
 }) {
   return (
     <div
@@ -372,6 +400,11 @@ function CardHead({
     >
       <CollapseChevron open={open} />
       <span className="wpn-name">{name || '(ohne Name)'}</span>
+      {!!count && count > 1 && (
+        <span className="wpn-count" title={`${count} Waffen in dieser Gruppe — unten einzeln aufklappbar`}>
+          ×{count}
+        </span>
+      )}
       {/* Die Proben stehen DIREKT beim Namen, nicht am rechten Rand: auf einem
           breiten Schirm liegen sonst 1500px zwischen Waffe und ihren Zahlen,
           und man verliert die Zuordnung. Nähe schlägt hier die saubere
@@ -496,6 +529,139 @@ function HaltbarkeitFeld({ item, isGm, onPatch }: { item: Item; isGm: boolean; o
   );
 }
 
+/**
+ * Eine einzelne Nahkampfwaffen-Karte — herausgelöst aus NahCards, damit sie
+ * SOWOHL für eine ungruppierte Waffe ALS AUCH für jede Instanz innerhalb
+ * einer aufgeklappten Stapel-Gruppe (cosmetic grouping, TODO.md) denselben
+ * Code durchläuft, statt den ganzen Feldblock zweimal zu pflegen. Bearbeitet
+ * weiterhin GENAU diese eine Item-Zeile — ein Stat-Edit hier kann die Waffe
+ * aus ihrer Gruppe herauslösen (weaponGroupKey ändert sich), das ist so
+ * gewollt: sie ist dann ja nicht mehr baugleich.
+ */
+function NahCard({
+  item,
+  allItems,
+  kampfTalente,
+  probesFor,
+  isGm,
+  open,
+  onToggle,
+  onDelete,
+  patchItem,
+  patchStat,
+  revealStat,
+  groupSuggestions,
+}: {
+  item: Item;
+  allItems: Item[];
+  kampfTalente: TalentCatalogRow[];
+  probesFor: (item: Item) => { at: number; pa: number; bl: number };
+  isGm: boolean;
+  open: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+  patchItem: (uid: string, patch: Partial<Item>) => void;
+  patchStat: (item: Item, feld: WaffenStatFeld, wert: string) => void;
+  revealStat: (item: Item, feld: WaffenStatFeld) => void;
+  /** Manual weapon stacking (TODO.md): bereits vergebene Gruppen-Namen anderer
+   * Nahkampfwaffen dieses Charakters, als Vorschlagsliste im Gruppe-Feld. */
+  groupSuggestions: string[];
+}) {
+  const ro = useReadOnly();
+  const probes = probesFor(item);
+  const notiz = item.notiz;
+  const exp = waffenStatWert(item, 'expLevel');
+  // Das Kampftalent steht bewusst NICHT im Kopf: es ist bereits in die
+  // Proben eingerechnet, die daneben stehen.
+  const sub = exp ? `EXP/LVL ${exp}` : '';
+  const rawStat = (feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
+
+  return (
+    <div className={`wpn-card${open ? ' open' : ''}`}>
+      <CardHead
+        name={item.name}
+        sub={sub}
+        schaden={effektiverSchaden(item, allItems)}
+        rd={waffenStatWert(item, 'rd')}
+        damageRoll={damageRollFor(item, allItems)}
+        ranged={false}
+        notiz={notiz}
+        open={open}
+        onToggle={onToggle}
+      >
+        <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={rollFor(item, 'at')} />
+        <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={rollFor(item, 'pa')} />
+        <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={rollFor(item, 'bl')} />
+      </CardHead>
+      {open && (
+        <div className="chip-editor">
+          {/* Nur zum Bearbeiten — im Nur-Lesen steht der Name schon
+              im Kartenkopf und stünde hier ein zweites Mal. */}
+          {!ro && (
+            <Feld label="Waffe/Typ" leer={false}>
+              <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
+            </Feld>
+          )}
+          <Feld
+            label="Gruppe"
+            leer={!item.waffenGruppe}
+            title="Waffen mit demselben Text hier stapeln sich zu einer Karte im Waffen-Reiter — unabhängig von ihren übrigen Werten. Leer lassen für eine eigene Karte."
+          >
+            <SuggestInput value={item.waffenGruppe} options={groupSuggestions} placeholder="— eigene Karte —" onChange={(v) => patchItem(item.uid, { waffenGruppe: v })} />
+          </Feld>
+          <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
+            <TextInput value={rawStat('schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="material" label="Material" isGm={isGm} onReveal={() => revealStat(item, 'material')}>
+            <TextInput value={rawStat('material')} onChange={(v) => patchStat(item, 'material', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="rd" label="RD" title="Rüstungsdurchdringung" isGm={isGm} onReveal={() => revealStat(item, 'rd')}>
+            <TextInput value={rawStat('rd')} onChange={(v) => patchStat(item, 'rd', v)} />
+          </WaffenFeld>
+          <HaltbarkeitFeld item={item} isGm={isGm} onPatch={(p) => patchItem(item.uid, p)} />
+          <WaffenFeld item={item} feld="reichweite" label="Reichweite" isGm={isGm} onReveal={() => revealStat(item, 'reichweite')}>
+            <TextInput value={rawStat('reichweite')} onChange={(v) => patchStat(item, 'reichweite', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="iniBonus" label="Ini-Bonus" isGm={isGm} onReveal={() => revealStat(item, 'iniBonus')}>
+            <NumInput value={Number(rawStat('iniBonus')) || 0} onChange={(v) => patchStat(item, 'iniBonus', String(v))} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="anforderung" label="Anforderung" isGm={isGm} onReveal={() => revealStat(item, 'anforderung')}>
+            <TextInput value={rawStat('anforderung')} onChange={(v) => patchStat(item, 'anforderung', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="expLevel" label="EXP/LVL" isGm={isGm} onReveal={() => revealStat(item, 'expLevel')}>
+            <TextInput value={rawStat('expLevel')} onChange={(v) => patchStat(item, 'expLevel', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="talentId" label="Kampftalent" isGm={isGm} onReveal={() => revealStat(item, 'talentId')}>
+            <TalentSelect raw={rawStat('talentId')} kampfTalente={kampfTalente} onChange={(v) => patchStat(item, 'talentId', String(v))} />
+          </WaffenFeld>
+          {/* Waffeneigene Boni — was die Waffe zur Probe beisteuert. Die
+              fertige Zahl steht oben im Kopf. */}
+          <WaffenFeld item={item} feld="at" label="AT-Bonus" title="Bonus dieser Waffe auf die Attacke" isGm={isGm} onReveal={() => revealStat(item, 'at')}>
+            <NumInput value={Number(rawStat('at')) || 0} onChange={(v) => patchStat(item, 'at', String(v))} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="pa" label="PA-Bonus" title="Bonus dieser Waffe auf die Parade" isGm={isGm} onReveal={() => revealStat(item, 'pa')}>
+            <NumInput value={Number(rawStat('pa')) || 0} onChange={(v) => patchStat(item, 'pa', String(v))} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="bl" label="BL-Bonus" title="Bonus dieser Waffe auf den Block" isGm={isGm} onReveal={() => revealStat(item, 'bl')}>
+            <NumInput value={Number(rawStat('bl')) || 0} onChange={(v) => patchStat(item, 'bl', String(v))} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
+            <TextInput value={rawStat('besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
+          </WaffenFeld>
+          <Feld label="Notiz" leer={!notiz} wide>
+            <TextInput value={notiz} onChange={(v) => patchItem(item.uid, { notiz: v })} />
+          </Feld>
+          {!ro && (
+            <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={onDelete}>
+              🗑 Löschen
+            </ConfirmDeleteButton>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NahCards({
   items,
   allItems,
@@ -513,6 +679,7 @@ function NahCards({
 }) {
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
+  const { isOpen: isGroupOpen, toggle: toggleGroup } = useWeaponGroupCards();
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(allItems.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
   // Upsert (patchWaffenStat), nicht reines Map/Find: eine Waffe, die vor
   // Einführung eines Felds angelegt wurde (z. B. jede Fernkampfwaffe vor
@@ -525,92 +692,86 @@ function NahCards({
   const removeItem = (uid: string) => setItems(allItems.filter((it) => it.uid !== uid));
   const addWaffe = () =>
     setItems([...allItems, makeItem({ waffenArt: 'nah', waffenStats: waffenStatsFuerArt('nah').map((s) => ({ ...s, verborgen: isGm })) })]);
-  const rawStat = (item: Item, feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
+
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks"): items sharing a non-empty item.waffenGruppe (player-set, see
+  // groupWeaponItems) show as ONE Stapel-Kopfzeile with a „×N"-Abzeichen,
+  // aufklappbar zu den einzelnen Karten darunter. Members can otherwise
+  // differ in every respect, so the collapsed header shows only the group
+  // name + count — no shared probes/Schaden/roll button, since those could
+  // silently apply the wrong instance's numbers. Der Index im flachen
+  // `items` bleibt für useWeaponCards' offen/zu-Zustand maßgeblich — auch
+  // innerhalb eines Stapels klappt jede Instanz einzeln auf. Der Gruppen-
+  // Schlüssel selbst ist der Tag-Text (nicht z. B. die uid des ersten
+  // Mitglieds) — bleibt stabil, auch wenn sich die Reihenfolge ändert oder
+  // ausgerechnet das bisher erste Mitglied gelöscht wird.
+  const indexByUid = new Map(items.map((it, i) => [it.uid, i]));
+  const groups = groupWeaponItems(items);
+  const groupSuggestions = [...new Set(items.map((it) => it.waffenGruppe.trim()).filter(Boolean))].sort();
 
   return (
     <>
       <div className="wpn-list">
-        {items.map((item, i) => {
-          const probes = probesFor(item);
-          const notiz = item.notiz;
-          const open = isOpen(i);
-          const exp = waffenStatWert(item, 'expLevel');
-          // Das Kampftalent steht bewusst NICHT im Kopf: es ist bereits in die
-          // Proben eingerechnet, die daneben stehen.
-          const sub = exp ? `EXP/LVL ${exp}` : '';
-          return (
-            <div className={`wpn-card${open ? ' open' : ''}`} key={item.uid}>
-              <CardHead
-                name={item.name}
-                sub={sub}
-                schaden={effektiverSchaden(item, allItems)}
-                rd={waffenStatWert(item, 'rd')}
-                damageRoll={damageRollFor(item, allItems)}
-                ranged={false}
-                notiz={notiz}
-                open={open}
+        {groups.map((group) => {
+          const first = group[0];
+          if (group.length === 1) {
+            const i = indexByUid.get(first.uid)!;
+            return (
+              <NahCard
+                key={first.uid}
+                item={first}
+                allItems={allItems}
+                kampfTalente={kampfTalente}
+                probesFor={probesFor}
+                isGm={isGm}
+                open={isOpen(i)}
                 onToggle={() => toggle(i)}
-              >
-                <ProbeChip label="AT" value={probes.at} title="Attacke — fertige Probe" roll={rollFor(item, 'at')} />
-                <ProbeChip label="PA" value={probes.pa} title="Parade — fertige Probe" roll={rollFor(item, 'pa')} />
-                <ProbeChip label="BL" value={probes.bl} title="Block — fertige Probe" roll={rollFor(item, 'bl')} />
-              </CardHead>
-              {open && (
-                <div className="chip-editor">
-                  {/* Nur zum Bearbeiten — im Nur-Lesen steht der Name schon
-                      im Kartenkopf und stünde hier ein zweites Mal. */}
-                  {!ro && (
-                    <Feld label="Waffe/Typ" leer={false}>
-                      <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
-                    </Feld>
-                  )}
-                  <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
-                    <TextInput value={rawStat(item, 'schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="material" label="Material" isGm={isGm} onReveal={() => revealStat(item, 'material')}>
-                    <TextInput value={rawStat(item, 'material')} onChange={(v) => patchStat(item, 'material', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="rd" label="RD" title="Rüstungsdurchdringung" isGm={isGm} onReveal={() => revealStat(item, 'rd')}>
-                    <TextInput value={rawStat(item, 'rd')} onChange={(v) => patchStat(item, 'rd', v)} />
-                  </WaffenFeld>
-                  <HaltbarkeitFeld item={item} isGm={isGm} onPatch={(p) => patchItem(item.uid, p)} />
-                  <WaffenFeld item={item} feld="reichweite" label="Reichweite" isGm={isGm} onReveal={() => revealStat(item, 'reichweite')}>
-                    <TextInput value={rawStat(item, 'reichweite')} onChange={(v) => patchStat(item, 'reichweite', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="iniBonus" label="Ini-Bonus" isGm={isGm} onReveal={() => revealStat(item, 'iniBonus')}>
-                    <NumInput value={Number(rawStat(item, 'iniBonus')) || 0} onChange={(v) => patchStat(item, 'iniBonus', String(v))} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="anforderung" label="Anforderung" isGm={isGm} onReveal={() => revealStat(item, 'anforderung')}>
-                    <TextInput value={rawStat(item, 'anforderung')} onChange={(v) => patchStat(item, 'anforderung', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="expLevel" label="EXP/LVL" isGm={isGm} onReveal={() => revealStat(item, 'expLevel')}>
-                    <TextInput value={rawStat(item, 'expLevel')} onChange={(v) => patchStat(item, 'expLevel', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="talentId" label="Kampftalent" isGm={isGm} onReveal={() => revealStat(item, 'talentId')}>
-                    <TalentSelect raw={rawStat(item, 'talentId')} kampfTalente={kampfTalente} onChange={(v) => patchStat(item, 'talentId', String(v))} />
-                  </WaffenFeld>
-                  {/* Waffeneigene Boni — was die Waffe zur Probe beisteuert. Die
-                      fertige Zahl steht oben im Kopf. */}
-                  <WaffenFeld item={item} feld="at" label="AT-Bonus" title="Bonus dieser Waffe auf die Attacke" isGm={isGm} onReveal={() => revealStat(item, 'at')}>
-                    <NumInput value={Number(rawStat(item, 'at')) || 0} onChange={(v) => patchStat(item, 'at', String(v))} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="pa" label="PA-Bonus" title="Bonus dieser Waffe auf die Parade" isGm={isGm} onReveal={() => revealStat(item, 'pa')}>
-                    <NumInput value={Number(rawStat(item, 'pa')) || 0} onChange={(v) => patchStat(item, 'pa', String(v))} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="bl" label="BL-Bonus" title="Bonus dieser Waffe auf den Block" isGm={isGm} onReveal={() => revealStat(item, 'bl')}>
-                    <NumInput value={Number(rawStat(item, 'bl')) || 0} onChange={(v) => patchStat(item, 'bl', String(v))} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
-                    <TextInput value={rawStat(item, 'besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
-                  </WaffenFeld>
-                  <Feld label="Notiz" leer={!notiz} wide>
-                    <TextInput value={notiz} onChange={(v) => patchItem(item.uid, { notiz: v })} />
-                  </Feld>
-                  {!ro && (
-                    <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={() => { dropAt(i); removeItem(item.uid); }}>
-                      🗑 Löschen
-                    </ConfirmDeleteButton>
-                  )}
+                onDelete={() => { dropAt(i); removeItem(first.uid); }}
+                patchItem={patchItem}
+                patchStat={patchStat}
+                revealStat={revealStat}
+                groupSuggestions={groupSuggestions}
+              />
+            );
+          }
+          const groupKey = first.waffenGruppe.trim();
+          const groupOpen = isGroupOpen(groupKey);
+          const anyNote = group.some((it) => it.notiz.trim());
+          return (
+            <div className="wpn-card wpn-group" key={groupKey}>
+              <CardHead
+                name={groupKey}
+                sub=""
+                schaden=""
+                rd=""
+                ranged={false}
+                notiz={anyNote ? 'Mindestens ein Exemplar hat eine Notiz — siehe unten' : ''}
+                open={groupOpen}
+                onToggle={() => toggleGroup(groupKey)}
+                count={group.length}
+              />
+              {groupOpen && (
+                <div className="wpn-group-items">
+                  {group.map((instance) => {
+                    const gi = indexByUid.get(instance.uid)!;
+                    return (
+                      <NahCard
+                        key={instance.uid}
+                        item={instance}
+                        allItems={allItems}
+                        kampfTalente={kampfTalente}
+                        probesFor={probesFor}
+                        isGm={isGm}
+                        open={isOpen(gi)}
+                        onToggle={() => toggle(gi)}
+                        onDelete={() => { dropAt(gi); removeItem(instance.uid); }}
+                        patchItem={patchItem}
+                        patchStat={patchStat}
+                        revealStat={revealStat}
+                        groupSuggestions={groupSuggestions}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -622,6 +783,124 @@ function NahCards({
         <button className="small add-row" onClick={addWaffe}>+ Waffe</button>
       )}
     </>
+  );
+}
+
+/** Fernkampf-Pendant zu NahCard, siehe dortigen Kommentar — gleicher Grund
+ * (eine Instanz innerhalb einer Stapel-Gruppe braucht denselben Feldblock
+ * wie eine ungruppierte Waffe), nur mit dem Fernkampf-Feldsatz (Entfernung/
+ * AT-Mod/Munition statt Reichweite/Ini-Bonus/Anforderung/AT-PA-BL-Boni). */
+function FernCard({
+  item,
+  allItems,
+  kampfTalente,
+  fkProbeFor,
+  isGm,
+  munitionItems,
+  open,
+  onToggle,
+  onDelete,
+  patchItem,
+  patchStat,
+  revealStat,
+  groupSuggestions,
+}: {
+  item: Item;
+  allItems: Item[];
+  kampfTalente: TalentCatalogRow[];
+  fkProbeFor: (item: Item) => number;
+  isGm: boolean;
+  munitionItems: Item[];
+  open: boolean;
+  onToggle: () => void;
+  onDelete: () => void;
+  patchItem: (uid: string, patch: Partial<Item>) => void;
+  patchStat: (item: Item, feld: WaffenStatFeld, wert: string) => void;
+  revealStat: (item: Item, feld: WaffenStatFeld) => void;
+  /** Manual weapon stacking (TODO.md): bereits vergebene Gruppen-Namen anderer
+   * Fernkampfwaffen dieses Charakters, als Vorschlagsliste im Gruppe-Feld. */
+  groupSuggestions: string[];
+}) {
+  const ro = useReadOnly();
+  const notiz = item.notiz;
+  const munition = munitionFuer(item, allItems);
+  const rawStat = (feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
+
+  return (
+    <div className={`wpn-card${open ? ' open' : ''}`}>
+      {/* Kein Beiwerk im Kopf: das Kampftalent steckt schon in der
+          FK-Probe daneben, und eine Stufe gibt es hier nicht. */}
+      <CardHead
+        name={item.name}
+        sub=""
+        schaden={effektiverSchaden(item, allItems)}
+        rd={waffenStatWert(item, 'rd')}
+        damageRoll={damageRollFor(item, allItems)}
+        ranged
+        notiz={notiz}
+        open={open}
+        onToggle={onToggle}
+      >
+        <ProbeChip label="FK" value={fkProbeFor(item)} title="Fernkampf — fertige Probe" roll={rollFor(item, 'fk')} />
+      </CardHead>
+      {open && (
+        <div className="chip-editor">
+          {/* Nur zum Bearbeiten — im Nur-Lesen steht der Name schon
+              im Kartenkopf und stünde hier ein zweites Mal. */}
+          {!ro && (
+            <Feld label="Waffe/Typ" leer={false}>
+              <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
+            </Feld>
+          )}
+          <Feld
+            label="Gruppe"
+            leer={!item.waffenGruppe}
+            title="Waffen mit demselben Text hier stapeln sich zu einer Karte im Waffen-Reiter — unabhängig von ihren übrigen Werten. Leer lassen für eine eigene Karte."
+          >
+            <SuggestInput value={item.waffenGruppe} options={groupSuggestions} placeholder="— eigene Karte —" onChange={(v) => patchItem(item.uid, { waffenGruppe: v })} />
+          </Feld>
+          <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
+            <TextInput value={rawStat('schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="eBE" label="Material" isGm={isGm} onReveal={() => revealStat(item, 'eBE')}>
+            <TextInput value={rawStat('eBE')} onChange={(v) => patchStat(item, 'eBE', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="rd" label="RD" title="Rüstungsdurchdringung" isGm={isGm} onReveal={() => revealStat(item, 'rd')}>
+            <TextInput value={rawStat('rd')} onChange={(v) => patchStat(item, 'rd', v)} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="entfernung" label="Entfernung" isGm={isGm} onReveal={() => revealStat(item, 'entfernung')}>
+            <TextInput value={rawStat('entfernung')} onChange={(v) => patchStat(item, 'entfernung', v)} />
+          </WaffenFeld>
+          <HaltbarkeitFeld item={item} isGm={isGm} onPatch={(p) => patchItem(item.uid, p)} />
+          <WaffenFeld item={item} feld="talentId" label="Kampftalent" isGm={isGm} onReveal={() => revealStat(item, 'talentId')}>
+            <TalentSelect raw={rawStat('talentId')} kampfTalente={kampfTalente} onChange={(v) => patchStat(item, 'talentId', String(v))} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="atMod" label="AT-Mod" title="Modifikator dieser Waffe auf die Fernkampfprobe" isGm={isGm} onReveal={() => revealStat(item, 'atMod')}>
+            <NumInput value={Number(rawStat('atMod')) || 0} onChange={(v) => patchStat(item, 'atMod', String(v))} />
+          </WaffenFeld>
+          <WaffenFeld item={item} feld="munitionUid" label="Munition" title="Munition aus dem eigenen Inventar (Kategorie „Munition“)" isGm={isGm} onReveal={() => revealStat(item, 'munitionUid')}>
+            <MunitionSelect raw={rawStat('munitionUid')} munitionItems={munitionItems} onChange={(uid) => patchStat(item, 'munitionUid', uid)} />
+          </WaffenFeld>
+          {munition && (
+            <label title="Bestand der gewählten Munition — bearbeitet direkt das zugehörige Inventar-Item">
+              Munitionsbestand
+              <NumInput value={munition.anzahl} min={0} onChange={(v) => patchItem(munition.uid, { anzahl: v })} />
+            </label>
+          )}
+          <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
+            <TextInput value={rawStat('besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
+          </WaffenFeld>
+          <Feld label="Notiz" leer={!notiz} wide>
+            <TextInput value={notiz} onChange={(v) => patchItem(item.uid, { notiz: v })} />
+          </Feld>
+          {!ro && (
+            <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={onDelete}>
+              🗑 Löschen
+            </ConfirmDeleteButton>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -642,6 +921,7 @@ function FernCards({
 }) {
   const ro = useReadOnly();
   const { isOpen, toggle, dropAt } = useWeaponCards();
+  const { isOpen: isGroupOpen, toggle: toggleGroup } = useWeaponGroupCards();
   const patchItem = (uid: string, patch: Partial<Item>) => setItems(allItems.map((it) => (it.uid === uid ? { ...it, ...patch } : it)));
   // Upsert (patchWaffenStat), nicht reines Map/Find: eine Waffe, die vor
   // Einführung eines Felds angelegt wurde (z. B. jede Fernkampfwaffe vor
@@ -654,83 +934,81 @@ function FernCards({
   const removeItem = (uid: string) => setItems(allItems.filter((it) => it.uid !== uid));
   const addWaffe = () =>
     setItems([...allItems, makeItem({ waffenArt: 'fern', waffenStats: waffenStatsFuerArt('fern').map((s) => ({ ...s, verborgen: isGm })) })]);
-  const rawStat = (item: Item, feld: WaffenStatFeld) => waffenStatZeile(item, feld)?.wert ?? '';
   // Ammunition (TODO.md): eigene Munition, kein globaler Katalog — jedes Item
   // mit Kategorie "Munition" im eigenen Inventar/Ausrüstung ist wählbar.
   const munitionItems = allItems.filter((it) => istMunitionKategorie(it.kategorie));
 
+  // Manual weapon stacking (TODO.md "Cosmetic grouping for non-unique weapon
+  // stacks") — siehe Kommentar in NahCards, hier identisch angewandt.
+  const indexByUid = new Map(items.map((it, i) => [it.uid, i]));
+  const groups = groupWeaponItems(items);
+  const groupSuggestions = [...new Set(items.map((it) => it.waffenGruppe.trim()).filter(Boolean))].sort();
+
   return (
     <>
       <div className="wpn-list">
-        {items.map((item, i) => {
-          const notiz = item.notiz;
-          const open = isOpen(i);
-          const munition = munitionFuer(item, allItems);
-          return (
-            <div className={`wpn-card${open ? ' open' : ''}`} key={item.uid}>
-              {/* Kein Beiwerk im Kopf: das Kampftalent steckt schon in der
-                  FK-Probe daneben, und eine Stufe gibt es hier nicht. */}
-              <CardHead
-                name={item.name}
-                sub=""
-                schaden={effektiverSchaden(item, allItems)}
-                rd={waffenStatWert(item, 'rd')}
-                damageRoll={damageRollFor(item, allItems)}
-                ranged
-                notiz={notiz}
-                open={open}
+        {groups.map((group) => {
+          const first = group[0];
+          if (group.length === 1) {
+            const i = indexByUid.get(first.uid)!;
+            return (
+              <FernCard
+                key={first.uid}
+                item={first}
+                allItems={allItems}
+                kampfTalente={kampfTalente}
+                fkProbeFor={fkProbeFor}
+                isGm={isGm}
+                munitionItems={munitionItems}
+                open={isOpen(i)}
                 onToggle={() => toggle(i)}
-              >
-                <ProbeChip label="FK" value={fkProbeFor(item)} title="Fernkampf — fertige Probe" roll={rollFor(item, 'fk')} />
-              </CardHead>
-              {open && (
-                <div className="chip-editor">
-                  {/* Nur zum Bearbeiten — im Nur-Lesen steht der Name schon
-                      im Kartenkopf und stünde hier ein zweites Mal. */}
-                  {!ro && (
-                    <Feld label="Waffe/Typ" leer={false}>
-                      <TextInput value={item.name} onChange={(v) => patchItem(item.uid, { name: v })} />
-                    </Feld>
-                  )}
-                  <WaffenFeld item={item} feld="schaden" label="Schaden" isGm={isGm} onReveal={() => revealStat(item, 'schaden')}>
-                    <TextInput value={rawStat(item, 'schaden')} onChange={(v) => patchStat(item, 'schaden', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="eBE" label="Material" isGm={isGm} onReveal={() => revealStat(item, 'eBE')}>
-                    <TextInput value={rawStat(item, 'eBE')} onChange={(v) => patchStat(item, 'eBE', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="rd" label="RD" title="Rüstungsdurchdringung" isGm={isGm} onReveal={() => revealStat(item, 'rd')}>
-                    <TextInput value={rawStat(item, 'rd')} onChange={(v) => patchStat(item, 'rd', v)} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="entfernung" label="Entfernung" isGm={isGm} onReveal={() => revealStat(item, 'entfernung')}>
-                    <TextInput value={rawStat(item, 'entfernung')} onChange={(v) => patchStat(item, 'entfernung', v)} />
-                  </WaffenFeld>
-                  <HaltbarkeitFeld item={item} isGm={isGm} onPatch={(p) => patchItem(item.uid, p)} />
-                  <WaffenFeld item={item} feld="talentId" label="Kampftalent" isGm={isGm} onReveal={() => revealStat(item, 'talentId')}>
-                    <TalentSelect raw={rawStat(item, 'talentId')} kampfTalente={kampfTalente} onChange={(v) => patchStat(item, 'talentId', String(v))} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="atMod" label="AT-Mod" title="Modifikator dieser Waffe auf die Fernkampfprobe" isGm={isGm} onReveal={() => revealStat(item, 'atMod')}>
-                    <NumInput value={Number(rawStat(item, 'atMod')) || 0} onChange={(v) => patchStat(item, 'atMod', String(v))} />
-                  </WaffenFeld>
-                  <WaffenFeld item={item} feld="munitionUid" label="Munition" title="Munition aus dem eigenen Inventar (Kategorie „Munition“)" isGm={isGm} onReveal={() => revealStat(item, 'munitionUid')}>
-                    <MunitionSelect raw={rawStat(item, 'munitionUid')} munitionItems={munitionItems} onChange={(uid) => patchStat(item, 'munitionUid', uid)} />
-                  </WaffenFeld>
-                  {munition && (
-                    <label title="Bestand der gewählten Munition — bearbeitet direkt das zugehörige Inventar-Item">
-                      Munitionsbestand
-                      <NumInput value={munition.anzahl} min={0} onChange={(v) => patchItem(munition.uid, { anzahl: v })} />
-                    </label>
-                  )}
-                  <WaffenFeld item={item} feld="besonderes" label="Besonderes" isGm={isGm} onReveal={() => revealStat(item, 'besonderes')} wide>
-                    <TextInput value={rawStat(item, 'besonderes')} onChange={(v) => patchStat(item, 'besonderes', v)} />
-                  </WaffenFeld>
-                  <Feld label="Notiz" leer={!notiz} wide>
-                    <TextInput value={notiz} onChange={(v) => patchItem(item.uid, { notiz: v })} />
-                  </Feld>
-                  {!ro && (
-                    <ConfirmDeleteButton className="small chip-del" title="Waffe entfernen" onConfirm={() => { dropAt(i); removeItem(item.uid); }}>
-                      🗑 Löschen
-                    </ConfirmDeleteButton>
-                  )}
+                onDelete={() => { dropAt(i); removeItem(first.uid); }}
+                patchItem={patchItem}
+                patchStat={patchStat}
+                revealStat={revealStat}
+                groupSuggestions={groupSuggestions}
+              />
+            );
+          }
+          const groupKey = first.waffenGruppe.trim();
+          const groupOpen = isGroupOpen(groupKey);
+          const anyNote = group.some((it) => it.notiz.trim());
+          return (
+            <div className="wpn-card wpn-group" key={groupKey}>
+              <CardHead
+                name={groupKey}
+                sub=""
+                schaden=""
+                rd=""
+                ranged
+                notiz={anyNote ? 'Mindestens ein Exemplar hat eine Notiz — siehe unten' : ''}
+                open={groupOpen}
+                onToggle={() => toggleGroup(groupKey)}
+                count={group.length}
+              />
+              {groupOpen && (
+                <div className="wpn-group-items">
+                  {group.map((instance) => {
+                    const gi = indexByUid.get(instance.uid)!;
+                    return (
+                      <FernCard
+                        key={instance.uid}
+                        item={instance}
+                        allItems={allItems}
+                        kampfTalente={kampfTalente}
+                        fkProbeFor={fkProbeFor}
+                        isGm={isGm}
+                        munitionItems={munitionItems}
+                        open={isOpen(gi)}
+                        onToggle={() => toggle(gi)}
+                        onDelete={() => { dropAt(gi); removeItem(instance.uid); }}
+                        patchItem={patchItem}
+                        patchStat={patchStat}
+                        revealStat={revealStat}
+                        groupSuggestions={groupSuggestions}
+                      />
+                    );
+                  })}
                 </div>
               )}
             </div>

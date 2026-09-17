@@ -1,12 +1,12 @@
-import type { DieConfirmation, PendingConfirmation } from '@shared/dice';
-import { diceSidesForExpression } from '@shared/dice';
+import type { DieConfirmation, PendingConfirmation, TripleEvent } from '@shared/dice';
+import { detectTripleEvent, diceSidesForExpression } from '@shared/dice';
 import { formulaToText, type FormulaNode } from '@shared/formula';
 import type { FeedEntry, RollFeedEntry, RollVisibility } from '@shared/diceProtocol';
 import { useAuth } from '../../App';
 import { useDicePanel } from './DicePanelProvider';
 import Die from './Die';
 // Sämtliche Wortlaute stehen in labels.ts — hier wird nur ausgewählt, welcher.
-import { CONFIRM, OUTCOME, PENDING, VISIBILITY } from './labels';
+import { CONFIRM, OUTCOME, PENDING, TRIPLE, VISIBILITY } from './labels';
 
 function formatTime(ts: number): string {
   return new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -128,6 +128,13 @@ function PendingConfirmations({ entryId, pending, mine }: { entryId: number; pen
   );
 }
 
+// Drei gleiche Würfel (1/13/20, siehe detectTripleEvent) — rein kosmetisch,
+// eigene Zeile statt Randfarbe, damit der Erfolg/Fehlschlag-Rand des Wurfs
+// dabei ablesbar bleibt.
+function TripleBanner({ event }: { event: TripleEvent }) {
+  return <div className={`feed-triple feed-triple--${event}`}>{TRIPLE[event].title}</div>;
+}
+
 function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean }) {
   const { user } = useAuth();
   const { diceCode } = useDicePanel();
@@ -167,6 +174,7 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
   // Pro Würfel der passende Seitenzahl — bei einem gemischten Ausdruck
   // (z. B. „1w6+1w20") ist das NICHT für alle Würfel dasselbe.
   const diceSides = isProbe ? roll.dice.map(() => 20) : diceSidesForExpression(roll.expression);
+  const tripleEvent = detectTripleEvent(roll.dice, diceSides);
 
   // Innerhalb eines Gruppenwurf-Blocks (siehe FeedEntryView unten) trägt EIN
   // neutraler Rand den ganzen Block als Klammer — bewusst nicht eingefärbt,
@@ -238,6 +246,7 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
           </span>
         )}
       </div>
+      {tripleEvent && <TripleBanner event={tripleEvent} />}
       <Confirmations confirmations={roll.confirmations} />
       <PendingConfirmations entryId={entry.id} pending={roll.pending} mine={canConfirm} />
     </div>
