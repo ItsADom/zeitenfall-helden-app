@@ -267,11 +267,11 @@ export function AbilityEditDialog({
 
       <label className="dlg-checkbox-row">
         <input type="checkbox" checked={passiv} onChange={(e) => setPassiv(e.target.checked)} />
-        Passiv (Dauerwirkung statt aktiver Probe)
+        Passiv
       </label>
       <label className="dlg-checkbox-row">
         <input type="checkbox" checked={signatur} onChange={(e) => setSignatur(e.target.checked)} />
-        Markenzeichen (nur eines je Charakter, für Zauber und Fähigkeiten zusammen). Erleichtert die Probe um 2 je Würfel.
+        Markenzeichen
       </label>
       <div className="dlg-checkbox-row">
         <FavPin active={favorit} onClick={() => setFavorit((v) => !v)} />
