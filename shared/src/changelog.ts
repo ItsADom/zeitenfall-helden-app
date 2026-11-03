@@ -204,6 +204,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     added: [
       'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
     ],
+    fixed: [
+      'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem neuen Tisch.',
+    ],
     admin: [
       '(Spielleiter) In der Gruppenübersicht stand bei jedem Charakter „Stufe 0“. Dort steht jetzt die tatsächliche Stufe.',
     ],

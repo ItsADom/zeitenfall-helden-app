@@ -524,6 +524,14 @@ function floodFillKeys(start: CellCoord, cols: number, rows: number, getValue: (
 }
 
 const CELL_PX = 40;
+// Zoom is a FRACTION of the board (zoom 1 = the whole board fits the window),
+// so on a big board the same factor shows far smaller cells. The limits, the
+// reset zoom and the % readout are therefore all expressed relative to the
+// size a new group's board is created with (db.ts: boards.cols/rows DEFAULT),
+// via zoomFactor below: a 100x100 board gets its raw limits multiplied, and
+// shows the same cell size and the same percentage as the default board.
+const DEFAULT_BOARD_COLS = 40;
+const DEFAULT_BOARD_ROWS = 30;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 3;
 // Kürzer bewegt als das gilt als Klick (Marke auswählen), nicht als Ziehen —
@@ -952,6 +960,12 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
+  // How much bigger than a new group's board this one is (never below 1: a
+  // smaller board keeps today's behaviour). Raw zoom / zoomFactor is the
+  // "visual" zoom the player sees and the limits are defined in.
+  const zoomFactor = Math.max(1, cols / DEFAULT_BOARD_COLS, rows / DEFAULT_BOARD_ROWS);
+  const minZoom = MIN_ZOOM * zoomFactor;
+  const maxZoom = MAX_ZOOM * zoomFactor;
   // Reine Kamera-Schwenkgrenze — NICHT für Gitterlinien/Nebel/Bemalen/
   // Einrasten, die bleiben strikt bei totalW/totalH (cols/rows). Fällt bei
   // leerem Brett exakt auf [0,0,totalW,totalH] zurück, ändert also am
@@ -988,7 +1002,7 @@ function MapCanvas({
     feed,
   } = useDicePanel();
   const { user } = useAuth();
-  const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
+  const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: zoomFactor });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenIdRaw] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
@@ -1293,7 +1307,10 @@ function MapCanvas({
   const boardScale = useCallback((wrap: HTMLDivElement) => mapMetrics(wrap).scale, [mapMetrics]);
 
   const clampCamera = useCallback(
-    (x: number, y: number, zoom: number): Camera => {
+    (x: number, y: number, rawZoom: number): Camera => {
+      // Also catches a stored/remote zoom left outside the limits, e.g. after
+      // the board was resized.
+      const zoom = Math.min(maxZoom, Math.max(minZoom, rawZoom));
       const vw = totalW / zoom;
       const vh = totalH / zoom;
       // Schwenkbereich ist die Gitterfläche VEREINIGT mit allem, was gerade
@@ -1323,12 +1340,12 @@ function MapCanvas({
         y: maxY === worldMinY ? (worldMinY + worldMaxY - vh) / 2 : Math.min(maxY + marginY, Math.max(worldMinY - marginY, y)),
       };
     },
-    [totalW, totalH, contentBounds],
+    [totalW, totalH, contentBounds, minZoom, maxZoom],
   );
 
   const zoomBy = (factor: number) => {
     setCamera((prev) => {
-      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * factor));
+      const nextZoom = Math.min(maxZoom, Math.max(minZoom, prev.zoom * factor));
       const centerX = prev.x + totalW / prev.zoom / 2;
       const centerY = prev.y + totalH / prev.zoom / 2;
       const nextVw = totalW / nextZoom;
@@ -1337,7 +1354,7 @@ function MapCanvas({
     });
   };
 
-  const resetCamera = () => setCamera(clampCamera(0, 0, 1));
+  const resetCamera = () => setCamera(clampCamera(0, 0, zoomFactor));
 
   // "Center all on my view" (Phase 11) — eased, not an instant snap ("fast
   // movement, not just a blink", per the plan), so a receiver can actually
@@ -2587,12 +2604,12 @@ function MapCanvas({
         <button className="small" onClick={() => zoomBy(1 / 1.15)} title="Verkleinern">
           −
         </button>
-        {/* Bei MIN_ZOOM ist das ganze Brett schon sichtbar — dann gibt es
+        {/* Bei minZoom ist das ganze Brett schon sichtbar — dann gibt es
             nirgendwohin mehr zu verschieben, auch wenn das Ziehen selbst
             einwandfrei funktioniert. Ohne diese Anzeige liest sich das leicht
             als kaputtes Verschieben statt als "schon ganz herausgezoomt". */}
         <span className="muted vtt-zoom-level" title="Aktueller Zoomstand">
-          {Math.round(camera.zoom * 100)} %
+          {Math.round((camera.zoom / zoomFactor) * 100)} %
         </span>
         <button className="small" onClick={() => zoomBy(1.15)} title="Vergrößern">
           +
@@ -2865,7 +2882,7 @@ function MapCanvas({
               vorgesehen (Kachelebenen -> Gitterlinien -> …) — bewusst dünner
               als die Zellgröße, damit sie über Texturen noch lesbar bleiben,
               ohne die Fläche selbst zu verdunkeln. */}
-          <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={1 / camera.zoom} fill="none" />
+          <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={zoomFactor / camera.zoom} fill="none" />
 
           {/* Bilder: EINE Ebene für 'objekt' UND 'hintergrund' gleichermaßen —
               ÜBER den Kacheln, UNTER der Einfärbung (siehe "Images on the
