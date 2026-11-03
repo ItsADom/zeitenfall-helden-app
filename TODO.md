@@ -76,25 +76,56 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [sketch] make wiki-pages lockable to allow players protecting their character-pages etc.
-  - in the same pass, the edit-log gets flooded with every single save a player makes. how can we reduce this so a single edit-session does not end in "version number 145" for example
+- [ready] **Wiki: player-owned edit locks, and fewer versions per edit
+  session** (user feedback; concept agreed). Two parts, same pass.
+  - **Lock = edit-lock only** (the page stays readable for everyone, like
+    today's protected pages). **Owner and GM is enough**, no co-editor list.
+    Add `wiki_pages.owner_user_id` (FK `users`, ON DELETE SET NULL, so an
+    owner-less locked page is effectively GM-only) and a second flag
+    `besitzer_sperre`, next to the existing `geschuetzt` (= GM only). Two
+    flags instead of one 3-level column on purpose: no migration of
+    `geschuetzt`, and a release rollback onto older code cannot leave a
+    derived column stale (the CLAUDE.md `ALTER` gotcha). The UI shows one
+    3-way choice: offen / nur Besitzer und Spielleitung / nur Spielleitung.
+    `darfBearbeiten` (`server/src/wiki/zugriff.ts`) stays the single
+    authority: `gm || (!geschuetzt && (!besitzer_sperre || owner === user))`.
+    EVERY write path must use it: `speichereSeite`, `stelleFassungHer`,
+    delete/Papierkorb, rename, image upload/delete, the rights toggles
+    themselves. The owner toggles offen <-> Besitzer; only the GM sets or
+    lifts "nur Spielleitung" and can reassign the owner. Owner = page
+    creator; a page created from a character sheet's red link
+    (`router.ts`) gets the character's player as owner. Backfill existing
+    pages from their first revision's author at boot (idempotent, only where
+    NULL). A locked save answers with its own message ("von der Besitzerin
+    gesperrt") apart from the GM-protected one. Player-visible, so a
+    changelog entry; the GM-only reassign part is marked "(Spielleiter)".
+  - **Merge saves of one session** (`speichereSeite`, `seiten.ts`): a save
+    REPLACES the newest log row instead of adding one when ALL hold: same
+    author, same page, that row is the very last log row of the page (not a
+    rename/restore/other author's), it is an `angelegt`/`bearbeitet` row
+    without a comment, the save is within 30 min of it (sliding: each merged
+    save moves the clock), and the incoming save has no comment either. A
+    comment always makes its own version, and a commented version is never
+    merged into. Losing the intermediate texts is accepted. **Gotcha:** the
+    unread markers (`wiki_gelesen`/`wiki_seite_gelesen`) compare REVISION
+    IDS, so updating the row in place would make a changed page look already
+    read. Insert a new row (new id), give it the old row's `nr` and
+    `base_revision_id`, delete the old row, repoint `aktuelle_rev`; recompute
+    `zeilen_plus/minus` against the text BEFORE the merged version. Existing
+    history is untouched, no backfill. Conflict detection (`basisRev`) works
+    unchanged because the editor gets the new head id back after each save.
+  - **Why players save so often (their guess: not knowing about the preview,
+    fear of losing progress):** the merge removes the cost; also worth a
+    small editor nudge: show "Entwurf auf diesem Gerät gesichert" (the
+    localStorage draft already exists, `Editor.tsx`), a hint that "Vorschau"
+    shows the result without saving, and a one-line note that saves within
+    30 min become one version. A server-side per-user draft stays parked.
 
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
 ## Mid-Prio
 
-- [ready] **Chat formulas: follow-ups** (the formula arithmetic itself shipped,
-  see the changelog). Remaining:
-   - The Würfel-Favoriten textarea in `Einstellungen.tsx` has no name picker,
-     so names and their quotes are typed by hand. The picker logic is pure and
-     reusable (`findNameToken`/`applyNameInsert`, `shared/src/dice.ts`).
-   - Name suggestions do not mark ambiguous labels (two weapons of one name, a
-     spell named like a talent); the server only rejects them at roll time
-     ("mehrdeutig"). Disambiguate in the suggestion list instead.
-   - Open question, not asked for yet: "Probe anfordern", Kooperationsprobe
-     and Wettstreit still take single probes only (`parseProbeSource` rejects
-     the `formula` source). Decide whether formulas should work there.
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of
   talents/skills). Not concepted at all yet: how much a pet sheet shares with
