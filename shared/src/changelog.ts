@@ -218,26 +218,26 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Markenzeichen',
         added: [
-          'Das Markenzeichen gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe und zeigt sie in der Probenzahl und beim Würfeln. Fähigkeiten lassen sich jetzt auch als Markenzeichen wählen',
+          'Das Markenzeichen gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe und zeigt sie in der Probenzahl und beim Würfeln. Fähigkeiten lassen sich jetzt auch als Markenzeichen wählen.',
         ],
       },
       {
         title: 'Wiki',
         added: [
-          'Wiki-Seiten lassen sich jetzt sperren: Wer eine Seite angelegt hat (bei einer Charakterseite die Spielerin oder der Spieler des Charakters), kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können weiter alle, die Spielleitung darf immer bearbeiten.',
+          'Wiki-Seiten haben jetzt einen Besitzer (wer sie angelegt hat, bei einer Charakterseite der Spieler des Charakters). Der Besitzer kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können sie weiter alle, die Spielleitung darf immer bearbeiten.',
         ],
         changed: [
-          'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Wer beim Speichern eine Notiz schreibt, behält diese Version für sich. Die Zwischenstände innerhalb einer Sitzung lassen sich dafür nicht mehr einzeln wiederherstellen.',
-          'Der Wiki-Editor weist jetzt auf die Vorschau hin und darauf, dass dein Text laufend als Entwurf auf diesem Gerät gesichert wird.',
+          'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Mit einer Notiz beim Speichern bleibt diese Version für sich. Zwischenstände innerhalb einer Sitzung lassen sich dafür nicht mehr einzeln wiederherstellen.',
+          'Der Wiki-Editor weist jetzt auf die Vorschau hin und darauf, dass der Text laufend als Entwurf auf diesem Gerät gesichert wird.',
         ],
         admin: [
-          '(Spielleiter) Auf jeder Wiki-Seite wählst du jetzt, wer sie bearbeiten darf (alle, nur Besitzer und Spielleitung, nur Spielleitung), und kannst die Seite einem anderen Konto zuweisen.',
+          '(Spielleiter) Auf jeder Wiki-Seite lässt sich jetzt einstellen, wer sie bearbeiten darf (alle, nur Besitzer und Spielleitung, nur Spielleitung). Außerdem kann die Seite einem anderen Konto zugewiesen werden.',
         ],
       },
       {
         title: 'Virtueller Tisch',
         added: [
-          'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
+          'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Die Zähler sind für alle am Tisch sichtbar und werden mit denselben Rechten bearbeitet wie die Marke selbst. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
         ],
         fixed: [
           'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem Standard-Tisch.',
