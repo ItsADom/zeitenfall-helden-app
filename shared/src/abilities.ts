@@ -17,8 +17,10 @@ export interface Ability {
   uid: string;
   magisch: boolean; // true → Zauber, false → Fähigkeit
   passiv: boolean; // Dauerwirkung (kein aktiver Wirk-Wurf)
-  // Signatur-Zauber: höchstens EINER je Charakter (Boni später, vorerst nur die
-  // Markierung). Der Server erzwingt die Einzigartigkeit beim Speichern.
+  // Signatur-Zauber/-Fähigkeit: höchstens EINER je Charakter, über Zauber UND
+  // Fähigkeiten hinweg. Gibt eine Erleichterung von 2 je beteiligtem Würfel auf
+  // die Probe (signaturErleichterung, rules.ts). Der Server erzwingt die
+  // Einzigartigkeit beim Speichern.
   signatur: boolean;
   name: string;
   element: string; // Name aus der Element-Liste des Charakters ('' = ohne)

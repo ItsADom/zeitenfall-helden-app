@@ -15,6 +15,7 @@ import {
   munitionProbenBonusFuer,
   parseProbeExpr,
   probeExprZahl,
+  signaturErleichterung,
   schreibenProbe,
   sprechenProbe,
   talentProbeBonus,
@@ -156,8 +157,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     }
     case 'ability': {
       const row = db
-        .prepare('SELECT name, probe, element FROM char_abilities WHERE character_id = ? AND id = ?')
-        .get(characterId, source.abilityId) as { name: string; probe: string; element: string } | undefined;
+        .prepare('SELECT name, probe, element, signatur FROM char_abilities WHERE character_id = ? AND id = ?')
+        .get(characterId, source.abilityId) as { name: string; probe: string; element: string; signatur: number } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
       if (!parts) return null;
@@ -174,7 +175,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const attrParts = parts.filter((p): p is AttrCode => p !== 'AT' && p !== 'PA' && p !== 'BL');
       return {
         n: parts.length,
-        probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni),
+        // + Signatur: 2 je beteiligtem Würfel (signaturErleichterung, rules.ts).
+        probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni) + (row.signatur ? signaturErleichterung(row.probe) : 0),
         label: row.name,
         attrParts: attrParts.length ? attrParts : undefined,
       };

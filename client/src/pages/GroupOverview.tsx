@@ -123,7 +123,7 @@ function AbilityLookupDialog({ charId, charName, onClose }: { charId: number; ch
                 <tr key={a.uid}>
                   <td>
                     {a.name}
-                    {a.signatur && <span title="Signatur-Zauber"> ✦</span>}
+                    {a.signatur && <span title={a.magisch ? 'Signatur-Zauber' : 'Signatur-Fähigkeit'}> ✦</span>}
                   </td>
                   <td className="muted">{a.probe}</td>
                   <td className="muted">{a.kosten}</td>

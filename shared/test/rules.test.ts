@@ -11,6 +11,7 @@ import {
   maximaleLast,
   nextLevelAp,
   probeExprZahl,
+  signaturErleichterung,
   psycheMax,
   psycheMuAnteil,
   schreibenProbe,
@@ -158,6 +159,21 @@ describe('Waffen-Proben', () => {
       }
     });
   }
+});
+
+describe('Signatur-Erleichterung', () => {
+  it('gibt 2 je Würfel', () => {
+    expect(signaturErleichterung('MU+KL+IN')).toBe(6);
+    expect(signaturErleichterung('FF+FF')).toBe(4);
+    expect(signaturErleichterung('KO')).toBe(2);
+  });
+  it('zählt AT/PA/BL-Terme als Würfel mit', () => {
+    expect(signaturErleichterung('KK+AT')).toBe(4);
+  });
+  it('ist 0 bei ungültigem Ausdruck', () => {
+    expect(signaturErleichterung('')).toBe(0);
+    expect(signaturErleichterung('XX+YY')).toBe(0);
+  });
 });
 
 describe('Proben-Ausdrücke', () => {

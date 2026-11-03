@@ -202,10 +202,11 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-03',
     title: 'Wunden für Monster-Marken',
     added: [
+      'Der Signatur-Zauber gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe (ein Zauber mit drei Würfeln also +6), und zeigt sie in der Probenzahl und beim Würfeln. Die Signatur lässt sich jetzt auch für eine Fähigkeit wählen: Zauber und Fähigkeiten teilen sich weiterhin den einen Platz.',
       'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
     ],
     fixed: [
-      'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem neuen Tisch.',
+      'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem Standard-Tisch.',
     ],
     admin: [
       '(Spielleiter) In der Gruppenübersicht stand bei jedem Charakter „Stufe 0“. Dort steht jetzt die tatsächliche Stufe.',

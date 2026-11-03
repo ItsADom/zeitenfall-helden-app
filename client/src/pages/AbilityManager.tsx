@@ -474,7 +474,7 @@ function AbilityListPanel({ title, magisch, list, allAbilities, elements, katego
                 >
                   ⠿
                 </span>
-                {a.signatur && <span className="abil-sig-star" title="Signatur-Zauber">★</span>}
+                {a.signatur && <span className="abil-sig-star" title={a.magisch ? 'Signatur-Zauber' : 'Signatur-Fähigkeit'}>★</span>}
                 <span className="abil-name">{a.name || '—'}</span>
                 {magisch && a.element && <span className="muted">{a.element}</span>}
                 {a.kategorien.length > 0 && <span className="muted">{a.kategorien.join(', ')}</span>}

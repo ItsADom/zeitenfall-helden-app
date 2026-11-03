@@ -76,16 +76,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [onHold] **Signature spell: Erleichterung, and available for skills.** The
-  `ability` branch of `computeProbeForCharacter` (`diceSource.ts`) adds no
-  Erleichterung for any ability, and the signature flag is a pure marker
-  (`Ability.signatur`: "Boni später"). The single-slot rule already spans spells
-  and skills server-side; only `AbilityEditDialog` gates the checkbox with
-  `isMagisch`, and the skills tab shows no star. Blocked: the actual bonus
-  value/rule is undecided (derived from the ability's level via
-  `erleichterung()`, a flat value, or tied to Magierstufe). Once decided, the
-  work is small: a bonus term in that branch, ungate the checkbox, star on the
-  skills tab, show it in the roll breakdown.
 - [ready] **Arithmetic in free rolls and favorites** (e.g.
   `Athletik+FF+(2*Akrobatik)`). The engine already exists: `shared/src/formula.ts`
   (`+ - * /`, parentheses, unary minus, dice blocks), used by `/r` and energy
