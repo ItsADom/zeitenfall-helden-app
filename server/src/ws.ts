@@ -839,32 +839,42 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           send(ws, { type: 'error', reqId: msg.reqId, message: `Zu viele Würfel (${probe.n}, höchstens ${MAX_DICE_COUNT})` });
           return;
         }
+        // Wiederholen geht bei einer Probe nur noch mit „*“ ("2*Athletik" = zweimal
+        // Athletik in EINER Probe, jeder Teil mit eigenem Ergebnis); das „Nx“-Präfix
+        // gilt ausschließlich für Würfelsummen, wo „*“ die Summe vervielfacht.
+        if (repeat > 1) {
+          send(ws, {
+            type: 'error',
+            reqId: msg.reqId,
+            message: `„${repeat}x“ wiederholt nur Würfelausdrücke. Eine Probe wiederholst du mit „${repeat}*“, z. B. „${repeat}*Athletik“.`,
+          });
+          return;
+        }
         const display = formulaToText(mapNames(expression, (name) => resolvedNames.get(name)?.label ?? name), 'w');
         const modifier = clampModifier(msg.modifier);
-        const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
-        for (let i = 0; i < repeat; i++) {
-          const result = performProbeRoll(probe.n, probe.probeZahl, modifier);
-          const roll: ProbeRollPayload = {
-            mode: 'probe',
-            source: { kind: 'formula', expression: display },
-            label: label || display,
-            n: probe.n,
-            probeZahl: probe.probeZahl,
-            modifier,
-            dice: result.dice,
-            confirmations: result.confirmations,
-            pending: result.pending,
-            resolved: result.resolved,
-            rawSum: result.rawSum,
-            adjustedSum: result.adjustedSum,
-            criticalFailureCount: result.criticalFailureCount,
-            criticalFailure: result.criticalFailure,
-            success: result.success,
-            narrow: result.narrow,
-            criticalSuccess: result.criticalSuccess,
-          };
-          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
-        }
+        const parts = probe.parts.map((p) => ({ label: resolvedNames.get(p.name)?.label ?? p.name, n: p.n, probeZahl: p.probeZahl }));
+        const result = performProbeRoll(probe.n, probe.probeZahl, modifier);
+        const roll: ProbeRollPayload = {
+          mode: 'probe',
+          source: { kind: 'formula', expression: display },
+          label: label || display,
+          n: probe.n,
+          probeZahl: probe.probeZahl,
+          modifier,
+          parts,
+          dice: result.dice,
+          confirmations: result.confirmations,
+          pending: result.pending,
+          resolved: result.resolved,
+          rawSum: result.rawSum,
+          adjustedSum: result.adjustedSum,
+          criticalFailureCount: result.criticalFailureCount,
+          criticalFailure: result.criticalFailure,
+          success: result.success,
+          narrow: result.narrow,
+          criticalSuccess: result.criticalSuccess,
+        };
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll);
         send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }

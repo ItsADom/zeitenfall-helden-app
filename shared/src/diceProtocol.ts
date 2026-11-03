@@ -59,6 +59,13 @@ export interface ChatFeedEntry {
   repeat?: true;
 }
 
+export interface ProbeRollPart {
+  /** Anzeigename (z. B. „Athletik“), nicht der getippte Bezeichner. */
+  label: string;
+  n: number;
+  probeZahl: number;
+}
+
 export interface ProbeRollPayload {
   mode: 'probe';
   source: ProbeSource;
@@ -79,6 +86,15 @@ export interface ProbeRollPayload {
    * keine direkte Attribut-Zuordnung je Würfel kennen.
    */
   attrParts?: AttrRowCode[];
+  /**
+   * Nur bei einer Formel aus Probe-Namen ("Athletik+FF+2*Akrobatik", siehe
+   * evaluateProbeFormula): jeder Name mit seinem Anteil an den Würfeln (der
+   * Reihe nach, `dice` zerfällt in diese Abschnitte) und seinem eigenen
+   * Zielwert, damit der Eintrag zeigen kann, welcher Teil darüber lag. Das
+   * Gesamtergebnis (success) entscheidet weiter die Summe aller Würfel gegen
+   * `probeZahl`; die Teile sind nur Anzeige.
+   */
+  parts?: ProbeRollPart[];
   confirmations: DieConfirmation[];
   // Offene Bestätigungswürfe — der Spieler löst sie einzeln aus, erst danach
   // steht das Ergebnis fest (resolved).

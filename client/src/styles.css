@@ -5275,6 +5275,37 @@ body.resizing-dice {
   margin-top: 3px;
   font-size: var(--feed-font-size, 13px);
 }
+/* Formel aus Probe-Namen: je Name eine Zeile mit seinen Würfeln, seinem Zielwert
+   und ✓/✗ — das Gesamtergebnis steht darunter in .feed-roll-body. Ein Raster
+   mit durchlaufenden Spalten, damit Würfel, Summe und Haken über alle Zeilen
+   untereinander stehen, egal wie lang der Name ist. */
+.feed-parts {
+  display: grid;
+  grid-template-columns: max-content max-content max-content max-content;
+  justify-content: start;
+  align-items: center;
+  gap: 3px 8px;
+  margin-top: 3px;
+  font-size: var(--feed-font-size, 13px);
+}
+.feed-part {
+  display: contents;
+}
+.feed-part-label {
+  color: var(--muted);
+}
+.feed-part-sum {
+  font-variant-numeric: tabular-nums;
+}
+.feed-part-mark {
+  font-weight: 700;
+}
+.feed-part--ok .feed-part-mark {
+  color: #3f7d3f;
+}
+.feed-part--over .feed-part-mark {
+  color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+}
 .feed-dice {
   display: inline-flex;
   flex-wrap: wrap;

@@ -394,36 +394,62 @@ export interface ProbeTerm {
   probeZahl: number;
 }
 
+/**
+ * One name's share of a probe formula, in the order its dice are rolled
+ * (`2*Akrobatik` yields TWO parts). `name` is the identifier as written in the
+ * formula; `probeZahl` is that part's own target after any division, rounded up.
+ */
+export interface ProbeFormulaPart {
+  name: string;
+  n: number;
+  probeZahl: number;
+}
+
 export type ProbeFormulaResult =
-  | { ok: true; n: number; probeZahl: number }
+  | { ok: true; n: number; probeZahl: number; parts: ProbeFormulaPart[] }
   | { ok: false; reason: 'shape' }
   | { ok: false; reason: 'unknown'; name: string };
+
+interface RawPart {
+  name: string;
+  n: number;
+  target: number;
+}
 
 interface ProbePart {
   value: number;
   n: number;
+  parts: RawPart[];
   hasName: boolean;
 }
+
+// A name can be repeated at most this often: every name brings at least one
+// d20 and a roll holds 20 dice at most, so more could never be rolled anyway,
+// and this keeps a typed "1000000*Athletik" from allocating a huge list.
+const MAX_PROBE_REPEAT = 20;
 
 /**
  * A formula WITHOUT any dice block, built from probe names, is a probe: the
  * names' targets are combined arithmetically into one target, and one d20 is
  * rolled per attribute term the names stand for (attribute 1, talent 3, ...).
- * Constants and multipliers only change the target, never the dice count, so
- * `Athletik+FF+(2*Akrobatik)` with 40/12/36 is 3+1+3 = 7 d20s against 124.
+ * The whole formula is judged on its total (all dice against the combined
+ * target); `parts` additionally lists every name with its own dice count and
+ * target so a roll can show which part was over.
  *
- * The shape is restricted to what has a meaningful dice count: names combine
- * with `+`; a name may be scaled by a constant (`*`, or `/` on the right) and
- * shifted by constants (`+`, `-`); never `name-name`, `name*name`, `5/name` or
- * a negated name. `resolve` returns null for an unknown name. Rounds the
- * target up, like every other derived value.
+ * `k*X` with a whole number k >= 1 means X k times, dice AND target:
+ * `2*Athletik` is `Athletik+Athletik`. Constants with `+`/`-` only shift the
+ * target. `/` by a constant scales the target of what stands to its left
+ * (same dice). Names combine with `+`; never `name-name`, `name*name`,
+ * `5/name`, a negated name, or a fractional/zero multiplier. `resolve` returns
+ * null for an unknown name. Rounds the target up, like every other derived
+ * value.
  */
 export function evaluateProbeFormula(ast: FormulaNode, resolve: (name: string) => ProbeTerm | null): ProbeFormulaResult {
   let unknown: string | null = null;
   const walk = (node: FormulaNode): ProbePart | null => {
     switch (node.kind) {
       case 'num':
-        return { value: node.value, n: 0, hasName: false };
+        return { value: node.value, n: 0, parts: [], hasName: false };
       case 'dice':
         return null;
       case 'id': {
@@ -432,11 +458,11 @@ export function evaluateProbeFormula(ast: FormulaNode, resolve: (name: string) =
           unknown = node.name;
           return null;
         }
-        return { value: term.probeZahl, n: term.n, hasName: true };
+        return { value: term.probeZahl, n: term.n, parts: [{ name: node.name, n: term.n, target: term.probeZahl }], hasName: true };
       }
       case 'neg': {
         const v = walk(node.operand);
-        return v && !v.hasName ? { value: -v.value, n: 0, hasName: false } : null;
+        return v && !v.hasName ? { value: -v.value, n: 0, parts: [], hasName: false } : null;
       }
       case 'bin': {
         const l = walk(node.left);
@@ -444,13 +470,28 @@ export function evaluateProbeFormula(ast: FormulaNode, resolve: (name: string) =
         if (!l || !r) return null;
         switch (node.op) {
           case '+':
-            return { value: l.value + r.value, n: l.n + r.n, hasName: l.hasName || r.hasName };
+            return { value: l.value + r.value, n: l.n + r.n, parts: [...l.parts, ...r.parts], hasName: l.hasName || r.hasName };
           case '-':
-            return r.hasName ? null : { value: l.value - r.value, n: l.n, hasName: l.hasName };
-          case '*':
-            return l.hasName && r.hasName ? null : { value: l.value * r.value, n: l.n + r.n, hasName: l.hasName || r.hasName };
+            return r.hasName ? null : { value: l.value - r.value, n: l.n, parts: l.parts, hasName: l.hasName };
+          case '*': {
+            if (l.hasName === r.hasName) return null; // name*name, or two constants (no name at all)
+            const [count, X] = l.hasName ? [r.value, l] : [l.value, r];
+            if (!Number.isInteger(count) || count < 1 || count > MAX_PROBE_REPEAT) return null;
+            return {
+              value: X.value * count,
+              n: X.n * count,
+              parts: Array.from({ length: count }, () => X.parts).flat(),
+              hasName: true,
+            };
+          }
           case '/':
-            return r.hasName || r.value === 0 ? null : { value: l.value / r.value, n: l.n, hasName: l.hasName };
+            if (r.hasName || r.value === 0) return null;
+            return {
+              value: l.value / r.value,
+              n: l.n,
+              parts: l.parts.map((p) => ({ ...p, target: p.target / r.value })),
+              hasName: l.hasName,
+            };
         }
       }
     }
@@ -458,5 +499,10 @@ export function evaluateProbeFormula(ast: FormulaNode, resolve: (name: string) =
   const total = walk(ast);
   if (unknown !== null) return { ok: false, reason: 'unknown', name: unknown };
   if (!total || !total.hasName || total.n < 1 || !Number.isFinite(total.value)) return { ok: false, reason: 'shape' };
-  return { ok: true, n: total.n, probeZahl: Math.ceil(total.value) };
+  return {
+    ok: true,
+    n: total.n,
+    probeZahl: Math.ceil(total.value),
+    parts: total.parts.map((p) => ({ name: p.name, n: p.n, probeZahl: Math.ceil(p.target) })),
+  };
 }

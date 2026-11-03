@@ -237,29 +237,51 @@ describe('evaluateProbeFormula', () => {
   };
   const resolve = (name: string): ProbeTerm | null => terms[name] ?? null;
   const run = (text: string) => evaluateProbeFormula(parseFormula(text)!, resolve);
+  const part = (name: string, n: number, probeZahl: number) => ({ name, n, probeZahl });
 
-  it('adds targets and counts one d20 per attribute term (the multiplier scales only the target)', () => {
-    expect(run('Athletik+FF+(2*Akrobatik)')).toEqual({ ok: true, n: 7, probeZahl: 124 });
+  it('adds targets and counts one d20 per attribute term, listing each name as a part', () => {
+    expect(run('Athletik+FF')).toEqual({
+      ok: true,
+      n: 4,
+      probeZahl: 52,
+      parts: [part('ATHLETIK', 3, 40), part('FF', 1, 12)],
+    });
   });
 
-  it('a lone name is its own probe', () => {
-    expect(run('Athletik')).toEqual({ ok: true, n: 3, probeZahl: 40 });
+  it('a lone name is its own probe with one part', () => {
+    expect(run('Athletik')).toEqual({ ok: true, n: 3, probeZahl: 40, parts: [part('ATHLETIK', 3, 40)] });
   });
 
-  it('constants only shift the target', () => {
-    expect(run('Athletik+5')).toEqual({ ok: true, n: 3, probeZahl: 45 });
-    expect(run('5+Athletik')).toEqual({ ok: true, n: 3, probeZahl: 45 });
-    expect(run('Athletik-5')).toEqual({ ok: true, n: 3, probeZahl: 35 });
+  it('k*name repeats the name: dice AND target, one part per copy', () => {
+    expect(run('2*Athletik')).toEqual({
+      ok: true,
+      n: 6,
+      probeZahl: 80,
+      parts: [part('ATHLETIK', 3, 40), part('ATHLETIK', 3, 40)],
+    });
+    expect(run('Athletik*2')).toEqual(run('2*Athletik'));
+    expect(run('Athletik+FF+(2*Akrobatik)')).toMatchObject({ n: 10, probeZahl: 124 });
+    expect((run('Athletik+FF+(2*Akrobatik)') as { parts: unknown[] }).parts).toHaveLength(4);
   });
 
-  it('a name can be scaled by a constant both ways, rounding the target up', () => {
-    expect(run('Athletik*2')).toEqual({ ok: true, n: 3, probeZahl: 80 });
-    expect(run('2*Athletik')).toEqual({ ok: true, n: 3, probeZahl: 80 });
-    expect(run('FF/5')).toEqual({ ok: true, n: 1, probeZahl: 3 });
+  it('k*name is the same as writing the name k times', () => {
+    expect(run('3*FF')).toEqual(run('FF+FF+FF'));
   });
 
-  it('the same name twice counts its dice twice', () => {
-    expect(run('FF+FF')).toEqual({ ok: true, n: 2, probeZahl: 24 });
+  it('a repeated group repeats every name in it', () => {
+    expect(run('2*(Athletik+FF)')).toMatchObject({ n: 8, probeZahl: 104 });
+  });
+
+  it('constants only shift the target and are no part', () => {
+    expect(run('Athletik+5')).toEqual({ ok: true, n: 3, probeZahl: 45, parts: [part('ATHLETIK', 3, 40)] });
+    expect(run('5+Athletik')).toMatchObject({ n: 3, probeZahl: 45 });
+    expect(run('Athletik-5')).toMatchObject({ n: 3, probeZahl: 35 });
+    expect(run('(1+1)*Athletik')).toMatchObject({ n: 6, probeZahl: 80 });
+  });
+
+  it('division by a constant scales the target (and the parts), not the dice, rounding up', () => {
+    expect(run('FF/5')).toEqual({ ok: true, n: 1, probeZahl: 3, parts: [part('FF', 1, 3)] });
+    expect(run('Athletik/2+FF')).toMatchObject({ n: 4, probeZahl: 32, parts: [part('ATHLETIK', 3, 20), part('FF', 1, 12)] });
   });
 
   it('rejects shapes without a meaningful dice count', () => {
@@ -270,8 +292,16 @@ describe('evaluateProbeFormula', () => {
     expect(run('Athletik/0')).toEqual({ ok: false, reason: 'shape' });
   });
 
+  it('rejects a fractional, zero, negative or absurd repeat count', () => {
+    expect(run('0.5*Athletik')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('0*Athletik')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('(0-1)*Athletik')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('1000000*Athletik')).toEqual({ ok: false, reason: 'shape' });
+  });
+
   it('rejects a formula without any name, and one with a dice block', () => {
     expect(run('5+3')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('2*3')).toEqual({ ok: false, reason: 'shape' });
     expect(run('Athletik+1w6')).toEqual({ ok: false, reason: 'shape' });
   });
 

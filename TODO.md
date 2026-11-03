@@ -86,10 +86,20 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
     its three attributes + Erleichterung, attribute code = its value,
     ability = its probe expression incl. element/Markenzeichen bonuses).
   - **Dice:** one d20 per attribute term after expanding the names
-    (attribute 1, talent 3, ...). Multipliers and constants only change the
-    target: `Athletik+FF+(2*Akrobatik)` with 40/12/36 is 3+1+3 = 7 d20s
-    against 124; `Athletik+5` is 3 d20s against 45. A multiplier is not a
-    dice multiplier.
+    (attribute 1, talent 3, ...). `k*X` (whole k >= 1) means X k times, dice
+    AND target, exactly like writing X k times: `2*Athletik` is
+    `Athletik+Athletik` (6 d20s against 2x the target) and
+    `Athletik+FF+2*Akrobatik` with 40/12/36 is 3+1+6 = 10 d20s against 124.
+    (This replaced an earlier "multiplier only scales the target" idea.)
+    `+`/`-` constants only shift the target (`Athletik+5` is 3 d20s against
+    45), `/` by a constant scales the target. The old `Nx` prefix is retired
+    for probes (a lone `2xAthletik` is rejected with a hint to write
+    `2*Athletik`); it stays for dice sums (`3x2w6+8`), where `*` already
+    multiplies the sum.
+  - **Overall verdict and parts:** success is decided on the total (all dice
+    against the combined target). The card also lists every name with its own
+    dice and target and a check/cross, so you see which part was over; that
+    is display only (stored as `parts` on the roll).
   - **Two modes, decided by the dice blocks:** *no* dice block
     (`Athletik+FF+(2*Akrobatik)`) is a probe as above (accepted by `/r`
     although `parseDiceExpression` rejects zero-dice formulas today).
@@ -141,13 +151,14 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
     formula Enter inserts until the typed word is a whole name and then sends;
     a "+" button per row and a hint line; `/r` accepts probe formulas;
     `/koop` and `/wettstreit` unchanged. Dice-sum cards show canonical names.
-  - **Still to build:** (1) the feed card for a probe formula shows only the
-    canonical formula and the total target; expanding it with each name's
-    target (`Athletik (31) + FF (12) + 2×Akrobatik (33)`) would need the
-    per-name targets stored on the roll; (2) favorites typed in
-    Einstellungen have no picker (quotes by hand); (3) name suggestions
-    while typing do not mark ambiguous labels (two weapons of one name):
-    the server rejects them at roll time with a clear message.
+  - **Built (card):** a probe formula with more than one part renders one
+    row per part (label, its dice, `= sum / target`, check/cross, targets
+    only for the roller and the GM) and the overall result below.
+  - **Still to build:** (1) favorites typed in Einstellungen have no picker
+    (quotes by hand); (2) name suggestions while typing do not mark ambiguous
+    labels (two weapons of one name): the server rejects them at roll time
+    with a clear message; (3) per-part marks use the raw dice, crit
+    confirmations only change the overall total.
   - **Open:** which name kinds the picker offers (it offers whatever
     `/api/characters/:id/probes` lists: attributes, base values, talents,
     abilities, languages, weapons).

@@ -320,6 +320,12 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const pickProbe = (p: RollableProbe) => {
     if (groupId === null) return;
     if (poolMode === null && charId === null) return;
+    // Wiederholen geht bei einer Probe nur noch mit "*" ("2*Athletik"), das
+    // "Nx"-Präfix ist Würfelsummen vorbehalten (siehe roll.expr in ws.ts).
+    if (poolMode === null && probeRepeat > 1) {
+      setError(`„${probeRepeat}x“ wiederholt nur Würfelausdrücke. Eine Probe wiederholst du mit „${probeRepeat}*“, z. B. „${probeRepeat}*${p.label}“.`);
+      return;
+    }
     setError('');
     setDraft('');
     setSuggestDismissed(false);
