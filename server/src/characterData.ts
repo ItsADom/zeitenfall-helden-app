@@ -3071,7 +3071,7 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
     const { attrs: attributes, resources } = stats;
     const baseValues = computeBaseValues(attributes, stats.baseInputs);
     const meta = loadSingleRow('char_meta', c.id) as {
-      stufe?: number;
+      ap?: number;
       psycheAkt?: number;
       psycheBase?: number;
       schicksalspunkteAktuell?: number;
@@ -3125,7 +3125,9 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       // Für „Probe anfordern" auf der Übersicht: die Anfrage geht an den Besitzer.
       ownerUserId: c.ownerUserId,
       ownerName: c.ownerName,
-      stufe: meta.stufe ?? 0,
+      // Abgeleitet wie auf dem Bogen (Heldenbrief), nicht aus der gespeicherten
+      // Spalte stufe, die nichts mehr beschreibt.
+      stufe: levelForAp(Number(meta.ap) || 0),
       portrait: hasPortrait(c.id),
       vitals,
       thresholds: { wund: baseValues.wundschwelle.ergebnis, tod: baseValues.todesschwelle.ergebnis },
