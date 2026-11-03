@@ -76,12 +76,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [ready] **Browser-verify marker wounds** (built 2026-11-03, only checked
-  against scratch DBs and types, never clicked through). Check in the VTT as
-  GM and as a player (`localhost` vs `[::1]`): ±1 on a marker's wounds in the
-  token editor, badge visible to both, player gets no buttons when the board
-  denies token edits, copy/paste (Ctrl+C/V) keeps the counts, a character
-  token's wounds still stay owner+GM only. Both colour modes for the badge.
 - [onHold] **Signature spell: Erleichterung, and available for skills.** The
   `ability` branch of `computeProbeForCharacter` (`diceSource.ts`) adds no
   Erleichterung for any ability, and the signature flag is a pure marker
