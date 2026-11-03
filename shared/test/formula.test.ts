@@ -73,9 +73,35 @@ describe('parseFormula', () => {
 
 describe('countDice / diceSidesFor', () => {
   it('counts dice and groups across nested arithmetic', () => {
-    const ast = parseFormula('2*(1w6+2w4)+3')!;
+    const ast = parseFormula('(1w6+2w4)/2+3')!;
     expect(countDice(ast)).toEqual({ totalDice: 3, groups: 2 });
     expect(diceSidesFor(ast)).toEqual([6, 4, 4]);
+  });
+
+  it('k*X repeats the dice: 2*(1w6+2w4) is six dice, still two blocks', () => {
+    const ast = parseFormula('2*(1w6+2w4)+3')!;
+    expect(countDice(ast)).toEqual({ totalDice: 6, groups: 2 });
+    expect(diceSidesFor(ast)).toEqual([6, 4, 4, 6, 4, 4]);
+  });
+
+  it('only digits directly before w/d are the dice count: 2*2w6 is two repeats of two dice', () => {
+    const ast = parseFormula('2*2w6')!;
+    expect(countDice(ast)).toEqual({ totalDice: 4, groups: 1 });
+    expect(diceSidesFor(ast)).toEqual([6, 6, 6, 6]);
+    expect(countDice(parseFormula('22w6')!).totalDice).toBe(22);
+  });
+
+  it('the factor may stand on either side and be a small constant expression', () => {
+    expect(countDice(parseFormula('2w6*3')!).totalDice).toBe(6);
+    expect(countDice(parseFormula('(1+2)*1w4')!).totalDice).toBe(3);
+  });
+
+  it('is plain multiplication when nothing can repeat: no dice, a fractional or oversized factor, a name', () => {
+    expect(countDice(parseFormula('2*5')!).totalDice).toBe(0);
+    expect(countDice(parseFormula('1.5*1w6')!).totalDice).toBe(1);
+    expect(countDice(parseFormula('21*1w6')!).totalDice).toBe(1);
+    expect(countDice(parseFormula('MU*1w6')!).totalDice).toBe(1);
+    expect(countDice(parseFormula('1w6*1w4')!).totalDice).toBe(2);
   });
 
   it('is zero for a dice-free formula', () => {
@@ -108,17 +134,64 @@ describe('evaluateStatic', () => {
 
 describe('evaluateRolled', () => {
   it('rolls each dice block and combines per operator, dice accumulate in encounter order', () => {
-    const ast = parseFormula('2*(1w6+3)')!;
+    const ast = parseFormula('(1w6+3)/2')!;
     const rolls = [4];
     let i = 0;
     const result = evaluateRolled(ast, () => null, () => rolls[i++]);
-    expect(result).toEqual({ total: 14, dice: [4] }); // (4+3)*2
+    expect(result).toEqual({ total: 4, dice: [4], groups: [] }); // (4+3)/2 = 3.5 -> 4
+  });
+
+  it('k*X rolls X k times and adds the results, recording each repeat', () => {
+    const ast = parseFormula('2*(1w6+3)')!;
+    const rolls = [4, 5];
+    let i = 0;
+    const result = evaluateRolled(ast, () => null, () => rolls[i++]);
+    expect(result).toEqual({
+      total: 15, // (4+3) + (5+3)
+      dice: [4, 5],
+      groups: [
+        { start: 0, n: 1, summe: 7 },
+        { start: 1, n: 1, summe: 8 },
+      ],
+    });
+  });
+
+  it('2*2w6 is two separate rolls of 2w6, not one roll doubled', () => {
+    const rolls = [1, 2, 3, 4];
+    let i = 0;
+    const result = evaluateRolled(parseFormula('2*2w6')!, () => null, () => rolls[i++])!;
+    expect(result.dice).toEqual([1, 2, 3, 4]);
+    expect(result.total).toBe(10);
+    expect(result.groups.map((g) => g.summe)).toEqual([3, 7]);
+  });
+
+  it('keeps the dice outside a repeat as loose dice and adds the rest', () => {
+    const rolls = [10, 2, 3];
+    let i = 0;
+    const result = evaluateRolled(parseFormula('1w20+2*1w6+5')!, () => null, () => rolls[i++])!;
+    expect(result.dice).toEqual([10, 2, 3]);
+    expect(result.total).toBe(10 + 2 + 3 + 5);
+    expect(result.groups).toEqual([
+      { start: 1, n: 1, summe: 2 },
+      { start: 2, n: 1, summe: 3 },
+    ]);
+  });
+
+  it('a single repeat (1*X) is not worth a group of its own', () => {
+    const result = evaluateRolled(parseFormula('1*2w6')!, () => null, () => 3)!;
+    expect(result.groups).toEqual([]);
+    expect(result.total).toBe(6);
+  });
+
+  it('a name as factor stays plain multiplication', () => {
+    const result = evaluateRolled(parseFormula('MU*1w6')!, (n) => (n === 'MU' ? 5 : null), () => 3)!;
+    expect(result).toEqual({ total: 15, dice: [3], groups: [] });
   });
 
   it('resolves identifiers alongside dice — free chat rolls with a selected character', () => {
     const ast = parseFormula('1w6+MU')!;
     const result = evaluateRolled(ast, (name) => (name === 'MU' ? 5 : null), () => 3);
-    expect(result).toEqual({ total: 8, dice: [3] });
+    expect(result).toEqual({ total: 8, dice: [3], groups: [] });
   });
 
   it('fails closed when an identifier is unresolvable (no character selected)', () => {
@@ -132,13 +205,13 @@ describe('evaluateRolled', () => {
     const rolls = [2, 15];
     let i = 0;
     const result = evaluateRolled(ast, () => null, () => rolls[i++]);
-    expect(result).toEqual({ total: 17, dice: [2, 15] });
+    expect(result).toEqual({ total: 17, dice: [2, 15], groups: [] });
   });
 
   it('rounds a fractional total up', () => {
     const ast = parseFormula('1w6/2')!;
     const result = evaluateRolled(ast, () => null, () => 3);
-    expect(result).toEqual({ total: 2, dice: [3] }); // 3/2 = 1.5 -> 2
+    expect(result).toEqual({ total: 2, dice: [3], groups: [] }); // 3/2 = 1.5 -> 2
   });
 });
 

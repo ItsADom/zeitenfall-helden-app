@@ -13,7 +13,7 @@ import {
   parseDiceShortcuts,
   resolveExpressionRoll,
   resolveProbeRoll,
-  stripRepeatPrefix,
+  hatNxPraefix,
   type CompetitiveEntrant,
   type CoopRollLike,
 } from '../src/dice.js';
@@ -454,19 +454,25 @@ describe('parseDiceExpression', () => {
   });
 });
 
-describe('stripRepeatPrefix', () => {
-  it('splits a leading "Nx" off the rest of the expression', () => {
-    expect(stripRepeatPrefix('3x2w6+8')).toEqual({ repeat: 3, rest: '2w6+8' });
-    expect(stripRepeatPrefix('3X2w6+8')).toEqual({ repeat: 3, rest: '2w6+8' });
+describe('Nx prefix is gone', () => {
+  it('is recognised only to give a hint', () => {
+    expect(hatNxPraefix('3x2w6+8')).toBe(true);
+    expect(hatNxPraefix('2xAthletik')).toBe(true);
+    expect(hatNxPraefix(' 10X1w6')).toBe(true);
+    expect(hatNxPraefix('2w6+8')).toBe(false);
+    expect(hatNxPraefix('2*Athletik')).toBe(false);
+    expect(hatNxPraefix('Xenon')).toBe(false);
   });
 
-  it('leaves plain expressions untouched', () => {
-    expect(stripRepeatPrefix('2w6+8')).toEqual({ repeat: 1, rest: '2w6+8' });
+  it('is no longer a valid expression', () => {
+    expect(parseRollFormula('3x2w6+8')).toBeNull();
+    expect(parseRollFormula('2xAthletik')).toBeNull();
   });
 
-  it('falls back to no repeat when the count is out of range', () => {
-    expect(stripRepeatPrefix('0x2w6')).toEqual({ repeat: 1, rest: '0x2w6' });
-    expect(stripRepeatPrefix('11x2w6')).toEqual({ repeat: 1, rest: '11x2w6' });
+  it('repeating dice with * is bounded by the 20-dice limit', () => {
+    expect(parseDiceExpression('2*2w6')).not.toBeNull();
+    expect(parseDiceExpression('10*2w6')).not.toBeNull(); // 20 dice
+    expect(parseDiceExpression('11*2w6')).toBeNull(); // 22 dice
   });
 });
 
@@ -744,10 +750,10 @@ describe('parseDiceShortcuts with names', () => {
 describe('findNameToken', () => {
   const at = (draft: string) => findNameToken(draft, draft.length);
 
-  it('finds a lone name, with and without a repeat prefix', () => {
+  it('finds a lone name', () => {
     expect(at('/r Athl')).toMatchObject({ query: 'Athl', quoted: false, lone: true, start: 3 });
     expect(at('/roll Athl')).toMatchObject({ query: 'Athl', lone: true });
-    expect(at('/r 2xAthl')).toMatchObject({ query: 'Athl', lone: true, start: 5 });
+    expect(at('/r 2xAthl')).toBeNull(); // the old Nx prefix is not special any more
   });
 
   it('finds the name after an operator or an opening parenthesis, not lone', () => {
@@ -798,7 +804,7 @@ describe('applyNameInsert', () => {
     expect(insert('/r Ath', 'Athletik')).toEqual({ text: '/r Athletik', caret: 11 });
     expect(insert('/r 1w20+Heil', 'Heilkunde Wunden').text).toBe('/r 1w20+Heilkunde Wunden');
     expect(insert('/r Hämm', 'Hämmer/Keulen').text).toBe('/r "Hämmer/Keulen"');
-    expect(insert('/r 2xAth', 'Athletik').text).toBe('/r 2xAthletik');
+    expect(insert('/r 2*Ath', 'Athletik').text).toBe('/r 2*Athletik');
   });
 
   it('keeps what follows the cursor and swallows a duplicate closing quote', () => {

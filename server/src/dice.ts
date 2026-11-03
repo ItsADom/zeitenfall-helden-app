@@ -56,5 +56,5 @@ export function performExpressionRoll(
 ): ExpressionRollResult | null {
   const rolled = evaluateRolled(expression, resolveId, rollDie);
   if (!rolled) return null;
-  return resolveExpressionRoll(expression, rolled.dice, [], rolled.total);
+  return { ...resolveExpressionRoll(expression, rolled.dice, [], rolled.total), gruppen: rolled.groups };
 }

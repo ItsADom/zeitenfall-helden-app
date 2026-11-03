@@ -13,7 +13,7 @@ import type {
 } from '@shared/diceProtocol';
 import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
-import { parseRollFormula, stripRepeatPrefix } from '@shared/dice';
+import { parseRollFormula } from '@shared/dice';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
 import { usePersistedState } from '../persist';
@@ -205,9 +205,7 @@ interface DicePanelCtxValue {
    */
   /**
    * targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung
-   * gewählt — wie bei rollExpr. `repeat`: führendes "Nx" im Chat ("2xAthletik")
-   * — dieselbe Wiederholung/Gruppierung wie bei einem freien Ausdruck, siehe
-   * MAX_REPEAT_COUNT in shared/src/dice.ts. Unbesetzt/1 = ein einzelner Wurf.
+   * gewählt — wie bei rollExpr.
    */
   rollProbe: (
     groupId: number,
@@ -215,7 +213,6 @@ interface DicePanelCtxValue {
     source: ProbeSource,
     visibility: RollVisibility,
     targetUserId?: number,
-    repeat?: number,
   ) => void;
   /**
    * Schaden einer Waffe würfeln (siehe roll.weaponDamage im Protokoll) — kein
@@ -1177,7 +1174,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // Modifikator wie bei roll.probe auf die geworfene Summe und reist als
       // eigenes Feld. Als Text an der Formel verschöbe er das ZIEL, in die
       // falsche Richtung.
-      const isProbeFormula = !table && parseRollFormula(stripRepeatPrefix(expression).rest)?.mode === 'probe';
+      const isProbeFormula = !table && parseRollFormula(expression)?.mode === 'probe';
       const finalExpression = !table && !isProbeFormula && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
       sendMsg({
         type: 'roll.expr',
@@ -1219,7 +1216,6 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       source: ProbeSource,
       visibility: RollVisibility,
       targetUserId?: number,
-      repeat?: number,
     ) => {
       // Ein Wurf vom Bogen gehört in den Raum DIESER Gruppe, als DIESER
       // Charakter — notfalls wird dorthin gewechselt (die Nachricht wartet
@@ -1237,7 +1233,6 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         visibility,
         modifier,
         targetUserId,
-        ...(repeat && repeat > 1 ? { repeat } : {}),
       });
       // Gilt nur für DIESEN einen Wurf — mehrere modifizierte Würfe hinter-
       // einander sind selten, ein vergessener Modifikator, der beim nächsten

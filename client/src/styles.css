@@ -5291,6 +5291,10 @@ body.resizing-dice {
 .feed-part {
   display: contents;
 }
+/* "2*2w6": Würfe untereinander ohne Haken-Spalte. */
+.feed-parts--summe {
+  grid-template-columns: max-content max-content max-content;
+}
 .feed-part-label {
   color: var(--muted);
 }

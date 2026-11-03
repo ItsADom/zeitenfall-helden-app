@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
-import { applyNameInsert, computeCompetitiveVerdict, computeCoopVerdict, findNameToken, parseDiceExpression, parseRollFormula, stripRepeatPrefix } from '@shared/dice';
+import { NX_PRAEFIX_HINWEIS, applyNameInsert, computeCompetitiveVerdict, computeCoopVerdict, findNameToken, hatNxPraefix, parseDiceExpression, parseRollFormula } from '@shared/dice';
 import { normalizeName } from '@shared/formula';
 import type { FeedEntry, PoolMode, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
@@ -94,8 +94,9 @@ function CompetitiveVerdictLine({ entries }: { entries: FeedEntry[] }) {
   return <div className="feed-coop-verdict feed-coop-verdict--success">{text}</div>;
 }
 
-// Summenzeile für einen per führendem "Nx" wiederholten Wurf (siehe
-// stripRepeatPrefix) — dieselbe optische Rolle wie CoopVerdictLine. Ein freier
+// Summenzeile für einen früher per "Nx" wiederholten Wurf — das Präfix gibt es
+// nicht mehr, ältere Einträge im Verlauf tragen diese Gruppierung aber noch.
+// Dieselbe optische Rolle wie CoopVerdictLine. Ein freier
 // Ausdruck hat kein Ziel, gegen das man gewinnen könnte, nur eine Summe über
 // alle Wiederholungen; eine wiederholte Probe dagegen hat pro Wurf ein eigenes
 // Erfolg/Fehlschlag, also zählt die Zeile die stattdessen — unabhängig
@@ -222,7 +223,6 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   // mit dem ganzen Text und wählen direkt.
   const nameToken = poolMode === null && rollMatch ? findNameToken(draft, Math.min(caret, draft.length)) : null;
   const searchText = poolMatch ? poolMatch[1].trim() : (nameToken?.query.trim() ?? '');
-  const probeRepeat = rollRest !== null ? stripRepeatPrefix(rollRest.trim()).repeat : 1;
   const suggestCharId = poolMode !== null ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
   const showSuggestions =
     !suggestDismissed &&
@@ -320,17 +320,11 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const pickProbe = (p: RollableProbe) => {
     if (groupId === null) return;
     if (poolMode === null && charId === null) return;
-    // Wiederholen geht bei einer Probe nur noch mit "*" ("2*Athletik"), das
-    // "Nx"-Präfix ist Würfelsummen vorbehalten (siehe roll.expr in ws.ts).
-    if (poolMode === null && probeRepeat > 1) {
-      setError(`„${probeRepeat}x“ wiederholt nur Würfelausdrücke. Eine Probe wiederholst du mit „${probeRepeat}*“, z. B. „${probeRepeat}*${p.label}“.`);
-      return;
-    }
     setError('');
     setDraft('');
     setSuggestDismissed(false);
     if (poolMode !== null) proposeCoopPool(groupId, p.source, poolMode);
-    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility, undefined, probeRepeat);
+    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility);
   };
 
   useEffect(() => {
@@ -477,7 +471,11 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       const { expr, label } = splitInlineTitle(roll[1]);
-      if (!parseRollFormula(stripRepeatPrefix(expr).rest)) {
+      if (hatNxPraefix(expr)) {
+        setError(NX_PRAEFIX_HINWEIS);
+        return;
+      }
+      if (!parseRollFormula(expr)) {
         setError(
           charId !== null
             ? `„${roll[1]}" ist weder ein gültiger Würfelausdruck (z. B. 2w6+5) noch eine Formel aus Probe-Namen (z. B. Athletik+FF) — weitertippen für Vorschläge.`

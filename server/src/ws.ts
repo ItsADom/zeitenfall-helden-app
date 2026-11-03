@@ -34,12 +34,13 @@ import {
   collectNames,
   evaluateProbeFormula,
   formulaToText,
+  hatNxPraefix,
+  NX_PRAEFIX_HINWEIS,
   mapNames,
   effektiverSchaden,
   handRs,
   kombiniereFormeln,
   MAX_DICE_COUNT,
-  MAX_REPEAT_COUNT,
   overlayCell,
   parseCellKey,
   parseDiceExpression,
@@ -47,7 +48,6 @@ import {
   parseTileValue,
   resolveExpressionRoll,
   resolveProbeRoll,
-  stripRepeatPrefix,
   tokenCells,
   TOKEN_ICON_BY_KEY,
   waffenStatWert,
@@ -756,12 +756,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // client hides the command from players, but that is a courtesy — this is
       // the check that actually holds, exactly like roll.pending.request below.
       const important = msg.important === true;
-      // Ein führendes "Nx" wiederholt den Wurf N-mal als eine gemeinsame,
-      // zusammengefasste Karte — bewusst nur beim gewöhnlichen freien Wurf,
-      // nicht bei „/master"/„/wild" (feste Tabellenwürfe) oder „/i" (die
-      // Kino-Ansage ist auf EINEN Wurf ausgelegt).
-      const { repeat, rest } =
-        table || important ? { repeat: 1, rest: String(msg.expression ?? '') } : stripRepeatPrefix(String(msg.expression ?? ''));
+      const rest = String(msg.expression ?? '');
+      // Das alte „Nx"-Präfix ist abgeschafft (wiederholt wird mit „*", siehe
+      // repeatOf in formula.ts); ein Hinweis ist hilfreicher als „ungültig".
+      if (!table && hatNxPraefix(rest)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: NX_PRAEFIX_HINWEIS });
+        return;
+      }
       // Ein Ausdruck mit Würfelblock ist eine Würfelsumme, einer nur aus Probe-
       // Namen eine Probe (siehe parseRollFormula).
       const formula = table ? null : parseRollFormula(rest);
@@ -839,17 +840,6 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
           send(ws, { type: 'error', reqId: msg.reqId, message: `Zu viele Würfel (${probe.n}, höchstens ${MAX_DICE_COUNT})` });
           return;
         }
-        // Wiederholen geht bei einer Probe nur noch mit „*“ ("2*Athletik" = zweimal
-        // Athletik in EINER Probe, jeder Teil mit eigenem Ergebnis); das „Nx“-Präfix
-        // gilt ausschließlich für Würfelsummen, wo „*“ die Summe vervielfacht.
-        if (repeat > 1) {
-          send(ws, {
-            type: 'error',
-            reqId: msg.reqId,
-            message: `„${repeat}x“ wiederholt nur Würfelausdrücke. Eine Probe wiederholst du mit „${repeat}*“, z. B. „${repeat}*Athletik“.`,
-          });
-          return;
-        }
         const display = formulaToText(mapNames(expression, (name) => resolvedNames.get(name)?.label ?? name), 'w');
         const modifier = clampModifier(msg.modifier);
         const parts = probe.parts.map((p) => ({ label: resolvedNames.get(p.name)?.label ?? p.name, n: p.n, probeZahl: p.probeZahl }));
@@ -878,9 +868,6 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'ack', reqId: msg.reqId });
         return;
       }
-      // Nur bei 2+ Wiederholungen überhaupt gruppieren — ein einzelner Wurf
-      // braucht keinen gemeinsamen Rahmen um sich selbst.
-      const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
       // Der Eintrag zeigt Namen so, wie sie heißen ("Athletik", "Schwert (AT)"),
       // nicht großgeschrieben wie im geparsten Baum; Attributs-Kürzel (MU, FF)
       // bleiben, wie getippt. Aufgelöst wurde schon vorher, am Originalbaum.
@@ -888,45 +875,44 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         resolvedNames.size > 0
           ? mapNames(expression, (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? name : (resolvedNames.get(name)?.label ?? name)))
           : expression;
-      for (let i = 0; i < repeat; i++) {
-        const result = performExpressionRoll(expression, resolveId);
-        if (!result) {
-          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
-          return;
-        }
-        // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
-        // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
-        const outcomeLabel =
-          table === 'master'
-            ? MASTER_TABLE[result.dice[0] - 1]
-            : table === 'wild'
-              ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
-              : undefined;
-        const roll: ExpressionRollPayload = {
-          mode: 'expr',
-          label,
-          expression: shownExpression,
-          dice: result.dice,
-          confirmations: result.confirmations,
-          pending: result.pending,
-          resolved: result.resolved,
-          rawSum: result.rawSum,
-          adjustedSum: result.adjustedSum,
-          flagged: result.flagged,
-          ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
-        };
-        if (important) {
-          // Persisted like any other roll, but NOT broadcast: the entry rides
-          // along inside roll.important and each client appends it itself once
-          // its own performance is done. Whoever reconnects meanwhile picks it up
-          // through the ordinary history endpoint — the cinematic is a live
-          // event, never a property of the entry.
-          const entry = writeFeedRoll(meta.groupId, author, null, 'public', roll);
-          lastImportantRoll.set(meta.groupId, Date.now());
-          broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
-        } else {
-          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
-        }
+      const result = performExpressionRoll(expression, resolveId);
+      if (!result) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
+        return;
+      }
+      // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
+      // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
+      const outcomeLabel =
+        table === 'master'
+          ? MASTER_TABLE[result.dice[0] - 1]
+          : table === 'wild'
+            ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
+            : undefined;
+      const roll: ExpressionRollPayload = {
+        mode: 'expr',
+        label,
+        expression: shownExpression,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        flagged: result.flagged,
+        ...(result.gruppen?.length ? { gruppen: result.gruppen } : {}),
+        ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
+      };
+      if (important) {
+        // Persisted like any other roll, but NOT broadcast: the entry rides
+        // along inside roll.important and each client appends it itself once
+        // its own performance is done. Whoever reconnects meanwhile picks it up
+        // through the ordinary history endpoint — the cinematic is a live
+        // event, never a property of the entry.
+        const entry = writeFeedRoll(meta.groupId, author, null, 'public', roll);
+        lastImportantRoll.set(meta.groupId, Date.now());
+        broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
+      } else {
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll);
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -1062,36 +1048,29 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (!resolved) return;
       const { visibility, gmUserId } = resolved;
       const modifier = clampModifier(msg.modifier);
-      // Chat-typed "Nx<Probe>" ("2xAthletik") — same repeat/grouping mechanism
-      // as a repeated free expression (roll.expr), same cap.
-      const rawRepeat = Number(msg.repeat);
-      const repeat = Number.isInteger(rawRepeat) && rawRepeat >= 1 && rawRepeat <= MAX_REPEAT_COUNT ? rawRepeat : 1;
-      const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
       const author = resolveAuthor(meta, char.id);
-      for (let i = 0; i < repeat; i++) {
-        const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
-        const roll: ProbeRollPayload = {
-          mode: 'probe',
-          source,
-          label: computed.label,
-          n: computed.n,
-          probeZahl: computed.probeZahl,
-          modifier,
-          ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
-          dice: result.dice,
-          confirmations: result.confirmations,
-          pending: result.pending,
-          resolved: result.resolved,
-          rawSum: result.rawSum,
-          adjustedSum: result.adjustedSum,
-          criticalFailureCount: result.criticalFailureCount,
-          criticalFailure: result.criticalFailure,
-          success: result.success,
-          narrow: result.narrow,
-          criticalSuccess: result.criticalSuccess,
-        };
-        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
-      }
+      const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
+      const roll: ProbeRollPayload = {
+        mode: 'probe',
+        source,
+        label: computed.label,
+        n: computed.n,
+        probeZahl: computed.probeZahl,
+        modifier,
+        ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        criticalFailureCount: result.criticalFailureCount,
+        criticalFailure: result.criticalFailure,
+        success: result.success,
+        narrow: result.narrow,
+        criticalSuccess: result.criticalSuccess,
+      };
+      insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

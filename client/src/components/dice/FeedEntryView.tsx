@@ -192,6 +192,24 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
           });
         })()
       : null;
+  // "2*2w6": jede Wiederholung bekommt eine Zeile mit ihren Würfeln und ihrem
+  // Ergebnis (Wurf 1, Wurf 2). Würfel außerhalb einer Wiederholung ("1w20+2*1w6")
+  // stehen als lose Zeile ohne Summe davor, dazwischen oder danach, damit jeder
+  // Würfel irgendwo auftaucht. Das Gesamtergebnis steht darunter.
+  const wiederholungen =
+    !isProbe && roll.gruppen && roll.gruppen.length > 1
+      ? (() => {
+          const rows: { label: string; start: number; dice: number[]; summe: number | null }[] = [];
+          let at = 0;
+          roll.gruppen.forEach((g, i) => {
+            if (g.start > at) rows.push({ label: '', start: at, dice: roll.dice.slice(at, g.start), summe: null });
+            rows.push({ label: `Wurf ${i + 1}`, start: g.start, dice: roll.dice.slice(g.start, g.start + g.n), summe: g.summe });
+            at = g.start + g.n;
+          });
+          if (at < roll.dice.length) rows.push({ label: '', start: at, dice: roll.dice.slice(at), summe: null });
+          return rows;
+        })()
+      : null;
 
   // Innerhalb eines Gruppenwurf-Blocks (siehe FeedEntryView unten) trägt EIN
   // neutraler Rand den ganzen Block als Klammer — bewusst nicht eingefärbt,
@@ -232,8 +250,23 @@ function RollView({ entry, grouped }: { entry: RollFeedEntry; grouped?: boolean 
           ))}
         </div>
       )}
+      {wiederholungen && (
+        <div className="feed-parts feed-parts--summe">
+          {wiederholungen.map((r, i) => (
+            <div key={i} className="feed-part">
+              <span className="feed-part-label">{r.label}</span>
+              <span className="feed-dice">
+                {r.dice.map((d, j) => (
+                  <Die key={j} value={d} sides={diceSides[r.start + j]} code={diceCode} />
+                ))}
+              </span>
+              <span className="feed-part-sum">{r.summe != null && <>= {r.summe}</>}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="feed-roll-body">
-        {!partRows && (
+        {!partRows && !wiederholungen && (
           <span className="feed-dice">
             {roll.dice.map((d, i) => (
               <Die

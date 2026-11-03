@@ -23,13 +23,10 @@
 // nothing is pending. Until then its success/failure is deliberately not
 // decided, since a confirmed 20 would override it anyway.
 
-import { collectNames, countDice, diceSidesFor, evaluateProbeFormula, parseFormula, type FormulaNode } from './formula.js';
+import { collectNames, countDice, diceSidesFor, evaluateProbeFormula, parseFormula, type FormulaNode, type RepGroup } from './formula.js';
 
 export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_GROUPS = 6;
-// A leading "Nx" repeats the whole roll N times as one grouped/summarized
-// feed card (chat-only — see TODO.md "Dice formula overhaul").
-export const MAX_REPEAT_COUNT = 10;
 
 /**
  * Knapper Erfolg: ein Wurf aus MEHREREN Würfeln gilt noch als gelungen, wenn
@@ -438,7 +435,7 @@ export interface NameToken {
   /** Bisher Getipptes, ohne Anführungszeichen. */
   query: string;
   quoted: boolean;
-  /** Außer einem optionalen "Nx" steht nichts vor dem Wort: eine Probe für sich. */
+  /** Außer Leerraum steht nichts vor dem Wort: eine Probe für sich. */
   lone: boolean;
 }
 
@@ -454,8 +451,7 @@ export function nameNeedsQuotes(name: string): boolean {
  * "/r"-Ausdruck ist; sonst null. Wort = alles seit dem letzten Operator oder
  * der letzten öffnenden Klammer (Operatoren in Anführungszeichen zählen nicht)
  * bzw. seit einer noch offenen Anführungszeichen. Ein Würfelblock ("2w6") oder
- * eine Zahl ist kein Name. Ein "#" davor (Titel) und ein führendes "Nx" werden
- * übersprungen.
+ * eine Zahl ist kein Name. Ein "#" davor (Titel) macht den Rest zum Titel.
  */
 export function findNameToken(draft: string, caret: number): NameToken | null {
   const cmd = /^\/(?:r|roll)\s+/i.exec(draft);
@@ -463,9 +459,7 @@ export function findNameToken(draft: string, caret: number): NameToken | null {
   const exprStart = cmd[0].length;
   const before = draft.slice(exprStart, caret);
   if (before.includes('#')) return null;
-  const repeat = /^\s*\d+[xX]/.exec(before);
-  const prefixLen = repeat ? repeat[0].length : 0;
-  const body = before.slice(prefixLen);
+  const body = before;
 
   let inQuote = false;
   let quoteStart = -1;
@@ -498,7 +492,7 @@ export function findNameToken(draft: string, caret: number): NameToken | null {
   }
   if (query.trim() === '') return null;
   return {
-    start: exprStart + prefixLen + startRel,
+    start: exprStart + startRel,
     end: caret,
     query,
     quoted,
@@ -515,21 +509,17 @@ export function applyNameInsert(draft: string, token: NameToken, name: string): 
   return { text: draft.slice(0, token.start) + insert + rest, caret: token.start + insert.length };
 }
 
-// Ein führendes "Nx" wiederholt den ganzen Wurf N-mal als eine gemeinsame,
-// zusammengefasste Feed-Karte (Chat-only, siehe TODO.md). Wird VOR dem
-// eigentlichen Ausdruck abgetrennt — unabhängig vom Label-Trenner "#", der am
-// Ende steht (siehe splitInlineTitle in FeedColumn.tsx), und unabhängig von
-// "*", das schon die Bedeutung "geworfenes Ergebnis skalieren" trägt.
-export function stripRepeatPrefix(text: string): { repeat: number; rest: string } {
-  const m = /^(\d+)[xX](.*)$/.exec(text.trim());
-  if (!m) return { repeat: 1, rest: text };
-  const repeat = parseInt(m[1], 10);
-  if (repeat < 1 || repeat > MAX_REPEAT_COUNT) return { repeat: 1, rest: text };
-  return { repeat, rest: m[2] };
-}
+// Das frühere "Nx"-Präfix ("3x2w6", "2xAthletik") gibt es nicht mehr: wiederholt
+// wird mit "*" (siehe repeatOf in formula.ts), bei Proben wie bei Würfelsummen.
+// Wer es noch tippt, bekommt statt eines nichtssagenden "ungültig" diesen Hinweis.
+export const hatNxPraefix = (text: string): boolean => /^\s*\d+\s*[xX]/.test(text);
+export const NX_PRAEFIX_HINWEIS =
+  'Das „Nx“-Präfix gibt es nicht mehr. Wiederholt wird mit „*“: „2*Athletik“ würfelt Athletik zweimal, „2*2w6“ würfelt 2w6 zweimal.';
 
 export interface ExpressionRollResult {
   expression: DiceExpression;
+  /** Die Wiederholungen eines "k*X" (siehe RepGroup), leer ohne mehr als eine. */
+  gruppen?: RepGroup[];
   dice: number[];
   confirmations: DieConfirmation[];
   pending: PendingConfirmation[];

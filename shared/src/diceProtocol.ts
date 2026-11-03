@@ -2,6 +2,7 @@
 // rolls) WebSocket protocol and its REST history endpoint.
 
 import type { DieConfirmation, DiceExpression, PendingConfirmation } from './dice.js';
+import type { RepGroup } from './formula.js';
 import type { AttrRowCode, BaseValueKey } from './types.js';
 import type { BoardClientMessage, BoardServerMessage } from './boardProtocol.js';
 
@@ -123,6 +124,12 @@ export interface ExpressionRollPayload {
   label: string;
   expression: DiceExpression;
   dice: number[];
+  /**
+   * Bei "k*X" (z. B. "2*2w6"): jede der k Wiederholungen mit ihren Würfeln
+   * (Positionen in `dice`) und ihrem Ergebnis, damit die Karte „Wurf 1, Wurf 2"
+   * zeigen kann. Fehlt, wenn nichts wiederholt wurde.
+   */
+  gruppen?: RepGroup[];
   confirmations: DieConfirmation[];
   pending: PendingConfirmation[];
   resolved: boolean;
@@ -391,13 +398,6 @@ export type ClientToServerMessage =
       visibility: RollVisibility;
       modifier?: number;
       targetUserId?: number;
-      /**
-       * Chat-typed "Nx<Probe>" ("2xAthletik") — rolls the same Probe `repeat`
-       * times as one grouped/summarized card, same MAX_REPEAT_COUNT cap and
-       * groupRollId mechanism as a repeated free expression (roll.expr).
-       * Unset/1 = a single roll, unchanged from before this existed.
-       */
-      repeat?: number;
     }
   // Schaden einer Waffe würfeln — die Schaden-Formel (und die RD, siehe
   // ProbeRollPayload.rd) kommt server-seitig aus dem Item, nie vom Client,

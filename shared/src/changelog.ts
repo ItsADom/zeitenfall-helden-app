@@ -200,20 +200,6 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-11-03',
-    title: 'Wiki-Seiten sperren',
-    added: [
-      'Wiki-Seiten lassen sich jetzt sperren: Wer eine Seite angelegt hat (bei einer Charakterseite die Spielerin oder der Spieler des Charakters), kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können weiter alle, die Spielleitung darf immer bearbeiten.',
-    ],
-    changed: [
-      'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Wer beim Speichern eine Notiz schreibt, behält diese Version für sich. Die Zwischenstände innerhalb einer Sitzung lassen sich dafür nicht mehr einzeln wiederherstellen.',
-      'Der Wiki-Editor weist jetzt auf die Vorschau hin und darauf, dass dein Text laufend als Entwurf auf diesem Gerät gesichert wird.',
-    ],
-    admin: [
-      '(Spielleiter) Auf jeder Wiki-Seite wählst du jetzt, wer sie bearbeiten darf (alle, nur Besitzer und Spielleitung, nur Spielleitung), und kannst die Seite einem anderen Konto zuweisen.',
-    ],
-  },
-  {
-    date: '2026-11-03',
     version: '0.12.0',
     title: 'Arrhythmische Arithmetik',
     features: [
@@ -226,13 +212,26 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Beim Tippen schlägt der Chat weiterhin Namen vor, jetzt auch mitten in einer Formel: Tab oder Shift+Enter fügt den Namen ein, Anführungszeichen setzt der Chat wenn nötig selbst. Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
         ],
         changed: [
-          'Proben wiederholst du jetzt mit „*“: „2*Athletik“ statt „2xAthletik“. Das „Nx“-Präfix ist zwar noch nutzbar, aber nicht notwendig',
+          'Wiederholt wird jetzt immer mit „*“: „2*Athletik“ würfelt Athletik zweimal in einer Probe, „2*2w6“ würfelt 2w6 zweimal und zeigt beide Würfe. Bei Würfelsummen heißt das: ein Malnehmen mit einer ganzen Zahl wiederholt den Wurf, statt ein Ergebnis zu vervielfachen. Das alte „Nx“-Präfix („3x2w6“, „2xAthletik“) gibt es nicht mehr.',
         ],
       },
       {
         title: 'Markenzeichen',
         added: [
           'Das Markenzeichen gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe und zeigt sie in der Probenzahl und beim Würfeln. Fähigkeiten lassen sich jetzt auch als Markenzeichen wählen',
+        ],
+      },
+      {
+        title: 'Wiki',
+        added: [
+          'Wiki-Seiten lassen sich jetzt sperren: Wer eine Seite angelegt hat (bei einer Charakterseite die Spielerin oder der Spieler des Charakters), kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können weiter alle, die Spielleitung darf immer bearbeiten.',
+        ],
+        changed: [
+          'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Wer beim Speichern eine Notiz schreibt, behält diese Version für sich. Die Zwischenstände innerhalb einer Sitzung lassen sich dafür nicht mehr einzeln wiederherstellen.',
+          'Der Wiki-Editor weist jetzt auf die Vorschau hin und darauf, dass dein Text laufend als Entwurf auf diesem Gerät gesichert wird.',
+        ],
+        admin: [
+          '(Spielleiter) Auf jeder Wiki-Seite wählst du jetzt, wer sie bearbeiten darf (alle, nur Besitzer und Spielleitung, nur Spielleitung), und kannst die Seite einem anderen Konto zuweisen.',
         ],
       },
       {

@@ -186,28 +186,101 @@ export function parseFormula(text: string): FormulaNode | null {
   return parseTokens(toks);
 }
 
-/** Total individual dice rolled, and number of distinct dice blocks, across the whole tree. */
+// --- Wiederholen mit "*" ---
+//
+// `k*X`, wobei k eine GANZE ZAHL ab 1 ist (aus Zahlen und + - * / gebaut, ohne
+// Namen und Würfel) und X einen Würfelblock enthält, heißt: X wird k-mal GEWÜRFELT
+// und die Ergebnisse werden addiert. "2*2w6" sind zwei getrennte Würfe von 2w6
+// (nicht ein Wurf, der verdoppelt wird), "3*(1w6+2)" dreimal (1w6+2). Dieselbe
+// Regel wie bei einer Probe ("2*Athletik" = zweimal Athletik). Welche Ziffer
+// zählt als Würfelzahl, entscheidet schon der Tokenizer: nur die Ziffern DIREKT
+// vor "w"/"d" ("2*2w6": die erste 2 wiederholt, die zweite ist die Würfelzahl).
+// Kein Würfel in X, ein Name als Faktor oder eine gebrochene Zahl bleiben
+// gewöhnliche Multiplikation (z. B. "2*Athletik" in einer Würfelsumme, "1.5*1w6").
+export const MAX_REPEAT = 20;
+
+function constantValue(n: FormulaNode): number | null {
+  switch (n.kind) {
+    case 'num':
+      return n.value;
+    case 'neg': {
+      const v = constantValue(n.operand);
+      return v === null ? null : -v;
+    }
+    case 'bin': {
+      const l = constantValue(n.left);
+      if (l === null) return null;
+      const r = constantValue(n.right);
+      if (r === null) return null;
+      switch (n.op) {
+        case '+':
+          return l + r;
+        case '-':
+          return l - r;
+        case '*':
+          return l * r;
+        case '/':
+          return r === 0 ? null : l / r;
+      }
+    }
+    default:
+      return null;
+  }
+}
+
+function containsDice(n: FormulaNode): boolean {
+  switch (n.kind) {
+    case 'dice':
+      return true;
+    case 'neg':
+      return containsDice(n.operand);
+    case 'bin':
+      return containsDice(n.left) || containsDice(n.right);
+    default:
+      return false;
+  }
+}
+
+/** The repeat a `*` node stands for, or null for an ordinary multiplication. */
+export function repeatOf(n: FormulaNode): { count: number; operand: FormulaNode } | null {
+  if (n.kind !== 'bin' || n.op !== '*') return null;
+  const versuch = (faktor: FormulaNode, x: FormulaNode): { count: number; operand: FormulaNode } | null => {
+    if (!containsDice(x)) return null;
+    const c = constantValue(faktor);
+    return c !== null && Number.isInteger(c) && c >= 1 && c <= MAX_REPEAT ? { count: c, operand: x } : null;
+  };
+  return versuch(n.left, n.right) ?? versuch(n.right, n.left);
+}
+
+/** Total individual dice rolled (repeats counted), and number of distinct dice blocks, across the whole tree. */
 export function countDice(ast: FormulaNode): { totalDice: number; groups: number } {
   let totalDice = 0;
   let groups = 0;
-  const walk = (n: FormulaNode): void => {
+  const walk = (n: FormulaNode, mult: number): void => {
+    const rep = repeatOf(n);
+    if (rep) {
+      // Blocks are counted once, however often they repeat: the block limit is
+      // about how many different dice an expression mixes, not how many dice roll.
+      walk(rep.operand, mult * rep.count);
+      return;
+    }
     switch (n.kind) {
       case 'dice':
-        totalDice += n.count;
+        totalDice += n.count * mult;
         groups += 1;
         return;
       case 'neg':
-        walk(n.operand);
+        walk(n.operand, mult);
         return;
       case 'bin':
-        walk(n.left);
-        walk(n.right);
+        walk(n.left, mult);
+        walk(n.right, mult);
         return;
       default:
         return;
     }
   };
-  walk(ast);
+  walk(ast, 1);
   return { totalDice, groups };
 }
 
@@ -220,6 +293,11 @@ export function countDice(ast: FormulaNode): { totalDice: number; groups: number
 export function diceSidesFor(ast: FormulaNode): number[] {
   const out: number[] = [];
   const walk = (n: FormulaNode): void => {
+    const rep = repeatOf(n);
+    if (rep) {
+      for (let i = 0; i < rep.count; i++) walk(rep.operand);
+      return;
+    }
     switch (n.kind) {
       case 'dice':
         for (let i = 0; i < n.count; i++) out.push(n.sides);
@@ -239,12 +317,25 @@ export function diceSidesFor(ast: FormulaNode): number[] {
   return out;
 }
 
+/**
+ * One repetition of a `k*X` (see repeatOf): which of the rolled dice it used
+ * (`start`, `n`, indices into the flat dice list) and what it came to. Only the
+ * OUTERMOST repeats are recorded, so a card can show „Wurf 1, Wurf 2".
+ */
+export interface RepGroup {
+  start: number;
+  n: number;
+  summe: number;
+}
+
 interface EvalCtx {
   resolveId: (name: string) => number | null;
   /** Unset in static (no-dice) mode — a DiceNode then fails evaluation. */
   rollDie?: (sides: number) => number;
   /** Rolled die faces, accumulated in encounter order as a side effect. */
   dice: number[];
+  groups: RepGroup[];
+  repDepth: number;
 }
 
 function evalNode(node: FormulaNode, ctx: EvalCtx): number | null {
@@ -268,6 +359,25 @@ function evalNode(node: FormulaNode, ctx: EvalCtx): number | null {
       return v === null ? null : -v;
     }
     case 'bin': {
+      const rep = repeatOf(node);
+      if (rep) {
+        // Roll the operand `count` times and add the results up.
+        const aussen = ctx.repDepth === 0;
+        ctx.repDepth += 1;
+        let summe = 0;
+        for (let i = 0; i < rep.count; i++) {
+          const start = ctx.dice.length;
+          const v = evalNode(rep.operand, ctx);
+          if (v === null) {
+            ctx.repDepth -= 1;
+            return null;
+          }
+          summe += v;
+          if (aussen) ctx.groups.push({ start, n: ctx.dice.length - start, summe: Math.ceil(v) });
+        }
+        ctx.repDepth -= 1;
+        return summe;
+      }
       const l = evalNode(node.left, ctx);
       if (l === null) return null;
       const r = evalNode(node.right, ctx);
@@ -293,7 +403,7 @@ function evalNode(node: FormulaNode, ctx: EvalCtx): number | null {
  * value in the app (MR/Resilienz/Artefaktkontrolle/energy formulas).
  */
 export function evaluateStatic(ast: FormulaNode, resolveId: (name: string) => number | null): number | null {
-  const v = evalNode(ast, { resolveId, dice: [] });
+  const v = evalNode(ast, { resolveId, dice: [], groups: [], repDepth: 0 });
   return v === null || !Number.isFinite(v) ? null : Math.ceil(v);
 }
 
@@ -308,10 +418,12 @@ export function evaluateRolled(
   ast: FormulaNode,
   resolveId: (name: string) => number | null,
   rollDie: (sides: number) => number,
-): { total: number; dice: number[] } | null {
-  const ctx: EvalCtx = { resolveId, rollDie, dice: [] };
+): { total: number; dice: number[]; groups: RepGroup[] } | null {
+  const ctx: EvalCtx = { resolveId, rollDie, dice: [], groups: [], repDepth: 0 };
   const total = evalNode(ast, ctx);
-  return total === null || !Number.isFinite(total) ? null : { total: Math.ceil(total), dice: ctx.dice };
+  if (total === null || !Number.isFinite(total)) return null;
+  // One repetition is not worth a row of its own (`1*2w6`).
+  return { total: Math.ceil(total), dice: ctx.dice, groups: ctx.groups.length > 1 ? ctx.groups : [] };
 }
 
 const BARE_NAME = /^[A-Za-zÄÖÜäöüß]+(?: [A-Za-zÄÖÜäöüß]+)*$/;
