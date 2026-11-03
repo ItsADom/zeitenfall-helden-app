@@ -90,12 +90,22 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
     target: `Athletik+FF+(2*Akrobatik)` with 40/12/36 is 3+1+3 = 7 d20s
     against 124; `Athletik+5` is 3 d20s against 45. A multiplier is not a
     dice multiplier.
-  - **No dice block needed:** a name-based expression is a probe, so
-    `/r` accepts it without any `w`/`d` block (today
-    `parseDiceExpression` rejects zero-dice formulas). Formulas with
-    explicit dice blocks keep today's dice-sum meaning (attribute codes as
-    plain numbers, e.g. `1w20+MU`); mixing dice blocks with probe names is
-    rejected.
+  - **Two modes, decided by the dice blocks:** *no* dice block
+    (`Athletik+FF+(2*Akrobatik)`) is a probe as above (accepted by `/r`
+    although `parseDiceExpression` rejects zero-dice formulas today).
+    *Any* dice block (`1w20+Athletik`, `2w6+KK`) stays today's dice-sum
+    roll: names resolve to plain numbers, no success/fail check (the team
+    does use mixed expressions, they just can't be judged). So mixing is
+    allowed, not rejected.
+  - **Picker (agreed direction):** reuse the `/r` suggestion list
+    (`/api/characters/:id/probes`, which already carries label, `n` and
+    `probeZahl` per name), but picking *inserts* the name into the input
+    instead of rolling it, auto-quoting names that contain anything but
+    letters and spaces (`"Hämmer/Keulen"`, `"Schwert (AT)"`). Suggestions
+    must then search the token being typed (after the last operator or
+    parenthesis) instead of the whole text after `/r`. Open: Enter on a
+    lone name should keep rolling it directly (today's fast path), Tab and
+    click always insert.
   - **Syntax:** names are case-insensitive; letters and inner spaces work
     bare (`Heilkunde Wunden+FF`: two names without an operator are never
     valid, so a space is unambiguous); names containing `/` or `-` (33 of
