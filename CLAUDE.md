@@ -97,6 +97,17 @@ not general DSA5 knowledge.
   Sort the note into `added` (new features), `changed` (behaviour/renames/moves)
   or `fixed` (bugs). The curation bar above still holds — routine internal work
   that was never tracked gets no entry.
+- **Changelog text is plain text in the app but Discord markdown in the
+  mirror.** The in-app page shows an entry exactly as typed, but
+  `server/src/discord.ts` posts every bullet as-is into a Discord embed, where
+  `*`, `_`, `~`, `|` and backticks are formatting characters. A chat formula
+  like „2*Athletik" and, further on, „2*Akrobatik" makes the text between the
+  two asterisks italic. Keep the entry text itself plain (backticks would show
+  literally in the app), but (1) phrase bullets so they need few asterisks or
+  underscores, and (2) for a hand-written post or any other markdown target,
+  put formulas and commands in backticks (`` `2*Athletik` ``). If an entry
+  contains `*` or `_`, say so when handing over the text. (A small escape
+  function in the mirror would remove the problem at the source; not built.)
 - **Mark admin-/GM-only changes as such.** A change that only touches the
   Spielleiter view or the Verwaltung/Kataloge routes — nothing a normal player
   sees on their own sheet — must say so in its changelog note (e.g. lead with
