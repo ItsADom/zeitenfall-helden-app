@@ -200,18 +200,33 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-11-03',
-    title: 'Wunden für Monster-Marken',
+    title: 'Wiki-Seiten sperren',
+    added: [
+      'Wiki-Seiten lassen sich jetzt sperren: Wer eine Seite angelegt hat (bei einer Charakterseite die Spielerin oder der Spieler des Charakters), kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können weiter alle, die Spielleitung darf immer bearbeiten.',
+    ],
+    changed: [
+      'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Wer beim Speichern eine Notiz schreibt, behält diese Version für sich. Die Zwischenstände innerhalb einer Sitzung lassen sich dafür nicht mehr einzeln wiederherstellen.',
+      'Der Wiki-Editor weist jetzt auf die Vorschau hin und darauf, dass dein Text laufend als Entwurf auf diesem Gerät gesichert wird.',
+    ],
+    admin: [
+      '(Spielleiter) Auf jeder Wiki-Seite wählst du jetzt, wer sie bearbeiten darf (alle, nur Besitzer und Spielleitung, nur Spielleitung), und kannst die Seite einem anderen Konto zuweisen.',
+    ],
+  },
+  {
+    date: '2026-11-03',
+    version: '0.12.0',
+    title: 'Arrhythmische Arithmetik',
     features: [
       {
-        title: 'Rechnen mit Namen im Chat',
+        title: 'Würfeln direkt im Chat',
         added: [
-          '„/r Athletik+FF+2*Akrobatik“ würfelt eine Probe aus mehreren Namen: ein Würfel je beteiligtem Attribut, gewürfelt gegen die zusammengerechneten Zielwerte. Zahlen mit „+“ und „-“ verschieben das Ziel, „/“ teilt es.',
+          '„/r Athletik+FF+2*Akrobatik“ würfelt eine Probe aus mehreren Namen: ein Würfel je beteiligtem Attribut, gewürfelt gegen die zusammengerechneten Zielwerte. Zahlen mit „+“ und „-“ verschieben den Zielwert.',
           '„2*Athletik“ würfelt Athletik zweimal in einer Probe. Der Eintrag zeigt jeden Namen mit seinen Würfeln, seinem Zielwert und einem Haken oder Kreuz, das Gesamtergebnis zählt nach der Summe aller Würfel.',
-          'Mit Würfelblock, z. B. „/r 1w20+Athletik“, zählt der Name als Zielwert in einer gewöhnlichen Würfelsumme, ohne Erfolg oder Fehlschlag.',
-          'Beim Tippen schlägt der Chat Namen vor, auch mitten in einer Formel: Tab oder Shift+Enter (auf dem Handy das „+“) fügt den Namen ein, Anführungszeichen setzt der Chat selbst. Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
+          'Mit Mischwürfen, z. B. „/r 1w20+Athletik“, zählt der komplette Ausdruck als gewöhnliche Würfelsumme, ohne Erfolg oder Fehlschlag.',
+          'Beim Tippen schlägt der Chat weiterhin Namen vor, jetzt auch mitten in einer Formel: Tab oder Shift+Enter fügt den Namen ein, Anführungszeichen setzt der Chat wenn nötig selbst. Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
         ],
         changed: [
-          'Proben wiederholst du jetzt mit „*“: „2*Athletik“ statt „2xAthletik“. Das „Nx“-Präfix gilt nur noch für Würfelsummen („3x2w6+8“).',
+          'Proben wiederholst du jetzt mit „*“: „2*Athletik“ statt „2xAthletik“. Das „Nx“-Präfix ist zwar noch nutzbar, aber nicht notwendig',
         ],
       },
       {

@@ -867,6 +867,10 @@
   padding: 8px 12px;
   font-size: 13px;
 }
+.wiki-tipp {
+  margin: 4px 0 8px;
+  font-size: 12px;
+}
 .wiki-hinweis-warn {
   border-color: var(--warn-line);
   background: var(--warn-soft);

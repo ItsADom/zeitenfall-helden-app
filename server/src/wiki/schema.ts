@@ -30,6 +30,15 @@ db.exec(`
     -- Anders als geschuetzt geht es hier nicht ums Bearbeiten, sondern ausschließlich
     -- ums Löschen — die Spielleitung darf den Inhalt jederzeit ändern.
     unloeschbar INTEGER NOT NULL DEFAULT 0,
+    -- Besitzer der Seite: wer sie angelegt hat (bei einer Charakterseite die
+    -- Spielerin des Charakters). SET NULL statt Löschsperre wie beim Autor; eine
+    -- besitzerlose, gesperrte Seite ist damit faktisch nur für die Spielleitung.
+    owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    -- „gesperrt": nur Besitzer und Spielleitung dürfen bearbeiten. Bewusst ein
+    -- zweites Flag neben geschuetzt (nur Spielleitung) statt einer Stufen-Spalte:
+    -- geschuetzt bleibt unangetastet, und ein Rollback auf älteren Code kann
+    -- keine abgeleitete Spalte verwaisen lassen.
+    besitzer_sperre INTEGER NOT NULL DEFAULT 0,
     -- Weiches Löschen: ein Abend Arbeit verschwindet nicht durch einen Fehlklick.
     geloescht_at TEXT,
     -- 'seite' | 'kategorie'. Ergibt sich aus dem Titel („Kategorie:Orte"), damit
@@ -117,7 +126,25 @@ db.exec(`
   if (!spalten.includes('kategorie_key')) db.exec('ALTER TABLE wiki_pages ADD COLUMN kategorie_key TEXT');
   if (!spalten.includes('weiterleitung')) db.exec('ALTER TABLE wiki_pages ADD COLUMN weiterleitung TEXT');
   if (!spalten.includes('unloeschbar')) db.exec('ALTER TABLE wiki_pages ADD COLUMN unloeschbar INTEGER NOT NULL DEFAULT 0');
+  if (!spalten.includes('owner_user_id')) {
+    db.exec('ALTER TABLE wiki_pages ADD COLUMN owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL');
+  }
+  if (!spalten.includes('besitzer_sperre')) {
+    db.exec('ALTER TABLE wiki_pages ADD COLUMN besitzer_sperre INTEGER NOT NULL DEFAULT 0');
+  }
 }
+
+// Der Besitzer einer schon bestehenden Seite ist der Autor ihrer ersten Fassung.
+// Läuft bei jedem Start und füllt nur NULL-Werte: idempotent, und deckt damit auch
+// ab, was ein user_version-Schritt nicht sähe (ein Rollback auf alten Code, der
+// Seiten ohne Besitzer anlegt, oder eine Sicherung aus der Zeit davor).
+db.exec(`
+  UPDATE wiki_pages
+     SET owner_user_id = (
+           SELECT r.author_user_id FROM wiki_revisions r
+            WHERE r.page_id = wiki_pages.id ORDER BY r.nr ASC, r.id ASC LIMIT 1)
+   WHERE owner_user_id IS NULL
+`);
 
 db.exec(`
   -- Eine Kategorie hat höchstens EINE Beschreibungsseite. Der Teilindex nimmt

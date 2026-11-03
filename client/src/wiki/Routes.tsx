@@ -31,6 +31,7 @@ function NeueSeite() {
         open={offen}
         titelVorgabe={params.get('titel') ?? ''}
         kategorieVorgabe={params.get('kategorie') ?? ''}
+        charIdVorgabe={Number(params.get('charId')) || undefined}
         onClose={() => {
           setOffen(false);
           navigate('/wiki');

@@ -46,8 +46,9 @@ export const ladeVerweise = (slug: string) =>
     `/api/wiki/seiten/${encodeURIComponent(slug)}/verweise`,
   );
 
-export const legeSeiteAn = (titel: string, tags?: string) =>
-  apiPost<{ slug: string }>('/api/wiki/seiten', { titel, tags });
+/** `charId`: the page is a character's own, so its player owns it (see POST /seiten). */
+export const legeSeiteAn = (titel: string, tags?: string, charId?: number) =>
+  apiPost<{ slug: string }>('/api/wiki/seiten', { titel, tags, charId });
 
 export interface SpeichernEingabe {
   titel: string;
@@ -122,6 +123,15 @@ export const ladeKategorie = (tag: string) =>
 
 export const setzeFlags = (slug: string, flags: { gmOnly?: boolean; geschuetzt?: boolean }) =>
   apiPut<{ gmOnly: boolean; geschuetzt: boolean }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/flags`, flags);
+
+export type WikiSperre = WikiSeiteInfo['sperre'];
+
+/** Who may edit. The owner may use 'offen' and 'besitzer', the GM all three. */
+export const setzeSperre = (slug: string, sperre: WikiSperre) =>
+  apiPut<{ sperre: WikiSperre }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/sperre`, { sperre });
+
+export const setzeBesitzer = (slug: string, userId: number | null) =>
+  apiPut<{ ok: true; geaendert: boolean }>(`/api/wiki/seiten/${encodeURIComponent(slug)}/besitzer`, { userId });
 
 export const loescheSeite = (slug: string) =>
   apiDelete<{ ok: true }>(`/api/wiki/seiten/${encodeURIComponent(slug)}`);

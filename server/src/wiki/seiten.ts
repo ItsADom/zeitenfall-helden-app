@@ -27,7 +27,7 @@ import type { WikiArt, WikiDoc, WikiNamensraum, WikiSeiteInfo, WikiSeiteVoll, Wi
 import { db } from '../db.js';
 import { HAT_FTS } from './schema.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
-import { seiteFuer, sichtbarkeitsFilter } from './zugriff.js';
+import { darfBearbeiten, darfSperren, seiteFuer, sichtbarkeitsFilter, sperrMeldung, sperreVon } from './zugriff.js';
 
 /** Somebody else saved while this editor was open. Surfaces as 409. */
 export class WikiKonflikt extends Error {
@@ -41,10 +41,10 @@ export class WikiKonflikt extends Error {
   }
 }
 
-/** Protected page, non-GM writer. The one case that is 403 and not 404. */
+/** Protected or locked page, writer without the right. The one case that is 403 and not 404. */
 export class WikiGeschuetzt extends Error {
-  constructor() {
-    super('Diese Seite ist geschützt');
+  constructor(meldung = 'Diese Seite ist geschützt') {
+    super(meldung);
     this.name = 'WikiGeschuetzt';
   }
 }
@@ -108,6 +108,7 @@ function alsInfo(row: WikiSeiteRow, autorName: string): WikiSeiteInfo {
     auszug: row.auszug,
     gmOnly: !!row.gm_only,
     geschuetzt: !!row.geschuetzt,
+    sperre: sperreVon(row),
     unloeschbar: !!row.unloeschbar,
     geaendertAm: row.updated_at,
     autorName,
@@ -252,12 +253,20 @@ export function ladeSeite(
   const text = sichtbareQuelle(user, quelle, modus);
   const doc = parseWiki(text);
 
+  const besitzer = row.owner_user_id
+    ? (db.prepare('SELECT display_name FROM users WHERE id = ?').get(row.owner_user_id) as { display_name: string } | undefined)
+    : undefined;
+
   return {
     ...alsInfo(row, rev?.author_name ?? ''),
     text,
     revisionId: rev?.id ?? 0,
     nr: rev?.nr ?? 0,
-    darfBearbeiten: user.isGm || !row.geschuetzt,
+    darfBearbeiten: darfBearbeiten(user, row),
+    besitzerName: besitzer?.display_name ?? null,
+    besitzerId: row.owner_user_id,
+    istBesitzer: row.owner_user_id != null && row.owner_user_id === user.id,
+    darfSperren: darfSperren(user, row),
     linkZiele: linkZiele(user, [...sammleLinks(doc), ...(row.weiterleitung ? [row.weiterleitung] : [])]),
     weitergeleitetVon: weitergeleitetVon ? { slug: weitergeleitetVon.slug, titel: weitergeleitetVon.titel } : null,
   };
@@ -286,6 +295,8 @@ export interface LogEinfuegen {
   autor: { id: number; name: string };
   kommentar?: string;
   basisRev?: number | null;
+  /** Reuse this number instead of taking the next one (see ersetzeKopf). */
+  nr?: number;
 }
 
 export function schreibeLog(e: LogEinfuegen): number {
@@ -298,7 +309,7 @@ export function schreibeLog(e: LogEinfuegen): number {
     )
     .run(
       e.pageId,
-      naechsteNr(e.pageId),
+      e.nr ?? naechsteNr(e.pageId),
       e.art,
       e.titel,
       e.text ?? null,
@@ -407,7 +418,13 @@ function slugFuerTitel(titel: string, istVergeben: (slug: string) => boolean = s
  * red link hands over "Spielercharakter" so a new character page starts
  * already filed, instead of the author having to remember to tag it.
  */
-export function legeSeiteAn(autor: { id: number; name: string }, titelRoh: string, tagsRoh?: unknown): WikiSeiteRow {
+export function legeSeiteAn(
+  autor: { id: number; name: string },
+  titelRoh: string,
+  tagsRoh?: unknown,
+  /** Whose page it is, when that is not the person creating it (a GM creating a player's character page). */
+  besitzerId?: number,
+): WikiSeiteRow {
   const titel = kappe(titelRoh, WIKI_LIMITS.TITEL_MAX).trim();
   if (!titel) throw new Error('Titel fehlt');
   const { namensraum } = teileTitel(titel);
@@ -426,8 +443,8 @@ export function legeSeiteAn(autor: { id: number; name: string }, titelRoh: strin
     }
     const slug = slugFuerTitel(titel);
     const info = db
-      .prepare('INSERT INTO wiki_pages (slug, titel, namensraum, kategorie_key) VALUES (?, ?, ?, ?)')
-      .run(slug, titel, namensraum, kategorieKey);
+      .prepare('INSERT INTO wiki_pages (slug, titel, namensraum, kategorie_key, owner_user_id) VALUES (?, ?, ?, ?, ?)')
+      .run(slug, titel, namensraum, kategorieKey, besitzerId ?? autor.id);
     const pageId = Number(info.lastInsertRowid);
     const revId = schreibeLog({ pageId, art: 'angelegt', titel, text: '', autor });
     db.prepare('UPDATE wiki_pages SET aktuelle_rev = ? WHERE id = ?').run(revId, pageId);
@@ -446,6 +463,65 @@ export interface SpeichernEingabe {
   basisRev: number | null;
 }
 
+// --- Saves of one sitting become one version ---
+//
+// Every explicit save used to be its own version, so a single evening's writing
+// ended in „Fassung 145". A save now REPLACES the newest version when all of this
+// holds, which is exactly „the same person, still in the same sitting":
+//   * the newest log row of the page is a content version (angelegt/bearbeitet),
+//     not a rename, restore or a lock change;
+//   * it is by this same author;
+//   * neither it nor this save carries a comment (a comment means „this one
+//     matters" and keeps its own version, and is never merged into);
+//   * it is at most MERGE_FENSTER_S old. Sliding: each merged save moves the
+//     clock, so a long sitting with a pause shorter than the window stays one.
+// The intermediate texts are gone by design.
+const MERGE_FENSTER_S = 30 * 60;
+
+interface KopfRow {
+  id: number;
+  nr: number;
+  art: string;
+  base_revision_id: number | null;
+}
+
+function zusammenfuehrbareFassung(pageId: number, userId: number): KopfRow | undefined {
+  const kopf = db
+    .prepare(
+      `SELECT id, nr, art, text, kommentar, author_user_id, base_revision_id,
+              CAST(strftime('%s', 'now') AS INTEGER) - CAST(strftime('%s', created_at) AS INTEGER) AS alter_s
+         FROM wiki_revisions WHERE page_id = ? ORDER BY nr DESC, id DESC LIMIT 1`,
+    )
+    .get(pageId) as
+    | (KopfRow & { text: string | null; kommentar: string; author_user_id: number | null; alter_s: number })
+    | undefined;
+  if (!kopf || kopf.text == null) return undefined;
+  if (kopf.art !== 'angelegt' && kopf.art !== 'bearbeitet') return undefined;
+  if (kopf.author_user_id !== userId || kopf.kommentar !== '') return undefined;
+  if (kopf.alter_s > MERGE_FENSTER_S) return undefined;
+  return kopf;
+}
+
+/** The text this version was written against: the content version before it ('' for the first). */
+function textVor(pageId: number, nr: number): string {
+  const row = db
+    .prepare('SELECT text FROM wiki_revisions WHERE page_id = ? AND text IS NOT NULL AND nr < ? ORDER BY nr DESC LIMIT 1')
+    .get(pageId, nr) as { text: string } | undefined;
+  return row?.text ?? '';
+}
+
+/**
+ * Swaps the newest version for this save. NOT an UPDATE in place: the unread
+ * markers compare revision IDS, so a row that kept its id would leave a page that
+ * has changed looking read. The new row takes the old one's number and base, and
+ * gets a fresh id — others see the page as changed again, the author never
+ * counts their own edits (neuigkeiten.ts).
+ */
+function ersetzeKopf(kopf: KopfRow, e: LogEinfuegen): number {
+  db.prepare('DELETE FROM wiki_revisions WHERE id = ?').run(kopf.id);
+  return schreibeLog({ ...e, nr: kopf.nr, basisRev: kopf.base_revision_id, kommentar: '' });
+}
+
 /**
  * Saves a change. Returns the page as it now stands, or throws WikiKonflikt if
  * somebody else got there first — never an automatic merge, because that is
@@ -456,7 +532,8 @@ export function speichereSeite(
   seite: WikiSeiteRow,
   eingabe: SpeichernEingabe,
 ): WikiSeiteRow {
-  if (!user.isGm && seite.geschuetzt) throw new WikiGeschuetzt();
+  if (!darfBearbeiten(user, seite)) throw new WikiGeschuetzt(sperrMeldung(seite));
+  const kommentar = eingabe.kommentar.trim();
 
   const alt = letzteFassung(seite.id);
   const altText = alt?.text ?? '';
@@ -535,19 +612,37 @@ export function speichereSeite(
 
     let revId = seite.aktuelle_rev;
     if (textGeaendert) {
-      const bilanz = zeilenBilanz(altText, text);
-      revId = schreibeLog({
-        pageId: seite.id,
-        art: alt ? 'bearbeitet' : 'angelegt',
-        titel,
-        text,
-        zeilenPlus: bilanz.plus,
-        zeilenMinus: bilanz.minus,
-        tags,
-        autor,
-        kommentar: eingabe.kommentar,
-        basisRev: eingabe.basisRev,
-      });
+      // Same author, same sitting, nothing in between, no comment on either side:
+      // this save REPLACES the newest version instead of adding another (see
+      // zusammenfuehrbareFassung). A rename is its own log row, so it never merges.
+      const kopf = !titelGeaendert && kommentar === '' ? zusammenfuehrbareFassung(seite.id, user.id) : undefined;
+      if (kopf) {
+        const bilanz = zeilenBilanz(textVor(seite.id, kopf.nr), text);
+        revId = ersetzeKopf(kopf, {
+          pageId: seite.id,
+          art: kopf.art as WikiArt,
+          titel,
+          text,
+          zeilenPlus: bilanz.plus,
+          zeilenMinus: bilanz.minus,
+          tags,
+          autor,
+        });
+      } else {
+        const bilanz = zeilenBilanz(altText, text);
+        revId = schreibeLog({
+          pageId: seite.id,
+          art: alt ? 'bearbeitet' : 'angelegt',
+          titel,
+          text,
+          zeilenPlus: bilanz.plus,
+          zeilenMinus: bilanz.minus,
+          tags,
+          autor,
+          kommentar,
+          basisRev: eingabe.basisRev,
+        });
+      }
     }
 
     const { auszug, weiterleitung } = schreibeAbgeleitetes(seite.id, titel, text, tags, slug);

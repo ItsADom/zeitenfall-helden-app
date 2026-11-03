@@ -12,6 +12,7 @@ export default function NeueSeiteDialog({
   onAngelegt,
   titelVorgabe = '',
   kategorieVorgabe = '',
+  charIdVorgabe,
 }: {
   open: boolean;
   onClose: () => void;
@@ -20,6 +21,8 @@ export default function NeueSeiteDialog({
   titelVorgabe?: string;
   /** Applied silently on creation — e.g. "Spielercharakter" from a character sheet's link. */
   kategorieVorgabe?: string;
+  /** A character's own page: its player becomes the page's owner. */
+  charIdVorgabe?: number;
 }) {
   const [titel, setTitel] = useState(titelVorgabe);
   const [fehler, setFehler] = useState('');
@@ -39,7 +42,7 @@ export default function NeueSeiteDialog({
     setLaeuft(true);
     setFehler('');
     try {
-      const { slug } = await legeSeiteAn(name, kategorieVorgabe);
+      const { slug } = await legeSeiteAn(name, kategorieVorgabe, charIdVorgabe);
       onClose();
       onAngelegt(slug);
     } catch (e) {

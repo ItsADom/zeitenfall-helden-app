@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { WikiSeiteVoll } from '@shared/wikiTypen';
+import { apiGet } from '../api';
 import { ConfirmDeleteButton } from '../components/ConfirmDeleteButton';
-import { loescheSeite, setzeFlags } from './api';
+import { loescheSeite, setzeBesitzer, setzeFlags, setzeSperre, type WikiSperre } from './api';
 
 // The GM's controls on a page: visibility, protection — plus delete, which
 // WikiLoeschAktion below also renders standalone for a plain player. Deletion
@@ -48,6 +49,36 @@ export function WikiLoeschAktion({ seite }: { seite: WikiSeiteVoll }) {
   );
 }
 
+/**
+ * The owner's own switch: lock the page so only the owner and the GM may edit
+ * it. Shown to a player who owns the page (and the GM has not protected it).
+ */
+export function WikiBesitzerSperre({ seite, onGeaendert }: { seite: WikiSeiteVoll; onGeaendert: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [fehler, setFehler] = useState('');
+  const umschalten = async (an: boolean) => {
+    setBusy(true);
+    setFehler('');
+    try {
+      await setzeSperre(seite.slug, an ? 'besitzer' : 'offen');
+      onGeaendert();
+    } catch {
+      setFehler('Die Sperre konnte nicht geändert werden.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="wiki-rechte screen-only">
+      <label>
+        <input type="checkbox" checked={seite.sperre === 'besitzer'} disabled={busy} onChange={(e) => void umschalten(e.target.checked)} />
+        <span>Sperren: nur du und die Spielleitung dürfen diese Seite bearbeiten (lesen können weiter alle)</span>
+      </label>
+      {fehler && <span className="error">{fehler}</span>}
+    </div>
+  );
+}
+
 export default function WikiSeitenrechte({
   seite,
   onGeaendert,
@@ -57,8 +88,41 @@ export default function WikiSeitenrechte({
 }) {
   const [busy, setBusy] = useState(false);
   const [fehler, setFehler] = useState('');
+  // Für die Besitzer-Auswahl; die Spielleitung darf diese Liste ohnehin lesen.
+  const [nutzer, setNutzer] = useState<{ id: number; displayName: string; username: string }[]>([]);
+  useEffect(() => {
+    apiGet<{ id: number; displayName: string; username: string }[]>('/api/admin/users')
+      .then(setNutzer)
+      .catch(() => {});
+  }, []);
 
-  const umschalten = async (flags: { gmOnly?: boolean; geschuetzt?: boolean }) => {
+  const sperren = async (ziel: WikiSperre) => {
+    setBusy(true);
+    setFehler('');
+    try {
+      await setzeSperre(seite.slug, ziel);
+      onGeaendert();
+    } catch {
+      setFehler('Die Einstellung konnte nicht gespeichert werden.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uebergeben = async (id: number | null) => {
+    setBusy(true);
+    setFehler('');
+    try {
+      await setzeBesitzer(seite.slug, id);
+      onGeaendert();
+    } catch {
+      setFehler('Der Besitzer konnte nicht geändert werden.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const umschalten = async (flags: { gmOnly?: boolean }) => {
     setBusy(true);
     setFehler('');
     try {
@@ -83,13 +147,27 @@ export default function WikiSeitenrechte({
         <span>Nur Spielleitung — für Spieler existiert die Seite nicht</span>
       </label>
       <label>
-        <input
-          type="checkbox"
-          checked={seite.geschuetzt}
+        <span>Bearbeiten dürfen</span>
+        <select value={seite.sperre} disabled={busy} onChange={(e) => void sperren(e.target.value as WikiSperre)}>
+          <option value="offen">alle</option>
+          <option value="besitzer">nur Besitzer und Spielleitung</option>
+          <option value="gm">nur die Spielleitung (geschützt)</option>
+        </select>
+      </label>
+      <label>
+        <span>Besitzer</span>
+        <select
+          value={seite.besitzerId ?? ''}
           disabled={busy}
-          onChange={(e) => void umschalten({ geschuetzt: e.target.checked })}
-        />
-        <span>Geschützt — sichtbar, aber nur die Spielleitung darf bearbeiten</span>
+          onChange={(e) => void uebergeben(e.target.value === '' ? null : Number(e.target.value))}
+        >
+          <option value="">niemand</option>
+          {nutzer.map((n) => (
+            <option key={n.id} value={n.id}>
+              {n.displayName || n.username}
+            </option>
+          ))}
+        </select>
       </label>
       <WikiLoeschAktion seite={seite} />
       {fehler && <span className="error">{fehler}</span>}

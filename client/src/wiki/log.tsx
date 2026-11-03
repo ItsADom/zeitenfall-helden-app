@@ -34,6 +34,7 @@ const ART_TEXT: Record<WikiLogEintrag['art'], string> = {
   wiederhergestellt: 'wiederhergestellt',
   sichtbarkeit: 'Sichtbarkeit geändert',
   geschuetzt: 'Schutz geändert',
+  besitzer: 'Besitzer geändert',
 };
 
 export const artText = (art: WikiLogEintrag['art']): string => ART_TEXT[art] ?? art;

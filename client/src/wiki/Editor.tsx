@@ -80,7 +80,7 @@ export default function WikiEditor() {
       .catch((e) =>
         setFehler(
           e instanceof ApiError && e.status === 403
-            ? 'Diese Seite ist geschützt — nur die Spielleitung darf sie bearbeiten.'
+            ? String((e.data as { error?: string } | undefined)?.error ?? 'Du darfst diese Seite nicht bearbeiten.')
             : 'Seite konnte nicht geladen werden',
         ),
       );
@@ -147,7 +147,7 @@ export default function WikiEditor() {
           'Die Seite wurde geändert, seit du angefangen hast. Dein Text steht noch im Feld — vergleiche ihn unten mit der aktuellen Fassung.',
         );
       } else if (e instanceof ApiError && e.status === 403) {
-        setFehler('Diese Seite ist geschützt — nur die Spielleitung darf sie bearbeiten.');
+        setFehler(String((e.data as { error?: string } | undefined)?.error ?? 'Du darfst diese Seite nicht bearbeiten.'));
       } else {
         setFehler(e instanceof Error ? e.message : 'Fehler beim Speichern');
       }
@@ -239,11 +239,15 @@ export default function WikiEditor() {
             <button className={ansicht === 'schreiben' ? 'active' : ''} onClick={() => setAnsicht('schreiben')}>
               Schreiben
             </button>
-            <button className={ansicht === 'vorschau' ? 'active' : ''} onClick={() => setAnsicht('vorschau')}>
+            <button
+              className={ansicht === 'vorschau' ? 'active' : ''}
+              onClick={() => setAnsicht('vorschau')}
+              title="Zeigt, wie die Seite aussieht, ohne zu speichern"
+            >
               Vorschau
             </button>
           </div>
-          {schmutzig && <span className="muted">Ungespeicherte Änderungen</span>}
+          {schmutzig && <span className="muted">Ungespeicherte Änderungen, als Entwurf auf diesem Gerät gesichert</span>}
           <span className="savestate">{status}</span>
         </div>
         <div className="wiki-editorleiste-rechts">
@@ -255,6 +259,11 @@ export default function WikiEditor() {
           </button>
         </div>
       </div>
+
+      <p className="muted wiki-tipp screen-only">
+        Tipp: „Vorschau“ zeigt dir die fertige Seite, ohne dass etwas gespeichert wird. Deinen Text sichert der Editor
+        laufend als Entwurf auf diesem Gerät.
+      </p>
 
       {entwurf != null && entwurf !== text && (
         <p className="wiki-hinweis">
@@ -351,6 +360,10 @@ export default function WikiEditor() {
       </div>
       <div className="field">
         <label>Was hast du geändert? (erscheint im Änderungsprotokoll)</label>
+        <p className="muted wiki-tipp">
+          Mehrmaliges Speichern innerhalb von 30 Minuten wird zu einer Version zusammengefasst. Mit einer Notiz hier bleibt
+          diese Version für sich.
+        </p>
         <input
           value={kommentar}
           maxLength={WIKI_LIMITS.KOMMENTAR_MAX}

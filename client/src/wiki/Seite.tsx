@@ -8,7 +8,7 @@ import { ApiError } from '../api';
 import { useAuth } from '../App';
 import { useInhaltMelden } from './Inhalt';
 import WikiMarkup from './Markup';
-import WikiSeitenrechte, { WikiLoeschAktion } from './Seitenrechte';
+import WikiSeitenrechte, { WikiBesitzerSperre, WikiLoeschAktion } from './Seitenrechte';
 import WikiVerweise from './Verweise';
 import { ladeSeite } from './api';
 
@@ -148,7 +148,8 @@ export default function WikiSeite() {
             {seite.nr > 0 ? `Fassung ${seite.nr}` : 'Neu angelegt'}
             {seite.autorName && ` · zuletzt von ${seite.autorName}`}
             {seite.gmOnly && ' · nur Spielleiter'}
-            {seite.geschuetzt && ' · geschützt'}
+            {seite.sperre === 'gm' && ' · geschützt'}
+            {seite.sperre === 'besitzer' && ` · gesperrt${seite.besitzerName ? ` (Besitzer: ${seite.besitzerName})` : ''}`}
           </p>
         </div>
         <div className="wiki-kopf-aktionen screen-only">
@@ -165,6 +166,7 @@ export default function WikiSeite() {
       </div>
 
       {user.isGm && <WikiSeitenrechte seite={seite} onGeaendert={laden} />}
+      {!user.isGm && seite.darfSperren && <WikiBesitzerSperre seite={seite} onGeaendert={laden} />}
 
       {seite.tags.length > 0 && (
         <div className="wiki-tags screen-only">
