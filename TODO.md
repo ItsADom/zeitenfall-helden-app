@@ -103,9 +103,17 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
     instead of rolling it, auto-quoting names that contain anything but
     letters and spaces (`"Hämmer/Keulen"`, `"Schwert (AT)"`). Suggestions
     must then search the token being typed (after the last operator or
-    parenthesis) instead of the whole text after `/r`. Open: Enter on a
-    lone name should keep rolling it directly (today's fast path), Tab and
-    click always insert.
+    parenthesis) instead of the whole text after `/r`. Enter must NOT roll
+    a picked name directly: someone starting a formula with a talent
+    (`/r Athl`, Enter, then `+FF`) would roll instead. Proposal: Tab,
+    click and Enter all insert; Enter sends the line when nothing is left
+    to insert (no list open, or the typed word already equals a name
+    exactly). A lone name is itself a valid no-dice formula, so the quick
+    roll is `/r Athl`, Enter, Enter. `/koop` and `/wettstreit` keep
+    picking a probe directly.
+  - **Dice-sum mode, what a name is:** its probe target (e.g. Athletik =
+    40, as the suggestion list shows), so `1w20+Athletik` adds 40.
+    Attribute codes are their value, as today.
   - **Syntax:** names are case-insensitive; letters and inner spaces work
     bare (`Heilkunde Wunden+FF`: two names without an operator are never
     valid, so a space is unambiguous); names containing `/` or `-` (33 of
