@@ -846,30 +846,37 @@ function TokenEditor({
 
       {token.wounds && (
         <div className="vtt-token-editor-wounds">
-          {/* Only ever present for the token's owner + the GM (see
-              TokenWounds's doc comment in shared/src/boardProtocol.ts) — a
-              non-owner player simply never receives this field, so no
-              further gate is needed here; presence alone means edit rights. */}
-          <div className="vtt-wound-row">
-            <span>Leichte Wunden</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, Math.max(0, token.wounds!.small - 1), token.wounds!.big)}>
-              −
-            </button>
-            <span className="vtt-wound-value">{token.wounds.small}</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small + 1, token.wounds!.big)}>
-              +
-            </button>
-          </div>
-          <div className="vtt-wound-row">
-            <span>Schwere Wunden</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small, Math.max(0, token.wounds!.big - 1))}>
-              −
-            </button>
-            <span className="vtt-wound-value">{token.wounds.big}</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small, token.wounds!.big + 1)}>
-              +
-            </button>
-          </div>
+          {/* A character token's wounds only ever reach its owner + the GM
+              (see TokenWounds's doc comment in shared/src/boardProtocol.ts),
+              so presence alone means edit rights there. A marker's wounds
+              are public: everyone sees the counts, only token editors get
+              the buttons. */}
+          {(() => {
+            const editable = token.kind === 'character' || canEdit;
+            const w = token.wounds;
+            const row = (label: string, value: number, set: (v: number) => void) => (
+              <div className="vtt-wound-row">
+                <span>{label}</span>
+                {editable && (
+                  <button className="small" onClick={() => set(Math.max(0, value - 1))}>
+                    −
+                  </button>
+                )}
+                <span className="vtt-wound-value">{value}</span>
+                {editable && (
+                  <button className="small" onClick={() => set(value + 1)}>
+                    +
+                  </button>
+                )}
+              </div>
+            );
+            return (
+              <>
+                {row('Leichte Wunden', w.small, (v) => setTokenWounds(token.id, v, w.big))}
+                {row('Schwere Wunden', w.big, (v) => setTokenWounds(token.id, w.small, v))}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -2278,6 +2285,7 @@ function MapCanvas({
     radiusColor: string;
     statuses: string[];
     cover: string;
+    wounds: { small: number; big: number } | null;
     nextX: number;
     nextY: number;
   } | null>(null);
@@ -2303,6 +2311,7 @@ function MapCanvas({
           radiusColor: selectedToken.radiusColor,
           statuses: selectedToken.statuses,
           cover: selectedToken.cover,
+          wounds: selectedToken.wounds,
           nextX: selectedToken.x,
           nextY: selectedToken.y,
         };
@@ -2326,6 +2335,7 @@ function MapCanvas({
         radiusColor: clip.radiusColor,
         statuses: clip.statuses,
         cover: clip.cover,
+        ...(clip.wounds ? { wounds: clip.wounds } : {}),
         x,
         y,
       });
@@ -3518,8 +3528,8 @@ function MapCanvas({
                       {t.statuses.map((s) => BOARD_STATUSES.find((b) => b.key === s)?.emoji ?? '').join('')}
                     </text>
                   )}
-                  {/* Wound badge — only ever present at all for the owner/GM
-                      (see TokenWounds's doc comment); hidden here too when
+                  {/* Wound badge — a character token's only ever present for the
+                      owner/GM (see TokenWounds's doc comment); hidden here when
                       both counts are 0, same "nothing to show" rule as the
                       statuses row above. Above the token rather than below,
                       so it never collides with statuses/name. */}

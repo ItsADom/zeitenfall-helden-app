@@ -2622,9 +2622,15 @@ export function loadWounds(charId: number): Wounds {
 }
 
 /** Clamped to [0, 20] — a hand-crafted WS message shouldn't be able to plant garbage; floors at 0 like the round tracker, no auto-removal at any count. */
+export function clampWounds(wounds: Wounds): Wounds {
+  return {
+    small: Math.max(0, Math.min(20, Math.round(wounds.small))),
+    big: Math.max(0, Math.min(20, Math.round(wounds.big))),
+  };
+}
+
 export function saveWounds(charId: number, wounds: Wounds): Wounds {
-  const small = Math.max(0, Math.min(20, Math.round(wounds.small)));
-  const big = Math.max(0, Math.min(20, Math.round(wounds.big)));
+  const { small, big } = clampWounds(wounds);
   db.prepare('UPDATE char_meta SET small_wounds = ?, big_wounds = ? WHERE character_id = ?').run(small, big, charId);
   return { small, big };
 }

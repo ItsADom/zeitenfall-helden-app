@@ -374,6 +374,7 @@ interface DicePanelCtxValue {
     radiusColor?: string;
     statuses?: string[];
     cover?: string;
+    wounds?: { small: number; big: number };
   }) => void;
   updateToken: (
     tokenId: number,
@@ -382,7 +383,7 @@ interface DicePanelCtxValue {
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
   deleteToken: (tokenId: number) => void;
-  /** Character tokens only. Absolute values, not deltas — same idiom as setInitiativeBasis. Owner/GM-only server-side; a token with `wounds: null` never reaches anyone else in the first place. */
+  /** Absolute values, not deltas — same idiom as setInitiativeBasis. Character tokens: owner/GM-only server-side, and a token with `wounds: null` never reaches anyone else in the first place. Marker tokens: public wounds, ordinary token-edit rights. */
   setTokenWounds: (tokenId: number, small: number, big: number) => void;
   updateBoardSettings: (
     patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
@@ -1486,6 +1487,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       radiusColor?: string;
       statuses?: string[];
       cover?: string;
+      wounds?: { small: number; big: number };
     }) => {
       sendMsg({ type: 'board.token.create', reqId: crypto.randomUUID(), ...input });
     },

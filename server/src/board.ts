@@ -17,7 +17,7 @@ import {
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { rollDie } from './dice.js';
-import { hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
+import { clampWounds, hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -101,9 +101,9 @@ export interface BoardTokenRow {
   /** Computed here from the linked character's own token image (separate from the sheet portrait, see shared/src/boardProtocol.ts's doc comment), never stored on the row itself. */
   tokenImage: boolean;
   /**
-   * Computed here from the linked character (null for a marker/monster, no
-   * characterId to hang wounds off) — see the small_wounds/big_wounds column
-   * comment in db.ts. UNREDACTED at this layer, same as every other
+   * Character token: computed from the linked character's char_meta. Marker/
+   * monster token: its own small_wounds/big_wounds columns on board_tokens.
+   * Non-null as loaded; null only on a redacted copy (see woundsVisibleTo). UNREDACTED at this layer, same as every other
    * BoardTokenRow field — woundsVisibleTo below is the one place that
    * decides who actually gets to see it.
    */
@@ -112,18 +112,24 @@ export interface BoardTokenRow {
 }
 
 const TOKEN_COLS = `id, board_id AS boardId, kind, character_id AS characterId, owner_user_id AS ownerUserId,
-  name, color, icon, icon_asset AS iconAsset, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, sort`;
+  name, color, icon, icon_asset AS iconAsset, x, y, size, radius, radius_color AS radiusColor, rotation, hidden, statuses, cover, cover_asset AS coverAsset, small_wounds AS smallWounds, big_wounds AS bigWounds, sort`;
 
 function toToken(
-  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'tokenImage' | 'wounds'> & { hidden: number; statuses: string },
+  r: Omit<BoardTokenRow, 'hidden' | 'statuses' | 'portrait' | 'tokenImage' | 'wounds'> & {
+    hidden: number;
+    statuses: string;
+    smallWounds: number;
+    bigWounds: number;
+  },
 ): BoardTokenRow {
+  const { smallWounds, bigWounds, ...rest } = r;
   return {
-    ...r,
+    ...rest,
     hidden: !!r.hidden,
     statuses: JSON.parse(r.statuses || '[]'),
     portrait: r.characterId != null && hasPortrait(r.characterId),
     tokenImage: r.characterId != null && hasTokenImage(r.characterId),
-    wounds: r.characterId != null ? loadWounds(r.characterId) : null,
+    wounds: r.characterId != null ? loadWounds(r.characterId) : { small: smallWounds, big: bigWounds },
   };
 }
 
@@ -178,15 +184,18 @@ export interface CreateTokenInput {
   radiusColor?: string;
   statuses?: string[];
   cover?: string;
+  /** Marker-only — a pasted copy keeps the original's wounds. */
+  wounds?: Wounds;
 }
 
 export function createToken(boardId: number, input: CreateTokenInput): BoardTokenRow {
+  const woundsForNewToken = input.kind === 'marker' && input.wounds ? clampWounds(input.wounds) : { small: 0, big: 0 };
   const sort = (db.prepare('SELECT COALESCE(MAX(sort), -1) + 1 AS n FROM board_tokens WHERE board_id = ?').get(boardId) as { n: number })
     .n;
   const info = db
     .prepare(
-      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, icon_asset, x, y, size, radius, radius_color, statuses, cover, sort)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?)`,
+      `INSERT INTO board_tokens (board_id, kind, character_id, owner_user_id, name, color, icon, icon_asset, x, y, size, radius, radius_color, statuses, cover, small_wounds, big_wounds, sort)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, 0), COALESCE(?, '#ffcc0033'), COALESCE(?, '[]'), COALESCE(?, ''), ?, ?, ?)`,
     )
     .run(
       boardId,
@@ -204,6 +213,8 @@ export function createToken(boardId: number, input: CreateTokenInput): BoardToke
       input.radiusColor ?? null,
       input.statuses ? JSON.stringify(input.statuses) : null,
       input.cover ?? null,
+      woundsForNewToken.small,
+      woundsForNewToken.big,
       sort,
     );
   bumpRev(boardId);
@@ -253,16 +264,21 @@ export function updateToken(tokenId: number, patch: TokenPatch): BoardTokenRow |
 }
 
 /**
- * Writes through to the linked character's char_meta (see saveWounds in
- * characterData.ts) — wounds are character state, not token state, same
- * reasoning as `portrait`. Undefined for a marker/monster token (no
- * characterId) or an unknown token; the caller (ws.ts) has already checked
- * ownership/GM rights before calling this.
+ * A character token writes through to the linked character's char_meta (see
+ * saveWounds in characterData.ts) — wounds are character state there, same
+ * reasoning as `portrait`. A marker/monster token has no character, so its
+ * counters live on its own board_tokens row. Undefined for an unknown token;
+ * the caller (ws.ts) has already checked rights before calling this.
  */
 export function setTokenWounds(tokenId: number, wounds: Wounds): BoardTokenRow | undefined {
   const existing = getToken(tokenId);
-  if (!existing || existing.characterId == null) return undefined;
-  saveWounds(existing.characterId, wounds);
+  if (!existing) return undefined;
+  if (existing.characterId != null) {
+    saveWounds(existing.characterId, wounds);
+  } else {
+    const { small, big } = clampWounds(wounds);
+    db.prepare('UPDATE board_tokens SET small_wounds = ?, big_wounds = ? WHERE id = ?').run(small, big, tokenId);
+  }
   bumpRev(existing.boardId);
   return getToken(tokenId);
 }
@@ -354,13 +370,18 @@ export function tokenVisibleTo(token: BoardTokenRow, fog: Set<string>, viewer: B
 /**
  * A new kind of visibility case, unlike everything above: not "is the whole
  * token visible" (fog/hidden), but "is this one FIELD of an otherwise-
- * visible token visible" — wounds are always private to the token's owner
- * and the GM, regardless of fog, hidden, or perm_tokens (see BoardToken.
- * wounds's doc comment in shared/src/boardProtocol.ts). Every caller that
- * builds a wire token must run its `wounds` through this rather than
+ * visible token visible" — a character token's wounds are private to its
+ * owner and the GM, regardless of fog, hidden, or perm_tokens (see BoardToken.
+ * wounds's doc comment in shared/src/boardProtocol.ts). A marker/monster
+ * token's wounds are public to everyone who can see the token. Every caller
+ * that builds a wire token must run its `wounds` through this rather than
  * forwarding the row's own value.
  */
-export function woundsVisibleTo(token: Pick<BoardTokenRow, 'ownerUserId' | 'wounds'>, viewer: BoardViewer): Wounds | null {
+export function woundsVisibleTo(
+  token: Pick<BoardTokenRow, 'ownerUserId' | 'wounds' | 'characterId'>,
+  viewer: BoardViewer,
+): Wounds | null {
+  if (token.characterId == null) return token.wounds;
   if (viewer.isGm || token.ownerUserId === viewer.userId) return token.wounds;
   return null;
 }

@@ -1647,6 +1647,9 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         if (typeof msg.radiusColor === 'string' && parseTileValue(msg.radiusColor)?.kind === 'color') input.radiusColor = msg.radiusColor;
         if (Array.isArray(msg.statuses)) input.statuses = msg.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
         if (typeof msg.cover === 'string' && (msg.cover === '' || msg.cover in BOARD_COVER_BY_KEY)) input.cover = msg.cover;
+        if (msg.wounds && Number.isFinite(Number(msg.wounds.small)) && Number.isFinite(Number(msg.wounds.big))) {
+          input.wounds = { small: Number(msg.wounds.small), big: Number(msg.wounds.big) };
+        }
         if (typeof msg.iconAsset === 'string' && (msg.iconAsset === '' || msg.iconAsset in TOKEN_ICON_BY_KEY)) input.iconAsset = msg.iconAsset;
       }
       const token = createBoardToken(board.id, input);
@@ -1785,12 +1788,14 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       return;
     }
     // House-rule wound tracking (TODO.md "Wound tracking / count-display on
-    // VTT tokens") — character tokens only, absolute values so both the ±1
-    // buttons and a typed edit reuse this one message. Deliberately NOT
+    // VTT tokens") — absolute values so both the ±1 buttons and a typed edit
+    // reuse this one message. A CHARACTER token is deliberately NOT
     // boardCanEditTokens/permTokens like board.token.update above: the
-    // population here is the SAME as wounds' own visibility (owner + GM
+    // population there is the SAME as wounds' own visibility (owner + GM
     // only), a stricter, always-private case even on a board where "all"
-    // may otherwise edit tokens (see TokenWounds's doc comment).
+    // may otherwise edit tokens (see TokenWounds's doc comment). A MARKER
+    // token's wounds are public, so editing follows the ordinary token-edit
+    // rights instead.
     case 'board.token.wounds.set': {
       const board = getOrCreateBoard(meta.groupId);
       const existing = getBoardToken(Number(msg.tokenId));
@@ -1799,10 +1804,12 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       if (existing.characterId == null) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur Charakter-Marken tragen Wunden' });
-        return;
-      }
-      if (!meta.isGm && existing.ownerUserId !== meta.userId) {
+        const viewer = { userId: meta.userId, isGm: meta.isGm };
+        if (!boardCanEditTokens(board, viewer, meta.groupId, existing.ownerUserId)) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, diese Marke zu bearbeiten' });
+          return;
+        }
+      } else if (!meta.isGm && existing.ownerUserId !== meta.userId) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Besitzerin oder die Spielleitung trägt Wunden ein' });
         return;
       }
@@ -1816,8 +1823,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (updated) {
         const fog = fogSet(board);
         // Same "whoever can see the token at all" filter as every other
-        // token field update — toWireToken's own woundsVisibleTo call is
-        // what keeps the actual counts private to owner+GM for everyone else.
+        // token field update — toWireToken's own woundsVisibleTo call keeps a
+        // character token's counts private to owner+GM for everyone else.
         broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(updated, fog, v) ? { type: 'board.token.updated', token: toWireToken(updated, v) } : null));
       }
       send(ws, { type: 'ack', reqId: msg.reqId });

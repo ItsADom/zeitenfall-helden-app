@@ -76,22 +76,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [ready] **Wound tracking for marker/NPC tokens.** Wounds today are two
-  counters on `char_meta` (`small_wounds`/`big_wounds`), so only character
-  tokens have them (`board.ts:126` gives markers `wounds: null`;
-  `board.token.wounds.set` rejects markers). Concept (agreed): add
-  `small_wounds`/`big_wounds` columns to `board_tokens` (default 0, plain
-  `ALTER TABLE`), and branch `loadWounds`/`saveWounds`/`setTokenWounds` on
-  token kind: character tokens keep writing `char_meta`, markers write the
-  token row. Same message and ±1 UI, minus the "reject marker" check.
-  **Marker wounds are visible to everyone** (unlike character tokens, whose
-  wounds stay owner+GM only), so `woundsVisibleTo` must not redact them.
-  **Copy/paste of a marker carries its wounds.**
-- [ready] **Bug: GM overview shows every character as level 0.**
-  `overviewForChars` reads the stored `char_meta.stufe` (`characterData.ts`,
-  `stufe: meta.stufe ?? 0`), which nothing writes; the sheet derives the level
-  with `levelForAp(meta.ap)`. Fix: derive it the same way there. Keep the
-  unused `stufe`/`ap`/`apNextLevel` columns, only the shown value changes.
 - [onHold] **Signature spell: Erleichterung, and available for skills.** The
   `ability` branch of `computeProbeForCharacter` (`diceSource.ts`) adds no
   Erleichterung for any ability, and the signature flag is a pure marker

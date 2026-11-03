@@ -1916,6 +1916,11 @@ db.exec('DROP TABLE IF EXISTS group_members');
   // shared/src/tokenIcons.ts) — leer ist der richtige Rückfall für jede
   // bereits bestehende Marke (kein Bild gewählt), kein Nachrechnen nötig.
   if (!cols.has('icon_asset')) db.exec("ALTER TABLE board_tokens ADD COLUMN icon_asset TEXT NOT NULL DEFAULT ''");
+  // Migration: Wunden-Zähler für Marker-Marken (NPC/Monster). Charakter-Marken
+  // führen ihre Wunden weiter in char_meta; diese Spalten gelten nur für
+  // kind = 'marker'. 0 ist der richtige Rückfall für jede bestehende Marke.
+  if (!cols.has('small_wounds')) db.exec('ALTER TABLE board_tokens ADD COLUMN small_wounds INTEGER NOT NULL DEFAULT 0');
+  if (!cols.has('big_wounds')) db.exec('ALTER TABLE board_tokens ADD COLUMN big_wounds INTEGER NOT NULL DEFAULT 0');
 }
 
 // Migration: 'owner_user_id' an bestehende board_overlays ergänzen ("Limit

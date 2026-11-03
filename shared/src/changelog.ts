@@ -199,6 +199,16 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-11-03',
+    title: 'Wunden für Monster-Marken',
+    added: [
+      'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
+    ],
+    admin: [
+      '(Spielleiter) In der Gruppenübersicht stand bei jedem Charakter „Stufe 0“. Dort steht jetzt die tatsächliche Stufe.',
+    ],
+  },
+  {
     date: '2026-09-18',
     title: 'Filtern und Suchen',
     version: '0.11.0',
