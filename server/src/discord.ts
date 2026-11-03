@@ -21,7 +21,7 @@
 // starten → der Spiegel merkt sich den aktuellen Stand, ohne die Historie zu posten.
 // Ab dem nächsten neuen Eintrag landet dieser automatisch im Kanal.
 
-import { CHANGELOG, changelogGroups, type ChangelogEntry } from 'shared';
+import { CHANGELOG, changelogGroups, discordMarkdown, type ChangelogEntry } from 'shared';
 import { db } from './db.js';
 
 const WEBHOOK = (process.env.DISCORD_CHANGELOG_WEBHOOK ?? '').trim();
@@ -98,13 +98,14 @@ function buildEmbeds(e: ChangelogEntry): Record<string, unknown>[] {
   // ungegliederten Bestandseinträge (label leer) bleiben eine flache Liste.
   const renderGroups = (bullets: Parameters<typeof changelogGroups>[0]): string =>
     changelogGroups(bullets)
-      .map((g) => (g.label ? `**${g.label}**\n` : '') + g.items.map((c) => `• ${c}`).join('\n'))
+      // discordMarkdown: Formeln werden zu Code, Sonderzeichen maskiert (siehe changelog.ts).
+      .map((g) => (g.label ? `**${g.label}**\n` : '') + g.items.map((c) => `• ${discordMarkdown(c)}`).join('\n'))
       .join('\n\n');
   // Bündelt der Eintrag mehrere große Funktionen (siehe `features`), bekommt
   // jede ihre eigene Markdown-Überschrift — sonst würden sie in Discord genau
   // in derselben Liste landen, die hier eigentlich vermieden werden soll.
   const description = e.features
-    ? e.features.map((f) => `## ${f.title}\n${renderGroups(f)}`).join('\n\n')
+    ? e.features.map((f) => `## ${discordMarkdown(f.title)}\n${renderGroups(f)}`).join('\n\n')
     : renderGroups(e);
   const url = e.version ? `${SITE_URL}#v${e.version}` : SITE_URL;
 

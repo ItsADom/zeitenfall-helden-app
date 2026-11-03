@@ -86,6 +86,20 @@ export function changelogGroups(e: ChangelogBullets): ChangelogGroup[] {
   return e.changes && e.changes.length > 0 ? [{ label: '', items: e.changes }] : [];
 }
 
+// --- Text für Discord ---
+//
+// Die App zeigt einen Eintrag schlicht, wie er getippt ist. Der Discord-Spiegel
+// (server/src/discord.ts) postet denselben Text dagegen als Markdown, wo `*`, `_`,
+// `~`, `|` und Backticks Formatierung sind: „2*Athletik" und weiter hinten
+// „2*Akrobatik" setzten den Text dazwischen kursiv. discordMarkdown() maskiert diese
+// Zeichen mit einem Backslash, damit sie literal erscheinen. Mehr nicht: Formeln
+// werden nicht hervorgehoben, sie stehen so da, wie sie im Eintrag stehen.
+const MD_SONDERZEICHEN = /[\\*_~|`]/g;
+
+export function discordMarkdown(text: string): string {
+  return text.replace(MD_SONDERZEICHEN, '\\$&');
+}
+
 // Bekannter Fehler: wird auf der Changelog-Seite als eigener Abschnitt
 // gezeigt (unter „Demnächst", über der Historie). Rein informativ für Spieler;
 // wird NICHT nach Discord gespiegelt (der Server liest nur CHANGELOG).
@@ -194,12 +208,10 @@ export const COMING_SOON: string[] = [
 //     { title: 'Zweite Funktion', ... }]`, jeder Block bekommt eine eigene,
 //     deutlich abgesetzte Überschrift. Der Normalfall (eine Funktion pro
 //     Eintrag) bleibt bei den vier flachen Abschnitten.
-//   • Der Discord-Spiegel postet den Text unverändert als Discord-Markdown:
-//     `*`, `_`, `~`, `|` und Backticks sind dort Formatierung. Ein Chat-Ausdruck
-//     wie „2*Athletik" kann den Text zwischen zwei Sternchen kursiv setzen. Im
-//     Eintrag selbst steht der Text schlicht (die App zeigt ihn wie getippt);
-//     Formeln sparsam verwenden, und in einem von Hand gebauten Post gehören sie
-//     in Backticks (siehe CLAUDE.md).
+//   • Der Text steht schlicht im Eintrag (die App zeigt ihn wie getippt). Der
+//     Discord-Spiegel maskiert `*`, `_`, `~`, `|` und Backticks (discordMarkdown),
+//     damit etwa „2*Athletik" nicht den Text bis zum nächsten Sternchen kursiv
+//     setzt. Formeln erscheinen dort ohne Hervorhebung, wie getippt.
 //   • Der Discord-Spiegel postet automatisch jeden Eintrag, der NEUER ist als der
 //     zuletzt gepostete (per Version/Datum+Titel erkannt), also einfach oben
 //     einfügen und beim nächsten Serverstart geht er raus.
