@@ -207,12 +207,11 @@ export const CHANGELOG: ChangelogEntry[] = [
         title: 'Würfeln direkt im Chat',
         added: [
           '„/r Athletik+FF+2*Akrobatik“ würfelt eine Probe aus mehreren Namen: ein Würfel je beteiligtem Attribut, gewürfelt gegen die zusammengerechneten Zielwerte. Zahlen mit „+“ und „-“ verschieben den Zielwert.',
-          '„2*Athletik“ würfelt Athletik zweimal in einer Probe. Der Eintrag zeigt jeden Namen mit seinen Würfeln, seinem Zielwert und einem Haken oder Kreuz, das Gesamtergebnis zählt nach der Summe aller Würfel.',
           'Mit Mischwürfen, z. B. „/r 1w20+Athletik“, zählt der komplette Ausdruck als gewöhnliche Würfelsumme, ohne Erfolg oder Fehlschlag.',
           'Beim Tippen schlägt der Chat weiterhin Namen vor, jetzt auch mitten in einer Formel: Tab oder Shift+Enter fügt den Namen ein, Anführungszeichen setzt der Chat wenn nötig selbst. Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
         ],
         changed: [
-          'Wiederholt wird jetzt immer mit „*“: „2*Athletik“ würfelt Athletik zweimal in einer Probe, „2*2w6“ würfelt 2w6 zweimal und zeigt beide Würfe. Bei Würfelsummen heißt das: ein Malnehmen mit einer ganzen Zahl wiederholt den Wurf, statt ein Ergebnis zu vervielfachen. Das alte „Nx“-Präfix („3x2w6“, „2xAthletik“) gibt es nicht mehr.',
+          'Wiederholt wird jetzt immer mit „*“: „2*Athletik“ würfelt Athletik zweimal in einer Probe, „2*2w6“ würfelt 2w6 zweimal und zeigt beide Würfe. Das alte „Nx“-Präfix („3x2w6“, „2xAthletik“) gibt es nicht mehr.',
         ],
       },
       {
@@ -227,7 +226,7 @@ export const CHANGELOG: ChangelogEntry[] = [
           'Wiki-Seiten haben jetzt einen Besitzer (wer sie angelegt hat, bei einer Charakterseite der Spieler des Charakters). Der Besitzer kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können sie weiter alle, die Spielleitung darf immer bearbeiten.',
         ],
         changed: [
-          'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Mit einer Notiz beim Speichern bleibt diese Version für sich. Zwischenstände innerhalb einer Sitzung lassen sich dafür nicht mehr einzeln wiederherstellen.',
+          'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Mit einer Notiz beim Speichern bleibt diese Version für sich.',
           'Der Wiki-Editor weist jetzt auf die Vorschau hin und darauf, dass der Text laufend als Entwurf auf diesem Gerät gesichert wird.',
         ],
         admin: [
