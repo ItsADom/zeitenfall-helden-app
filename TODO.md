@@ -76,95 +76,25 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [sketch] **Arithmetic in free rolls and favorites** (e.g.
-  `Athletik+FF+(2*Akrobatik)`). Concept agreed so far (replaces an earlier
-  "dice-sum formula" idea): names resolve to **probe targets**, the whole
-  expression is rolled and judged as success/fail, exactly like a talent
-  probe today (crits, "knapp", Erleichterung/Erschwernis modifier,
-  Schicksalspunkte all reused).
-  - **Target:** the arithmetic result over the names' targets (talent =
-    its three attributes + Erleichterung, attribute code = its value,
-    ability = its probe expression incl. element/Markenzeichen bonuses).
-  - **Dice:** one d20 per attribute term after expanding the names
-    (attribute 1, talent 3, ...). `k*X` (whole k >= 1) means X k times, dice
-    AND target, exactly like writing X k times: `2*Athletik` is
-    `Athletik+Athletik` (6 d20s against 2x the target) and
-    `Athletik+FF+2*Akrobatik` with 40/12/36 is 3+1+6 = 10 d20s against 124.
-    (This replaced an earlier "multiplier only scales the target" idea.)
-    `+`/`-` constants only shift the target (`Athletik+5` is 3 d20s against
-    45), `/` by a constant scales the target. The old `Nx` prefix is retired
-    for probes (a lone `2xAthletik` is rejected with a hint to write
-    `2*Athletik`); it stays for dice sums (`3x2w6+8`), where `*` already
-    multiplies the sum.
-  - **Overall verdict and parts:** success is decided on the total (all dice
-    against the combined target). The card also lists every name with its own
-    dice and target and a check/cross, so you see which part was over; that
-    is display only (stored as `parts` on the roll).
-  - **Two modes, decided by the dice blocks:** *no* dice block
-    (`Athletik+FF+(2*Akrobatik)`) is a probe as above (accepted by `/r`
-    although `parseDiceExpression` rejects zero-dice formulas today).
-    *Any* dice block (`1w20+Athletik`, `2w6+KK`) stays today's dice-sum
-    roll: names resolve to plain numbers, no success/fail check (the team
-    does use mixed expressions, they just can't be judged). So mixing is
-    allowed, not rejected.
-  - **Picker (agreed direction):** reuse the `/r` suggestion list
-    (`/api/characters/:id/probes`, which already carries label, `n` and
-    `probeZahl` per name), but picking *inserts* the name into the input
-    instead of rolling it, auto-quoting names that contain anything but
-    letters and spaces (`"Hämmer/Keulen"`, `"Schwert (AT)"`). Suggestions
-    must then search the token being typed (after the last operator or
-    parenthesis) instead of the whole text after `/r`. **Key scheme
-    (agreed):** Enter on a lone name keeps rolling it directly (today's fast
-    path); Shift+Enter or Tab inserts it into the input instead (Shift+Enter
-    is unused today). Inside a larger formula (`1w20+Ath`) there is nothing
-    to roll directly, so a pick there always inserts. Mouse/touch: clicking
-    a row still rolls (as today), plus a small "+" button per row to insert
-    (touch has no Shift+Enter). A hint line at the foot of the open list
-    ("Enter würfeln · Shift+Enter / Tab einfügen") makes the split
-    discoverable, since a wrong Enter posts a public roll. `/koop` and
-    `/wettstreit` keep picking a probe directly.
-  - **Dice-sum mode, what a name is:** its probe target (e.g. Athletik =
-    40, as the suggestion list shows), so `1w20+Athletik` adds 40.
-    Attribute codes are their value, as today.
-  - **Syntax:** names are case-insensitive; letters and inner spaces work
-    bare (`Heilkunde Wunden+FF`: two names without an operator are never
-    valid, so a space is unambiguous); names containing `/` or `-` (33 of
-    159 talents, e.g. "Hämmer/Keulen") need double quotes. The tokenizer in
-    `shared/src/formula.ts` only accepts letters today.
-  - **Engine:** `formula.ts` (hand-written parser, no library needed) stays
-    the single grammar; favorites (`parseDiceShortcuts`) and `/r` share it,
-    names are resolved at roll time with the sender's character
-    (`chatAttrResolver` in `ws.ts` only knows attribute codes today).
-  - **Built (parser + server):** `formula.ts` (quoted/spaced names,
-    `evaluateProbeFormula`, `collectNames`/`mapNames`), `parseRollFormula`
-    in `dice.ts` (also used for favorite validity), `makeNameLookup` in
-    `diceSource.ts` (names resolve against the sender's rollable probes,
-    ambiguous labels are rejected), and the `roll.expr` handler in `ws.ts`
-    (probe mode writes a normal probe card with source kind `formula` and a
-    canonical-name label; the modifier travels as its own field). The dock's
-    `rollExpr` already sends the modifier separately for probe formulas.
-    Verified end to end over the WebSocket.
-  - **Built (dock):** `findNameToken`/`applyNameInsert` in `dice.ts`
-    (tested) and the picker in `FeedColumn.tsx`: suggestions follow the word
-    before the cursor, also inside a formula; Enter rolls a lone name as
-    before, Shift+Enter / Tab insert (quotes added where needed), inside a
-    formula Enter inserts until the typed word is a whole name and then sends;
-    a "+" button per row and a hint line; `/r` accepts probe formulas;
-    `/koop` and `/wettstreit` unchanged. Dice-sum cards show canonical names.
-  - **Built (card):** a probe formula with more than one part renders one
-    row per part (label, its dice, `= sum / target`, check/cross, targets
-    only for the roller and the GM) and the overall result below.
-  - **Still to build:** (1) favorites typed in Einstellungen have no picker
-    (quotes by hand); (2) name suggestions while typing do not mark ambiguous
-    labels (two weapons of one name): the server rejects them at roll time
-    with a clear message; (3) per-part marks use the raw dice, crit
-    confirmations only change the overall total.
-  - **Open:** which name kinds the picker offers (it offers whatever
-    `/api/characters/:id/probes` lists: attributes, base values, talents,
-    abilities, languages, weapons).
 - [sketch] make wiki-pages lockable to allow players protecting their character-pages etc.
   - in the same pass, the edit-log gets flooded with every single save a player makes. how can we reduce this so a single edit-session does not end in "version number 145" for example
 
+Inbox for raw feedback as it comes in. Drop new points here; they get refined and
+sorted into the priority sections above in a later pass. (Empty = all caught up.)
+
+## Mid-Prio
+
+- [ready] **Chat formulas: follow-ups** (the formula arithmetic itself shipped,
+  see the changelog). Remaining:
+   - The Würfel-Favoriten textarea in `Einstellungen.tsx` has no name picker,
+     so names and their quotes are typed by hand. The picker logic is pure and
+     reusable (`findNameToken`/`applyNameInsert`, `shared/src/dice.ts`).
+   - Name suggestions do not mark ambiguous labels (two weapons of one name, a
+     spell named like a talent); the server only rejects them at roll time
+     ("mehrdeutig"). Disambiguate in the suggestion list instead.
+   - Open question, not asked for yet: "Probe anfordern", Kooperationsprobe
+     and Wettstreit still take single probes only (`parseProbeSource` rejects
+     the `formula` source). Decide whether formulas should work there.
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of
   talents/skills). Not concepted at all yet: how much a pet sheet shares with
@@ -278,6 +208,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 - [sketch] **Liturgien catalogue** (waits until the catalogue content is finished): read
   the character's priest level to unlock Liturgien accordingly. Priest-level
   requirements are still not fleshed out.
+
 ## Unsorted ideas (treat all as [sketch])
 
 - FAQ - like a little manual or easy to miss features
