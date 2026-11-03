@@ -76,6 +76,46 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
+- [ready] **Wound tracking for marker/NPC tokens.** Wounds today are two
+  counters on `char_meta` (`small_wounds`/`big_wounds`), so only character
+  tokens have them (`board.ts:126` gives markers `wounds: null`;
+  `board.token.wounds.set` rejects markers). Concept (agreed): add
+  `small_wounds`/`big_wounds` columns to `board_tokens` (default 0, plain
+  `ALTER TABLE`), and branch `loadWounds`/`saveWounds`/`setTokenWounds` on
+  token kind: character tokens keep writing `char_meta`, markers write the
+  token row. Same message and ±1 UI, minus the "reject marker" check.
+  **Marker wounds are visible to everyone** (unlike character tokens, whose
+  wounds stay owner+GM only), so `woundsVisibleTo` must not redact them.
+  **Copy/paste of a marker carries its wounds.**
+- [ready] **Bug: GM overview shows every character as level 0.**
+  `overviewForChars` reads the stored `char_meta.stufe` (`characterData.ts`,
+  `stufe: meta.stufe ?? 0`), which nothing writes; the sheet derives the level
+  with `levelForAp(meta.ap)`. Fix: derive it the same way there. Keep the
+  unused `stufe`/`ap`/`apNextLevel` columns, only the shown value changes.
+- [onHold] **Signature spell: Erleichterung, and available for skills.** The
+  `ability` branch of `computeProbeForCharacter` (`diceSource.ts`) adds no
+  Erleichterung for any ability, and the signature flag is a pure marker
+  (`Ability.signatur`: "Boni später"). The single-slot rule already spans spells
+  and skills server-side; only `AbilityEditDialog` gates the checkbox with
+  `isMagisch`, and the skills tab shows no star. Blocked: the actual bonus
+  value/rule is undecided (derived from the ability's level via
+  `erleichterung()`, a flat value, or tied to Magierstufe). Once decided, the
+  work is small: a bonus term in that branch, ungate the checkbox, star on the
+  skills tab, show it in the roll breakdown.
+- [ready] **Arithmetic in free rolls and favorites** (e.g.
+  `Athletik+FF+(2*Akrobatik)`). The engine already exists: `shared/src/formula.ts`
+  (`+ - * /`, parentheses, unary minus, dice blocks), used by `/r` and energy
+  formulas, so no library is needed. Decided: this is a **dice-sum formula**,
+  not a probe. Each name resolves to a plain number and the result is
+  arithmetic, with no d20 triples or pass/fail (probe formulas stay `+`-only on
+  purpose, see the header of `formula.ts`). What is missing is identifier
+  resolution: `chatAttrResolver` (`ws.ts`) only knows attribute codes. To
+  settle while building: what each name means (talent = TaW, base values
+  AT/PA/BL/…), how names with spaces/umlauts tokenize (the tokenizer only
+  accepts letters), and whether dice favorites (`characters.dice_shortcuts`,
+  "Label: expression" lines) already go through the same parser; if not, route
+  them through it.
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
