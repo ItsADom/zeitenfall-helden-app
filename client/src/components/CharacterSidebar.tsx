@@ -47,8 +47,18 @@ const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round
 // rechts (Standard), am virtuellen Tisch links (VirtualTable.tsx). Zieh-Griff-
 // Richtung und Chevrons zeigen sonst in die falsche Richtung, wenn die Leiste
 // gespiegelt eingebaut wird.
-export default function CharacterSidebar({ side = 'right' }: { side?: 'left' | 'right' }) {
-  const [collapsed, toggle] = useCollapsed('sidebar');
+// `collapseKey`/`standardZu`: der Tisch führt seinen eigenen Eingeklappt-Zustand
+// (und startet zu), damit eine am Bogen getroffene Wahl ihn nicht aufdrängt.
+export default function CharacterSidebar({
+  side = 'right',
+  collapseKey = 'sidebar',
+  standardZu = false,
+}: {
+  side?: 'left' | 'right';
+  collapseKey?: string;
+  standardZu?: boolean;
+}) {
+  const [collapsed, toggle] = useCollapsed(collapseKey, standardZu);
   const [width, setWidth] = usePersistedState<number>('sidebar-w', DEFAULT_W);
   const w = clampW(width);
 

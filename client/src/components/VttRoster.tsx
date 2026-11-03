@@ -37,7 +37,7 @@ const DEFAULT_W = 280;
 const clampW = (n: number): number => Math.min(MAX_W, Math.max(MIN_W, Math.round(n)));
 
 export default function VttRoster({ groupId, cols, rows }: { groupId: number; cols: number; rows: number }) {
-  const [collapsed, toggle] = useCollapsed('vtt-roster');
+  const [collapsed, toggle] = useCollapsed('vtt-roster', true);
   const [width, setWidth] = usePersistedState<number>('vtt-roster-w', DEFAULT_W);
   const w = clampW(width);
   const [data, setData] = useState<RosterData | null>(null);

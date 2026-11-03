@@ -5173,7 +5173,7 @@ export default function VirtualTable() {
   } = useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
-  const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat');
+  const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat', true);
   const [chatWidth, setChatWidth] = usePersistedState<number>('vtt-chat-w', 300);
   const chatW = Math.min(520, Math.max(260, Math.round(chatWidth)));
 
@@ -5253,7 +5253,7 @@ export default function VirtualTable() {
           <VttRoster groupId={groupId} cols={boardSettings.cols} rows={boardSettings.rows} />
         ) : myCharId != null ? (
           <CharSheetProvider charId={myCharId}>
-            <CharacterSidebar side="left" />
+            <CharacterSidebar side="left" collapseKey="vtt-sidebar" standardZu />
           </CharSheetProvider>
         ) : (
           <p className="muted">Kein eigener Charakter in dieser Gruppe.</p>
