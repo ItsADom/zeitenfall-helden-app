@@ -96,7 +96,7 @@ export function AbilityTable({
     }
   };
 
-  // Der Signatur-Zauber (meistgenutzt) steht immer ganz oben — solange er im
+  // Das Markenzeichen (meistgenutzt) steht immer ganz oben — solange er im
   // aktuellen Filter überhaupt sichtbar ist. Er wird aus den Gruppen herausgelöst
   // und als angeheftete Zeile über allem gezeigt (nicht scroll-klebend).
   const sig = filtered.find((a) => a.signatur);
@@ -278,7 +278,7 @@ function AbilityRow({
   return (
     <tr className={pinned ? 'abil-pinned' : undefined}>
       <td>
-        {a.signatur && <span className="abil-sig-star" title={a.magisch ? 'Signatur-Zauber' : 'Signatur-Fähigkeit'}>★</span>}
+        {a.signatur && <span className="abil-sig-star" title="Markenzeichen">★</span>}
         <span className="abil-name">{a.name || '—'}</span>
         {a.passiv && <span className="abil-badge">passiv</span>}
         {grade > 1 && <span className="abil-badge">{abilityGradeLabel(grade)}</span>}
@@ -309,7 +309,7 @@ function AbilityRow({
           pz != null && (
             <>
               <BonusWert quellen={stats.quellen[elementProbeBonusKey(a.element)]}>
-                <span className="muted" title={signaturBonus ? `Signatur: +${signaturBonus} Erleichterung (2 je Würfel)` : undefined}>
+                <span className="muted" title={signaturBonus ? `Markenzeichen: Erleichterung +${signaturBonus} (2 je Würfel)` : undefined}>
                   {' '}
                   ({pz})
                 </span>

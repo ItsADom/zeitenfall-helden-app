@@ -200,7 +200,7 @@ export function abilityProbeZahl(
   return sum;
 }
 
-// Signatur-Fähigkeit/-Zauber: Erleichterung von 2 je beteiligtem Würfel — also
+// Markenzeichen: Erleichterung von 2 je beteiligtem Würfel — also
 // je Term im Probenausdruck, ein W20 pro Term (siehe `n` in diceSource.ts,
 // AT/PA/BL-Terme zählen mit). Eine Zahl auf die fertige Probe, wie die Boni auf
 // Talent-/Element-Proben, nicht über erleichterung()/TaW. 0 bei ungültigem

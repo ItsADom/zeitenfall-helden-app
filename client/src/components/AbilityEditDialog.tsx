@@ -271,7 +271,7 @@ export function AbilityEditDialog({
       </label>
       <label className="dlg-checkbox-row">
         <input type="checkbox" checked={signatur} onChange={(e) => setSignatur(e.target.checked)} />
-        Signatur-{isMagisch ? 'Zauber' : 'Fähigkeit'} (nur einer je Charakter, Zauber und Fähigkeiten zusammen; Erleichterung 2 je Würfel)
+        Markenzeichen (nur eines je Charakter, für Zauber und Fähigkeiten zusammen). Erleichtert die Probe um 2 je Würfel.
       </label>
       <div className="dlg-checkbox-row">
         <FavPin active={favorit} onClick={() => setFavorit((v) => !v)} />

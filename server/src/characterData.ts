@@ -2216,7 +2216,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
     resolvedDerivedByUid.set(uid, raw && chainValid(uid) ? raw : '');
   }
 
-  // Nur EIN Signatur-Zauber je Charakter: der erste markierte gewinnt.
+  // Nur EIN Markenzeichen je Charakter: der erste markierte gewinnt.
   let signaturVergeben = false;
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);

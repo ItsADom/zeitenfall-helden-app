@@ -120,7 +120,7 @@ export default function AbilityManagerPage() {
   const zauber = useMemo(() => abilities.filter((a) => a.magisch), [abilities]);
   const faehig = useMemo(() => abilities.filter((a) => !a.magisch), [abilities]);
 
-  // Signatur ist einzigartig: sobald ein Patch sie anfasst, gewinnt der
+  // Das Markenzeichen ist einzigartig: sobald ein Patch sie anfasst, gewinnt der
   // bearbeitete Eintrag und alle anderen werden zurückgesetzt — dieselbe
   // blunte Rundum-Zurücksetzung wie beim früheren Inline-Umschalter.
   const patch = (uid: string, p: Partial<Ability>) =>
@@ -474,7 +474,7 @@ function AbilityListPanel({ title, magisch, list, allAbilities, elements, katego
                 >
                   ⠿
                 </span>
-                {a.signatur && <span className="abil-sig-star" title={a.magisch ? 'Signatur-Zauber' : 'Signatur-Fähigkeit'}>★</span>}
+                {a.signatur && <span className="abil-sig-star" title="Markenzeichen">★</span>}
                 <span className="abil-name">{a.name || '—'}</span>
                 {magisch && a.element && <span className="muted">{a.element}</span>}
                 {a.kategorien.length > 0 && <span className="muted">{a.kategorien.join(', ')}</span>}

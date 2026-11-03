@@ -202,7 +202,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '2026-11-03',
     title: 'Wunden für Monster-Marken',
     added: [
-      'Der Signatur-Zauber gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe (ein Zauber mit drei Würfeln also +6), und zeigt sie in der Probenzahl und beim Würfeln. Die Signatur lässt sich jetzt auch für eine Fähigkeit wählen: Zauber und Fähigkeiten teilen sich weiterhin den einen Platz.',
+      'Der Signatur-Zauber heißt jetzt „Markenzeichen“ und gibt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe (ein Zauber mit drei Würfeln also +6). Sie steckt in der Probenzahl und wirkt beim Würfeln. Ein Markenzeichen lässt sich jetzt auch für eine Fähigkeit wählen: Zauber und Fähigkeiten teilen sich weiterhin den einen Platz.',
       'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
     ],
     fixed: [

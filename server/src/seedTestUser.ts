@@ -161,7 +161,7 @@ function fillRichCharacter(charId: number): void {
     {
       magisch: true, passiv: false, signatur: true, name: 'Ignifaxius', element: 'Feuer',
       kategorien: ['Kampfmagie'], stufe: 4, komplexitaet: 2, kosten: '4', probe: 'MU+KL+IN',
-      effekt: 'Feuerstrahl, 2W6 Schaden', notiz: 'Signaturzauber seit der Lehrzeit.',
+      effekt: 'Feuerstrahl, 2W6 Schaden', notiz: 'Markenzeichen seit der Lehrzeit.',
     },
     {
       magisch: true, passiv: false, signatur: false, name: 'Odem des Sturms', element: 'Luft',

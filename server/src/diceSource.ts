@@ -175,7 +175,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const attrParts = parts.filter((p): p is AttrCode => p !== 'AT' && p !== 'PA' && p !== 'BL');
       return {
         n: parts.length,
-        // + Signatur: 2 je beteiligtem Würfel (signaturErleichterung, rules.ts).
+        // + Markenzeichen: 2 je beteiligtem Würfel (signaturErleichterung, rules.ts).
         probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni) + (row.signatur ? signaturErleichterung(row.probe) : 0),
         label: row.name,
         attrParts: attrParts.length ? attrParts : undefined,
