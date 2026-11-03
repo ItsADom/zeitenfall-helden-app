@@ -6,6 +6,9 @@ import {
   detectTripleEvent,
   findCritTriggers,
   parseDiceExpression,
+  findNameToken,
+  applyNameInsert,
+  nameNeedsQuotes,
   parseRollFormula,
   parseDiceShortcuts,
   resolveExpressionRoll,
@@ -735,5 +738,84 @@ describe('parseDiceShortcuts with names', () => {
   it('treats a favorite built from names as valid', () => {
     const lines = parseDiceShortcuts('Kraftakt: Athletik+KK\nTreffer: 1w20+Athletik\nQuark: Athletik-KK');
     expect(lines.map((l) => (l.kind === 'shortcut' ? l.valid : null))).toEqual([true, true, false]);
+  });
+});
+
+describe('findNameToken', () => {
+  const at = (draft: string) => findNameToken(draft, draft.length);
+
+  it('finds a lone name, with and without a repeat prefix', () => {
+    expect(at('/r Athl')).toMatchObject({ query: 'Athl', quoted: false, lone: true, start: 3 });
+    expect(at('/roll Athl')).toMatchObject({ query: 'Athl', lone: true });
+    expect(at('/r 2xAthl')).toMatchObject({ query: 'Athl', lone: true, start: 5 });
+  });
+
+  it('finds the name after an operator or an opening parenthesis, not lone', () => {
+    expect(at('/r 1w20+Ath')).toMatchObject({ query: 'Ath', lone: false, start: 8 });
+    expect(at('/r Athletik+FF')).toMatchObject({ query: 'FF', lone: false });
+    expect(at('/r 2*(Ath')).toMatchObject({ query: 'Ath', lone: false });
+    expect(at('/r Athletik + Ak')).toMatchObject({ query: 'Ak', lone: false, start: 14 });
+  });
+
+  it('keeps inner spaces of a bare name', () => {
+    expect(at('/r Heilkunde Wu')).toMatchObject({ query: 'Heilkunde Wu', lone: true });
+  });
+
+  it('handles an open quote, including operator characters inside it', () => {
+    expect(at('/r "Hämmer/Keu')).toMatchObject({ query: 'Hämmer/Keu', quoted: true, lone: true, start: 3 });
+    expect(at('/r Athletik+"Schwert (A')).toMatchObject({ query: 'Schwert (A', quoted: true, lone: false });
+  });
+
+  it('finds nothing after a closed quote, an operator, a number or a dice block', () => {
+    expect(at('/r "Schwert (AT)"')).toBeNull();
+    expect(at('/r Athletik+')).toBeNull();
+    expect(at('/r Athletik+5')).toBeNull();
+    expect(at('/r 2w6')).toBeNull();
+    expect(at('/r w20')).toBeNull();
+    expect(at('/r 2w6+d20')).toBeNull();
+  });
+
+  it('is only active for /r, and not inside the title after #', () => {
+    expect(at('Athl')).toBeNull();
+    expect(at('/me Athl')).toBeNull();
+    expect(at('/r Athletik #Ath')).toBeNull();
+    expect(at('/r ')).toBeNull();
+  });
+
+  it('follows the cursor, not the end of the text', () => {
+    const draft = '/r Ath+FF';
+    expect(findNameToken(draft, 6)).toMatchObject({ query: 'Ath', end: 6 });
+  });
+});
+
+describe('applyNameInsert', () => {
+  const insert = (draft: string, name: string, caret = draft.length) => {
+    const token = findNameToken(draft, caret)!;
+    return applyNameInsert(draft, token, name);
+  };
+
+  it('replaces the typed word, quoting only where needed', () => {
+    expect(insert('/r Ath', 'Athletik')).toEqual({ text: '/r Athletik', caret: 11 });
+    expect(insert('/r 1w20+Heil', 'Heilkunde Wunden').text).toBe('/r 1w20+Heilkunde Wunden');
+    expect(insert('/r Hämm', 'Hämmer/Keulen').text).toBe('/r "Hämmer/Keulen"');
+    expect(insert('/r 2xAth', 'Athletik').text).toBe('/r 2xAthletik');
+  });
+
+  it('keeps what follows the cursor and swallows a duplicate closing quote', () => {
+    expect(insert('/r Ath+FF', 'Athletik', 6)).toEqual({ text: '/r Athletik+FF', caret: 11 });
+    expect(insert('/r "Hämm"', 'Hämmer/Keulen', 8).text).toBe('/r "Hämmer/Keulen"');
+  });
+
+  it('the result parses as a formula', () => {
+    expect(parseRollFormula(insert('/r Athletik+Ak', 'Akrobatik').text.slice(3))?.mode).toBe('probe');
+    expect(parseRollFormula(insert('/r 1w20+Sch', 'Schwert (AT)').text.slice(3))?.mode).toBe('dice');
+  });
+
+  it('nameNeedsQuotes', () => {
+    expect(nameNeedsQuotes('Athletik')).toBe(false);
+    expect(nameNeedsQuotes('Heilkunde Wunden')).toBe(false);
+    expect(nameNeedsQuotes('Großschilde')).toBe(false);
+    expect(nameNeedsQuotes('Schwert (AT)')).toBe(true);
+    expect(nameNeedsQuotes('Brett-/Kartenspiel')).toBe(true);
   });
 });

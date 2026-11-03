@@ -24,6 +24,7 @@ import type {
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
 import {
+  ATTR_ROW_CODES,
   BOARD_COVER_BY_KEY,
   BOARD_STATUS_BY_KEY,
   MASTER_TABLE,
@@ -50,6 +51,7 @@ import {
   tokenCells,
   TOKEN_ICON_BY_KEY,
   waffenStatWert,
+  type AttrRowCode,
   type DiceExpression,
 } from 'shared';
 import crypto from 'node:crypto';
@@ -869,6 +871,13 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // Nur bei 2+ Wiederholungen überhaupt gruppieren — ein einzelner Wurf
       // braucht keinen gemeinsamen Rahmen um sich selbst.
       const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
+      // Der Eintrag zeigt Namen so, wie sie heißen ("Athletik", "Schwert (AT)"),
+      // nicht großgeschrieben wie im geparsten Baum; Attributs-Kürzel (MU, FF)
+      // bleiben, wie getippt. Aufgelöst wurde schon vorher, am Originalbaum.
+      const shownExpression =
+        resolvedNames.size > 0
+          ? mapNames(expression, (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? name : (resolvedNames.get(name)?.label ?? name)))
+          : expression;
       for (let i = 0; i < repeat; i++) {
         const result = performExpressionRoll(expression, resolveId);
         if (!result) {
@@ -886,7 +895,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         const roll: ExpressionRollPayload = {
           mode: 'expr',
           label,
-          expression: result.expression,
+          expression: shownExpression,
           dice: result.dice,
           confirmations: result.confirmations,
           pending: result.pending,

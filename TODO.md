@@ -134,17 +134,25 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
     canonical-name label; the modifier travels as its own field). The dock's
     `rollExpr` already sends the modifier separately for probe formulas.
     Verified end to end over the WebSocket.
-  - **Still to build (client):** (1) the dock still validates `/r` with
-    `parseDiceExpression` and treats the text as a probe *search*, so
-    `/r Athletik+FF` is not accepted there yet (typing it into a favorite
-    works); (2) the token-aware picker with the Enter / Shift+Enter / Tab
-    scheme and "+" button, hint line; (3) the feed card showing the expanded
-    formula with each name's target; (4) a note for the changelog once it is
-    player-visible. Favorites typed in Einstellungen have no picker, quotes by
-    hand.
+  - **Built (dock):** `findNameToken`/`applyNameInsert` in `dice.ts`
+    (tested) and the picker in `FeedColumn.tsx`: suggestions follow the word
+    before the cursor, also inside a formula; Enter rolls a lone name as
+    before, Shift+Enter / Tab insert (quotes added where needed), inside a
+    formula Enter inserts until the typed word is a whole name and then sends;
+    a "+" button per row and a hint line; `/r` accepts probe formulas;
+    `/koop` and `/wettstreit` unchanged. Dice-sum cards show canonical names.
+  - **Still to build:** (1) the feed card for a probe formula shows only the
+    canonical formula and the total target; expanding it with each name's
+    target (`Athletik (31) + FF (12) + 2×Akrobatik (33)`) would need the
+    per-name targets stored on the roll; (2) favorites typed in
+    Einstellungen have no picker (quotes by hand); (3) name suggestions
+    while typing do not mark ambiguous labels (two weapons of one name):
+    the server rejects them at roll time with a clear message.
   - **Open:** which name kinds the picker offers (it offers whatever
     `/api/characters/:id/probes` lists: attributes, base values, talents,
     abilities, languages, weapons).
+- [sketch] make wiki-pages lockable to allow players protecting their character-pages etc.
+  - in the same pass, the edit-log gets flooded with every single save a player makes. how can we reduce this so a single edit-session does not end in "version number 145" for example
 
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of

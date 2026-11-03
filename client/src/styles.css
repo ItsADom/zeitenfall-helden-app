@@ -5015,6 +5015,31 @@ body.resizing-dice {
   margin: 6px 8px;
   font-size: 12px;
 }
+/* "+" je Vorschlag im Chat: fügt den Namen in die Formel ein, statt ihn zu
+   würfeln (für Touch, wo es kein Shift+Enter gibt). */
+.dice-suggest-insert {
+  flex: none;
+  align-self: center;
+  min-width: 24px;
+  padding: 0 6px;
+  line-height: 20px;
+  font-size: 14px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.dice-suggest-insert:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+.dice-suggest-hint {
+  margin: 4px 8px 2px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+}
 .dice-flyout-label {
   margin: 4px 8px 2px;
   font-size: 11px;

@@ -422,6 +422,99 @@ export function parseRollFormula(expr: string): RollFormula | null {
   return evaluateProbeFormula(parsed, () => ({ n: 1, probeZahl: 1 })).ok ? { mode: 'probe', ast: parsed } : null;
 }
 
+// --- Namens-Auswahl im Chat ("/r Athl" -> Vorschläge) ---
+//
+// Der Chat schlägt beim Tippen Probe-Namen vor. Ob ein Name direkt gewürfelt
+// oder in die Formel EINGEFÜGT wird, hängt davon ab, WO er steht: ein
+// allein stehender Name ("/r Athl") ist eine Probe für sich, mitten in einer
+// Formel ("/r 1w20+Ath") gibt es nichts direkt zu würfeln. Diese reinen
+// Funktionen finden das gerade getippte Wort und setzen eine Wahl ein.
+
+export interface NameToken {
+  /** Beginn im Entwurf, einschließlich einer öffnenden Anführungszeichen. */
+  start: number;
+  /** Ende (Cursor). */
+  end: number;
+  /** Bisher Getipptes, ohne Anführungszeichen. */
+  query: string;
+  quoted: boolean;
+  /** Außer einem optionalen "Nx" steht nichts vor dem Wort: eine Probe für sich. */
+  lone: boolean;
+}
+
+const PLAIN_NAME = /^[A-Za-zÄÖÜäöüß]+(?: [A-Za-zÄÖÜäöüß]+)*$/;
+
+/** Namen mit etwas anderem als Buchstaben und Leerzeichen brauchen Anführungszeichen. */
+export function nameNeedsQuotes(name: string): boolean {
+  return !PLAIN_NAME.test(name);
+}
+
+/**
+ * Das Wort, das vor dem Cursor gerade getippt wird, wenn der Entwurf ein
+ * "/r"-Ausdruck ist; sonst null. Wort = alles seit dem letzten Operator oder
+ * der letzten öffnenden Klammer (Operatoren in Anführungszeichen zählen nicht)
+ * bzw. seit einer noch offenen Anführungszeichen. Ein Würfelblock ("2w6") oder
+ * eine Zahl ist kein Name. Ein "#" davor (Titel) und ein führendes "Nx" werden
+ * übersprungen.
+ */
+export function findNameToken(draft: string, caret: number): NameToken | null {
+  const cmd = /^\/(?:r|roll)\s+/i.exec(draft);
+  if (!cmd || caret < cmd[0].length || caret > draft.length) return null;
+  const exprStart = cmd[0].length;
+  const before = draft.slice(exprStart, caret);
+  if (before.includes('#')) return null;
+  const repeat = /^\s*\d+[xX]/.exec(before);
+  const prefixLen = repeat ? repeat[0].length : 0;
+  const body = before.slice(prefixLen);
+
+  let inQuote = false;
+  let quoteStart = -1;
+  let boundary = 0;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c === '"') {
+      inQuote = !inQuote;
+      if (inQuote) quoteStart = i;
+    } else if (!inQuote && '+-*/('.includes(c)) {
+      boundary = i + 1;
+    }
+  }
+
+  let startRel: number;
+  let query: string;
+  let quoted = false;
+  if (inQuote) {
+    startRel = quoteStart;
+    query = body.slice(quoteStart + 1);
+    quoted = true;
+  } else {
+    const raw = body.slice(boundary);
+    if (raw.includes('"')) return null; // gerade geschlossenes Zitat: nichts mehr zu tippen
+    const lead = raw.length - raw.trimStart().length;
+    startRel = boundary + lead;
+    query = raw.trimStart();
+    if (!PLAIN_NAME.test(query.trimEnd())) return null; // Zahl, Würfelblock, leer
+    if (/^[wWdD]\d*$/.test(query.trim())) return null; // "w", "w2", "d20" ...
+  }
+  if (query.trim() === '') return null;
+  return {
+    start: exprStart + prefixLen + startRel,
+    end: caret,
+    query,
+    quoted,
+    lone: body.slice(0, startRel).trim() === '',
+  };
+}
+
+/** Ersetzt das Wort durch `name` (mit Anführungszeichen, wo nötig); liefert Text und neue Cursor-Position. */
+export function applyNameInsert(draft: string, token: NameToken, name: string): { text: string; caret: number } {
+  const insert = nameNeedsQuotes(name) ? `"${name}"` : name;
+  const after = draft.slice(token.end);
+  // Ein schon getipptes schließendes Anführungszeichen nicht doppelt stehen lassen.
+  const rest = token.quoted && after.startsWith('"') ? after.slice(1) : after;
+  return { text: draft.slice(0, token.start) + insert + rest, caret: token.start + insert.length };
+}
+
 // Ein führendes "Nx" wiederholt den ganzen Wurf N-mal als eine gemeinsame,
 // zusammengefasste Feed-Karte (Chat-only, siehe TODO.md). Wird VOR dem
 // eigentlichen Ausdruck abgetrennt — unabhängig vom Label-Trenner "#", der am
