@@ -31,7 +31,12 @@ export type ProbeSource =
   | { kind: 'waffenlos'; technik: 'Raufen' | 'Ringen'; probe: 'at' | 'pa' | 'bl' }
   // Basiswert-Probe: ein W20 gegen den Basiswert selbst — Ausweichen (die
   // einzige Verteidigungsprobe ohne eigenen Waffen-Bezug) und Initiative.
-  | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen' | 'ini'> };
+  | { kind: 'baseValue'; key: Extract<BaseValueKey, 'ausweichen' | 'ini'> }
+  // Freie Formel aus Probe-Namen ("Athletik+FF+(2*Akrobatik)", siehe
+  // evaluateProbeFormula in formula.ts). Nur als Quelle eines bereits
+  // gewürfelten Eintrags: der Server nimmt sie nie als Anfrage an
+  // (parseProbeSource kennt sie nicht), die Formel läuft über roll.expr.
+  | { kind: 'formula'; expression: string };
 
 export interface ChatFeedEntry {
   id: number;
@@ -339,6 +344,14 @@ export type ClientToServerMessage =
       charId: number | null;
       table?: 'master' | 'wild';
       targetUserId?: number;
+      /**
+       * Nur für eine Formel OHNE Würfelblock (eine Probe gegen Probe-Namen):
+       * die situative Erleichterung/Erschwernis wirkt dort wie bei roll.probe
+       * auf die geworfene Summe, nicht als Text an der Formel (das verschöbe
+       * das Ziel in die falsche Richtung). Bei einem Würfelsummen-Ausdruck
+       * ignoriert, dort hängt der Client sie weiterhin an den Ausdruck.
+       */
+      modifier?: number;
       /**
        * „/i" — the roll is announced to the whole table (fanfare, dimmed
        * screen, falling dice) before it appears in the chat. Spielleitung only;

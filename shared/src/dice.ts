@@ -23,7 +23,7 @@
 // nothing is pending. Until then its success/failure is deliberately not
 // decided, since a confirmed 20 would override it anyway.
 
-import { countDice, diceSidesFor, parseFormula, type FormulaNode } from './formula.js';
+import { collectNames, countDice, diceSidesFor, evaluateProbeFormula, parseFormula, type FormulaNode } from './formula.js';
 
 export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_GROUPS = 6;
@@ -402,6 +402,26 @@ export function parseDiceExpression(expr: string): DiceExpression | null {
   return ast;
 }
 
+/**
+ * What a free formula turns into when rolled:
+ *  - 'dice'  — at least one dice block: a dice-sum roll (names, if any, are
+ *              plain numbers, no success/fail), see parseDiceExpression;
+ *  - 'probe' — no dice block but at least one name: a probe against the names'
+ *              combined target, see evaluateProbeFormula.
+ * The names themselves are resolved later, against the rolling character;
+ * this only checks the syntax and, for a probe, that the SHAPE is allowed.
+ */
+export type RollFormula = { mode: 'dice' | 'probe'; ast: DiceExpression };
+
+export function parseRollFormula(expr: string): RollFormula | null {
+  const ast = parseDiceExpression(expr);
+  if (ast) return { mode: 'dice', ast };
+  const parsed = parseFormula(expr.trim());
+  if (!parsed || countDice(parsed).totalDice > 0 || collectNames(parsed).length === 0) return null;
+  // Any resolvable stand-in works to check the shape.
+  return evaluateProbeFormula(parsed, () => ({ n: 1, probeZahl: 1 })).ok ? { mode: 'probe', ast: parsed } : null;
+}
+
 // Ein führendes "Nx" wiederholt den ganzen Wurf N-mal als eine gemeinsame,
 // zusammengefasste Feed-Karte (Chat-only, siehe TODO.md). Wird VOR dem
 // eigentlichen Ausdruck abgetrennt — unabhängig vom Label-Trenner "#", der am
@@ -518,7 +538,7 @@ export function parseDiceShortcuts(raw: string): DiceShortcutLine[] {
     }
     const label = line.slice(0, idx).trim();
     const expression = line.slice(idx + 1).trim();
-    const valid = label !== '' && parseDiceExpression(expression) !== null;
+    const valid = label !== '' && parseRollFormula(expression) !== null;
     out.push({ kind: 'shortcut', label, expression, valid });
   }
   return out;

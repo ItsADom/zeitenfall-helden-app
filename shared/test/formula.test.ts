@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { countDice, diceSidesFor, evaluateRolled, evaluateStatic, formulaToText, parseFormula, type FormulaNode } from '../src/formula.js';
+import {
+  collectNames,
+  countDice,
+  diceSidesFor,
+  evaluateProbeFormula,
+  evaluateRolled,
+  evaluateStatic,
+  formulaToText,
+  mapNames,
+  parseFormula,
+  type FormulaNode,
+  type ProbeTerm,
+} from '../src/formula.js';
 
 describe('parseFormula', () => {
   it('parses a plain number', () => {
@@ -154,5 +166,116 @@ describe('formulaToText', () => {
   it('round-trips through parseFormula for a nested expression', () => {
     const ast = parseFormula('2*(1w6+3)-1w4')!;
     expect(parseFormula(formulaToText(ast, 'w'))).toEqual(ast);
+  });
+});
+
+describe('names: bare, spaced and quoted', () => {
+  it('reads a bare name with inner spaces as ONE identifier', () => {
+    expect(parseFormula('Heilkunde Wunden+FF')).toEqual({
+      kind: 'bin',
+      op: '+',
+      left: { kind: 'id', name: 'HEILKUNDE WUNDEN' },
+      right: { kind: 'id', name: 'FF' },
+    });
+  });
+
+  it('collapses extra whitespace inside a name', () => {
+    expect(parseFormula('Heilkunde   Wunden')).toEqual({ kind: 'id', name: 'HEILKUNDE WUNDEN' });
+  });
+
+  it('accepts sharp s in a bare name', () => {
+    expect(parseFormula('Großschilde')).toEqual({ kind: 'id', name: 'GROSSSCHILDE' });
+  });
+
+  it('reads a quoted name with operator characters inside', () => {
+    expect(parseFormula('"Hämmer/Keulen"+5')).toEqual({
+      kind: 'bin',
+      op: '+',
+      left: { kind: 'id', name: 'HÄMMER/KEULEN' },
+      right: { kind: 'num', value: 5 },
+    });
+    expect(parseFormula('"Schwert (AT)"')).toEqual({ kind: 'id', name: 'SCHWERT (AT)' });
+  });
+
+  it('rejects an unterminated or empty quote', () => {
+    expect(parseFormula('"Athletik')).toBeNull();
+    expect(parseFormula('""')).toBeNull();
+  });
+
+  it('still rejects two terms with no operator between them', () => {
+    expect(parseFormula('MU 5')).toBeNull();
+    expect(parseFormula('(MU)(KL)')).toBeNull();
+  });
+
+  it('keeps dice blocks and names apart', () => {
+    expect(parseFormula('1w20+Athletik')).toEqual({
+      kind: 'bin',
+      op: '+',
+      left: { kind: 'dice', count: 1, sides: 20 },
+      right: { kind: 'id', name: 'ATHLETIK' },
+    });
+  });
+
+  it('renders plain names bare and others quoted, and round-trips', () => {
+    const ast = parseFormula('Heilkunde Wunden+"Hämmer/Keulen"*2')!;
+    expect(formulaToText(ast, 'w')).toBe('HEILKUNDE WUNDEN+"HÄMMER/KEULEN"*2');
+    expect(parseFormula(formulaToText(ast, 'w'))).toEqual(ast);
+  });
+
+  it('collects each name once and can rename them', () => {
+    const ast = parseFormula('FF+FF+"A-B"')!;
+    expect(collectNames(ast)).toEqual(['FF', 'A-B']);
+    expect(formulaToText(mapNames(ast, (n) => n.toLowerCase()), 'w')).toBe('ff+ff+"a-b"');
+  });
+});
+
+describe('evaluateProbeFormula', () => {
+  const terms: Record<string, ProbeTerm> = {
+    ATHLETIK: { n: 3, probeZahl: 40 },
+    AKROBATIK: { n: 3, probeZahl: 36 },
+    FF: { n: 1, probeZahl: 12 },
+  };
+  const resolve = (name: string): ProbeTerm | null => terms[name] ?? null;
+  const run = (text: string) => evaluateProbeFormula(parseFormula(text)!, resolve);
+
+  it('adds targets and counts one d20 per attribute term (the multiplier scales only the target)', () => {
+    expect(run('Athletik+FF+(2*Akrobatik)')).toEqual({ ok: true, n: 7, probeZahl: 124 });
+  });
+
+  it('a lone name is its own probe', () => {
+    expect(run('Athletik')).toEqual({ ok: true, n: 3, probeZahl: 40 });
+  });
+
+  it('constants only shift the target', () => {
+    expect(run('Athletik+5')).toEqual({ ok: true, n: 3, probeZahl: 45 });
+    expect(run('5+Athletik')).toEqual({ ok: true, n: 3, probeZahl: 45 });
+    expect(run('Athletik-5')).toEqual({ ok: true, n: 3, probeZahl: 35 });
+  });
+
+  it('a name can be scaled by a constant both ways, rounding the target up', () => {
+    expect(run('Athletik*2')).toEqual({ ok: true, n: 3, probeZahl: 80 });
+    expect(run('2*Athletik')).toEqual({ ok: true, n: 3, probeZahl: 80 });
+    expect(run('FF/5')).toEqual({ ok: true, n: 1, probeZahl: 3 });
+  });
+
+  it('the same name twice counts its dice twice', () => {
+    expect(run('FF+FF')).toEqual({ ok: true, n: 2, probeZahl: 24 });
+  });
+
+  it('rejects shapes without a meaningful dice count', () => {
+    expect(run('Athletik-FF')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('Athletik*FF')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('5/FF')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('-Athletik')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('Athletik/0')).toEqual({ ok: false, reason: 'shape' });
+  });
+
+  it('rejects a formula without any name, and one with a dice block', () => {
+    expect(run('5+3')).toEqual({ ok: false, reason: 'shape' });
+    expect(run('Athletik+1w6')).toEqual({ ok: false, reason: 'shape' });
+  });
+
+  it('reports the first unknown name', () => {
+    expect(run('Athletik+Fliegen')).toEqual({ ok: false, reason: 'unknown', name: 'FLIEGEN' });
   });
 });

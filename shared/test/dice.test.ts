@@ -6,6 +6,7 @@ import {
   detectTripleEvent,
   findCritTriggers,
   parseDiceExpression,
+  parseRollFormula,
   parseDiceShortcuts,
   resolveExpressionRoll,
   resolveProbeRoll,
@@ -701,5 +702,38 @@ describe('detectTripleEvent', () => {
 
   it('accepts a parallel sides array as long as every die is a d20', () => {
     expect(detectTripleEvent([20, 20, 20], [20, 20, 20])).toBe('abyss');
+  });
+});
+
+describe('parseRollFormula', () => {
+  it('a formula with a dice block is a dice roll, names included', () => {
+    expect(parseRollFormula('2w6+5')?.mode).toBe('dice');
+    expect(parseRollFormula('1w20+Athletik')?.mode).toBe('dice');
+    expect(parseRollFormula('1w20+"Schwert (AT)"')?.mode).toBe('dice');
+  });
+
+  it('a formula of names only is a probe, no dice block needed', () => {
+    expect(parseRollFormula('Athletik')?.mode).toBe('probe');
+    expect(parseRollFormula('Athletik+FF+(2*Akrobatik)')?.mode).toBe('probe');
+    expect(parseRollFormula('Heilkunde Wunden+3')?.mode).toBe('probe');
+  });
+
+  it('rejects numbers only, bad syntax and probe shapes with no meaningful dice count', () => {
+    expect(parseRollFormula('5')).toBeNull();
+    expect(parseRollFormula('5+3')).toBeNull();
+    expect(parseRollFormula('')).toBeNull();
+    expect(parseRollFormula('Athletik-FF')).toBeNull();
+    expect(parseRollFormula('Athletik+')).toBeNull();
+  });
+
+  it('keeps the dice limits for dice rolls', () => {
+    expect(parseRollFormula('21w6+Athletik')).toBeNull();
+  });
+});
+
+describe('parseDiceShortcuts with names', () => {
+  it('treats a favorite built from names as valid', () => {
+    const lines = parseDiceShortcuts('Kraftakt: Athletik+KK\nTreffer: 1w20+Athletik\nQuark: Athletik-KK');
+    expect(lines.map((l) => (l.kind === 'shortcut' ? l.valid : null))).toEqual([true, true, false]);
   });
 });

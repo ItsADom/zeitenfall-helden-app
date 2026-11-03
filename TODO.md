@@ -125,16 +125,26 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
     the single grammar; favorites (`parseDiceShortcuts`) and `/r` share it,
     names are resolved at roll time with the sender's character
     (`chatAttrResolver` in `ws.ts` only knows attribute codes today).
-  - **Still open, settle before building:** (1) which name kinds beyond
-    attributes and talents (abilities/spells yes? languages need
-    Sprechen/Schreiben, combat talents have no formula); (2) allowed
-    operators on names: proposal is `+` between names, `*` by constants,
-    `+`/`-` constants only, since `Athletik-FF` or `Athletik/2` have no
-    meaningful dice count; (3) how the feed card shows it (proposal:
-    expanded `Athletik (40) + FF (12) + 2×Akrobatik (36)`); (4) typing aid:
-    name suggestions inside the formula (the dock already suggests probes
-    while typing).
-## Mid-Prio
+  - **Built (parser + server):** `formula.ts` (quoted/spaced names,
+    `evaluateProbeFormula`, `collectNames`/`mapNames`), `parseRollFormula`
+    in `dice.ts` (also used for favorite validity), `makeNameLookup` in
+    `diceSource.ts` (names resolve against the sender's rollable probes,
+    ambiguous labels are rejected), and the `roll.expr` handler in `ws.ts`
+    (probe mode writes a normal probe card with source kind `formula` and a
+    canonical-name label; the modifier travels as its own field). The dock's
+    `rollExpr` already sends the modifier separately for probe formulas.
+    Verified end to end over the WebSocket.
+  - **Still to build (client):** (1) the dock still validates `/r` with
+    `parseDiceExpression` and treats the text as a probe *search*, so
+    `/r Athletik+FF` is not accepted there yet (typing it into a favorite
+    works); (2) the token-aware picker with the Enter / Shift+Enter / Tab
+    scheme and "+" button, hint line; (3) the feed card showing the expanded
+    formula with each name's target; (4) a note for the changelog once it is
+    player-visible. Favorites typed in Einstellungen have no picker, quotes by
+    hand.
+  - **Open:** which name kinds the picker offers (it offers whatever
+    `/api/characters/:id/probes` lists: attributes, base values, talents,
+    abilities, languages, weapons).
 
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
   or mount with its own small sheet (attributes, maybe a handful of

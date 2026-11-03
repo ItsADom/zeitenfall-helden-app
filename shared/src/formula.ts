@@ -34,6 +34,14 @@ const MAX_NUMBER_LITERAL_DIGITS = 15;
 const MIN_DICE_SIDES = 2;
 const MAX_DICE_SIDES = 1000;
 
+// A name is compared case-insensitively with collapsed whitespace; the AST
+// stores it upper-cased (so "mu" and "MU" are one identifier). "ß" upper-cases
+// to "SS" on BOTH sides of a comparison, which is all that matters.
+export const MAX_NAME_LENGTH = 60;
+export function normalizeName(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
 type Token =
   | { t: 'num'; v: number }
   | { t: 'dice'; count: number; sides: number }
@@ -73,9 +81,25 @@ function tokenize(expr: string): Token[] | null {
       i += numMatch[0].length;
       continue;
     }
-    const idMatch = /^[A-Za-zÄÖÜäöü]+/.exec(rest);
+    // Quoted name: anything but a quote, so names with "/", "-", "(" ... work
+    // ("Hämmer/Keulen", "Schwert (AT)"). Inserted automatically by the chat's
+    // name picker, never needed for plain names.
+    const quotedMatch = /^"([^"]+)"/.exec(rest);
+    if (quotedMatch) {
+      const name = normalizeName(quotedMatch[1]);
+      if (name === '' || name.length > MAX_NAME_LENGTH) return null;
+      toks.push({ t: 'id', v: name });
+      i += quotedMatch[0].length;
+      continue;
+    }
+    // Bare name: letters, and spaces BETWEEN letters ("Heilkunde Wunden").
+    // Two names without an operator in between are never valid, so an inner
+    // space is unambiguous.
+    const idMatch = /^[A-Za-zÄÖÜäöüß]+(?: +[A-Za-zÄÖÜäöüß]+)*/.exec(rest);
     if (idMatch) {
-      toks.push({ t: 'id', v: idMatch[0].toUpperCase() });
+      const name = normalizeName(idMatch[0]);
+      if (name.length > MAX_NAME_LENGTH) return null;
+      toks.push({ t: 'id', v: name });
       i += idMatch[0].length;
       continue;
     }
@@ -290,6 +314,8 @@ export function evaluateRolled(
   return total === null || !Number.isFinite(total) ? null : { total: Math.ceil(total), dice: ctx.dice };
 }
 
+const BARE_NAME = /^[A-Za-zÄÖÜäöüß]+(?: [A-Za-zÄÖÜäöüß]+)*$/;
+
 function precedence(op: '+' | '-' | '*' | '/'): number {
   return op === '+' || op === '-' ? 1 : 2;
 }
@@ -308,7 +334,7 @@ export function formulaToText(node: FormulaNode, diceCode: 'w' | 'd'): string {
       case 'num':
         return String(n.value);
       case 'id':
-        return n.name;
+        return BARE_NAME.test(n.name) ? n.name : `"${n.name}"`;
       case 'dice':
         return `${n.count}${diceCode}${n.sides}`;
       case 'neg':
@@ -323,4 +349,114 @@ export function formulaToText(node: FormulaNode, diceCode: 'w' | 'd'): string {
       }
     }
   }
+}
+
+/** Every identifier in the tree, in encounter order, without duplicates. */
+export function collectNames(ast: FormulaNode): string[] {
+  const seen = new Set<string>();
+  const walk = (n: FormulaNode): void => {
+    switch (n.kind) {
+      case 'id':
+        seen.add(n.name);
+        return;
+      case 'neg':
+        walk(n.operand);
+        return;
+      case 'bin':
+        walk(n.left);
+        walk(n.right);
+        return;
+      default:
+        return;
+    }
+  };
+  walk(ast);
+  return [...seen];
+}
+
+/** Same tree with every identifier replaced by `fn(name)`, e.g. canonical display names. */
+export function mapNames(ast: FormulaNode, fn: (name: string) => string): FormulaNode {
+  switch (ast.kind) {
+    case 'id':
+      return { kind: 'id', name: fn(ast.name) };
+    case 'neg':
+      return { kind: 'neg', operand: mapNames(ast.operand, fn) };
+    case 'bin':
+      return { kind: 'bin', op: ast.op, left: mapNames(ast.left, fn), right: mapNames(ast.right, fn) };
+    default:
+      return ast;
+  }
+}
+
+/** What a name stands for in a probe formula: how many d20s it brings and its target number. */
+export interface ProbeTerm {
+  n: number;
+  probeZahl: number;
+}
+
+export type ProbeFormulaResult =
+  | { ok: true; n: number; probeZahl: number }
+  | { ok: false; reason: 'shape' }
+  | { ok: false; reason: 'unknown'; name: string };
+
+interface ProbePart {
+  value: number;
+  n: number;
+  hasName: boolean;
+}
+
+/**
+ * A formula WITHOUT any dice block, built from probe names, is a probe: the
+ * names' targets are combined arithmetically into one target, and one d20 is
+ * rolled per attribute term the names stand for (attribute 1, talent 3, ...).
+ * Constants and multipliers only change the target, never the dice count, so
+ * `Athletik+FF+(2*Akrobatik)` with 40/12/36 is 3+1+3 = 7 d20s against 124.
+ *
+ * The shape is restricted to what has a meaningful dice count: names combine
+ * with `+`; a name may be scaled by a constant (`*`, or `/` on the right) and
+ * shifted by constants (`+`, `-`); never `name-name`, `name*name`, `5/name` or
+ * a negated name. `resolve` returns null for an unknown name. Rounds the
+ * target up, like every other derived value.
+ */
+export function evaluateProbeFormula(ast: FormulaNode, resolve: (name: string) => ProbeTerm | null): ProbeFormulaResult {
+  let unknown: string | null = null;
+  const walk = (node: FormulaNode): ProbePart | null => {
+    switch (node.kind) {
+      case 'num':
+        return { value: node.value, n: 0, hasName: false };
+      case 'dice':
+        return null;
+      case 'id': {
+        const term = resolve(node.name);
+        if (!term) {
+          unknown = node.name;
+          return null;
+        }
+        return { value: term.probeZahl, n: term.n, hasName: true };
+      }
+      case 'neg': {
+        const v = walk(node.operand);
+        return v && !v.hasName ? { value: -v.value, n: 0, hasName: false } : null;
+      }
+      case 'bin': {
+        const l = walk(node.left);
+        const r = l && walk(node.right);
+        if (!l || !r) return null;
+        switch (node.op) {
+          case '+':
+            return { value: l.value + r.value, n: l.n + r.n, hasName: l.hasName || r.hasName };
+          case '-':
+            return r.hasName ? null : { value: l.value - r.value, n: l.n, hasName: l.hasName };
+          case '*':
+            return l.hasName && r.hasName ? null : { value: l.value * r.value, n: l.n + r.n, hasName: l.hasName || r.hasName };
+          case '/':
+            return r.hasName || r.value === 0 ? null : { value: l.value / r.value, n: l.n, hasName: l.hasName };
+        }
+      }
+    }
+  };
+  const total = walk(ast);
+  if (unknown !== null) return { ok: false, reason: 'unknown', name: unknown };
+  if (!total || !total.hasName || total.n < 1 || !Number.isFinite(total.value)) return { ok: false, reason: 'shape' };
+  return { ok: true, n: total.n, probeZahl: Math.ceil(total.value) };
 }

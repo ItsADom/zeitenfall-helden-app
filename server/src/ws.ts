@@ -24,21 +24,25 @@ import type {
 } from 'shared';
 import type { RolledConfirmation } from 'shared';
 import {
-  ATTR_ROW_CODES,
   BOARD_COVER_BY_KEY,
   BOARD_STATUS_BY_KEY,
   MASTER_TABLE,
   WILD_MAGIC_TABLE,
   activeTurnOrder,
-  attrMax,
   cellKey,
+  collectNames,
+  evaluateProbeFormula,
+  formulaToText,
+  mapNames,
   effektiverSchaden,
   handRs,
   kombiniereFormeln,
+  MAX_DICE_COUNT,
   MAX_REPEAT_COUNT,
   overlayCell,
   parseCellKey,
   parseDiceExpression,
+  parseRollFormula,
   parseTileValue,
   resolveExpressionRoll,
   resolveProbeRoll,
@@ -46,7 +50,6 @@ import {
   tokenCells,
   TOKEN_ICON_BY_KEY,
   waffenStatWert,
-  type AttrRowCode,
   type DiceExpression,
 } from 'shared';
 import crypto from 'node:crypto';
@@ -54,7 +57,7 @@ import { getSessionToken, userForToken } from './auth.js';
 import { loadItems, loadList, loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
-import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
+import { computeProbeForCharacter, makeNameLookup, parseProbeSource, type NamedProbe } from './diceSource.js';
 import {
   canEditFog as boardCanEditFog,
   canEditImages as boardCanEditImages,
@@ -633,21 +636,6 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
 }
 
 /**
- * Resolves a bare attribute-code identifier in a free chat roll (typing
- * "MU") against the SENDER'S selected character — an already-validated
- * `author.charId` from resolveAuthor(), never the raw, unchecked message
- * field. No character selected (GM chat, or an invalid one that resolveAuthor
- * already fell back to null for) ⇒ every identifier fails, same "kein
- * gültiger Würfelausdruck" outcome as any other unresolvable token — no
- * separate literal/placeholder concept needed.
- */
-function chatAttrResolver(charId: number | null): (name: string) => number | null {
-  if (charId === null) return () => null;
-  const attrs = loadStats(charId).attrs;
-  return (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? attrMax(attrs, name as AttrRowCode) : null);
-}
-
-/**
  * Der eigene Charakter des Absenders in DIESER Gruppe — anders als
  * resolveAuthor() (die bei einem ungültigen charId stillschweigend auf „kein
  * Charakter" zurückfällt) hier ein hartes null, denn eine Kooperationsprobe
@@ -772,11 +760,14 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // Kino-Ansage ist auf EINEN Wurf ausgelegt).
       const { repeat, rest } =
         table || important ? { repeat: 1, rest: String(msg.expression ?? '') } : stripRepeatPrefix(String(msg.expression ?? ''));
+      // Ein Ausdruck mit Würfelblock ist eine Würfelsumme, einer nur aus Probe-
+      // Namen eine Probe (siehe parseRollFormula).
+      const formula = table ? null : parseRollFormula(rest);
       const expression: DiceExpression | null = table
         ? table === 'master'
           ? { kind: 'dice', count: 1, sides: 6 }
           : { kind: 'bin', op: '+', left: { kind: 'dice', count: 1, sides: 6 }, right: { kind: 'dice', count: 1, sides: 20 } }
-        : parseDiceExpression(rest);
+        : (formula?.ast ?? null);
       if (!expression) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
         return;
@@ -805,8 +796,76 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         gmUserId = resolved.gmUserId;
       }
       const author = resolveAuthor(meta, msg.charId);
-      const resolveId = chatAttrResolver(author.charId);
+      // Namen ("Athletik", "FF", "Heilkunde Wunden") werden HIER gegen den
+      // Charakter des Absenders aufgelöst, nie vom Client übernommen, aus
+      // demselben Grund wie probeZahl. Alle vor dem ersten Wurf, damit ein
+      // unbekannter Name nichts halb Gewürfeltes hinterlässt.
+      const names = collectNames(expression);
+      const resolvedNames = new Map<string, NamedProbe>();
+      if (names.length > 0) {
+        if (author.charId === null) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Namen in einer Formel brauchen einen gewählten Charakter' });
+          return;
+        }
+        const lookup = makeNameLookup(author.charId);
+        for (const name of names) {
+          const hit = lookup(name);
+          if (hit === null || hit === 'ambiguous') {
+            const message = hit === null ? `Unbekannter Name: „${name}“` : `Der Name „${name}“ ist mehrdeutig`;
+            send(ws, { type: 'error', reqId: msg.reqId, message });
+            return;
+          }
+          resolvedNames.set(name, hit);
+        }
+      }
+      const resolveId = (name: string): number | null => resolvedNames.get(name)?.probeZahl ?? null;
       const label = table ? (table === 'master' ? 'Meisterwurf' : 'Wilde Magie') : String(msg.label ?? '').slice(0, 60).trim();
+      if (formula?.mode === 'probe') {
+        // Formel nur aus Probe-Namen: eine Probe gegen das verrechnete Ziel,
+        // je Attribut-Term ein W20 (siehe evaluateProbeFormula). Nicht für
+        // „/i" — die Kino-Ansage kennt nur Würfelsummen.
+        if (important) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ein großer Wurf braucht einen Würfelausdruck' });
+          return;
+        }
+        const probe = evaluateProbeFormula(expression, (name) => resolvedNames.get(name) ?? null);
+        if (!probe.ok) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
+          return;
+        }
+        if (probe.n > MAX_DICE_COUNT) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: `Zu viele Würfel (${probe.n}, höchstens ${MAX_DICE_COUNT})` });
+          return;
+        }
+        const display = formulaToText(mapNames(expression, (name) => resolvedNames.get(name)?.label ?? name), 'w');
+        const modifier = clampModifier(msg.modifier);
+        const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
+        for (let i = 0; i < repeat; i++) {
+          const result = performProbeRoll(probe.n, probe.probeZahl, modifier);
+          const roll: ProbeRollPayload = {
+            mode: 'probe',
+            source: { kind: 'formula', expression: display },
+            label: label || display,
+            n: probe.n,
+            probeZahl: probe.probeZahl,
+            modifier,
+            dice: result.dice,
+            confirmations: result.confirmations,
+            pending: result.pending,
+            resolved: result.resolved,
+            rawSum: result.rawSum,
+            adjustedSum: result.adjustedSum,
+            criticalFailureCount: result.criticalFailureCount,
+            criticalFailure: result.criticalFailure,
+            success: result.success,
+            narrow: result.narrow,
+            criticalSuccess: result.criticalSuccess,
+          };
+          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
+        }
+        send(ws, { type: 'ack', reqId: msg.reqId });
+        return;
+      }
       // Nur bei 2+ Wiederholungen überhaupt gruppieren — ein einzelner Wurf
       // braucht keinen gemeinsamen Rahmen um sich selbst.
       const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;

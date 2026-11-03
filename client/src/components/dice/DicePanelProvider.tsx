@@ -13,6 +13,7 @@ import type {
 } from '@shared/diceProtocol';
 import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
+import { parseRollFormula, stripRepeatPrefix } from '@shared/dice';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
 import { usePersistedState } from '../persist';
@@ -1172,7 +1173,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // wie Chat (siehe ModifierPicker) — freie Ausdrücke (getippt oder aus
       // den Würfel-Favoriten) sind da keine Ausnahme. Tabellenwürfe (/master,
       // /wild) sind ein Lookup, kein Ergebnis mit Summe, und bleiben außen vor.
-      const finalExpression = !table && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
+      // Eine Formel nur aus Probe-Namen ist eine Probe: dort wirkt der
+      // Modifikator wie bei roll.probe auf die geworfene Summe und reist als
+      // eigenes Feld. Als Text an der Formel verschöbe er das ZIEL, in die
+      // falsche Richtung.
+      const isProbeFormula = !table && parseRollFormula(stripRepeatPrefix(expression).rest)?.mode === 'probe';
+      const finalExpression = !table && !isProbeFormula && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
       sendMsg({
         type: 'roll.expr',
         reqId: crypto.randomUUID(),
@@ -1182,6 +1188,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         charId,
         table,
         targetUserId,
+        ...(isProbeFormula && modifier !== 0 ? { modifier } : {}),
       });
       if (!table && modifier !== 0) setModifier(0);
     },
