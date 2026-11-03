@@ -201,16 +201,37 @@ export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-11-03',
     title: 'Wunden für Monster-Marken',
-    added: [
-      'Der Chat rechnet jetzt mit Namen: „/r Athletik+FF+2*Akrobatik“ würfelt eine Probe gegen die zusammengerechneten Zielwerte, mit einem Würfel je beteiligtem Attribut. „2*Athletik“ würfelt Athletik zweimal in einer Probe (das alte „2xAthletik“ gibt es für Proben nicht mehr). Der Eintrag zeigt jeden Namen mit seinen Würfeln, seinem Zielwert und einem Haken oder Kreuz, das Gesamtergebnis zählt nach der Summe. Mit Würfelblock, z. B. „/r 1w20+Athletik“, zählt der Name als Zielwert in einer gewöhnlichen Würfelsumme, ohne Erfolg oder Fehlschlag. Beim Tippen schlägt der Chat Namen vor, auch mitten in einer Formel: Tab oder Shift+Enter (auf dem Handy das „+“) fügt den Namen ein, Anführungszeichen setzt der Chat selbst; Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
-      'Das Markenzeichen gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe und zeigt sie in der Probenzahl und beim Würfeln. Fähigkeiten lassen sich jetzt auch als Markenzeichen wählen',
-      'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
-    ],
-    fixed: [
-      'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem Standard-Tisch.',
-    ],
-    admin: [
-      '(Spielleiter) In der Gruppenübersicht stand bei jedem Charakter „Stufe 0“. Dort steht jetzt die tatsächliche Stufe.',
+    features: [
+      {
+        title: 'Rechnen mit Namen im Chat',
+        added: [
+          '„/r Athletik+FF+2*Akrobatik“ würfelt eine Probe aus mehreren Namen: ein Würfel je beteiligtem Attribut, gewürfelt gegen die zusammengerechneten Zielwerte. Zahlen mit „+“ und „-“ verschieben das Ziel, „/“ teilt es.',
+          '„2*Athletik“ würfelt Athletik zweimal in einer Probe. Der Eintrag zeigt jeden Namen mit seinen Würfeln, seinem Zielwert und einem Haken oder Kreuz, das Gesamtergebnis zählt nach der Summe aller Würfel.',
+          'Mit Würfelblock, z. B. „/r 1w20+Athletik“, zählt der Name als Zielwert in einer gewöhnlichen Würfelsumme, ohne Erfolg oder Fehlschlag.',
+          'Beim Tippen schlägt der Chat Namen vor, auch mitten in einer Formel: Tab oder Shift+Enter (auf dem Handy das „+“) fügt den Namen ein, Anführungszeichen setzt der Chat selbst. Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
+        ],
+        changed: [
+          'Proben wiederholst du jetzt mit „*“: „2*Athletik“ statt „2xAthletik“. Das „Nx“-Präfix gilt nur noch für Würfelsummen („3x2w6+8“).',
+        ],
+      },
+      {
+        title: 'Markenzeichen',
+        added: [
+          'Das Markenzeichen gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe und zeigt sie in der Probenzahl und beim Würfeln. Fähigkeiten lassen sich jetzt auch als Markenzeichen wählen',
+        ],
+      },
+      {
+        title: 'Virtueller Tisch',
+        added: [
+          'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Alle am Tisch sehen die Zähler, bearbeiten kann sie, wer die Marke bearbeiten darf. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
+        ],
+        fixed: [
+          'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem Standard-Tisch.',
+        ],
+        admin: [
+          '(Spielleiter) In der Gruppenübersicht stand bei jedem Charakter „Stufe 0“. Dort steht jetzt die tatsächliche Stufe.',
+        ],
+      },
     ],
   },
   {
