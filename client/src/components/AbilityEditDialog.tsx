@@ -138,7 +138,7 @@ export function AbilityEditDialog({
       effekt,
       notiz,
       passiv,
-      signatur: isMagisch ? signatur : false,
+      signatur,
       favorit,
       derivedFrom,
     };
@@ -267,14 +267,12 @@ export function AbilityEditDialog({
 
       <label className="dlg-checkbox-row">
         <input type="checkbox" checked={passiv} onChange={(e) => setPassiv(e.target.checked)} />
-        Passiv (Dauerwirkung statt aktiver Probe)
+        Passiv
       </label>
-      {isMagisch && (
-        <label className="dlg-checkbox-row">
-          <input type="checkbox" checked={signatur} onChange={(e) => setSignatur(e.target.checked)} />
-          Signatur-Zauber (nur einer je Charakter)
-        </label>
-      )}
+      <label className="dlg-checkbox-row">
+        <input type="checkbox" checked={signatur} onChange={(e) => setSignatur(e.target.checked)} />
+        Markenzeichen
+      </label>
       <div className="dlg-checkbox-row">
         <FavPin active={favorit} onClick={() => setFavorit((v) => !v)} />
         Würfel-Favorit

@@ -1,5 +1,6 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { computeCompetitiveVerdict, computeCoopVerdict, parseDiceExpression, stripRepeatPrefix } from '@shared/dice';
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from 'react';
+import { NX_PRAEFIX_HINWEIS, applyNameInsert, computeCompetitiveVerdict, computeCoopVerdict, findNameToken, hatNxPraefix, parseDiceExpression, parseRollFormula } from '@shared/dice';
+import { normalizeName } from '@shared/formula';
 import type { FeedEntry, PoolMode, ProbeRollPayload, RollVisibility } from '@shared/diceProtocol';
 import { CHIME_STANDARD, type TonWahl, tonName } from '@shared/chimes';
 import { useAuth } from '../../App';
@@ -93,8 +94,9 @@ function CompetitiveVerdictLine({ entries }: { entries: FeedEntry[] }) {
   return <div className="feed-coop-verdict feed-coop-verdict--success">{text}</div>;
 }
 
-// Summenzeile für einen per führendem "Nx" wiederholten Wurf (siehe
-// stripRepeatPrefix) — dieselbe optische Rolle wie CoopVerdictLine. Ein freier
+// Summenzeile für einen früher per "Nx" wiederholten Wurf — das Präfix gibt es
+// nicht mehr, ältere Einträge im Verlauf tragen diese Gruppierung aber noch.
+// Dieselbe optische Rolle wie CoopVerdictLine. Ein freier
 // Ausdruck hat kein Ziel, gegen das man gewinnen könnte, nur eine Summe über
 // alle Wiederholungen; eine wiederholte Probe dagegen hat pro Wurf ein eigenes
 // Erfolg/Fehlschlag, also zählt die Zeile die stattdessen — unabhängig
@@ -182,7 +184,13 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
   const [favoriteProbes, setFavoriteProbes] = useState<RollableProbe[]>([]);
   const [highlight, setHighlight] = useState(0);
   const [suggestDismissed, setSuggestDismissed] = useState(false);
-  const activeSuggestRef = useRef<HTMLButtonElement | null>(null);
+  const activeSuggestRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Cursor-Position im Eingabefeld: die Vorschläge gelten dem Wort VOR dem
+  // Cursor, nicht dem Ende des Textes (siehe findNameToken). `pendingCaretRef`
+  // setzt den Cursor nach einem Einfügen, sobald der neue Text im Feld steht.
+  const [caret, setCaret] = useState(0);
+  const pendingCaretRef = useRef<number | null>(null);
   // Unterhalb einer bestimmten Eingabezeilen-Breite (siehe die @container-
   // Regel bei .dice-dock-tools in styles.css) passen Kurzbefehle/Sichtbarkeit/
   // Modifikator/Schicksalspunkte nicht mehr bequem neben das Eingabefeld —
@@ -200,22 +208,27 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
 
   const rollMatch = /^\/(?:r|roll)\s+(.*)$/i.exec(draft);
   const rollRest = rollMatch ? rollMatch[1] : null;
-  const isValidDice =
-    rollRest !== null && parseDiceExpression(stripRepeatPrefix(splitInlineTitle(rollRest).expr).rest) !== null;
   const koopMatch = /^\/(?:koop|coop)\s+(.*)$/i.exec(draft);
   const wettstreitMatch = /^\/(?:wettstreit|contest)\s+(.*)$/i.exec(draft);
   // Beide Pool-Befehle teilen sich dieselbe Vorschlagsliste/-logik unten —
   // `poolMode` ist nur, WELCHES Verdikt am Ende berechnet wird (roll.coop.start).
   const poolMode: PoolMode | null = koopMatch ? 'coop' : wettstreitMatch ? 'competitive' : null;
   const poolMatch = koopMatch ?? wettstreitMatch;
+  // „/r": das Wort vor dem Cursor wird vorgeschlagen, auch mitten in einer
+  // Formel ("/r 1w20+Ath"). Ein allein stehender Name ("/r Athl") ist eine Probe
+  // für sich und wird, wie bisher, direkt gewürfelt; sonst wird er eingefügt.
   // Ein führendes "Nx" gilt genauso für eine benannte Probe ("2xAthletik") wie
-  // für einen freien Ausdruck — abgetrennt VOR dem Namensabgleich, sonst würde
-  // "2x" selbst als Teil des gesuchten Namens versucht.
-  const probeSearch = rollRest !== null && !isValidDice ? stripRepeatPrefix(rollRest.trim()) : null;
-  const searchText = poolMatch ? poolMatch[1].trim() : (probeSearch?.rest ?? '');
-  const probeRepeat = probeSearch?.repeat ?? 1;
+  // für einen freien Ausdruck: findNameToken überspringt es, sonst würde "2x"
+  // selbst als Teil des gesuchten Namens versucht. Koop/Wettstreit suchen weiter
+  // mit dem ganzen Text und wählen direkt.
+  const nameToken = poolMode === null && rollMatch ? findNameToken(draft, Math.min(caret, draft.length)) : null;
+  const searchText = poolMatch ? poolMatch[1].trim() : (nameToken?.query.trim() ?? '');
   const suggestCharId = poolMode !== null ? (charId ?? activeRoom?.anyCharId ?? null) : charId;
-  const showSuggestions = !suggestDismissed && suggestCharId !== null && searchText.length >= MIN_SEARCH_LEN;
+  const showSuggestions =
+    !suggestDismissed &&
+    suggestCharId !== null &&
+    searchText.length >= MIN_SEARCH_LEN &&
+    (poolMode !== null || nameToken !== null);
 
   // Neu geladen jedes Mal, wenn die Vorschlagsliste aufklappt (nicht bei jedem
   // Tastendruck — showSuggestions kippt nur beim Unter-/Überschreiten von
@@ -252,19 +265,57 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     };
   }, [charId]);
 
-  const q = searchText.toLowerCase();
+  const q = normalizeName(searchText);
+  // Ein Attributs-Kürzel ("FF") zählt als Name wie das ausgeschriebene Wort.
+  const nameOf = (p: RollableProbe): string => normalizeName(p.label);
+  const codeOf = (p: RollableProbe): string | null => (p.source.kind === 'attribute' ? p.source.attr : null);
+  const isExact = (p: RollableProbe): boolean => nameOf(p) === q || codeOf(p) === q;
+  // Genau getroffene zuerst, dann solche, die mit dem Getippten beginnen: so ist
+  // der vorausgewählte Eintrag der, den man meint, wenn man "FF" oder
+  // "Athletik" ganz ausgeschrieben hat.
+  const rank = (p: RollableProbe): number => (isExact(p) ? 0 : nameOf(p).startsWith(q) ? 1 : 2);
   const matches =
     showSuggestions && probes
       ? probes
           .filter((p) => poolMode === null || p.kind === 'attribute' || p.kind === 'talent' || p.kind === 'sprache')
-          .filter((p) => p.label.toLowerCase().includes(q))
+          .filter((p) => nameOf(p).includes(q) || codeOf(p) === q)
+          .map((p, i) => ({ p, i }))
+          .sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i)
+          .map(({ p }) => p)
           .slice(0, MAX_SUGGESTIONS)
       : [];
+  // Das Wort ist schon genau ein Name: nichts mehr einzufügen, Enter schickt ab.
+  const typedWordIsName = nameToken !== null && matches.some(isExact);
   const activeHighlight = Math.min(highlight, Math.max(matches.length - 1, 0));
 
   useEffect(() => {
     activeSuggestRef.current?.scrollIntoView({ block: 'nearest' });
   }, [activeHighlight]);
+
+  // Setzt den Cursor, nachdem insertName den neuen Text ins Feld gebracht hat.
+  useLayoutEffect(() => {
+    const pos = pendingCaretRef.current;
+    if (pos === null) return;
+    pendingCaretRef.current = null;
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    input.setSelectionRange(pos, pos);
+  }, [draft]);
+
+  // Fügt den gewählten Namen anstelle des getippten Wortes ein (mit
+  // Anführungszeichen, wo er welche braucht) — würfelt NICHT. Die Liste bleibt
+  // danach zu, bis weitergetippt wird.
+  const insertName = (p: RollableProbe) => {
+    if (!nameToken) return;
+    const { text, caret: pos } = applyNameInsert(draft, nameToken, p.label);
+    pendingCaretRef.current = pos;
+    setDraft(text);
+    setCaret(pos);
+    setError('');
+    setHighlight(0);
+    setSuggestDismissed(true);
+  };
 
   const pickProbe = (p: RollableProbe) => {
     if (groupId === null) return;
@@ -273,7 +324,7 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     setDraft('');
     setSuggestDismissed(false);
     if (poolMode !== null) proposeCoopPool(groupId, p.source, poolMode);
-    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility, undefined, probeRepeat);
+    else if (charId !== null) rollProbe(groupId, charId, p.source, visibility);
   };
 
   useEffect(() => {
@@ -420,10 +471,14 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
     const roll = /^\/(?:r|roll)\s+(.+)$/i.exec(text);
     if (roll) {
       const { expr, label } = splitInlineTitle(roll[1]);
-      if (!parseDiceExpression(stripRepeatPrefix(expr).rest)) {
+      if (hatNxPraefix(expr)) {
+        setError(NX_PRAEFIX_HINWEIS);
+        return;
+      }
+      if (!parseRollFormula(expr)) {
         setError(
           charId !== null
-            ? `„${roll[1]}" ist weder ein gültiger Würfelausdruck (z. B. 2w6+5) noch eine gefundene Probe — weitertippen für Vorschläge.`
+            ? `„${roll[1]}" ist weder ein gültiger Würfelausdruck (z. B. 2w6+5) noch eine Formel aus Probe-Namen (z. B. Athletik+FF) — weitertippen für Vorschläge.`
             : `„${roll[1]}" ist kein gültiger Würfelausdruck (z. B. 2w6+5).`,
         );
         return;
@@ -542,28 +597,53 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
       {!error && !serverError && info && <p className="dice-dock-info">{info}</p>}
       <div className="dice-dock-input">
         {showSuggestions && (
-          <div className="dice-suggest" role="listbox">
+          // onMouseDown: das Eingabefeld behält den Fokus, ein Klick (oder das "+")
+          // fügt ein bzw. würfelt, ohne dass der Cursor verloren geht.
+          <div className="dice-suggest" role="listbox" onMouseDown={(e) => e.preventDefault()}>
             {!probes ? (
               <p className="dice-flyout-empty muted">Lädt…</p>
             ) : matches.length === 0 ? (
               <p className="dice-flyout-empty muted">Nichts gefunden.</p>
             ) : (
-              matches.map((p, i) => (
-                <button
-                  key={`${p.kind}-${p.label}`}
-                  ref={i === activeHighlight ? activeSuggestRef : null}
-                  className={`dice-flyout-item${i === activeHighlight ? ' active' : ''}`}
-                  role="option"
-                  aria-selected={i === activeHighlight}
-                  onMouseEnter={() => setHighlight(i)}
-                  onClick={() => pickProbe(p)}
-                >
-                  <span className="dice-shortcut-label">{p.label}</span>
-                  <span className="muted dice-shortcut-expr">
-                    {PROBE_KIND_LABEL[p.kind]} · {p.probeZahl}
-                  </span>
-                </button>
-              ))
+              <>
+                {matches.map((p, i) => (
+                  <div
+                    key={`${p.kind}-${p.label}`}
+                    ref={i === activeHighlight ? activeSuggestRef : null}
+                    className={`dice-flyout-item${i === activeHighlight ? ' active' : ''}`}
+                    role="option"
+                    aria-selected={i === activeHighlight}
+                    onMouseEnter={() => setHighlight(i)}
+                    // Ein allein stehender Name wird, wie bisher, gewürfelt; in einer
+                    // Formel gibt es nichts direkt zu würfeln, dort fügt der Klick ein.
+                    onClick={() => (nameToken && !nameToken.lone ? insertName(p) : pickProbe(p))}
+                  >
+                    <span className="dice-shortcut-label">{p.label}</span>
+                    <span className="muted dice-shortcut-expr">
+                      {PROBE_KIND_LABEL[p.kind]} · {p.probeZahl}
+                    </span>
+                    {nameToken && (
+                      <button
+                        type="button"
+                        className="dice-suggest-insert"
+                        title="In die Formel einfügen"
+                        aria-label={`${p.label} in die Formel einfügen`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          insertName(p);
+                        }}
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {nameToken && (
+                  <p className="dice-suggest-hint muted">
+                    {nameToken.lone ? 'Enter würfelt · Shift+Enter oder Tab fügt ein' : 'Enter, Shift+Enter oder Tab fügt ein'}
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
@@ -586,10 +666,13 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
           )}
         </div>
         <input
+          ref={inputRef}
           value={draft}
+          onSelect={(e) => setCaret(e.currentTarget.selectionStart ?? e.currentTarget.value.length)}
           onChange={(e) => {
             const v = e.target.value;
             setDraft(v);
+            setCaret(e.target.selectionStart ?? v.length);
             setSuggestDismissed(false);
             setHighlight(0);
             historyIndexRef.current = -1;
@@ -612,10 +695,27 @@ const FeedColumn = forwardRef<FeedColumnHandle>(function FeedColumn(_props, ref)
                 setHighlight((h) => Math.max(h - 1, 0));
                 return;
               }
-              if (e.key === 'Enter' && !e.shiftKey) {
+              // Einfügen statt würfeln: Shift+Enter und Tab, nur bei "/r" (Koop/Wettstreit
+              // wählen direkt). Enter würfelt einen allein stehenden Namen wie
+              // bisher; in einer Formel fügt es ein, solange das getippte Wort noch
+              // kein ganzer Name ist, sonst schickt es die Formel ab.
+              if (nameToken && ((e.key === 'Enter' && e.shiftKey) || e.key === 'Tab')) {
                 e.preventDefault();
-                pickProbe(matches[activeHighlight]);
+                insertName(matches[activeHighlight]);
                 return;
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                if (nameToken && !nameToken.lone) {
+                  if (!typedWordIsName) {
+                    e.preventDefault();
+                    insertName(matches[activeHighlight]);
+                    return;
+                  }
+                } else {
+                  e.preventDefault();
+                  pickProbe(matches[activeHighlight]);
+                  return;
+                }
               }
             }
             if (e.key === 'ArrowUp' && history.length > 0 && (draft === '' || historyIndexRef.current !== -1)) {

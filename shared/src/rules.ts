@@ -200,6 +200,17 @@ export function abilityProbeZahl(
   return sum;
 }
 
+// Markenzeichen: Erleichterung von 2 je beteiligtem Würfel — also
+// je Term im Probenausdruck, ein W20 pro Term (siehe `n` in diceSource.ts,
+// AT/PA/BL-Terme zählen mit). Eine Zahl auf die fertige Probe, wie die Boni auf
+// Talent-/Element-Proben, nicht über erleichterung()/TaW. 0 bei ungültigem
+// Ausdruck (dort gibt es ohnehin keine Probe).
+export const SIGNATUR_ERLEICHTERUNG_PRO_WURF = 2;
+export function signaturErleichterung(expr: string): number {
+  const parts = parseProbeExpr(expr);
+  return parts ? parts.length * SIGNATUR_ERLEICHTERUNG_PRO_WURF : 0;
+}
+
 // --- Sprachen ---
 
 export function sprechenProbe(attrs: Attributes): number {

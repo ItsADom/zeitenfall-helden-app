@@ -6,10 +6,14 @@ import {
   detectTripleEvent,
   findCritTriggers,
   parseDiceExpression,
+  findNameToken,
+  applyNameInsert,
+  nameNeedsQuotes,
+  parseRollFormula,
   parseDiceShortcuts,
   resolveExpressionRoll,
   resolveProbeRoll,
-  stripRepeatPrefix,
+  hatNxPraefix,
   type CompetitiveEntrant,
   type CoopRollLike,
 } from '../src/dice.js';
@@ -450,19 +454,25 @@ describe('parseDiceExpression', () => {
   });
 });
 
-describe('stripRepeatPrefix', () => {
-  it('splits a leading "Nx" off the rest of the expression', () => {
-    expect(stripRepeatPrefix('3x2w6+8')).toEqual({ repeat: 3, rest: '2w6+8' });
-    expect(stripRepeatPrefix('3X2w6+8')).toEqual({ repeat: 3, rest: '2w6+8' });
+describe('Nx prefix is gone', () => {
+  it('is recognised only to give a hint', () => {
+    expect(hatNxPraefix('3x2w6+8')).toBe(true);
+    expect(hatNxPraefix('2xAthletik')).toBe(true);
+    expect(hatNxPraefix(' 10X1w6')).toBe(true);
+    expect(hatNxPraefix('2w6+8')).toBe(false);
+    expect(hatNxPraefix('2*Athletik')).toBe(false);
+    expect(hatNxPraefix('Xenon')).toBe(false);
   });
 
-  it('leaves plain expressions untouched', () => {
-    expect(stripRepeatPrefix('2w6+8')).toEqual({ repeat: 1, rest: '2w6+8' });
+  it('is no longer a valid expression', () => {
+    expect(parseRollFormula('3x2w6+8')).toBeNull();
+    expect(parseRollFormula('2xAthletik')).toBeNull();
   });
 
-  it('falls back to no repeat when the count is out of range', () => {
-    expect(stripRepeatPrefix('0x2w6')).toEqual({ repeat: 1, rest: '0x2w6' });
-    expect(stripRepeatPrefix('11x2w6')).toEqual({ repeat: 1, rest: '11x2w6' });
+  it('repeating dice with * is bounded by the 20-dice limit', () => {
+    expect(parseDiceExpression('2*2w6')).not.toBeNull();
+    expect(parseDiceExpression('10*2w6')).not.toBeNull(); // 20 dice
+    expect(parseDiceExpression('11*2w6')).toBeNull(); // 22 dice
   });
 });
 
@@ -701,5 +711,117 @@ describe('detectTripleEvent', () => {
 
   it('accepts a parallel sides array as long as every die is a d20', () => {
     expect(detectTripleEvent([20, 20, 20], [20, 20, 20])).toBe('abyss');
+  });
+});
+
+describe('parseRollFormula', () => {
+  it('a formula with a dice block is a dice roll, names included', () => {
+    expect(parseRollFormula('2w6+5')?.mode).toBe('dice');
+    expect(parseRollFormula('1w20+Athletik')?.mode).toBe('dice');
+    expect(parseRollFormula('1w20+"Schwert (AT)"')?.mode).toBe('dice');
+  });
+
+  it('a formula of names only is a probe, no dice block needed', () => {
+    expect(parseRollFormula('Athletik')?.mode).toBe('probe');
+    expect(parseRollFormula('Athletik+FF+(2*Akrobatik)')?.mode).toBe('probe');
+    expect(parseRollFormula('Heilkunde Wunden+3')?.mode).toBe('probe');
+  });
+
+  it('rejects numbers only, bad syntax and probe shapes with no meaningful dice count', () => {
+    expect(parseRollFormula('5')).toBeNull();
+    expect(parseRollFormula('5+3')).toBeNull();
+    expect(parseRollFormula('')).toBeNull();
+    expect(parseRollFormula('Athletik-FF')).toBeNull();
+    expect(parseRollFormula('Athletik+')).toBeNull();
+  });
+
+  it('keeps the dice limits for dice rolls', () => {
+    expect(parseRollFormula('21w6+Athletik')).toBeNull();
+  });
+});
+
+describe('parseDiceShortcuts with names', () => {
+  it('treats a favorite built from names as valid', () => {
+    const lines = parseDiceShortcuts('Kraftakt: Athletik+KK\nTreffer: 1w20+Athletik\nQuark: Athletik-KK');
+    expect(lines.map((l) => (l.kind === 'shortcut' ? l.valid : null))).toEqual([true, true, false]);
+  });
+});
+
+describe('findNameToken', () => {
+  const at = (draft: string) => findNameToken(draft, draft.length);
+
+  it('finds a lone name', () => {
+    expect(at('/r Athl')).toMatchObject({ query: 'Athl', quoted: false, lone: true, start: 3 });
+    expect(at('/roll Athl')).toMatchObject({ query: 'Athl', lone: true });
+    expect(at('/r 2xAthl')).toBeNull(); // the old Nx prefix is not special any more
+  });
+
+  it('finds the name after an operator or an opening parenthesis, not lone', () => {
+    expect(at('/r 1w20+Ath')).toMatchObject({ query: 'Ath', lone: false, start: 8 });
+    expect(at('/r Athletik+FF')).toMatchObject({ query: 'FF', lone: false });
+    expect(at('/r 2*(Ath')).toMatchObject({ query: 'Ath', lone: false });
+    expect(at('/r Athletik + Ak')).toMatchObject({ query: 'Ak', lone: false, start: 14 });
+  });
+
+  it('keeps inner spaces of a bare name', () => {
+    expect(at('/r Heilkunde Wu')).toMatchObject({ query: 'Heilkunde Wu', lone: true });
+  });
+
+  it('handles an open quote, including operator characters inside it', () => {
+    expect(at('/r "Hämmer/Keu')).toMatchObject({ query: 'Hämmer/Keu', quoted: true, lone: true, start: 3 });
+    expect(at('/r Athletik+"Schwert (A')).toMatchObject({ query: 'Schwert (A', quoted: true, lone: false });
+  });
+
+  it('finds nothing after a closed quote, an operator, a number or a dice block', () => {
+    expect(at('/r "Schwert (AT)"')).toBeNull();
+    expect(at('/r Athletik+')).toBeNull();
+    expect(at('/r Athletik+5')).toBeNull();
+    expect(at('/r 2w6')).toBeNull();
+    expect(at('/r w20')).toBeNull();
+    expect(at('/r 2w6+d20')).toBeNull();
+  });
+
+  it('is only active for /r, and not inside the title after #', () => {
+    expect(at('Athl')).toBeNull();
+    expect(at('/me Athl')).toBeNull();
+    expect(at('/r Athletik #Ath')).toBeNull();
+    expect(at('/r ')).toBeNull();
+  });
+
+  it('follows the cursor, not the end of the text', () => {
+    const draft = '/r Ath+FF';
+    expect(findNameToken(draft, 6)).toMatchObject({ query: 'Ath', end: 6 });
+  });
+});
+
+describe('applyNameInsert', () => {
+  const insert = (draft: string, name: string, caret = draft.length) => {
+    const token = findNameToken(draft, caret)!;
+    return applyNameInsert(draft, token, name);
+  };
+
+  it('replaces the typed word, quoting only where needed', () => {
+    expect(insert('/r Ath', 'Athletik')).toEqual({ text: '/r Athletik', caret: 11 });
+    expect(insert('/r 1w20+Heil', 'Heilkunde Wunden').text).toBe('/r 1w20+Heilkunde Wunden');
+    expect(insert('/r Hämm', 'Hämmer/Keulen').text).toBe('/r "Hämmer/Keulen"');
+    expect(insert('/r 2*Ath', 'Athletik').text).toBe('/r 2*Athletik');
+  });
+
+  it('keeps what follows the cursor and swallows a duplicate closing quote', () => {
+    expect(insert('/r Ath+FF', 'Athletik', 6)).toEqual({ text: '/r Athletik+FF', caret: 11 });
+    expect(insert('/r "Hämm"', 'Hämmer/Keulen', 8).text).toBe('/r "Hämmer/Keulen"');
+  });
+
+  it('the result parses as a formula', () => {
+    expect(parseRollFormula(insert('/r Athletik+Ak', 'Akrobatik').text.slice(3))?.mode).toBe('probe');
+    expect(parseRollFormula(insert('/r 1w20+Sch', 'Schwert (AT)').text.slice(3))?.mode).toBe('dice');
+  });
+
+  it('nameNeedsQuotes', () => {
+    expect(nameNeedsQuotes('Athletik')).toBe(false);
+    expect(nameNeedsQuotes('Heilkunde Wunden')).toBe(false);
+    expect(nameNeedsQuotes('Großschilde')).toBe(false);
+    expect(nameNeedsQuotes('Schwert (AT)')).toBe(true);
+    expect(nameNeedsQuotes('Brett-/Kartenspiel')).toBe(true);
   });
 });

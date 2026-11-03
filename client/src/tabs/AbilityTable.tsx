@@ -4,7 +4,7 @@ import type { Ability, Attributes } from '@shared/abilities';
 import { abilityGrade, abilityGradeLabel, groupAbilities } from '@shared/abilities';
 import type { StatBoni } from '@shared/items';
 import { elementKostenBoni, elementKostenBonusKey, elementProbeBonus, elementProbeBonusKey } from '@shared/items';
-import { probeExprHasWeaponTerm, probeExprZahl } from '@shared/rules';
+import { probeExprHasWeaponTerm, probeExprZahl, signaturErleichterung } from '@shared/rules';
 import { RESOURCE_KEYS } from '@shared/types';
 import type { ResourceKey } from '@shared/types';
 import { BonusWert } from '../components/BonusWert';
@@ -96,7 +96,7 @@ export function AbilityTable({
     }
   };
 
-  // Der Signatur-Zauber (meistgenutzt) steht immer ganz oben — solange er im
+  // Das Markenzeichen (meistgenutzt) steht immer ganz oben — solange er im
   // aktuellen Filter überhaupt sichtbar ist. Er wird aus den Gruppen herausgelöst
   // und als angeheftete Zeile über allem gezeigt (nicht scroll-klebend).
   const sig = filtered.find((a) => a.signatur);
@@ -268,7 +268,8 @@ function AbilityRow({
 }) {
   const grade = abilityGrade(a, byUid);
   const pzBase = probeExprZahl(attrs, a.probe);
-  const pz = pzBase != null ? pzBase + elementProbeBonus(a.element, stats) : pzBase;
+  const signaturBonus = a.signatur ? signaturErleichterung(a.probe) : 0;
+  const pz = pzBase != null ? pzBase + elementProbeBonus(a.element, stats) + signaturBonus : pzBase;
   const needsWeapon = probeExprHasWeaponTerm(a.probe);
   // Anmerkung neben `kosten` statt Verrechnung — siehe elementKostenBoni
   // (shared/src/items.ts): kosten ist Freitext und kann mehrere Energien
@@ -277,7 +278,7 @@ function AbilityRow({
   return (
     <tr className={pinned ? 'abil-pinned' : undefined}>
       <td>
-        {a.signatur && <span className="abil-sig-star" title="Signatur-Zauber">★</span>}
+        {a.signatur && <span className="abil-sig-star" title="Markenzeichen">★</span>}
         <span className="abil-name">{a.name || '—'}</span>
         {a.passiv && <span className="abil-badge">passiv</span>}
         {grade > 1 && <span className="abil-badge">{abilityGradeLabel(grade)}</span>}
@@ -308,7 +309,10 @@ function AbilityRow({
           pz != null && (
             <>
               <BonusWert quellen={stats.quellen[elementProbeBonusKey(a.element)]}>
-                <span className="muted"> ({pz})</span>
+                <span className="muted" title={signaturBonus ? `Markenzeichen: Erleichterung +${signaturBonus} (2 je Würfel)` : undefined}>
+                  {' '}
+                  ({pz})
+                </span>
               </BonusWert>
               <ProbeRollButton source={{ kind: 'ability', abilityId: a.id }} title={a.name} />
             </>

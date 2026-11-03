@@ -12,8 +12,9 @@
 import { parseWiki } from 'shared';
 import { db } from '../db.js';
 import { assetsFuer, loescheAssetsFuer } from '../assets/store.js';
-import { WikiTitelVergeben, WikiUnloeschbar, loescheIndex, schreibeIndex, schreibeLog } from './seiten.js';
-import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
+import { WikiGeschuetzt, WikiTitelVergeben, WikiUnloeschbar, loescheIndex, schreibeIndex, schreibeLog } from './seiten.js';
+import type { Sperre, WikiLeser, WikiSeiteRow } from './zugriff.js';
+import { darfSperren, sperreVon } from './zugriff.js';
 
 export interface PapierkorbEintrag {
   slug: string;
@@ -59,6 +60,72 @@ export function setzeFlag(
     return db.prepare('SELECT * FROM wiki_pages WHERE id = ?').get(seite.id) as WikiSeiteRow;
   });
   return umstellen();
+}
+
+const SPERRE_TEXT: Record<Sperre, string> = {
+  offen: 'alle dürfen bearbeiten',
+  besitzer: 'nur Besitzer und Spielleitung dürfen bearbeiten',
+  gm: 'nur Spielleitung darf bearbeiten',
+};
+
+/**
+ * Sets who may edit. The GM may pick any of the three levels; the owner only
+ * switches between „offen" and „nur Besitzer", and never touches a page the GM
+ * has protected. Returns the page as it now stands, or null if nothing changed
+ * (no log row for a no-op). Lifting the GM's protection returns the page to
+ * whatever the owner's own lock says, which is why `besitzer_sperre` is left
+ * alone when the level becomes „gm".
+ */
+export function setzeSperre(user: Autor, seite: WikiSeiteRow, ziel: Sperre): WikiSeiteRow | null {
+  if (!darfSperren(user, seite)) throw new WikiGeschuetzt('Die Sperre dieser Seite darfst du nicht ändern.');
+  if (!user.isGm && ziel === 'gm') throw new WikiGeschuetzt('„Nur Spielleitung" setzt die Spielleitung.');
+  const alt = sperreVon(seite);
+  if (alt === ziel) return null;
+
+  const umstellen = db.transaction((): WikiSeiteRow => {
+    if (ziel === 'gm') {
+      db.prepare('UPDATE wiki_pages SET geschuetzt = 1 WHERE id = ?').run(seite.id);
+    } else {
+      db.prepare('UPDATE wiki_pages SET geschuetzt = 0, besitzer_sperre = ? WHERE id = ?').run(ziel === 'besitzer' ? 1 : 0, seite.id);
+    }
+    schreibeLog({
+      pageId: seite.id,
+      art: 'geschuetzt',
+      titel: seite.titel,
+      feld: 'schutz',
+      altWert: SPERRE_TEXT[alt],
+      neuWert: SPERRE_TEXT[ziel],
+      autor: alsAutor(user),
+    });
+    return db.prepare('SELECT * FROM wiki_pages WHERE id = ?').get(seite.id) as WikiSeiteRow;
+  });
+  return umstellen();
+}
+
+/** GM only: hands the page to another account (or to nobody). Null if nothing changed or the account does not exist. */
+export function setzeBesitzer(user: Autor, seite: WikiSeiteRow, besitzerId: number | null): WikiSeiteRow | null {
+  if (besitzerId === seite.owner_user_id) return null;
+  const name = (id: number | null): string => {
+    if (id == null) return 'niemand';
+    return (db.prepare('SELECT display_name FROM users WHERE id = ?').get(id) as { display_name: string } | undefined)?.display_name ?? '?';
+  };
+  if (besitzerId != null && !db.prepare('SELECT 1 FROM users WHERE id = ?').get(besitzerId)) return null;
+
+  const uebergeben = db.transaction((): WikiSeiteRow => {
+    const alt = name(seite.owner_user_id);
+    db.prepare('UPDATE wiki_pages SET owner_user_id = ? WHERE id = ?').run(besitzerId, seite.id);
+    schreibeLog({
+      pageId: seite.id,
+      art: 'besitzer',
+      titel: seite.titel,
+      feld: 'besitzer',
+      altWert: alt,
+      neuWert: name(besitzerId),
+      autor: alsAutor(user),
+    });
+    return db.prepare('SELECT * FROM wiki_pages WHERE id = ?').get(seite.id) as WikiSeiteRow;
+  });
+  return uebergeben();
 }
 
 /**

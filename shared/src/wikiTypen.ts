@@ -16,7 +16,8 @@ export type WikiArt =
   | 'geloescht'
   | 'wiederhergestellt'
   | 'sichtbarkeit'
-  | 'geschuetzt';
+  | 'geschuetzt'
+  | 'besitzer';
 
 export const WIKI_ARTEN: WikiArt[] = [
   'angelegt',
@@ -26,6 +27,7 @@ export const WIKI_ARTEN: WikiArt[] = [
   'wiederhergestellt',
   'sichtbarkeit',
   'geschuetzt',
+  'besitzer',
 ];
 
 export const WIKI_LIMITS = {
@@ -56,6 +58,8 @@ export interface WikiSeiteInfo {
   auszug: string;
   gmOnly: boolean;
   geschuetzt: boolean;
+  /** Who may edit: everybody, owner and GM only, or the GM alone (`geschuetzt`). */
+  sperre: 'offen' | 'besitzer' | 'gm';
   /** System page (see server/src/wiki/seedSystemSeiten.ts) — deletion is refused outright. */
   unloeschbar: boolean;
   geaendertAm: string;
@@ -78,6 +82,13 @@ export interface WikiSeiteVoll extends WikiSeiteInfo {
   revisionId: number;
   nr: number;
   darfBearbeiten: boolean;
+  /** Owner's display name, null for a page without an owner. */
+  besitzerName: string | null;
+  besitzerId: number | null;
+  /** The reader owns this page. */
+  istBesitzer: boolean;
+  /** The reader may change the lock (owner, or the GM). */
+  darfSperren: boolean;
   /**
    * Set when the reader typed one address and landed on another — the „(weiter-
    * geleitet von …)" note. Carries the signpost's own address so the reader can

@@ -76,6 +76,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
+
 Inbox for raw feedback as it comes in. Drop new points here; they get refined and
 sorted into the priority sections above in a later pass. (Empty = all caught up.)
 
@@ -194,6 +195,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 - [sketch] **Liturgien catalogue** (waits until the catalogue content is finished): read
   the character's priest level to unlock Liturgien accordingly. Priest-level
   requirements are still not fleshed out.
+
 ## Unsorted ideas (treat all as [sketch])
 
 - FAQ - like a little manual or easy to miss features

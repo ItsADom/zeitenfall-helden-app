@@ -22,6 +22,8 @@ export interface WikiSeiteRow {
   gm_only: number;
   geschuetzt: number;
   unloeschbar: number;
+  owner_user_id: number | null;
+  besitzer_sperre: number;
   geloescht_at: string | null;
   /** 'seite' | 'kategorie' — follows from the title, see wikiNamensraum.ts. */
   namensraum: string;
@@ -76,10 +78,38 @@ export function seiteFuerId(user: WikiLeser, id: number): WikiSeiteRow | null {
   return row;
 }
 
+/** Who may edit: everybody, owner and GM, or the GM alone. */
+export type Sperre = 'offen' | 'besitzer' | 'gm';
+
+export function sperreVon(seite: Pick<WikiSeiteRow, 'geschuetzt' | 'besitzer_sperre'>): Sperre {
+  return seite.geschuetzt ? 'gm' : seite.besitzer_sperre ? 'besitzer' : 'offen';
+}
+
 /**
- * May this reader write to this page? False only for a protected page, which
- * is the one case that answers 403 rather than 404.
+ * May this reader write to this page? The ONE rule every write path asks —
+ * saving, restoring, deleting, images. False only for a locked page, which is the
+ * one case that answers 403 rather than 404. A locked page without an owner
+ * (the account was deleted) is effectively GM-only.
  */
 export function darfBearbeiten(user: WikiLeser, seite: WikiSeiteRow): boolean {
-  return user.isGm || !seite.geschuetzt;
+  if (user.isGm) return true;
+  if (seite.geschuetzt) return false;
+  if (seite.besitzer_sperre) return seite.owner_user_id != null && seite.owner_user_id === user.id;
+  return true;
+}
+
+/** The refusal text for a writer darfBearbeiten turned away. */
+export function sperrMeldung(seite: Pick<WikiSeiteRow, 'geschuetzt'>): string {
+  return seite.geschuetzt
+    ? 'Diese Seite ist geschützt: nur die Spielleitung darf sie bearbeiten.'
+    : 'Diese Seite ist gesperrt: nur der Besitzer und die Spielleitung dürfen sie bearbeiten.';
+}
+
+/**
+ * May this reader change the lock? The GM always; the owner only between „offen"
+ * and „nur Besitzer" and never on a page the GM has protected.
+ */
+export function darfSperren(user: WikiLeser, seite: WikiSeiteRow): boolean {
+  if (user.isGm) return true;
+  return !seite.geschuetzt && seite.owner_user_id != null && seite.owner_user_id === user.id;
 }

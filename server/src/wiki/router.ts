@@ -9,14 +9,16 @@
 import express, { Router } from 'express';
 import { WIKI_LIMITS } from 'shared';
 import { requireAuth, requireGm } from '../auth.js';
+import { db } from '../db.js';
 import { bildFuer, bilderFuerSeite, legeBildAn, loescheBild, markiereBildGmOnly } from './bilder.js';
 import { WikiGeschuetzt, WikiKonflikt, WikiTitelVergeben, WikiUnloeschbar } from './seiten.js';
 import { folgeWeiterleitung, ladeSeite, legeSeiteAn, linkZiele, listeSeiten, speichereSeite, verweiseAuf } from './seiten.js';
 import { anzahlNeu, merkeAllesGelesen, merkeGesehen, merkeSeiteGelesen, neueSeiten } from './neuigkeiten.js';
 import { kategorieAnsicht, kategorien, neuIndizieren, sucheSeiten } from './suche.js';
-import { endgueltigLoeschen, loescheSeite, papierkorb, setzeFlag, stelleSeiteHer } from './verwaltung.js';
+import { endgueltigLoeschen, loescheSeite, papierkorb, setzeBesitzer, setzeFlag, setzeSperre, stelleSeiteHer } from './verwaltung.js';
 import { autoren, fassungsText, letzteAenderungen, stelleFassungHer, verlaufFuer } from './verlauf.js';
-import { darfBearbeiten, seiteFuer } from './zugriff.js';
+import type { Sperre } from './zugriff.js';
+import { darfBearbeiten, seiteFuer, sperrMeldung } from './zugriff.js';
 
 export const wikiApi = Router();
 
@@ -74,8 +76,17 @@ wikiApi.post('/seiten', requireAuth, (req, res) => {
     res.status(400).json({ error: 'Titel ist zu lang' });
     return;
   }
+  // A page created from a character sheet's red link belongs to that character's
+  // player, even when the GM is the one clicking. Anybody else's charId is
+  // ignored: you cannot make a page yours-by-proxy for someone else's character.
+  let besitzerId: number | undefined;
+  const charId = Number((req.body ?? {}).charId);
+  if (Number.isInteger(charId) && charId > 0) {
+    const c = db.prepare('SELECT owner_user_id FROM characters WHERE id = ?').get(charId) as { owner_user_id: number } | undefined;
+    if (c && (req.user!.isGm || c.owner_user_id === req.user!.id)) besitzerId = c.owner_user_id;
+  }
   try {
-    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel, (req.body ?? {}).tags);
+    const seite = legeSeiteAn({ id: req.user!.id, name: req.user!.displayName }, titel, (req.body ?? {}).tags, besitzerId);
     res.json({ slug: seite.slug });
   } catch (err) {
     if (err instanceof WikiTitelVergeben) {
@@ -126,7 +137,7 @@ wikiApi.get('/seiten/:slug/quelle', requireAuth, (req, res) => {
     return;
   }
   if (!darfBearbeiten(user, seite)) {
-    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    res.status(403).json({ error: sperrMeldung(seite) });
     return;
   }
   // Wer den Editor öffnet, hat die Seite gesehen — sonst bliebe eine fremde
@@ -145,7 +156,7 @@ wikiApi.put('/seiten/:slug', requireAuth, (req, res) => {
   // Protected pages are the one place that admits what it is: the page is
   // visible, so a 403 leaks nothing that a 404 would have hidden.
   if (!darfBearbeiten(user, seite)) {
-    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    res.status(403).json({ error: sperrMeldung(seite) });
     return;
   }
 
@@ -170,7 +181,7 @@ wikiApi.put('/seiten/:slug', requireAuth, (req, res) => {
       return;
     }
     if (err instanceof WikiGeschuetzt) {
-      res.status(403).json({ error: 'Diese Seite ist geschützt' });
+      res.status(403).json({ error: err.message });
       return;
     }
     if (err instanceof WikiTitelVergeben) {
@@ -230,7 +241,7 @@ wikiApi.post('/seiten/:slug/wiederherstellen', requireAuth, (req, res) => {
     return;
   }
   if (!darfBearbeiten(user, seite)) {
-    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    res.status(403).json({ error: sperrMeldung(seite) });
     return;
   }
   const rev = Number((req.body ?? {}).revisionId);
@@ -315,7 +326,7 @@ wikiApi.put(
       return;
     }
     if (!darfBearbeiten(user, seite)) {
-      res.status(403).json({ error: 'Diese Seite ist geschützt' });
+      res.status(403).json({ error: sperrMeldung(seite) });
       return;
     }
     const buf = req.body as Buffer;
@@ -362,7 +373,7 @@ wikiApi.delete('/seiten/:slug/bilder/:bild', requireAuth, (req, res) => {
     return;
   }
   if (!darfBearbeiten(user, seite)) {
-    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    res.status(403).json({ error: sperrMeldung(seite) });
     return;
   }
   if (!loescheBild(seite, String(req.params.bild))) {
@@ -413,6 +424,56 @@ wikiApi.put('/seiten/:slug/flags', requireAuth, requireGm, (req, res) => {
 });
 
 /**
+ * Who may edit. Open to the owner as well as the GM (setzeSperre decides what
+ * each may do), so this is requireAuth, not requireGm.
+ */
+wikiApi.put('/seiten/:slug/sperre', requireAuth, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  const ziel = String((req.body ?? {}).sperre ?? '');
+  if (ziel !== 'offen' && ziel !== 'besitzer' && ziel !== 'gm') {
+    res.status(400).json({ error: 'Unbekannte Sperre' });
+    return;
+  }
+  try {
+    const neu = setzeSperre(user, seite, ziel as Sperre) ?? seite;
+    res.json({ sperre: neu.geschuetzt ? 'gm' : neu.besitzer_sperre ? 'besitzer' : 'offen' });
+  } catch (err) {
+    if (err instanceof WikiGeschuetzt) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+/** Hands a page to another account. GM only. */
+wikiApi.put('/seiten/:slug/besitzer', requireAuth, requireGm, (req, res) => {
+  const user = leser(req);
+  const seite = seiteFuer(user, String(req.params.slug));
+  if (!seite) {
+    res.status(404).json({ error: 'Seite nicht gefunden' });
+    return;
+  }
+  const roh = (req.body ?? {}).userId;
+  const id = roh == null ? null : Number(roh);
+  if (id !== null && (!Number.isInteger(id) || id <= 0)) {
+    res.status(400).json({ error: 'Ungültiger Benutzer' });
+    return;
+  }
+  if (id !== null && !db.prepare('SELECT 1 FROM users WHERE id = ?').get(id)) {
+    res.status(404).json({ error: 'Benutzer nicht gefunden' });
+    return;
+  }
+  const neu = setzeBesitzer(user, seite, id);
+  res.json({ ok: true, geaendert: !!neu });
+});
+
+/**
  * Soft delete — into the trash, not out of existence. Anyone who may see the
  * page may delete it, same as editing (darfBearbeiten): a protected page is
  * the one case that stays GM-only.
@@ -425,7 +486,7 @@ wikiApi.delete('/seiten/:slug', requireAuth, (req, res) => {
     return;
   }
   if (!darfBearbeiten(user, seite)) {
-    res.status(403).json({ error: 'Diese Seite ist geschützt' });
+    res.status(403).json({ error: sperrMeldung(seite) });
     return;
   }
   try {

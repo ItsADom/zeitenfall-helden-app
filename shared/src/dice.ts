@@ -23,13 +23,10 @@
 // nothing is pending. Until then its success/failure is deliberately not
 // decided, since a confirmed 20 would override it anyway.
 
-import { countDice, diceSidesFor, parseFormula, type FormulaNode } from './formula.js';
+import { collectNames, countDice, diceSidesFor, evaluateProbeFormula, parseFormula, type FormulaNode, type RepGroup } from './formula.js';
 
 export const MAX_DICE_COUNT = 20;
 export const MAX_DICE_GROUPS = 6;
-// A leading "Nx" repeats the whole roll N times as one grouped/summarized
-// feed card (chat-only — see TODO.md "Dice formula overhaul").
-export const MAX_REPEAT_COUNT = 10;
 
 /**
  * Knapper Erfolg: ein Wurf aus MEHREREN Würfeln gilt noch als gelungen, wenn
@@ -402,21 +399,127 @@ export function parseDiceExpression(expr: string): DiceExpression | null {
   return ast;
 }
 
-// Ein führendes "Nx" wiederholt den ganzen Wurf N-mal als eine gemeinsame,
-// zusammengefasste Feed-Karte (Chat-only, siehe TODO.md). Wird VOR dem
-// eigentlichen Ausdruck abgetrennt — unabhängig vom Label-Trenner "#", der am
-// Ende steht (siehe splitInlineTitle in FeedColumn.tsx), und unabhängig von
-// "*", das schon die Bedeutung "geworfenes Ergebnis skalieren" trägt.
-export function stripRepeatPrefix(text: string): { repeat: number; rest: string } {
-  const m = /^(\d+)[xX](.*)$/.exec(text.trim());
-  if (!m) return { repeat: 1, rest: text };
-  const repeat = parseInt(m[1], 10);
-  if (repeat < 1 || repeat > MAX_REPEAT_COUNT) return { repeat: 1, rest: text };
-  return { repeat, rest: m[2] };
+/**
+ * What a free formula turns into when rolled:
+ *  - 'dice'  — at least one dice block: a dice-sum roll (names, if any, are
+ *              plain numbers, no success/fail), see parseDiceExpression;
+ *  - 'probe' — no dice block but at least one name: a probe against the names'
+ *              combined target, see evaluateProbeFormula.
+ * The names themselves are resolved later, against the rolling character;
+ * this only checks the syntax and, for a probe, that the SHAPE is allowed.
+ */
+export type RollFormula = { mode: 'dice' | 'probe'; ast: DiceExpression };
+
+export function parseRollFormula(expr: string): RollFormula | null {
+  const ast = parseDiceExpression(expr);
+  if (ast) return { mode: 'dice', ast };
+  const parsed = parseFormula(expr.trim());
+  if (!parsed || countDice(parsed).totalDice > 0 || collectNames(parsed).length === 0) return null;
+  // Any resolvable stand-in works to check the shape.
+  return evaluateProbeFormula(parsed, () => ({ n: 1, probeZahl: 1 })).ok ? { mode: 'probe', ast: parsed } : null;
 }
+
+// --- Namens-Auswahl im Chat ("/r Athl" -> Vorschläge) ---
+//
+// Der Chat schlägt beim Tippen Probe-Namen vor. Ob ein Name direkt gewürfelt
+// oder in die Formel EINGEFÜGT wird, hängt davon ab, WO er steht: ein
+// allein stehender Name ("/r Athl") ist eine Probe für sich, mitten in einer
+// Formel ("/r 1w20+Ath") gibt es nichts direkt zu würfeln. Diese reinen
+// Funktionen finden das gerade getippte Wort und setzen eine Wahl ein.
+
+export interface NameToken {
+  /** Beginn im Entwurf, einschließlich einer öffnenden Anführungszeichen. */
+  start: number;
+  /** Ende (Cursor). */
+  end: number;
+  /** Bisher Getipptes, ohne Anführungszeichen. */
+  query: string;
+  quoted: boolean;
+  /** Außer Leerraum steht nichts vor dem Wort: eine Probe für sich. */
+  lone: boolean;
+}
+
+const PLAIN_NAME = /^[A-Za-zÄÖÜäöüß]+(?: [A-Za-zÄÖÜäöüß]+)*$/;
+
+/** Namen mit etwas anderem als Buchstaben und Leerzeichen brauchen Anführungszeichen. */
+export function nameNeedsQuotes(name: string): boolean {
+  return !PLAIN_NAME.test(name);
+}
+
+/**
+ * Das Wort, das vor dem Cursor gerade getippt wird, wenn der Entwurf ein
+ * "/r"-Ausdruck ist; sonst null. Wort = alles seit dem letzten Operator oder
+ * der letzten öffnenden Klammer (Operatoren in Anführungszeichen zählen nicht)
+ * bzw. seit einer noch offenen Anführungszeichen. Ein Würfelblock ("2w6") oder
+ * eine Zahl ist kein Name. Ein "#" davor (Titel) macht den Rest zum Titel.
+ */
+export function findNameToken(draft: string, caret: number): NameToken | null {
+  const cmd = /^\/(?:r|roll)\s+/i.exec(draft);
+  if (!cmd || caret < cmd[0].length || caret > draft.length) return null;
+  const exprStart = cmd[0].length;
+  const before = draft.slice(exprStart, caret);
+  if (before.includes('#')) return null;
+  const body = before;
+
+  let inQuote = false;
+  let quoteStart = -1;
+  let boundary = 0;
+  for (let i = 0; i < body.length; i++) {
+    const c = body[i];
+    if (c === '"') {
+      inQuote = !inQuote;
+      if (inQuote) quoteStart = i;
+    } else if (!inQuote && '+-*/('.includes(c)) {
+      boundary = i + 1;
+    }
+  }
+
+  let startRel: number;
+  let query: string;
+  let quoted = false;
+  if (inQuote) {
+    startRel = quoteStart;
+    query = body.slice(quoteStart + 1);
+    quoted = true;
+  } else {
+    const raw = body.slice(boundary);
+    if (raw.includes('"')) return null; // gerade geschlossenes Zitat: nichts mehr zu tippen
+    const lead = raw.length - raw.trimStart().length;
+    startRel = boundary + lead;
+    query = raw.trimStart();
+    if (!PLAIN_NAME.test(query.trimEnd())) return null; // Zahl, Würfelblock, leer
+    if (/^[wWdD]\d*$/.test(query.trim())) return null; // "w", "w2", "d20" ...
+  }
+  if (query.trim() === '') return null;
+  return {
+    start: exprStart + startRel,
+    end: caret,
+    query,
+    quoted,
+    lone: body.slice(0, startRel).trim() === '',
+  };
+}
+
+/** Ersetzt das Wort durch `name` (mit Anführungszeichen, wo nötig); liefert Text und neue Cursor-Position. */
+export function applyNameInsert(draft: string, token: NameToken, name: string): { text: string; caret: number } {
+  const insert = nameNeedsQuotes(name) ? `"${name}"` : name;
+  const after = draft.slice(token.end);
+  // Ein schon getipptes schließendes Anführungszeichen nicht doppelt stehen lassen.
+  const rest = token.quoted && after.startsWith('"') ? after.slice(1) : after;
+  return { text: draft.slice(0, token.start) + insert + rest, caret: token.start + insert.length };
+}
+
+// Das frühere "Nx"-Präfix ("3x2w6", "2xAthletik") gibt es nicht mehr: wiederholt
+// wird mit "*" (siehe repeatOf in formula.ts), bei Proben wie bei Würfelsummen.
+// Wer es noch tippt, bekommt statt eines nichtssagenden "ungültig" diesen Hinweis.
+export const hatNxPraefix = (text: string): boolean => /^\s*\d+\s*[xX]/.test(text);
+export const NX_PRAEFIX_HINWEIS =
+  'Das „Nx“-Präfix gibt es nicht mehr. Wiederholt wird mit „*“: „2*Athletik“ würfelt Athletik zweimal, „2*2w6“ würfelt 2w6 zweimal.';
 
 export interface ExpressionRollResult {
   expression: DiceExpression;
+  /** Die Wiederholungen eines "k*X" (siehe RepGroup), leer ohne mehr als eine. */
+  gruppen?: RepGroup[];
   dice: number[];
   confirmations: DieConfirmation[];
   pending: PendingConfirmation[];
@@ -518,7 +621,7 @@ export function parseDiceShortcuts(raw: string): DiceShortcutLine[] {
     }
     const label = line.slice(0, idx).trim();
     const expression = line.slice(idx + 1).trim();
-    const valid = label !== '' && parseDiceExpression(expression) !== null;
+    const valid = label !== '' && parseRollFormula(expression) !== null;
     out.push({ kind: 'shortcut', label, expression, valid });
   }
   return out;

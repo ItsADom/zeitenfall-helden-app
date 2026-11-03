@@ -524,6 +524,14 @@ function floodFillKeys(start: CellCoord, cols: number, rows: number, getValue: (
 }
 
 const CELL_PX = 40;
+// Zoom is a FRACTION of the board (zoom 1 = the whole board fits the window),
+// so on a big board the same factor shows far smaller cells. The limits, the
+// reset zoom and the % readout are therefore all expressed relative to the
+// size a new group's board is created with (db.ts: boards.cols/rows DEFAULT),
+// via zoomFactor below: a 100x100 board gets its raw limits multiplied, and
+// shows the same cell size and the same percentage as the default board.
+const DEFAULT_BOARD_COLS = 40;
+const DEFAULT_BOARD_ROWS = 30;
 const MIN_ZOOM = 0.4;
 const MAX_ZOOM = 3;
 // Kürzer bewegt als das gilt als Klick (Marke auswählen), nicht als Ziehen —
@@ -846,30 +854,37 @@ function TokenEditor({
 
       {token.wounds && (
         <div className="vtt-token-editor-wounds">
-          {/* Only ever present for the token's owner + the GM (see
-              TokenWounds's doc comment in shared/src/boardProtocol.ts) — a
-              non-owner player simply never receives this field, so no
-              further gate is needed here; presence alone means edit rights. */}
-          <div className="vtt-wound-row">
-            <span>Leichte Wunden</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, Math.max(0, token.wounds!.small - 1), token.wounds!.big)}>
-              −
-            </button>
-            <span className="vtt-wound-value">{token.wounds.small}</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small + 1, token.wounds!.big)}>
-              +
-            </button>
-          </div>
-          <div className="vtt-wound-row">
-            <span>Schwere Wunden</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small, Math.max(0, token.wounds!.big - 1))}>
-              −
-            </button>
-            <span className="vtt-wound-value">{token.wounds.big}</span>
-            <button className="small" onClick={() => setTokenWounds(token.id, token.wounds!.small, token.wounds!.big + 1)}>
-              +
-            </button>
-          </div>
+          {/* A character token's wounds only ever reach its owner + the GM
+              (see TokenWounds's doc comment in shared/src/boardProtocol.ts),
+              so presence alone means edit rights there. A marker's wounds
+              are public: everyone sees the counts, only token editors get
+              the buttons. */}
+          {(() => {
+            const editable = token.kind === 'character' || canEdit;
+            const w = token.wounds;
+            const row = (label: string, value: number, set: (v: number) => void) => (
+              <div className="vtt-wound-row">
+                <span>{label}</span>
+                {editable && (
+                  <button className="small" onClick={() => set(Math.max(0, value - 1))}>
+                    −
+                  </button>
+                )}
+                <span className="vtt-wound-value">{value}</span>
+                {editable && (
+                  <button className="small" onClick={() => set(value + 1)}>
+                    +
+                  </button>
+                )}
+              </div>
+            );
+            return (
+              <>
+                {row('Leichte Wunden', w.small, (v) => setTokenWounds(token.id, v, w.big))}
+                {row('Schwere Wunden', w.big, (v) => setTokenWounds(token.id, w.small, v))}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -945,6 +960,12 @@ function MapCanvas({
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
   const totalH = rows * CELL_PX;
+  // How much bigger than a new group's board this one is (never below 1: a
+  // smaller board keeps today's behaviour). Raw zoom / zoomFactor is the
+  // "visual" zoom the player sees and the limits are defined in.
+  const zoomFactor = Math.max(1, cols / DEFAULT_BOARD_COLS, rows / DEFAULT_BOARD_ROWS);
+  const minZoom = MIN_ZOOM * zoomFactor;
+  const maxZoom = MAX_ZOOM * zoomFactor;
   // Reine Kamera-Schwenkgrenze — NICHT für Gitterlinien/Nebel/Bemalen/
   // Einrasten, die bleiben strikt bei totalW/totalH (cols/rows). Fällt bei
   // leerem Brett exakt auf [0,0,totalW,totalH] zurück, ändert also am
@@ -981,7 +1002,7 @@ function MapCanvas({
     feed,
   } = useDicePanel();
   const { user } = useAuth();
-  const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: 1 });
+  const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: zoomFactor });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenIdRaw] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
@@ -1286,7 +1307,10 @@ function MapCanvas({
   const boardScale = useCallback((wrap: HTMLDivElement) => mapMetrics(wrap).scale, [mapMetrics]);
 
   const clampCamera = useCallback(
-    (x: number, y: number, zoom: number): Camera => {
+    (x: number, y: number, rawZoom: number): Camera => {
+      // Also catches a stored/remote zoom left outside the limits, e.g. after
+      // the board was resized.
+      const zoom = Math.min(maxZoom, Math.max(minZoom, rawZoom));
       const vw = totalW / zoom;
       const vh = totalH / zoom;
       // Schwenkbereich ist die Gitterfläche VEREINIGT mit allem, was gerade
@@ -1316,12 +1340,12 @@ function MapCanvas({
         y: maxY === worldMinY ? (worldMinY + worldMaxY - vh) / 2 : Math.min(maxY + marginY, Math.max(worldMinY - marginY, y)),
       };
     },
-    [totalW, totalH, contentBounds],
+    [totalW, totalH, contentBounds, minZoom, maxZoom],
   );
 
   const zoomBy = (factor: number) => {
     setCamera((prev) => {
-      const nextZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev.zoom * factor));
+      const nextZoom = Math.min(maxZoom, Math.max(minZoom, prev.zoom * factor));
       const centerX = prev.x + totalW / prev.zoom / 2;
       const centerY = prev.y + totalH / prev.zoom / 2;
       const nextVw = totalW / nextZoom;
@@ -1330,7 +1354,7 @@ function MapCanvas({
     });
   };
 
-  const resetCamera = () => setCamera(clampCamera(0, 0, 1));
+  const resetCamera = () => setCamera(clampCamera(0, 0, zoomFactor));
 
   // "Center all on my view" (Phase 11) — eased, not an instant snap ("fast
   // movement, not just a blink", per the plan), so a receiver can actually
@@ -2278,6 +2302,7 @@ function MapCanvas({
     radiusColor: string;
     statuses: string[];
     cover: string;
+    wounds: { small: number; big: number } | null;
     nextX: number;
     nextY: number;
   } | null>(null);
@@ -2303,6 +2328,7 @@ function MapCanvas({
           radiusColor: selectedToken.radiusColor,
           statuses: selectedToken.statuses,
           cover: selectedToken.cover,
+          wounds: selectedToken.wounds,
           nextX: selectedToken.x,
           nextY: selectedToken.y,
         };
@@ -2326,6 +2352,7 @@ function MapCanvas({
         radiusColor: clip.radiusColor,
         statuses: clip.statuses,
         cover: clip.cover,
+        ...(clip.wounds ? { wounds: clip.wounds } : {}),
         x,
         y,
       });
@@ -2577,12 +2604,12 @@ function MapCanvas({
         <button className="small" onClick={() => zoomBy(1 / 1.15)} title="Verkleinern">
           −
         </button>
-        {/* Bei MIN_ZOOM ist das ganze Brett schon sichtbar — dann gibt es
+        {/* Bei minZoom ist das ganze Brett schon sichtbar — dann gibt es
             nirgendwohin mehr zu verschieben, auch wenn das Ziehen selbst
             einwandfrei funktioniert. Ohne diese Anzeige liest sich das leicht
             als kaputtes Verschieben statt als "schon ganz herausgezoomt". */}
         <span className="muted vtt-zoom-level" title="Aktueller Zoomstand">
-          {Math.round(camera.zoom * 100)} %
+          {Math.round((camera.zoom / zoomFactor) * 100)} %
         </span>
         <button className="small" onClick={() => zoomBy(1.15)} title="Vergrößern">
           +
@@ -2855,7 +2882,7 @@ function MapCanvas({
               vorgesehen (Kachelebenen -> Gitterlinien -> …) — bewusst dünner
               als die Zellgröße, damit sie über Texturen noch lesbar bleiben,
               ohne die Fläche selbst zu verdunkeln. */}
-          <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={1 / camera.zoom} fill="none" />
+          <path d={gridLinesPath(cols, rows)} stroke="var(--map-line, var(--border))" strokeWidth={zoomFactor / camera.zoom} fill="none" />
 
           {/* Bilder: EINE Ebene für 'objekt' UND 'hintergrund' gleichermaßen —
               ÜBER den Kacheln, UNTER der Einfärbung (siehe "Images on the
@@ -3518,8 +3545,8 @@ function MapCanvas({
                       {t.statuses.map((s) => BOARD_STATUSES.find((b) => b.key === s)?.emoji ?? '').join('')}
                     </text>
                   )}
-                  {/* Wound badge — only ever present at all for the owner/GM
-                      (see TokenWounds's doc comment); hidden here too when
+                  {/* Wound badge — a character token's only ever present for the
+                      owner/GM (see TokenWounds's doc comment); hidden here when
                       both counts are 0, same "nothing to show" rule as the
                       statuses row above. Above the token rather than below,
                       so it never collides with statuses/name. */}
@@ -5146,7 +5173,7 @@ export default function VirtualTable() {
   } = useDicePanel();
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
-  const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat');
+  const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat', true);
   const [chatWidth, setChatWidth] = usePersistedState<number>('vtt-chat-w', 300);
   const chatW = Math.min(520, Math.max(260, Math.round(chatWidth)));
 
@@ -5226,7 +5253,7 @@ export default function VirtualTable() {
           <VttRoster groupId={groupId} cols={boardSettings.cols} rows={boardSettings.rows} />
         ) : myCharId != null ? (
           <CharSheetProvider charId={myCharId}>
-            <CharacterSidebar side="left" />
+            <CharacterSidebar side="left" collapseKey="vtt-sidebar" standardZu />
           </CharSheetProvider>
         ) : (
           <p className="muted">Kein eigener Charakter in dieser Gruppe.</p>

@@ -13,6 +13,7 @@ import type {
 } from '@shared/diceProtocol';
 import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
+import { parseRollFormula } from '@shared/dice';
 import { apiGet, apiPut } from '../../api';
 import { useAuth } from '../../App';
 import { usePersistedState } from '../persist';
@@ -204,9 +205,7 @@ interface DicePanelCtxValue {
    */
   /**
    * targetUserId: nur bei visibility 'gm_player' UND von der Spielleitung
-   * gewählt — wie bei rollExpr. `repeat`: führendes "Nx" im Chat ("2xAthletik")
-   * — dieselbe Wiederholung/Gruppierung wie bei einem freien Ausdruck, siehe
-   * MAX_REPEAT_COUNT in shared/src/dice.ts. Unbesetzt/1 = ein einzelner Wurf.
+   * gewählt — wie bei rollExpr.
    */
   rollProbe: (
     groupId: number,
@@ -214,7 +213,6 @@ interface DicePanelCtxValue {
     source: ProbeSource,
     visibility: RollVisibility,
     targetUserId?: number,
-    repeat?: number,
   ) => void;
   /**
    * Schaden einer Waffe würfeln (siehe roll.weaponDamage im Protokoll) — kein
@@ -374,6 +372,7 @@ interface DicePanelCtxValue {
     radiusColor?: string;
     statuses?: string[];
     cover?: string;
+    wounds?: { small: number; big: number };
   }) => void;
   updateToken: (
     tokenId: number,
@@ -382,7 +381,7 @@ interface DicePanelCtxValue {
   /** One message on drop — the caller renders the whole drag locally, see VirtualTable.tsx's MapCanvas. */
   moveToken: (tokenId: number, x: number, y: number, final?: boolean) => void;
   deleteToken: (tokenId: number) => void;
-  /** Character tokens only. Absolute values, not deltas — same idiom as setInitiativeBasis. Owner/GM-only server-side; a token with `wounds: null` never reaches anyone else in the first place. */
+  /** Absolute values, not deltas — same idiom as setInitiativeBasis. Character tokens: owner/GM-only server-side, and a token with `wounds: null` never reaches anyone else in the first place. Marker tokens: public wounds, ordinary token-edit rights. */
   setTokenWounds: (tokenId: number, small: number, big: number) => void;
   updateBoardSettings: (
     patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
@@ -1171,7 +1170,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       // wie Chat (siehe ModifierPicker) — freie Ausdrücke (getippt oder aus
       // den Würfel-Favoriten) sind da keine Ausnahme. Tabellenwürfe (/master,
       // /wild) sind ein Lookup, kein Ergebnis mit Summe, und bleiben außen vor.
-      const finalExpression = !table && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
+      // Eine Formel nur aus Probe-Namen ist eine Probe: dort wirkt der
+      // Modifikator wie bei roll.probe auf die geworfene Summe und reist als
+      // eigenes Feld. Als Text an der Formel verschöbe er das ZIEL, in die
+      // falsche Richtung.
+      const isProbeFormula = !table && parseRollFormula(expression)?.mode === 'probe';
+      const finalExpression = !table && !isProbeFormula && modifier !== 0 ? `${expression}${modifier > 0 ? '+' : ''}${modifier}` : expression;
       sendMsg({
         type: 'roll.expr',
         reqId: crypto.randomUUID(),
@@ -1181,6 +1185,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         charId,
         table,
         targetUserId,
+        ...(isProbeFormula && modifier !== 0 ? { modifier } : {}),
       });
       if (!table && modifier !== 0) setModifier(0);
     },
@@ -1211,7 +1216,6 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       source: ProbeSource,
       visibility: RollVisibility,
       targetUserId?: number,
-      repeat?: number,
     ) => {
       // Ein Wurf vom Bogen gehört in den Raum DIESER Gruppe, als DIESER
       // Charakter — notfalls wird dorthin gewechselt (die Nachricht wartet
@@ -1229,7 +1233,6 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         visibility,
         modifier,
         targetUserId,
-        ...(repeat && repeat > 1 ? { repeat } : {}),
       });
       // Gilt nur für DIESEN einen Wurf — mehrere modifizierte Würfe hinter-
       // einander sind selten, ein vergessener Modifikator, der beim nächsten
@@ -1486,6 +1489,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       radiusColor?: string;
       statuses?: string[];
       cover?: string;
+      wounds?: { small: number; big: number };
     }) => {
       sendMsg({ type: 'board.token.create', reqId: crypto.randomUUID(), ...input });
     },

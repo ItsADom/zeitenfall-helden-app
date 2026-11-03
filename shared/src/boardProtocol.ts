@@ -226,11 +226,11 @@ export interface BoardToken {
    */
   tokenImage: boolean;
   /**
-   * Null for a marker/monster token (no linked character to hang wounds
-   * off), and ALSO null for a character token when the viewer is neither
-   * its owner nor the GM — this one field is redacted independently of the
-   * token's own visibility (see woundsVisibleTo in server/src/board.ts): the
-   * token itself can be perfectly visible to the whole room while its
+   * A marker/monster token's wounds are public: everyone who can see the
+   * token sees them. A character token's wounds are null when the viewer is
+   * neither its owner nor the GM — this one field is redacted independently
+   * of the token's own visibility (see woundsVisibleTo in server/src/board.ts):
+   * the token itself can be perfectly visible to the whole room while its
    * wounds stay private to owner+GM, following the same owner-bypass
    * population as token edit rights, but as a display filter instead of an
    * edit check.
@@ -263,6 +263,7 @@ export type BoardClientMessage =
       radiusColor?: string;
       statuses?: string[];
       cover?: string;
+      wounds?: TokenWounds;
     }
   // Everything about a token except its position — perm_tokens governs this
   // (create/delete/edit), perm_move governs only board.token.move below.
@@ -283,11 +284,11 @@ export type BoardClientMessage =
   // developer: nobody needs to watch a token travel, only where it lands).
   | { type: 'board.token.move'; reqId: string; tokenId: number; x: number; y: number; final?: boolean }
   | { type: 'board.token.delete'; reqId: string; tokenId: number }
-  // Character tokens only (rejected for a marker — no linked character to
-  // hang wounds off). NOT gated by permTokens/canEditTokens like
+  // Character tokens: NOT gated by permTokens/canEditTokens like
   // board.token.update above — same stricter owner-or-GM-only population as
   // the wounds field's own visibility (see TokenWounds's doc comment), even
-  // on a board where "all" may otherwise edit tokens. Absolute values (same
+  // on a board where "all" may otherwise edit tokens. Marker tokens: their
+  // wounds are public, so the ordinary token-edit rights apply. Absolute values (same
   // idiom as board.initiative.setBasis), so both the ±1 buttons and a typed
   // edit reuse the one message. Answered with the normal board.token.updated
   // broadcast, not a dedicated message type — wounds is just another

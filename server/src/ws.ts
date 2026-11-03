@@ -30,19 +30,24 @@ import {
   MASTER_TABLE,
   WILD_MAGIC_TABLE,
   activeTurnOrder,
-  attrMax,
   cellKey,
+  collectNames,
+  evaluateProbeFormula,
+  formulaToText,
+  hatNxPraefix,
+  NX_PRAEFIX_HINWEIS,
+  mapNames,
   effektiverSchaden,
   handRs,
   kombiniereFormeln,
-  MAX_REPEAT_COUNT,
+  MAX_DICE_COUNT,
   overlayCell,
   parseCellKey,
   parseDiceExpression,
+  parseRollFormula,
   parseTileValue,
   resolveExpressionRoll,
   resolveProbeRoll,
-  stripRepeatPrefix,
   tokenCells,
   TOKEN_ICON_BY_KEY,
   waffenStatWert,
@@ -54,7 +59,7 @@ import { getSessionToken, userForToken } from './auth.js';
 import { loadItems, loadList, loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
-import { computeProbeForCharacter, parseProbeSource } from './diceSource.js';
+import { computeProbeForCharacter, makeNameLookup, parseProbeSource, type NamedProbe } from './diceSource.js';
 import {
   canEditFog as boardCanEditFog,
   canEditImages as boardCanEditImages,
@@ -633,21 +638,6 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
 }
 
 /**
- * Resolves a bare attribute-code identifier in a free chat roll (typing
- * "MU") against the SENDER'S selected character — an already-validated
- * `author.charId` from resolveAuthor(), never the raw, unchecked message
- * field. No character selected (GM chat, or an invalid one that resolveAuthor
- * already fell back to null for) ⇒ every identifier fails, same "kein
- * gültiger Würfelausdruck" outcome as any other unresolvable token — no
- * separate literal/placeholder concept needed.
- */
-function chatAttrResolver(charId: number | null): (name: string) => number | null {
-  if (charId === null) return () => null;
-  const attrs = loadStats(charId).attrs;
-  return (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? attrMax(attrs, name as AttrRowCode) : null);
-}
-
-/**
  * Der eigene Charakter des Absenders in DIESER Gruppe — anders als
  * resolveAuthor() (die bei einem ungültigen charId stillschweigend auf „kein
  * Charakter" zurückfällt) hier ein hartes null, denn eine Kooperationsprobe
@@ -766,17 +756,21 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       // client hides the command from players, but that is a courtesy — this is
       // the check that actually holds, exactly like roll.pending.request below.
       const important = msg.important === true;
-      // Ein führendes "Nx" wiederholt den Wurf N-mal als eine gemeinsame,
-      // zusammengefasste Karte — bewusst nur beim gewöhnlichen freien Wurf,
-      // nicht bei „/master"/„/wild" (feste Tabellenwürfe) oder „/i" (die
-      // Kino-Ansage ist auf EINEN Wurf ausgelegt).
-      const { repeat, rest } =
-        table || important ? { repeat: 1, rest: String(msg.expression ?? '') } : stripRepeatPrefix(String(msg.expression ?? ''));
+      const rest = String(msg.expression ?? '');
+      // Das alte „Nx"-Präfix ist abgeschafft (wiederholt wird mit „*", siehe
+      // repeatOf in formula.ts); ein Hinweis ist hilfreicher als „ungültig".
+      if (!table && hatNxPraefix(rest)) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: NX_PRAEFIX_HINWEIS });
+        return;
+      }
+      // Ein Ausdruck mit Würfelblock ist eine Würfelsumme, einer nur aus Probe-
+      // Namen eine Probe (siehe parseRollFormula).
+      const formula = table ? null : parseRollFormula(rest);
       const expression: DiceExpression | null = table
         ? table === 'master'
           ? { kind: 'dice', count: 1, sides: 6 }
           : { kind: 'bin', op: '+', left: { kind: 'dice', count: 1, sides: 6 }, right: { kind: 'dice', count: 1, sides: 20 } }
-        : parseDiceExpression(rest);
+        : (formula?.ast ?? null);
       if (!expression) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
         return;
@@ -805,50 +799,120 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         gmUserId = resolved.gmUserId;
       }
       const author = resolveAuthor(meta, msg.charId);
-      const resolveId = chatAttrResolver(author.charId);
+      // Namen ("Athletik", "FF", "Heilkunde Wunden") werden HIER gegen den
+      // Charakter des Absenders aufgelöst, nie vom Client übernommen, aus
+      // demselben Grund wie probeZahl. Alle vor dem ersten Wurf, damit ein
+      // unbekannter Name nichts halb Gewürfeltes hinterlässt.
+      const names = collectNames(expression);
+      const resolvedNames = new Map<string, NamedProbe>();
+      if (names.length > 0) {
+        if (author.charId === null) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Namen in einer Formel brauchen einen gewählten Charakter' });
+          return;
+        }
+        const lookup = makeNameLookup(author.charId);
+        for (const name of names) {
+          const hit = lookup(name);
+          if (hit === null || hit === 'ambiguous') {
+            const message = hit === null ? `Unbekannter Name: „${name}“` : `Der Name „${name}“ ist mehrdeutig`;
+            send(ws, { type: 'error', reqId: msg.reqId, message });
+            return;
+          }
+          resolvedNames.set(name, hit);
+        }
+      }
+      const resolveId = (name: string): number | null => resolvedNames.get(name)?.probeZahl ?? null;
       const label = table ? (table === 'master' ? 'Meisterwurf' : 'Wilde Magie') : String(msg.label ?? '').slice(0, 60).trim();
-      // Nur bei 2+ Wiederholungen überhaupt gruppieren — ein einzelner Wurf
-      // braucht keinen gemeinsamen Rahmen um sich selbst.
-      const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
-      for (let i = 0; i < repeat; i++) {
-        const result = performExpressionRoll(expression, resolveId);
-        if (!result) {
+      if (formula?.mode === 'probe') {
+        // Formel nur aus Probe-Namen: eine Probe gegen das verrechnete Ziel,
+        // je Attribut-Term ein W20 (siehe evaluateProbeFormula). Nicht für
+        // „/i" — die Kino-Ansage kennt nur Würfelsummen.
+        if (important) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Ein großer Wurf braucht einen Würfelausdruck' });
+          return;
+        }
+        const probe = evaluateProbeFormula(expression, (name) => resolvedNames.get(name) ?? null);
+        if (!probe.ok) {
           send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
           return;
         }
-        // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
-        // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
-        const outcomeLabel =
-          table === 'master'
-            ? MASTER_TABLE[result.dice[0] - 1]
-            : table === 'wild'
-              ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
-              : undefined;
-        const roll: ExpressionRollPayload = {
-          mode: 'expr',
-          label,
-          expression: result.expression,
+        if (probe.n > MAX_DICE_COUNT) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: `Zu viele Würfel (${probe.n}, höchstens ${MAX_DICE_COUNT})` });
+          return;
+        }
+        const display = formulaToText(mapNames(expression, (name) => resolvedNames.get(name)?.label ?? name), 'w');
+        const modifier = clampModifier(msg.modifier);
+        const parts = probe.parts.map((p) => ({ label: resolvedNames.get(p.name)?.label ?? p.name, n: p.n, probeZahl: p.probeZahl }));
+        const result = performProbeRoll(probe.n, probe.probeZahl, modifier);
+        const roll: ProbeRollPayload = {
+          mode: 'probe',
+          source: { kind: 'formula', expression: display },
+          label: label || display,
+          n: probe.n,
+          probeZahl: probe.probeZahl,
+          modifier,
+          parts,
           dice: result.dice,
           confirmations: result.confirmations,
           pending: result.pending,
           resolved: result.resolved,
           rawSum: result.rawSum,
           adjustedSum: result.adjustedSum,
-          flagged: result.flagged,
-          ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
+          criticalFailureCount: result.criticalFailureCount,
+          criticalFailure: result.criticalFailure,
+          success: result.success,
+          narrow: result.narrow,
+          criticalSuccess: result.criticalSuccess,
         };
-        if (important) {
-          // Persisted like any other roll, but NOT broadcast: the entry rides
-          // along inside roll.important and each client appends it itself once
-          // its own performance is done. Whoever reconnects meanwhile picks it up
-          // through the ordinary history endpoint — the cinematic is a live
-          // event, never a property of the entry.
-          const entry = writeFeedRoll(meta.groupId, author, null, 'public', roll);
-          lastImportantRoll.set(meta.groupId, Date.now());
-          broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
-        } else {
-          insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
-        }
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll);
+        send(ws, { type: 'ack', reqId: msg.reqId });
+        return;
+      }
+      // Der Eintrag zeigt Namen so, wie sie heißen ("Athletik", "Schwert (AT)"),
+      // nicht großgeschrieben wie im geparsten Baum; Attributs-Kürzel (MU, FF)
+      // bleiben, wie getippt. Aufgelöst wurde schon vorher, am Originalbaum.
+      const shownExpression =
+        resolvedNames.size > 0
+          ? mapNames(expression, (name) => (ATTR_ROW_CODES.includes(name as AttrRowCode) ? name : (resolvedNames.get(name)?.label ?? name)))
+          : expression;
+      const result = performExpressionRoll(expression, resolveId);
+      if (!result) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Ungültiger Würfelausdruck' });
+        return;
+      }
+      // Nur der W6 trägt den Tabellennamen; der W20 in „/wild" bleibt reiner
+      // Zahlenwert (Unterergebnis), siehe MASTER_TABLE/WILD_MAGIC_TABLE.
+      const outcomeLabel =
+        table === 'master'
+          ? MASTER_TABLE[result.dice[0] - 1]
+          : table === 'wild'
+            ? `${WILD_MAGIC_TABLE[result.dice[0] - 1]}: ${result.dice[1]}`
+            : undefined;
+      const roll: ExpressionRollPayload = {
+        mode: 'expr',
+        label,
+        expression: shownExpression,
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        flagged: result.flagged,
+        ...(result.gruppen?.length ? { gruppen: result.gruppen } : {}),
+        ...(outcomeLabel !== undefined ? { outcomeLabel } : {}),
+      };
+      if (important) {
+        // Persisted like any other roll, but NOT broadcast: the entry rides
+        // along inside roll.important and each client appends it itself once
+        // its own performance is done. Whoever reconnects meanwhile picks it up
+        // through the ordinary history endpoint — the cinematic is a live
+        // event, never a property of the entry.
+        const entry = writeFeedRoll(meta.groupId, author, null, 'public', roll);
+        lastImportantRoll.set(meta.groupId, Date.now());
+        broadcastUngefiltert(meta.groupId, { type: 'roll.important', seed: rollSeed(), entry });
+      } else {
+        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll);
       }
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
@@ -984,36 +1048,29 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (!resolved) return;
       const { visibility, gmUserId } = resolved;
       const modifier = clampModifier(msg.modifier);
-      // Chat-typed "Nx<Probe>" ("2xAthletik") — same repeat/grouping mechanism
-      // as a repeated free expression (roll.expr), same cap.
-      const rawRepeat = Number(msg.repeat);
-      const repeat = Number.isInteger(rawRepeat) && rawRepeat >= 1 && rawRepeat <= MAX_REPEAT_COUNT ? rawRepeat : 1;
-      const groupRollId = repeat > 1 ? crypto.randomUUID() : undefined;
       const author = resolveAuthor(meta, char.id);
-      for (let i = 0; i < repeat; i++) {
-        const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
-        const roll: ProbeRollPayload = {
-          mode: 'probe',
-          source,
-          label: computed.label,
-          n: computed.n,
-          probeZahl: computed.probeZahl,
-          modifier,
-          ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
-          dice: result.dice,
-          confirmations: result.confirmations,
-          pending: result.pending,
-          resolved: result.resolved,
-          rawSum: result.rawSum,
-          adjustedSum: result.adjustedSum,
-          criticalFailureCount: result.criticalFailureCount,
-          criticalFailure: result.criticalFailure,
-          success: result.success,
-          narrow: result.narrow,
-          criticalSuccess: result.criticalSuccess,
-        };
-        insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll, groupRollId, undefined, repeat > 1);
-      }
+      const result = performProbeRoll(computed.n, computed.probeZahl, modifier);
+      const roll: ProbeRollPayload = {
+        mode: 'probe',
+        source,
+        label: computed.label,
+        n: computed.n,
+        probeZahl: computed.probeZahl,
+        modifier,
+        ...(computed.attrParts ? { attrParts: computed.attrParts } : {}),
+        dice: result.dice,
+        confirmations: result.confirmations,
+        pending: result.pending,
+        resolved: result.resolved,
+        rawSum: result.rawSum,
+        adjustedSum: result.adjustedSum,
+        criticalFailureCount: result.criticalFailureCount,
+        criticalFailure: result.criticalFailure,
+        success: result.success,
+        narrow: result.narrow,
+        criticalSuccess: result.criticalSuccess,
+      };
+      insertFeedRoll(meta.groupId, author, gmUserId, visibility, roll);
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
@@ -1647,6 +1704,9 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         if (typeof msg.radiusColor === 'string' && parseTileValue(msg.radiusColor)?.kind === 'color') input.radiusColor = msg.radiusColor;
         if (Array.isArray(msg.statuses)) input.statuses = msg.statuses.filter((s): s is string => typeof s === 'string' && s in BOARD_STATUS_BY_KEY);
         if (typeof msg.cover === 'string' && (msg.cover === '' || msg.cover in BOARD_COVER_BY_KEY)) input.cover = msg.cover;
+        if (msg.wounds && Number.isFinite(Number(msg.wounds.small)) && Number.isFinite(Number(msg.wounds.big))) {
+          input.wounds = { small: Number(msg.wounds.small), big: Number(msg.wounds.big) };
+        }
         if (typeof msg.iconAsset === 'string' && (msg.iconAsset === '' || msg.iconAsset in TOKEN_ICON_BY_KEY)) input.iconAsset = msg.iconAsset;
       }
       const token = createBoardToken(board.id, input);
@@ -1785,12 +1845,14 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       return;
     }
     // House-rule wound tracking (TODO.md "Wound tracking / count-display on
-    // VTT tokens") — character tokens only, absolute values so both the ±1
-    // buttons and a typed edit reuse this one message. Deliberately NOT
+    // VTT tokens") — absolute values so both the ±1 buttons and a typed edit
+    // reuse this one message. A CHARACTER token is deliberately NOT
     // boardCanEditTokens/permTokens like board.token.update above: the
-    // population here is the SAME as wounds' own visibility (owner + GM
+    // population there is the SAME as wounds' own visibility (owner + GM
     // only), a stricter, always-private case even on a board where "all"
-    // may otherwise edit tokens (see TokenWounds's doc comment).
+    // may otherwise edit tokens (see TokenWounds's doc comment). A MARKER
+    // token's wounds are public, so editing follows the ordinary token-edit
+    // rights instead.
     case 'board.token.wounds.set': {
       const board = getOrCreateBoard(meta.groupId);
       const existing = getBoardToken(Number(msg.tokenId));
@@ -1799,10 +1861,12 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         return;
       }
       if (existing.characterId == null) {
-        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur Charakter-Marken tragen Wunden' });
-        return;
-      }
-      if (!meta.isGm && existing.ownerUserId !== meta.userId) {
+        const viewer = { userId: meta.userId, isGm: meta.isGm };
+        if (!boardCanEditTokens(board, viewer, meta.groupId, existing.ownerUserId)) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Keine Berechtigung, diese Marke zu bearbeiten' });
+          return;
+        }
+      } else if (!meta.isGm && existing.ownerUserId !== meta.userId) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Besitzerin oder die Spielleitung trägt Wunden ein' });
         return;
       }
@@ -1816,8 +1880,8 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (updated) {
         const fog = fogSet(board);
         // Same "whoever can see the token at all" filter as every other
-        // token field update — toWireToken's own woundsVisibleTo call is
-        // what keeps the actual counts private to owner+GM for everyone else.
+        // token field update — toWireToken's own woundsVisibleTo call keeps a
+        // character token's counts private to owner+GM for everyone else.
         broadcastBuilt(meta.groupId, (v) => (tokenVisibleTo(updated, fog, v) ? { type: 'board.token.updated', token: toWireToken(updated, v) } : null));
       }
       send(ws, { type: 'ack', reqId: msg.reqId });

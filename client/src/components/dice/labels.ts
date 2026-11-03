@@ -5,6 +5,16 @@
 // Wo eine Zahl im Satz steckt, ist der Eintrag eine Funktion, die sie
 // bekommt — so bleibt auch die Satzstellung frei.
 
+/**
+ * Teile einer Formel aus Probe-Namen ("Athletik+FF+2*Akrobatik"): jeder Name
+ * würfelt seine eigenen Würfel gegen seinen eigenen Zielwert. Das ist nur
+ * Anzeige, das Gesamtergebnis entscheidet die Summe über alle Würfel.
+ */
+export const PART = {
+  ok: 'Im Ziel: die Würfel dieses Teils liegen höchstens beim eigenen Zielwert',
+  over: 'Darüber: die Würfel dieses Teils liegen über dem eigenen Zielwert',
+};
+
 /** Ausgang einer Probe — die Zeile rechts neben dem Ergebnis. */
 export const OUTCOME = {
   /**

@@ -97,7 +97,7 @@ export default function WikiVerlauf() {
     } catch (e) {
       setFehler(
         e instanceof ApiError && e.status === 403
-          ? 'Diese Seite ist geschützt — nur die Spielleitung darf sie ändern.'
+          ? String((e.data as { error?: string } | undefined)?.error ?? 'Du darfst diese Seite nicht ändern.')
           : 'Die Fassung konnte nicht übernommen werden.',
       );
     }

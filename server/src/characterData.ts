@@ -2216,7 +2216,7 @@ export function saveAbilities(charId: number, raw: unknown): void {
     resolvedDerivedByUid.set(uid, raw && chainValid(uid) ? raw : '');
   }
 
-  // Nur EIN Signatur-Zauber je Charakter: der erste markierte gewinnt.
+  // Nur EIN Markenzeichen je Charakter: der erste markierte gewinnt.
   let signaturVergeben = false;
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM char_abilities WHERE character_id = ?').run(charId);
@@ -2622,9 +2622,15 @@ export function loadWounds(charId: number): Wounds {
 }
 
 /** Clamped to [0, 20] — a hand-crafted WS message shouldn't be able to plant garbage; floors at 0 like the round tracker, no auto-removal at any count. */
+export function clampWounds(wounds: Wounds): Wounds {
+  return {
+    small: Math.max(0, Math.min(20, Math.round(wounds.small))),
+    big: Math.max(0, Math.min(20, Math.round(wounds.big))),
+  };
+}
+
 export function saveWounds(charId: number, wounds: Wounds): Wounds {
-  const small = Math.max(0, Math.min(20, Math.round(wounds.small)));
-  const big = Math.max(0, Math.min(20, Math.round(wounds.big)));
+  const { small, big } = clampWounds(wounds);
   db.prepare('UPDATE char_meta SET small_wounds = ?, big_wounds = ? WHERE character_id = ?').run(small, big, charId);
   return { small, big };
 }
@@ -3071,7 +3077,7 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
     const { attrs: attributes, resources } = stats;
     const baseValues = computeBaseValues(attributes, stats.baseInputs);
     const meta = loadSingleRow('char_meta', c.id) as {
-      stufe?: number;
+      ap?: number;
       psycheAkt?: number;
       psycheBase?: number;
       schicksalspunkteAktuell?: number;
@@ -3125,7 +3131,9 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
       // Für „Probe anfordern" auf der Übersicht: die Anfrage geht an den Besitzer.
       ownerUserId: c.ownerUserId,
       ownerName: c.ownerName,
-      stufe: meta.stufe ?? 0,
+      // Abgeleitet wie auf dem Bogen (Heldenbrief), nicht aus der gespeicherten
+      // Spalte stufe, die nichts mehr beschreibt.
+      stufe: levelForAp(Number(meta.ap) || 0),
       portrait: hasPortrait(c.id),
       vitals,
       thresholds: { wund: baseValues.wundschwelle.ergebnis, tod: baseValues.todesschwelle.ergebnis },

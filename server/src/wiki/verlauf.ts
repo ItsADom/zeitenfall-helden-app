@@ -13,14 +13,14 @@ import type { WikiArt, WikiLogEintrag } from 'shared';
 import { db } from '../db.js';
 import { WikiGeschuetzt, schreibeAbgeleitetes, schreibeLog, sichtbareQuelle } from './seiten.js';
 import type { WikiLeser, WikiSeiteRow } from './zugriff.js';
-import { sichtbarkeitsFilter } from './zugriff.js';
+import { darfBearbeiten, sichtbarkeitsFilter, sperrMeldung } from './zugriff.js';
 
 /**
  * Metadata rows a player must not see. A „nur Spielleiter"-toggle would
  * otherwise tell them the page used to be secret, which is exactly the fact the
  * flag exists to hide.
  */
-const NUR_GM_ARTEN: readonly WikiArt[] = ['sichtbarkeit', 'geschuetzt', 'geloescht'];
+const NUR_GM_ARTEN: readonly WikiArt[] = ['sichtbarkeit', 'geschuetzt', 'besitzer', 'geloescht'];
 
 const artFilter = (user: WikiLeser): string =>
   user.isGm ? '' : ` AND r.art NOT IN (${NUR_GM_ARTEN.map((a) => `'${a}'`).join(',')})`;
@@ -161,7 +161,7 @@ export function stelleFassungHer(
   seite: WikiSeiteRow,
   revId: number,
 ): { nr: number } | null {
-  if (!user.isGm && seite.geschuetzt) throw new WikiGeschuetzt();
+  if (!darfBearbeiten(user, seite)) throw new WikiGeschuetzt(sperrMeldung(seite));
 
   const ziel = db.prepare('SELECT id, nr, text FROM wiki_revisions WHERE id = ? AND page_id = ?').get(revId, seite.id) as
     | { id: number; nr: number; text: string | null }

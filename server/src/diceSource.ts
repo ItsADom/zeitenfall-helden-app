@@ -13,8 +13,10 @@ import {
   elementProbeBonus,
   erleichterung,
   munitionProbenBonusFuer,
+  normalizeName,
   parseProbeExpr,
   probeExprZahl,
+  signaturErleichterung,
   schreibenProbe,
   sprechenProbe,
   talentProbeBonus,
@@ -156,8 +158,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     }
     case 'ability': {
       const row = db
-        .prepare('SELECT name, probe, element FROM char_abilities WHERE character_id = ? AND id = ?')
-        .get(characterId, source.abilityId) as { name: string; probe: string; element: string } | undefined;
+        .prepare('SELECT name, probe, element, signatur FROM char_abilities WHERE character_id = ? AND id = ?')
+        .get(characterId, source.abilityId) as { name: string; probe: string; element: string; signatur: number } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
       if (!parts) return null;
@@ -174,7 +176,8 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
       const attrParts = parts.filter((p): p is AttrCode => p !== 'AT' && p !== 'PA' && p !== 'BL');
       return {
         n: parts.length,
-        probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni),
+        // + Markenzeichen: 2 je beteiligtem Würfel (signaturErleichterung, rules.ts).
+        probeZahl: probeZahl + elementProbeBonus(row.element, stats.boni) + (row.signatur ? signaturErleichterung(row.probe) : 0),
         label: row.name,
         attrParts: attrParts.length ? attrParts : undefined,
       };
@@ -298,6 +301,45 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
   }
 
   return out;
+}
+
+/** What a name in a free formula stands for: its display label, d20 count and target. */
+export interface NamedProbe {
+  label: string;
+  n: number;
+  probeZahl: number;
+}
+
+/**
+ * Resolves the names used in a free formula ("Athletik", "FF", "Heilkunde
+ * Wunden", "Schwert (AT)") against ONE character's rollable probes, the same
+ * list the chat's suggestions offer. Attribute codes ("MU") win over labels;
+ * everything else is matched by its normalized label. A label that exists more
+ * than once (two weapons of the same name, a spell named like a talent) is
+ * 'ambiguous' rather than silently picking one. The list is built lazily on the
+ * first non-attribute name, since it computes every probe.
+ */
+export type NameLookup = (name: string) => NamedProbe | 'ambiguous' | null;
+
+export function makeNameLookup(characterId: number): NameLookup {
+  let byLabel: Map<string, RollableProbe[]> | null = null;
+  return (name) => {
+    if (ATTR_ROW_CODES.includes(name as AttrRowCode)) {
+      const c = computeProbeForCharacter(characterId, { kind: 'attribute', attr: name as AttrRowCode });
+      return c ? { label: c.label, n: c.n, probeZahl: c.probeZahl } : null;
+    }
+    if (!byLabel) {
+      byLabel = new Map();
+      for (const p of listRollableProbes(characterId)) {
+        const key = normalizeName(p.label);
+        byLabel.set(key, [...(byLabel.get(key) ?? []), p]);
+      }
+    }
+    const hits = byLabel.get(name);
+    if (!hits) return null;
+    if (hits.length > 1) return 'ambiguous';
+    return { label: hits[0].label, n: hits[0].n, probeZahl: hits[0].probeZahl };
+  };
 }
 
 // Nur die als 📌-Favorit markierten Talente/Zauber-Fähigkeiten (Talente.tsx/

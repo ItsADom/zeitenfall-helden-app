@@ -34,6 +34,14 @@ const MAX_NUMBER_LITERAL_DIGITS = 15;
 const MIN_DICE_SIDES = 2;
 const MAX_DICE_SIDES = 1000;
 
+// A name is compared case-insensitively with collapsed whitespace; the AST
+// stores it upper-cased (so "mu" and "MU" are one identifier). "ß" upper-cases
+// to "SS" on BOTH sides of a comparison, which is all that matters.
+export const MAX_NAME_LENGTH = 60;
+export function normalizeName(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
 type Token =
   | { t: 'num'; v: number }
   | { t: 'dice'; count: number; sides: number }
@@ -73,9 +81,25 @@ function tokenize(expr: string): Token[] | null {
       i += numMatch[0].length;
       continue;
     }
-    const idMatch = /^[A-Za-zÄÖÜäöü]+/.exec(rest);
+    // Quoted name: anything but a quote, so names with "/", "-", "(" ... work
+    // ("Hämmer/Keulen", "Schwert (AT)"). Inserted automatically by the chat's
+    // name picker, never needed for plain names.
+    const quotedMatch = /^"([^"]+)"/.exec(rest);
+    if (quotedMatch) {
+      const name = normalizeName(quotedMatch[1]);
+      if (name === '' || name.length > MAX_NAME_LENGTH) return null;
+      toks.push({ t: 'id', v: name });
+      i += quotedMatch[0].length;
+      continue;
+    }
+    // Bare name: letters, and spaces BETWEEN letters ("Heilkunde Wunden").
+    // Two names without an operator in between are never valid, so an inner
+    // space is unambiguous.
+    const idMatch = /^[A-Za-zÄÖÜäöüß]+(?: +[A-Za-zÄÖÜäöüß]+)*/.exec(rest);
     if (idMatch) {
-      toks.push({ t: 'id', v: idMatch[0].toUpperCase() });
+      const name = normalizeName(idMatch[0]);
+      if (name.length > MAX_NAME_LENGTH) return null;
+      toks.push({ t: 'id', v: name });
       i += idMatch[0].length;
       continue;
     }
@@ -162,28 +186,101 @@ export function parseFormula(text: string): FormulaNode | null {
   return parseTokens(toks);
 }
 
-/** Total individual dice rolled, and number of distinct dice blocks, across the whole tree. */
+// --- Wiederholen mit "*" ---
+//
+// `k*X`, wobei k eine GANZE ZAHL ab 1 ist (aus Zahlen und + - * / gebaut, ohne
+// Namen und Würfel) und X einen Würfelblock enthält, heißt: X wird k-mal GEWÜRFELT
+// und die Ergebnisse werden addiert. "2*2w6" sind zwei getrennte Würfe von 2w6
+// (nicht ein Wurf, der verdoppelt wird), "3*(1w6+2)" dreimal (1w6+2). Dieselbe
+// Regel wie bei einer Probe ("2*Athletik" = zweimal Athletik). Welche Ziffer
+// zählt als Würfelzahl, entscheidet schon der Tokenizer: nur die Ziffern DIREKT
+// vor "w"/"d" ("2*2w6": die erste 2 wiederholt, die zweite ist die Würfelzahl).
+// Kein Würfel in X, ein Name als Faktor oder eine gebrochene Zahl bleiben
+// gewöhnliche Multiplikation (z. B. "2*Athletik" in einer Würfelsumme, "1.5*1w6").
+export const MAX_REPEAT = 20;
+
+function constantValue(n: FormulaNode): number | null {
+  switch (n.kind) {
+    case 'num':
+      return n.value;
+    case 'neg': {
+      const v = constantValue(n.operand);
+      return v === null ? null : -v;
+    }
+    case 'bin': {
+      const l = constantValue(n.left);
+      if (l === null) return null;
+      const r = constantValue(n.right);
+      if (r === null) return null;
+      switch (n.op) {
+        case '+':
+          return l + r;
+        case '-':
+          return l - r;
+        case '*':
+          return l * r;
+        case '/':
+          return r === 0 ? null : l / r;
+      }
+    }
+    default:
+      return null;
+  }
+}
+
+function containsDice(n: FormulaNode): boolean {
+  switch (n.kind) {
+    case 'dice':
+      return true;
+    case 'neg':
+      return containsDice(n.operand);
+    case 'bin':
+      return containsDice(n.left) || containsDice(n.right);
+    default:
+      return false;
+  }
+}
+
+/** The repeat a `*` node stands for, or null for an ordinary multiplication. */
+export function repeatOf(n: FormulaNode): { count: number; operand: FormulaNode } | null {
+  if (n.kind !== 'bin' || n.op !== '*') return null;
+  const versuch = (faktor: FormulaNode, x: FormulaNode): { count: number; operand: FormulaNode } | null => {
+    if (!containsDice(x)) return null;
+    const c = constantValue(faktor);
+    return c !== null && Number.isInteger(c) && c >= 1 && c <= MAX_REPEAT ? { count: c, operand: x } : null;
+  };
+  return versuch(n.left, n.right) ?? versuch(n.right, n.left);
+}
+
+/** Total individual dice rolled (repeats counted), and number of distinct dice blocks, across the whole tree. */
 export function countDice(ast: FormulaNode): { totalDice: number; groups: number } {
   let totalDice = 0;
   let groups = 0;
-  const walk = (n: FormulaNode): void => {
+  const walk = (n: FormulaNode, mult: number): void => {
+    const rep = repeatOf(n);
+    if (rep) {
+      // Blocks are counted once, however often they repeat: the block limit is
+      // about how many different dice an expression mixes, not how many dice roll.
+      walk(rep.operand, mult * rep.count);
+      return;
+    }
     switch (n.kind) {
       case 'dice':
-        totalDice += n.count;
+        totalDice += n.count * mult;
         groups += 1;
         return;
       case 'neg':
-        walk(n.operand);
+        walk(n.operand, mult);
         return;
       case 'bin':
-        walk(n.left);
-        walk(n.right);
+        walk(n.left, mult);
+        walk(n.right, mult);
         return;
       default:
         return;
     }
   };
-  walk(ast);
+  walk(ast, 1);
   return { totalDice, groups };
 }
 
@@ -196,6 +293,11 @@ export function countDice(ast: FormulaNode): { totalDice: number; groups: number
 export function diceSidesFor(ast: FormulaNode): number[] {
   const out: number[] = [];
   const walk = (n: FormulaNode): void => {
+    const rep = repeatOf(n);
+    if (rep) {
+      for (let i = 0; i < rep.count; i++) walk(rep.operand);
+      return;
+    }
     switch (n.kind) {
       case 'dice':
         for (let i = 0; i < n.count; i++) out.push(n.sides);
@@ -215,12 +317,25 @@ export function diceSidesFor(ast: FormulaNode): number[] {
   return out;
 }
 
+/**
+ * One repetition of a `k*X` (see repeatOf): which of the rolled dice it used
+ * (`start`, `n`, indices into the flat dice list) and what it came to. Only the
+ * OUTERMOST repeats are recorded, so a card can show „Wurf 1, Wurf 2".
+ */
+export interface RepGroup {
+  start: number;
+  n: number;
+  summe: number;
+}
+
 interface EvalCtx {
   resolveId: (name: string) => number | null;
   /** Unset in static (no-dice) mode — a DiceNode then fails evaluation. */
   rollDie?: (sides: number) => number;
   /** Rolled die faces, accumulated in encounter order as a side effect. */
   dice: number[];
+  groups: RepGroup[];
+  repDepth: number;
 }
 
 function evalNode(node: FormulaNode, ctx: EvalCtx): number | null {
@@ -244,6 +359,25 @@ function evalNode(node: FormulaNode, ctx: EvalCtx): number | null {
       return v === null ? null : -v;
     }
     case 'bin': {
+      const rep = repeatOf(node);
+      if (rep) {
+        // Roll the operand `count` times and add the results up.
+        const aussen = ctx.repDepth === 0;
+        ctx.repDepth += 1;
+        let summe = 0;
+        for (let i = 0; i < rep.count; i++) {
+          const start = ctx.dice.length;
+          const v = evalNode(rep.operand, ctx);
+          if (v === null) {
+            ctx.repDepth -= 1;
+            return null;
+          }
+          summe += v;
+          if (aussen) ctx.groups.push({ start, n: ctx.dice.length - start, summe: Math.ceil(v) });
+        }
+        ctx.repDepth -= 1;
+        return summe;
+      }
       const l = evalNode(node.left, ctx);
       if (l === null) return null;
       const r = evalNode(node.right, ctx);
@@ -269,7 +403,7 @@ function evalNode(node: FormulaNode, ctx: EvalCtx): number | null {
  * value in the app (MR/Resilienz/Artefaktkontrolle/energy formulas).
  */
 export function evaluateStatic(ast: FormulaNode, resolveId: (name: string) => number | null): number | null {
-  const v = evalNode(ast, { resolveId, dice: [] });
+  const v = evalNode(ast, { resolveId, dice: [], groups: [], repDepth: 0 });
   return v === null || !Number.isFinite(v) ? null : Math.ceil(v);
 }
 
@@ -284,11 +418,15 @@ export function evaluateRolled(
   ast: FormulaNode,
   resolveId: (name: string) => number | null,
   rollDie: (sides: number) => number,
-): { total: number; dice: number[] } | null {
-  const ctx: EvalCtx = { resolveId, rollDie, dice: [] };
+): { total: number; dice: number[]; groups: RepGroup[] } | null {
+  const ctx: EvalCtx = { resolveId, rollDie, dice: [], groups: [], repDepth: 0 };
   const total = evalNode(ast, ctx);
-  return total === null || !Number.isFinite(total) ? null : { total: Math.ceil(total), dice: ctx.dice };
+  if (total === null || !Number.isFinite(total)) return null;
+  // One repetition is not worth a row of its own (`1*2w6`).
+  return { total: Math.ceil(total), dice: ctx.dice, groups: ctx.groups.length > 1 ? ctx.groups : [] };
 }
+
+const BARE_NAME = /^[A-Za-zÄÖÜäöüß]+(?: [A-Za-zÄÖÜäöüß]+)*$/;
 
 function precedence(op: '+' | '-' | '*' | '/'): number {
   return op === '+' || op === '-' ? 1 : 2;
@@ -308,7 +446,7 @@ export function formulaToText(node: FormulaNode, diceCode: 'w' | 'd'): string {
       case 'num':
         return String(n.value);
       case 'id':
-        return n.name;
+        return BARE_NAME.test(n.name) ? n.name : `"${n.name}"`;
       case 'dice':
         return `${n.count}${diceCode}${n.sides}`;
       case 'neg':
@@ -323,4 +461,160 @@ export function formulaToText(node: FormulaNode, diceCode: 'w' | 'd'): string {
       }
     }
   }
+}
+
+/** Every identifier in the tree, in encounter order, without duplicates. */
+export function collectNames(ast: FormulaNode): string[] {
+  const seen = new Set<string>();
+  const walk = (n: FormulaNode): void => {
+    switch (n.kind) {
+      case 'id':
+        seen.add(n.name);
+        return;
+      case 'neg':
+        walk(n.operand);
+        return;
+      case 'bin':
+        walk(n.left);
+        walk(n.right);
+        return;
+      default:
+        return;
+    }
+  };
+  walk(ast);
+  return [...seen];
+}
+
+/** Same tree with every identifier replaced by `fn(name)`, e.g. canonical display names. */
+export function mapNames(ast: FormulaNode, fn: (name: string) => string): FormulaNode {
+  switch (ast.kind) {
+    case 'id':
+      return { kind: 'id', name: fn(ast.name) };
+    case 'neg':
+      return { kind: 'neg', operand: mapNames(ast.operand, fn) };
+    case 'bin':
+      return { kind: 'bin', op: ast.op, left: mapNames(ast.left, fn), right: mapNames(ast.right, fn) };
+    default:
+      return ast;
+  }
+}
+
+/** What a name stands for in a probe formula: how many d20s it brings and its target number. */
+export interface ProbeTerm {
+  n: number;
+  probeZahl: number;
+}
+
+/**
+ * One name's share of a probe formula, in the order its dice are rolled
+ * (`2*Akrobatik` yields TWO parts). `name` is the identifier as written in the
+ * formula; `probeZahl` is that part's own target after any division, rounded up.
+ */
+export interface ProbeFormulaPart {
+  name: string;
+  n: number;
+  probeZahl: number;
+}
+
+export type ProbeFormulaResult =
+  | { ok: true; n: number; probeZahl: number; parts: ProbeFormulaPart[] }
+  | { ok: false; reason: 'shape' }
+  | { ok: false; reason: 'unknown'; name: string };
+
+interface RawPart {
+  name: string;
+  n: number;
+  target: number;
+}
+
+interface ProbePart {
+  value: number;
+  n: number;
+  parts: RawPart[];
+  hasName: boolean;
+}
+
+// A name can be repeated at most this often: every name brings at least one
+// d20 and a roll holds 20 dice at most, so more could never be rolled anyway,
+// and this keeps a typed "1000000*Athletik" from allocating a huge list.
+const MAX_PROBE_REPEAT = 20;
+
+/**
+ * A formula WITHOUT any dice block, built from probe names, is a probe: the
+ * names' targets are combined arithmetically into one target, and one d20 is
+ * rolled per attribute term the names stand for (attribute 1, talent 3, ...).
+ * The whole formula is judged on its total (all dice against the combined
+ * target); `parts` additionally lists every name with its own dice count and
+ * target so a roll can show which part was over.
+ *
+ * `k*X` with a whole number k >= 1 means X k times, dice AND target:
+ * `2*Athletik` is `Athletik+Athletik`. Constants with `+`/`-` only shift the
+ * target. `/` by a constant scales the target of what stands to its left
+ * (same dice). Names combine with `+`; never `name-name`, `name*name`,
+ * `5/name`, a negated name, or a fractional/zero multiplier. `resolve` returns
+ * null for an unknown name. Rounds the target up, like every other derived
+ * value.
+ */
+export function evaluateProbeFormula(ast: FormulaNode, resolve: (name: string) => ProbeTerm | null): ProbeFormulaResult {
+  let unknown: string | null = null;
+  const walk = (node: FormulaNode): ProbePart | null => {
+    switch (node.kind) {
+      case 'num':
+        return { value: node.value, n: 0, parts: [], hasName: false };
+      case 'dice':
+        return null;
+      case 'id': {
+        const term = resolve(node.name);
+        if (!term) {
+          unknown = node.name;
+          return null;
+        }
+        return { value: term.probeZahl, n: term.n, parts: [{ name: node.name, n: term.n, target: term.probeZahl }], hasName: true };
+      }
+      case 'neg': {
+        const v = walk(node.operand);
+        return v && !v.hasName ? { value: -v.value, n: 0, parts: [], hasName: false } : null;
+      }
+      case 'bin': {
+        const l = walk(node.left);
+        const r = l && walk(node.right);
+        if (!l || !r) return null;
+        switch (node.op) {
+          case '+':
+            return { value: l.value + r.value, n: l.n + r.n, parts: [...l.parts, ...r.parts], hasName: l.hasName || r.hasName };
+          case '-':
+            return r.hasName ? null : { value: l.value - r.value, n: l.n, parts: l.parts, hasName: l.hasName };
+          case '*': {
+            if (l.hasName === r.hasName) return null; // name*name, or two constants (no name at all)
+            const [count, X] = l.hasName ? [r.value, l] : [l.value, r];
+            if (!Number.isInteger(count) || count < 1 || count > MAX_PROBE_REPEAT) return null;
+            return {
+              value: X.value * count,
+              n: X.n * count,
+              parts: Array.from({ length: count }, () => X.parts).flat(),
+              hasName: true,
+            };
+          }
+          case '/':
+            if (r.hasName || r.value === 0) return null;
+            return {
+              value: l.value / r.value,
+              n: l.n,
+              parts: l.parts.map((p) => ({ ...p, target: p.target / r.value })),
+              hasName: l.hasName,
+            };
+        }
+      }
+    }
+  };
+  const total = walk(ast);
+  if (unknown !== null) return { ok: false, reason: 'unknown', name: unknown };
+  if (!total || !total.hasName || total.n < 1 || !Number.isFinite(total.value)) return { ok: false, reason: 'shape' };
+  return {
+    ok: true,
+    n: total.n,
+    probeZahl: Math.ceil(total.value),
+    parts: total.parts.map((p) => ({ name: p.name, n: p.n, probeZahl: Math.ceil(p.target) })),
+  };
 }

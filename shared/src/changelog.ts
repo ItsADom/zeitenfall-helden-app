@@ -199,6 +199,55 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-11-03',
+    version: '0.12.0',
+    title: 'Arrhythmische Arithmetik',
+    features: [
+      {
+        title: 'Würfeln direkt im Chat',
+        added: [
+          '„/r Athletik+FF+2*Akrobatik“ würfelt eine Probe aus mehreren Namen: ein Würfel je beteiligtem Attribut, gewürfelt gegen die zusammengerechneten Zielwerte. Zahlen mit „+“ und „-“ verschieben den Zielwert.',
+          'Mit Mischwürfen, z. B. „/r 1w20+Athletik“, zählt der komplette Ausdruck als gewöhnliche Würfelsumme, ohne Erfolg oder Fehlschlag.',
+          'Beim Tippen schlägt der Chat weiterhin Namen vor, jetzt auch mitten in einer Formel: Tab oder Shift+Enter fügt den Namen ein, Anführungszeichen setzt der Chat wenn nötig selbst. Enter würfelt einen allein stehenden Namen wie bisher. Auch Würfel-Favoriten dürfen solche Formeln enthalten.',
+        ],
+        changed: [
+          'Wiederholt wird jetzt immer mit „*“: „2*Athletik“ würfelt Athletik zweimal in einer Probe, „2*2w6“ würfelt 2w6 zweimal und zeigt beide Würfe. Das alte „Nx“-Präfix („3x2w6“, „2xAthletik“) gibt es nicht mehr.',
+        ],
+      },
+      {
+        title: 'Markenzeichen',
+        added: [
+          'Das Markenzeichen gibt jetzt eine Erleichterung von 2 je beteiligtem Würfel auf seine Probe und zeigt sie in der Probenzahl und beim Würfeln. Fähigkeiten lassen sich jetzt auch als Markenzeichen wählen.',
+        ],
+      },
+      {
+        title: 'Wiki',
+        added: [
+          'Wiki-Seiten haben jetzt einen Besitzer (wer sie angelegt hat, bei einer Charakterseite der Spieler des Charakters). Der Besitzer kann sie mit einem Haken für alle anderen zum Bearbeiten sperren. Lesen können sie weiter alle, die Spielleitung darf immer bearbeiten.',
+        ],
+        changed: [
+          'Mehrmaliges Speichern einer Wiki-Seite innerhalb von 30 Minuten wird zu einer Version zusammengefasst, statt jedes Speichern als eigene Version zu zählen. Mit einer Notiz beim Speichern bleibt diese Version für sich.',
+          'Der Wiki-Editor weist jetzt auf die Vorschau hin, mit der sich eine Seite ansehen lässt, ohne zu speichern.',
+        ],
+        admin: [
+          '(Spielleiter) Auf jeder Wiki-Seite lässt sich jetzt einstellen, wer sie bearbeiten darf (alle, nur Besitzer und Spielleitung, nur Spielleitung). Außerdem kann die Seite einem anderen Konto zugewiesen werden.',
+        ],
+      },
+      {
+        title: 'Virtueller Tisch',
+        added: [
+          'Auch Marken ohne Charakter (Monster, NPCs) tragen jetzt leichte und schwere Wunden. Die Zähler sind für alle am Tisch sichtbar und werden mit denselben Rechten bearbeitet wie die Marke selbst. Beim Kopieren und Einfügen einer Marke bleiben die Wunden erhalten.',
+        ],
+        fixed: [
+          'Auf einem sehr großen Tisch (z. B. 100 × 100 Felder) ließ sich nicht annähernd so nah heranzoomen wie auf dem Standardtisch. Zoomgrenzen, „Zurücksetzen“ und die Prozentanzeige richten sich jetzt nach der Tischgröße: dieselbe Zellgröße und dieselbe Prozentzahl wie auf einem Standard-Tisch.',
+        ],
+        admin: [
+          '(Spielleiter) In der Gruppenübersicht stand bei jedem Charakter „Stufe 0“. Dort steht jetzt die tatsächliche Stufe.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-09-18',
     title: 'Filtern und Suchen',
     version: '0.11.0',
