@@ -76,23 +76,44 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   header in `PoolInventory.tsx`'s house/room view, opening a gallery dialog
   (upload/view/delete) — reuse the wiki's upload flow (`skaliereBild`
   client-side resize, `Bilder.tsx` as the pattern to copy), not a new one.
-- [ready] **Arithmetic in free rolls and favorites** (e.g.
-  `Athletik+FF+(2*Akrobatik)`). The engine already exists: `shared/src/formula.ts`
-  (`+ - * /`, parentheses, unary minus, dice blocks), used by `/r` and energy
-  formulas, so no library is needed. Decided: this is a **dice-sum formula**,
-  not a probe. Each name resolves to a plain number and the result is
-  arithmetic, with no d20 triples or pass/fail (probe formulas stay `+`-only on
-  purpose, see the header of `formula.ts`). What is missing is identifier
-  resolution: `chatAttrResolver` (`ws.ts`) only knows attribute codes. To
-  settle while building: what each name means (talent = TaW, base values
-  AT/PA/BL/…), how names with spaces/umlauts tokenize (the tokenizer only
-  accepts letters), and whether dice favorites (`characters.dice_shortcuts`,
-  "Label: expression" lines) already go through the same parser; if not, route
-  them through it.
-
-Inbox for raw feedback as it comes in. Drop new points here; they get refined and
-sorted into the priority sections above in a later pass. (Empty = all caught up.)
-
+- [sketch] **Arithmetic in free rolls and favorites** (e.g.
+  `Athletik+FF+(2*Akrobatik)`). Concept agreed so far (replaces an earlier
+  "dice-sum formula" idea): names resolve to **probe targets**, the whole
+  expression is rolled and judged as success/fail, exactly like a talent
+  probe today (crits, "knapp", Erleichterung/Erschwernis modifier,
+  Schicksalspunkte all reused).
+  - **Target:** the arithmetic result over the names' targets (talent =
+    its three attributes + Erleichterung, attribute code = its value,
+    ability = its probe expression incl. element/Markenzeichen bonuses).
+  - **Dice:** one d20 per attribute term after expanding the names
+    (attribute 1, talent 3, ...). Multipliers and constants only change the
+    target: `Athletik+FF+(2*Akrobatik)` with 40/12/36 is 3+1+3 = 7 d20s
+    against 124; `Athletik+5` is 3 d20s against 45. A multiplier is not a
+    dice multiplier.
+  - **No dice block needed:** a name-based expression is a probe, so
+    `/r` accepts it without any `w`/`d` block (today
+    `parseDiceExpression` rejects zero-dice formulas). Formulas with
+    explicit dice blocks keep today's dice-sum meaning (attribute codes as
+    plain numbers, e.g. `1w20+MU`); mixing dice blocks with probe names is
+    rejected.
+  - **Syntax:** names are case-insensitive; letters and inner spaces work
+    bare (`Heilkunde Wunden+FF`: two names without an operator are never
+    valid, so a space is unambiguous); names containing `/` or `-` (33 of
+    159 talents, e.g. "Hämmer/Keulen") need double quotes. The tokenizer in
+    `shared/src/formula.ts` only accepts letters today.
+  - **Engine:** `formula.ts` (hand-written parser, no library needed) stays
+    the single grammar; favorites (`parseDiceShortcuts`) and `/r` share it,
+    names are resolved at roll time with the sender's character
+    (`chatAttrResolver` in `ws.ts` only knows attribute codes today).
+  - **Still open, settle before building:** (1) which name kinds beyond
+    attributes and talents (abilities/spells yes? languages need
+    Sprechen/Schreiben, combat talents have no formula); (2) allowed
+    operators on names: proposal is `+` between names, `*` by constants,
+    `+`/`-` constants only, since `Athletik-FF` or `Athletik/2` have no
+    meaningful dice count; (3) how the feed card shows it (proposal:
+    expanded `Athletik (40) + FF (12) + 2×Akrobatik (36)`); (4) typing aid:
+    name suggestions inside the formula (the dock already suggests probes
+    while typing).
 ## Mid-Prio
 
 - [sketch] **Animal/pet companion sheets**: a character owning a trained animal
