@@ -703,7 +703,7 @@ api.get('/groups/mine', requireAuth, (req, res) => {
       id: r.id,
       name: r.name,
       myCharacterId: r.charId,
-      myCharacterName: r.charId ? r.charChatName || r.charName : null,
+      myCharacterName: r.charId ? displayName(r.charChatName || r.charName || '', r.charId) : null,
       myDiceShortcuts: r.charShortcuts ?? '',
       schicksalspunkteAktuell: r.spAktuell ?? 0,
       schicksalspunkteMax: r.spMax ?? 0,

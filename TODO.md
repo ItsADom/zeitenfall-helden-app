@@ -53,9 +53,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   and re-link) are built. Remaining:
    - Phase 3: check export/import and backup with forms; changelog draft (player
      facing, feature sections, no em-dashes; recommend a minor bump, never assign it).
-   - Small gaps: Einstellungen and the ability workshop still act on the active
-     sheet only; label roll/feed entries with the form; later, the small chip under
-     the name instead of the appended form name.
    - Open for later: worn-item bonuses and equipment presets across forms (items
      are shared; bonuses apply to the active form for now).
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke

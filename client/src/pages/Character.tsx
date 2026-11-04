@@ -358,10 +358,16 @@ export default function CharacterPage() {
         <div className="char-header" ref={charHeadRef}>
           {nameDraft === null ?
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <h1>
-                {info.name}
-                {viewedForm && !viewedForm.isBase && <span className="muted"> {sheetLabel(viewedForm)}</span>}
-              </h1>
+              {/* Die Form steht als kleines Etikett direkt unter dem Namen. Es ragt in den Abstand zur
+                  Reiterleiste hinein (absolut positioniert), damit die Kopfleiste nicht höher wird. */}
+              <div className="char-title-wrap">
+                <h1>{info.name}</h1>
+                {viewedForm && !viewedForm.isBase && (
+                  <span className={`form-chip${viewedForm.active ? ' is-active' : ''}`} title={viewedForm.active ? 'Diese Form ist gerade im Spiel' : 'Diese Form ist nicht aktiv (nur Ansicht)'}>
+                    {sheetLabel(viewedForm)}
+                  </span>
+                )}
+              </div>
               {/* Im Ansehen-als-Modus UND in der Verwaltungs-Einsicht bewusst
                   ausgeblendet: beides ist rein lesend. */}
               {!viewAs && !inspecting && editing && (
@@ -454,7 +460,7 @@ export default function CharacterPage() {
               die Kopfleiste. Der Spielleiter hat zwar überall "edit"-Zugriff,
               aber die Einstellungen-Seite nur für die EIGENEN Charaktere. */}
           {!viewAs && access === 'edit' && info.ownerUserId === user.id && (
-            <Link className="small" to={`/einstellungen?char=${charId}&from=${encodeURIComponent(activeKey)}`} title="Einstellungen für diesen Charakter">
+            <Link className="small" to={`/einstellungen?char=${charId}&from=${encodeURIComponent(activeKey)}&sheet=${sheetId}`} title="Einstellungen für diesen Charakter">
               Einstellungen
             </Link>
           )}

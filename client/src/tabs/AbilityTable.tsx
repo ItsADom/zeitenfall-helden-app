@@ -47,7 +47,7 @@ export function AbilityTable({
   groupOptions: GroupBy[];
   listSortLabel?: string;
 }) {
-  const { data, update, charId, stats } = useChar();
+  const { data, update, charId, sheetId, stats } = useChar();
   const list = data.abilities.filter((a) => a.magisch === magisch);
   // Für die Grad-Anzeige (Ability.derivedFrom, siehe abilityGrade) — über den
   // ganzen Bestand, nicht nur diesen Reiter, aus demselben Grund wie in der
@@ -166,7 +166,7 @@ export function AbilityTable({
             ✕
           </button>
         )}
-        <Link className="abil-werk-link" to={`/charakter/${charId}/zauber-faehigkeiten?from=${magisch ? 'Zauber' : 'Fähigkeiten'}`}>
+        <Link className="abil-werk-link" to={`/charakter/${charId}/zauber-faehigkeiten?from=${magisch ? 'Zauber' : 'Fähigkeiten'}&sheet=${sheetId}`}>
           Liste bearbeiten →
         </Link>
       </div>

@@ -36,7 +36,7 @@ const SPELL_CREATION_ROWS: { attribut: string; geschoss: string; erschaffen: str
 const ZAUBER_TAB_NAME = 'Zauber/Fähigkeiten';
 
 interface LoadResp {
-  character: { id: number; name: string; theme?: string };
+  character: { id: number; name: string; theme?: string; sheetId?: number; sheets?: { id: number; label: string; isBase: boolean }[] };
   access: 'edit' | 'summary' | null;
   data?: {
     abilities?: Ability[];
@@ -52,6 +52,9 @@ export default function AbilityManagerPage() {
   // Woher man kam (Zauber-/Fähigkeiten-Reiter) — der Zurück-Link kehrt dorthin
   // zurück statt zum Heldenbrief. Vorgabe: der Zauber-Reiter.
   const fromTab = searchParams.get('from') || 'Zauber';
+  // Mehrere Bögen: welcher Bogen verwaltet wird (?sheet=), sonst der aktive.
+  const sheetParam = Number(searchParams.get('sheet')) || null;
+  const sq = sheetParam ? `?sheet=${sheetParam}` : '';
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -78,7 +81,7 @@ export default function AbilityManagerPage() {
   const load = useCallback(() => {
     setLoading(true);
     setMsg('');
-    return apiGet<LoadResp>(`/api/characters/${charId}`)
+    return apiGet<LoadResp>(`/api/characters/${charId}${sq}`)
       .then((res) => {
         if (res.access !== 'edit' || !res.data) {
           setError('Diese Seite ist nur für eigene Charaktere.');
@@ -87,7 +90,8 @@ export default function AbilityManagerPage() {
         const abils = res.data.abilities ?? [];
         const els = res.data.abilityLists?.element ?? [];
         const kats = res.data.abilityLists?.kategorie ?? [];
-        setName(res.character.name);
+        const viewed = res.character.sheets?.find((s) => s.id === res.character.sheetId);
+        setName(viewed && !viewed.isBase ? `${res.character.name} ${viewed.label}` : res.character.name);
         setTheme(res.character.theme ?? null);
         setAbilities(abils);
         setElements(els);
@@ -97,7 +101,7 @@ export default function AbilityManagerPage() {
       })
       .catch(() => setError('Konnte den Charakter nicht laden.'))
       .finally(() => setLoading(false));
-  }, [charId]);
+  }, [charId, sq]);
 
   useEffect(() => {
     void load();
@@ -154,7 +158,7 @@ export default function AbilityManagerPage() {
     setMsg('');
     try {
       const r = await apiPost<{ skipped: boolean; zauber: number; faehigkeiten: number }>(
-        `/api/characters/${charId}/abilities/seed`,
+        `/api/characters/${charId}/abilities/seed${sq}`,
       );
       await load();
       setMsg(r.skipped ? 'Nichts zu übernehmen.' : `Übernommen: ${r.zauber} Zauber, ${r.faehigkeiten} Fähigkeiten.`);
@@ -169,7 +173,7 @@ export default function AbilityManagerPage() {
     setRetiring(true);
     setMsg('');
     try {
-      const r = await apiPost<{ retired: boolean }>(`/api/characters/${charId}/abilities/retire-old-tab`);
+      const r = await apiPost<{ retired: boolean }>(`/api/characters/${charId}/abilities/retire-old-tab${sq}`);
       await load();
       setRetireArmed(false);
       setMsg(r.retired ? 'Alter Reiter entfernt.' : 'Kein alter Reiter gefunden.');
@@ -184,12 +188,12 @@ export default function AbilityManagerPage() {
     setSaving(true);
     setMsg('');
     try {
-      await apiPut(`/api/characters/${charId}/abilities`, abilities);
+      await apiPut(`/api/characters/${charId}/abilities${sq}`, abilities);
       if (JSON.stringify(elements) !== saved.elements) {
-        await apiPut(`/api/characters/${charId}/ability-lists/manage`, { kind: 'element', order: elements });
+        await apiPut(`/api/characters/${charId}/ability-lists/manage${sq}`, { kind: 'element', order: elements });
       }
       if (JSON.stringify(kategorien) !== saved.kategorien) {
-        await apiPut(`/api/characters/${charId}/ability-lists/manage`, { kind: 'kategorie', order: kategorien });
+        await apiPut(`/api/characters/${charId}/ability-lists/manage${sq}`, { kind: 'kategorie', order: kategorien });
       }
       await load();
       setMsg(`Gespeichert (${new Date().toLocaleTimeString()})`);
@@ -225,7 +229,7 @@ export default function AbilityManagerPage() {
           {dirty && !saving && <span className="muted">Ungespeicherte Änderungen</span>}
           <span className="savestate">{msg}</span>
         </div>
-        <BackToSheet charId={charId} tab={fromTab} name={name} />
+        <BackToSheet charId={charId} tab={fromTab} name={name} sheet={sheetParam} />
       </div>
       <p className="muted">
         Die Stammliste, aus der die Reiter „Zauber" und „Fähigkeiten" ihren Inhalt beziehen. Ein Eintrag anklicken öffnet ihn zum

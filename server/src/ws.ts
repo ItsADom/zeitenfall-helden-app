@@ -58,7 +58,7 @@ import {
 } from 'shared';
 import crypto from 'node:crypto';
 import { getSessionToken, userForToken } from './auth.js';
-import { activeSheetId, loadItems, loadList, loadStats } from './characterData.js';
+import { activeSheetId, displayName as formDisplayName, loadItems, loadList, loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, makeNameLookup, parseProbeSource, type NamedProbe } from './diceSource.js';
@@ -693,7 +693,8 @@ function resolveAuthor(meta: SocketMeta, rawCharId: unknown): FeedAuthor {
     const char = db.prepare('SELECT name, chat_name FROM characters WHERE id = ? AND owner_user_id = ?').get(charId, meta.userId) as
       | { name: string; chat_name: string }
       | undefined;
-    if (char && charBelongsToRoom(charId, meta.groupId)) return { userId: meta.userId, charId, name: char.chat_name || char.name };
+    // Der Name im Feed trägt die aktive Form (Mehrere Bögen), auch beim Chat-Namen.
+    if (char && charBelongsToRoom(charId, meta.groupId)) return { userId: meta.userId, charId, name: formDisplayName(char.chat_name || char.name, charId) };
   }
   return { userId: meta.userId, charId: null, name: meta.displayName };
 }
@@ -1205,7 +1206,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         gmName: meta.displayName,
         targetUserId: char.owner_user_id,
         targetCharId: char.id,
-        targetCharName: char.chat_name || char.name,
+        targetCharName: formDisplayName(char.chat_name || char.name, char.id),
         modifier: clampModifierOrUndefined(msg.modifier),
         onExpire: (expired) => {
           for (const uid of [expired.targetUserId, expired.gmUserId]) {
@@ -1265,7 +1266,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         if (!connectedUserIds.has(c.owner_user_id)) continue;
         const computed = computeProbeForCharacter(c.id, source);
         if (!computed) continue;
-        members.push({ userId: c.owner_user_id, charId: c.id, charName: c.chat_name || c.name, label: computed.label });
+        members.push({ userId: c.owner_user_id, charId: c.id, charName: formDisplayName(c.chat_name || c.name, c.id), label: computed.label });
       }
       if (members.length === 0) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Für diesen Eintrag gibt es bei niemandem eine Probe' });
@@ -1410,7 +1411,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       const pool = joinCoopPool(msg.poolId, {
         userId: meta.userId,
         charId: char.id,
-        charName: char.chat_name || char.name,
+        charName: formDisplayName(char.chat_name || char.name, char.id),
       });
       if (!pool) {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Pool nicht gefunden' });

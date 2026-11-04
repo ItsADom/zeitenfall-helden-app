@@ -180,11 +180,9 @@ Not exercised yet: step 12 (export/import and backup with forms). The client exp
 the viewed sheet's data (linked parts appear as if own), the import creates a standalone
 character, so no change is expected, but it has not been run.
 
-Known gaps after phase 1 (not decided yet, small): the Einstellungen page (tabs,
-tab order, visibility) and the ability workshop (`AbilityManager`) still act on
-the *active* sheet only; roll and feed entries are not labelled with the form;
-there is no server-side automated test layer (the checks above were a scripted
-run, not a committed test).
+There is no server-side automated test layer: the checks above were scripted runs
+against a disposable DB copy, not committed tests. The gaps found after phase 1 are
+closed by the afterwork items below.
 
 Grounding facts from the code: content routes follow one pattern,
 `getChar(Number(req.params.id))` then `characterAccess(...)` then data by
@@ -273,12 +271,20 @@ also zeroes wounds and must therefore cover every form's row.
 
 ### Afterwork (small gap fixes, after phase 2; they don't touch its tables)
 
-15. Einstellungen page and ability workshop: pass the viewed sheet (`?sheet=`)
-    from the sheet's links, so tabs, tab order, visibility and abilities of a
-    non-active form can be managed.
-16. Label roll and feed entries with the active form (author name at post time).
-17. Replace the appended form name by the small chip under the character name
-    (without making the bar taller).
+**Status 2026-11-04: built and verified in the browser (both color modes).**
+
+15. Einstellungen page and ability workshop take the viewed sheet (`?sheet=`) from the
+    sheet's links, so tabs, tab order, visibility, attribute points and abilities of a
+    non-active form can be managed; both pages' back links return to that sheet. Einstellungen
+    shows "Bogen: <name>" when the character has forms (theme, chat name and dice shortcuts
+    stay per character).
+16. Roll and feed entries carry the active form (author name at post time: the feed, group
+    rolls, coop pools, the dock's "als ..." line, the VTT token name). Not changed: the
+    GM's "SL-Wurf" member picker, which is keyed by user and shows the plain name.
+17. On the sheet header the viewed form shows as a small chip directly under the name
+    (absolutely positioned into the gap above the tab bar; header height measured
+    identical with and without). Lists, roster and token names still append the form
+    name, since a chip would make those single-line labels taller.
 
 Phases 1 and 2 should be separate commits and ideally separate releases:
 sync is the riskiest part, and phase 1's layout supports adding it later.

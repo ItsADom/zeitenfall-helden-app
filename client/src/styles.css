@@ -1251,6 +1251,32 @@ a.card.home-tile h3 {
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
+/* Etikett der Form unter dem Charakternamen (Mehrere Bögen). Absolut positioniert: es ragt in den
+   Abstand zwischen Kopfleiste und Reiterleiste, die Kopfleiste selbst bleibt gleich hoch. */
+.char-title-wrap {
+  position: relative;
+}
+.form-chip {
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: -3px;
+  padding: 0 9px;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--panel);
+  color: var(--muted);
+}
+.form-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 .tabs button {
   position: relative;
   border: 1px solid var(--border);

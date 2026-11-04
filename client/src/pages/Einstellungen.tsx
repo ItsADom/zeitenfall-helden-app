@@ -60,6 +60,12 @@ export default function EinstellungenPage() {
   // Charakter vorwählen.
   const [params] = useSearchParams();
   const paramChar = Number(params.get('char')) || null;
+  // Mehrere Bögen: Reiter, Reihenfolge, Sichtbarkeit und Attributspunkte gehören zum Bogen, nicht zum
+  // Charakter. Mit ?sheet= wird dieser Bogen verwaltet, sonst der aktive. Farbwelt, Chat-Name und
+  // Würfel-Favoriten gehören zum Charakter und brauchen das nicht.
+  const paramSheet = Number(params.get('sheet')) || null;
+  const sheetQ = (id: number) => (paramSheet && id === paramChar ? `?sheet=${paramSheet}` : '');
+  const [sheetNote, setSheetNote] = useState('');
   // Reiter, von dem man kam — der Zurück-Link kehrt dorthin zurück.
   const fromTab = params.get('from') || undefined;
   const [chars, setChars] = useState<CharLite[]>([]);
@@ -130,7 +136,13 @@ export default function EinstellungenPage() {
     setLoading(true);
     setMsg('');
     return apiGet<{
-      character: { theme?: string; chatName?: string; diceShortcuts?: string };
+      character: {
+        theme?: string;
+        chatName?: string;
+        diceShortcuts?: string;
+        sheetId?: number;
+        sheets?: { id: number; label: string; isBase: boolean }[];
+      };
       data?: {
         tabs?: DynTab[];
         tabOrder?: string[];
@@ -139,8 +151,11 @@ export default function EinstellungenPage() {
         attrExtern?: ExternalAttrPoint[];
         tokenImage?: boolean;
       };
-    }>(`/api/characters/${id}`)
+    }>(`/api/characters/${id}${sheetQ(id)}`)
       .then((res) => {
+        const sheets = res.character.sheets ?? [];
+        const viewed = sheets.find((s) => s.id === res.character.sheetId);
+        setSheetNote(sheets.length > 1 && viewed ? (viewed.label || 'Grundform') : '');
         const theme = res.character.theme ?? '';
         const chatNameVal = res.character.chatName ?? '';
         const shortcutsVal = res.character.diceShortcuts ?? '';
@@ -174,7 +189,9 @@ export default function EinstellungenPage() {
       })
       .catch(() => setMsg('Konnte den Charakter nicht laden.'))
       .finally(() => setLoading(false));
-  }, []);
+    // sheetQ hängt nur von diesen beiden URL-Parametern ab.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramChar, paramSheet]);
 
   useEffect(() => {
     if (selId != null) void load(selId);
@@ -237,25 +254,25 @@ export default function EinstellungenPage() {
       const tmpToReal = new Map<string, number>();
       for (const r of tabRows) {
         if (r.isNew) {
-          const { id } = await apiPost<{ id: number }>(`/api/characters/${selId}/tabs`, { name: r.name.trim() || 'Neuer Tab' });
+          const { id } = await apiPost<{ id: number }>(`/api/characters/${selId}/tabs${sheetQ(selId)}`, { name: r.name.trim() || 'Neuer Tab' });
           tmpToReal.set(r.key, id);
         }
       }
-      for (const id of deletedIds) await apiDelete(`/api/characters/${selId}/tabs/${id}`);
+      for (const id of deletedIds) await apiDelete(`/api/characters/${selId}/tabs/${id}${sheetQ(selId)}`);
       for (const r of tabRows) {
         if (r.isDyn && !r.isNew && r.id != null && r.name.trim() !== r.origName) {
-          await apiPut(`/api/characters/${selId}/tabs/${r.id}`, { name: r.name.trim() });
+          await apiPut(`/api/characters/${selId}/tabs/${r.id}${sheetQ(selId)}`, { name: r.name.trim() });
         }
       }
       if (tabsChanged) {
         const order = tabRows.map((r) => (r.isNew ? dynTabKey(tmpToReal.get(r.key) as number) : r.key));
-        await apiPut(`/api/characters/${selId}/tab-order`, { order });
+        await apiPut(`/api/characters/${selId}/tab-order${sheetQ(selId)}`, { order });
       }
       if (visChanged) {
-        await apiPut(`/api/characters/${selId}/visibility`, vis);
+        await apiPut(`/api/characters/${selId}/visibility${sheetQ(selId)}`, vis);
       }
       if (attrExternChanged) {
-        await apiPut(`/api/characters/${selId}/section/attrExtern`, cleanAttrExtern);
+        await apiPut(`/api/characters/${selId}/section/attrExtern${sheetQ(selId)}`, cleanAttrExtern);
       }
       await load(selId); // frischen Stand holen (echte Ids etc.)
       setMsg(`Gespeichert (${new Date().toLocaleTimeString()})`);
@@ -300,7 +317,12 @@ export default function EinstellungenPage() {
             <span className="savestate">{msg}</span>
           </div>
         )}
-        {selId != null && <BackToSheet charId={selId} tab={fromTab} name={chars.find((c) => c.id === selId)?.name} />}
+        {selId != null && <BackToSheet charId={selId} tab={fromTab} name={chars.find((c) => c.id === selId)?.name} sheet={paramSheet && selId === paramChar ? paramSheet : null} />}
+        {sheetNote && (
+          <span className="muted" title="Reiter, Reihenfolge, Sichtbarkeit und Attributspunkte gelten für diesen Bogen. Farbwelt, Chat-Name und Würfel-Favoriten gelten für den ganzen Charakter.">
+            Bogen: {sheetNote}
+          </span>
+        )}
       </div>
 
       <nav className="einst-nav" ref={einstNavRef}>
