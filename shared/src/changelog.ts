@@ -218,17 +218,8 @@ export const COMING_SOON: string[] = [
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '2026-11-04',
-    title: 'Mehrere Szenen',
+    title: 'Neue Gestalt in neuer Szene',
     features: [
-      {
-        title: 'Virtueller Tisch',
-        added: [
-          'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
-        ],
-        admin: [
-          '(Spielleiter) Über „Szenen“ in der Werkzeugleiste des Tisches lassen sich Szenen anlegen, umbenennen, löschen und wechseln. Eine neue Szene ist leer, und der Tisch wechselt sofort dorthin. Die letzte Szene lässt sich nicht löschen.',
-        ],
-      },
       {
         title: 'Formen (mehrere Bögen pro Charakter)',
         added: [
@@ -243,6 +234,15 @@ export const CHANGELOG: ChangelogEntry[] = [
         ],
         admin: [
           '(Spielleiter) Anlegen, umbenennen, löschen und aktivieren von Formen dürfen nur die Spieler selbst. Einsehbar sind aber jederzeit alle Formen.',
+        ],
+      },
+      {
+        title: 'Virtueller Tisch',
+        added: [
+          'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
+        ],
+        admin: [
+          '(Spielleiter) Über „Szenen“ in der Werkzeugleiste des Tisches lassen sich Szenen anlegen, umbenennen, löschen und wechseln. Eine neue Szene ist leer, und der Tisch wechselt sofort dorthin. Die letzte Szene lässt sich nicht löschen.',
         ],
       },
     ],
