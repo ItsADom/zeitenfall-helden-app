@@ -37,11 +37,21 @@ Decisions from the developer:
 Think of every piece of sheet data as having a **scope**: *identity* (keyed on
 the base character id, same for all forms) or *sheet* (keyed on the form's own
 `characters` row). Inventory and GM notes are identity-scoped permanently.
-"Keep synchronous" for another tab is then just a per-(base character, tab)
-flag that turns that tab identity-scoped: every form reads and writes the one
-copy. "Copy once" duplicates the rows into the new form and leaves them
-sheet-scoped. This keeps "completely separate" true by default, and sync is
-an explicit, visible opt-in, not derivation.
+"Keep synchronous" for another tab (final model, see the build plan below)
+makes that form's tab **follow the base form**: the form has no rows of its
+own for it and reads and writes the base form's rows, in both directions
+(one set of rows, not two lists kept in step). "Copy once" duplicates the
+rows into the new form and leaves them sheet-scoped. This keeps "completely
+separate" true by default, and sync is an explicit, visible opt-in, not
+derivation.
+
+**The base form is the source of truth.** It is the `characters` row itself:
+it can never be deleted on its own (deleting it deletes the character), it
+never links to anything, and sync always means "this form follows the base".
+Forms can be deleted; deleting the active form falls back to the base.
+Known limitation: two forms cannot share a list that the base does not have
+(e.g. Bär and Wolf sharing "Tier-Talente" while Mensch has its own). A hidden
+pool row would allow that; it can be added later without breaking the model.
 
 Consequences found while checking the current code (2026-11-04):
 
@@ -108,6 +118,96 @@ are **concurrently present** (several at once, own VTT token, maybe own
 initiative entry), where forms are mutually exclusive; so the pet link must
 not be "one active at a time". Build the resolver and the side table so they
 can serve both.
+
+## Build plan (drafted 2026-11-04, not started)
+
+Grounding facts from the code: content routes follow one pattern,
+`getChar(Number(req.params.id))` then `characterAccess(...)` then data by
+`char.id`, so one choke point changes, not 52 routes. Character deletion runs
+by hand in `routes.ts` (assets, then items). Existing tests are pure
+functions in `shared/test`, so the "which rows does this form read" rule goes
+into `shared` as a pure function with tests. `characters.active_form_id`
+NULL means "base is active", which is already right for every existing
+character: no boot-time re-derive is needed.
+
+### Data model
+
+```
+character_forms   (character_id PK → characters, base_character_id, label, position)
+characters        + active_form_id (NULL = base)   + base_form_label
+sheet_domain_mode (character_id, domain, mode)     -- 'linked' | 'own'; forms only
+```
+
+Resolver: for a form and a domain, `mode = 'linked'` reads the base form's
+rows, otherwise the form's own rows. The base form is always its own rows.
+Domains: `heldenbrief`, `talente`, `sprachen`, `faehigkeiten` (abilities and
+lists), and one per custom tab. Linked custom tabs: the form's `char_tabs`
+row carries a reference to the base's tab; title and content come from the
+base tab, tab order and position stay per sheet.
+
+Scope by data:
+
+| Scope | What |
+|---|---|
+| Character (identity) | items incl. weapons, pouches/money, GM notes, tags, name, group, owner, theme, chat name, dice shortcuts, **Schicksalspunkte** |
+| Sheet (per form) | Heldenbrief, talents, languages, abilities, custom tabs, **wounds**, portrait and token image, tab order, table widths, visibility flags |
+
+Schicksalspunkte and wounds both sit in `char_meta` today. Schicksalspunkte
+values live on the base row only and every form's loaded `meta` shows them
+from there; `saveSection('meta')` ignores those two columns for forms. The
+`/schicksalspunkte` route always uses the base id; `/wounds` and the VTT
+marker's wound counter use the active sheet. The GM's Schicksalspunkte reset
+also zeroes wounds and must therefore cover every form's row.
+
+### Phase 1: forms without sync (shippable on its own)
+
+1. Domain table: assign every `char_*` table to a domain and a scope (check
+   the table above against `db.ts`).
+2. Migration: `character_forms`, `active_form_id`, `base_form_label`. Test on
+   a disposable copy of the dev DB, never the real one.
+3. `sheetFor(req, baseChar)`: reads an optional `?sheet=<formId>`, checks it
+   belongs to this base, defaults to the active form. Access is still decided
+   on the base row. Content routes use the sheet id; the rest of the app
+   keeps using the base id and the active form.
+4. Audit every `FROM characters` listing and add the one "not in
+   `character_forms`" filter.
+5. Lifecycle endpoints, owner only: create (full copy of the current sheet,
+   reusing the `loadFullCharacter`/`importFullCharacter` plumbing), switch
+   active, rename, delete. Delete runs through the manual path
+   (`loescheAssetsFuer`, the form's own rows); deleting a character also
+   deletes all its forms.
+6. Resolve base to active form wherever the base id is displayed:
+   `buildSummary`, VTT token image and portrait, group overview.
+7. Client: form switcher in the sheet header (viewing), a separate
+   "aktivieren" action, name suffix on sheet, roster, chips and token label,
+   roll buttons disabled on a viewed but inactive sheet, `?sheet=` through
+   `charSheet.tsx` load and `flush()`.
+
+### Phase 2: carry-over dialog, sync, detach and re-link
+
+8. The pure resolver in `shared` with tests (linked, own, dormant, base).
+9. Create-form dialog: tab list, per tab copy or sync; inventory greyed out
+   and pre-selected; GM notes not listed. Heldenbrief is copy-only.
+10. Detach (snapshot as own copy), re-link (own copy goes dormant), and the
+    two-choice dialog on re-detach. A linked tab shows a hint („Gemeinsam mit
+    Grundform").
+11. Custom tabs: a form's tab can reference the base tab. If the base deletes
+    a tab that forms follow, each linked form keeps a snapshot as its own tab.
+    Per-tab menu entry „Mit Grundform verknüpfen" for tabs that came from a
+    carry-over (a tab the form created itself has no counterpart). New base
+    tabs are not pushed to existing forms; a form can copy them over.
+
+### Phase 3: wrap-up
+
+12. Check export/import and backup.
+13. Verify in the browser as `testspieler`, light and dark mode, with
+    Playwright from a scratch directory (form switch, viewed inactive form,
+    synced tab edited from both forms).
+14. Prune the TODO entries, draft the changelog under feature sections (no
+    em-dashes). Recommend a minor bump, but never assign a version.
+
+Phases 1 and 2 should be separate commits and ideally separate releases:
+sync is the riskiest part, and phase 1's layout supports adding it later.
 
 ## Where this started
 
