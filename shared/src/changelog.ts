@@ -223,10 +223,26 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         title: 'Virtueller Tisch',
         added: [
-          'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit: die alte Szene blendet aus, die neue blendet ein. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
+          'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
         ],
         admin: [
           '(Spielleiter) Über „Szenen“ in der Werkzeugleiste des Tisches lassen sich Szenen anlegen, umbenennen, löschen und wechseln. Eine neue Szene ist leer, und der Tisch wechselt sofort dorthin. Die letzte Szene lässt sich nicht löschen.',
+        ],
+      },
+      {
+        title: 'Formen (mehrere Bögen pro Charakter)',
+        added: [
+          'Ein Charakter kann jetzt mehrere Formen haben (z. B. eine Tiergestalt), jede mit einem eigenen, vollständigen Bogen. Mit „Aktivieren“ bringt man eine Form ins Spiel: Tisch, Gruppe, Chat und Würfe verwenden dann diese Form. Ein Etikett am Namen zeigt, welche Form offen ist.',
+          'Beim Anlegen einer Form wählst du für jeden Teil des Bogens, ob er einmal kopiert, synchron gehalten oder leer gelassen wird. Der Heldenbrief kann nur kopiert werden oder bleibt leer. Synchron gehaltene Teile sind in beiden Bögen dieselben: Änderungen gelten hier wie dort. Ein Hinweis über dem Reiter zeigt, was mit der Grundform geteilt ist.',
+          'Geteilte Teile lassen sich später entkoppeln (die Form bekommt eine eigene Kopie) und wieder verknüpfen. Beim Verknüpfen werden die eigenen Daten zurückgelegt, nicht gelöscht. Entkoppelst du erneut, kannst du sie weiterverwenden oder neu aus der Grundform kopieren. Das alles steht im Auswahlfeld unter „Formen verwalten“.',
+          'Gegenstände, Geld, Ausrüstungs-Sets und Schicksalspunkte gehören zum Charakter und sind in allen Formen dieselben. Heldenbrief, Talente, Wunden, Porträt, Markenbild, Reiter und deren Reihenfolge und Sichtbarkeit gehören zur jeweiligen Form.',
+        ],
+        changed: [
+          'Würfe und Chat-Einträge tragen den Namen der aktiven Form. Auf einer Form, die nur angesehen wird, fehlen die Würfel-Knöpfe.',
+          'Einstellungen und die Zauber-&-Fähigkeiten-Verwaltung bearbeiten die Form, von der du kommst.',
+        ],
+        admin: [
+          '(Spielleiter) Anlegen, umbenennen, löschen und aktivieren von Formen dürfen nur die Spieler selbst. Einsehbar sind aber jederzeit alle Formen.',
         ],
       },
     ],
