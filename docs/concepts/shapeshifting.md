@@ -6,6 +6,85 @@ truth until this is settled with the GM. Kept as a separate file because the
 data-model question turned out to need real back-and-forth, not a quick
 concept paragraph.
 
+**The section "Revised direction (2026-11-04)" directly below supersedes the
+open questions at the bottom of this file. The history sections after it
+(first build, options A/B/C) are kept as background.**
+
+## Revised direction (2026-11-04)
+
+Decisions from the developer:
+
+- **Completely separate sheets.** A form is a full sheet of its own, nothing
+  derived from a base sheet (matches the GM's original stance).
+- **Only the owning player changes which form is *active*.**
+- **GM and player can both *view and edit* any form without making it
+  active.** "Active" is what the rest of the app sees (VTT token, group
+  roster, GM overview, feed, rolls). "Open in the editor" is a separate,
+  explicit choice, e.g. a form switcher in the sheet header. The id resolver
+  therefore has two inputs: default = the active form, override = the form
+  being viewed.
+- **Creating a form asks what to carry over** (dialog): a list of the sheet's
+  tabs, each optionally *copied* once or *kept synchronous*.
+  - Inventory is pre-selected and greyed out: it stays shared anyway.
+  - GM notes always belong to the character, are not in the list, and stay
+    shared.
+- **Display:** a small chip directly under the character name, without
+  making the bar taller. First version: just append the form name behind the
+  character name.
+
+### What "stays / synchronous" means for the data model
+
+Think of every piece of sheet data as having a **scope**: *identity* (keyed on
+the base character id, same for all forms) or *sheet* (keyed on the form's own
+`characters` row). Inventory and GM notes are identity-scoped permanently.
+"Keep synchronous" for another tab is then just a per-(base character, tab)
+flag that turns that tab identity-scoped: every form reads and writes the one
+copy. "Copy once" duplicates the rows into the new form and leaves them
+sheet-scoped. This keeps "completely separate" true by default, and sync is
+an explicit, visible opt-in, not derivation.
+
+Consequences found while checking the current code (2026-11-04):
+
+- Items already carry `owner_type`/`owner_id` (shared-inventories concept), so
+  inventory staying shared means: items keep `owner_id = base character id`,
+  which needs no change at all. Equipment presets and `item_move_log`
+  reference those ids and keep working.
+- But item *bonuses while worn* and equipment presets then apply to whichever
+  form is active/viewed. Open question below.
+- `char_items` has no DB cascade any more; form deletion must go through the
+  same manual cleanup path as character deletion (plus `loescheAssetsFuer()`
+  for the form's portrait).
+- VTT tokens, group membership, feed author, `temp_group_members`, chat name
+  and rolls all keep pointing at the **base** id; only the content routes
+  (52 `/characters/:id` routes in `routes.ts`) need the id resolver, ideally
+  one `router.param`-style step, not 52 edits.
+- Tab list: Heldenbrief (always first, never syncable, it IS the sheet),
+  Talente, Sprachen, Waffen, Ausrüstung/Inventar (fixed: shared), Zauber &
+  Fähigkeiten, plus the player's custom tabs (`char_tabs`). Check the
+  per-tab domains against the tables list below before building; "Waffen" in
+  particular is items + `char_item_weapon_stats`, i.e. inventory-owned.
+
+### Still open
+
+1. Who may *create/rename/delete* forms: player only, or GM too?
+2. Worn-item bonuses and equipment presets: apply to the active/viewed form
+   only (simple), or can an item be restricted to certain forms?
+3. Rolls made while viewing a non-active form: attribute them to the viewed
+   form (name + form label) in the feed. Assumed yes.
+4. Should "sync" be reversible (un-sync = copy the shared data back into the
+   forms)? Assumed yes, via the same copy mechanism.
+5. Reuse for companion/pet sheets: see below.
+
+### Relation to companion/pet sheets (TODO `[sketch]`)
+
+Same machinery, different knobs: a hidden `characters` row marked in a side
+table and attached to an owner, content routes resolved through one id
+resolver, scope flags for anything shared. Differences to decide then: pets
+are **concurrently present** (several at once, own VTT token, maybe own
+initiative entry), where forms are mutually exclusive; so the pet link must
+not be "one active at a time". Build the resolver and the side table so they
+can serve both.
+
 ## Where this started
 
 GM's initial answer: a shapeshifter character just gets the ability to own
