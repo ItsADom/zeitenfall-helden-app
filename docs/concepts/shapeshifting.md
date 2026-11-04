@@ -80,8 +80,20 @@ Decided (2026-11-04):
   that form a snapshot of the shared data as its own copy; the other forms
   stay linked, nothing is lost. Resolver rule per tab: shared by default if
   the tab is flagged synchronous and this form has not detached it, else the
-  form's own rows. Re-linking a detached tab would discard that form's own
-  copy, so v1 does not offer it.
+  form's own rows.
+- **Re-link is non-destructive.** "Wieder verknüpfen" only flips the flag
+  back; the form's own copy is not deleted but goes dormant (its rows stay,
+  the resolver ignores them while linked; writes go to the shared rows, so
+  the dormant copy stays frozen). The confirmation names what is being put
+  aside ("Deine eigene Bär-Liste (12 Einträge) wird zurückgelegt, nicht
+  gelöscht"). Detaching again, while a dormant copy exists, offers two
+  choices: resume the earlier own copy, or take a fresh snapshot of the
+  shared data (which replaces the dormant copy). The opposite direction, a
+  form's own copy becoming the shared data for all forms, is deliberately
+  not offered: it would overwrite what the other forms see. Dormant rows are
+  removed by the normal form-deletion cleanup. Cost: a little hidden data
+  that can surprise someone who forgot it, hence the entry count in the
+  dialog. Re-link can be cut from v1 without changing the table layout.
 
 Open:
 
