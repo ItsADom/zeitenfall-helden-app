@@ -16,8 +16,6 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
 
 ---
 
-## Virtual table
-
 ## User feedback
 
 - [ready] **Image gallery for houses** (user feedback, concept agreed
