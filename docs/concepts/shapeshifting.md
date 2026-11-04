@@ -176,9 +176,15 @@ the resolver, the plan normalizer and `detachAction`. Deviations and findings:
   per-form "Geteilte Teile" list in the dialog manages detach and link, and a banner
   "Gemeinsam mit Grundform" with Entkoppeln sits above a linked tab.
 
-Not exercised yet: step 12 (export/import and backup with forms). The client export takes
-the viewed sheet's data (linked parts appear as if own), the import creates a standalone
-character, so no change is expected, but it has not been run.
+Step 12 (export/import and backup with forms) checked 2026-11-04, no changes needed. The
+client export takes the viewed sheet's data, so linked parts appear as if own (including the
+shared items and money). Importing both the Bär form (talents, languages and a custom tab
+linked) and the base as the GM produced plain characters: no forms, no links, and every
+section, tab (names, sections, rows), tab order, item, pouch and ability round-trips
+identically; deleting the imports left no orphan rows. The nightly backup (SQLite online
+backup of the whole file) keeps forms, domain modes, tab links and the active form; a server
+started on the restored copy loads the form with its links intact (integrity check ok, no
+foreign key violations).
 
 There is no server-side automated test layer: the checks above were scripted runs
 against a disposable DB copy, not committed tests. The gaps found after phase 1 are

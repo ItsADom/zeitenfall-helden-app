@@ -50,9 +50,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
 - [ready] **Multiple sheets per character (shapeshifting)**: concept settled,
   see `docs/concepts/shapeshifting.md` ("Revised direction" and "Build plan").
   Phases 1 and 2 (separate sheets, active vs viewed, carry-over dialog, sync, detach
-  and re-link) are built. Remaining:
-   - Phase 3: check export/import and backup with forms; changelog draft (player
-     facing, feature sections, no em-dashes; recommend a minor bump, never assign it).
+  and re-link), the afterwork gaps, the export/import and backup check and the changelog
+  draft are done. Remaining:
    - Open for later: worn-item bonuses and equipment presets across forms (items
      are shared; bonuses apply to the active form for now).
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
