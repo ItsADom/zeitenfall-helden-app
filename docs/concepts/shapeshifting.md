@@ -66,14 +66,26 @@ Consequences found while checking the current code (2026-11-04):
 
 ### Still open
 
-1. Who may *create/rename/delete* forms: player only, or GM too?
-2. Worn-item bonuses and equipment presets: apply to the active/viewed form
-   only (simple), or can an item be restricted to certain forms?
-3. Rolls made while viewing a non-active form: attribute them to the viewed
-   form (name + form label) in the feed. Assumed yes.
-4. Should "sync" be reversible (un-sync = copy the shared data back into the
-   forms)? Assumed yes, via the same copy mechanism.
-5. Reuse for companion/pet sheets: see below.
+Decided (2026-11-04):
+
+- Only the owning player creates, renames and deletes forms.
+- Rolls and chat suggestions always come from the **active** form, never from
+  a form that is merely being viewed. So roll buttons on a viewed non-active
+  sheet must be disabled or hidden (to be settled in the UI pass).
+- Worn-item bonuses and equipment presets across forms: **deliberately left
+  open for later.** Until then, items stay shared and their bonuses apply to
+  whichever form is active.
+
+- **Un-sync is per form and per tab:** "Entkoppeln" on one form's tab gives
+  that form a snapshot of the shared data as its own copy; the other forms
+  stay linked, nothing is lost. Resolver rule per tab: shared by default if
+  the tab is flagged synchronous and this form has not detached it, else the
+  form's own rows. Re-linking a detached tab would discard that form's own
+  copy, so v1 does not offer it.
+
+Open:
+
+1. Reuse for companion/pet sheets: see below.
 
 ### Relation to companion/pet sheets (TODO `[sketch]`)
 
