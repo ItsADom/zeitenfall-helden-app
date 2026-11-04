@@ -239,6 +239,15 @@ also zeroes wounds and must therefore cover every form's row.
 14. Prune the TODO entries, draft the changelog under feature sections (no
     em-dashes). Recommend a minor bump, but never assign a version.
 
+### Afterwork (small gap fixes, after phase 2; they don't touch its tables)
+
+15. Einstellungen page and ability workshop: pass the viewed sheet (`?sheet=`)
+    from the sheet's links, so tabs, tab order, visibility and abilities of a
+    non-active form can be managed.
+16. Label roll and feed entries with the active form (author name at post time).
+17. Replace the appended form name by the small chip under the character name
+    (without making the bar taller).
+
 Phases 1 and 2 should be separate commits and ideally separate releases:
 sync is the riskiest part, and phase 1's layout supports adding it later.
 
