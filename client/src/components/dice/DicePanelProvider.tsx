@@ -1079,7 +1079,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
           setBoardInitiative(snap.initiative);
           setBoardImages(snap.images);
           setBoardRoundTrackers(snap.roundTrackers);
+          // One-shot broadcasts (trail, center-view, ping) live here, not in the
+          // canvas: the remounted canvas would replay the last one as if it
+          // were new. Anything sent AFTER the switch is replayed from the queue.
           setBoardTokenTrail(null);
+          setBoardViewCenter(null);
+          setBoardCellPing(null);
           setBoardSceneFading(false);
         };
         // A second switch mid-fade supersedes the first: its snapshot is the
