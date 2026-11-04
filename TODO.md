@@ -47,15 +47,20 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   a full character sheet, how it's linked to its owner, whether it's a
   separate `characters` row or something lighter, is all still open.
    - topic is related to shapeshifting: a sheet that belongs to a specific character instead of being a standalone character
-- [onHold] **Shapeshifting characters** (design notes at
-  `docs/concepts/shapeshifting.md` — a build-then-revert pass surfaced real
-  data-model disagreement with the GM, written up there instead of lost):
-  a character that can shapeshift needs genuinely different values for
-  almost everything (attributes, base values, possibly talents/abilities)
-  per form — effectively a separate sheet per shape bundled under one
-  character, not multiple independent characters. Still needs a concept
-  pass with the GM (data model + how much duplicates vs. derives from a
-  base sheet) before building.
+- [ready] **Multiple sheets per character (shapeshifting)**: concept settled,
+  see `docs/concepts/shapeshifting.md` ("Revised direction" and "Build plan").
+  Phase 1 (forms as separate sheets, active vs viewed, owner-only management) is
+  built. Remaining:
+   - Phase 2: carry-over dialog when creating a form (copy or keep synchronous per
+     tab, incl. custom tabs), detach (own snapshot) and non-destructive re-link,
+     "Gemeinsam mit Grundform" hint, `sheet_domain_mode` table + the pure resolver
+     in `shared` with tests.
+   - Phase 3: check export/import and backup with forms; changelog draft.
+   - Small gaps: Einstellungen and the ability workshop still act on the active
+     sheet only; label roll/feed entries with the form; later, the small chip under
+     the name instead of the appended form name.
+   - Open for later: worn-item bonuses and equipment presets across forms (items
+     are shared; bonuses apply to the active form for now).
 - [ready] **Weapon tab rework**: Nahkampf-/Fernkampfwaffen live in a bespoke
   card-based tab (`client/src/tabs/WaffenNeu.tsx`, key `WaffenNeu`, shown as
   „Waffen" — one collapsible card per weapon, computed AT/PA/BL or FK probe

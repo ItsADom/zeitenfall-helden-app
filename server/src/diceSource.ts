@@ -26,7 +26,7 @@ import {
 } from 'shared';
 import { waffenStatWert, waffenStatZahl } from 'shared';
 import { db } from './db.js';
-import { loadItems, loadList, loadStats } from './characterData.js';
+import { activeSheetId, loadItems, loadList, loadStats } from './characterData.js';
 import type { CharStats } from './characterData.js';
 
 export interface ComputedProbe {
@@ -128,7 +128,9 @@ function resolveAbilityWeaponProbes(
 }
 
 export function computeProbeForCharacter(characterId: number, source: ProbeSource): ComputedProbe | null {
-  const stats = loadStats(characterId);
+  // characterId ist die Identität (Gegenstände); alles Bogen-Eigene kommt aus dem AKTIVEN Bogen.
+  const sheetId = activeSheetId(characterId);
+  const stats = loadStats(sheetId);
   const attrs = stats.attrs;
   switch (source.kind) {
     case 'attribute': {
@@ -159,7 +161,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     case 'ability': {
       const row = db
         .prepare('SELECT name, probe, element, signatur FROM char_abilities WHERE character_id = ? AND id = ?')
-        .get(characterId, source.abilityId) as { name: string; probe: string; element: string; signatur: number } | undefined;
+        .get(sheetId, source.abilityId) as { name: string; probe: string; element: string; signatur: number } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
       if (!parts) return null;
@@ -192,7 +194,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
            LEFT JOIN char_languages cl ON cl.language_id = lc.id AND cl.character_id = ?
            WHERE lc.id = ?`,
         )
-        .get(characterId, source.languageId) as { taw: number; name: string } | undefined;
+        .get(sheetId, source.languageId) as { taw: number; name: string } | undefined;
       if (!row) return null;
       const base = source.mode === 'sprechen' ? sprechenProbe(attrs) : schreibenProbe(attrs);
       const probeZahl = base + erleichterung(row.taw);
@@ -232,7 +234,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
         .prepare(`SELECT id FROM talents_catalog WHERE kategorie = 'kampf' AND name = ?`)
         .get(source.technik) as { id: number } | undefined;
       const talent = stats.talente.find((t) => t.talentId === (talentRow?.id ?? 0));
-      const row = loadList('waffenlos', characterId).find((r) => r.technik === source.technik);
+      const row = loadList('waffenlos', sheetId).find((r) => r.technik === source.technik);
       const bv = computeBaseValues(attrs, stats.baseInputs);
       const weaponMod = Number(row?.[source.probe]) || 0;
       const probeZahl = weaponProbe(weaponMod, bv[source.probe].ergebnis, talent?.[source.probe] ?? 0);
@@ -278,7 +280,7 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
   const talents = db.prepare('SELECT id FROM talents_catalog ORDER BY sort, name').all() as { id: number }[];
   for (const t of talents) add({ kind: 'talent', talentId: t.id }, 'talent');
 
-  const abilities = db.prepare('SELECT id FROM char_abilities WHERE character_id = ? ORDER BY pos, id').all(characterId) as {
+  const abilities = db.prepare('SELECT id FROM char_abilities WHERE character_id = ? ORDER BY pos, id').all(activeSheetId(characterId)) as {
     id: number;
   }[];
   for (const a of abilities) add({ kind: 'ability', abilityId: a.id }, 'ability');
@@ -355,12 +357,12 @@ export function listFavoriteProbes(characterId: number): RollableProbe[] {
 
   const talents = db
     .prepare('SELECT talent_id AS id FROM char_talents WHERE character_id = ? AND favorit = 1')
-    .all(characterId) as { id: number }[];
+    .all(activeSheetId(characterId)) as { id: number }[];
   for (const t of talents) add({ kind: 'talent', talentId: t.id }, 'talent');
 
   const abilities = db
     .prepare('SELECT id FROM char_abilities WHERE character_id = ? AND favorit = 1 ORDER BY pos, id')
-    .all(characterId) as { id: number }[];
+    .all(activeSheetId(characterId)) as { id: number }[];
   for (const a of abilities) add({ kind: 'ability', abilityId: a.id }, 'ability');
 
   return out;

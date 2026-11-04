@@ -31,6 +31,7 @@ import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chi
 import { db, initCharacterRows } from './db.js';
 import { EASTER_EGG_CATALOG } from './easterEggs.js';
 import { loadFeedPage } from './feed.js';
+import { MAX_FORMS, createForm, deleteAllForms, deleteForm, listSheets, renameSheet, resolveSheet, setActiveSheet } from './sheets.js';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
 import { getBoard, getImageByAssetSlug, getOrCreateBoard, listBoardsForGroup, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
 import { listFavoriteProbes, listRollableProbes } from './diceSource.js';
@@ -48,6 +49,10 @@ import {
   tagCatalogList,
   deletePortrait,
   savePortraitOriginal,
+  NOT_A_FORM,
+  activeSheetId,
+  displayName,
+  identityOf,
   importFullCharacter,
   instantiateStandardSections,
   loadAbilities,
@@ -163,6 +168,8 @@ interface CharRow {
   // Freigabe oder eine abgelehnte Anfrage). requested_group_id trägt die vom
   // Spieler erbetene Gruppe, bis Spielleitung/Verwaltung entscheidet.
   group_id: number | null;
+  active_form_id: number | null;
+  base_form_label: string;
   requested_group_id: number | null;
   requested_at: number | null;
   theme: string;
@@ -529,8 +536,10 @@ api.get('/overview', requireAuth, (req, res) => {
   // anderer Spieler umkonfigurieren kann.
   const allScope = user.isGm && req.query.mine !== '1';
   const characters = allScope
-    ? db.prepare('SELECT * FROM characters ORDER BY name').all()
-    : db.prepare('SELECT * FROM characters WHERE owner_user_id = ? ORDER BY name').all(user.id);
+    ? (db.prepare(`SELECT * FROM characters WHERE ${NOT_A_FORM()} ORDER BY name`).all() as { id: number; name: string }[])
+    : (db
+        .prepare(`SELECT * FROM characters WHERE owner_user_id = ? AND ${NOT_A_FORM()} ORDER BY name`)
+        .all(user.id) as { id: number; name: string }[]);
   // is_temp = 0 für den GM-Rundumblick: diese Übersicht ist die feste
   // Gruppenverwaltung — Event-Gruppen haben ihre eigene Verwaltung
   // (/admin/temp-groups) und würden hier nur als scheinbar leere/verwaiste
@@ -552,7 +561,10 @@ api.get('/overview', requireAuth, (req, res) => {
           )
           .all(user.id, user.id)
   ) as { id: number; name: string; isTemp: number }[];
-  res.json({ characters, groups: groups.map((g) => ({ ...g, isTemp: !!g.isTemp })) });
+  res.json({
+    characters: characters.map((c) => ({ ...c, displayName: displayName(c.name, c.id) })),
+    groups: groups.map((g) => ({ ...g, isTemp: !!g.isTemp })),
+  });
 });
 
 // Alle Gruppennamen — damit ein Spieler bei der Selbst-Anlage eines Charakters
@@ -727,7 +739,7 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     // additiv über die Event-Gruppe) — also mindestens „summary" füreinander,
     // auch wenn characterAccess (rein permanente Gruppe) allein null ergäbe.
     const access = characterAccess(user, getChar(c.id)!) ?? (user.isGm || isRoomMember(user.id, groupId) ? 'summary' : null);
-    return { ...c, access, portrait: hasPortrait(c.id) };
+    return { ...c, displayName: displayName(c.name, c.id), access, portrait: hasPortrait(activeSheetId(c.id)) };
   });
   let tabs: ReturnType<typeof loadDynTabs> = [];
   // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md):
@@ -870,8 +882,10 @@ api.put('/characters/:id/wounds', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const body = (req.body ?? {}) as { small?: unknown; big?: unknown };
-  const wounds = saveWounds(char.id, { small: Number(body.small) || 0, big: Number(body.big) || 0 });
+  const wounds = saveWounds(sheetId, { small: Number(body.small) || 0, big: Number(body.big) || 0 });
   if (char.group_id != null) pushWoundsBoardSync(char.group_id, char.id);
   res.json(wounds);
 });
@@ -906,6 +920,17 @@ api.post('/groups/:id/schicksalspunkte/reset', requireAuth, requireGm, (req, res
        SELECT character_id FROM temp_group_members WHERE temp_group_id = ?
      )`,
   ).run(groupId, groupId);
+  // Weitere Formen haben ihre eigene char_meta-Zeile (trainingLeseHeute ist Bogen-Sache).
+  db.prepare(
+    `UPDATE char_meta SET trainingLeseHeute = 0
+     WHERE character_id IN (
+       SELECT f.character_id FROM character_forms f WHERE f.base_character_id IN (
+         SELECT id FROM characters WHERE group_id = ?
+         UNION
+         SELECT character_id FROM temp_group_members WHERE temp_group_id = ?
+       )
+     )`,
+  ).run(groupId, groupId);
   // Reset passiert per REST in der GM-Session — die betroffenen Spieler
   // sitzen in ihrer eigenen Session und würden es sonst erst beim nächsten
   // Laden der Räume sehen (Dock-Buttons blieben bis dahin fälschlich aus).
@@ -927,6 +952,9 @@ api.post('/characters/:id/schicksalspunkte/reset', requireAuth, requireGm, (req,
   db.prepare('UPDATE char_meta SET schicksalspunkteAktuell = schicksalspunkteMax, trainingLeseHeute = 0 WHERE character_id = ?').run(
     charId,
   );
+  db.prepare(
+    'UPDATE char_meta SET trainingLeseHeute = 0 WHERE character_id IN (SELECT character_id FROM character_forms WHERE base_character_id = ?)',
+  ).run(charId);
   if (char.groupId !== null) {
     const max = (
       db.prepare('SELECT schicksalspunkteMax AS max FROM char_meta WHERE character_id = ?').get(charId) as { max: number }
@@ -1229,16 +1257,35 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     theme: char.theme ?? '',
     diceShortcuts: char.dice_shortcuts ?? '',
     chatName: char.chat_name ?? '',
+    // Mehrere Bögen: name bleibt der Name der Identität, displayName trägt den Form-Zusatz.
+    displayName: displayName(char.name, char.id),
+    activeSheetId: activeSheetId(char.id),
   };
   if (!access) {
     res.json({ character: info, access: null, viewAs });
     return;
   }
   if (access === 'summary') {
+    // Gruppenmitglieder sehen immer nur den aktiven Bogen.
+    if (req.query.sheet !== undefined && Number(req.query.sheet) !== info.activeSheetId) {
+      res.status(404).json({ error: 'Charakter nicht gefunden' });
+      return;
+    }
     res.json({ character: info, access, summary: buildSummary(char.id), viewAs });
     return;
   }
-  res.json({ character: info, access, data: loadFullCharacter(char.id, viewer.isGm), viewAs });
+  // Betrachteter Bogen (?sheet=…) ist vom aktiven unabhängig: Besitzer und GM dürfen jede Form ansehen und bearbeiten.
+  const viewedSheetId = resolveSheet(char.id, req.query.sheet);
+  if (viewedSheetId === null) {
+    res.status(400).json({ error: 'Unbekannter Bogen' });
+    return;
+  }
+  res.json({
+    character: { ...info, sheetId: viewedSheetId, sheets: listSheets(char.id) },
+    access,
+    data: loadFullCharacter(viewedSheetId, viewer.isGm),
+    viewAs,
+  });
 });
 
 api.put('/characters/:id/section/:section', requireAuth, (req, res) => {
@@ -1247,12 +1294,14 @@ api.put('/characters/:id/section/:section', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const section = String(req.params.section);
   if (!SECTION_IDS.has(section)) {
     res.status(400).json({ error: `Unbekannte Sektion: ${section}` });
     return;
   }
-  saveSection(char.id, section, req.body);
+  saveSection(sheetId, section, req.body);
   res.json({ ok: true });
 });
 
@@ -1262,7 +1311,9 @@ api.put('/characters/:id/visibility', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
-  saveVisibility(char.id, (req.body ?? {}) as Record<string, unknown>);
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  saveVisibility(sheetId, (req.body ?? {}) as Record<string, unknown>);
   res.json({ ok: true });
 });
 
@@ -1277,6 +1328,8 @@ api.put('/characters/:id/table-widths', requireAuth, (req, res) => {
     res.status(404).json({ error: 'Charakter nicht gefunden' });
     return;
   }
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const { key, widths } = (req.body ?? {}) as { key?: unknown; widths?: unknown };
   const tableKey = String(key ?? '').trim();
   if (!tableKey || tableKey.length > MAX_TABLE_KEY) {
@@ -1288,7 +1341,7 @@ api.put('/characters/:id/table-widths', requireAuth, (req, res) => {
     return;
   }
   const clean = normalizeWidths(widths as (number | undefined)[]);
-  saveTableWidths(char.id, tableKey, clean);
+  saveTableWidths(sheetId, tableKey, clean);
   res.json({ widths: clean });
 });
 
@@ -1299,13 +1352,15 @@ api.put('/characters/:id/table-widths', requireAuth, (req, res) => {
 api.put('/characters/:id/tab-order', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const { order } = (req.body ?? {}) as { order?: unknown };
   if (!Array.isArray(order) || order.length > MAX_TAB_KEYS) {
     res.status(400).json({ error: 'Ungültige Reiter-Reihenfolge' });
     return;
   }
   const clean = normalizeTabOrder(order);
-  saveTabOrder(char.id, clean);
+  saveTabOrder(sheetId, clean);
   res.json({ order: clean });
 });
 
@@ -1634,8 +1689,10 @@ api.post('/gm/items/:uid/move', requireAuth, requireGm, (req, res) => {
 api.put('/characters/:id/abilities', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  saveAbilities(char.id, req.body);
-  res.json({ abilities: loadAbilities(char.id) });
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  saveAbilities(sheetId, req.body);
+  res.json({ abilities: loadAbilities(sheetId) });
 });
 
 // Nur lesen, nur für die Spielleitung: die Gruppenübersicht bietet damit einen
@@ -1645,7 +1702,9 @@ api.put('/characters/:id/abilities', requireAuth, (req, res) => {
 api.get('/characters/:id/abilities', requireAuth, requireGm, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  res.json({ abilities: loadAbilities(char.id) });
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  res.json({ abilities: loadAbilities(sheetId) });
 });
 
 // Element- oder Kategorie-Liste verwalten (mit Kaskade auf die Einträge).
@@ -1653,8 +1712,10 @@ api.get('/characters/:id/abilities', requireAuth, requireGm, (req, res) => {
 api.put('/characters/:id/ability-lists/manage', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const kind = String((req.body as { kind?: unknown })?.kind ?? 'kategorie');
-  res.json({ abilityLists: manageAbilityList(char.id, kind, req.body) });
+  res.json({ abilityLists: manageAbilityList(sheetId, kind, req.body) });
 });
 
 // Einmaliger Seed-Import aus dem alten dynamischen „Zauber/Fähigkeiten"-Reiter.
@@ -1663,14 +1724,18 @@ api.put('/characters/:id/ability-lists/manage', requireAuth, (req, res) => {
 api.post('/characters/:id/abilities/seed', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  const result = seedAbilitiesFromZauber(char.id);
-  res.json({ ...result, abilities: loadAbilities(char.id), abilityLists: loadAbilityLists(char.id) });
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  const result = seedAbilitiesFromZauber(sheetId);
+  res.json({ ...result, abilities: loadAbilities(sheetId), abilityLists: loadAbilityLists(sheetId) });
 });
 
 api.post('/characters/:id/abilities/retire-old-tab', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  res.json(retireOldZauberTab(char.id));
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  res.json(retireOldZauberTab(sheetId));
 });
 
 // Farbwelt des Charakters (per-Charakter-Theme). Server speichert die Id als
@@ -1729,6 +1794,25 @@ api.get('/characters/:id/dice-favorites', requireAuth, (req, res) => {
 
 // --- Datengesteuerte Sektionen (nur mit Bearbeitungsrecht) ---
 
+/**
+ * Der Bogen, auf den sich diese Anfrage bezieht: `?sheet=<id>` (Grundform oder
+ * eine ihrer Formen), sonst der aktive. Gruppenmitglieder (kein Bearbeitungs-/
+ * Einsichtsrecht) sehen nur den aktiven Bogen. Antwortet selbst, wenn nichts passt.
+ */
+function sheetOr400(req: import('express').Request, res: import('express').Response, char: CharRow): number | null {
+  const sheetId = resolveSheet(char.id, req.query.sheet);
+  if (sheetId === null) {
+    res.status(400).json({ error: 'Unbekannter Bogen' });
+    return null;
+  }
+  const access = characterAccess(req.user!, char);
+  if (sheetId !== activeSheetId(char.id) && access !== 'edit' && access !== 'inspect') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return null;
+  }
+  return sheetId;
+}
+
 function editableChar(req: import('express').Request, res: import('express').Response): CharRow | null {
   const char = getChar(Number(req.params.id));
   if (!char || characterAccess(req.user!, char) !== 'edit') {
@@ -1737,6 +1821,75 @@ function editableChar(req: import('express').Request, res: import('express').Res
   }
   return char;
 }
+
+// --- Mehrere Bögen pro Charakter (docs/concepts/shapeshifting.md) ---
+// Anlegen, Umbenennen, Löschen und der Wechsel des aktiven Bogens sind Sache des
+// BESITZERS (nicht der Spielleitung). Ansehen und Bearbeiten einer Form läuft
+// dagegen über die normalen Bogen-Routen mit ?sheet=<id> (Besitzer und GM).
+function ownerChar(req: import('express').Request, res: import('express').Response): CharRow | null {
+  const char = getChar(Number(req.params.id));
+  if (!char || characterAccess(req.user!, char) !== 'edit') {
+    res.status(404).json({ error: 'Charakter nicht gefunden' });
+    return null;
+  }
+  if (char.owner_user_id !== req.user!.id) {
+    res.status(403).json({ error: 'Nur die Besitzerin oder der Besitzer verwaltet die Bögen' });
+    return null;
+  }
+  return char;
+}
+
+function pushActiveSheetChange(char: CharRow): void {
+  // Die Marke zeigt Bild, Wunden und Name des aktiven Bogens: neu aufbauen.
+  if (char.group_id != null) pushWoundsBoardSync(char.group_id, char.id);
+}
+
+api.post('/characters/:id/forms', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  const { label, mode } = (req.body ?? {}) as { label?: unknown; mode?: unknown };
+  const result = createForm(char.id, label, mode === 'blank' ? 'blank' : 'copy');
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json({ id: result.id, sheets: listSheets(char.id), maxForms: MAX_FORMS });
+});
+
+api.put('/characters/:id/active-sheet', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  const sheetId = Number((req.body ?? {}).sheetId);
+  if (!Number.isInteger(sheetId) || !setActiveSheet(char.id, sheetId)) {
+    res.status(400).json({ error: 'Unbekannter Bogen' });
+    return;
+  }
+  pushActiveSheetChange(char);
+  res.json({ sheets: listSheets(char.id), displayName: displayName(char.name, char.id) });
+});
+
+api.put('/characters/:id/sheets/:sheetId', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  if (!renameSheet(char.id, Number(req.params.sheetId), (req.body ?? {}).label)) {
+    res.status(400).json({ error: 'Formname ungültig' });
+    return;
+  }
+  pushActiveSheetChange(char);
+  res.json({ sheets: listSheets(char.id), displayName: displayName(char.name, char.id) });
+});
+
+api.delete('/characters/:id/forms/:formId', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  // Die Grundform ist die Quelle der Wahrheit und nie einzeln löschbar.
+  if (!deleteForm(char.id, Number(req.params.formId))) {
+    res.status(400).json({ error: 'Diese Form kann nicht gelöscht werden' });
+    return;
+  }
+  pushActiveSheetChange(char);
+  res.json({ sheets: listSheets(char.id), displayName: displayName(char.name, char.id) });
+});
 
 // --- Porträt (Bild-Blob) ---
 // Anschauen darf jeder mit Zugriff (auch Gruppenmitglieder in der Zusammenfassung),
@@ -1749,7 +1902,9 @@ api.get('/characters/:id/portrait/full', requireAuth, (req, res) => {
     res.status(404).end();
     return;
   }
-  const p = loadPortrait(char.id, true);
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  const p = loadPortrait(sheetId, true);
   if (!p) {
     res.status(404).end();
     return;
@@ -1772,7 +1927,9 @@ api.put(
       return;
     }
     const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
-    savePortrait(char.id, mime, buf, true);
+    const sheetId = sheetOr400(req, res, char);
+    if (sheetId === null) return;
+    savePortrait(sheetId, mime, buf, true);
     res.json({ ok: true });
   },
 );
@@ -1793,7 +1950,9 @@ api.put(
       return;
     }
     const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
-    savePortraitOriginal(char.id, mime, buf);
+    const sheetId = sheetOr400(req, res, char);
+    if (sheetId === null) return;
+    savePortraitOriginal(sheetId, mime, buf);
     res.json({ ok: true });
   },
 );
@@ -1804,7 +1963,9 @@ api.get('/characters/:id/portrait', requireAuth, (req, res) => {
     res.status(404).end();
     return;
   }
-  const p = loadPortrait(char.id);
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  const p = loadPortrait(sheetId);
   if (!p) {
     res.status(404).end();
     return;
@@ -1821,13 +1982,15 @@ api.put(
   (req, res) => {
     const char = editableChar(req, res);
     if (!char) return;
+    const sheetId = sheetOr400(req, res, char);
+    if (sheetId === null) return;
     const buf = req.body as Buffer;
     if (!Buffer.isBuffer(buf) || buf.length === 0) {
       res.status(400).json({ error: 'Kein Bild empfangen' });
       return;
     }
     const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
-    savePortrait(char.id, mime, buf);
+    savePortrait(sheetId, mime, buf);
     res.json({ ok: true });
   },
 );
@@ -1836,7 +1999,9 @@ api.put(
 api.delete('/characters/:id/portrait', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  deletePortrait(char.id);
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  deletePortrait(sheetId);
   res.json({ ok: true });
 });
 
@@ -1852,7 +2017,9 @@ api.get('/characters/:id/token-image', requireAuth, (req, res) => {
     res.status(404).end();
     return;
   }
-  const p = loadTokenImage(char.id);
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  const p = loadTokenImage(sheetId);
   if (!p) {
     res.status(404).end();
     return;
@@ -1869,13 +2036,15 @@ api.put(
   (req, res) => {
     const char = editableChar(req, res);
     if (!char) return;
+    const sheetId = sheetOr400(req, res, char);
+    if (sheetId === null) return;
     const buf = req.body as Buffer;
     if (!Buffer.isBuffer(buf) || buf.length === 0) {
       res.status(400).json({ error: 'Kein Bild empfangen' });
       return;
     }
     const mime = String(req.headers['content-type'] ?? 'image/jpeg').split(';')[0].trim();
-    saveTokenImage(char.id, mime, buf);
+    saveTokenImage(sheetId, mime, buf);
     res.json({ ok: true });
   },
 );
@@ -1883,7 +2052,9 @@ api.put(
 api.delete('/characters/:id/token-image', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
-  deleteTokenImage(char.id);
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
+  deleteTokenImage(sheetId);
   res.json({ ok: true });
 });
 
@@ -1992,24 +2163,30 @@ api.delete('/groups/:id/portrait', requireAuth, (req, res) => {
 api.post('/characters/:id/tabs', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const { name } = (req.body ?? {}) as { name?: string };
-  const id = createTab(char.id, String(name ?? 'Neuer Tab'), false);
+  const id = createTab(sheetId, String(name ?? 'Neuer Tab'), false);
   res.json({ id });
 });
 
 api.put('/characters/:id/tabs/reorder', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const order = Array.isArray(req.body?.order) ? (req.body.order as unknown[]).map(Number) : [];
-  reorderTabs(char.id, order);
+  reorderTabs(sheetId, order);
   res.json({ ok: true });
 });
 
 api.put('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const tid = Number(req.params.tid);
-  if (!tabBelongsTo(tid, char.id)) {
+  if (!tabBelongsTo(tid, sheetId)) {
     res.status(404).json({ error: 'Tab nicht gefunden' });
     return;
   }
@@ -2021,8 +2198,10 @@ api.put('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
 api.delete('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const tid = Number(req.params.tid);
-  if (!tabBelongsTo(tid, char.id)) {
+  if (!tabBelongsTo(tid, sheetId)) {
     res.status(404).json({ error: 'Tab nicht gefunden' });
     return;
   }
@@ -2038,28 +2217,34 @@ api.delete('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
 api.post('/characters/:id/sections', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const { tabId, name, type, columns } = (req.body ?? {}) as { tabId?: number; name?: string; type?: string; columns?: unknown };
-  if (!tabId || !tabBelongsTo(Number(tabId), char.id)) {
+  if (!tabId || !tabBelongsTo(Number(tabId), sheetId)) {
     res.status(400).json({ error: 'Tab nicht gefunden' });
     return;
   }
-  const id = createDynSection(char.id, Number(tabId), String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
+  const id = createDynSection(sheetId, Number(tabId), String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
   res.json({ id });
 });
 
 api.put('/characters/:id/sections/reorder', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const order = Array.isArray(req.body?.order) ? (req.body.order as unknown[]).map(Number) : [];
-  reorderDynSections(char.id, order);
+  reorderDynSections(sheetId, order);
   res.json({ ok: true });
 });
 
 api.put('/characters/:id/sections/:sid', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const sid = Number(req.params.sid);
-  if (!sectionBelongsTo(sid, char.id)) {
+  if (!sectionBelongsTo(sid, sheetId)) {
     res.status(404).json({ error: 'Sektion nicht gefunden' });
     return;
   }
@@ -2075,8 +2260,10 @@ api.put('/characters/:id/sections/:sid', requireAuth, (req, res) => {
 api.delete('/characters/:id/sections/:sid', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const sid = Number(req.params.sid);
-  if (!sectionBelongsTo(sid, char.id)) {
+  if (!sectionBelongsTo(sid, sheetId)) {
     res.status(404).json({ error: 'Sektion nicht gefunden' });
     return;
   }
@@ -2087,8 +2274,10 @@ api.delete('/characters/:id/sections/:sid', requireAuth, (req, res) => {
 api.put('/characters/:id/sections/:sid/rows', requireAuth, (req, res) => {
   const char = editableChar(req, res);
   if (!char) return;
+  const sheetId = sheetOr400(req, res, char);
+  if (sheetId === null) return;
   const sid = Number(req.params.sid);
-  if (!sectionBelongsTo(sid, char.id)) {
+  if (!sectionBelongsTo(sid, sheetId)) {
     res.status(404).json({ error: 'Sektion nicht gefunden' });
     return;
   }
@@ -2118,6 +2307,9 @@ api.put('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
 
 api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   const id = Number(req.params.id);
+  // Weitere Formen sind eigene characters-Zeilen und hängen nicht per Kaskade an
+  // der Grundform; sie müssen mit, bevor die Grundform fällt.
+  deleteAllForms(id);
   db.prepare('DELETE FROM characters WHERE id = ?').run(id);
   // Bilder liegen in einer ZWEITEN Datei (helden-assets.db), und SQLite kann
   // nicht über Dateigrenzen kaskadieren — der Haken muss von Hand gesetzt sein.
@@ -2242,7 +2434,7 @@ api.delete('/admin/users/:id', requireAuth, requireAdmin, (req, res) => {
     res.status(400).json({ error: 'Der letzte Admin kann nicht gelöscht werden' });
     return;
   }
-  const owned = db.prepare('SELECT COUNT(*) AS n FROM characters WHERE owner_user_id = ?').get(id) as { n: number };
+  const owned = db.prepare(`SELECT COUNT(*) AS n FROM characters WHERE owner_user_id = ? AND ${NOT_A_FORM()}`).get(id) as { n: number };
   if (owned.n > 0) {
     res.status(400).json({ error: 'Benutzer besitzt noch Charaktere' });
     return;
@@ -2716,7 +2908,7 @@ api.post('/admin/requests/:id/reject', requireAuth, requireGmOrAdmin, (req, res)
 // Bewusst getrennt von /overview (das die persönliche Charakter-Startseite
 // bedient), damit ein reiner Admin dort weiter nur seine eigenen sieht.
 api.get('/admin/characters', requireAuth, requireGmOrAdmin, (_req, res) => {
-  res.json(db.prepare('SELECT id, name, owner_user_id, group_id FROM characters ORDER BY name').all());
+  res.json(db.prepare(`SELECT id, name, owner_user_id, group_id FROM characters WHERE ${NOT_A_FORM()} ORDER BY name`).all());
 });
 
 api.post('/admin/characters', requireAuth, requireGmOrAdmin, (req, res) => {

@@ -119,7 +119,40 @@ initiative entry), where forms are mutually exclusive; so the pet link must
 not be "one active at a time". Build the resolver and the side table so they
 can serve both.
 
-## Build plan (drafted 2026-11-04, not started)
+## Build plan (drafted 2026-11-04)
+
+**Status 2026-11-04: phase 1 is built** (forms without sync, steps 1-7), verified
+end to end against a disposable copy of the dev DB: a scripted API run (create
+copy/blank form, view and edit a non-active form, wounds per sheet, Schicksalspunkte
+never overwritten by a form save, switch active, rename, delete incl. fallback, base
+not deletable, listings exclude forms, display-name suffix), an orphan-row check
+after delete and after a server reboot with a live form, and the browser flow in
+both color modes. Phase 2 and 3 are open. Phase 1 deviations and findings:
+
+- A boot-time repair in `db.ts` ("every character has exactly one bank pouch")
+  walked all `characters` rows and gave every form its own bank pouch on the
+  next start. It now skips forms. **Any future boot-time loop over `characters`
+  must exclude `character_forms`.**
+- The id helpers live in `characterData.ts` (`identityOf`, `activeSheetId`,
+  `isForm`, `NOT_A_FORM`, `displayName`); `server/src/sheets.ts` holds the
+  lifecycle. Routes resolve the sheet with `sheetOr400(req, res, char)`
+  (`?sheet=`, default active; group members only ever see the active sheet).
+- Only the sheet-scoped routes take the sheet id; items, pouches, item
+  categories, equipment presets, tags, GM notes, Schicksalspunkte, theme and
+  chat name keep using the character id.
+- A new form can be a copy of the base form's sheet (Heldenbrief and tabs, once)
+  or blank. Portrait and token image are not copied (per sheet, as decided).
+- Display name: the form label is appended only while a non-base form is
+  *active* (lists, roster, VTT token name); the sheet header shows the *viewed*
+  form's label.
+- Rolls, the dice/probe routes, VTT token stats and the GM overview all read the
+  active sheet; the roll buttons disappear on a viewed but inactive sheet.
+
+Known gaps after phase 1 (not decided yet, small): the Einstellungen page (tabs,
+tab order, visibility) and the ability workshop (`AbilityManager`) still act on
+the *active* sheet only; roll and feed entries are not labelled with the form;
+there is no server-side automated test layer (the checks above were a scripted
+run, not a committed test).
 
 Grounding facts from the code: content routes follow one pattern,
 `getChar(Number(req.params.id))` then `characterAccess(...)` then data by

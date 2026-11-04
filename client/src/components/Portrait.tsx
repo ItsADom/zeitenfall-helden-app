@@ -16,10 +16,13 @@ export function Portrait({
   kind = 'character',
   id,
   initialHasImage,
+  sheetId,
 }: {
   kind?: 'character' | 'group';
   id: number;
   initialHasImage: boolean;
+  /** Mehrere Bögen: das Porträt gehört zum Bogen. Ohne Angabe der aktive. */
+  sheetId?: number;
 }) {
   const readOnly = useReadOnly();
   const [hasImage, setHasImage] = useState(initialHasImage);
@@ -31,8 +34,9 @@ export function Portrait({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const base = `/api/${kind === 'group' ? 'groups' : 'characters'}/${id}/portrait`;
-  const src = `${base}?v=${version}`;
-  const fullSrc = `${base}/full?v=${version}`;
+  const sq = kind === 'character' && sheetId ? `?sheet=${sheetId}` : '';
+  const src = `${base}?v=${version}${sq ? `&sheet=${sheetId}` : ''}`;
+  const fullSrc = `${base}/full?v=${version}${sq ? `&sheet=${sheetId}` : ''}`;
 
   const putBlob = async (path: string, blob: Blob, contentType = 'image/jpeg') => {
     const res = await fetch(path, {
@@ -53,12 +57,12 @@ export function Portrait({
     setError('');
     setBusy(true);
     try {
-      await putBlob(base, display);
-      await putBlob(`${base}/full`, full);
+      await putBlob(`${base}${sq}`, display);
+      await putBlob(`${base}/full${sq}`, full);
       // Unbeschnittenes Original für die Vergrößerungs-Ansicht — best effort:
       // ein Fehler hier soll den bereits erfolgreichen Anzeige-/Master-Upload
       // nicht als Ganzes fehlschlagen lassen.
-      if (original) await putBlob(`${base}/original`, original, original.type || 'image/jpeg').catch(() => {});
+      if (original) await putBlob(`${base}/original${sq}`, original, original.type || 'image/jpeg').catch(() => {});
       setHasImage(true);
       setVersion((v) => v + 1);
     } catch (e) {
@@ -72,7 +76,7 @@ export function Portrait({
     setError('');
     setBusy(true);
     try {
-      const res = await fetch(base, { method: 'DELETE', credentials: 'same-origin' });
+      const res = await fetch(`${base}${sq}`, { method: 'DELETE', credentials: 'same-origin' });
       if (!res.ok) throw new Error('Entfernen fehlgeschlagen');
       setHasImage(false);
       setVersion((v) => v + 1);

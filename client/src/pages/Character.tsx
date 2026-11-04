@@ -6,6 +6,7 @@ import { wikiSlug } from '@shared/wikiSlug';
 import { apiGet, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
+import { SheetSwitcher, sheetLabel } from '../components/SheetSwitcher';
 import { ladeZiele } from '../wiki/api';
 import type { Catalogs, FullData, LanguageCatalogRow, LanguageScriptLink, RaceCatalogRow, TalentCatalogRow } from '../components/charSheet';
 import { CharCtx, useCharSheet, useChar } from '../components/charSheet';
@@ -58,14 +59,18 @@ export default function CharacterPage() {
     if (canViewAs) apiGet<{ id: number; displayName: string }[]>('/api/admin/users').then(setViewUsers).catch(() => {});
   }, [canViewAs]);
 
+  // Betrachteter Bogen (?sheet=): ohne Angabe der aktive. Unabhängig davon, welcher Bogen
+  // gerade im Spiel ist (siehe SheetSwitcher).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sheetParam = Number(searchParams.get('sheet')) || undefined;
+
   const {
-    info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
-    update, flush, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
-  } = useCharSheet(charId, viewAs || undefined);
+    sheetId, info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
+    update, flush, reload, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
+  } = useCharSheet(charId, viewAs || undefined, sheetParam);
 
   // Aktiver Reiter: normalerweise der Heldenbrief, aber ein ?tab=-Parameter
   // (z. B. beim Zurückkommen aus der Zauber-Verwaltung) landet direkt dort.
-  const [searchParams, setSearchParams] = useSearchParams();
   const [activeKey, setActiveKey] = useState<string>(searchParams.get('tab') || 'Heldenbrief');
   // Gemerkte Scroll-Position je Reiter (nur in dieser Sitzung): beim Wechsel wird
   // die des verlassenen Reiters gesichert und die des neuen wiederhergestellt.
@@ -126,7 +131,7 @@ export default function CharacterPage() {
   const saveTableWidths = (key: string, widths: number[]) => {
     setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: widths } } : prev));
     setSaveState('Speichere…');
-    apiPut<{ widths: number[] }>(`/api/characters/${charId}/table-widths`, { key, widths })
+    apiPut<{ widths: number[] }>(`/api/characters/${charId}/table-widths?sheet=${sheetId}`, { key, widths })
       .then((res) => {
         setData((prev) => (prev ? { ...prev, tableWidths: { ...prev.tableWidths, [key]: res.widths } } : prev));
         setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
@@ -220,6 +225,33 @@ export default function CharacterPage() {
     );
   }
   const inspecting = access === 'inspect';
+  const viewedForm = info.sheets?.find((s) => s.id === sheetId);
+
+  // Anderen Bogen betrachten: erst ungespeicherte Änderungen sichern, dann umschalten.
+  const viewSheet = async (id: number) => {
+    await flush();
+    const next = new URLSearchParams(searchParams);
+    next.set('sheet', String(id));
+    setSearchParams(next, { replace: true });
+  };
+  // Nach Änderungen an den Formen (anlegen, löschen, aktivieren, umbenennen): neu laden.
+  // War der betrachtete Bogen gelöscht, fällt die Ansicht auf den Standard (aktiv) zurück.
+  const sheetsChanged = async (view?: number) => {
+    if (view !== undefined) {
+      await viewSheet(view);
+      return;
+    }
+    if (sheetParam !== undefined) {
+      const res = await apiGet<{ character: { sheets?: { id: number }[] } }>(`/api/characters/${charId}?sheet=${sheetParam}`).catch(() => null);
+      if (!res || !res.character.sheets?.some((s) => s.id === sheetParam)) {
+        const next = new URLSearchParams(searchParams);
+        next.delete('sheet');
+        setSearchParams(next, { replace: true });
+        return;
+      }
+    }
+    await reload();
+  };
 
   const tabs = data.tabs;
   const setTabs = (fn: (t: DynTab[]) => DynTab[]) => setData((prev) => (prev ? { ...prev, tabs: fn(prev.tabs) } : prev));
@@ -233,7 +265,9 @@ export default function CharacterPage() {
     return tid === null ? null : (tabs.find((t) => t.id === tid) ?? null);
   };
   const tabName = (key: string) => tabByKey(key)?.name ?? BUILTIN_TAB_LABELS[key] ?? key;
-  const activeContentTab = tabByKey(activeKey);
+  // Eine andere Form hat unter Umständen den Reiter nicht, der gerade offen war.
+  const shownKey = order.includes(activeKey) ? activeKey : 'Heldenbrief';
+  const activeContentTab = tabByKey(shownKey);
 
   // Inhalt eines eingebauten Reiters. Selbst angelegte laufen über ContentTabView.
   // Die laufenden Werte (Energien, Psyche, Geld) liegen jetzt in der stets
@@ -298,7 +332,7 @@ export default function CharacterPage() {
   };
 
   return (
-    <CharCtx.Provider value={{ charId, groupId: info?.groupId ?? null, data, stats, catalogs, update, rollCtx, requestCtx }}>
+    <CharCtx.Provider value={{ charId, sheetId, groupId: info?.groupId ?? null, data, stats, catalogs, update, rollCtx, requestCtx }}>
       <TableLayoutProvider widths={data.tableWidths ?? {}} save={saveTableWidths}>
       <DisplayModeProvider mode={inspecting ? 'inspect' : editing ? 'edit' : 'readonly'}>
       <div className="screen-only">
@@ -312,7 +346,10 @@ export default function CharacterPage() {
         <div className="char-header" ref={charHeadRef}>
           {nameDraft === null ?
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <h1>{info.name}</h1>
+              <h1>
+                {info.name}
+                {viewedForm && !viewedForm.isBase && <span className="muted"> {sheetLabel(viewedForm)}</span>}
+              </h1>
               {/* Im Ansehen-als-Modus UND in der Verwaltungs-Einsicht bewusst
                   ausgeblendet: beides ist rein lesend. */}
               {!viewAs && !inspecting && editing && (
@@ -363,6 +400,19 @@ export default function CharacterPage() {
                 }
               </>
             )}
+            {/* Der Bogen-Umschalter steht in der Meta-Zeile, damit die Kopfleiste nicht höher wird. */}
+            {((info.sheets?.length ?? 0) > 1 || (info.ownerUserId === user.id && !viewAs && !inspecting)) && (
+              <>
+                {' · '}
+                <SheetSwitcher
+                  info={info}
+                  isOwner={info.ownerUserId === user.id}
+                  readOnly={!!viewAs || inspecting}
+                  onView={viewSheet}
+                  onChanged={sheetsChanged}
+                />
+              </>
+            )}
           </span>
           <span className="spacer" style={{ flex: 1 }} />
           <span className="savestate">{saveState}</span>
@@ -408,7 +458,7 @@ export default function CharacterPage() {
             gewandert (Spieler); die Reihenfolge kommt weiterhin aus tabOrder. */}
         <div className="tabs" ref={tabsRef}>
           {order.map((key) => (
-            <button key={key} className={key === activeKey ? 'active' : ''} onClick={() => selectTab(key)}>
+            <button key={key} className={key === shownKey ? 'active' : ''} onClick={() => selectTab(key)}>
               {tabName(key)}
             </button>
           ))}
@@ -424,6 +474,7 @@ export default function CharacterPage() {
           <ContentTabView
             key={`${activeContentTab.id}:${reloadTick}`}
             basePath={`/api/characters/${charId}`}
+            sheetId={sheetId}
             tab={activeContentTab}
             attributes={data.attributes}
             isFirst
@@ -437,7 +488,7 @@ export default function CharacterPage() {
             }
           />
         ) : (
-          builtinTab(activeKey)
+          builtinTab(shownKey)
         )}
           </div>
           <CharacterSidebar />
@@ -461,6 +512,7 @@ export default function CharacterPage() {
                 {dyn ? (
                   <ContentTabView
                     basePath={`/api/characters/${charId}`}
+                    sheetId={sheetId}
                     tab={dyn}
                     attributes={data.attributes}
                     isFirst

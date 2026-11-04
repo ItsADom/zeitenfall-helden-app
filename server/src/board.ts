@@ -18,7 +18,7 @@ import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
 import { loescheAssetsFuer } from './assets/store.js';
 import { rollDie } from './dice.js';
-import { clampWounds, hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
+import { activeSheetId, clampWounds, displayName, hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
 /**
  * Who's asking. The one thing every board access/redaction decision needs —
@@ -194,11 +194,13 @@ function toToken(
   const { smallWounds, bigWounds, ...rest } = r;
   return {
     ...rest,
+    // Marke eines Charakters: Name der Identität plus Form-Zusatz der aktiven Form.
+    name: r.characterId != null ? displayName(rest.name, r.characterId) : rest.name,
     hidden: !!r.hidden,
     statuses: JSON.parse(r.statuses || '[]'),
-    portrait: r.characterId != null && hasPortrait(r.characterId),
-    tokenImage: r.characterId != null && hasTokenImage(r.characterId),
-    wounds: r.characterId != null ? loadWounds(r.characterId) : { small: smallWounds, big: bigWounds },
+    portrait: r.characterId != null && hasPortrait(activeSheetId(r.characterId)),
+    tokenImage: r.characterId != null && hasTokenImage(activeSheetId(r.characterId)),
+    wounds: r.characterId != null ? loadWounds(activeSheetId(r.characterId)) : { small: smallWounds, big: bigWounds },
   };
 }
 
@@ -343,7 +345,7 @@ export function setTokenWounds(tokenId: number, wounds: Wounds): BoardTokenRow |
   const existing = getToken(tokenId);
   if (!existing) return undefined;
   if (existing.characterId != null) {
-    saveWounds(existing.characterId, wounds);
+    saveWounds(activeSheetId(existing.characterId), wounds);
   } else {
     const { small, big } = clampWounds(wounds);
     db.prepare('UPDATE board_tokens SET small_wounds = ?, big_wounds = ? WHERE id = ?').run(small, big, tokenId);
@@ -766,7 +768,7 @@ export function getInitiativeEntry(tokenId: number): BoardInitiativeRow | undefi
  * `computeResource(...).ergebnis`, which is a maximum, not a current value).
  */
 function characterCombatStats(characterId: number): { iniBasis: number; lp: number; todesschwelle: number } {
-  const stats = loadStats(characterId);
+  const stats = loadStats(activeSheetId(characterId));
   const baseValues = computeBaseValues(stats.attrs, stats.baseInputs);
   return { iniBasis: baseValues.ini.ergebnis, lp: stats.resources.le.aktuell, todesschwelle: baseValues.todesschwelle.ergebnis };
 }

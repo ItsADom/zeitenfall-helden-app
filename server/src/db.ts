@@ -1059,6 +1059,32 @@ db.exec(`
   }
 }
 
+// Mehrere Bögen pro Charakter (docs/concepts/shapeshifting.md). Ein Charakter
+// ist die `characters`-Zeile (die „Grundform", Quelle der Wahrheit, nie einzeln
+// löschbar). Jede weitere Form ist eine EIGENE characters-Zeile, die hier als
+// „Form von X" markiert wird, damit jede Liste sie mit EINEM Filter ausblenden
+// kann (`id NOT IN (SELECT character_id FROM character_forms)`). Nach außen
+// (VTT, Gruppe, Feed, Würfe) bleibt die ID der Grundform die Identität;
+// `active_form_id` (NULL = die Grundform selbst) sagt, welcher Bogen gerade im
+// Spiel ist. Neue Tabelle + zwei neue Spalten mit korrektem Default (NULL / ''),
+// daher ist kein Nachziehen bestehender Zeilen nötig.
+// Muss NACH dem characters-Neuaufbau oben stehen, sonst würde er die Spalten
+// wieder abwerfen.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS character_forms (
+    character_id INTEGER PRIMARY KEY REFERENCES characters(id) ON DELETE CASCADE,
+    base_character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    label TEXT NOT NULL DEFAULT '',
+    position INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_character_forms_base ON character_forms(base_character_id, position);
+`);
+{
+  const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
+  if (!cols.has('active_form_id')) db.exec('ALTER TABLE characters ADD COLUMN active_form_id INTEGER REFERENCES characters(id) ON DELETE SET NULL');
+  if (!cols.has('base_form_label')) db.exec("ALTER TABLE characters ADD COLUMN base_form_label TEXT NOT NULL DEFAULT ''");
+}
+
 // Migration: 'is_admin'-Rolle an bestehende users ergänzen. Rollen wurden
 // aufgeteilt (Spielleitung = Spiel, Verwaltung = Konten). Bisher trug is_gm
 // BEIDES; damit nach dem Update niemand ausgesperrt ist, werden alle bisherigen
@@ -1728,8 +1754,10 @@ if (hasTable('sec_techniken')) {
   if (firstSystem) {
     const missing = db
       .prepare(
+        // Weitere Formen (character_forms) haben keine eigenen Beutel: Geld gehört zum Charakter.
         `SELECT c.id FROM characters c
-         WHERE NOT EXISTS (SELECT 1 FROM char_pouches p WHERE p.owner_type = 'character' AND p.owner_id = c.id AND p.is_bank = 1)`,
+         WHERE c.id NOT IN (SELECT character_id FROM character_forms)
+           AND NOT EXISTS (SELECT 1 FROM char_pouches p WHERE p.owner_type = 'character' AND p.owner_id = c.id AND p.is_bank = 1)`,
       )
       .all() as { id: number }[];
     if (missing.length > 0) {
@@ -2014,7 +2042,7 @@ db.exec('DROP TABLE IF EXISTS group_members');
 }
 
 // Legt die festen Zeilen (Attribute, Basiswerte, Energien, Bio, Meta) für einen Charakter an
-export function initCharacterRows(characterId: number): void {
+export function initCharacterRows(characterId: number, withPouches = true): void {
   const attr = db.prepare('INSERT OR IGNORE INTO char_attributes (character_id, attr) VALUES (?, ?)');
   for (const code of ATTR_ROW_CODES) attr.run(characterId, code);
   const bv = db.prepare('INSERT OR IGNORE INTO char_base_values (character_id, key) VALUES (?, ?)');
@@ -2028,9 +2056,11 @@ export function initCharacterRows(characterId: number): void {
   // ohne jeden Beutel und müsste erst „+ Beutel" klicken, um überhaupt Geld
   // eintragen zu können. Dazu immer der Bank-Beutel (siehe CoinPouch.bank) —
   // genau einer, von Anfang an, nicht erst über die Start-Reparatur oben.
-  const firstSystem = db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as
-    | { id: number }
-    | undefined;
+  // Eine weitere Form (character_forms) bekommt KEINE eigenen Beutel: Geld
+  // gehört zum Charakter, nicht zum Bogen.
+  const firstSystem = withPouches
+    ? (db.prepare('SELECT id FROM currency_systems ORDER BY sort, id LIMIT 1').get() as { id: number } | undefined)
+    : undefined;
   if (firstSystem) {
     const insPouch = db.prepare(
       "INSERT INTO char_pouches (owner_type, owner_id, pos, name, system_id, kapazitaet, is_bank) VALUES ('character', ?, ?, ?, ?, 0, ?)",

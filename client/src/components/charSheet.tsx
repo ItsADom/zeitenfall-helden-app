@@ -140,6 +140,22 @@ export interface CharacterInfo {
   tempGroups: { id: number; name: string }[];
   // Farbwelt des Charakters ('' = keine → Betrachter behält seine Vorgabe).
   theme?: string;
+  // Mehrere Bögen pro Charakter (docs/concepts/shapeshifting.md). name bleibt der
+  // Name der Identität; displayName trägt den Zusatz der aktiven Form.
+  displayName?: string;
+  /** Der Bogen, den VTT, Gruppe und Würfe sehen. */
+  activeSheetId?: number;
+  /** Der gerade betrachtete Bogen (nur mit Bearbeitungs-/Einsichtsrecht). */
+  sheetId?: number;
+  sheets?: SheetInfo[];
+}
+
+export interface SheetInfo {
+  /** characters-ID des Bogens (= Charakter-ID für die Grundform). */
+  id: number;
+  label: string;
+  isBase: boolean;
+  active: boolean;
 }
 
 // Der Kontext, den die Seitenleiste und die eingebauten Reiter tatsächlich
@@ -147,6 +163,8 @@ export interface CharacterInfo {
 // Tischplatte) ihn ohne die Lade-/„Ansehen als"-Feinheiten mitbringen kann.
 interface CharCtxValue {
   charId: number;
+  /** Der betrachtete Bogen (Grundform: dieselbe ID wie charId). Bogen-eigene Routen bekommen `?sheet=` dazu. */
+  sheetId: number;
   /** Shared inventories (docs/concepts/shared-inventories.md): null = keine
    * Gruppe → der „Verschieben nach…"-Picker bietet nur noch den SL-Vorrat an. */
   groupId: number | null;
@@ -188,6 +206,8 @@ type Access = 'edit' | 'summary' | 'inspect' | null;
 // pages/Character.tsx.
 export interface CharSheetState {
   charId: number;
+  /** Der betrachtete Bogen; solange nichts geladen ist, die Charakter-ID. */
+  sheetId: number;
   info: CharacterInfo | null;
   setInfo: React.Dispatch<React.SetStateAction<CharacterInfo | null>>;
   access: Access;
@@ -200,6 +220,8 @@ export interface CharSheetState {
   error: string;
   update: (section: string, value: unknown) => void;
   flush: () => Promise<void>;
+  /** Lädt den betrachteten Bogen neu (mit Lade-Anzeige). */
+  reload: () => Promise<void>;
   saveState: string;
   setSaveState: React.Dispatch<React.SetStateAction<string>>;
   rollCtx: CharCtxValue['rollCtx'];
@@ -216,7 +238,7 @@ export interface CharSheetState {
  * Kontexte, die Farbwelt-Übernahme. Reine Datenlogik, kein Layout — siehe
  * Kommentar am Dateianfang.
  */
-export function useCharSheet(charId: number, asUser?: number): CharSheetState {
+export function useCharSheet(charId: number, asUser?: number, sheet?: number): CharSheetState {
   const { user } = useAuth();
   const [info, setInfo] = useState<CharacterInfo | null>(null);
   const [access, setAccess] = useState<Access>(null);
@@ -231,6 +253,10 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
   // des aktiven Inhalts-Tabs ein — so übernimmt ContentTabView (hält Zeilen in
   // eigenem State) die frischen Serverdaten.
   const [reloadTick, setReloadTick] = useState(0);
+  // Der zuletzt geladene (betrachtete) Bogen: Schreibzugriffe auf Bogen-eigene
+  // Daten gehen ausdrücklich dorthin (?sheet=), nie an „den aktiven", der sich
+  // zwischenzeitlich geändert haben kann.
+  const sheetRef = useRef<number>(charId);
 
   // Lädt den Charakter. quiet=true: stille Hintergrund-Aktualisierung ohne
   // Lade-Spinner — die bisherige Anzeige bleibt stehen, bis neue Daten da sind.
@@ -242,10 +268,14 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
         setSummary(null);
       }
       setError('');
-      const q = asUser ? `?asUser=${asUser}` : '';
+      const params = new URLSearchParams();
+      if (asUser) params.set('asUser', String(asUser));
+      if (sheet) params.set('sheet', String(sheet));
+      const q = params.size ? `?${params}` : '';
       return apiGet<{ character: CharacterInfo; access: Access; data?: FullData; summary?: unknown }>(`/api/characters/${charId}${q}`)
         .then((res) => {
           setInfo(res.character);
+          sheetRef.current = res.character.sheetId ?? charId;
           setAccess(res.access);
           setData(res.data ?? null);
           setSummary(res.summary ?? null);
@@ -267,7 +297,7 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
           if (!quiet) setLoading(false);
         });
     },
-    [charId, asUser],
+    [charId, asUser, sheet],
   );
 
   useEffect(() => {
@@ -307,7 +337,8 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
     setSaveState('Speichere…');
     try {
       for (const s of sections) {
-        if (s === 'visibility') await apiPut(`/api/characters/${charId}/visibility`, d.visibility);
+        const sq = `?sheet=${sheetRef.current}`;
+        if (s === 'visibility') await apiPut(`/api/characters/${charId}/visibility${sq}`, d.visibility);
         else if (s === 'items') {
           // Incremental (Hidden/revealable Ausrüstung stats, TODO.md): ein
           // Ganze-Liste-PUT würde alles verlieren, was dieser Client nie zu
@@ -323,7 +354,7 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
           }
         } else if (s === 'itemCategories') await apiPut(`/api/characters/${charId}/item-categories`, d.itemCategories);
         else if (s === 'equipmentPresets') await apiPut(`/api/characters/${charId}/equipment-presets`, d.equipmentPresets);
-        else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities`, d.abilities);
+        else if (s === 'abilities') await apiPut(`/api/characters/${charId}/abilities${sq}`, d.abilities);
         else if (s === 'pouches') await apiPut(`/api/characters/${charId}/pouches`, d.pouches);
         else {
           const value =
@@ -336,7 +367,7 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
             : s === 'talents' ? d.talents
             : s === 'languages' ? d.languages
             : d.lists[s];
-          await apiPut(`/api/characters/${charId}/section/${s}`, value);
+          await apiPut(`/api/characters/${charId}/section/${s}${sq}`, value);
         }
       }
       setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
@@ -410,10 +441,12 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
   // Würfeln nur vom eigenen Bogen und nur mit Gruppe — ein Spielleiter, der
   // einen fremden Bogen offen hat, würfelt hier NICHT für den Spieler (dafür
   // ist der SL-Anfrage-Fluss da), und ohne Gruppe gibt es keinen Feed.
-  const rollCtx = info && rollGroupId != null && info.ownerUserId === user.id ? { groupId: rollGroupId, charId } : null;
+  // Rollen kommen immer vom AKTIVEN Bogen: auf einem nur betrachteten Bogen keine Würfel-Knöpfe.
+  const viewingActive = !info || info.sheetId === undefined || info.sheetId === info.activeSheetId;
+  const rollCtx = info && rollGroupId != null && info.ownerUserId === user.id && viewingActive ? { groupId: rollGroupId, charId } : null;
   // Spielleitung auf einem fremden Bogen: anfragen statt würfeln.
   const requestCtx =
-    info && rollGroupId != null && user.isGm && info.ownerUserId !== user.id
+    info && rollGroupId != null && user.isGm && info.ownerUserId !== user.id && viewingActive
       ? { groupId: rollGroupId, charId, targetUserId: info.ownerUserId }
       : null;
 
@@ -422,8 +455,8 @@ export function useCharSheet(charId: number, asUser?: number): CharSheetState {
   const stats = useMemo(() => wornBoni(data?.items ?? []), [data?.items]);
 
   return {
-    charId, info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
-    update, flush, saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
+    charId, sheetId: info?.sheetId ?? charId, info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
+    update, flush, reload: () => loadCharacter(false), saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
   };
 }
 
@@ -451,7 +484,7 @@ export function CharSheetProvider({ charId, children }: { charId: number; childr
     return <p className="muted">Lade…</p>;
   }
   const ctx: CharCtxValue = {
-    charId, groupId: sheet.info?.groupId ?? null, data: sheet.data, stats: sheet.stats, catalogs: sheet.catalogs, update: sheet.update,
+    charId, sheetId: sheet.sheetId, groupId: sheet.info?.groupId ?? null, data: sheet.data, stats: sheet.stats, catalogs: sheet.catalogs, update: sheet.update,
     rollCtx: sheet.rollCtx, requestCtx: sheet.requestCtx,
   };
   return <CharCtx.Provider value={ctx}>{children}</CharCtx.Provider>;

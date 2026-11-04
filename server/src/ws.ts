@@ -58,7 +58,7 @@ import {
 } from 'shared';
 import crypto from 'node:crypto';
 import { getSessionToken, userForToken } from './auth.js';
-import { loadItems, loadList, loadStats } from './characterData.js';
+import { activeSheetId, loadItems, loadList, loadStats } from './characterData.js';
 import { db } from './db.js';
 import { performExpressionRoll, performProbeRoll, rollD20, rollSeed } from './dice.js';
 import { computeProbeForCharacter, makeNameLookup, parseProbeSource, type NamedProbe } from './diceSource.js';
@@ -1048,7 +1048,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
         send(ws, { type: 'error', reqId: msg.reqId, message: 'Unbekannte Technik' });
         return;
       }
-      const row = loadList('waffenlos', char.id).find((r) => r.technik === technik);
+      const row = loadList('waffenlos', activeSheetId(char.id)).find((r) => r.technik === technik);
       // Spieler-Feedback: Faustschlag-Schaden (Raufen) wird vom RS eines an
       // einer Hand getragenen Gegenstands geboostet — Ringen bleibt unangetastet.
       const boost = technik === 'Raufen' ? handRs(loadItems(char.id)) : 0;

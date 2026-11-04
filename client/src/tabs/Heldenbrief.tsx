@@ -105,7 +105,7 @@ const META_FIELDS: [string, string][] = [
 ];
 
 export default function HeldenbriefTab() {
-  const { charId, data, stats, catalogs, update } = useChar();
+  const { charId, sheetId, data, stats, catalogs, update } = useChar();
   const readOnly = useReadOnly();
   const { attributes, baseValues, resources, special, bio, meta, attrExtern, pouches } = data;
   // Item-Boni überlagert — NUR fürs Anzeigen/Rechnen. Editierbare Felder binden
@@ -249,7 +249,7 @@ export default function HeldenbriefTab() {
       <div className="panel">
         <h3>Person</h3>
         <div className="person-layout">
-          <Portrait id={charId} initialHasImage={data.portrait} />
+          <Portrait key={sheetId} id={charId} sheetId={sheetId} initialHasImage={data.portrait} />
           <div className="person-fields">
             {BIO_GROUPS.map((g) => (
               <section className="bio-group" key={g.title}>

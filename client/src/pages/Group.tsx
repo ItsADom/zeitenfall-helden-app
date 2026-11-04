@@ -106,7 +106,7 @@ function ItemMoveLogDialog({ groupId, onClose }: { groupId: number; onClose: () 
 interface GroupData {
   group: { id: number; name: string; portrait: boolean; isTemp: boolean };
   members: { id: number; username: string; displayName: string }[];
-  characters: { id: number; name: string; ownerName: string; access: 'edit' | 'summary' | null; portrait: boolean }[];
+  characters: { id: number; name: string; displayName?: string; ownerName: string; access: 'edit' | 'summary' | null; portrait: boolean }[];
   tabs: DynTab[];
   itemPool: Item[];
   itemCategories: string[];
@@ -300,7 +300,7 @@ export default function GroupPage() {
           <CharacterCard
             key={c.id}
             id={c.id}
-            name={c.name}
+            name={c.displayName ?? c.name}
             portrait={c.portrait}
             subtitle={
               <>

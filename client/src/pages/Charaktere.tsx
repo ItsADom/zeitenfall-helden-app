@@ -129,7 +129,7 @@ export default function CharaktereePage() {
             <CharacterCard
               key={c.id}
               id={c.id}
-              name={c.name}
+              name={c.displayName ?? c.name}
               subtitle={
                 grouped
                   ? data.groups.find((g) => g.id === c.group_id)?.name ?? ''

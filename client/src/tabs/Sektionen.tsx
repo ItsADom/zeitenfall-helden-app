@@ -32,6 +32,7 @@ const freshKey = () => `c${Date.now().toString(36)}${keyCounter++}`;
 
 export default function ContentTabView({
   basePath,
+  sheetId,
   tab,
   attributes,
   isFirst,
@@ -50,6 +51,8 @@ export default function ContentTabView({
 }: {
   // API-Wurzel des Besitzers, z. B. "/api/characters/6" oder "/api/groups/3"
   basePath: string;
+  /** Mehrere Bögen: der betrachtete Bogen (Reiter und Sektionen gehören zum Bogen, nicht zum Charakter). */
+  sheetId?: number;
   tab: DynTab;
   attributes: Attributes;
   isFirst: boolean;
@@ -68,6 +71,7 @@ export default function ContentTabView({
   onMoveTab?: (dir: -1 | 1) => void;
 }) {
   const readOnly = useReadOnly();
+  const sq = sheetId ? `?sheet=${sheetId}` : '';
   const [sections, setSections] = useState<DynSection[]>(tab.sections);
   const [saveState, setSaveState] = useState('');
   const timers = useRef<Map<number, number>>(new Map());
@@ -100,7 +104,7 @@ export default function ContentTabView({
     const t = window.setTimeout(async () => {
       setSaveState('Speichere…');
       try {
-        await apiPut(`${basePath}/sections/${section.id}/rows`, rows);
+        await apiPut(`${basePath}/sections/${section.id}/rows${sq}`, rows);
         setSaveState(`Gespeichert (${new Date().toLocaleTimeString()})`);
       } catch (e) {
         setSaveState(`Fehler: ${e instanceof Error ? e.message : e}`);
@@ -114,30 +118,30 @@ export default function ContentTabView({
 
   const saveColumns = async (section: DynSection, columns: DynColumn[]) => {
     patchSection(section.id, { columns });
-    await apiPut(`${basePath}/sections/${section.id}`, { columns });
+    await apiPut(`${basePath}/sections/${section.id}${sq}`, { columns });
   };
 
   const addSection = async (type: 'table' | 'notes') => {
     const name = type === 'notes' ? 'Neue Notiz' : 'Neue Tabelle';
     const columns: DynColumn[] = type === 'notes' ? [] : [{ key: freshKey(), label: 'Name', type: 'text' }];
-    const { id } = await apiPost<{ id: number }>(`${basePath}/sections`, { tabId: tab.id, name, type, columns });
+    const { id } = await apiPost<{ id: number }>(`${basePath}/sections${sq}`, { tabId: tab.id, name, type, columns });
     setSections((prev) => [...prev, { id, name, type, columns, rows: [], pos: prev.length, visible: false }]);
   };
 
   const renameSection = async (section: DynSection, name: string) => {
     if (name === section.name) return;
     patchSection(section.id, { name });
-    await apiPut(`${basePath}/sections/${section.id}`, { name });
+    await apiPut(`${basePath}/sections/${section.id}${sq}`, { name });
   };
 
   const setVisible = async (section: DynSection, visible: boolean) => {
     patchSection(section.id, { visible });
-    await apiPut(`${basePath}/sections/${section.id}`, { visible });
+    await apiPut(`${basePath}/sections/${section.id}${sq}`, { visible });
   };
 
   const deleteSection = async (section: DynSection) => {
     if (!confirm(`Sektion „${section.name}" mit ${section.rows.length} Zeile(n) löschen?`)) return;
-    await apiDelete(`${basePath}/sections/${section.id}`);
+    await apiDelete(`${basePath}/sections/${section.id}${sq}`);
     setSections((prev) => prev.filter((s) => s.id !== section.id));
   };
 
@@ -147,7 +151,7 @@ export default function ContentTabView({
     const next = sections.slice();
     [next[index], next[j]] = [next[j], next[index]];
     setSections(next);
-    await apiPut(`${basePath}/sections/reorder`, { order: next.map((s) => s.id) });
+    await apiPut(`${basePath}/sections/reorder${sq}`, { order: next.map((s) => s.id) });
   };
 
   return (

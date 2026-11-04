@@ -97,6 +97,58 @@ import {
 import { hatMarkenBild, ladeMarkenBild, loescheMarkenBild, speichereMarkenBild } from './assets/tokenImage.js';
 import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows, updateDynSection } from './dynSections.js';
 
+// --- Mehrere Bögen pro Charakter (docs/concepts/shapeshifting.md) ---
+//
+// Zwei Arten von IDs, nie vermischen:
+//  - IDENTITÄT = die characters-Zeile der Grundform. Ihr gehören Gegenstände,
+//    Geld, Gegenstands-Kategorien, Ausrüstungs-Sets, GM-Notizen, Tags und die
+//    Schicksalspunkte. VTT, Gruppe, Feed und Würfe kennen nur diese ID.
+//  - BOGEN = die characters-Zeile, deren char_*-Zeilen den Inhalt tragen
+//    (Heldenbrief, Talente, Sprachen, Fähigkeiten, eigene Reiter, Wunden, Bilder,
+//    Sichtbarkeit, Reiterordnung, Spaltenbreiten). Für die Grundform ist das
+//    dieselbe ID; eine weitere Form hat eine eigene Zeile in character_forms.
+// Die *Raw-/load*-Funktionen unten nehmen durchweg eine BOGEN-ID. Wer von einer
+// Identität kommt (Würfe, Brett, Gruppenübersicht), löst sie über
+// activeSheetId() auf.
+
+/** Die Identität (Grundform) zu einer Bogen-ID; für eine Grundform sie selbst. */
+export function identityOf(sheetId: number): number {
+  const row = db.prepare('SELECT base_character_id AS b FROM character_forms WHERE character_id = ?').get(sheetId) as
+    | { b: number }
+    | undefined;
+  return row ? row.b : sheetId;
+}
+
+/** Der Bogen, der gerade „im Spiel" ist (Grundform, solange keine andere Form aktiv ist). */
+export function activeSheetId(identityId: number): number {
+  const row = db.prepare('SELECT active_form_id AS a FROM characters WHERE id = ?').get(identityId) as
+    | { a: number | null }
+    | undefined;
+  return row?.a ?? identityId;
+}
+
+/** Anzeigename: Name plus Form-Zusatz, solange eine weitere Form aktiv ist. */
+export function displayName(name: string, identityId: number): string {
+  const row = db
+    .prepare(
+      `SELECT f.label AS label FROM characters c JOIN character_forms f ON f.character_id = c.active_form_id
+       WHERE c.id = ?`,
+    )
+    .get(identityId) as { label: string } | undefined;
+  return row && row.label ? `${name} ${row.label}` : name;
+}
+
+export function isForm(characterId: number): boolean {
+  return !!db.prepare('SELECT 1 FROM character_forms WHERE character_id = ?').get(characterId);
+}
+
+/** SQL-Fragment: schließt Form-Zeilen aus einer Charakter-Liste aus. `col` ist die id-Spalte. */
+export const NOT_A_FORM = (col = 'id') => `${col} NOT IN (SELECT character_id FROM character_forms)`;
+
+// Schicksalspunkte gehören zum Charakter, stehen aber in char_meta (Bogen-Zeile).
+// Eine weitere Form liest sie aus der Grundform und schreibt sie nie selbst.
+const SCHICKSALS_COLS = new Set(['schicksalspunkteAktuell', 'schicksalspunkteMax']);
+
 // --- Laden ---
 
 export function loadAttributesRaw(charId: number): Attributes {
@@ -222,7 +274,8 @@ export interface CharStats {
 
 export function loadStats(charId: number): CharStats {
   const meta = loadSingleRow('char_meta', charId) as { psycheBase?: number; psycheBonus?: number; traglastBonus?: number };
-  const boni = wornBoni(loadItems(charId));
+  // Gegenstände gehören zur Identität, nicht zum Bogen (siehe oben).
+  const boni = wornBoni(loadItems(identityOf(charId)));
   const attrs = attrsMitBoni(loadAttributesRaw(charId), boni);
   const baseInputs = baseInputsMitBoni(loadBaseValueInputsRaw(charId), boni);
   const rawResources = loadResourcesRaw(charId);
@@ -496,6 +549,13 @@ export function instantiateStandardSections(charId: number): void {
     seedItemCategories(charId);
   });
   tx();
+}
+
+// Leere Standard-Tabs für einen weiteren Bogen (character_forms). Anders als
+// instantiateStandardSections ohne Gegenstands-Kategorien: die gehören zum
+// Charakter, nicht zum Bogen.
+export function instantiateBlankSheet(sheetId: number): void {
+  buildStandardTabs(sheetId, () => [], NEW_CHARACTER_TABS);
 }
 
 // Ein paar sinnvolle Ausgangs-Kategorien für einen neuen Owner (Charakter,
@@ -952,9 +1012,16 @@ function ensureAttrPointsMigration(charId: number, meta: Record<string, unknown>
 // VIEWER's GM status (viewerFor()'s simulated identity during "Ansehen als"
 // in routes.ts), not always the raw session user.
 export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
-  const meta = loadSingleRow('char_meta', charId);
+  const identityId = identityOf(charId);
+  let meta = loadSingleRow('char_meta', charId);
+  if (identityId !== charId) {
+    // Weitere Form: die Schicksalspunkte kommen aus der Grundform.
+    const base = loadSingleRow('char_meta', identityId);
+    meta = { ...meta };
+    for (const c of SCHICKSALS_COLS) meta[c] = base[c];
+  }
   const attributes = loadAttributesRaw(charId);
-  const items = loadItems(charId);
+  const items = loadItems(identityId);
   return {
     bio: loadSingleRow('char_bio', charId),
     meta,
@@ -973,11 +1040,11 @@ export function loadFullCharacter(charId: number, requesterIsGm: boolean) {
     portrait: hasPortrait(charId),
     tokenImage: hasTokenImage(charId),
     items: requesterIsGm ? items : ohneVerborgeneItems(items),
-    itemCategories: loadItemCategories(charId),
+    itemCategories: loadItemCategories(identityId),
     abilities: loadAbilities(charId),
     abilityLists: loadAbilityLists(charId),
-    pouches: loadPouches(charId),
-    equipmentPresets: loadEquipmentPresets(charId),
+    pouches: loadPouches(identityId),
+    equipmentPresets: loadEquipmentPresets(identityId),
   };
 }
 
@@ -2664,7 +2731,11 @@ export function saveSection(charId: number, section: string, data: unknown): voi
       // würde ein normales Meta-Speichern sie auf 0 zurücksetzen, weil `body`
       // diese Schlüssel gar nicht mehr enthält).
       const LEGACY_GELD_COLS = new Set(['geldD', 'geldS', 'geldH', 'geldK', 'bank']);
-      const cols = Object.keys(existing).filter((k) => k !== 'character_id' && !LEGACY_GELD_COLS.has(k));
+      // Eine weitere Form schreibt die Schicksalspunkte nie (sie gehören zur Grundform).
+      const formRow = section === 'meta' && isForm(charId);
+      const cols = Object.keys(existing).filter(
+        (k) => k !== 'character_id' && !LEGACY_GELD_COLS.has(k) && !(formRow && SCHICKSALS_COLS.has(k)),
+      );
       const assignments = cols.map((c) => `${c} = ?`).join(', ');
       // rasseId ist die einzige nicht-textuelle char_bio-Spalte (Verweis in
       // races_catalog) — nullbare Ganzzahl statt der sonst üblichen str().
@@ -2864,7 +2935,20 @@ export function importFullCharacter(
     const r = db.prepare('INSERT INTO characters (name, owner_user_id, group_id) VALUES (?, ?, ?)').run(name, ownerUserId, groupId);
     const charId = Number(r.lastInsertRowid);
     initCharacterRows(charId);
+    writeSheetData(charId, data, true);
+    return charId;
+  });
+  return tx();
+}
 
+// Schreibt den Inhalt einer exportierten Datei in eine frisch angelegte
+// characters-Zeile (muss initCharacterRows schon hinter sich haben). Läuft in
+// der Transaktion des Aufrufers. `includeIdentity` = false für eine weitere
+// Form (character_forms): Gegenstände, Kategorien, Ausrüstungs-Sets und Geld
+// gehören zum Charakter, nicht zum Bogen, und werden dort NICHT noch einmal
+// angelegt.
+export function writeSheetData(charId: number, data: ReturnType<typeof loadFullCharacter>, includeIdentity: boolean): void {
+  {
     if (data.bio) saveSection(charId, 'bio', data.bio);
     if (data.meta) saveSection(charId, 'meta', data.meta);
     if (data.attributes) saveSection(charId, 'attributes', data.attributes);
@@ -2886,20 +2970,20 @@ export function importFullCharacter(
     // die equipmentPresets unten per itemUid verweisen. In MAX_ITEM_OPS-
     // großen Häppchen, falls ein Charakter mehr Gegenstände hat als ein
     // einzelner Batch fasst.
-    if (Array.isArray(data.items) && data.items.length) {
+    if (includeIdentity && Array.isArray(data.items) && data.items.length) {
       const ops = data.items.map((item) => ({ op: 'add' as const, item }));
       for (let i = 0; i < ops.length; i += MAX_ITEM_OPS) {
         applyItemOpsForOwner('character', charId, ops.slice(i, i + MAX_ITEM_OPS), true);
       }
     }
-    if (data.itemCategories) saveItemCategories(charId, data.itemCategories);
-    if (data.equipmentPresets) saveEquipmentPresets(charId, data.equipmentPresets);
+    if (includeIdentity && data.itemCategories) saveItemCategories(charId, data.itemCategories);
+    if (includeIdentity && data.equipmentPresets) saveEquipmentPresets(charId, data.equipmentPresets);
     if (data.abilities) saveAbilities(charId, data.abilities);
     if (data.abilityLists) {
       manageAbilityList(charId, 'element', { order: data.abilityLists.element ?? [] });
       manageAbilityList(charId, 'kategorie', { order: data.abilityLists.kategorie ?? [] });
     }
-    if (data.pouches) savePouches(charId, data.pouches);
+    if (includeIdentity && data.pouches) savePouches(charId, data.pouches);
 
     // Beim Import bekommen die Reiter neue IDs. Die Zuordnung alt→neu wird
     // mitgeschrieben, damit die gespeicherte Reihenfolge (die Reiter über ihre
@@ -2936,9 +3020,7 @@ export function importFullCharacter(
       })
       .filter((key) => key !== '');
     if (order.length) saveTabOrder(charId, order);
-    return charId;
-  });
-  return tx();
+  }
 }
 
 // --- Zusammenfassung für Gruppenmitglieder (serverseitig berechnet) ---
@@ -2952,7 +3034,9 @@ interface CatalogTalent {
   ableiten: string;
 }
 
-export function buildSummary(charId: number) {
+// `identityId` ist die Identität; die Zusammenfassung zeigt immer den AKTIVEN Bogen.
+export function buildSummary(identityId: number) {
+  const charId = activeSheetId(identityId);
   const visibility = loadVisibility(charId);
   const stats = loadStats(charId);
   const { attrs: attributes, resources } = stats;
@@ -3073,10 +3157,18 @@ export function buildGroupOverview(groupId: number) {
 
 function overviewForChars(chars: { id: number; name: string; ownerUserId: number; ownerName: string }[]) {
   return chars.map((c) => {
-    const stats = loadStats(c.id);
+    // c.id ist die Identität; angezeigt wird der aktive Bogen. Schicksalspunkte
+    // gehören zum Charakter und kommen immer aus der Grundform.
+    const sheet = activeSheetId(c.id);
+    const stats = loadStats(sheet);
     const { attrs: attributes, resources } = stats;
     const baseValues = computeBaseValues(attributes, stats.baseInputs);
-    const meta = loadSingleRow('char_meta', c.id) as {
+    const baseMeta = loadSingleRow('char_meta', c.id) as { schicksalspunkteAktuell?: number; schicksalspunkteMax?: number };
+    const meta = {
+      ...(loadSingleRow('char_meta', sheet) as Record<string, unknown>),
+      schicksalspunkteAktuell: baseMeta.schicksalspunkteAktuell,
+      schicksalspunkteMax: baseMeta.schicksalspunkteMax,
+    } as {
       ap?: number;
       psycheAkt?: number;
       psycheBase?: number;
@@ -3127,21 +3219,21 @@ function overviewForChars(chars: { id: number; name: string; ownerUserId: number
 
     return {
       id: c.id,
-      name: c.name,
+      name: displayName(c.name, c.id),
       // Für „Probe anfordern" auf der Übersicht: die Anfrage geht an den Besitzer.
       ownerUserId: c.ownerUserId,
       ownerName: c.ownerName,
       // Abgeleitet wie auf dem Bogen (Heldenbrief), nicht aus der gespeicherten
       // Spalte stufe, die nichts mehr beschreibt.
       stufe: levelForAp(Number(meta.ap) || 0),
-      portrait: hasPortrait(c.id),
+      portrait: hasPortrait(sheet),
       vitals,
       thresholds: { wund: baseValues.wundschwelle.ergebnis, tod: baseValues.todesschwelle.ergebnis },
       attributes: ATTR_CODES.map((code) => ({ code, value: attributes[code].akt + attributes[code].mod })),
       // Nur AUSGEBILDETE Talente (TaW ≠ 0), je Talent-ID auf den TaW verdichtet.
       // Der Katalog (Namen) reist getrennt mit, damit die GM-Abfrage jeden Namen
       // vorschlagen kann — auch einen, den in der Gruppe niemand kann.
-      talents: loadTalents(c.id)
+      talents: loadTalents(sheet)
         .filter((t) => t.taw !== 0)
         .map((t) => ({ id: t.talentId, taw: t.taw })),
       tags: db

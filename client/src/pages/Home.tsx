@@ -88,7 +88,7 @@ export default function HomePage({ onCompassClick }: { onCompassClick?: () => vo
               const pending = !grouped && c.requested_group_id != null;
               return (
                 <Link className="card home-tile" key={c.id} to={`/charakter/${c.id}`}>
-                  <h3>{c.name}</h3>
+                  <h3>{c.displayName ?? c.name}</h3>
                   <span className="muted">
                     {grouped
                       ? groupNameOf(c.group_id) ?? ''

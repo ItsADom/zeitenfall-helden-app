@@ -297,7 +297,7 @@ function SidebarZustaende() {
 // char_meta), dient hier aber nur als Startwert — danach lebt der Zähler
 // eigenständig, genau wie boardTokens es für die Marke tut.
 function SidebarWounds() {
-  const { charId, data } = useChar();
+  const { charId, sheetId, data } = useChar();
   const mode = useDisplayMode();
   // Wie AlwaysEditable selbst entscheidet: bearbeitbar außer unter
   // inspect/print — Verwaltung sieht die Zahlen (siehe Konzept-Entscheidung),
@@ -310,12 +310,12 @@ function SidebarWounds() {
   useEffect(() => {
     setWounds({ small: data.meta.small_wounds ?? 0, big: data.meta.big_wounds ?? 0 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [charId]);
+  }, [charId, sheetId]);
 
   const set = (small: number, big: number) => {
     const next = { small: Math.max(0, small), big: Math.max(0, big) };
     setWounds(next);
-    apiPut<{ small: number; big: number }>(`/api/characters/${charId}/wounds`, next)
+    apiPut<{ small: number; big: number }>(`/api/characters/${charId}/wounds?sheet=${sheetId}`, next)
       .then(setWounds)
       .catch(() => {});
   };
