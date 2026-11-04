@@ -50,6 +50,10 @@ export function canEditFog(viewer: BoardViewer): boolean {
 export function canHighlightTiles(viewer: BoardViewer): boolean {
   return viewer.isGm;
 }
+/** Creating/renaming/deleting/switching scenes: prep work, never a player case — hard-coded GM-only like canEditFog, not a perm_*. */
+export function canManageScenes(viewer: BoardViewer): boolean {
+  return viewer.isGm;
+}
 /** Measuring is always 'all' by design (see the schema comment in db.ts) — not a perm_*, so not even checkPerm applies. Anyone dispatching a board.* message is already a verified room member. */
 export function canMeasure(): boolean {
   return true;

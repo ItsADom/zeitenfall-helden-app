@@ -11,7 +11,7 @@ import type {
   RollVisibility,
   ServerToClientMessage,
 } from '@shared/diceProtocol';
-import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
+import type { BoardImage, BoardInitiative, BoardOverlay, BoardRoundTracker, BoardSceneSummary, BoardSettings, BoardToken, ImageModus, LabelOverlayData, MeasureOverlayData } from '@shared/boardProtocol';
 import { CHIME_STANDARD, type TonWahl, alsTonWahl } from '@shared/chimes';
 import { parseRollFormula } from '@shared/dice';
 import { apiGet, apiPut } from '../../api';
@@ -358,6 +358,15 @@ interface DicePanelCtxValue {
     images: BoardImage[],
     roundTrackers: BoardRoundTracker[],
   ) => void;
+  /** GM's scene picker list, filled by listScenes() and refreshed after every create/rename/delete. Empty for everyone else. */
+  boardScenes: BoardSceneSummary[];
+  listScenes: () => void;
+  /** Creates a blank scene AND moves the room onto it. */
+  createScene: (name: string) => void;
+  renameScene: (boardId: number, name: string) => void;
+  deleteScene: (boardId: number) => void;
+  /** Moves the whole room (live, for everyone) to this scene. */
+  switchScene: (boardId: number) => void;
   createToken: (input: {
     kind: 'character' | 'marker';
     characterId?: number;
@@ -513,6 +522,12 @@ export function useDicePanel(): DicePanelCtxValue {
       boardInitiative: [],
       boardRoundTrackers: [],
       hydrateBoard: () => {},
+      boardScenes: [],
+      listScenes: () => {},
+      createScene: () => {},
+      renameScene: () => {},
+      deleteScene: () => {},
+      switchScene: () => {},
       createToken: () => {},
       updateToken: () => {},
       moveToken: () => {},
@@ -594,6 +609,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardFog, setBoardFog] = useState<Set<string>>(new Set());
   const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
   const [boardRoundTrackers, setBoardRoundTrackers] = useState<BoardRoundTracker[]>([]);
+  const [boardScenes, setBoardScenes] = useState<BoardSceneSummary[]>([]);
   /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
   const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
   const boardViewCenterSeqRef = useRef(0);
@@ -1032,6 +1048,28 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         setBoardRoundTrackers(msg.trackers);
         return;
       }
+      if (msg.type === 'board.scene.list.result') {
+        setBoardScenes(msg.scenes);
+        return;
+      }
+      if (msg.type === 'board.scene.switched') {
+        // Applied at once, no delayed swap: a delta of the NEW scene arriving
+        // while an old one is still on screen would land on the wrong state
+        // and then be overwritten by this older snapshot. The page remounts
+        // its canvas on the board id and fades the new scene in.
+        const snap = msg.snapshot;
+        setBoardSettings(snap.board);
+        setBoardTokens(snap.tokens);
+        setBoardTiles(snap.tiles);
+        setBoardHighlights(snap.highlights);
+        setBoardOverlays(snap.overlays);
+        setBoardFog(new Set(snap.fog));
+        setBoardInitiative(snap.initiative);
+        setBoardImages(snap.images);
+        setBoardRoundTrackers(snap.roundTrackers);
+        setBoardTokenTrail(null);
+        return;
+      }
       if (msg.type === 'board.view.centered') {
         boardViewCenterSeqRef.current += 1;
         setBoardViewCenter({ x: msg.x, y: msg.y, zoom: msg.zoom, by: msg.by, seq: boardViewCenterSeqRef.current });
@@ -1111,6 +1149,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardHighlights({});
       setBoardOverlays([]);
       setBoardInitiative([]);
+      setBoardScenes([]);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -1524,6 +1563,15 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
     [sendMsg],
   );
 
+  const listScenesAction = useCallback(() => sendMsg({ type: 'board.scene.list', reqId: crypto.randomUUID() }), [sendMsg]);
+  const createSceneAction = useCallback((name: string) => sendMsg({ type: 'board.scene.create', reqId: crypto.randomUUID(), name }), [sendMsg]);
+  const renameSceneAction = useCallback(
+    (boardId: number, name: string) => sendMsg({ type: 'board.scene.rename', reqId: crypto.randomUUID(), boardId, name }),
+    [sendMsg],
+  );
+  const deleteSceneAction = useCallback((boardId: number) => sendMsg({ type: 'board.scene.delete', reqId: crypto.randomUUID(), boardId }), [sendMsg]);
+  const switchSceneAction = useCallback((boardId: number) => sendMsg({ type: 'board.scene.switch', reqId: crypto.randomUUID(), boardId }), [sendMsg]);
+
   const updateBoardSettingsAction = useCallback(
     (
       patch: Partial<Pick<BoardSettings, 'permTiles' | 'permLabels' | 'permTokens' | 'permImages' | 'permMove' | 'cols' | 'rows'>>,
@@ -1719,6 +1767,12 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardRoundTrackers,
         boardImages,
         hydrateBoard,
+        boardScenes,
+        listScenes: listScenesAction,
+        createScene: createSceneAction,
+        renameScene: renameSceneAction,
+        deleteScene: deleteSceneAction,
+        switchScene: switchSceneAction,
         createToken,
         updateToken: updateTokenAction,
         moveToken: moveTokenAction,

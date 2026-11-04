@@ -9,6 +9,8 @@ import type {
   BoardInitiative,
   BoardOverlay,
   BoardRoundTracker,
+  BoardSceneSummary,
+  BoardSettings,
   BoardToken,
   CellCoord,
   ClientToServerMessage,
@@ -67,6 +69,7 @@ import {
   canHighlightTiles as boardCanHighlightTiles,
   canLabel as boardCanLabel,
   canManageInitiative as boardCanManageInitiative,
+  canManageScenes as boardCanManageScenes,
   canMeasure as boardCanMeasure,
   canMoveToken as boardCanMoveToken,
   canPaint as boardCanPaint,
@@ -84,9 +87,17 @@ import {
   createImage as createBoardImage,
   createOverlay as createBoardOverlay,
   createRoundTracker as createBoardRoundTracker,
+  createScene as createBoardScene,
   createToken as createBoardToken,
   countOverlaysByOwner as countBoardOverlaysByOwner,
   deleteImage as deleteBoardImage,
+  deleteScene as deleteBoardScene,
+  getBoardById,
+  listBoardsForGroup,
+  loadBoardSnapshot,
+  redactSnapshotForViewer,
+  renameScene as renameBoardScene,
+  setActiveScene as setActiveBoardScene,
   deleteOverlay as deleteBoardOverlay,
   deleteRoundTracker as deleteBoardRoundTracker,
   deleteToken as deleteBoardToken,
@@ -289,6 +300,56 @@ function toWireImage(row: BoardImageRow): BoardImage {
     z: row.z,
     hidden: row.hidden,
   };
+}
+
+function toWireBoard(row: BoardRow): BoardSettings {
+  return {
+    id: row.id,
+    groupId: row.groupId,
+    name: row.name,
+    cols: row.cols,
+    rows: row.rows,
+    seed: row.seed,
+    permTiles: row.permTiles as 'gm' | 'all',
+    permLabels: row.permLabels as 'gm' | 'all',
+    permTokens: row.permTokens as 'gm' | 'all',
+    permImages: row.permImages as 'gm' | 'all',
+    permMove: row.permMove as 'gm' | 'all',
+    round: row.round,
+    turnIndex: row.turnIndex,
+    rev: row.rev,
+  };
+}
+
+function sceneSummaries(groupId: number): BoardSceneSummary[] {
+  return listBoardsForGroup(groupId).map((b) => ({ id: b.id, name: b.name, cols: b.cols, rows: b.rows }));
+}
+
+/**
+ * The room's now-active scene, in full, to everyone. Loaded once, redacted per
+ * viewer exactly like the REST snapshot (fog, hidden tokens/images, wounds),
+ * plus that viewer's OWN round trackers of this scene.
+ */
+function broadcastScene(groupId: number): void {
+  const full = loadBoardSnapshot(groupId);
+  const fog = [...fogSet(full.board)];
+  broadcastBuilt(groupId, (viewer) => {
+    const s = redactSnapshotForViewer(full, viewer);
+    return {
+      type: 'board.scene.switched',
+      snapshot: {
+        board: toWireBoard(s.board),
+        tokens: s.tokens.map((t) => toWireToken(t, viewer)),
+        tiles: JSON.parse(s.board.tilesJson || '{}') as Record<string, string>,
+        highlights: JSON.parse(s.board.highlightsJson || '{}') as Record<string, string>,
+        overlays: s.overlays.map(toWireOverlay),
+        fog,
+        initiative: s.initiative.map(toWireInitiative),
+        images: s.images.map(toWireImage),
+        roundTrackers: loadBoardRoundTrackers(s.board.id, viewer.userId).map(toWireRoundTracker),
+      },
+    };
+  });
 }
 
 /** No creatorUserId on the wire — a client only ever receives its OWN trackers (see BoardRoundTracker's doc comment). */
@@ -1908,24 +1969,56 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       if (isGridSize(p.cols)) patch.cols = p.cols;
       if (isGridSize(p.rows)) patch.rows = p.rows;
       const updated = updateBoardSettings(board.id, patch);
-      broadcastUngefiltert(meta.groupId, {
-        type: 'board.settings.updated',
-        board: {
-          id: updated.id,
-          groupId: updated.groupId,
-          cols: updated.cols,
-          rows: updated.rows,
-          seed: updated.seed,
-          permTiles: updated.permTiles as 'gm' | 'all',
-          permLabels: updated.permLabels as 'gm' | 'all',
-          permTokens: updated.permTokens as 'gm' | 'all',
-          permImages: updated.permImages as 'gm' | 'all',
-          permMove: updated.permMove as 'gm' | 'all',
-          round: updated.round,
-          turnIndex: updated.turnIndex,
-          rev: updated.rev,
-        },
-      });
+      broadcastUngefiltert(meta.groupId, { type: 'board.settings.updated', board: toWireBoard(updated) });
+      send(ws, { type: 'ack', reqId: msg.reqId });
+      return;
+    }
+    // Scenes (docs/concepts/vtt-grid-and-scenes.md, Part B): hard-coded GM-only.
+    case 'board.scene.list':
+    case 'board.scene.create':
+    case 'board.scene.rename':
+    case 'board.scene.delete':
+    case 'board.scene.switch': {
+      if (!boardCanManageScenes({ userId: meta.userId, isGm: meta.isGm })) {
+        send(ws, { type: 'error', reqId: msg.reqId, message: 'Nur die Spielleitung verwaltet Szenen' });
+        return;
+      }
+      const activeBefore = getOrCreateBoard(meta.groupId);
+      if (msg.type === 'board.scene.create') {
+        // Lands the room on the blank scene right away rather than leaving the
+        // GM to switch to it by hand (a judgment call, see the concept doc).
+        const created = createBoardScene(meta.groupId, msg.name);
+        setActiveBoardScene(meta.groupId, created.id);
+        broadcastScene(meta.groupId);
+      } else if (msg.type === 'board.scene.rename') {
+        const target = getBoardById(Number(msg.boardId));
+        if (!target || target.groupId !== meta.groupId) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Szene nicht gefunden' });
+          return;
+        }
+        const renamed = renameBoardScene(target.id, msg.name)!;
+        if (renamed.id === activeBefore.id) broadcastUngefiltert(meta.groupId, { type: 'board.settings.updated', board: toWireBoard(renamed) });
+      } else if (msg.type === 'board.scene.delete') {
+        const target = getBoardById(Number(msg.boardId));
+        if (!target || target.groupId !== meta.groupId) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Szene nicht gefunden' });
+          return;
+        }
+        if (deleteBoardScene(target.id) === 'last') {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Die letzte Szene kann nicht gelöscht werden' });
+          return;
+        }
+        // Deleting the scene the room is standing on moves everyone off it.
+        if (target.id === activeBefore.id) broadcastScene(meta.groupId);
+      } else if (msg.type === 'board.scene.switch') {
+        // setActiveScene validates the id belongs to THIS room, never trust the client's boardId.
+        if (!setActiveBoardScene(meta.groupId, Number(msg.boardId))) {
+          send(ws, { type: 'error', reqId: msg.reqId, message: 'Szene nicht gefunden' });
+          return;
+        }
+        if (Number(msg.boardId) !== activeBefore.id) broadcastScene(meta.groupId);
+      }
+      send(ws, { type: 'board.scene.list.result', scenes: sceneSummaries(meta.groupId) });
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }

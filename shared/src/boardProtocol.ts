@@ -19,6 +19,8 @@ export type BoardPerm = 'gm' | 'all';
 export interface BoardSettings {
   id: number;
   groupId: number;
+  /** Scene name (a group has several boards, see board.scene.* below). */
+  name: string;
   cols: number;
   rows: number;
   /** Deterministic autotile noise seed (feTurbulence) — same input, same picture on every client. Never changes after creation. */
@@ -429,7 +431,23 @@ export type BoardClientMessage =
   // buttons and a typed edit reuse the one setCount message.
   | { type: 'board.roundTracker.create'; reqId: string; label: string; startCount: number }
   | { type: 'board.roundTracker.setCount'; reqId: string; trackerId: number; count: number }
-  | { type: 'board.roundTracker.delete'; reqId: string; trackerId: number };
+  | { type: 'board.roundTracker.delete'; reqId: string; trackerId: number }
+  // Scenes (docs/concepts/vtt-grid-and-scenes.md, Part B). All GM-only
+  // (canManageScenes). The GM's picker is the only consumer of the list, which
+  // is answered to the requester alone; `switch` is the one that reaches the room.
+  | { type: 'board.scene.list'; reqId: string }
+  | { type: 'board.scene.create'; reqId: string; name: string }
+  | { type: 'board.scene.rename'; reqId: string; boardId: number; name: string }
+  | { type: 'board.scene.delete'; reqId: string; boardId: number }
+  | { type: 'board.scene.switch'; reqId: string; boardId: number };
+
+/** One row of the GM's scene picker. */
+export interface BoardSceneSummary {
+  id: number;
+  name: string;
+  cols: number;
+  rows: number;
+}
 
 export type BoardServerMessage =
   // fromX/fromY: only set when this broadcast comes from board.token.move
@@ -476,4 +494,27 @@ export type BoardServerMessage =
    * once (see stepTurn in server/src/board.ts — each connected owner gets
    * their own copy of this message, nobody else's).
    */
-  | { type: 'board.roundTracker.updated'; trackers: BoardRoundTracker[] };
+  | { type: 'board.roundTracker.updated'; trackers: BoardRoundTracker[] }
+  /** To the requesting GM only, never broadcast. Answers list and follows every create/rename/delete so the picker needs no second round-trip. */
+  | { type: 'board.scene.list.result'; scenes: BoardSceneSummary[] }
+  /**
+   * The room moved to another scene. Built per viewer (same redaction as the
+   * REST snapshot, round trackers included: those are private and per scene),
+   * carrying the WHOLE new scene so every client hydrates directly instead of
+   * racing a follow-up fetch.
+   */
+  | { type: 'board.scene.switched'; snapshot: BoardSceneSnapshot };
+
+/** Everything hydrateBoard() takes, in one piece — the wire shape of a scene switch. */
+export interface BoardSceneSnapshot {
+  board: BoardSettings;
+  tokens: BoardToken[];
+  tiles: Record<string, string>;
+  highlights: Record<string, string>;
+  overlays: BoardOverlay[];
+  /** Cell keys of the fog mask (public, see board.fog.updated). */
+  fog: string[];
+  initiative: BoardInitiative[];
+  images: BoardImage[];
+  roundTrackers: BoardRoundTracker[];
+}

@@ -32,7 +32,7 @@ import { db, initCharacterRows } from './db.js';
 import { EASTER_EGG_CATALOG } from './easterEggs.js';
 import { loadFeedPage } from './feed.js';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
-import { getBoard, getImageByAssetSlug, getOrCreateBoard, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
+import { getBoard, getImageByAssetSlug, getOrCreateBoard, listBoardsForGroup, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
 import { listFavoriteProbes, listRollableProbes } from './diceSource.js';
 import { broadcastWartung, pushSchicksalspunkte, pushWoundsBoardSync } from './ws.js';
 import { BOOT_ID, deployLaeuft, deployVerfuegbar, leseDeployStatus, stossDeployAn } from './deploy.js';
@@ -2289,16 +2289,17 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
     res.status(400).json({ error: 'Gruppe enthält noch Charaktere' });
     return;
   }
-  // Board-Id VOR dem Löschen holen: ON DELETE CASCADE räumt boards/
+  // Board-Ids VOR dem Löschen holen: ON DELETE CASCADE räumt boards/
   // board_images innerhalb von helden.db weg, aber deren Bild-Bytes liegen
   // in helden-assets.db — dieselbe Zweite-Datei-Lücke wie beim Gruppenporträt
   // gleich darunter, siehe die owner_type-Kommentare in assets/store.ts.
-  const board = getBoard(id);
+  // ALLE Szenen, nicht nur die aktive, sonst bleiben die Bilder der übrigen liegen.
+  const boardIds = listBoardsForGroup(id).map((b) => b.id);
   db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 0').run(id);
   // Gruppenporträt liegt in helden-assets.db — dieselbe Zweite-Datei-Lücke wie
   // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
   loescheAssetsFuer('group', id);
-  if (board) loescheAssetsFuer('board', board.id);
+  for (const boardId of boardIds) loescheAssetsFuer('board', boardId);
   // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md)
   // hängt per owner_type/owner_id, nicht per DB-Kaskade — „enthält noch
   // Charaktere" oben schließt Items nicht mit ein, die Prüfung gilt nur
@@ -2370,10 +2371,10 @@ api.delete('/admin/temp-groups/:id', requireAuth, requireGm, (req, res) => {
   const id = Number(req.params.id);
   // Same cross-database gap as the permanent-group delete above — an event
   // group can have its own board too (boards.group_id has no room-kind
-  // filter, see the plan).
-  const board = getBoard(id);
+  // filter, see the plan). Every scene, not just the active one.
+  const boardIds = listBoardsForGroup(id).map((b) => b.id);
   db.prepare('DELETE FROM groups WHERE id = ? AND is_temp = 1').run(id);
-  if (board) loescheAssetsFuer('board', board.id);
+  for (const boardId of boardIds) loescheAssetsFuer('board', boardId);
   res.json({ ok: true });
 });
 

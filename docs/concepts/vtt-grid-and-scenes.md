@@ -114,6 +114,31 @@ switching with a fade, per-scene initiative.
 
 ## Part B — Multiple scenes per group
 
+> **Built 2026-11-04.** Part A had already shipped (`9237108`), so only Part B
+> was left. Where the build departs from the plan below:
+> - **Round trackers are per scene** (decided with the developer). They hang
+>   off `board_id` already, so a switch just sends each viewer their own
+>   trackers of the new scene inside the snapshot.
+> - **Camera:** `usePersistedState` reads localStorage only once, so changing
+>   its key to the board id would not swap the camera on a switch. `MapCanvas`
+>   is remounted with `key={board.id}` instead, which also clears every bit of
+>   transient state (selection, drags, open editors). The scene picker's open
+>   state therefore lives in the page, not in `MapCanvas`. The zoom default and
+>   limits stay relative to each scene's own size (`dd4e24b`).
+> - **Fade:** fade-in only (CSS animation on the remounted `.vtt-map-wrap`).
+>   The fade-out half was dropped: delaying the swap by 280 ms would let a
+>   delta of the NEW scene land on the old state and then be overwritten by the
+>   older snapshot.
+> - **Creating a scene switches to it** (server-side, in `board.scene.create`).
+> - **Snapshot wire shape:** `BoardSceneSnapshot` (parsed tiles/highlights/fog,
+>   wire tokens), not the REST shape, built per viewer in `ws.ts`'s
+>   `broadcastScene`.
+> - **Migration** also repairs a dangling `active_board_id` (rollback/backup
+>   restore), and `getBoard` falls back to the lowest-id board for the same
+>   reason. The plain index is `idx_boards_group_scenes`, because re-creating
+>   the old unique name on boot would undo the drop.
+> - Grid ceiling is 1000 per axis (Part A), not the 300 proposed there.
+
 Implements [virtual-table.md](virtual-table.md)'s Phase 13 as already agreed:
 named boards, one `active_board_id` per group, hard-coded GM-only management,
 live-for-everyone switch with a client-side fade, full-snapshot broadcast so

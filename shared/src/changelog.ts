@@ -217,6 +217,16 @@ export const COMING_SOON: string[] = [
 //     einfügen und beim nächsten Serverstart geht er raus.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '2026-11-04',
+    title: 'Mehrere Szenen',
+    added: [
+      'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit und die neue Szene blendet kurz ein. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
+    ],
+    admin: [
+      '(Spielleiter) Über „Szenen“ in der Werkzeugleiste des Tisches lassen sich Szenen anlegen, umbenennen, löschen und wechseln. Eine neue Szene ist leer, und der Tisch wechselt sofort dorthin. Die letzte Szene lässt sich nicht löschen.',
+    ],
+  },
+  {
     date: '2026-11-03',
     version: '0.12.0',
     title: 'Arrhythmische Arithmetik',

@@ -728,7 +728,11 @@ db.exec(`
     rev INTEGER NOT NULL DEFAULT 0,        -- monoton; Clients erkennen Lücken und laden neu
     updated_at INTEGER NOT NULL DEFAULT 0
   );
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_boards_group_id ON boards(group_id);
+  -- Kein UNIQUE mehr: eine Gruppe hat mehrere Szenen (Bretter), welche gerade
+  -- gilt steht in groups.active_board_id. Der frühere Unique-Index
+  -- idx_boards_group_id wird in der Migration unten entfernt — er darf hier
+  -- nicht mehr angelegt werden, sonst käme er bei jedem Start zurück.
+  CREATE INDEX IF NOT EXISTS idx_boards_group_scenes ON boards(group_id);
 
   CREATE TABLE IF NOT EXISTS board_tokens (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1900,6 +1904,27 @@ db.exec('DROP TABLE IF EXISTS group_members');
 {
   const cols = new Set((db.prepare('PRAGMA table_info(boards)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('highlights_json')) db.exec("ALTER TABLE boards ADD COLUMN highlights_json TEXT NOT NULL DEFAULT '{}'");
+}
+
+// Migration: mehrere Szenen pro Gruppe (docs/concepts/vtt-grid-and-scenes.md,
+// Teil B). Reihenfolge: Spalten anlegen -> Bestand befüllen -> Unique-Index
+// entfernen. Jede Gruppe hat bis hierher höchstens ein Brett (der alte
+// Unique-Index hat das garantiert), das also zur aktiven Szene wird. Die
+// Befüllung ist idempotent und repariert nebenbei eine active_board_id, die
+// nach einem Rollback oder einem Backup-Restore ins Leere zeigt (ON DELETE
+// SET NULL greift nur bei eingeschalteten Fremdschlüsseln).
+{
+  const boardCols = new Set((db.prepare('PRAGMA table_info(boards)').all() as { name: string }[]).map((c) => c.name));
+  if (!boardCols.has('name')) db.exec("ALTER TABLE boards ADD COLUMN name TEXT NOT NULL DEFAULT ''");
+  const groupCols = new Set((db.prepare('PRAGMA table_info(groups)').all() as { name: string }[]).map((c) => c.name));
+  if (!groupCols.has('active_board_id')) db.exec('ALTER TABLE groups ADD COLUMN active_board_id INTEGER REFERENCES boards(id) ON DELETE SET NULL');
+  db.exec(`
+    UPDATE boards SET name = 'Szene 1' WHERE name = '';
+    UPDATE groups SET active_board_id = (SELECT MIN(b.id) FROM boards b WHERE b.group_id = groups.id)
+      WHERE (active_board_id IS NULL OR active_board_id NOT IN (SELECT id FROM boards WHERE group_id = groups.id))
+        AND EXISTS (SELECT 1 FROM boards b WHERE b.group_id = groups.id);
+    DROP INDEX IF EXISTS idx_boards_group_id;
+  `);
 }
 
 // Migration: 'radius'-Spalte an bestehende board_tokens ergänzen (Reichweiten-

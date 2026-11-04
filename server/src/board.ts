@@ -16,6 +16,7 @@ import {
 } from 'shared';
 import type { LabelOverlayData } from 'shared';
 import { db } from './db.js';
+import { loescheAssetsFuer } from './assets/store.js';
 import { rollDie } from './dice.js';
 import { clampWounds, hasPortrait, hasTokenImage, loadStats, loadWounds, saveWounds, type Wounds } from './characterData.js';
 
@@ -34,6 +35,8 @@ export interface BoardViewer {
 export interface BoardRow {
   id: number;
   groupId: number;
+  /** Scene name, shown in the GM's scene picker. */
+  name: string;
   cols: number;
   rows: number;
   tilesJson: string;
@@ -51,25 +54,91 @@ export interface BoardRow {
   updatedAt: number;
 }
 
-const BOARD_COLS = `id, group_id AS groupId, cols, rows, tiles_json AS tilesJson, highlights_json AS highlightsJson, fog_json AS fogJson,
+const BOARD_COLS = `id, group_id AS groupId, name, cols, rows, tiles_json AS tilesJson, highlights_json AS highlightsJson, fog_json AS fogJson,
   seed, perm_tiles AS permTiles, perm_labels AS permLabels, perm_tokens AS permTokens,
   perm_images AS permImages, perm_move AS permMove, round, turn_index AS turnIndex, rev, updated_at AS updatedAt`;
 
-/** One board per room — settled with the developer, enforced by a unique index on group_id. */
+/**
+ * The room's CURRENT scene: whichever board groups.active_board_id points at.
+ * This is the one choke point every caller goes through ("the board for this
+ * group"), so adding scenes changed none of them. A group with boards but a
+ * dangling/NULL pointer (restore from an older backup, rollback) falls back to
+ * its lowest-id board and repairs the pointer.
+ */
 export function getBoard(groupId: number): BoardRow | undefined {
-  return db.prepare(`SELECT ${BOARD_COLS} FROM boards WHERE group_id = ?`).get(groupId) as BoardRow | undefined;
+  const active = db
+    .prepare(`SELECT ${BOARD_COLS} FROM boards WHERE id = (SELECT active_board_id FROM groups WHERE id = ?) AND group_id = ?`)
+    .get(groupId, groupId) as BoardRow | undefined;
+  if (active) return active;
+  const first = db.prepare(`SELECT ${BOARD_COLS} FROM boards WHERE group_id = ? ORDER BY id LIMIT 1`).get(groupId) as BoardRow | undefined;
+  if (first) db.prepare('UPDATE groups SET active_board_id = ? WHERE id = ?').run(first.id, groupId);
+  return first;
 }
 
 export function getBoardById(boardId: number): BoardRow | undefined {
   return db.prepare(`SELECT ${BOARD_COLS} FROM boards WHERE id = ?`).get(boardId) as BoardRow | undefined;
 }
 
-/** Creates the room's board on first use — same idempotent-nachziehen shape as instantiateGroupTabs. */
+/** Creates the room's first scene on first use — same idempotent-nachziehen shape as instantiateGroupTabs. */
 export function getOrCreateBoard(groupId: number): BoardRow {
   const existing = getBoard(groupId);
   if (existing) return existing;
-  db.prepare('INSERT INTO boards (group_id, updated_at) VALUES (?, ?)').run(groupId, Date.now());
+  const info = db.prepare("INSERT INTO boards (group_id, name, updated_at) VALUES (?, 'Szene 1', ?)").run(groupId, Date.now());
+  db.prepare('UPDATE groups SET active_board_id = ? WHERE id = ?').run(info.lastInsertRowid, groupId);
   return getBoard(groupId)!;
+}
+
+/** Every scene of a room, oldest first. Also what group deletion must walk to clean up each scene's images. */
+export function listBoardsForGroup(groupId: number): BoardRow[] {
+  return db.prepare(`SELECT ${BOARD_COLS} FROM boards WHERE group_id = ? ORDER BY id`).all(groupId) as BoardRow[];
+}
+
+const SCENE_NAME_MAX = 60;
+
+function cleanSceneName(name: unknown, fallback: string): string {
+  const s = typeof name === 'string' ? name.trim().slice(0, SCENE_NAME_MAX) : '';
+  return s || fallback;
+}
+
+/** Creates a blank scene; does NOT switch to it (the caller decides). */
+export function createScene(groupId: number, name: unknown): BoardRow {
+  getOrCreateBoard(groupId);
+  const count = listBoardsForGroup(groupId).length;
+  const info = db
+    .prepare('INSERT INTO boards (group_id, name, updated_at) VALUES (?, ?, ?)')
+    .run(groupId, cleanSceneName(name, `Szene ${count + 1}`), Date.now());
+  return getBoardById(Number(info.lastInsertRowid))!;
+}
+
+export function renameScene(boardId: number, name: unknown): BoardRow | undefined {
+  const board = getBoardById(boardId);
+  if (!board) return undefined;
+  db.prepare('UPDATE boards SET name = ? WHERE id = ?').run(cleanSceneName(name, board.name), boardId);
+  return getBoardById(boardId);
+}
+
+/** False if the board isn't one of this group's scenes. */
+export function setActiveScene(groupId: number, boardId: number): boolean {
+  const board = getBoardById(boardId);
+  if (!board || board.groupId !== groupId) return false;
+  db.prepare('UPDATE groups SET active_board_id = ? WHERE id = ?').run(boardId, groupId);
+  return true;
+}
+
+/**
+ * Refuses a group's last remaining scene. Deleting the active one first moves
+ * the room to the lowest-id sibling, so a group never has no active board. The
+ * images live in the second database, which has no cascade: cleaned up by hand.
+ */
+export function deleteScene(boardId: number): 'ok' | 'last' | 'missing' {
+  const board = getBoardById(boardId);
+  if (!board) return 'missing';
+  const siblings = listBoardsForGroup(board.groupId).filter((b) => b.id !== boardId);
+  if (siblings.length === 0) return 'last';
+  if (getBoard(board.groupId)?.id === boardId) setActiveScene(board.groupId, siblings[0].id);
+  db.prepare('DELETE FROM boards WHERE id = ?').run(boardId);
+  loescheAssetsFuer('board', boardId);
+  return 'ok';
 }
 
 export interface BoardTokenRow {

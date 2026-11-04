@@ -1667,8 +1667,8 @@ front-loaded: the phase that touches existing, released code comes first.
     9, without needing a real image to exercise it — this phase is what
     finally exercises it. Includes the explicit „Bilder sind für Spieler
     sichtbar" note in the GM's image dialog.
-13. **Multiple scenes per group** (concept agreed 2026-08-25, **not started** —
-    build after the table itself is finished). Raised as "should a board just be
+13. **Multiple scenes per group** (concept agreed 2026-08-25, **built 2026-11-04**,
+    see `vtt-grid-and-scenes.md` Part B for where the build differs). Raised as "should a board just be
     bigger (100×100) so the GM has room to sketch several areas at once, or
     should there be several *named* boards to switch between" — settled on named
     boards: a single shared canvas would still share one token set, one fog

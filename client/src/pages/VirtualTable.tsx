@@ -933,6 +933,8 @@ function MapCanvas({
   canImages,
   isGm,
   members,
+  scenesOpen,
+  setScenesOpen,
 }: {
   groupId: number;
   board: BoardSettings;
@@ -956,6 +958,9 @@ function MapCanvas({
   isGm: boolean;
   /** For the marker-owner reassignment picker (TODO.md "show a token's current owner…") — see GroupMeta's doc comment. */
   members: { id: number; username: string; displayName: string }[];
+  /** Lives in the page, not here: MapCanvas remounts on every scene switch (key = board id), which would otherwise close the picker the GM is working in. */
+  scenesOpen: boolean;
+  setScenesOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
 }) {
   const { cols, rows } = board;
   const totalW = cols * CELL_PX;
@@ -1002,7 +1007,7 @@ function MapCanvas({
     feed,
   } = useDicePanel();
   const { user } = useAuth();
-  const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${groupId}`, { x: 0, y: 0, zoom: zoomFactor });
+  const [camera, setCamera] = usePersistedState<Camera>(`vtt-camera:${board.id}`, { x: 0, y: 0, zoom: zoomFactor });
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedTokenId, setSelectedTokenIdRaw] = useState<number | null>(null);
   const [dragPos, setDragPos] = useState<{ id: number; x: number; y: number } | null>(null);
@@ -1065,6 +1070,10 @@ function MapCanvas({
   // (siehe MeasureEditor).
   const [measureConeSpread, setMeasureConeSpread] = usePersistedState<number>('vtt-measure-cone-spread', CONE_SPREAD_DEFAULT);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Immer nur EIN Flyout unter dem Werkzeugkasten: ein Werkzeug-Flyout verdrängt die Szenenliste.
+  useEffect(() => {
+    if (pickerOpen) setScenesOpen(false);
+  }, [pickerOpen]);
   // Pipette: der nächste Klick aufs Brett übernimmt die Farbe der getroffenen
   // Zelle statt zu malen/einzufärben, dann schaltet sich das Werkzeug selbst
   // wieder ab — ein Klick, keine eigene Dauer-Betriebsart. Trägt die Ebene,
@@ -2625,6 +2634,18 @@ function MapCanvas({
           Alle zentrieren
         </button>
         {isGm && (
+          <button
+            className={`small${scenesOpen ? ' active' : ''}`}
+            onClick={() => {
+              setPickerOpen(false);
+              setScenesOpen((v) => !v);
+            }}
+            title="Szenen verwalten und wechseln"
+          >
+            Szenen
+          </button>
+        )}
+        {isGm && (
           <button className="small" onClick={() => setSettingsOpen((v) => !v)} title="Karten-Rechte">
             Karten-Rechte
           </button>
@@ -2640,6 +2661,7 @@ function MapCanvas({
           Raue Kanten
         </button>
       </div>
+      {isGm && scenesOpen && !pickerOpen && <ScenePicker activeId={board.id} onClose={() => setScenesOpen(false)} />}
       {isGm && settingsOpen && <BoardSettingsPopover board={board} onClose={() => setSettingsOpen(false)} />}
       <InitiativeStrip
         entries={boardInitiative}
@@ -4809,6 +4831,111 @@ function ImagePicker({
 // bewusst offen (Performance-Auswirkung schwer im Voraus abzuschätzen).
 const GRID_SIZE_MAX = 1000;
 
+// Flyout wie TilePicker/MeasureKindPicker (siehe TODO.md, "flyouts over inline
+// button sprawl"). Wechseln gilt sofort für den ganzen Raum, deshalb ist die
+// aktive Szene hervorgehoben und ein Klick darauf ein No-op.
+function ScenePicker({ activeId, onClose }: { activeId: number; onClose: () => void }) {
+  const { boardScenes, listScenes, createScene, renameScene, deleteScene, switchScene } = useDicePanel();
+  const [newName, setNewName] = useState('');
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState('');
+  const [armedDeleteId, setArmedDeleteId] = useState<number | null>(null);
+  useEffect(() => {
+    listScenes();
+    // listScenes ist stabil (useCallback über sendMsg) — nur beim Öffnen laden.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const commitRename = () => {
+    if (editingId !== null && editName.trim()) renameScene(editingId, editName.trim());
+    setEditingId(null);
+  };
+  const submitNew = () => {
+    createScene(newName.trim());
+    setNewName('');
+  };
+  return (
+    <div className="vtt-tile-picker vtt-scene-picker">
+      <div className="vtt-token-editor-head">
+        <strong>Szenen</strong>
+        <button className="small" onClick={onClose} title="Schließen" aria-label="Schließen">
+          ✕
+        </button>
+      </div>
+      <ul className="vtt-scene-list">
+        {boardScenes.map((sc) => (
+          <li key={sc.id} className={sc.id === activeId ? 'active' : ''}>
+            {editingId === sc.id ? (
+              <input
+                autoFocus
+                value={editName}
+                maxLength={60}
+                onChange={(e) => setEditName(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename();
+                  if (e.key === 'Escape') setEditingId(null);
+                }}
+              />
+            ) : (
+              <button
+                className="vtt-scene-name"
+                disabled={sc.id === activeId}
+                onClick={() => switchScene(sc.id)}
+                title={sc.id === activeId ? 'Aktuelle Szene' : 'Zu dieser Szene wechseln (für alle am Tisch)'}
+              >
+                <span>{sc.name}</span>
+                <span className="muted">
+                  {sc.cols} × {sc.rows}
+                </span>
+              </button>
+            )}
+            <button
+              className="small"
+              onClick={() => {
+                setEditingId(sc.id);
+                setEditName(sc.name);
+              }}
+              title="Umbenennen"
+              aria-label="Umbenennen"
+            >
+              ✎
+            </button>
+            <button
+              className={`small${armedDeleteId === sc.id ? ' danger' : ''}`}
+              disabled={boardScenes.length <= 1}
+              onClick={() => {
+                if (armedDeleteId === sc.id) {
+                  deleteScene(sc.id);
+                  setArmedDeleteId(null);
+                } else setArmedDeleteId(sc.id);
+              }}
+              onBlur={() => setArmedDeleteId(null)}
+              title={boardScenes.length <= 1 ? 'Die letzte Szene kann nicht gelöscht werden' : armedDeleteId === sc.id ? 'Nochmal klicken zum endgültigen Löschen' : 'Szene löschen'}
+              aria-label="Löschen"
+            >
+              {armedDeleteId === sc.id ? 'Sicher?' : '🗑'}
+            </button>
+          </li>
+        ))}
+      </ul>
+      <div className="vtt-tile-picker-row">
+        <input
+          value={newName}
+          maxLength={60}
+          placeholder="Name der neuen Szene"
+          onChange={(e) => setNewName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') submitNew();
+          }}
+        />
+        <button className="small" onClick={submitNew} title="Leere Szene anlegen und sofort dorthin wechseln">
+          + Neue Szene
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function BoardSettingsPopover({ board, onClose }: { board: BoardSettings; onClose: () => void }) {
   const { updateBoardSettings } = useDicePanel();
   const [colsDraft, setColsDraft] = useState(String(board.cols));
@@ -5174,6 +5301,7 @@ export default function VirtualTable() {
   const [meta, setMeta] = useState<GroupMeta | null>(null);
   const [error, setError] = useState('');
   const [chatCollapsed, toggleChat] = useCollapsed('vtt-chat', true);
+  const [scenesOpen, setScenesOpen] = useState(false);
   const [chatWidth, setChatWidth] = usePersistedState<number>('vtt-chat-w', 300);
   const chatW = Math.min(520, Math.max(260, Math.round(chatWidth)));
 
@@ -5260,6 +5388,7 @@ export default function VirtualTable() {
         )}
 
         <MapCanvas
+          key={boardSettings.id}
           groupId={groupId}
           board={boardSettings}
           tokens={boardTokens}
@@ -5276,6 +5405,8 @@ export default function VirtualTable() {
           canImages={canImages}
           isGm={user.isGm}
           members={meta.members}
+          scenesOpen={scenesOpen}
+          setScenesOpen={setScenesOpen}
         />
 
         {chatCollapsed ? (
