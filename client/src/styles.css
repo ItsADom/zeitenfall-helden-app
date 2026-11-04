@@ -1251,19 +1251,19 @@ a.card.home-tile h3 {
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
-/* Etikett der Form unter dem Charakternamen (Mehrere Bögen). Absolut positioniert: es ragt in den
-   Abstand zwischen Kopfleiste und Reiterleiste, die Kopfleiste selbst bleibt gleich hoch. */
+/* Etikett der Form neben dem Charakternamen (Mehrere Bögen): steht im Fluss rechts vom Namen und
+   ist an dessen Mitte ausgerichtet. Bricht der Name um, bleibt das Etikett daneben, die Kopfleiste
+   wird nicht höher und nichts ragt über ihren Hintergrund hinaus. */
 .char-title-wrap {
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 .form-chip {
-  position: absolute;
-  left: 0;
-  top: 100%;
-  margin-top: -3px;
-  padding: 0 9px;
-  font-size: 11px;
-  line-height: 16px;
+  flex: 0 0 auto;
+  padding: 2px 11px;
+  font-size: 13px;
+  line-height: 18px;
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;

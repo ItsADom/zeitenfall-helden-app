@@ -281,10 +281,12 @@ also zeroes wounds and must therefore cover every form's row.
 16. Roll and feed entries carry the active form (author name at post time: the feed, group
     rolls, coop pools, the dock's "als ..." line, the VTT token name). Not changed: the
     GM's "SL-Wurf" member picker, which is keyed by user and shows the plain name.
-17. On the sheet header the viewed form shows as a small chip directly under the name
-    (absolutely positioned into the gap above the tab bar; header height measured
-    identical with and without). Lists, roster and token names still append the form
-    name, since a chip would make those single-line labels taller.
+17. On the sheet header the viewed form shows as a chip next to the name, vertically
+    centered beside the name block (in flow, so nothing overflows the header background;
+    height measured identical with and without). A first version put it under the name,
+    absolutely positioned, and it clipped out of the header background. Lists, roster and
+    token names still append the form name, since a chip would make those single-line
+    labels taller.
 
 Phases 1 and 2 should be separate commits and ideally separate releases:
 sync is the riskiest part, and phase 1's layout supports adding it later.

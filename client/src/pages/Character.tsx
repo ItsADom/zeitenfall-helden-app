@@ -252,7 +252,8 @@ export default function CharacterPage() {
         return;
       }
     }
-    await reload();
+    // Still nachladen: der „Formen“-Dialog (anlegen, aktivieren, entkoppeln, verknüpfen) bleibt dabei offen.
+    await reload(true);
   };
 
   const tabs = data.tabs;
@@ -358,8 +359,7 @@ export default function CharacterPage() {
         <div className="char-header" ref={charHeadRef}>
           {nameDraft === null ?
             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              {/* Die Form steht als kleines Etikett direkt unter dem Namen. Es ragt in den Abstand zur
-                  Reiterleiste hinein (absolut positioniert), damit die Kopfleiste nicht höher wird. */}
+              {/* Die Form steht als Etikett neben dem Namen (im Fluss, daher kein Überstand und keine höhere Kopfleiste). */}
               <div className="char-title-wrap">
                 <h1>{info.name}</h1>
                 {viewedForm && !viewedForm.isBase && (

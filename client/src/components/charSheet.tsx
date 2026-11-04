@@ -227,8 +227,11 @@ export interface CharSheetState {
   error: string;
   update: (section: string, value: unknown) => void;
   flush: () => Promise<void>;
-  /** Lädt den betrachteten Bogen neu (mit Lade-Anzeige). */
-  reload: () => Promise<void>;
+  /**
+   * Lädt den betrachteten Bogen neu. Mit `quiet` ohne Lade-Anzeige: die Seite bleibt stehen (ein offener
+   * Dialog bleibt offen) und übernimmt die frischen Daten an Ort und Stelle.
+   */
+  reload: (quiet?: boolean) => Promise<void>;
   saveState: string;
   setSaveState: React.Dispatch<React.SetStateAction<string>>;
   rollCtx: CharCtxValue['rollCtx'];
@@ -463,7 +466,7 @@ export function useCharSheet(charId: number, asUser?: number, sheet?: number): C
 
   return {
     charId, sheetId: info?.sheetId ?? charId, info, setInfo, access, summary, data, setData, stats, catalogs, loading, error,
-    update, flush, reload: () => loadCharacter(false), saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
+    update, flush, reload: (quiet = false) => loadCharacter(quiet), saveState, setSaveState, rollCtx, requestCtx, reloadTick, dynDirty,
   };
 }
 
