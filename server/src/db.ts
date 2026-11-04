@@ -1079,6 +1079,27 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_character_forms_base ON character_forms(base_character_id, position);
 `);
+// Phase 2: welche Teile eines Bogens eine Form mit der Grundform teilt. Kein Eintrag
+// = eigene Zeilen (so verhalten sich alle Formen aus Phase 1 unverändert). Gibt es
+// einen Eintrag 'own', zeigt er nur, dass die Form dieses Teil ursprünglich verknüpft
+// war oder wieder entkoppelt wurde. Eigene Zeilen einer verknüpften Domäne bleiben
+// liegen (zurückgelegt) und werden nie gelesen, solange sie verknüpft ist.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sheet_domain_mode (
+    character_id INTEGER NOT NULL REFERENCES characters(id) ON DELETE CASCADE,
+    domain TEXT NOT NULL,
+    mode TEXT NOT NULL CHECK (mode IN ('linked', 'own')),
+    PRIMARY KEY (character_id, domain)
+  );
+`);
+{
+  // Selbst angelegte Reiter einer Form: source_tab_id = der Reiter der Grundform, aus dem er
+  // stammt (bleibt auch nach dem Entkoppeln stehen, damit man wieder verknüpfen kann);
+  // linked = 1: Titel und Sektionen kommen von dort, die eigenen Sektionen sind zurückgelegt.
+  const tabCols = new Set((db.prepare('PRAGMA table_info(char_tabs)').all() as { name: string }[]).map((c) => c.name));
+  if (!tabCols.has('source_tab_id')) db.exec('ALTER TABLE char_tabs ADD COLUMN source_tab_id INTEGER REFERENCES char_tabs(id) ON DELETE SET NULL');
+  if (!tabCols.has('linked')) db.exec('ALTER TABLE char_tabs ADD COLUMN linked INTEGER NOT NULL DEFAULT 0');
+}
 {
   const cols = new Set((db.prepare('PRAGMA table_info(characters)').all() as { name: string }[]).map((c) => c.name));
   if (!cols.has('active_form_id')) db.exec('ALTER TABLE characters ADD COLUMN active_form_id INTEGER REFERENCES characters(id) ON DELETE SET NULL');

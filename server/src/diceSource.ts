@@ -26,7 +26,7 @@ import {
 } from 'shared';
 import { waffenStatWert, waffenStatZahl } from 'shared';
 import { db } from './db.js';
-import { activeSheetId, loadItems, loadList, loadStats } from './characterData.js';
+import { activeSheetId, dataOwner, loadItems, loadList, loadStats } from './characterData.js';
 import type { CharStats } from './characterData.js';
 
 export interface ComputedProbe {
@@ -161,7 +161,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
     case 'ability': {
       const row = db
         .prepare('SELECT name, probe, element, signatur FROM char_abilities WHERE character_id = ? AND id = ?')
-        .get(sheetId, source.abilityId) as { name: string; probe: string; element: string; signatur: number } | undefined;
+        .get(dataOwner(sheetId, 'faehigkeiten'), source.abilityId) as { name: string; probe: string; element: string; signatur: number } | undefined;
       if (!row) return null;
       const parts = parseProbeExpr(row.probe);
       if (!parts) return null;
@@ -194,7 +194,7 @@ export function computeProbeForCharacter(characterId: number, source: ProbeSourc
            LEFT JOIN char_languages cl ON cl.language_id = lc.id AND cl.character_id = ?
            WHERE lc.id = ?`,
         )
-        .get(sheetId, source.languageId) as { taw: number; name: string } | undefined;
+        .get(dataOwner(sheetId, 'sprachen'), source.languageId) as { taw: number; name: string } | undefined;
       if (!row) return null;
       const base = source.mode === 'sprechen' ? sprechenProbe(attrs) : schreibenProbe(attrs);
       const probeZahl = base + erleichterung(row.taw);
@@ -280,7 +280,7 @@ export function listRollableProbes(characterId: number): RollableProbe[] {
   const talents = db.prepare('SELECT id FROM talents_catalog ORDER BY sort, name').all() as { id: number }[];
   for (const t of talents) add({ kind: 'talent', talentId: t.id }, 'talent');
 
-  const abilities = db.prepare('SELECT id FROM char_abilities WHERE character_id = ? ORDER BY pos, id').all(activeSheetId(characterId)) as {
+  const abilities = db.prepare('SELECT id FROM char_abilities WHERE character_id = ? ORDER BY pos, id').all(dataOwner(activeSheetId(characterId), 'faehigkeiten')) as {
     id: number;
   }[];
   for (const a of abilities) add({ kind: 'ability', abilityId: a.id }, 'ability');
@@ -357,12 +357,12 @@ export function listFavoriteProbes(characterId: number): RollableProbe[] {
 
   const talents = db
     .prepare('SELECT talent_id AS id FROM char_talents WHERE character_id = ? AND favorit = 1')
-    .all(activeSheetId(characterId)) as { id: number }[];
+    .all(dataOwner(activeSheetId(characterId), 'talente')) as { id: number }[];
   for (const t of talents) add({ kind: 'talent', talentId: t.id }, 'talent');
 
   const abilities = db
     .prepare('SELECT id FROM char_abilities WHERE character_id = ? AND favorit = 1 ORDER BY pos, id')
-    .all(activeSheetId(characterId)) as { id: number }[];
+    .all(dataOwner(activeSheetId(characterId), 'faehigkeiten')) as { id: number }[];
   for (const a of abilities) add({ kind: 'ability', abilityId: a.id }, 'ability');
 
   return out;

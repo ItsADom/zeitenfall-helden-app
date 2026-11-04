@@ -49,13 +49,10 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - topic is related to shapeshifting: a sheet that belongs to a specific character instead of being a standalone character
 - [ready] **Multiple sheets per character (shapeshifting)**: concept settled,
   see `docs/concepts/shapeshifting.md` ("Revised direction" and "Build plan").
-  Phase 1 (forms as separate sheets, active vs viewed, owner-only management) is
-  built. Remaining:
-   - Phase 2: carry-over dialog when creating a form (copy or keep synchronous per
-     tab, incl. custom tabs), detach (own snapshot) and non-destructive re-link,
-     "Gemeinsam mit Grundform" hint, `sheet_domain_mode` table + the pure resolver
-     in `shared` with tests.
-   - Phase 3: check export/import and backup with forms; changelog draft.
+  Phases 1 and 2 (separate sheets, active vs viewed, carry-over dialog, sync, detach
+  and re-link) are built. Remaining:
+   - Phase 3: check export/import and backup with forms; changelog draft (player
+     facing, feature sections, no em-dashes; recommend a minor bump, never assign it).
    - Small gaps: Einstellungen and the ability workshop still act on the active
      sheet only; label roll/feed entries with the form; later, the small chip under
      the name instead of the appended form name.

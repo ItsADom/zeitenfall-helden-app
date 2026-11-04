@@ -6,7 +6,9 @@ import { wikiSlug } from '@shared/wikiSlug';
 import { apiGet, apiPut } from '../api';
 import { useAuth } from '../App';
 import CharacterSidebar from '../components/CharacterSidebar';
-import { SheetSwitcher, sheetLabel } from '../components/SheetSwitcher';
+import { LinkedBanner, SheetSwitcher, sheetLabel } from '../components/SheetSwitcher';
+import type { LinkedHint } from '../components/SheetSwitcher';
+import { tabKeyDomain } from '@shared/sheetDomains';
 import { ladeZiele } from '../wiki/api';
 import type { Catalogs, FullData, LanguageCatalogRow, LanguageScriptLink, RaceCatalogRow, TalentCatalogRow } from '../components/charSheet';
 import { CharCtx, useCharSheet, useChar } from '../components/charSheet';
@@ -268,6 +270,16 @@ export default function CharacterPage() {
   // Eine andere Form hat unter Umständen den Reiter nicht, der gerade offen war.
   const shownKey = order.includes(activeKey) ? activeKey : 'Heldenbrief';
   const activeContentTab = tabByKey(shownKey);
+  // Mehrere Bögen: teilt diese Form den gerade offenen Reiter mit der Grundform?
+  const linkedDomain = tabKeyDomain(shownKey);
+  const linkedHint: LinkedHint | null =
+    !viewedForm || viewedForm.isBase
+      ? null
+      : activeContentTab?.linked
+        ? { kind: 'tab', tabId: activeContentTab.id }
+        : linkedDomain && linkedDomain !== 'heldenbrief' && viewedForm.domains?.[linkedDomain]?.mode === 'linked'
+          ? { kind: 'domain', domain: linkedDomain }
+          : null;
 
   // Inhalt eines eingebauten Reiters. Selbst angelegte laufen über ContentTabView.
   // Die laufenden Werte (Energien, Psyche, Geld) liegen jetzt in der stets
@@ -470,6 +482,15 @@ export default function CharacterPage() {
             CSS unter den Inhalt. */}
         <div className="char-body">
           <div className="char-main">
+        {linkedHint && viewedForm && (
+          <LinkedBanner
+            info={info}
+            form={viewedForm}
+            hint={linkedHint}
+            canManage={info.ownerUserId === user.id && !viewAs && !inspecting}
+            onChanged={sheetsChanged}
+          />
+        )}
         {activeContentTab ? (
           <ContentTabView
             key={`${activeContentTab.id}:${reloadTick}`}

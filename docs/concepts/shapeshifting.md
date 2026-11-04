@@ -148,6 +148,38 @@ both color modes. Phase 2 and 3 are open. Phase 1 deviations and findings:
 - Rolls, the dice/probe routes, VTT token stats and the GM overview all read the
   active sheet; the roll buttons disappear on a viewed but inactive sheet.
 
+**Status 2026-11-04: phase 2 is built** (steps 8-11), verified like phase 1 (a scripted
+API run covering the carry-over plan, sync in both directions for talents and a custom
+tab, detach, non-destructive re-link, resume vs. fresh snapshot, base deleting a followed
+tab, plus the browser flow). The pure rules (`shared/src/sheetDomains.ts`, 12 tests) are
+the resolver, the plan normalizer and `detachAction`. Deviations and findings:
+
+- Domains are `heldenbrief` (copy or skip only), `talente`, `sprachen`, `waffen` (only
+  the two Waffen-tab lists `waffenlos`/`kampfstile`; weapons themselves are items and
+  stay shared), `faehigkeiten` (abilities and their lists, behind both the Zauber and
+  Fähigkeiten tabs), plus each custom tab.
+- Storage: `sheet_domain_mode(character_id, domain, mode)` (no row = own), and
+  `char_tabs.source_tab_id` / `linked` for custom tabs. The source tab is kept after
+  detaching, so any tab that came from the base can be linked again. Every loader and
+  saver of a domain resolves through `dataOwner(sheetId, domain)`; custom tabs resolve
+  through `loadDynTabs`, `sectionBelongsTo`, `resolveTabTarget` (new sections on a
+  linked tab land on the base tab).
+- A tab's title stays the form's own (not shared); only sections and rows are shared.
+- Skipping the locked tab (Vorteile & Nachteile) in the dialog still creates it empty.
+- New forms start with zero wounds (a copy of the base meta no longer carries them).
+- If the base deletes a tab a form follows, the form keeps a copy as its own tab (any
+  dormant own sections stay next to it).
+- Re-link when the form has no own entries links immediately; otherwise the dialog names
+  the number of entries being put aside. Detach with a dormant copy asks: resume it or
+  take a fresh snapshot.
+- UI: the create dialog is a table (per part: copy, keep in sync, leave empty), the
+  per-form "Geteilte Teile" list in the dialog manages detach and link, and a banner
+  "Gemeinsam mit Grundform" with Entkoppeln sits above a linked tab.
+
+Not exercised yet: step 12 (export/import and backup with forms). The client export takes
+the viewed sheet's data (linked parts appear as if own), the import creates a standalone
+character, so no change is expected, but it has not been run.
+
 Known gaps after phase 1 (not decided yet, small): the Einstellungen page (tabs,
 tab order, visibility) and the ability workshop (`AbilityManager`) still act on
 the *active* sheet only; roll and feed entries are not labelled with the form;

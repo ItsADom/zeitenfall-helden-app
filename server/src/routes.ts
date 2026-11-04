@@ -31,7 +31,23 @@ import { chimeInfo, ladeChime, loescheChime, speichereChime } from './assets/chi
 import { db, initCharacterRows } from './db.js';
 import { EASTER_EGG_CATALOG } from './easterEggs.js';
 import { loadFeedPage } from './feed.js';
-import { MAX_FORMS, createForm, deleteAllForms, deleteForm, listSheets, renameSheet, resolveSheet, setActiveSheet } from './sheets.js';
+import {
+  MAX_FORMS,
+  baseTabList,
+  createForm,
+  deleteAllForms,
+  deleteForm,
+  detachDomain,
+  detachTab,
+  linkDomain,
+  linkTab,
+  listSheets,
+  releaseTabFollowers,
+  renameSheet,
+  resolveSheet,
+  setActiveSheet,
+} from './sheets.js';
+import { isSheetDomain } from 'shared';
 import { canEditImages as canEditBoardImages } from './boardAccess.js';
 import { getBoard, getImageByAssetSlug, getOrCreateBoard, listBoardsForGroup, loadBoardSnapshot, loadRoundTrackers, redactSnapshotForViewer } from './board.js';
 import { listFavoriteProbes, listRollableProbes } from './diceSource.js';
@@ -104,6 +120,7 @@ import {
   CHAR_DYN,
   GROUP_DYN,
   createDynSection,
+  resolveTabTarget,
   createTab,
   deleteDynSection,
   deleteTab,
@@ -1281,7 +1298,13 @@ api.get('/characters/:id', requireAuth, (req, res) => {
     return;
   }
   res.json({
-    character: { ...info, sheetId: viewedSheetId, sheets: listSheets(char.id) },
+    character: {
+      ...info,
+      sheetId: viewedSheetId,
+      sheets: listSheets(char.id),
+      // Für den „Form anlegen"-Dialog: die selbst angelegten Reiter der Grundform.
+      baseTabs: baseTabList(char.id),
+    },
     access,
     data: loadFullCharacter(viewedSheetId, viewer.isGm),
     viewAs,
@@ -1847,8 +1870,8 @@ function pushActiveSheetChange(char: CharRow): void {
 api.post('/characters/:id/forms', requireAuth, (req, res) => {
   const char = ownerChar(req, res);
   if (!char) return;
-  const { label, mode } = (req.body ?? {}) as { label?: unknown; mode?: unknown };
-  const result = createForm(char.id, label, mode === 'blank' ? 'blank' : 'copy');
+  const { label, mode, plan } = (req.body ?? {}) as { label?: unknown; mode?: unknown; plan?: unknown };
+  const result = createForm(char.id, label, mode === 'blank' ? 'blank' : 'copy', plan);
   if (!result.ok) {
     res.status(400).json({ error: result.error });
     return;
@@ -1877,6 +1900,50 @@ api.put('/characters/:id/sheets/:sheetId', requireAuth, (req, res) => {
   }
   pushActiveSheetChange(char);
   res.json({ sheets: listSheets(char.id), displayName: displayName(char.name, char.id) });
+});
+
+// Entkoppeln und wieder Verknüpfen (Phase 2): geteilte Teile (Talente, Sprachen, Waffen-Listen,
+// Zauber & Fähigkeiten) und aus der Grundform stammende Reiter, jeweils einer Form.
+function sendChange(res: import('express').Response, char: CharRow, result: { ok: boolean; error?: string }) {
+  if (!result.ok) {
+    res.status(400).json({ error: result.error ?? 'Nicht möglich' });
+    return;
+  }
+  res.json({ sheets: listSheets(char.id) });
+}
+
+api.post('/characters/:id/sheets/:sheetId/domains/:domain/detach', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  const domain = String(req.params.domain);
+  if (!isSheetDomain(domain)) {
+    res.status(400).json({ error: 'Unbekannter Teil' });
+    return;
+  }
+  sendChange(res, char, detachDomain(char.id, Number(req.params.sheetId), domain, !!(req.body ?? {}).resume));
+});
+
+api.post('/characters/:id/sheets/:sheetId/domains/:domain/link', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  const domain = String(req.params.domain);
+  if (!isSheetDomain(domain)) {
+    res.status(400).json({ error: 'Unbekannter Teil' });
+    return;
+  }
+  sendChange(res, char, linkDomain(char.id, Number(req.params.sheetId), domain));
+});
+
+api.post('/characters/:id/sheets/:sheetId/tabs/:tabId/detach', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  sendChange(res, char, detachTab(char.id, Number(req.params.sheetId), Number(req.params.tabId), !!(req.body ?? {}).resume));
+});
+
+api.post('/characters/:id/sheets/:sheetId/tabs/:tabId/link', requireAuth, (req, res) => {
+  const char = ownerChar(req, res);
+  if (!char) return;
+  sendChange(res, char, linkTab(char.id, Number(req.params.sheetId), Number(req.params.tabId)));
 });
 
 api.delete('/characters/:id/forms/:formId', requireAuth, (req, res) => {
@@ -2209,6 +2276,8 @@ api.delete('/characters/:id/tabs/:tid', requireAuth, (req, res) => {
     res.status(400).json({ error: 'Pflicht-Tab kann nicht gelöscht werden' });
     return;
   }
+  // Folgt eine Form diesem Reiter, behält sie vorher eine Kopie als eigenen Reiter.
+  releaseTabFollowers(tid);
   deleteTab(tid);
   res.json({ ok: true });
 });
@@ -2224,7 +2293,9 @@ api.post('/characters/:id/sections', requireAuth, (req, res) => {
     res.status(400).json({ error: 'Tab nicht gefunden' });
     return;
   }
-  const id = createDynSection(sheetId, Number(tabId), String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
+  // Folgt dieser Reiter dem der Grundform, entsteht die Sektion dort (geteilt in beide Richtungen).
+  const target = resolveTabTarget(Number(tabId)) ?? { ownerId: sheetId, tabId: Number(tabId) };
+  const id = createDynSection(target.ownerId, target.tabId, String(name ?? 'Neue Sektion'), type === 'notes' ? 'notes' : 'table', normalizeColumns(columns));
   res.json({ id });
 });
 

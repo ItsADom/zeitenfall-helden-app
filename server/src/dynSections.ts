@@ -55,12 +55,27 @@ function mapSection(s: DynSectionRow, rowStmt: import('better-sqlite3').Statemen
   return { id: s.id, pos: s.pos, name: s.name, type: s.type as DynSection['type'], columns, rows, visible: !!s.visible };
 }
 
-// Alle Sektionen eines Besitzers (flach, für die Zusammenfassung)
+// Alle Sektionen eines Besitzers (flach, für die Zusammenfassung). Bei einem Charakter-Bogen
+// zählen die Sektionen verknüpfter Reiter von dort, wo sie liegen (Grundform), und die eigenen,
+// zurückgelegten Sektionen eines verknüpften Reiters zählen nicht.
 export function loadDynSections(ownerId: number, t: DynTables = CHAR_DYN): DynSection[] {
   const rowStmt = db.prepare(`SELECT id, pos, data FROM ${t.rows} WHERE section_id = ? ORDER BY pos, id`);
-  const sections = db
-    .prepare(`SELECT id, pos, name, type, columns, visible FROM ${t.sections} WHERE ${t.owner} = ? ORDER BY pos, id`)
-    .all(ownerId) as DynSectionRow[];
+  const cols = 'id, pos, name, type, columns, visible';
+  const sections =
+    t === CHAR_DYN
+      ? (db
+          .prepare(
+            `SELECT ${cols} FROM char_sections
+             WHERE character_id = ? AND (tab_id IS NULL OR tab_id NOT IN (SELECT id FROM char_tabs WHERE character_id = ? AND linked = 1))
+             UNION ALL
+             SELECT ${cols} FROM char_sections
+             WHERE tab_id IN (SELECT source_tab_id FROM char_tabs WHERE character_id = ? AND linked = 1 AND source_tab_id IS NOT NULL)
+             ORDER BY pos, id`,
+          )
+          .all(ownerId, ownerId, ownerId) as DynSectionRow[])
+      : (db
+          .prepare(`SELECT ${cols} FROM ${t.sections} WHERE ${t.owner} = ? ORDER BY pos, id`)
+          .all(ownerId) as DynSectionRow[]);
   return sections.map((s) => mapSection(s, rowStmt));
 }
 
@@ -68,19 +83,73 @@ export function loadDynSections(ownerId: number, t: DynTables = CHAR_DYN): DynSe
 export function loadDynTabs(ownerId: number, t: DynTables = CHAR_DYN): DynTab[] {
   const rowStmt = db.prepare(`SELECT id, pos, data FROM ${t.rows} WHERE section_id = ? ORDER BY pos, id`);
   const secStmt = db.prepare(`SELECT id, pos, name, type, columns, visible FROM ${t.sections} WHERE tab_id = ? ORDER BY pos, id`);
-  const tabs = db.prepare(`SELECT id, pos, name, locked FROM ${t.tabs} WHERE ${t.owner} = ? ORDER BY pos, id`).all(ownerId) as {
+  // Nur Charakter-Reiter kennen Verknüpfungen (Mehrere Bögen); die Gruppen-Tabellen haben die Spalten nicht.
+  const isChar = t === CHAR_DYN;
+  const tabs = db
+    .prepare(
+      `SELECT id, pos, name, locked${isChar ? ', source_tab_id AS sourceTabId, linked' : ''} FROM ${t.tabs} WHERE ${t.owner} = ? ORDER BY pos, id`,
+    )
+    .all(ownerId) as { id: number; pos: number; name: string; locked: number; sourceTabId?: number | null; linked?: number }[];
+  return tabs.map((tab) => {
+    const follows = isChar && !!tab.linked && tab.sourceTabId != null;
+    const out: DynTab = {
+      id: tab.id,
+      pos: tab.pos,
+      name: tab.name,
+      locked: !!tab.locked,
+      // Verknüpft: Sektionen und Zeilen der Grundform, in beide Richtungen geteilt.
+      sections: (secStmt.all(follows ? tab.sourceTabId : tab.id) as DynSectionRow[]).map((s) => mapSection(s, rowStmt)),
+    };
+    if (isChar) {
+      out.sourceTabId = tab.sourceTabId ?? null;
+      out.linked = follows;
+      if (follows) out.hasDormant = ownSectionCount(tab.id) > 0;
+    }
+    return out;
+  });
+}
+
+/** Wie viele eigene Sektionen hängen direkt an diesem Reiter (bei einem verknüpften: die zurückgelegte Kopie)? */
+export function ownSectionCount(tabId: number): number {
+  return (db.prepare('SELECT COUNT(*) AS n FROM char_sections WHERE tab_id = ?').get(tabId) as { n: number }).n;
+}
+
+/**
+ * Wohin schreibt ein Zugriff auf einen Reiter des Bogens? Ein verknüpfter Reiter leitet auf den
+ * Reiter der Grundform um (dort liegen Sektionen und Zeilen), ein eigener bleibt, wo er ist.
+ */
+export function resolveTabTarget(tabId: number): { ownerId: number; tabId: number } | null {
+  const tab = db.prepare('SELECT character_id AS ownerId, source_tab_id AS sourceTabId, linked FROM char_tabs WHERE id = ?').get(tabId) as
+    | { ownerId: number; sourceTabId: number | null; linked: number }
+    | undefined;
+  if (!tab) return null;
+  if (tab.linked && tab.sourceTabId != null) {
+    const src = db.prepare('SELECT character_id AS ownerId FROM char_tabs WHERE id = ?').get(tab.sourceTabId) as { ownerId: number } | undefined;
+    if (src) return { ownerId: src.ownerId, tabId: tab.sourceTabId };
+  }
+  return { ownerId: tab.ownerId, tabId };
+}
+
+/** Sektionen (samt Zeilen) von einem Reiter auf einen anderen kopieren, hinten angehängt. */
+export function copyTabSections(fromTabId: number, toTabId: number, toOwnerId: number): number {
+  const secs = db.prepare('SELECT id, name, type, columns, visible FROM char_sections WHERE tab_id = ? ORDER BY pos, id').all(fromTabId) as {
     id: number;
-    pos: number;
     name: string;
-    locked: number;
+    type: string;
+    columns: string;
+    visible: number;
   }[];
-  return tabs.map((tab) => ({
-    id: tab.id,
-    pos: tab.pos,
-    name: tab.name,
-    locked: !!tab.locked,
-    sections: (secStmt.all(tab.id) as DynSectionRow[]).map((s) => mapSection(s, rowStmt)),
-  }));
+  const rowsOf = db.prepare('SELECT data FROM char_section_rows WHERE section_id = ? ORDER BY pos, id');
+  const insRow = db.prepare('INSERT INTO char_section_rows (section_id, pos, data) VALUES (?, ?, ?)');
+  let pos = (db.prepare('SELECT COALESCE(MAX(pos), -1) + 1 AS p FROM char_sections WHERE tab_id = ?').get(toTabId) as { p: number }).p;
+  for (const s of secs) {
+    const r = db
+      .prepare('INSERT INTO char_sections (character_id, tab_id, pos, name, type, columns, visible) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(toOwnerId, toTabId, pos++, s.name, s.type, s.columns, s.visible);
+    const newId = Number(r.lastInsertRowid);
+    (rowsOf.all(s.id) as { data: string }[]).forEach((row, i) => insRow.run(newId, i, row.data));
+  }
+  return secs.length;
 }
 
 export function createTab(ownerId: number, name: string, locked = false, t: DynTables = CHAR_DYN): number {
@@ -130,6 +199,15 @@ export function createDynSection(
 }
 
 export function sectionBelongsTo(sectionId: number, ownerId: number, t: DynTables = CHAR_DYN): boolean {
+  if (t === CHAR_DYN) {
+    // Auch die Sektionen eines Reiters, dem einer der Reiter dieses Bogens folgt.
+    return !!db
+      .prepare(
+        `SELECT 1 FROM char_sections WHERE id = ? AND (character_id = ?
+           OR tab_id IN (SELECT source_tab_id FROM char_tabs WHERE character_id = ? AND linked = 1 AND source_tab_id IS NOT NULL))`,
+      )
+      .get(sectionId, ownerId, ownerId);
+  }
   return !!db.prepare(`SELECT 1 FROM ${t.sections} WHERE id = ? AND ${t.owner} = ?`).get(sectionId, ownerId);
 }
 
@@ -149,8 +227,9 @@ export function deleteDynSection(sectionId: number, t: DynTables = CHAR_DYN): vo
 }
 
 export function reorderDynSections(ownerId: number, order: number[], t: DynTables = CHAR_DYN): void {
-  const stmt = db.prepare(`UPDATE ${t.sections} SET pos = ? WHERE id = ? AND ${t.owner} = ?`);
-  const tx = db.transaction(() => order.forEach((id, i) => stmt.run(i, id, ownerId)));
+  const stmt = db.prepare(`UPDATE ${t.sections} SET pos = ? WHERE id = ?`);
+  // Nur Sektionen, auf die dieser Besitzer zugreifen darf (bei einem Bogen auch die verknüpfter Reiter).
+  const tx = db.transaction(() => order.forEach((id, i) => sectionBelongsTo(id, ownerId, t) && stmt.run(i, id)));
   tx();
 }
 

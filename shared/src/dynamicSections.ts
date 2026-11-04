@@ -42,6 +42,15 @@ export interface DynTab {
   locked: boolean;
   pos: number;
   sections: DynSection[];
+  /**
+   * Mehrere Bögen: der Reiter einer weiteren Form folgt dem gleichnamigen Reiter der Grundform
+   * (Sektionen und Zeilen sind dann die der Grundform). Nur für Charakter-Reiter gesetzt.
+   */
+  linked?: boolean;
+  /** Der Reiter der Grundform, aus dem dieser stammt (auch nach dem Entkoppeln, zum Wiederverknüpfen). */
+  sourceTabId?: number | null;
+  /** Verknüpft, aber mit einer zurückgelegten eigenen Kopie darunter. */
+  hasDormant?: boolean;
 }
 
 // Freitext-Notiz je Zeile (wie bei den bisherigen Listen)

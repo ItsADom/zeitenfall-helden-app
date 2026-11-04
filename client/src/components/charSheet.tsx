@@ -9,6 +9,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { Attributes, BaseValueInputs, CharLanguage, CharTalent, ExternalAttrPoint, Resources, SpecialResource } from '@shared/types';
 import type { DynTab } from '@shared/dynamicSections';
+import type { SheetDomain } from '@shared/sheetDomains';
 import type { Item, StatBoni } from '@shared/items';
 import { diffItems, wornBoni } from '@shared/items';
 import type { EquipmentPreset } from '@shared/equipmentPresets';
@@ -148,6 +149,8 @@ export interface CharacterInfo {
   /** Der gerade betrachtete Bogen (nur mit Bearbeitungs-/Einsichtsrecht). */
   sheetId?: number;
   sheets?: SheetInfo[];
+  /** Die selbst angelegten Reiter der Grundform (für den „Form anlegen“-Dialog). */
+  baseTabs?: { id: number; name: string; locked: boolean }[];
 }
 
 export interface SheetInfo {
@@ -156,6 +159,10 @@ export interface SheetInfo {
   label: string;
   isBase: boolean;
   active: boolean;
+  /** Nur bei einer Form: Zustand der teilbaren Teile. */
+  domains?: Partial<Record<SheetDomain, { mode: 'linked' | 'own'; dormant: boolean; rows: number }>>;
+  /** Nur bei einer Form: ihre aus der Grundform stammenden Reiter. */
+  tabs?: { id: number; name: string; linked: boolean; hasDormant: boolean; ownSections: number }[];
 }
 
 // Der Kontext, den die Seitenleiste und die eingebauten Reiter tatsächlich

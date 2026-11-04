@@ -86,6 +86,8 @@ import type {
   WaffenStat,
   WaffenStatFeld,
 } from 'shared';
+import { domainOwnerId, sectionDomain } from 'shared';
+import type { DomainMode, SheetDomain } from 'shared';
 import { db, initCharacterRows } from './db.js';
 import {
   hatPortrait,
@@ -110,6 +112,17 @@ import { createDynSection, createTab, loadDynSections, loadDynTabs, saveDynRows,
 // Die *Raw-/load*-Funktionen unten nehmen durchweg eine BOGEN-ID. Wer von einer
 // Identität kommt (Würfe, Brett, Gruppenübersicht), löst sie über
 // activeSheetId() auf.
+
+/**
+ * Wessen Zeilen dieser Bogen für eine Domäne liest und schreibt: seine eigenen, oder (Form mit
+ * verknüpfter Domäne) die der Grundform. Alle Lader/Speicher einer Domäne gehen hierdurch.
+ */
+export function dataOwner(sheetId: number, domain: SheetDomain): number {
+  const row = db.prepare('SELECT mode FROM sheet_domain_mode WHERE character_id = ? AND domain = ?').get(sheetId, domain) as
+    | { mode: DomainMode }
+    | undefined;
+  return row?.mode === 'linked' ? domainOwnerId(sheetId, identityOf(sheetId), row.mode) : sheetId;
+}
 
 /** Die Identität (Grundform) zu einer Bogen-ID; für eine Grundform sie selbst. */
 export function identityOf(sheetId: number): number {
@@ -205,7 +218,8 @@ export function loadSingleRow(table: 'char_bio' | 'char_meta', charId: number): 
   return row;
 }
 
-export function loadTalents(charId: number): CharTalent[] {
+export function loadTalents(sheetId: number): CharTalent[] {
+  const charId = dataOwner(sheetId, 'talente');
   const rows = db
     .prepare(
       `SELECT talent_id AS talentId, taw, at, pa, bl, billiger, spezialisierung, waffenmeister, berufsbonus, notiz, favorit
@@ -215,7 +229,8 @@ export function loadTalents(charId: number): CharTalent[] {
   return rows.map((r) => ({ ...r, favorit: !!r.favorit }));
 }
 
-export function loadLanguages(charId: number): CharLanguage[] {
+export function loadLanguages(sheetId: number): CharLanguage[] {
+  const charId = dataOwner(sheetId, 'sprachen');
   const rows = db
     .prepare('SELECT language_id AS languageId, taw, muttersprache FROM char_languages WHERE character_id = ?')
     .all(charId) as { languageId: number; taw: number; muttersprache: number }[];
@@ -337,7 +352,9 @@ export function loadExternalAttrPoints(charId: number): ExternalAttrPoint[] {
     .all(charId) as ExternalAttrPoint[];
 }
 
-export function loadList(sectionId: string, charId: number): Record<string, unknown>[] {
+export function loadList(sectionId: string, sheetId: number): Record<string, unknown>[] {
+  const domain = sectionDomain(sectionId);
+  const charId = domain ? dataOwner(sheetId, domain) : sheetId;
   return db.prepare(`SELECT * FROM sec_${sectionId} WHERE character_id = ? ORDER BY pos, id`).all(charId) as Record<
     string,
     unknown
@@ -2190,7 +2207,8 @@ function parseKategorien(raw: string): string[] {
   return raw ? [raw] : [];
 }
 
-export function loadAbilities(charId: number): Ability[] {
+export function loadAbilities(sheetId: number): Ability[] {
+  const charId = dataOwner(sheetId, 'faehigkeiten');
   const rows = db
     .prepare(
       'SELECT id, uid, magisch, passiv, signatur, name, element, kategorien, stufe, komplexitaet, kosten, probe, effekt, fortschritt, notiz, favorit, derived_from FROM char_abilities WHERE character_id = ? ORDER BY pos, id',
@@ -2236,7 +2254,8 @@ export function loadAbilities(charId: number): Ability[] {
 }
 
 // Ganze Liste ersetzen (wie saveItems): serverseitig gedeckelt, uids eindeutig.
-export function saveAbilities(charId: number, raw: unknown): void {
+export function saveAbilities(sheetId: number, raw: unknown): void {
+  const charId = dataOwner(sheetId, 'faehigkeiten');
   const arr = Array.isArray(raw) ? raw.slice(0, MAX_ABILITIES) : [];
   const seenUids = new Set<string>();
 
@@ -2327,7 +2346,8 @@ export interface AbilityLists {
   kategorie: string[];
 }
 
-export function loadAbilityLists(charId: number): AbilityLists {
+export function loadAbilityLists(sheetId: number): AbilityLists {
+  const charId = dataOwner(sheetId, 'faehigkeiten');
   const rows = db
     .prepare('SELECT kind, name FROM char_ability_lists WHERE character_id = ? ORDER BY kind, pos, id')
     .all(charId) as { kind: string; name: string }[];
@@ -2342,7 +2362,8 @@ export function loadAbilityLists(charId: number): AbilityLists {
 // Eine der beiden Listen (element/kategorie) verwalten, MIT Kaskade auf die
 // char_abilities-Spalte gleichen Namens: Umbenennen zieht die Einträge mit,
 // Entfernen setzt deren Wert auf '' (ohne). Body: { order, renames, removes }.
-export function manageAbilityList(charId: number, kind: string, raw: unknown): AbilityLists {
+export function manageAbilityList(sheetId: number, kind: string, raw: unknown): AbilityLists {
+  const charId = dataOwner(sheetId, 'faehigkeiten');
   const k: 'element' | 'kategorie' = kind === 'element' ? 'element' : 'kategorie';
   const body = (raw ?? {}) as { order?: unknown; renames?: unknown; removes?: unknown };
   const renames = Array.isArray(body.renames) ? body.renames : [];
@@ -2719,7 +2740,10 @@ const str = (v: unknown): string => (v == null ? '' : String(v));
 const sameRows = (a: unknown[][], b: unknown[][]): boolean =>
   a.length === b.length && JSON.stringify(a) === JSON.stringify(b);
 
-export function saveSection(charId: number, section: string, data: unknown): void {
+export function saveSection(sheetId: number, section: string, data: unknown): void {
+  // Teilt die Form diesen Teil mit der Grundform, geht der Schreibzugriff dorthin.
+  const domain = sectionDomain(section);
+  const charId = domain ? dataOwner(sheetId, domain) : sheetId;
   const tx = db.transaction(() => {
     if (section === 'bio' || section === 'meta') {
       const table = section === 'bio' ? 'char_bio' : 'char_meta';
@@ -2947,7 +2971,15 @@ export function importFullCharacter(
 // Form (character_forms): Gegenstände, Kategorien, Ausrüstungs-Sets und Geld
 // gehören zum Charakter, nicht zum Bogen, und werden dort NICHT noch einmal
 // angelegt.
-export function writeSheetData(charId: number, data: ReturnType<typeof loadFullCharacter>, includeIdentity: boolean): void {
+// `data` darf unvollständig sein (Phase 2: nur die gewählten Teile). `preTabIdMap` (alter→neuer Reiter) nennt
+// Reiter, die der Aufrufer schon angelegt hat (verknüpfte), damit die Reiter-Reihenfolge sie mitnimmt.
+// Gibt die Zuordnung alter→neuer Reiter zurück.
+export function writeSheetData(
+  charId: number,
+  data: Partial<ReturnType<typeof loadFullCharacter>>,
+  includeIdentity: boolean,
+  preTabIdMap?: ReadonlyMap<number, number>,
+): Map<number, number> {
   {
     if (data.bio) saveSection(charId, 'bio', data.bio);
     if (data.meta) saveSection(charId, 'meta', data.meta);
@@ -2988,7 +3020,7 @@ export function writeSheetData(charId: number, data: ReturnType<typeof loadFullC
     // Beim Import bekommen die Reiter neue IDs. Die Zuordnung alt→neu wird
     // mitgeschrieben, damit die gespeicherte Reihenfolge (die Reiter über ihre
     // ID benennt) den Import übersteht.
-    const tabIdMap = new Map<number, number>();
+    const tabIdMap = new Map<number, number>(preTabIdMap ?? []);
     for (const tab of data.tabs ?? []) {
       const tabId = createTab(charId, str(tab.name), !!tab.locked);
       if (typeof tab.id === 'number') tabIdMap.set(tab.id, tabId);
@@ -3020,6 +3052,7 @@ export function writeSheetData(charId: number, data: ReturnType<typeof loadFullC
       })
       .filter((key) => key !== '');
     if (order.length) saveTabOrder(charId, order);
+    return tabIdMap;
   }
 }
 
