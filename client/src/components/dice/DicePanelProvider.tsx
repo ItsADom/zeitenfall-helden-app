@@ -67,6 +67,8 @@ function merkeAngekuendigt(ids: Set<string>): void {
     // Merken ist optional — schlimmstenfalls läutet es nach einem Neuladen einmal mehr.
   }
 }
+// Length of the old scene's fade-out before a scene switch swaps in; keep in sync with .vtt-map-wrap.scene-out in styles.css.
+const SCENE_FADE_MS = 250;
 const RECONNECT_BASE_MS = 1000;
 const RECONNECT_MAX_MS = 30_000;
 // Wie lange eine „wer ist da"-Notiz stehen bleibt, bevor sie von selbst
@@ -360,6 +362,8 @@ interface DicePanelCtxValue {
   ) => void;
   /** GM's scene picker list, filled by listScenes() and refreshed after every create/rename/delete. Empty for everyone else. */
   boardScenes: BoardSceneSummary[];
+  /** True while the old scene fades out ahead of a scene switch (see SCENE_FADE_MS); the page dims its canvas with it. */
+  boardSceneFading: boolean;
   listScenes: () => void;
   /** Creates a blank scene AND moves the room onto it. */
   createScene: (name: string) => void;
@@ -523,6 +527,7 @@ export function useDicePanel(): DicePanelCtxValue {
       boardRoundTrackers: [],
       hydrateBoard: () => {},
       boardScenes: [],
+      boardSceneFading: false,
       listScenes: () => {},
       createScene: () => {},
       renameScene: () => {},
@@ -610,6 +615,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
   const [boardInitiative, setBoardInitiative] = useState<BoardInitiative[]>([]);
   const [boardRoundTrackers, setBoardRoundTrackers] = useState<BoardRoundTracker[]>([]);
   const [boardScenes, setBoardScenes] = useState<BoardSceneSummary[]>([]);
+  const [boardSceneFading, setBoardSceneFading] = useState(false);
+  /** A scene switch waiting out its fade-out: the later board.* messages (they already belong to the NEW scene) are held back in `queue` and replayed after the swap. */
+  const sceneSwapRef = useRef<{ timer: ReturnType<typeof setTimeout>; queue: MessageEvent[] } | null>(null);
   /** "Center all on my view" (Phase 11) — ephemeral, never board state (see board.view.center in shared/src/boardProtocol.ts). A new object on every broadcast, `seq` included, so the page's effect fires even if the same view is centered twice in a row. */
   const [boardViewCenter, setBoardViewCenter] = useState<{ x: number; y: number; zoom: number; by: string; seq: number } | null>(null);
   const boardViewCenterSeqRef = useRef(0);
@@ -855,6 +863,13 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       } catch {
         return;
       }
+      // Waiting out a scene fade-out: everything after the switch message
+      // describes the NEW scene, so it must not land on the old state still on
+      // screen. Hold it and replay it once the snapshot is applied.
+      if (sceneSwapRef.current && msg.type.startsWith('board.') && msg.type !== 'board.scene.switched' && msg.type !== 'board.scene.list.result') {
+        sceneSwapRef.current.queue.push(ev);
+        return;
+      }
       if (msg.type === 'roll.pending.created') {
         // Eine Anfrage will beantwortet werden — aber NICHT, indem der Dock
         // sich über den Bogen schiebt, in dem gerade jemand liest.
@@ -1053,21 +1068,39 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         return;
       }
       if (msg.type === 'board.scene.switched') {
-        // Applied at once, no delayed swap: a delta of the NEW scene arriving
-        // while an old one is still on screen would land on the wrong state
-        // and then be overwritten by this older snapshot. The page remounts
-        // its canvas on the board id and fades the new scene in.
         const snap = msg.snapshot;
-        setBoardSettings(snap.board);
-        setBoardTokens(snap.tokens);
-        setBoardTiles(snap.tiles);
-        setBoardHighlights(snap.highlights);
-        setBoardOverlays(snap.overlays);
-        setBoardFog(new Set(snap.fog));
-        setBoardInitiative(snap.initiative);
-        setBoardImages(snap.images);
-        setBoardRoundTrackers(snap.roundTrackers);
-        setBoardTokenTrail(null);
+        const applySnapshot = () => {
+          setBoardSettings(snap.board);
+          setBoardTokens(snap.tokens);
+          setBoardTiles(snap.tiles);
+          setBoardHighlights(snap.highlights);
+          setBoardOverlays(snap.overlays);
+          setBoardFog(new Set(snap.fog));
+          setBoardInitiative(snap.initiative);
+          setBoardImages(snap.images);
+          setBoardRoundTrackers(snap.roundTrackers);
+          setBoardTokenTrail(null);
+          setBoardSceneFading(false);
+        };
+        // A second switch mid-fade supersedes the first: its snapshot is the
+        // newer state, so whatever the first one had queued is obsolete.
+        if (sceneSwapRef.current) clearTimeout(sceneSwapRef.current.timer);
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          sceneSwapRef.current = null;
+          applySnapshot();
+          return;
+        }
+        // Old scene fades out (the page reacts to boardSceneFading), THEN the
+        // snapshot swaps in; the page remounts its canvas on the board id and
+        // fades the new scene in.
+        const swap = { timer: 0 as unknown as ReturnType<typeof setTimeout>, queue: [] as MessageEvent[] };
+        swap.timer = setTimeout(() => {
+          sceneSwapRef.current = null;
+          applySnapshot();
+          for (const queued of swap.queue) ws.onmessage?.(queued);
+        }, SCENE_FADE_MS);
+        sceneSwapRef.current = swap;
+        setBoardSceneFading(true);
         return;
       }
       if (msg.type === 'board.view.centered') {
@@ -1150,6 +1183,9 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
       setBoardOverlays([]);
       setBoardInitiative([]);
       setBoardScenes([]);
+      if (sceneSwapRef.current) clearTimeout(sceneSwapRef.current.timer);
+      sceneSwapRef.current = null;
+      setBoardSceneFading(false);
       trimOverrideRef.current = false;
       reconnectDelayRef.current = RECONNECT_BASE_MS;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
@@ -1768,6 +1804,7 @@ export function DicePanelProvider({ children }: { children: React.ReactNode }) {
         boardImages,
         hydrateBoard,
         boardScenes,
+        boardSceneFading,
         listScenes: listScenesAction,
         createScene: createSceneAction,
         renameScene: renameSceneAction,

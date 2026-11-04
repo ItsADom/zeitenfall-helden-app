@@ -125,10 +125,12 @@ switching with a fade, per-scene initiative.
 >   transient state (selection, drags, open editors). The scene picker's open
 >   state therefore lives in the page, not in `MapCanvas`. The zoom default and
 >   limits stay relative to each scene's own size (`dd4e24b`).
-> - **Fade:** fade-in only (CSS animation on the remounted `.vtt-map-wrap`).
->   The fade-out half was dropped: delaying the swap by 280 ms would let a
->   delta of the NEW scene land on the old state and then be overwritten by the
->   older snapshot.
+> - **Fade:** out, swap, in. The swap waits 250 ms (`SCENE_FADE_MS`) for the
+>   old scene to fade out. Messages that arrive in that window already describe
+>   the NEW scene, so the provider holds them back and replays them after the
+>   snapshot is applied (a second switch mid-fade drops the held ones). The
+>   fade-in is a CSS animation on the remounted `.vtt-map-wrap`; reduced motion
+>   swaps at once.
 > - **Creating a scene switches to it** (server-side, in `board.scene.create`).
 > - **Snapshot wire shape:** `BoardSceneSnapshot` (parsed tiles/highlights/fog,
 >   wire tokens), not the REST shape, built per viewer in `ws.ts`'s

@@ -221,9 +221,9 @@ export const CHANGELOG: ChangelogEntry[] = [
     title: 'Mehrere Szenen',
     features: [
       {
-        title: 'Mehrere Szenen am Virtuellen Tisch',
+        title: 'Virtueller Tisch',
         added: [
-          'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit und die neue Szene blendet kurz ein. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
+          'Ein Tisch kann jetzt mehrere Szenen haben (z. B. Taverne, Verlies, Wildnis). Jede Szene hat ihr eigenes Raster, ihre eigenen Marken, Bilder, Beschriftungen, Nebel, Initiative und Rundenzähler. Wechselt die Spielleitung die Szene, springt der ganze Tisch mit: die alte Szene blendet aus, die neue blendet ein. Jede Szene merkt sich ihren eigenen Kartenausschnitt.',
         ],
         admin: [
           '(Spielleiter) Über „Szenen“ in der Werkzeugleiste des Tisches lassen sich Szenen anlegen, umbenennen, löschen und wechseln. Eine neue Szene ist leer, und der Tisch wechselt sofort dorthin. Die letzte Szene lässt sich nicht löschen.',

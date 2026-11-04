@@ -1004,6 +1004,7 @@ function MapCanvas({
     pingCell,
     boardCellPing,
     boardTokenTrail,
+    boardSceneFading,
     feed,
   } = useDicePanel();
   const { user } = useAuth();
@@ -2732,7 +2733,7 @@ function MapCanvas({
         />
       )}
       <div
-        className="vtt-map-wrap"
+        className={`vtt-map-wrap${boardSceneFading ? ' scene-out' : ''}`}
         ref={wrapRef}
         onPointerDown={onWrapPointerDown}
         onPointerMove={onWrapPointerMove}

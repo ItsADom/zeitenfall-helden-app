@@ -6681,6 +6681,12 @@ tr:hover .probe-roll,
 .vtt-map-wrap {
   animation: vtt-scene-in 280ms ease-out;
 }
+/* Ausblenden der alten Szene vor dem Wechsel; Dauer = SCENE_FADE_MS in DicePanelProvider.tsx. */
+.vtt-map-wrap.scene-out {
+  opacity: 0;
+  transition: opacity 250ms ease-in;
+  pointer-events: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .vtt-map-wrap {
     animation: none;
