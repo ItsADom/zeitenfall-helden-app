@@ -1826,7 +1826,7 @@ table.sheet th.sortable:hover {
   background: var(--accent-soft) !important;
   color: var(--accent-dark);
   font-weight: 700;
-  font-size: 12.5px;
+  font-size: 12px;
   letter-spacing: 0.03em;
 }
 
@@ -2710,7 +2710,7 @@ button.side-attr:active {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .side-wound-value {
   min-width: 16px;
@@ -2888,7 +2888,7 @@ button.side-attr:active {
   align-items: center;
   gap: 10px;
   margin: -2px 0 8px;
-  font-size: 12.5px;
+  font-size: 12px;
   color: var(--muted);
 }
 .changelog-version {
@@ -2926,7 +2926,7 @@ button.side-attr:active {
 }
 .known-bugs-status {
   margin-left: 8px;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -3913,7 +3913,7 @@ li {
 .dlg-field input,
 .dlg-field select {
   margin-top: 4px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--text);
 }
@@ -3931,7 +3931,7 @@ li {
   border-radius: var(--radius-sm);
   padding: 7px 9px;
   margin-top: 4px;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--muted);
 }
@@ -6617,12 +6617,12 @@ tr:hover .probe-roll,
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12.5px;
+  font-size: 12px;
   flex-wrap: wrap;
 }
 .vtt-token-editor-note {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .vtt-token-editor-row label {
   display: flex;
@@ -6723,7 +6723,7 @@ tr:hover .probe-roll,
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 .vtt-wound-row span:first-child {
   flex: 1;
@@ -6746,7 +6746,7 @@ tr:hover .probe-roll,
   align-items: flex-start;
   gap: 5px;
   padding: 7px 0;
-  font-size: 12.5px;
+  font-size: 12px;
   border-top: 1px solid var(--border-soft);
 }
 .vtt-settings-row:first-of-type {
@@ -6833,7 +6833,7 @@ tr:hover .probe-roll,
   border-radius: 999px;
   box-shadow: var(--shadow);
   padding: 6px 6px 6px 14px;
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 700;
   pointer-events: auto;
 }
@@ -7200,7 +7200,7 @@ tr:hover .probe-roll,
   padding: 6px 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border-strong);
-  font-size: 12.5px;
+  font-size: 12px;
 }
 /* Runde/Kampf starten/beenden gestapelt in einem eigenen kleinen Block, statt
    inline in der Kartenreihe — eigene Steuerungsgruppe, kein Kämpfender. */
@@ -7318,7 +7318,7 @@ tr:hover .probe-roll,
   min-width: 32px;
   text-align: left;
   flex-shrink: 0;
-  font-size: 11.5px;
+  font-size: 11px;
 }
 input.vtt-initiative-value {
   width: 32px;
@@ -7345,7 +7345,7 @@ input.vtt-initiative-value {
   padding: 6px 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border-strong);
-  font-size: 12.5px;
+  font-size: 12px;
   flex-wrap: wrap;
 }
 .vtt-roundtracker-cards {
