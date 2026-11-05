@@ -146,13 +146,12 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      `btn-action`; `note-toggle`/`cat-toggle`/`fav-pin` are bare text/icon
      buttons with their own hover; `.seg` and `.dlg-seg` (segmented controls)
      share the active look but not size/shape
-   - stat tiles: `gm-chip` vs `wpn-chip` (label above value) look like one component
-   - tables: `table.sheet`, `.rules-table` and `.inv-table` (only skimmed so far)
-   - empty-state messages: nine separate `*-empty` classes, probably one style
-   - z-index has 22 values and no scale (popups/dock at 5, 6, 20, 21, 50, 100, ...)
-   - leftovers: ~8 hard-coded `#fff`; `--an`, `--rooms`, `--die-w20` look unused
-     (may be set from JS); `--radius` is 10px and `--radius-panel` 8px, which
-     reads backwards (rename touches TSX)
+   - `--radius` (10px) and `--radius-panel` (8px) read backwards (rename
+     touches TSX)
+   - checked and deliberately left alone: `gm-chip` vs `wpn-chip` (the weapon
+     tile carries the sheet's computed-value tint), `.rules-table`/`.inv-table`
+     (only the header typography is shared), the `*-empty` message classes
+     (only container margins differ)
    - not read rule by rule yet: feed, dice dock and VTT blocks (~2,200 lines);
      VTT context menu not tested on a real token, color pickers only read in code
    - good pre-work for the responsiveness-pass

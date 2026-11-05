@@ -1569,14 +1569,17 @@ table.sheet td:last-child {
 table.sheet tr:last-child td {
   border-bottom: none;
 }
-table.sheet th {
-  position: relative;
+table.sheet th,
+.rules-table thead th {
   background: var(--surface-head);
-  font-weight: 650;
   font-size: 12px;
+  font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--muted);
+}
+table.sheet th {
+  position: relative;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1670,12 +1673,6 @@ table.sheet tbody tr:hover td.res-over {
   border-bottom: 1px solid var(--border-soft);
 }
 .rules-table thead th {
-  background: var(--surface-head);
-  font-size: 12px;
-  font-weight: 650;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
   border-bottom: 1px solid var(--border-strong);
 }
 .rules-table tbody tr:last-child th,
@@ -6867,7 +6864,7 @@ tr:hover .probe-roll,
   padding: 12px 28px;
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  color: var(--on-accent-fill);
   pointer-events: none;
   animation: vtt-view-toast-fade 2.5s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
@@ -7400,7 +7397,7 @@ input.vtt-initiative-value {
   border: 1px solid var(--accent);
   border-radius: 999px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent-fill);
   font-weight: 700;
   font-size: 13px;
   box-shadow: var(--shadow);
