@@ -1278,6 +1278,66 @@ a.card.home-tile h3 {
   align-items: center;
   gap: 10px;
 }
+/* ---------- Chips: kleine Pillen (Verknüpfungen, Merkmale, Kategorien) ----------
+   Geometrie, Schrift und das ✕ stehen HIER einmal; jede Sorte trägt nur ihre
+   Farbe selbst (neutral / Akzent / Warn / Fehler). Ein neuer Chip kommt in diese
+   Liste, statt eine eigene Pille zu zeichnen. `.gm-chip.gm-chip--tag` ist doppelt
+   spezifisch, weil `.gm-chip` weiter unten dieselben Eigenschaften setzt. */
+.lang-script-chip,
+.grp-chip,
+.gm-poll-tag,
+.gm-chip.gm-chip--tag,
+.dice-shortcuts-chip,
+.wiki-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-sunken);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+/* Mit ✕: rechts weniger Polster, damit der Knopf bündig in der Rundung sitzt. */
+.lang-script-chip,
+.grp-chip,
+.gm-poll-tag,
+.gm-chip.gm-chip--tag:has(> button) {
+  padding-right: 4px;
+}
+.lang-script-chip button,
+.grp-chip-x,
+.gm-poll-tag button,
+.gm-chip--tag button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.lang-script-chip button:hover,
+.lang-script-chip button:focus-visible,
+.grp-chip-x:hover,
+.grp-chip-x:focus-visible,
+.gm-poll-tag button:hover,
+.gm-poll-tag button:focus-visible,
+.gm-chip--tag button:hover,
+.gm-chip--tag button:focus-visible {
+  color: var(--text);
+  background: var(--input-bg);
+}
+
 .form-chip {
   flex: 0 0 auto;
   padding: 2px 11px;
@@ -1706,29 +1766,6 @@ table.sheet tbody tr:hover td.res-over {
   display: flex;
   flex-wrap: wrap;
   gap: 3px;
-}
-.lang-script-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 1px 5px;
-  border-radius: 999px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  font-size: 0.8em;
-  white-space: nowrap;
-}
-.lang-script-chip button {
-  border: none;
-  background: none;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0;
-  font-size: 0.9em;
-  line-height: 1;
-}
-.lang-script-chip button:hover {
-  color: var(--accent);
 }
 .lang-script-picker input[type='text'] {
   font-size: 0.85em;
@@ -4459,34 +4496,11 @@ li {
   align-items: center;
   gap: 6px;
 }
-.grp-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 2px 4px 2px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-sunken);
-  font-size: 13px;
-  white-space: nowrap;
-}
 /* Vorgemerkt (noch nicht gespeichert): gestrichelt im Akzent. */
 .grp-chip-staged {
   border-style: dashed;
   border-color: var(--accent);
   background: var(--accent-soft);
-}
-.grp-chip-x {
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: var(--muted);
-  padding: 0 4px;
-  line-height: 1;
-  font-size: 12px;
-}
-.grp-chip-x:hover {
-  color: var(--crit-line);
 }
 .grp-add-field {
   position: relative;
@@ -5718,9 +5732,7 @@ tr:hover .probe-roll,
   margin-top: 4px;
 }
 .dice-shortcuts-chip {
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  padding: 2px 10px;
+  border-color: var(--border-strong);
   background: var(--surface-head);
 }
 .dice-shortcuts-chip.invalid {
@@ -6029,34 +6041,8 @@ tr:hover .probe-roll,
   gap: 6px;
 }
 .gm-poll-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  padding: 3px 4px 3px 10px;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
+  border-color: var(--accent);
   background: var(--accent-soft);
-}
-.gm-poll-tag button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
-}
-.gm-poll-tag button:hover,
-.gm-poll-tag button:focus-visible {
-  color: var(--text);
-  background: var(--input-bg);
 }
 .gm-chip--talent {
   border-color: var(--accent);
@@ -6074,31 +6060,9 @@ tr:hover .probe-roll,
 .gm-chips--tags {
   align-items: center;
 }
-.gm-chip--tag {
+.gm-chip.gm-chip--tag {
   border-color: var(--warn-line);
   background: var(--warn-soft);
-  padding-right: 4px;
-  gap: 6px;
-}
-.gm-chip--tag button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  background: none;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1;
-  cursor: pointer;
-}
-.gm-chip--tag button:hover,
-.gm-chip--tag button:focus-visible {
-  color: var(--text);
-  background: var(--input-bg);
 }
 .gm-tag-add {
   font-size: 12px;
