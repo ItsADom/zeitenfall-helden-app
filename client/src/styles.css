@@ -1361,10 +1361,24 @@ a.card.home-tile h3 {
 .form-chip.is-active,
 button.small:hover,
 a.small:hover,
-.color-picker-mode-toggle:hover {
+.side-toggle:hover,
+.dice-suggest-insert:hover,
+.dice-icon-btn:hover,
+.dice-flyout-wrap.open .dice-icon-btn,
+.color-picker-mode-toggle:hover,
+.color-picker-eyedrop:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
+}
+/* Eingeschaltete Knöpfe (Werkzeug, Gruppierung, Status): dieselbe Tönung wie
+   Hover, nur mit dunklerer Schrift. Gilt für jeden .small — die Leisten tragen
+   keine eigene Variante mehr. */
+button.small.active,
+.vtt-token-editor-statuses button.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
 }
 .tabs button {
   position: relative;
@@ -2085,9 +2099,17 @@ button.danger:hover {
   background: var(--error-text);
   color: var(--panel);
 }
-button.danger:disabled {
-  opacity: 0.6;
+button.danger:disabled,
+button.btn-action:disabled,
+button.small:disabled {
+  opacity: 0.5;
   cursor: default;
+}
+/* Ein gesperrter Knopf soll beim Überfahren nichts versprechen. */
+button.small:disabled:hover {
+  color: var(--muted);
+  border-color: transparent;
+  background: transparent;
 }
 .werk-retire-confirm {
   display: flex;
@@ -2327,10 +2349,6 @@ button.btn-action:hover {
   background: var(--accent);
   color: var(--on-accent-fill);
 }
-button.btn-action:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
 
 input.section-title {
   font-family: Georgia, 'Times New Roman', serif;
@@ -2533,10 +2551,6 @@ body.resizing-col {
   padding: 0 8px;
   line-height: 1.6;
   font-weight: 700;
-}
-.side-toggle:hover {
-  color: var(--accent);
-  border-color: var(--accent);
 }
 
 /* Blocküberschrift wie ein Panel-Titel: heraldisches Sigel im Akzent + auslaufende
@@ -3807,7 +3821,7 @@ li {
   padding: 4px;
 }
 .dialog-close:hover {
-  color: var(--text);
+  color: var(--accent);
 }
 .dialog-body {
   padding: 16px 18px;
@@ -3897,7 +3911,7 @@ li {
 }
 .dlg-seg button:disabled {
   cursor: default;
-  opacity: 0.55;
+  opacity: 0.5;
 }
 .dlg-seg button.active:disabled {
   opacity: 1;
@@ -4148,12 +4162,6 @@ li {
   gap: 8px;
   margin-bottom: 8px;
   flex-wrap: wrap;
-}
-.abil-toolbar .small.active,
-.abil-grouprow .small.active {
-  background: var(--accent);
-  color: var(--on-accent, var(--text));
-  border-color: var(--accent, var(--border));
 }
 /* Die globale Regel macht Eingaben 100 % breit — in der Werkzeugleiste sollen
    Suche und Auswahlfelder aber nebeneinander stehen (und nur bei echter Enge
@@ -4870,11 +4878,6 @@ body.resizing-dice {
   line-height: 1;
   padding: 5px 6px;
 }
-.dice-icon-btn:hover,
-.dice-flyout-wrap.open .dice-icon-btn {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
-}
 .dice-flyout {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -4926,12 +4929,8 @@ body.resizing-dice {
   background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  color: var(--text);
+  color: var(--muted);
   cursor: pointer;
-}
-.dice-suggest-insert:hover {
-  background: var(--surface-hover);
-  border-color: var(--border-strong);
 }
 .dice-suggest-hint {
   margin: 4px 8px 2px;
@@ -4955,6 +4954,7 @@ body.resizing-dice {
 }
 .mod-btn--active {
   border-color: var(--accent);
+  background: var(--accent-soft);
   color: var(--accent-dark);
   font-weight: 600;
 }
@@ -6634,11 +6634,6 @@ tr:hover .probe-roll,
   flex-wrap: wrap;
   gap: 5px;
 }
-.vtt-token-editor-statuses button.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-dark);
-}
 /* Aktuelles Marken-Bild (shared/src/tokenIcons.ts), als Knopf mit Vorschau
    statt reinem Text — dieselbe "aktueller Stand als anklickbare Vorschau"-
    Idee wie ColorSwatchInput. */
@@ -6777,8 +6772,8 @@ tr:hover .probe-roll,
 }
 .seg button.active {
   background: var(--accent);
-  color: #fff;
-  font-weight: 700;
+  color: var(--on-accent-fill);
+  font-weight: 600;
 }
 /* Gittergröße im Karten-Einstellungen-Popover: zwei schmale Zahlenfelder statt
    des Spielleitung/Alle-Pillenpaars, deshalb eigene Klasse statt .seg. */
@@ -6793,13 +6788,6 @@ tr:hover .probe-roll,
 }
 
 /* ---------- VTT Phase 6: Bemalen ---------- */
-/* Aktiver Werkzeug-Knopf in der Kartenleiste (bislang nur „Bemalen") — gleiche
-   Optik wie der aktive Zustand im Karten-Rechte-Umschalter oben. */
-.vtt-toolbar button.small.active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-dark);
-}
 .vtt-context-menu-backdrop {
   position: fixed;
   inset: 0;
@@ -7114,10 +7102,6 @@ tr:hover .probe-roll,
   font-size: 13px;
   line-height: 1;
 }
-.color-picker-eyedrop:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
 .color-picker-fields {
   display: flex;
   flex: 1;
@@ -7153,9 +7137,9 @@ tr:hover .probe-roll,
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: transparent;
+  background: var(--surface-sunken);
   color: var(--muted);
   cursor: pointer;
   font-size: 12px;

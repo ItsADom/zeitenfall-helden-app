@@ -16,7 +16,7 @@ function LangsamHinweis() {
   return (
     <p className="wartung-langsam">
       Das dauert länger als gewöhnlich — der Vorgang läuft aber weiter.{' '}
-      <button type="button" className="link" onClick={() => window.location.reload()}>
+      <button type="button" className="small" onClick={() => window.location.reload()}>
         Seite jetzt neu laden
       </button>
     </p>

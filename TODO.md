@@ -142,9 +142,10 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      (~1,000 lines) to `vtt.css`, imported in `main.tsx` in their original
      order so the cascade stays identical (verify with a computed-style diff);
      fix the stale "4336 lines" comments in `main.tsx`/`wiki.css` at the same time
-   - buttons: `primary`, `danger`, `btn-action`, `side-toggle`, `dice-icon-btn`,
-     `dialog-close` and the bare "icon button" (muted, hover color) are separate
-     styles; unify what is really one component
+   - buttons, remaining: `hold-button` (full-width outlined accent) vs
+     `btn-action`; `note-toggle`/`cat-toggle`/`fav-pin` are bare text/icon
+     buttons with their own hover; `.seg` and `.dlg-seg` (segmented controls)
+     share the active look but not size/shape
    - stat tiles: `gm-chip` vs `wpn-chip` (label above value) look like one component
    - tables: `table.sheet`, `.rules-table` and `.inv-table` (only skimmed so far)
    - empty-state messages: nine separate `*-empty` classes, probably one style
