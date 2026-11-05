@@ -12,7 +12,7 @@
      event for the whole table that nobody opened themselves, so it covers an
      open dialog too. Below .wartung-schirm (300): a restart beats any
      performance. */
-  z-index: 250;
+  z-index: var(--z-overlay);
   display: grid;
   place-items: center;
   /* Dark in BOTH light and dark mode — a dim that is not dark is not a dim, and

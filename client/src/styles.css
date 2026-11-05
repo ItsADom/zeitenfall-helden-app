@@ -19,6 +19,16 @@
   /* Dichte Arbeitsflächen tragen nur eine Haarlinie + zarten Schatten,
      damit die Zahlen und nicht das Panel-Chrome im Vordergrund stehen */
   --shadow-soft: 0 1px 1px rgba(41, 32, 24, 0.05);
+  /* Stapelreihenfolge der Ebenen, die sich über die ganze App legen (von unten
+     nach oben). Alles darunter ist lokal: klebende Leisten 11-20 (Reiter 15,
+     Charakterkopf 16, Kopfleiste 20), Popups in der Seite 5-50, Kopfleisten-
+     Menüs 40/100. Neue Vollbild-Ebene: hier eintragen, nicht eine Zahl erfinden. */
+  --z-dock: 150; /* Würfel-Chat (Dock + Reiter) */
+  --z-dialog: 200; /* modale Dialoge */
+  --z-lightbox: 210; /* Porträt-Großansicht */
+  --z-wartung-banner: 220; /* Hinweisleiste während eines Neustarts */
+  --z-overlay: 250; /* Kino-Würfel, Konami-Party */
+  --z-wartung: 300; /* Neustart-Schirm: über allem */
   --radius: 10px; /* Karten, Banner */
   --radius-panel: 8px; /* Panels, Popups, Eingabekästen */
   --radius-sm: 6px; /* Knöpfe, Eingabefelder, Menüeinträge */
@@ -3227,7 +3237,7 @@ li {
 .portrait-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 210;
+  z-index: var(--z-lightbox);
   background: rgba(20, 16, 10, 0.75);
   display: flex;
   align-items: center;
@@ -3758,7 +3768,7 @@ li {
   align-items: flex-start;
   justify-content: center;
   padding: 8vh 16px 40px;
-  z-index: 200;
+  z-index: var(--z-dialog);
 }
 /* The panel never outgrows the backdrop: head and foot stay put, only the body
    scrolls (see .dialog-body). Without this a long dialog — the /commands list is
@@ -4524,7 +4534,7 @@ li {
   bottom: 0;
   /* Below .dialog-backdrop (200) on purpose — a modal must block the dock
      too, not sit underneath its fixed corner widget. */
-  z-index: 150;
+  z-index: var(--z-dock);
   background: var(--accent);
   color: var(--on-accent);
   border: 1px solid var(--accent-dark);
@@ -4611,7 +4621,7 @@ li {
   right: 18px;
   bottom: 0;
   /* Same reasoning as .dice-dock-tab above. */
-  z-index: 150;
+  z-index: var(--z-dock);
   /* Actual width/height come from an inline style (client/src/components/dice/DicePanel.tsx,
      draggable via .dice-resize) — these are just the safety bounds against the viewport. */
   min-width: 260px;
@@ -6322,7 +6332,7 @@ tr:hover .probe-roll,
   left: 50%;
   bottom: 1rem;
   transform: translateX(-50%);
-  z-index: 220;
+  z-index: var(--z-wartung-banner);
   max-width: min(42rem, calc(100vw - 2rem));
   padding: 0.7rem 1.1rem;
   border: 1px solid var(--warn-line);
@@ -6337,7 +6347,7 @@ tr:hover .probe-roll,
 .wartung-schirm {
   position: fixed;
   inset: 0;
-  z-index: 300;
+  z-index: var(--z-wartung);
   display: grid;
   place-items: center;
   padding: 1rem;
