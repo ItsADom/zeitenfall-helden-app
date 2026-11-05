@@ -9,8 +9,7 @@ import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
 import { NumInput, TextInput } from './inputs';
 
-// --- Shared inventories: cross-owner move target picker (docs/concepts/
-// shared-inventories.md, 2.3) ---
+// --- Shared inventories: cross-owner move target picker ---
 //
 // "The permission split is enforced by the source, not the target list" — the
 // picker below just needs a sane list of names, one per valid destination.
@@ -551,7 +550,7 @@ export function AddItemDialog({
   open: boolean;
   onClose: () => void;
   categories: string[];
-  /** Houses (docs/concepts/houses.md): nur im Gruppeninventar gesetzt — blendet
+  /** Houses: nur im Gruppeninventar gesetzt — blendet
    * die Haus-/Raum-Felder ein, genau wie moveTargets den Verschieben-Picker.
    * Charakter- und SL-Vorrat lassen beide weg, keine Häuser dort. */
   houses?: string[];
@@ -586,7 +585,7 @@ export function AddItemDialog({
    * charges") — nur sinnvoll (und daher nur gerendert), wenn das Item
    * überhaupt Ladung führt, siehe der `item.ladungMax > 0`-Guard unten. */
   onUseLadung?: () => void;
-  /** Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
+  /** Shared inventories: „Verschieben
    * nach…"-Ziele. Nur im Bearbeiten-Modus sinnvoll (ein noch nicht
    * gespeichertes Item hat keine uid zum Verschieben) — leer/undefined blendet
    * den Picker aus, ganz ohne den Konzept-Unterbau zu berühren. */
@@ -764,7 +763,7 @@ export function AddItemDialog({
       ladungAktuell,
       ladungPortion,
     };
-    // Houses (docs/concepts/houses.md): nur einbeziehen, wenn die Felder auch
+    // Houses: nur einbeziehen, wenn die Felder auch
     // sichtbar waren (houses gesetzt) — Charakter-/SL-Vorrat sollen ein
     // Bearbeiten sonst nie stillschweigend auf '' zurücksetzen.
     if (houses) {
@@ -1187,7 +1186,7 @@ export function AddContainerDialog({
 }: {
   open: boolean;
   onClose: () => void;
-  /** Houses (docs/concepts/houses.md): nur im Gruppeninventar gesetzt — blendet
+  /** Houses: nur im Gruppeninventar gesetzt — blendet
    * die Haus-/Raum-Felder ein, genau wie bei AddItemDialog. */
   houses?: string[];
   roomsByHaus?: Record<string, string[]>;

@@ -474,7 +474,7 @@ export type ClientToServerMessage =
   // Verwirft den Pool ohne zu würfeln. Nur die vorschlagende Person oder die
   // Spielleitung.
   | { type: 'roll.coop.cancel'; reqId: string; poolId: string }
-  // Virtueller Tisch (docs/concepts/virtual-table.md) — rides this same
+  // Virtueller Tisch — rides this same
   // socket rather than a second connection, see boardProtocol.ts.
   | BoardClientMessage;
 

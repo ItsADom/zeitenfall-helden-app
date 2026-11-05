@@ -1,5 +1,4 @@
-// Token status catalogues for the virtual table. Frozen lists, not logic —
-// see "Statuses vs covers" in docs/concepts/virtual-table.md.
+// Token status catalogues for the virtual table. Frozen lists, not logic.
 
 export interface BoardStatus {
   key: string;

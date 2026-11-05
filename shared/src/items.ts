@@ -215,7 +215,7 @@ export interface Item {
   anzahl: number; // Stückzahl
   gewicht: number; // kg je Stück (Dezimalzahlen erlaubt)
   kategorie: string; // Name aus der Kategorienliste des Charakters ('' = ohne)
-  // Houses (docs/concepts/houses.md): freiwillige Orts-Angabe, NUR bei
+  // Houses: freiwillige Orts-Angabe, NUR bei
   // gruppen-eigenen Items sinnvoll — genau wie kategorie ein freier String
   // mit eigener Vorschlagsliste (group_houses/group_rooms), kein Fremdschlüssel.
   // raum ist innerhalb von haus verschachtelt (dieselbe haus-Zeichenkette
@@ -453,7 +453,7 @@ export function verwendeLadung(items: readonly Item[], uid: string): Item[] {
   return out;
 }
 
-// --- Shared inventories: ownership (docs/concepts/shared-inventories.md) ---
+// --- Shared inventories: ownership ---
 //
 // An item belongs to an OWNER, not directly to a character: a character's own
 // stuff, a group's shared pool, or the GM's prep pool. 'gm' is a single global
@@ -479,7 +479,7 @@ export const ITEM_MOVE_RESET_PATCH: Partial<Item> = {
   zone: '',
   beidseitig: false,
   containerUid: '',
-  // Houses (docs/concepts/houses.md): haus/raum only mean anything while the
+  // Houses: haus/raum only mean anything while the
   // item stays group-owned — a house tag surviving a move onto a character
   // or into the GM's prep pool would be a stale reference to nothing.
   haus: '',

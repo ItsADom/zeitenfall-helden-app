@@ -1,5 +1,4 @@
-// The one place virtual-table board rights are decided (docs/concepts/
-// virtual-table.md, "Server module layout"). Each function reads the board's
+// The one place virtual-table board rights are decided. Each function reads the board's
 // own perm_* setting: 'gm' -> only the Spielleitung, 'all' -> any room member
 // (isRoomMember, same membership check REST/WS already use everywhere else).
 // canEditFog is intentionally NOT here as a perm_*-driven function — it's

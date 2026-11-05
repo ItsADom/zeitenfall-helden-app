@@ -91,7 +91,7 @@ export default function AusruestungTab() {
   const [over, setOver] = useState<string | null>(null);
   const [addItemOpen, setAddItemOpen] = useState(false);
   const [editUid, setEditUid] = useState<string | null>(null);
-  // Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
+  // Shared inventories: „Verschieben
   // nach…"-Ziele fürs Item-Dialog — eigene Gruppe + ihre Charaktere + SL-Vorrat,
   // ausgeschlossen der eigene Charakter selbst (kein Ziel für die eigenen Sachen).
   const moveTargets = useMoveTargets(groupId, { type: 'character', id: charId });
@@ -108,7 +108,7 @@ export default function AusruestungTab() {
       toOwnerId: target.toOwnerId,
     }).then((res) => update('items', res.items));
 
-  // Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Anwenden ist ein
+  // Ausrüstungs-Sets: Anwenden ist ein
   // reiner Client-Vorgang auf `items` (kein eigener Endpunkt) — die Sets
   // selbst speichern über ihre eigene, ganze-Liste-ersetzende Route, wie
   // itemCategories. Index-basierte Mutation statt uid, wie GeldPanel es für
@@ -123,7 +123,7 @@ export default function AusruestungTab() {
   const removePreset = (i: number) => setPresets(presets.filter((_, j) => j !== i));
 
   const [presetFlyoutOpen, setPresetFlyoutOpen] = useState(false);
-  // Hinweis vor dem Anwenden (docs/concepts/equipment-presets.md §2.4): steht
+  // Hinweis vor dem Anwenden: steht
   // nur, solange mindestens ein Preset-Eintrag keine passende uid im
   // aktuellen Bestand findet (Item gelöscht oder weggezogen).
   const [pendingApply, setPendingApply] = useState<{ preset: EquipmentPreset; missing: EquipmentPresetItem[] } | null>(null);

@@ -1,6 +1,5 @@
 // Wire types for the virtual table's token/tile traffic — rides the SAME
-// socket as diceProtocol.ts (see "Realtime design" in docs/concepts/
-// virtual-table.md, "extend the existing socket, don't add a second one").
+// socket as diceProtocol.ts (extend the existing socket, don't add a second one).
 // Kept in its own file so the dice protocol stays focused; re-exported from
 // the shared barrel and folded into ClientToServerMessage/ServerToClientMessage
 // in diceProtocol.ts.
@@ -432,7 +431,7 @@ export type BoardClientMessage =
   | { type: 'board.roundTracker.create'; reqId: string; label: string; startCount: number }
   | { type: 'board.roundTracker.setCount'; reqId: string; trackerId: number; count: number }
   | { type: 'board.roundTracker.delete'; reqId: string; trackerId: number }
-  // Scenes (docs/concepts/vtt-grid-and-scenes.md, Part B). All GM-only
+  // Scenes. All GM-only
   // (canManageScenes). The GM's picker is the only consumer of the list, which
   // is answered to the requester alone; `switch` is the one that reaches the room.
   | { type: 'board.scene.list'; reqId: string }

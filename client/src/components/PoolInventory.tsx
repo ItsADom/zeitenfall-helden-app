@@ -11,7 +11,7 @@ import { CollapsedText } from './notes';
 import { usePersistedState } from './persist';
 import { useSearchHeight } from './stickyChrome';
 
-// Shared inventories (docs/concepts/shared-inventories.md): the group pool and
+// Shared inventories: the group pool and
 // the GM pool both need the same "pile of items, grouped by category, some of
 // them containers" view Inventar.tsx already has — but neither has a single
 // character to hang Traglast/body-zones/useChar() off of. Concept 2.4's "no
@@ -46,10 +46,9 @@ function catsOf(list: Item[]): string[] {
   return set.has('') ? [...named, ''] : named;
 }
 
-// Houses (docs/concepts/houses.md): Räume EINES Hauses in einer Item-Liste,
+// Houses: Räume EINES Hauses in einer Item-Liste,
 // in Anzeigereihenfolge — dieselbe Herleitung wie catsOf (aus den
-// tatsächlich vorhandenen Items, nicht aus der verwalteten Liste, siehe
-// shared-inventories.md §3.1/3.2). Betrachtet NUR Items, die tatsächlich zu
+// tatsächlich vorhandenen Items, nicht aus der verwalteten Liste). Betrachtet NUR Items, die tatsächlich zu
 // `haus` gehören (ein anderes/kein Haus zählt hier nicht mit — sonst würde
 // „alle Räume" beim Filtern eines Hauses Items aus JEDEM anderen Haus
 // durchlassen, siehe passtZuHaus/passtZuRaum unten). '' steht für „diesem
@@ -84,7 +83,7 @@ export default function PoolInventory({
   storageKey: string;
   items: Item[];
   categories: string[];
-  /** Houses (docs/concepts/houses.md): nur der Gruppenpool setzt beides — blendet
+  /** Houses: nur der Gruppenpool setzt beides — blendet
    * den Raum-Filter ein. Der SL-Vorrat lässt beide weg, keine Häuser dort
    * (siehe AddItemDialog.houses). */
   houses?: string[];
@@ -195,7 +194,7 @@ export default function PoolInventory({
 
   const editingItem = editUid !== null ? byUid.get(editUid) : undefined;
 
-  // Houses (docs/concepts/houses.md): welches Haus betrachtet wird. Nur
+  // Houses: welches Haus betrachtet wird. Nur
   // relevant, wenn houses gesetzt ist (Gruppenpool). Die frühere separate
   // Raum-Ansicht (eigene Gruppierung/Zeilenform je Behälter) ist einem reinen
   // Filter gewichen (Entwickler-Entscheidung, siehe ALLE_RAEUME unten): immer
@@ -207,7 +206,7 @@ export default function PoolInventory({
   const [activeHausRaw, setActiveHaus] = usePersistedState<string>(`${storageKey}:activeHaus`, '');
   // Wählbare Häuser sind die verwaltete Liste VEREINIGT mit jedem Haus-Wert,
   // der schon auf einem Item steht — dieselbe Regel wie catOptions für
-  // Kategorien (shared-inventories.md §3.1): ein frisch auf ein Item
+  // Kategorien: ein frisch auf ein Item
   // getipptes, noch nicht verwaltetes Haus soll sofort umschaltbar sein,
   // nicht erst nach einem Abstecher in „Häuser verwalten".
   const namedHouses = houses
@@ -244,7 +243,7 @@ export default function PoolInventory({
   // container should land where the Haus/Raum filter is currently looking,
   // not always at "kein Haus". Only meaningful for top-level adds (+ Behälter,
   // loose + Gegenstand) — an item added INTO a container never gets its own
-  // room (houses.md §3.3), so addItemFor below stays unaffected. "Alle Räume"
+  // room, so addItemFor below stays unaffected. "Alle Räume"
   // has no single room to suggest, so raum is left unset in that case.
   const prefillHaus = availableHouses ? (activeHaus === OHNE_HAUS ? '' : activeHaus) : undefined;
   const prefillRaum = availableHouses && activeRaum !== ALLE_RAEUME ? activeRaum : undefined;
@@ -543,8 +542,7 @@ export default function PoolInventory({
         onAdd={(fields) => onAdd({ ...fields, location: 'inventar' })}
       />
       {/* Kein houses/roomsByHaus hier: Inhalt eines Behälters trägt keinen
-          eigenen Raum — nur der Behälter (das Wurzel-Item) tut das (docs/
-          concepts/houses.md, „Container carry their contents implicitly"). */}
+          eigenen Raum — nur der Behälter (das Wurzel-Item) tut das. */}
       <AddItemDialog
         open={addItemFor !== null}
         onClose={() => setAddItemFor(null)}

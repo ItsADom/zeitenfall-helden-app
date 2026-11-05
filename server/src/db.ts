@@ -333,8 +333,7 @@ db.exec(`
   -- character_id-FKs, dasselbe Paar wie char_items — ein Beutel gehört einem
   -- Charakter ODER einer Gruppe. Genau eine 'group'-Zeile je Gruppe, analog
   -- zur Bank (getOrCreateGroupPouch in characterData.ts erzeugt sie bei Bedarf),
-  -- kein GM-Vorrat (bislang kein Bedarf, siehe docs/concepts/shared-inventories.md
-  -- für die entsprechende Item-Diskussion, falls das mal nachgezogen wird).
+  -- kein GM-Vorrat (bislang kein Bedarf; falls das mal nachgezogen wird, analog zur Bank).
   CREATE TABLE IF NOT EXISTS char_pouches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_type TEXT NOT NULL DEFAULT 'character',
@@ -352,7 +351,7 @@ db.exec(`
     PRIMARY KEY (pouch_id, denomination_id)
   );
 
-  -- Ausrüstungs-Sets (docs/concepts/equipment-presets.md): ein benannter
+  -- Ausrüstungs-Sets: ein benannter
   -- Schnappschuss, welche Items ein Charakter getragen hat (uid+Zone+
   -- beidseitig) — Anwenden ist ein reiner Client-Vorgang (Ausruestung.tsx
   -- berechnet die neue Item-Liste und speichert sie über den normalen
@@ -478,7 +477,7 @@ db.exec(`
   -- Einheitliches Gegenstands-Modell (Cluster 5): jeder Besitz ist EINE Zeile
   -- mit Gewicht (kg je Stück), Kategorie und Ort. Inventar, Kategorie-Summen,
   -- getragene Last und (5b) getragene Ausrüstung leiten sich hieraus ab.
-  -- Shared inventories (docs/concepts/shared-inventories.md): ein Item gehört
+  -- Shared inventories: ein Item gehört
   -- einem OWNER, nicht direkt einem Charakter — owner_type/owner_id statt
   -- eines harten character_id-FKs, genau das Paar, das assets/store.ts schon
   -- für Bilder benutzt. 'character'/'group'/'gm'; KEINE eigene FK mehr (SQLite
@@ -497,7 +496,7 @@ db.exec(`
     anzahl REAL NOT NULL DEFAULT 1,
     gewicht REAL NOT NULL DEFAULT 0,
     kategorie TEXT NOT NULL DEFAULT '',
-    -- Houses (docs/concepts/houses.md): freiwillige Orts-Angabe, nur bei
+    -- Houses: freiwillige Orts-Angabe, nur bei
     -- gruppen-eigenen Items sinnvoll — freier String mit eigener
     -- Vorschlagsliste (group_houses/group_rooms), kein Fremdschlüssel, genau
     -- wie kategorie. raum ist innerhalb von haus verschachtelt.
@@ -593,7 +592,7 @@ db.exec(`
   -- Selbst verwaltete Kategorienliste je Owner (Reihenfolge über pos) — dieselbe
   -- owner_type/owner_id-Verallgemeinerung wie char_items, siehe dort. Ein
   -- Charakter behält seine eigene Liste unverändert; Gruppenpool und GM-Pool
-  -- bekommen je ihre eigene (docs/concepts/shared-inventories.md, Abschnitt 2.6).
+  -- bekommen je ihre eigene .
   CREATE TABLE IF NOT EXISTS char_item_categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     owner_type TEXT NOT NULL DEFAULT 'character',
@@ -604,10 +603,10 @@ db.exec(`
   -- Index folgt nach der Migration weiter unten, aus demselben Grund wie bei
   -- char_items oben.
 
-  -- Houses (docs/concepts/houses.md): kuratierte Vorschlags-/Umbenennen-Listen
+  -- Houses: kuratierte Vorschlags-/Umbenennen-Listen
   -- für char_items.haus/raum — dieselbe Rolle wie char_item_categories für
   -- kategorie, KEIN Fremdschlüssel (char_items.haus/raum bleiben freie Strings,
-  -- shared-inventories.md §3.1 zeigt, dass das gefahrlos ist). Direkte, echte
+  -- wie bei den Kategorien gefahrlos). Direkte, echte
   -- group_id-FK statt des generischen owner_type/owner_id-Paars — ein Haus
   -- gehört strukturell IMMER einer Gruppe, nie einem Charakter oder dem SL, es
   -- gibt also keine Owner-Art-Mehrdeutigkeit zu verallgemeinern, und eine echte
@@ -698,7 +697,7 @@ db.exec(`
     value TEXT NOT NULL DEFAULT ''
   );
 
-  -- Virtueller Tisch (siehe docs/concepts/virtual-table.md). Ein Brett pro
+  -- Virtueller Tisch. Ein Brett pro
   -- Raum — group_id reicht, ohne room_kind: eine Event-Gruppe ist seit
   -- be5a995 eine ganz normale Zeile in groups, im selben Id-Raum, also deckt
   -- ein einziges ON DELETE CASCADE beide Gruppenarten sauber ab.
@@ -1286,7 +1285,7 @@ db.exec(`
   if (!cols.has('munition_proben_bonus')) db.exec('ALTER TABLE char_items ADD COLUMN munition_proben_bonus REAL NOT NULL DEFAULT 0');
 }
 
-// Migration (shared inventories, docs/concepts/shared-inventories.md):
+// Migration (shared inventories):
 // char_items/char_item_categories gain owner_type/owner_id instead of a hard
 // character_id FK, so an item or a curated category list can belong to a
 // group's pool or the GM's pool too, not only a character. SQLite cannot drop
@@ -1425,7 +1424,7 @@ db.exec(`
 }
 db.exec(`CREATE INDEX IF NOT EXISTS idx_pouches_owner ON char_pouches (owner_type, owner_id, pos);`);
 
-// Migration (Houses, docs/concepts/houses.md): haus/raum auf char_items —
+// Migration (Houses): haus/raum auf char_items —
 // plain additive ALTERs, kein Neuaufbau nötig (anders als die owner_type-
 // Migration oben: das hier sind zwei ganz neue, nullable-mit-Default-Spalten,
 // keine NOT-NULL-Umwandlung). Läuft bewusst NACH dem obigen Neuaufbau: der
@@ -1955,8 +1954,7 @@ db.exec('DROP TABLE IF EXISTS group_members');
   if (!cols.has('highlights_json')) db.exec("ALTER TABLE boards ADD COLUMN highlights_json TEXT NOT NULL DEFAULT '{}'");
 }
 
-// Migration: mehrere Szenen pro Gruppe (docs/concepts/vtt-grid-and-scenes.md,
-// Teil B). Reihenfolge: Spalten anlegen -> Bestand befüllen -> Unique-Index
+// Migration: mehrere Szenen pro Gruppe. Reihenfolge: Spalten anlegen -> Bestand befüllen -> Unique-Index
 // entfernen. Jede Gruppe hat bis hierher höchstens ein Brett (der alte
 // Unique-Index hat das garantiert), das also zur aktiven Szene wird. Die
 // Befüllung ist idempotent und repariert nebenbei eine active_board_id, die

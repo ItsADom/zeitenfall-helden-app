@@ -1,4 +1,4 @@
-// Equipment presets (docs/concepts/equipment-presets.md): a named snapshot of
+// Equipment presets: a named snapshot of
 // which items a character had worn (uid + zone + beidseitig). Applying one is
 // a full outfit swap — everything the preset lists ends up worn exactly as
 // recorded, everything else currently worn gets benched — computed here as a

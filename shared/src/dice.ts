@@ -17,7 +17,7 @@
 //
 // Confirmations are NOT rolled together with the dice: each one is triggered
 // by the player afterwards, one die at a time (that little bit of ceremony is
-// the point — see the roll flow in docs/concepts/dice-rolls-and-chat.md). The
+// the point). The
 // resolvers therefore take however many confirmations have been rolled SO FAR
 // and report the rest as `pending`; a roll counts as `resolved` only once
 // nothing is pending. Until then its success/failure is deliberately not

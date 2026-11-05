@@ -5,7 +5,7 @@ import { depletionClass, overfilled } from './energie';
 
 // Geteilte Bausteine zwischen GroupOverview.tsx (die volle SL-Übersichtsseite)
 // und VttRoster.tsx (dieselben Karten, schmal in die Tisch-Seitenleiste
-// gefaltet — siehe docs/concepts/virtual-table.md) — extrahiert, damit beide
+// gefaltet) — extrahiert, damit beide
 // dieselbe Vital-Färbung und dieselbe GM-Notiz-Speicherlogik benutzen statt
 // sie zweimal zu pflegen.
 

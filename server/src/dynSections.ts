@@ -261,7 +261,7 @@ export function saveDynRows(sectionId: number, rows: Record<string, unknown>[], 
 const t = (key: string, label: string, width: number): DynColumn => ({ key, label, type: 'text', width });
 
 // „Gruppen-Inventar" (die frei getippte Vorlage unten) ist aus dieser Liste
-// entfernt (docs/concepts/houses.md §3.5, Entscheidung 2026-09-02): der
+// entfernt (Entscheidung 2026-09-02): der
 // strukturierte Item-Pool auf der Gruppenseite heißt jetzt „Gruppeninventar"
 // und würde sonst jeder neuen Gruppe direkt einen gleichnamigen, aber
 // komplett anderen Tab danebenstellen. NUR instantiateGroupTabs liest diese

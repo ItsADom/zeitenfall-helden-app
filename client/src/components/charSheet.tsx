@@ -51,7 +51,7 @@ export interface FullData {
   // verwalteten Kategorien. Speichert über eigene Routen, nicht /section/:s.
   items: Item[];
   itemCategories: string[];
-  // Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Anwenden ist ein
+  // Ausrüstungs-Sets: Anwenden ist ein
   // reiner Client-Vorgang auf `items` (kein eigener Endpunkt, siehe dort) —
   // nur die gespeicherten Sets selbst laufen über ihre eigene Route.
   equipmentPresets: EquipmentPreset[];
@@ -172,7 +172,7 @@ interface CharCtxValue {
   charId: number;
   /** Der betrachtete Bogen (Grundform: dieselbe ID wie charId). Bogen-eigene Routen bekommen `?sheet=` dazu. */
   sheetId: number;
-  /** Shared inventories (docs/concepts/shared-inventories.md): null = keine
+  /** Shared inventories: null = keine
    * Gruppe → der „Verschieben nach…"-Picker bietet nur noch den SL-Vorrat an. */
   groupId: number | null;
   data: FullData;

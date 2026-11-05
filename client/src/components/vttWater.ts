@@ -1,7 +1,5 @@
 // Generated water textures for the virtual table (Phase 6). Ported from the
-// reviewed prototype (docs/concepts/virtual-table-mockup/Texturen.html) — see
-// "Water is deliberately generated, not photographed" in docs/concepts/
-// virtual-table.md: the CC0 libraries have no usable top-down water surface,
+// reviewed prototype (docs/concepts/virtual-table-mockup/Texturen.html): the CC0 libraries have no usable top-down water surface,
 // and a photograph of still water tiles visibly badly on a featureless
 // surface. The generated ripple is seamless by construction and costs no
 // file. Generated once per session (256×256 canvas, cheap) and cached.

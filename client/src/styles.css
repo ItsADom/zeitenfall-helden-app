@@ -3386,7 +3386,7 @@ li {
   color: var(--text);
 }
 
-/* Ausrüstungs-Sets (docs/concepts/equipment-presets.md): Flyout wie
+/* Ausrüstungs-Sets: Flyout wie
    .vtt-tile-picker (gleiche Panel-Optik), aber am eigenen Auslöser-Knopf
    verankert statt an einer festen Position im VTT-Toolbar-Rahmen. */
 .equip-preset-anchor {
@@ -6409,7 +6409,7 @@ tr:hover .probe-roll,
 }
 
 /* ---------- Virtueller Tisch (VTT), Phase 4: Seitenrahmen ----------
-   docs/concepts/virtual-table.md. Tokens only — die sechs Farbwelten und der
+   Tokens only — die sechs Farbwelten und der
    Dunkelmodus greifen ohne eigene Regeln. Full-bleed innerhalb von main
    (padding: 20px var(--pad-x) 60px, siehe dort) über negative Ränder, dieselbe
    Brücke, die die klebenden Leisten schon benutzen. Beide Seitenspalten sind

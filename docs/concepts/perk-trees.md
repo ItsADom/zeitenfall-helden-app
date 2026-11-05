@@ -70,8 +70,8 @@ app has to do**, because that is what drives the data model.
 A perk is **not one effect**. `Körperbau` grants Wundschwelle *and* MaxADP;
 `Sternlesen` grants TaW *and* QS; `Bis zum Tod` grants Todesschwelle *and* a
 rule statement. The model is therefore `Perk → Effekt[]`, mirroring the
-multi-bonus decision already taken for items in
-[`item-bonus-while-worn.md`](item-bonus-while-worn.md).
+multi-bonus decision already taken for items (`StatBoni`/`wornBoni` in
+`shared/src/items.ts`).
 
 ### Computed — the app applies the number
 

@@ -23,7 +23,7 @@ const clampH = (n: number): number => Math.min(MAX_H, Math.max(MIN_H, Math.round
 //
 // The feed+input body lives in FeedColumn.tsx (extracted so the virtual
 // table page can embed the identical chat UI fixed in its own column instead
-// of floating — see docs/concepts/virtual-table.md's "Chat column"). This
+// of floating). This
 // component is now just the floating chrome: drag-resize, the collapsible
 // head with the room picker, and the tab button shown while collapsed.
 export default function DicePanel() {

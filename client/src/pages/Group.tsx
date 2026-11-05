@@ -161,7 +161,7 @@ export default function GroupPage() {
   const [reloadTick, setReloadTick] = useState(0);
   const dynDirty = useRef(false); // aktiver Tab hat ungespeicherte Zeilen?
 
-  // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md):
+  // Gruppen-Inventar (Shared Inventories):
   // talents/specialEnergies fürs Boni-Feld im Item-Dialog — die Gruppenseite
   // hat, anders als der Charakterbogen, keinen eigenen Katalog-Ladepfad, daher
   // hier direkt der generische /api/catalogs-Weg.
@@ -325,7 +325,7 @@ export default function GroupPage() {
           <div className="tabs" ref={tabsRef}>
             {/* Fester Reiter, immer zuerst, nicht umbenennbar/löschbar — siehe
                 POOL_TAB_KEY. „Gruppeninventar" statt „Gruppenpool" (Entscheidung
-                2026-09-02, docs/concepts/houses.md §3.5), seit Häuser/Räume den
+                2026-09-02), seit Häuser/Räume den
                 Pool auch als „wo im Haus liegt was" zeigen — der Name passt
                 jetzt besser. Kollidiert im Tab-Bild mit dem älteren, frei
                 getippten „Gruppen-Inventar"-Tab, den manche Gruppen schon haben

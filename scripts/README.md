@@ -23,7 +23,7 @@ haben: die Person, die vor dem Server sitzt.
 | `install.sh` | — | Legt alles davon an. Mehrfach aufrufbar. |
 
 Der Hintergrund — warum es diesen Umweg über eine Datei gibt und nicht einfach
-`sudo` — steht in [`docs/concepts/admin-triggered-redeploy.md`](../docs/concepts/admin-triggered-redeploy.md).
+`sudo`.
 Die Kurzfassung: `helden-app.service` läuft mit `NoNewPrivileges=true`, und
 damit ist das setuid-Bit von `sudo` für diesen Prozess wirkungslos. Ein
 `sudoers`-Eintrag würde schlicht nicht greifen.

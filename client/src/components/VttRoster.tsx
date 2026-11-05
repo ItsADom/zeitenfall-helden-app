@@ -12,8 +12,7 @@ import { usePersistedState } from './persist';
 // Rundblick über die Gruppe statt einer Heldenbrief-Seitenleiste. Bewusst
 // NICHT die volle Übersichtsseite eingebettet: Portrait, Stufe, der SP-Reset-
 // Knopf, Attribut- und angepinnte Talent-Chips bleiben der großen Seite
-// vorbehalten (siehe docs/concepts/virtual-table.md, "Settled for the real
-// Phase 4 build") — hier zählt nur, was man WÄHREND des Spiels am Tisch
+// vorbehalten — hier zählt nur, was man WÄHREND des Spiels am Tisch
 // braucht: Vitalwerte, Schwellen, Merkmale, die GM-Notiz und „Probe anfordern".
 
 interface RosterChar {

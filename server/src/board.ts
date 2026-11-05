@@ -1,6 +1,6 @@
 // Virtual table (VTT) persistence — board load/create, tokens, tiles/
 // highlights/overlays/images, initiative/rounds, and per-viewer fog
-// redaction. See docs/concepts/virtual-table.md, "Realtime design".
+// redaction.
 import {
   activeTurnOrder as activeTurnOrderPure,
   cellKey,

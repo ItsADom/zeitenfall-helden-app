@@ -25,7 +25,7 @@ concept worked out (and sign-off) before building. Do not assume a sketch to be 
   owner via `pos` (exactly a gallery) and is the same mechanism the wiki and
   portraits use. **New:** `OwnerTyp` value `'house'` (`store.ts:22`),
   `owner_id = group_houses.id` (that row already has a stable id —
-  `docs/concepts/houses.md`'s `haus`/`raum` strings on `Item` stay untouched,
+  the `haus`/`raum` strings on `Item` stay untouched,
   this hangs off the suggestion-list row instead). No `gm_only` restriction:
   everyone uploads/sees/deletes, matching the flat, no-GM-gatekeeping
   permission model houses already have. Delete: call `loescheAssetsFuer
@@ -62,8 +62,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
    - Weapon statuses (*Geschärft*, *Stumpf*, etc.) still need a concept — only
      the free-text `Besonderes`/Notiz fields capture them today.
      The actual statuses can be hardcoded, no need for settings.
-- [sketch] **Ability bonus list (deferred from the ability-editing-dialog
-  build)**: abilities now have their own `AbilityEditDialog`
+- [sketch] **Ability bonus list (deferred from the ability-editing-dialog build)**:
+  abilities now have their own `AbilityEditDialog`
   (`client/src/components/AbilityEditDialog.tsx`, opened from
   `AbilityManager.tsx`), mirroring `AddItemDialog`'s create/edit-in-one-
   component shape — but deliberately shipped WITHOUT an item-bonus-style
@@ -76,8 +76,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   "Player-set structured bonuses" entry below already plans for Vorteile/
   Nachteile — do that generalization once, shared by both, rather than two
   parallel bonus mechanisms.
-- [sketch] **Player-set structured bonuses for Vorteile/Nachteile/Titel/
-  Professionsboni** (user feedback): these currently live in plain free-text
+- [sketch] **Player-set structured bonuses for Vorteile/Nachteile/Titel/Professionsboni**
+  (user feedback): these currently live in plain free-text
   dynamic-table sections under the locked "Vorteile & Nachteile" tab
   (`professionBoni`/`vorteile`/`nachteile`/`titel` section IDs,
   `characterData.ts:250`), and — unlike the 20+ perks — have **no fixed
@@ -87,7 +87,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   from the same `attr | baseValue | resource | talent` union already planned
   for item bonuses, then type the amount), and the app applies it
   automatically from then on instead of the player doing the arithmetic by
-  hand. Item bonuses while worn (`docs/concepts/item-bonus-while-worn.md`)
+  hand. Item bonuses while worn
   are built now, so this is unblocked: generalize its aggregator (`wornBoni`
   etc. in `shared/src/items.ts`) to accept any bonus source, not just
   `Item[]`, rather than growing a second parallel plumbing path. Still open: which of the four
@@ -104,7 +104,7 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   Heldenkraft perks are a single pick granting one in-combat and one
   out-of-combat effect (not two picks). Half the perks target exactly the
   `attr | baseValue | resource | talent` union item bonuses while worn
-  (`docs/concepts/item-bonus-while-worn.md`, built now) already use — reuse
+  (built now) already use — reuse
   that plumbing (`StatBoni`/`wornBoni` in `shared/src/items.ts`, deliberately
   named apart from the item-only producer for exactly this reuse) rather than
   grow a second aggregator. Blocked

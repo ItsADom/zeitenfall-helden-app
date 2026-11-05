@@ -3,7 +3,7 @@ import type { Item } from '@shared/items';
 import { diffItems } from '@shared/items';
 import { apiPost } from '../api';
 
-// Shared inventories (docs/concepts/shared-inventories.md): local optimistic
+// Shared inventories: local optimistic
 // state + a debounced diffItems/applyItemOps flush, the same pattern
 // charSheet.tsx's useCharSheet already relies on for a character's own items
 // (see its `flush`/`itemsBaseline`) — a pool has no character-sheet host to

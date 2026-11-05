@@ -4,10 +4,10 @@ import { apiPut } from '../api';
 import { ConfirmDeleteButton } from './ConfirmDeleteButton';
 import { Dialog } from './Dialog';
 
-// Houses (docs/concepts/houses.md): Verwaltung von Häusern UND ihren Räumen —
+// Houses: Verwaltung von Häusern UND ihren Räumen —
 // strukturell wie CategoryManagerDialog (Umbenennen-mit-Kaskade, Entfernen-
 // mit-Kaskade), nur eine Ebene tiefer verschachtelt. haus/raum auf Item sind
-// freie Strings (kein Fremdschlüssel, siehe shared-inventories.md §3.1), also
+// freie Strings (kein Fremdschlüssel), also
 // wendet dieser Dialog seine Kaskade — wie applyCategoryCascade — selbst auf
 // die schon geladene Item-Liste an, statt einen Refetch zu erzwingen.
 

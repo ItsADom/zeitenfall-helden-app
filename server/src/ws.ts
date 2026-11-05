@@ -1,6 +1,5 @@
 // WebSocket infra for the group feed (chat + dice rolls). Scoped to this
-// feature only — Group.tsx/GroupOverview.tsx stay on their existing polling,
-// see docs/concepts/dice-rolls-and-chat.md for why.
+// feature only — Group.tsx/GroupOverview.tsx stay on their existing polling.
 import type http from 'node:http';
 import type { IncomingMessage } from 'node:http';
 import { WebSocket, WebSocketServer, type RawData } from 'ws';
@@ -1701,7 +1700,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
-    // Virtueller Tisch (docs/concepts/virtual-table.md) — reuses this same
+    // Virtueller Tisch — reuses this same
     // socket/room rather than a second connection. Fog/hidden redaction
     // (broadcastBuilt + the pure helpers in board.ts) covers token.*,
     // tiles.paint, highlights.paint and the 'label' half of overlay.* below;
@@ -1974,7 +1973,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
-    // Scenes (docs/concepts/vtt-grid-and-scenes.md, Part B): hard-coded GM-only.
+    // Scenes: hard-coded GM-only.
     case 'board.scene.list':
     case 'board.scene.create':
     case 'board.scene.rename':
@@ -2416,8 +2415,7 @@ function handleMessage(ws: WebSocket, raw: RawData): void {
       send(ws, { type: 'ack', reqId: msg.reqId });
       return;
     }
-    // Initiative and rounds (docs/concepts/virtual-table.md, Phase 10,
-    // turn-pointer design). Roster add/remove/setBasis and starting/ending
+    // Initiative and rounds (turn-pointer design). Roster add/remove/setBasis and starting/ending
     // combat are GM-only (boardCanManageInitiative, hard-coded — see its
     // comment in boardAccess.ts). board.turn.next is the one exception — the
     // GM OR the current combatant's own owner may call it, same owner-bypass

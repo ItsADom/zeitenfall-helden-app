@@ -151,7 +151,7 @@ export default function GroupOverviewPage() {
   const [catDialogOpen, setCatDialogOpen] = useState(false);
   const [error, setError] = useState('');
 
-  // GM-Pool (Shared Inventories, docs/concepts/shared-inventories.md): eigener
+  // GM-Pool (Shared Inventories): eigener
   // Katalog-Fetch wie auf der Gruppenseite — talentCatalog oben ist nur die
   // schlanke Abfrage-Form (id/name/gruppe), nicht die volle TalentCatalogRow,
   // die der Boni-Editor im Item-Dialog braucht (u. a. `kategorie` fürs

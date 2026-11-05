@@ -74,7 +74,7 @@ export default function InventarTab() {
   const searchRef = useSearchHeight();
   const q = search.trim().toLowerCase();
   const matches = (it: Item) => it.name.toLowerCase().includes(q) || it.notiz.toLowerCase().includes(q);
-  // Shared inventories (docs/concepts/shared-inventories.md): „Verschieben
+  // Shared inventories: „Verschieben
   // nach…"-Ziele fürs Item-Dialog — siehe Ausruestung.tsx für dieselbe Zeile.
   const moveTargets = useMoveTargets(groupId, { type: 'character', id: charId });
 

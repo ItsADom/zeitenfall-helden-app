@@ -4,7 +4,7 @@
 // NoNewPrivileges=true, which makes the setuid bit on sudo inert for it and
 // everything it spawns. So it does not try. It leaves a note in a directory it
 // owns, a systemd path unit picks it up, and root decides what the note is
-// worth. See scripts/README.md and docs/concepts/admin-triggered-redeploy.md.
+// worth. See scripts/README.md.
 //
 // Nothing here can choose WHAT gets deployed. The branch comes from the unit
 // instance on the server side; the request carries no branch at all.

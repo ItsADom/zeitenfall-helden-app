@@ -1,7 +1,6 @@
 // Pure board math for the virtual table (VTT). No I/O — server orchestration
 // (persistence, per-viewer fog redaction, WS broadcast) stays server-only,
-// same split as shared/src/dice.ts. See docs/concepts/virtual-table.md for
-// the design this implements.
+// same split as shared/src/dice.ts.
 
 export interface CellCoord {
   x: number;

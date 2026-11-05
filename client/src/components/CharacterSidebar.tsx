@@ -256,8 +256,7 @@ function SidebarAttribute() {
 }
 
 // Zustände des eigenen Tisch-Tokens, ausgeschrieben statt nur als winzige
-// Marke auf dem Feld — siehe docs/concepts/virtual-table.md, "Settled for the
-// real Phase 4 build". Rein lesend: gesetzt wird ein Zustand über die
+// Marke auf dem Feld. Rein lesend: gesetzt wird ein Zustand über die
 // Token-Marke selbst (VirtualTable.tsx), nicht von hier aus. Auf jeder Seite
 // AUSSER dem virtuellen Tisch ist boardTokens leer (DicePanelProvider füllt
 // es erst nach hydrateBoard), die Sektion bleibt dort also unsichtbar, ohne

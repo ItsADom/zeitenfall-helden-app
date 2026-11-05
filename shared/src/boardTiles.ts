@@ -1,7 +1,5 @@
 // The tile-texture catalogue for the virtual table. A frozen list, not
-// logic — swapping artwork later is a rendering change, not a migration. See
-// "The texture catalogue" in docs/concepts/virtual-table.md for how this was
-// sourced and reviewed.
+// logic — swapping artwork later is a rendering change, not a migration.
 
 export interface TileMaterial {
   /** What gets stored in tiles_json as `t:<key>` — never the filename. */

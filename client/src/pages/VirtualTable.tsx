@@ -21,7 +21,7 @@ import { PortraitView } from '../components/PortraitView';
 import VttRoster from '../components/VttRoster';
 import { generatedWaterTexture } from '../components/vttWater';
 
-// Phase 4 (docs/concepts/virtual-table.md): der Seitenrahmen. Phase 5 fügt
+// Phase 4: der Seitenrahmen. Phase 5 fügt
 // Token hinzu. Phase 6 fügt Bemalen hinzu — Farbe/Textur, Radierer, Delta-
 // Schreiben. Phase 9 fügt Nebel hinzu, Phase 10 Initiative/Runden. Noch
 // keine Bilder auf dem Tisch (Phase 12).

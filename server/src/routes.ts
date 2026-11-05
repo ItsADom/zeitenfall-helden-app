@@ -759,12 +759,12 @@ api.get('/groups/:id', requireAuth, (req, res) => {
     return { ...c, displayName: displayName(c.name, c.id), access, portrait: hasPortrait(activeSheetId(c.id)) };
   });
   let tabs: ReturnType<typeof loadDynTabs> = [];
-  // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md):
+  // Gruppen-Inventar (Shared Inventories):
   // dieselbe Beschränkung wie die Tabs oben — Event-Gruppen bekommen bewusst
   // kein gemeinsames Inventar.
   let itemPool: Item[] = [];
   let itemCategories: string[] = [];
-  // Houses (docs/concepts/houses.md): dieselbe Event-Gruppen-Beschränkung wie
+  // Houses: dieselbe Event-Gruppen-Beschränkung wie
   // der Gruppenpool oben — Event-Gruppen bekommen kein Haus.
   let houses: string[] = [];
   let roomsByHaus: Record<string, string[]> = {};
@@ -811,7 +811,7 @@ api.get('/groups/:id/overview', requireAuth, requireGm, (req, res) => {
     res.status(404).json({ error: 'Gruppe nicht gefunden' });
     return;
   }
-  // GM-Pool (Shared Inventories, docs/concepts/shared-inventories.md): EIN
+  // GM-Pool (Shared Inventories): EIN
   // globaler Bestand, hier trotzdem je Gruppen-Übersicht mitgeliefert — der SL
   // bereitet Gegenstände typischerweise für DIE Gruppe vor, die er sich gerade
   // ansieht, auch wenn die Ablage selbst nicht pro Gruppe getrennt ist.
@@ -1015,7 +1015,7 @@ api.get('/groups/:id/feed', requireAuth, (req, res) => {
   res.json({ entries, hasMore });
 });
 
-// Virtual-table snapshot (docs/concepts/virtual-table.md). isRoomMember, same
+// Virtual-table snapshot. isRoomMember, same
 // reasoning as the feed above — an event group's additive members read the
 // board same as a permanent group's exclusive ones. Creates the board on
 // first access (getOrCreateBoard), same idempotent-nachziehen shape as
@@ -1501,7 +1501,7 @@ api.put('/characters/:id/pouches', requireAuth, (req, res) => {
   res.json({ pouches: loadPouches(char.id) });
 });
 
-// Ausrüstungs-Sets (docs/concepts/equipment-presets.md) — ganze Liste
+// Ausrüstungs-Sets — ganze Liste
 // ersetzen, wie /pouches; Anwenden selbst läuft NICHT hierüber, sondern über
 // den normalen Items-Op-Pfad (/items/ops), siehe Ausruestung.tsx.
 api.put('/characters/:id/equipment-presets', requireAuth, (req, res) => {
@@ -1526,7 +1526,7 @@ api.put('/characters/:id/item-categories/manage', requireAuth, (req, res) => {
   res.json({ categories: manageItemCategories(char.id, req.body) });
 });
 
-// --- Shared inventories (docs/concepts/shared-inventories.md): cross-owner move ---
+// --- Shared inventories: cross-owner move ---
 //
 // Body: { toOwnerType: 'character'|'group'|'gm', toOwnerId?: number }. The
 // SOURCE is whichever of the three routes below the request hits — a
@@ -1580,7 +1580,7 @@ api.post('/characters/:id/items/:uid/move', requireAuth, (req, res) => {
   res.json({ items: req.user!.isGm ? loadItems(char.id) : ohneVerborgeneItems(loadItems(char.id)) });
 });
 
-// --- Gruppen-Inventar (docs/concepts/shared-inventories.md) ---
+// --- Gruppen-Inventar ---
 // Dieselbe Beschränkung wie die übrigen „Gemeinsamen Gruppeninhalte" oben
 // (editableGroup, isGroupMember statt isRoomMember): Event-Gruppen bekommen
 // bewusst KEIN gemeinsames Inventar, aus demselben Grund wie keine Tabs.
@@ -1613,7 +1613,7 @@ api.put('/groups/:id/item-categories/manage', requireAuth, (req, res) => {
   res.json({ categories: manageItemCategoriesForOwner('group', groupId, req.body) });
 });
 
-// Houses (docs/concepts/houses.md): dieselbe Zugriffsprüfung wie die
+// Houses: dieselbe Zugriffsprüfung wie die
 // Kategorien-Verwaltung oben (editableGroup) — jedes Gruppenmitglied darf
 // Häuser/Räume anlegen und umbenennen, keine SL-Sonderrolle.
 api.put('/groups/:id/houses/manage', requireAuth, (req, res) => {
@@ -1667,7 +1667,7 @@ api.get('/groups/:id/item-move-log', requireAuth, requireGm, (req, res) => {
   res.json({ entries: loadItemMoveLog(groupId) });
 });
 
-// --- GM-Pool (docs/concepts/shared-inventories.md) ---
+// --- GM-Pool ---
 // EIN globaler Pool (ownerId immer 0 — es gibt nur ein SL-Konto, eine
 // Aufteilung je SL wäre tote Komplexität). Für Spieler write-only: sie dürfen
 // hierher verschieben (siehe der move-Zweig oben, resolveMoveTarget erlaubt
@@ -2387,8 +2387,7 @@ api.delete('/characters/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   // Betrifft inzwischen das Porträt; ein wöchentlicher Durchlauf fängt zusätzlich
   // ab, was hier durchrutscht.
   loescheAssetsFuer('character', id);
-  // Gegenstände hängen seit den Shared Inventories (docs/concepts/
-  // shared-inventories.md) nicht mehr per DB-Kaskade an character_id — dieselbe
+  // Gegenstände hängen seit den Shared Inventories nicht mehr per DB-Kaskade an character_id — dieselbe
   // manuelle Lücke wie bei den Assets oben, nur innerhalb derselben Datei.
   loescheItemsFuer('character', id);
   // Geldbeutel hängen seit der Gruppenkasse ebenfalls nicht mehr per
@@ -2563,7 +2562,7 @@ api.delete('/admin/groups/:id', requireAuth, requireGmOrAdmin, (req, res) => {
   // beim Charakter (siehe dort), muss also von Hand geschlossen werden.
   loescheAssetsFuer('group', id);
   for (const boardId of boardIds) loescheAssetsFuer('board', boardId);
-  // Gruppen-Inventar (Shared Inventories, docs/concepts/shared-inventories.md)
+  // Gruppen-Inventar (Shared Inventories)
   // hängt per owner_type/owner_id, nicht per DB-Kaskade — „enthält noch
   // Charaktere" oben schließt Items nicht mit ein, die Prüfung gilt nur
   // Charakteren, also muss dieser Aufruf hier stehen statt sich auf die

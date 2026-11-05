@@ -1720,7 +1720,7 @@ export function savePouches(charId: number, raw: unknown): void {
   tx();
 }
 
-// --- Ausrüstungs-Sets (docs/concepts/equipment-presets.md) ---
+// --- Ausrüstungs-Sets ---
 //
 // Immer character-only (siehe db.ts-Kommentar) — kein owner_type/owner_id-
 // Paar nötig. Ganze Liste ersetzen wie savePouches: Delete+Insert, kein
@@ -1786,7 +1786,7 @@ export function saveEquipmentPresets(charId: number, raw: unknown): void {
 // --- Gruppenkasse ---
 //
 // Eine Gruppe hat GENAU einen Geldbeutel — „ein gemeinsamer Topf", analog zum
-// Gruppeninventar (docs/concepts/shared-inventories.md), aber ohne dessen
+// Gruppeninventar, aber ohne dessen
 // Add/Remove: kein Bank-Sonderfall, keine Liste, nur ein Objekt. Wird bei
 // erstem Zugriff automatisch angelegt (wie getOrCreateBoard einen Brett-
 // Datensatz), nicht erst über eine Reparatur beim Serverstart. Event-Gruppen
@@ -1886,11 +1886,11 @@ export function manageItemCategoriesForOwner(ownerType: ItemOwnerType, ownerId: 
   return loadItemCategoriesForOwner(ownerType, ownerId);
 }
 
-// --- Houses (docs/concepts/houses.md): group-only location tags ---
+// --- Houses: group-only location tags ---
 //
 // haus/raum on char_items are freeform strings — same role as kategorie, no
-// foreign key (shared-inventories.md §3.1 already proved a curated list can
-// coexist safely with an unvalidated string field). group_houses/group_rooms
+// foreign key (a curated list coexists safely with an unvalidated string
+// field, as with item categories). group_houses/group_rooms
 // are pure suggestion/rename lists, one level deeper than
 // char_item_categories: a room is scoped to a house NAME within the group,
 // not a house id. Houses are group-only — characters and the GM pool never
@@ -2006,7 +2006,7 @@ export function manageRoomsForHouse(groupId: number, haus: string, raw: unknown)
   return loadRoomsForGroup(groupId)[haus] ?? [];
 }
 
-// --- Shared inventories: cross-owner move (docs/concepts/shared-inventories.md) ---
+// --- Shared inventories: cross-owner move ---
 //
 // A move is its OWN imperative call, never an ItemOp — diffItems compares one
 // owner's list against its own previous state and structurally cannot express

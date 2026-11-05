@@ -326,7 +326,7 @@ interface DicePanelCtxValue {
    */
   kinoBeenden: (entryId: number) => void;
 
-  // --- Virtueller Tisch (docs/concepts/virtual-table.md) ---
+  // --- Virtueller Tisch ---
   // Reitet denselben Socket wie Chat/Würfel statt eines zweiten (siehe
   // "Realtime design" im Plan). Anders als der Feed oben gibt es hierfür
   // keine REST-Historie über diesen Kontext — die Seite selbst holt den
