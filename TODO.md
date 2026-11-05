@@ -129,9 +129,19 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   suspiciously few rows in the owner tables relative to what's referenced in
   `helden-assets.db`, or a shared marker linking a DB pair together — exact
   approach still open.
-- [sketch] **CSS tidy-up**: check for components than can be combined
-   - less exclusive designs (e.g. section headers get rendered different, but are actually the same everywhere)
-   - splitting CSS into more fitting files
+- [sketch] **CSS tidy-up (second round)**: popups, chips, search fields, color
+  tokens and radii are unified; still open:
+   - less exclusive designs: section headers / panel titles may be rendered
+     differently although they are the same everywhere (not checked yet)
+   - merge the duplicate-rule groups that were skipped because the rules carry
+     their own comment (drag grips, bio pairs, wiki list resets, ...), moving
+     the comments along
+   - possible split of `styles.css` (7.4k lines, fine for now, no runtime gain
+     since Vite bundles it into one file): move the dice chat/feed block
+     (~1,200 lines) to `dice.css` and the VTT block incl. the color picker
+     (~1,000 lines) to `vtt.css`, imported in `main.tsx` in their original
+     order so the cascade stays identical (verify with a computed-style diff);
+     fix the stale "4336 lines" comments in `main.tsx`/`wiki.css` at the same time
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
