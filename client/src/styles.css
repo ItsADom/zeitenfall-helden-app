@@ -418,6 +418,60 @@
   position: static;
 }
 
+/* ---------- Popups: Menüs, Flyouts, Auswahllisten ----------
+   Eine Fläche und ein Eintragsstil für ALLES, was über der Seite schwebt. Die
+   einzelnen Popups behalten in ihrer eigenen Regel nur Lage und Größe. Ein neues
+   Popup nimmt man hier in die Liste auf, statt Rahmen/Schatten/Hover neu zu
+   erfinden. Die Eintrags-Selektoren tragen absichtlich dieselbe Spezifität wie
+   vorher (z. B. `.theme-dd-menu .theme-dd-option`, damit sie
+   `header.topbar button` schlagen). */
+.theme-dd-menu,
+.nav-flyout,
+.dice-flyout,
+.gm-poll-results,
+.vtt-context-menu,
+.vtt-tile-picker,
+.equip-preset-flyout,
+.color-picker-popover {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow);
+}
+.theme-dd-menu .theme-dd-option,
+.nav-flyout-item,
+.dice-flyout-item,
+.gm-poll-results button,
+.gm-request-results button,
+.vtt-context-menu button {
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+}
+.theme-dd-menu .theme-dd-option:hover,
+.nav-flyout-item:hover,
+.dice-flyout-item:hover,
+.gm-poll-results button:hover,
+.gm-poll-results button:focus-visible,
+.gm-request-results button:hover,
+.vtt-context-menu button:hover {
+  background: var(--surface-hover);
+}
+.theme-dd-menu .theme-dd-option.active,
+.nav-flyout-item.active,
+.dice-flyout-item.active {
+  background: var(--accent-soft);
+}
+
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
 .theme-dropdown {
   position: relative;
@@ -477,33 +531,12 @@ header.topbar .theme-dropdown .theme-dd-trigger:hover {
   padding: 4px;
   min-width: 210px;
   list-style: none;
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
 }
 .theme-dd-menu .theme-dd-option {
   display: flex;
   align-items: center;
   gap: 10px;
-  width: 100%;
-  padding: 7px 9px;
-  border: none;
-  border-radius: 7px;
-  background: none;
-  color: var(--text);
-  font: inherit;
-  font-size: 13px;
   font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-}
-.theme-dd-menu .theme-dd-option:hover {
-  background: var(--surface-hover);
-}
-.theme-dd-menu .theme-dd-option.active {
-  background: var(--accent-soft);
 }
 .theme-dd-name {
   flex: 1;
@@ -799,11 +832,6 @@ header.topbar .nav-menu.open {
   min-width: 220px;
   max-width: 320px;
   padding: 4px;
-  background: var(--panel);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: var(--shadow);
 }
 /* Nur die Trefferliste scrollt; „Alle anzeigen" bleibt sichtbar darunter. */
 .nav-flyout-list {
@@ -841,18 +869,9 @@ header.topbar .nav-flyout-all {
 }
 .nav-flyout-item {
   display: block;
-  padding: 7px 9px;
-  border-radius: 7px;
-  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.nav-flyout-item:hover {
-  background: var(--surface-hover);
-}
-.nav-flyout-item.active {
-  background: var(--accent-soft);
 }
 .nav-flyout-empty {
   padding: 8px 9px;
@@ -861,9 +880,9 @@ header.topbar .nav-flyout-all {
 .nav-flyout-all {
   display: block;
   margin-top: 2px;
-  padding: 7px 9px;
+  padding: 6px 9px;
   border-top: 1px solid var(--border);
-  border-radius: 0 0 7px 7px;
+  border-radius: 0 0 6px 6px;
   font-size: 12px;
 }
 header.topbar .nav-flyout-all {
@@ -3361,10 +3380,6 @@ li {
   max-width: calc(100vw - 32px);
   max-height: 360px;
   overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -4891,27 +4906,11 @@ body.resizing-dice {
   max-height: 260px;
   overflow-y: auto;
   padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: 8px;
-  box-shadow: var(--shadow);
 }
 .dice-flyout-item {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 8px;
-  font-size: 13px;
-  color: var(--text);
-  cursor: pointer;
-}
-.dice-flyout-item:hover {
-  background: var(--surface-hover);
 }
 .dice-flyout-item:disabled {
   color: var(--muted);
@@ -4919,10 +4918,6 @@ body.resizing-dice {
 }
 .dice-flyout-item:disabled:hover {
   background: none;
-}
-.dice-flyout-item.active {
-  color: var(--accent);
-  font-weight: 600;
 }
 .dice-shortcut-label {
   flex: 1;
@@ -5607,17 +5602,7 @@ tr:hover .probe-roll,
 }
 .gm-request-results button {
   display: block;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: none;
-  padding: 5px 8px;
   font-size: 12px;
-  color: var(--text);
-  cursor: pointer;
-}
-.gm-request-results button:hover {
-  background: var(--surface-hover);
 }
 .gm-request-empty {
   margin: 4px 0 0;
@@ -6030,29 +6015,12 @@ tr:hover .probe-roll,
   min-width: 240px;
   max-height: 320px;
   overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
 }
 .gm-poll-results li {
   margin: 0;
 }
 .gm-poll-results button {
   display: block;
-  width: 100%;
-  text-align: left;
-  padding: 5px 9px;
-  border: none;
-  border-radius: 6px;
-  background: none;
-  color: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-.gm-poll-results button:hover,
-.gm-poll-results button:focus-visible {
-  background: var(--input-bg);
 }
 .gm-poll-pinned {
   display: flex;
@@ -6916,27 +6884,16 @@ tr:hover .probe-roll,
   position: fixed;
   z-index: 21;
   min-width: 160px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow);
   padding: 4px;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 .vtt-context-menu button {
-  all: unset;
-  cursor: pointer;
-  padding: 6px 10px;
-  border-radius: 4px;
-  font-size: 13px;
+  display: block;
 }
-.vtt-context-menu button:hover {
-  background: var(--surface-sunken);
-}
-.vtt-context-menu-danger {
-  color: var(--danger, #c33);
+.vtt-context-menu .vtt-context-menu-danger {
+  color: var(--error-text);
 }
 .vtt-tool-badge {
   position: absolute;
@@ -7088,10 +7045,6 @@ tr:hover .probe-roll,
   width: 280px;
   max-height: calc(100% - 64px);
   overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -7173,10 +7126,6 @@ tr:hover .probe-roll,
   position: fixed;
   z-index: 50;
   width: 200px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
-  box-shadow: var(--shadow);
   padding: 10px;
   display: flex;
   flex-direction: column;
