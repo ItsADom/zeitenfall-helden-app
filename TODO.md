@@ -142,6 +142,18 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      (~1,000 lines) to `vtt.css`, imported in `main.tsx` in their original
      order so the cascade stays identical (verify with a computed-style diff);
      fix the stale "4336 lines" comments in `main.tsx`/`wiki.css` at the same time
+   - buttons: `primary`, `danger`, `btn-action`, `side-toggle`, `dice-icon-btn`,
+     `dialog-close` and the bare "icon button" (muted, hover color) are separate
+     styles; unify what is really one component
+   - stat tiles: `gm-chip` vs `wpn-chip` (label above value) look like one component
+   - tables: `table.sheet`, `.rules-table` and `.inv-table` (only skimmed so far)
+   - empty-state messages: nine separate `*-empty` classes, probably one style
+   - z-index has 22 values and no scale (popups/dock at 5, 6, 20, 21, 50, 100, ...)
+   - leftovers: ~8 hard-coded `#fff`; `--an`, `--rooms`, `--die-w20` look unused
+     (may be set from JS); `--radius` is 10px and `--radius-panel` 8px, which
+     reads backwards (rename touches TSX)
+   - not read rule by rule yet: feed, dice dock and VTT blocks (~2,200 lines);
+     VTT context menu not tested on a real token, color pickers only read in code
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
