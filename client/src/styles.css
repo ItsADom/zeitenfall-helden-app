@@ -971,7 +971,8 @@ main {
   mask: var(--sigil) center / contain no-repeat;
 }
 .panel > h3::after,
-.outlook-section > h3::after {
+.outlook-section > h3::after,
+.side-block h4::after {
   content: '';
   flex: 1;
   height: 1px;
@@ -1040,7 +1041,9 @@ button.title-marker.as-button:focus-visible {
   height: 1px;
   background: linear-gradient(to right, var(--border-strong), transparent 78%);
 }
-.chev {
+.chev,
+.cat-toggle .cat-chev,
+.dice-dock-head .chev {
   flex: none;
   color: var(--muted);
   font-size: 11px;
@@ -1355,7 +1358,10 @@ a.card.home-tile h3 {
   background: var(--panel);
   color: var(--muted);
 }
-.form-chip.is-active {
+.form-chip.is-active,
+button.small:hover,
+a.small:hover,
+.color-picker-mode-toggle:hover {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
@@ -1592,17 +1598,20 @@ table.sheet td.num {
 }
 /* Energie-Zehrung: getönte Aktuell-Zelle mit Schweregrad-Streifen links,
    damit der Zustand auch ohne Farbe (Streifen + Tooltip) ablesbar bleibt */
-table.sheet td.res-low {
+table.sheet td.res-low,
+.side-pool.res-low {
   background: var(--warn-soft);
   box-shadow: inset 3px 0 0 var(--warn-line);
 }
-table.sheet td.res-crit {
+table.sheet td.res-crit,
+.side-pool.res-crit {
   background: var(--crit-soft);
   box-shadow: inset 3px 0 0 var(--crit-line);
 }
 /* Überladung: derselbe Streifen-plus-Tönung-Mechanismus wie die Zehrung, nur im
    „aufgeladenen" Blau — der Wert steht bewusst über dem Maximum. */
-table.sheet td.res-over {
+table.sheet td.res-over,
+.side-pool.res-over {
   background: var(--over-soft);
   box-shadow: inset 3px 0 0 var(--over-line);
 }
@@ -2099,12 +2108,6 @@ a.small {
   text-decoration: none;
   transition: all 0.12s;
 }
-button.small:hover,
-a.small:hover {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
 /* „Scharfer" Löschknopf (zweiter Klick löscht): kräftig rot, überstimmt den
    normalen und den Hover-Stil der jeweiligen Knopf-Variante. */
 button.confirm-armed,
@@ -2557,12 +2560,6 @@ body.resizing-col {
   -webkit-mask: var(--sigil) center / contain no-repeat;
   mask: var(--sigil) center / contain no-repeat;
 }
-.side-block h4::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(to right, var(--border-strong), transparent 78%);
-}
 
 /* Laufende Pools als 2×2-Raster (LP/AUS · ASP/Psyche): eine zentrierte Kopfzeile
    „KÜRZEL · X %" über dem zentrierten Aktuell-Stepper. */
@@ -2576,18 +2573,6 @@ body.resizing-col {
   border-radius: var(--radius-panel);
   border: 1px solid var(--border);
   background: var(--surface-sunken);
-}
-.side-pool.res-low {
-  background: var(--warn-soft);
-  box-shadow: inset 3px 0 0 var(--warn-line);
-}
-.side-pool.res-crit {
-  background: var(--crit-soft);
-  box-shadow: inset 3px 0 0 var(--crit-line);
-}
-.side-pool.res-over {
-  background: var(--over-soft);
-  box-shadow: inset 3px 0 0 var(--over-line);
 }
 .side-pool-head {
   display: flex;
@@ -3177,7 +3162,8 @@ li {
   font-size: 13px;
   border-style: dashed;
 }
-.portrait-actions {
+.portrait-actions,
+.marken-bild-actions {
   display: flex;
   gap: 6px;
   justify-content: center;
@@ -3220,11 +3206,6 @@ li {
   font-size: 13px;
   border-style: dashed;
   text-align: center;
-}
-.marken-bild-actions {
-  display: flex;
-  gap: 6px;
-  justify-content: center;
 }
 .marken-bild-error {
   font-size: 12px;
@@ -3742,11 +3723,6 @@ li {
   text-align: left;
   cursor: pointer;
 }
-.cat-toggle .cat-chev {
-  flex: none;
-  font-size: 11px;
-  color: var(--muted);
-}
 .cat-toggle:hover .cat-chev,
 .cat-toggle:focus-visible .cat-chev {
   color: var(--accent);
@@ -4021,7 +3997,8 @@ li {
   accent-color: var(--accent-disabled);
   cursor: not-allowed;
 }
-.cat-editor {
+.cat-editor,
+.tab-manage {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -4034,12 +4011,6 @@ li {
 }
 .cat-row input {
   width: 18em;
-}
-.tab-manage {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
 }
 .tabm-row {
   display: inline-flex;
@@ -4074,10 +4045,12 @@ li {
   user-select: none;
   font-size: 1.05em;
 }
-.tabm-grip:active {
+.tabm-grip:active,
+.abil-grip:active {
   cursor: grabbing;
 }
-.tabm-grip.disabled {
+.tabm-grip.disabled,
+.abil-grip.disabled {
   opacity: 0.3;
   cursor: default;
 }
@@ -4350,13 +4323,6 @@ li {
   padding: 0 2px;
   user-select: none;
   font-size: 1.05em;
-}
-.abil-grip:active {
-  cursor: grabbing;
-}
-.abil-grip.disabled {
-  opacity: 0.3;
-  cursor: default;
 }
 .abil-row.drop-before {
   box-shadow: inset 0 2px 0 0 var(--accent, var(--border-strong));
@@ -4710,11 +4676,6 @@ body.resizing-dice {
   flex: 1;
   min-width: 8px;
   align-self: stretch;
-}
-.dice-dock-head .chev {
-  flex: none;
-  font-size: 11px;
-  color: var(--muted);
 }
 .dice-dock-head:hover .chev {
   color: var(--accent);
@@ -6689,7 +6650,8 @@ tr:hover .probe-roll,
   width: 28px;
   height: 28px;
 }
-.vtt-token-icon-current img {
+.vtt-token-icon-current img,
+.vtt-token-icon-swatch img {
   width: 100%;
   height: 100%;
   object-fit: contain;
@@ -6718,7 +6680,8 @@ tr:hover .probe-roll,
   flex-direction: column;
   gap: 8px;
 }
-.vtt-token-icon-grid {
+.vtt-token-icon-grid,
+.vtt-tile-picker-swatches {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 5px;
@@ -6731,13 +6694,8 @@ tr:hover .probe-roll,
   cursor: pointer;
   background: var(--surface-sunken);
 }
-.vtt-token-icon-swatch img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-.vtt-token-icon-swatch.active {
+.vtt-token-icon-swatch.active,
+.vtt-tile-swatch.active {
   border-color: var(--accent);
   outline: 2px solid var(--accent-soft);
 }
@@ -7046,11 +7004,6 @@ tr:hover .probe-roll,
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
-.vtt-tile-picker-swatches {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
-}
 .vtt-tile-swatch {
   aspect-ratio: 1;
   border-radius: 5px;
@@ -7059,10 +7012,6 @@ tr:hover .probe-roll,
   background-position: center;
   cursor: pointer;
   padding: 0;
-}
-.vtt-tile-swatch.active {
-  border-color: var(--accent);
-  outline: 2px solid var(--accent-soft);
 }
 
 /* ---------- Farb-Picker (components/ColorPicker.tsx) ----------
@@ -7211,11 +7160,6 @@ tr:hover .probe-roll,
   cursor: pointer;
   font-size: 12px;
   line-height: 1;
-}
-.color-picker-mode-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-soft);
 }
 
 /* ---------- VTT Phase 8 (slice 3/3): Messformen — Kachelraster im Flyout ---------- */
