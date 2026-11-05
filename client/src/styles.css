@@ -19,8 +19,9 @@
   /* Dichte Arbeitsflächen tragen nur eine Haarlinie + zarten Schatten,
      damit die Zahlen und nicht das Panel-Chrome im Vordergrund stehen */
   --shadow-soft: 0 1px 1px rgba(41, 32, 24, 0.05);
-  --radius: 10px;
-  --radius-panel: 8px;
+  --radius: 10px; /* Karten, Banner */
+  --radius-panel: 8px; /* Panels, Popups, Eingabekästen */
+  --radius-sm: 6px; /* Knöpfe, Eingabefelder, Menüeinträge */
   /* Semantische Zehrungs-Töne, eigenständig neben dem Wein-Akzent */
   --warn-soft: #f6e7cf;
   --warn-line: #b06a1f;
@@ -451,7 +452,7 @@
   width: 100%;
   padding: 6px 9px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: inherit;
   font: inherit;
@@ -490,7 +491,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--bg);
   border: 1px solid var(--border-hover);
   color: var(--text);
@@ -1464,7 +1465,7 @@ a.card.home-tile h3 {
    Scroll-Container würde das Kleben an sich reißen. */
 .table-wrap {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
 }
 /* Als Ganzes klebend statt Zeile für Zeile: der Energien-Kopf im Heldenbrief
    ist zweizeilig (rowSpan/colSpan), und einzeln geklebte Zeilen müssten ihre
@@ -1861,7 +1862,7 @@ table.sheet th.sortable:hover {
   margin: 0;
   padding: 10px 12px;
   border: 1px dashed var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   cursor: pointer;
   font-style: italic;
 }
@@ -1909,7 +1910,7 @@ input, select, textarea {
   color: inherit;
   background: var(--input-bg);
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 4px 8px;
   width: 100%;
   transition: border-color 0.12s, box-shadow 0.12s;
@@ -1953,7 +1954,7 @@ input[type='file']::file-selector-button {
   padding: 4px 10px;
   margin-right: 8px;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   cursor: pointer;
   transition: border-color 0.12s, background 0.12s;
@@ -2090,7 +2091,7 @@ a.small {
   display: inline-block;
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 2px 8px;
   cursor: pointer;
   color: var(--muted);
@@ -2256,7 +2257,7 @@ tr.slot-row td {
   gap: 18px;
   background: var(--accent-soft);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 10px 16px;
   margin-bottom: 16px;
 }
@@ -2269,7 +2270,7 @@ tr.slot-row td {
   padding: 6px 14px;
   background: var(--accent);
   color: var(--on-accent-fill);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .level-num {
@@ -2522,7 +2523,7 @@ body.resizing-col {
 }
 .side-toggle {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-sunken);
   color: var(--muted);
   cursor: pointer;
@@ -2572,7 +2573,7 @@ body.resizing-col {
 }
 .side-pool {
   padding: 6px 6px 7px;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   border: 1px solid var(--border);
   background: var(--surface-sunken);
 }
@@ -2741,7 +2742,7 @@ button.side-attr:active {
   min-height: 4.2em;
   border: 1px solid var(--border);
   background: var(--surface-sunken);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 6px 8px;
   font: inherit;
   color: inherit;
@@ -2816,7 +2817,7 @@ button.side-attr:active {
 /* ---------- Geld / Münzen (Geldbeutel, GM-Währungskatalog) ---------- */
 .pouch {
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   padding: 10px 12px;
   margin-bottom: 10px;
 }
@@ -2859,7 +2860,7 @@ button.side-attr:active {
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--coin-edge, var(--border-strong));
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--coin-bg, var(--panel));
 }
 .coin > label {
@@ -3033,7 +3034,7 @@ li {
   margin-bottom: 12px;
   padding: 6px 12px;
   border: 1px dashed var(--accent);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--accent-soft);
   font-size: 13px;
 }
@@ -3138,7 +3139,7 @@ li {
 .bio-cell .static-value {
   border-color: var(--border-strong);
   background: var(--input-bg);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   min-height: 1.7em;
 }
 /* Rassen-Auswahl: das <select> wie jedes andere Bio-Feld, die Kurzinfo
@@ -3163,7 +3164,7 @@ li {
 .portrait-empty {
   width: 180px;
   height: 180px;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   border: 1px solid var(--border);
   object-fit: cover;
   background: var(--input-bg);
@@ -3242,7 +3243,7 @@ li {
 .portrait-lightbox-img {
   max-width: min(90vw, 800px);
   max-height: 85vh;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
 @media (max-width: 700px) {
@@ -3260,7 +3261,7 @@ li {
   position: relative;
   overflow: hidden;
   margin: 0 auto;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   border: 1px solid var(--border-strong);
   background: var(--input-bg);
   touch-action: none;
@@ -3370,7 +3371,7 @@ li {
   min-height: 40px;
   padding: 6px;
   border: 1px dashed var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--surface-sunken);
 }
 .drop-zone.over {
@@ -3394,7 +3395,7 @@ li {
   text-align: center;
   color: var(--muted);
   border: 1px dashed var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-sunken);
 }
 .zone-both-strip.over {
@@ -3460,7 +3461,7 @@ li {
 }
 .container-panel {
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   padding: 8px;
   background: transparent;
 }
@@ -3502,7 +3503,7 @@ li {
   max-width: 100%;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   background: transparent;
   font-size: 13px;
   cursor: grab;
@@ -3604,7 +3605,7 @@ li {
   align-items: flex-end;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--surface-sunken);
 }
 .chip-editor label {
@@ -3696,7 +3697,7 @@ li {
   border: 1px solid transparent;
   background: transparent;
   padding: 2px 4px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .cont-name:hover,
 .cont-name:focus {
@@ -3896,7 +3897,7 @@ li {
 .dlg-seg {
   display: flex;
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   overflow: hidden;
   margin-bottom: 16px;
 }
@@ -3951,7 +3952,7 @@ li {
   gap: 8px;
   background: var(--surface-head);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 7px 9px;
   margin-top: 4px;
   font-size: 13.5px;
@@ -4135,7 +4136,7 @@ li {
 }
 .abil-row {
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--surface-sunken);
   overflow: hidden;
 }
@@ -4202,7 +4203,7 @@ li {
   margin: 0;
   padding: 1px 9px 3px;
   border: 1px solid var(--border-strong, var(--border));
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: transparent;
 }
 .notch > legend {
@@ -4445,7 +4446,7 @@ li {
   margin-top: 8px;
   padding: 6px 10px;
   border: 1px solid var(--error-text);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--error-text);
   font-size: 0.9em;
 }
@@ -4522,7 +4523,7 @@ li {
   padding: 4px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 .grp-suggest-item {
@@ -4531,7 +4532,7 @@ li {
   text-align: left;
   padding: 6px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--text);
   font: inherit;
@@ -4729,7 +4730,7 @@ body.resizing-dice {
   color: var(--accent-dark);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   padding: 2px 6px;
   cursor: pointer;
   white-space: nowrap;
@@ -4841,7 +4842,7 @@ body.resizing-dice {
   padding: 8px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 /* Unter dieser Breite passen die vier Werkzeuge (im schlimmsten Fall inklusive
@@ -4869,7 +4870,7 @@ body.resizing-dice {
   padding: 4px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   box-shadow: var(--shadow);
 }
 .dice-dock-input input {
@@ -4902,7 +4903,7 @@ body.resizing-dice {
 .dice-icon-btn {
   background: none;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
   font-size: 15px;
   line-height: 1;
@@ -4963,7 +4964,7 @@ body.resizing-dice {
   font-size: 14px;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   cursor: pointer;
 }
@@ -5614,7 +5615,7 @@ tr:hover .probe-roll,
   max-height: 200px;
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .gm-request-results button {
   display: block;
@@ -5630,7 +5631,7 @@ tr:hover .probe-roll,
   margin: 6px 0;
   padding: 8px 10px;
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--accent-soft);
   font-size: 13px;
 }
@@ -5867,7 +5868,7 @@ tr:hover .probe-roll,
   flex: none;
   width: 52px;
   height: 52px;
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   border: 1px solid var(--border);
   object-fit: cover;
   background: var(--input-bg);
@@ -6086,7 +6087,7 @@ tr:hover .probe-roll,
   margin-top: 8px;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-panel);
   background: var(--input-bg);
   color: var(--text);
   font: inherit;
@@ -7081,7 +7082,7 @@ tr:hover .probe-roll,
   width: 30px;
   height: 26px;
   padding: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border-strong);
   cursor: pointer;
 }
@@ -7101,7 +7102,7 @@ tr:hover .probe-roll,
   position: relative;
   width: 100%;
   height: 120px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   /* Weiß→transparent (Sättigung, links→rechts) über Schwarz→transparent
      (Hellwert, unten→oben) — die Grundfarbe selbst kommt inline vom
      Farbton (background-color, siehe Komponente), damit dieser Layer hier
@@ -7158,7 +7159,7 @@ tr:hover .probe-roll,
   height: 24px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
   font-size: 13px;
@@ -7204,7 +7205,7 @@ tr:hover .probe-roll,
   height: 22px;
   padding: 0;
   border: 1px solid var(--border-strong);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -7305,7 +7306,7 @@ tr:hover .probe-roll,
   flex: none;
   width: 30px;
   height: 30px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   object-fit: cover;
   background: var(--input-bg);
