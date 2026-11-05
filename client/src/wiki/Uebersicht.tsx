@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import type { WikiSeiteInfo } from '@shared/wikiTypen';
 import { useAuth } from '../App';
 import { CollapsedText } from '../components/notes';
+import { Field } from '../components/inputs';
 import { ladeListe, markiereAlleGelesen, neuIndizieren } from './api';
 import { useWikiNews } from './news';
 
@@ -121,12 +122,9 @@ export default function WikiUebersicht() {
 
       <div className="wiki-filter screen-only">
         <form className="talent-search" onSubmit={(e) => e.preventDefault()}>
-          <input
-            type="search"
-            placeholder="Liste filtern…"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
+          <Field label="Liste filtern" className="notch-search" active={filter !== ''}>
+            <input type="text" placeholder="Name…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          </Field>
           {filter && (
             <button type="button" className="small" onClick={() => setFilter('')} title="Filter zurücksetzen">
               ✕

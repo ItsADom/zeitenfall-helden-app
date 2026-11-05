@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { schnipselTeile } from '@shared/wikiSuche';
 import type { WikiTreffer } from '@shared/wikiTypen';
+import { Field } from '../components/inputs';
 import { sucheSeiten } from './api';
 
 // Search results.
@@ -73,13 +74,9 @@ export default function WikiSuche() {
         }}
       >
         <div className="talent-search">
-          <input
-            type="search"
-            value={feld}
-            onChange={(e) => setFeld(e.target.value)}
-            placeholder="Suchbegriff…"
-            autoFocus
-          />
+          <Field label="Suchbegriff" className="notch-search" active={feld !== ''}>
+            <input type="text" value={feld} onChange={(e) => setFeld(e.target.value)} placeholder="Suchbegriff…" autoFocus />
+          </Field>
         </div>
         <button className="primary" type="submit">
           Suchen

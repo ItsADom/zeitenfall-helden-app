@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from
 import type { WikiInhaltsZeile } from '@shared/wikiMarkup';
 import { useAuth } from '../App';
 import { useWikiKopfHeight } from '../components/stickyChrome';
+import { Field } from '../components/inputs';
 import NeueSeiteDialog from './NeueSeiteDialog';
 import WikiInhalt, { WikiInhaltProvider } from './Inhalt';
 
@@ -50,13 +51,9 @@ export default function WikiLayout() {
               if (suche.trim()) navigate(`/wiki/suche?q=${encodeURIComponent(suche.trim())}`);
             }}
           >
-            <input
-              type="search"
-              value={suche}
-              onChange={(e) => setSuche(e.target.value)}
-              placeholder="Im Wiki suchen…"
-              aria-label="Im Wiki suchen"
-            />
+            <Field label="Im Wiki suchen" className="notch-search" active={suche !== ''}>
+              <input type="text" value={suche} onChange={(e) => setSuche(e.target.value)} placeholder="Suchbegriff…" />
+            </Field>
           </form>
 
           <button className="primary small" onClick={() => setDialogOffen(true)}>
