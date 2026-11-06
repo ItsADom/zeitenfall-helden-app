@@ -181,9 +181,12 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     touch rows stay px) and base typography (`body`, `h1`, `h3`, `button`,
     `main` padding; `main`'s 2200px cap stays px). Text now follows the root
     size on about 80-99% of elements per page; the rest still carries its own px
-    size. Next areas, in this order: the character sidebar and sheet-specific
-    rules (`.side-*`, `.bio-*`, `.formel`, `.probe-roll-btn`), the changelog and
-    wiki stylesheet (`wiki.css`), then the dice dock and VTT. Known
+    size. Also done: the character sidebar and sheet rules (`.side-*`, `.bio-*`,
+    `.portrait*`, `.formel`, `.probe-roll*`; the `--sidebar-w` fallback and the
+    34px collapsed rail stay px because JS and `flex-basis` pair with them). Next
+    areas, in this order: the changelog and wiki stylesheet (`wiki.css`), the
+    remaining sheet tabs (`.wpn-*`, `.abil-*`, `.inv-*`, `.akt-*`), then the dice
+    dock and VTT. Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size
     the fitted width comes out slightly narrow; derive it from the cell's
