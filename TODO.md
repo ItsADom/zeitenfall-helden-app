@@ -176,8 +176,11 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     dice menus, VTT pickers/settings, colour picker, equipment presets, GM poll
     and request lists) and the base buttons, inputs and `.tabs` (the iOS 16px
     input size, 40px touch minimums and the 3px tab drop marker stay px on
-    purpose) and panels, cards, grids and table cells. Next areas, in this
-    order: the top bar and sheet header, then the dice dock and VTT. Known
+    purpose), panels, cards, grids and table cells, and the top bar, burger
+    panel and sheet header (the 47px `--topbar-h` fallback and the 44px/40px
+    touch rows stay px). Next areas, in this order: base typography (`body`,
+    headings and the many inherited 13-14px sizes still in px, which is why most
+    text does not yet follow a larger root size), then the dice dock and VTT. Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size
     the fitted width comes out slightly narrow; derive it from the cell's

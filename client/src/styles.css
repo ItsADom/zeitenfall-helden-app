@@ -514,14 +514,14 @@
 .theme-dropdown .theme-dd-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 10px;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.625rem;
   border-radius: var(--radius-md);
   background: var(--bg);
   border: 1px solid var(--border-hover);
   color: var(--text);
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
 }
@@ -705,8 +705,8 @@ header.topbar {
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 10px 20px;
+  gap: 1.25rem;
+  padding: 0.625rem 1.25rem;
   background:
     var(--banner-motif) 0 100% / 240px 100% repeat-x,
     linear-gradient(135deg, var(--header-grad-a) 0%, var(--header-grad-mid) 50%, var(--header-grad-b) 100%) no-repeat;
@@ -769,7 +769,7 @@ header.topbar a {
    Regel — diese Regel bleibt nur als Absicherung stehen. */
 header.topbar > a:first-child {
   font-family: Georgia, serif;
-  font-size: 17px;
+  font-size: 1.0625rem;
   letter-spacing: 0.02em;
   opacity: 1;
 }
@@ -787,14 +787,14 @@ header.topbar .nav-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  margin-left: 6px;
-  padding: 0 5px;
+  min-width: 1.125rem;
+  height: 1.125rem;
+  margin-left: 0.375rem;
+  padding: 0 0.3125rem;
   border-radius: 999px;
   background: var(--on-accent);
   color: var(--accent);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
   /* Ziffern haben keine Unterlänge; das Zentrieren der reinen Line-Box
@@ -807,7 +807,7 @@ header.topbar .nav-badge {
 header.topbar .wordmark {
   color: var(--on-accent);
   font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  font-size: 18px;
+  font-size: 1.125rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-weight: 600;
@@ -835,11 +835,11 @@ header.topbar .nav-menu.open {
 .nav-menu .nav-menu-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
 }
 .nav-menu .nav-menu-label::after {
   content: '▾';
-  font-size: 10px;
+  font-size: 0.625rem;
   opacity: 0.8;
 }
 
@@ -855,7 +855,7 @@ header.topbar .nav-menu.open {
 .profile-menu .nav-flyout {
   left: auto;
   right: 0;
-  min-width: 160px;
+  min-width: 10rem;
 }
 .nav-flyout {
   min-width: 13.75rem;
@@ -922,7 +922,7 @@ header.topbar button {
   color: var(--on-accent);
   border: 1px solid rgba(255, 255, 255, 0.35);
   border-radius: 999px;
-  padding: 5px 14px;
+  padding: 0.3125rem 0.875rem;
   cursor: pointer;
   font-weight: 600;
   transition: background 0.15s;
@@ -933,8 +933,8 @@ header.topbar button:hover {
 /* Hell/Dunkel-Schalter: kompakter Icon-Knopf (Sonne/Mond) im übrigen
    Kopfleisten-Stil. */
 header.topbar button.mode-toggle {
-  padding: 5px 11px;
-  font-size: 15px;
+  padding: 0.3125rem 0.6875rem;
+  font-size: 0.9375rem;
   line-height: 1;
 }
 header.topbar button.mode-toggle:disabled {
@@ -977,11 +977,11 @@ header.topbar button.topbar-burger {
    „Kataloge & Nutzer" und langem Namen mehr) und lief darunter über den Rand. */
 @media (max-width: 1100px) {
   header.topbar {
-    gap: 12px;
-    padding: 10px 12px;
+    gap: 0.75rem;
+    padding: 0.625rem 0.75rem;
   }
   header.topbar .wordmark {
-    font-size: 16px;
+    font-size: 1rem;
     letter-spacing: 0.08em;
   }
   header.topbar > .mode-toggle {
@@ -991,8 +991,8 @@ header.topbar button.topbar-burger {
   header.topbar button.topbar-burger {
     display: inline-flex;
     align-items: center;
-    padding: 5px 12px;
-    font-size: 16px;
+    padding: 0.3125rem 0.75rem;
+    font-size: 1rem;
     line-height: 1;
   }
   header.topbar .topbar-panel {
@@ -1008,7 +1008,7 @@ header.topbar button.topbar-burger {
     z-index: 30;
     max-height: calc(100dvh - var(--topbar-h, 47px));
     overflow-y: auto;
-    padding: 4px 12px 12px;
+    padding: 0.25rem 0.75rem 0.75rem;
     background: var(--header-grad-mid);
     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
   }
@@ -1018,7 +1018,7 @@ header.topbar button.topbar-burger {
     min-height: 44px;
     display: flex;
     align-items: center;
-    padding: 0 4px;
+    padding: 0 0.25rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.18);
   }
   /* Gleiche Spezifität wie die Desktop-`order`-Regeln oben, sonst gewinnen
@@ -1037,8 +1037,8 @@ header.topbar button.topbar-burger {
   header.topbar .topbar-panel > button.topbar-logout {
     width: auto;
     min-height: 40px;
-    margin-top: 10px;
-    padding: 0 20px;
+    margin-top: 0.625rem;
+    padding: 0 1.25rem;
     justify-content: center;
     border: 1px solid rgba(255, 255, 255, 0.35);
     align-self: flex-start;
@@ -1381,7 +1381,7 @@ a.card.home-tile h3 {
 .char-header {
   display: flex;
   align-items: baseline;
-  gap: 16px;
+  gap: 1rem;
   position: sticky;
   top: var(--topbar-h, 47px);
   z-index: 16;
@@ -1389,12 +1389,12 @@ a.card.home-tile h3 {
      den Inhaltskasten, sonst lugte der Überlauf rechts unter der Leiste hervor.
      Negativer Rand + gleiches Polster = Hintergrund voll, Inhalt bleibt stehen. */
   margin-inline: calc(-1 * var(--pad-x));
-  padding: 8px var(--pad-x) 6px;
+  padding: 0.5rem var(--pad-x) 0.375rem;
   background: var(--bg);
   /* Bricht nur um, wenn der Inhalt nicht passt (lange Gruppennamen, Event-
      Liste): ohne das lief die Zeile schon bei ~840px über den Rand. */
   flex-wrap: wrap;
-  row-gap: 6px;
+  row-gap: 0.375rem;
 }
 
 /* Schmal: die Zeile (Name, Meta, Speicherstand, Knöpfe) bricht um und klebt
@@ -1442,7 +1442,7 @@ a.card.home-tile h3 {
 .char-title-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 /* ---------- Plaketten: Tags und Status-Pillen ----------
    Zwei Schreibweisen derselben Sache. Tags (eckig, 4px) kennzeichnen etwas an
@@ -3267,7 +3267,7 @@ button.side-attr:active {
   font-weight: 600;
 }
 .savestate {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 
@@ -3300,13 +3300,13 @@ li {
 .viewas-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding: 6px 12px;
+  gap: 0.625rem;
+  margin-bottom: 0.75rem;
+  padding: 0.375rem 0.75rem;
   border: 1px dashed var(--accent);
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .viewas-tag {
   letter-spacing: 0.05em;
