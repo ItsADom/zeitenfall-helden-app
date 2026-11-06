@@ -171,9 +171,12 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     never tried on a phone.
   - Sheet header still sticks between 701px and 1100px (about 100-140px pinned);
     decide whether it should un-stick up to 1100px like the tab bar scrolls.
-  - Convention for new CSS (not written into CLAUDE.md yet): widths and font sizes
-    relative (`min()`/`clamp()`/`minmax()`/`rem`), hairlines and borders in px;
-    migrate the ~1,400 `px` values area by area, never as one blanket replace.
+  - px to rem migration (rule is in CLAUDE.md, "CSS units & responsiveness"): done
+    for `.dialog-*`, `.dlg-*` and `.field`. Next areas, in this order: popups and
+    flyouts (the shared popup surface), buttons/inputs/tabs, panels and tables,
+    then the dice dock and VTT. One area per commit, converted mechanically
+    (px / 16, skipping 1px and 0) and checked with a computed-style comparison
+    at the default root size, plus a scaling check at 20px.
   - Not tried on a real phone or with touch input; the pending badge on
     "Kataloge & Nutzer" was never seen in the burger panel.
   - Splitting `styles.css` (about 7,400 lines) into smaller files.

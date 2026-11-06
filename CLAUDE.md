@@ -149,6 +149,40 @@ not general DSA5 knowledge.
   the finished entry at version-assignment time and rename it if a bigger
   point buried the original title.
 
+## CSS units & responsiveness
+
+The app must behave on every window, from about 960px (half of a 1080p screen)
+up to 4K, and on phones. Fixed pixel sizes are what broke it (a top bar, popups
+and a table basis that all assumed one width), so:
+
+- **New and touched CSS uses relative sizes.** Widths, font sizes, padding,
+  margin and gap go in `rem` (or fluid: `%`, `fr`, `min()`/`max()`/`clamp()`,
+  `minmax()`, `auto-fill`). `px` stays for what must not scale: borders and
+  hairlines, outlines, radii, shadows and other 1px detail. Never leave a
+  floating panel at a fixed width: cap it, e.g. `min(16.25rem, calc(100vw - 1.5rem))`.
+- **Migrate area by area, never as a blanket replace.** Convert a component's
+  font size, padding and gap together (mixing `rem` text with `px` boxes cramps
+  the box when someone raises their text size). The conversion is mechanical,
+  px ÷ 16, so the look at the default 16px root is identical; check that with a
+  computed-style comparison before and after, and that it scales at a larger
+  root size. Leave measured values (below) and `px` in JS alone.
+- **Layout changes by structure, not by guessing widths.** Add a breakpoint only
+  where the layout really changes (sidebar stacks, top bar collapses into the
+  menu); between breakpoints let content shrink and wrap (`flex-wrap`,
+  `min-width: 0`, `minmax(0, 1fr)`). A flex *column* needs `align-items:
+  stretch`, or its children size to their content and ignore `min-width: 0`.
+- **Sideways scrolling is the exception.** It is allowed for wide tables (a
+  `.table-wrap` below 700px; wiki tables via `.wiki-tabelle--scrollt` when they
+  really overflow; toolbars and tab bars as one-row scrollers). Everything else
+  wraps or stacks. Keep `main`'s `overflow-x: clip` (see below).
+- **Heights that depend on wrapping are measured, not hard-coded** (sticky bars
+  in `components/stickyChrome.ts`, the VTT toolbar via `--vtt-toolbar-h`). A
+  fallback in `calc()` is fine; a fixed `top: 52px` is not.
+- **Touch is by pointer type, not by width.** Mouse-sized targets get their
+  touch size under `@media (pointer: coarse)`, so a half-width window on a PC
+  stays compact. That block must come after the base rules it overrides.
+- **Large screens:** `main` stays capped at 2200px and centred; no scaling up.
+
 ## Codebase constraints & gotchas (don't relearn these)
 
 - **VTT toolbar sub-options open as a flyout, never as inline buttons.**
