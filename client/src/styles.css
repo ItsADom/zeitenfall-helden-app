@@ -1189,7 +1189,7 @@ button.title-marker.as-button:focus-visible {
 .dice-dock-head .chev {
   flex: none;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 
 /* Kampftalente: Waffengruppen-Kopfzeile klappt ihre Zeilen ein/aus */
@@ -4802,8 +4802,8 @@ li {
   border: 1px solid var(--accent-dark);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 8px 16px;
-  font-size: 13px;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
   cursor: pointer;
   box-shadow: var(--shadow);
 }
@@ -4813,10 +4813,10 @@ li {
 .dice-dock-offline,
 .dice-dock-neu {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 0.4375rem;
+  height: 0.4375rem;
   border-radius: 50%;
-  margin-left: 6px;
+  margin-left: 0.375rem;
 }
 .dice-dock-offline {
   background: var(--warn-line);
@@ -4885,7 +4885,7 @@ li {
   /* Actual width/height come from an inline style (client/src/components/dice/DicePanel.tsx,
      draggable via .dice-resize) — these are just the safety bounds against the viewport. */
   min-width: 260px;
-  min-height: 200px;
+  min-height: 12.5rem;
   max-width: calc(100vw - 36px);
   max-height: calc(100vh - 60px);
   display: flex;
@@ -4902,8 +4902,8 @@ li {
   position: absolute;
   top: 0;
   left: 0;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   cursor: nwse-resize;
   border-radius: 10px 0 0 0;
   z-index: 1;
@@ -4913,8 +4913,8 @@ li {
   position: absolute;
   top: 5px;
   left: 5px;
-  width: 6px;
-  height: 6px;
+  width: 0.375rem;
+  height: 0.375rem;
   border-left: 2px solid var(--border-strong);
   border-top: 2px solid var(--border-strong);
 }
@@ -4929,10 +4929,10 @@ body.resizing-dice {
 .dice-dock-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
   border-bottom: 1px solid var(--border);
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--accent-dark);
   cursor: pointer;
@@ -4952,7 +4952,7 @@ body.resizing-dice {
 /* Der Rest der Zeile ist bewusst leer und dadurch Klappfläche. */
 .dice-dock-head-fill {
   flex: 1;
-  min-width: 8px;
+  min-width: 0.5rem;
   align-self: stretch;
 }
 .dice-dock-head:hover .chev {
@@ -4963,14 +4963,14 @@ body.resizing-dice {
 .dice-dock-room {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   font: inherit;
   font-weight: 600;
   color: var(--accent-dark);
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 2px 6px;
+  padding: 0.125rem 0.375rem;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -4995,11 +4995,11 @@ body.resizing-dice {
 }
 .dice-dock-status {
   font-weight: 400;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .dice-dock-char {
   font-weight: 400;
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -5009,26 +5009,26 @@ body.resizing-dice {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 8px 10px;
-  min-height: 160px;
+  padding: 0.5rem 0.625rem;
+  min-height: 10rem;
 }
 .dice-dock-empty {
   text-align: center;
-  margin: 20px 0;
+  margin: 1.25rem 0;
 }
 .dice-dock-more {
   display: block;
-  margin: 0 auto 10px;
+  margin: 0 auto 0.625rem;
 }
 .feed-entry {
-  font-size: var(--feed-font-size, 13px);
+  font-size: var(--feed-font-size, 0.8125rem);
   line-height: 1.5;
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 .feed-time {
   color: var(--muted);
-  font-size: 11px;
-  margin-right: 6px;
+  font-size: 0.6875rem;
+  margin-right: 0.375rem;
 }
 .feed-msg--me .feed-text {
   font-style: italic;
@@ -5036,22 +5036,22 @@ body.resizing-dice {
 .feed-divider {
   border: none;
   border-top: 1px solid var(--border);
-  margin: 10px 0;
+  margin: 0.625rem 0;
 }
 /* Rein lokale „wer ist da"-Notiz (presence.snapshot/presence.joined) — bewusst
    kleiner/blasser als ein echter Feed-Eintrag, damit sie nicht wie eine
    Chat-Nachricht aussieht, die auch andere sähen. */
 .dice-presence-note {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-style: italic;
-  margin: 2px 0;
+  margin: 0.125rem 0;
 }
 .dice-dock-input {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 0.375rem;
+  padding: 0.5rem 0.625rem;
   border-top: 1px solid var(--border);
   /* Erlaubt die @container-Regel unten — die Werkzeuge (Kurzbefehle/
      Sichtbarkeit/Modifikator/Schicksalspunkte) klappen zusammen, sobald DIESE
@@ -5064,7 +5064,7 @@ body.resizing-dice {
 .dice-dock-tools--inline {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 .dice-dock-tools-compact {
   position: relative;
@@ -5110,16 +5110,16 @@ body.resizing-dice {
 }
 .dice-dock-error {
   margin: 0;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
   color: var(--error-text);
   background: var(--crit-soft);
   border-top: 1px solid var(--crit-line);
 }
 .dice-dock-info {
   margin: 0;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 0.375rem 0.625rem;
+  font-size: 0.75rem;
   color: var(--muted);
   background: var(--surface-sunken);
   border-top: 1px solid var(--border);
@@ -5136,9 +5136,9 @@ body.resizing-dice {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1;
-  padding: 5px 6px;
+  padding: 0.3125rem 0.375rem;
 }
 .dice-flyout {
   position: absolute;
@@ -5167,7 +5167,7 @@ body.resizing-dice {
   min-width: 0;
 }
 .dice-shortcut-expr {
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 .dice-flyout-sep {
@@ -5208,7 +5208,7 @@ body.resizing-dice {
    vorher — kleinere Schrift, kein Zeilenumbruch. Aktiv (≠0) hebt sich farblich
    ab, damit ein vergessener Modifikator nicht unbemerkt weiterwirkt. */
 .mod-btn {
-  font-size: 12px;
+  font-size: 0.75rem;
   white-space: nowrap;
 }
 .mod-btn--active {
@@ -5218,16 +5218,16 @@ body.resizing-dice {
   font-weight: 600;
 }
 .mod-flyout {
-  min-width: 210px;
-  padding: 8px;
+  min-width: 13.125rem;
+  padding: 0.5rem;
 }
 .mod-flyout-row input {
   width: 100%;
   text-align: center;
 }
 .mod-flyout-hint {
-  margin: 6px 2px 0;
-  font-size: 11px;
+  margin: 0.375rem 0.125rem 0;
+  font-size: 0.6875rem;
   line-height: 1.4;
 }
 
@@ -5242,9 +5242,9 @@ body.resizing-dice {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 20px;
+  font-size: 1.25rem;
   line-height: 1;
-  padding: 3px;
+  padding: 0.1875rem;
   transition: transform 0.12s;
 }
 .sp-clover:hover:not(:disabled) {
@@ -5258,16 +5258,16 @@ body.resizing-dice {
 .sp-confirm-flyout {
   right: 0;
   left: auto;
-  min-width: 220px;
-  padding: 10px;
+  min-width: 13.75rem;
+  padding: 0.625rem;
 }
 .sp-confirm-hint {
-  margin: 0 0 8px;
-  font-size: 13px;
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
 }
 .sp-confirm-actions {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   justify-content: flex-end;
 }
 /* Trainings-/Lesesitzungen-Tracker (CharacterSidebar.tsx): dieselbe Klee-
@@ -5291,38 +5291,38 @@ body.resizing-dice {
      focus (anything under 16px triggers it). Placed after the dock/flyout
      rules above so it wins the cascade against their unconditional siblings. */
   .dice-dock-tab {
-    padding: 10px 16px;
+    padding: 0.625rem 1rem;
   }
   .dice-dock-head {
-    padding: 10px 12px;
+    padding: 0.625rem 0.75rem;
   }
   .dice-dock-room {
-    padding: 5px 8px;
+    padding: 0.3125rem 0.5rem;
   }
   .dice-icon-btn {
-    padding: 8px 9px;
-    font-size: 17px;
+    padding: 0.5rem 0.5625rem;
+    font-size: 1.0625rem;
   }
   .dice-dock-input {
-    padding: 10px;
+    padding: 0.625rem;
   }
   .dice-dock-input input {
     font-size: 16px;
   }
   .dice-dock-input button.small {
-    padding: 7px 12px;
+    padding: 0.4375rem 0.75rem;
   }
   .dice-resize {
-    width: 22px;
-    height: 22px;
+    width: 1.375rem;
+    height: 1.375rem;
   }
 }
 
 /* Würfelwurf im Feed. */
 .feed-roll {
   border-left: 3px solid var(--border-strong);
-  padding: 4px 0 4px 8px;
-  margin-bottom: 6px;
+  padding: 0.25rem 0 0.25rem 0.5rem;
+  margin-bottom: 0.375rem;
 }
 .feed-roll--success {
   border-left-color: var(--good);
@@ -5367,7 +5367,7 @@ body.resizing-dice {
   /* Dasselbe Neutral, das Fehlschlag früher als reinen Text-Fallback nutzte —
      bewusst kein Ausgang-Ton, sonst läse sich die Klammer selbst wie ein Status. */
   border-left: 3px solid var(--text);
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
 }
 .feed-group-block .feed-roll,
 .feed-group-block .feed-msg {
@@ -5383,14 +5383,14 @@ body.resizing-dice {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-  font-size: 12px;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
 }
 .feed-pending-row {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
 }
 .feed-pending-skip {
   opacity: 0.75;
@@ -5399,14 +5399,14 @@ body.resizing-dice {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
-  gap: 6px;
-  font-size: var(--feed-font-size, 13px);
+  gap: 0.375rem;
+  font-size: var(--feed-font-size, 0.8125rem);
 }
 .feed-roll-title {
   color: var(--muted);
 }
 .feed-roll-notation {
-  font-size: 11px;
+  font-size: 0.6875rem;
   opacity: 0.7;
 }
 .feed-vis-tag {
@@ -5421,9 +5421,9 @@ body.resizing-dice {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 3px;
-  font-size: var(--feed-font-size, 13px);
+  gap: 0.375rem;
+  margin-top: 0.1875rem;
+  font-size: var(--feed-font-size, 0.8125rem);
 }
 /* Formel aus Probe-Namen: je Name eine Zeile mit seinen Würfeln, seinem Zielwert
    und ✓/✗ — das Gesamtergebnis steht darunter in .feed-roll-body. Ein Raster
@@ -5434,9 +5434,9 @@ body.resizing-dice {
   grid-template-columns: max-content max-content max-content max-content;
   justify-content: start;
   align-items: center;
-  gap: 3px 8px;
-  margin-top: 3px;
-  font-size: var(--feed-font-size, 13px);
+  gap: 0.1875rem 0.5rem;
+  margin-top: 0.1875rem;
+  font-size: var(--feed-font-size, 0.8125rem);
 }
 .feed-part {
   display: contents;
@@ -5474,7 +5474,7 @@ body.resizing-dice {
 .feed-die {
   display: inline-grid;
   place-items: center;
-  height: 26px;
+  height: 1.625rem;
   /* Beides fest statt geerbt: im Feed stünden 13 px, in .feed-pending aber 12 px,
      und .feed-entry stellte eine 18-px-Zeilenbox gegen die 26 px Höhe. */
   font-size: 12px;
@@ -5503,8 +5503,8 @@ body.resizing-dice {
 /* Neutraler Kasten für alles ohne eigene Form (w2, w3, w7, w100 …) — als einziger
    Würfel elastisch, damit auch ein vierstelliges Ergebnis hineinpasst. */
 .feed-die--plain {
-  min-width: 28px;
-  padding: 0 5px;
+  min-width: 1.75rem;
+  padding: 0 0.3125rem;
   border: 1px solid var(--die-line);
   border-radius: 5px;
   background: var(--die-wash);
@@ -5516,7 +5516,7 @@ body.resizing-dice {
      die Box aus. Bewusst so und nicht über neu gezeichnete Pfade — die Geometrie
      bleibt an EINER Stelle, in Die.tsx. */
   width: 28px;
-  height: 26px;
+  height: 1.625rem;
   fill: var(--die-wash);
   stroke: var(--die-line);
   /* non-scaling-stroke, damit die Kontur trotz der Skalierung oben exakt 1 px
@@ -5654,7 +5654,7 @@ body.resizing-dice {
 .feed-die-attr {
   grid-area: 1 / 2;
   align-self: center;
-  margin-left: 2px;
+  margin-left: 0.125rem;
   font-size: 0.65em;
   font-weight: 600;
   opacity: 0.85;
@@ -5669,12 +5669,12 @@ body.resizing-dice {
 }
 .feed-roll-outcome {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 .feed-roll-rd {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .feed-roll--success .feed-roll-outcome {
   color: var(--good);
@@ -5694,7 +5694,7 @@ body.resizing-dice {
    bleibt dabei unverändert ablesbar, das hier kommt obendrauf. */
 .feed-triple {
   display: inline-block;
-  margin-top: 3px;
+  margin-top: 0.1875rem;
 }
 /* Glück (drei 1er) — dieselbe „Glück"-Farbe wie im großen Wurf (Vorstellung),
    dort effektFarben.glueck genannt. */
@@ -5718,8 +5718,8 @@ body.resizing-dice {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin-top: 3px;
-  font-size: 11px;
+  margin-top: 0.1875rem;
+  font-size: 0.6875rem;
   color: var(--muted);
 }
 /* Von einem Gegenstück aufgehoben: wirkt weiter auf die Summe, zählt aber
@@ -5855,60 +5855,60 @@ tr:hover .probe-roll,
 
 /* Angefragte „SL + Spieler"-Probe im Feed. */
 .feed-request {
-  margin: 6px 0;
-  padding: 8px 10px;
+  margin: 0.375rem 0;
+  padding: 0.5rem 0.625rem;
   border: 1px solid var(--accent);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .feed-request--waiting {
   border-style: dashed;
   border-color: var(--border-strong);
   background: none;
-  padding: 5px 10px;
+  padding: 0.3125rem 0.625rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0.5rem;
 }
 .feed-request-title {
   font-weight: 600;
   color: var(--accent-dark);
 }
 .feed-request-probe {
-  margin-top: 2px;
-  font-size: 15px;
+  margin-top: 0.125rem;
+  font-size: 0.9375rem;
   font-weight: 700;
 }
 .feed-request-mod {
-  margin-top: 2px;
-  font-size: 12px;
+  margin-top: 0.125rem;
+  font-size: 0.75rem;
   color: var(--accent-dark);
 }
 .feed-request-actions {
   display: flex;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 0.375rem;
+  margin-top: 0.375rem;
 }
 .feed-request--waiting .feed-request-actions {
   margin-top: 0;
 }
 .feed-request-note {
-  margin-top: 4px;
-  font-size: 11px;
+  margin-top: 0.25rem;
+  font-size: 0.6875rem;
 }
 .feed-group-members {
   list-style: none;
-  margin: 6px 0 0;
+  margin: 0.375rem 0 0;
   padding: 0;
 }
 .feed-group-member {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
-  padding: 2px 0;
-  font-size: 13px;
+  gap: 0.5rem;
+  padding: 0.125rem 0;
+  font-size: 0.8125rem;
 }
 .feed-group-member--rolled span:last-child {
   color: var(--accent);
@@ -5918,8 +5918,8 @@ tr:hover .probe-roll,
 }
 /* Kooperationsprobe-Pool: noch niemand beigetreten. */
 .feed-group-empty {
-  margin: 6px 0 0;
-  font-size: 12px;
+  margin: 0.375rem 0 0;
+  font-size: 0.75rem;
 }
 
 /* Gepoolte Verdikt-Zeile über den einzelnen Würfen eines Kooperationsprobe-
@@ -5927,8 +5927,8 @@ tr:hover .probe-roll,
    .feed-roll--success/--fail, damit sie sich als „derselbe Ausgang, nur
    gepoolt" liest statt als eigene Farbsprache. */
 .feed-coop-verdict {
-  padding: 4px 8px;
-  font-size: 13px;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   border-bottom: 1px dashed var(--border-soft);
 }
@@ -5948,18 +5948,18 @@ tr:hover .probe-roll,
 .dice-shortcuts-input {
   width: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .dice-shortcuts-preview {
-  margin-top: 10px;
-  font-size: 12px;
+  margin-top: 0.625rem;
+  font-size: 0.75rem;
 }
 .dice-shortcuts-chips {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
-  margin-top: 4px;
+  gap: 0.375rem;
+  margin-top: 0.25rem;
 }
 .dice-shortcuts-chip {
   border-color: var(--border-strong);
@@ -5973,11 +5973,11 @@ tr:hover .probe-roll,
 }
 .dice-shortcuts-sep {
   width: 1px;
-  height: 18px;
+  height: 1.125rem;
   background: var(--border-strong);
 }
 .dice-shortcuts-hint {
-  margin: 6px 0 0;
+  margin: 0.375rem 0 0;
 }
 
 /* ---------- Druck / PDF ---------- */

@@ -193,10 +193,12 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     and `easterEggTracker.css`). Left on purpose in px: the touch minimums, the
     16px coarse-pointer input size, the 3px tab drop marker, `main`'s 2200px cap,
     the measured-height fallbacks and `kino.css`/`konamiParty.css` (animation
-    geometry). Only two areas remain, in this order: the dice dock (`.dice-*`,
-    `.feed-*`, `.sp-*`, `.mod-*`, about 137 values) and the VTT (`.vtt-*`, about
-    80). The dock is fixed-position and JS-resized, so check its resize and
-    drag behaviour, not only computed styles. Known
+    geometry). The dice dock (`.dice-*`, `.feed-*`, `.sp-*`, `.mod-*`) is done
+    too; its dragged size (`dice:w`/`dice:h`, and `MIN_W`/`MAX_W` in
+    `DicePanel.tsx`) stays JS px, so at a larger text size the dock does not grow
+    with its content unless dragged larger. Only the VTT (`.vtt-*`, about 80
+    values) remains; check its pointer/zoom behaviour, not only computed
+    styles. The VTT chat column reuses the dock's feed classes. Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size
     the fitted width comes out slightly narrow; derive it from the cell's
