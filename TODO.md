@@ -138,8 +138,8 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      (~1,000 lines) to `vtt.css`, imported in `main.tsx` in their original
      order so the cascade stays identical (verify with a computed-style diff);
      fix the stale "4336 lines" comments in `main.tsx`/`wiki.css` at the same time
-   - not read rule by rule yet: feed, dice dock and VTT blocks (~2,200 lines);
-     VTT context menu not tested on a real token, color pickers only read in code
+   - the feed, dice dock and VTT blocks were read rule by rule (see git log);
+     the VTT context menu was only tested with injected markup, not on a real token
    - checked and deliberately left alone: `gm-chip` vs `wpn-chip` (the weapon
      tile carries the sheet's computed-value tint), `.rules-table`/`.inv-table`
      (only the header typography is shared), the `*-empty` message classes
