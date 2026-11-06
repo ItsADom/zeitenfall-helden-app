@@ -6510,8 +6510,10 @@ tr:hover .probe-roll,
   .wpn-head {
     flex-wrap: wrap;
   }
+  /* Nicht 100%: dann stand der Chevron (9px) allein in einer eigenen Zeile über
+     dem Namen. Mit Chevron + Lücke abgezogen bleibt er neben dem Namen. */
   .wpn-name {
-    flex: 1 1 100%;
+    flex: 1 1 calc(100% - 22px);
   }
   .wpn-probes::before {
     display: none;
