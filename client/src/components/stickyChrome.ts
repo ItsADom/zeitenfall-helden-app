@@ -20,6 +20,7 @@ export const EINSTHEAD_VAR = '--einsthead-h';
 export const EINSTNAV_VAR = '--einstnav-h';
 export const WIKIKOPF_VAR = '--wikikopf-h';
 export const WIKIBAR_VAR = '--wikibar-h';
+export const VTTBAR_VAR = '--vtt-toolbar-h';
 
 /**
  * Schreibt die Höhe eines klebenden Elements in eine CSS-Variable am
@@ -140,3 +141,12 @@ export const useWikiKopfHeight = () => useMeasuredHeight(WIKIKOPF_VAR);
  * der Reihenfolge abhängt, in der sie entstehen.
  */
 export const useWikiBarHeight = () => useMeasuredHeight(WIKIBAR_VAR);
+
+/**
+ * Referenz für die Werkzeugleiste des Virtuellen Tischs — setzt `--vtt-toolbar-h`.
+ * Die Leiste bricht je nach Breite und GM-Werkzeugen auf zwei Zeilen um; die
+ * Auswahl-Flyouts darunter (`.vtt-tile-picker`, `.vtt-settings-pop`) sitzen
+ * absolut in der Kartenspalte und brauchen ihre tatsächliche Höhe als Versatz,
+ * statt eines festen Wertes, der nur für eine Zeile stimmte.
+ */
+export const useVttToolbarHeight = () => useMeasuredHeight(VTTBAR_VAR);

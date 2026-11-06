@@ -17,6 +17,7 @@ import { tinteFuer } from '../components/dice/cinematic/kontrast';
 import FeedColumn from '../components/dice/FeedColumn';
 import { TRIPLE } from '../components/dice/labels';
 import { usePersistedState } from '../components/persist';
+import { useVttToolbarHeight } from '../components/stickyChrome';
 import { PortraitView } from '../components/PortraitView';
 import VttRoster from '../components/VttRoster';
 import { generatedWaterTexture } from '../components/vttWater';
@@ -1070,6 +1071,8 @@ function MapCanvas({
   // bestehende Form behält ihren eigenen, unabhängig editierbaren Wert
   // (siehe MeasureEditor).
   const [measureConeSpread, setMeasureConeSpread] = usePersistedState<number>('vtt-measure-cone-spread', CONE_SPREAD_DEFAULT);
+  // Höhe der Werkzeugleiste (kann umbrechen) — Versatz für die Auswahl-Flyouts.
+  const toolbarRef = useVttToolbarHeight();
   const [pickerOpen, setPickerOpen] = useState(false);
   // Immer nur EIN Flyout unter dem Werkzeugkasten: ein Werkzeug-Flyout verdrängt die Szenenliste.
   useEffect(() => {
@@ -2450,7 +2453,7 @@ function MapCanvas({
 
   return (
     <div className="vtt-map-col">
-      <div className="vtt-toolbar">
+      <div className="vtt-toolbar" ref={toolbarRef}>
         {canPaint && (
           <>
             {/* Solange „Bemalen" aktiv ist, schaltet dieser Knopf nur noch
