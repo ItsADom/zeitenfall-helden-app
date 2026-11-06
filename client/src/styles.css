@@ -491,6 +491,15 @@
 .dice-flyout-item.active {
   background: var(--accent-soft);
 }
+/* Gruppenüberschrift in einem Popup. */
+.nav-flyout-head,
+.dice-flyout-label,
+.vtt-tile-picker-groupname {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 
 /* Farbthema-Auswahl in der Kopfleiste: Dropdown mit Farbvorschau + Name */
 .theme-dropdown {
@@ -865,10 +874,6 @@ header.topbar .nav-menu.open {
 }
 .nav-flyout-head {
   padding: 6px 9px 2px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 .nav-flyout-head.active {
   color: var(--accent);
@@ -1310,7 +1315,8 @@ a.card.home-tile h3 {
 .feed-forced-tag,
 .viewas-tag,
 .wiki-marke,
-.dlg-badge {
+.dlg-badge,
+.feed-triple {
   padding: 1px 5px;
   border: 1px solid transparent;
   border-radius: 4px;
@@ -4952,9 +4958,6 @@ body.resizing-dice {
 }
 .dice-flyout-label {
   margin: 4px 8px 2px;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
 }
 
 /* Erleichterung/Erschwernis: Text statt eines einzelnen Emoji, wie .sp-btn
@@ -5448,10 +5451,6 @@ body.resizing-dice {
 .feed-triple {
   display: inline-block;
   margin-top: 3px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 700;
 }
 /* Glück (drei 1er) — dieselbe „Glück"-Farbe wie im großen Wurf (Vorstellung),
    dort effektFarben.glueck genannt. */
@@ -6984,10 +6983,7 @@ tr:hover .probe-roll,
   gap: 5px;
 }
 .vtt-tile-picker-groupname {
-  font-size: 11px;
   font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 .vtt-tile-swatch {
   aspect-ratio: 1;
