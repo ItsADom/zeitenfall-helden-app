@@ -149,7 +149,6 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
      own comments (bio pairs, grips, resize cursors: merging would orphan the
      comments), section headings (panel titles already share one ornament; the
      serif sheet labels vs sans changelog labels are different hierarchy levels)
-   - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:
    - Tables break across pages mid-section — add break-inside handling / keep
