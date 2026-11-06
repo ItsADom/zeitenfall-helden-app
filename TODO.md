@@ -129,31 +129,26 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   suspiciously few rows in the owner tables relative to what's referenced in
   `helden-assets.db`, or a shared marker linking a DB pair together — exact
   approach still open.
-- [sketch] **CSS tidy-up (second round)**: popups, chips, search fields, color
-  tokens and radii are unified; still open:
-   - less exclusive designs: section headers / panel titles may be rendered
-     differently although they are the same everywhere (not checked yet)
-   - merge the duplicate-rule groups that were skipped because the rules carry
-     their own comment (drag grips, bio pairs, wiki list resets, ...), moving
-     the comments along
+- [sketch] **CSS tidy-up (second round)**: popups, chips, badges, buttons,
+  search fields, tokens (colors, radii, z-index) are unified; what is left is
+  optional:
    - possible split of `styles.css` (7.4k lines, fine for now, no runtime gain
      since Vite bundles it into one file): move the dice chat/feed block
      (~1,200 lines) to `dice.css` and the VTT block incl. the color picker
      (~1,000 lines) to `vtt.css`, imported in `main.tsx` in their original
      order so the cascade stays identical (verify with a computed-style diff);
      fix the stale "4336 lines" comments in `main.tsx`/`wiki.css` at the same time
-   - buttons, remaining: `hold-button` (full-width outlined accent) vs
-     `btn-action`; `note-toggle`/`cat-toggle`/`fav-pin` are bare text/icon
-     buttons with their own hover; `.seg` and `.dlg-seg` (segmented controls)
-     share the active look but not size/shape
-   - `--radius` (10px) and `--radius-panel` (8px) read backwards (rename
-     touches TSX)
+   - not read rule by rule yet: feed, dice dock and VTT blocks (~2,200 lines);
+     VTT context menu not tested on a real token, color pickers only read in code
    - checked and deliberately left alone: `gm-chip` vs `wpn-chip` (the weapon
      tile carries the sheet's computed-value tint), `.rules-table`/`.inv-table`
      (only the header typography is shared), the `*-empty` message classes
-     (only container margins differ)
-   - not read rule by rule yet: feed, dice dock and VTT blocks (~2,200 lines);
-     VTT context menu not tested on a real token, color pickers only read in code
+     (only container margins differ), `hold-button`/`note-toggle`/`cat-toggle`/
+     `fav-pin` and the two segmented controls (distinct controls; only the
+     active look is shared), the duplicate-rule groups whose rules carry their
+     own comments (bio pairs, grips, resize cursors: merging would orphan the
+     comments), section headings (panel titles already share one ornament; the
+     serif sheet labels vs sans changelog labels are different hierarchy levels)
    - good pre-work for the responsiveness-pass
 - [sketch] **General tidy-up**: check code for unused elements and remove
 - [sketch] **Print / PDF follow-ups - PROBABLY OUTDATED**:

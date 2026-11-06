@@ -245,11 +245,7 @@
   flex-wrap: wrap;
 }
 .wiki-marke {
-  font-size: 10px;
-  font-weight: 700;
   letter-spacing: 0.03em;
-  padding: 1px 6px;
-  border-radius: 4px;
   background: var(--accent);
   color: var(--on-accent);
 }

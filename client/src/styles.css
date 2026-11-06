@@ -1295,6 +1295,31 @@ a.card.home-tile h3 {
   align-items: center;
   gap: 10px;
 }
+/* ---------- Plaketten: Tags und Status-Pillen ----------
+   Zwei Schreibweisen derselben Sache. Tags (eckig, 4px) kennzeichnen etwas an
+   einer Zeile oder einem Eintrag, Status-Pillen (rund) einen Zustand. Geometrie
+   steht hier einmal, die jeweilige Regel trägt nur Farbe und Schriftschnitt. Der
+   transparente Rand hält gefüllte und umrandete Tags gleich hoch. */
+.feed-vis-tag,
+.feed-forced-tag,
+.viewas-tag,
+.wiki-marke,
+.dlg-badge {
+  padding: 1px 5px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.known-bugs-status,
+.changelog-version,
+.abil-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
 /* ---------- Chips: kleine Pillen (Verknüpfungen, Merkmale, Kategorien) ----------
    Geometrie, Schrift und das ✕ stehen HIER einmal; jede Sorte trägt nur ihre
    Farbe selbst (neutral / Akzent / Warn / Fehler). Ein neuer Chip kommt in diese
@@ -2917,8 +2942,6 @@ button.side-attr:active {
   color: var(--accent-dark);
   background: var(--accent-soft);
   border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 1px 9px;
   letter-spacing: 0.02em;
 }
 /* „Demnächst"-Abschnitt: ein Ausblick, bewusst vom Verlauf abgehoben (Akzent-
@@ -2947,14 +2970,11 @@ button.side-attr:active {
 }
 .known-bugs-status {
   margin-left: 8px;
-  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--accent-dark, var(--accent));
   border: 1px solid var(--accent, var(--border));
-  border-radius: 999px;
-  padding: 1px 8px;
   vertical-align: middle;
 }
 .known-bugs-desc {
@@ -3045,13 +3065,9 @@ li {
   font-size: 13px;
 }
 .viewas-tag {
-  font-weight: 700;
-  font-size: 11px;
   letter-spacing: 0.05em;
   color: var(--on-accent-fill);
   background: var(--accent);
-  border-radius: 4px;
-  padding: 1px 6px;
 }
 
 /* ---------- Porträt (Person) ---------- */
@@ -3959,10 +3975,6 @@ li {
 .dlg-badge {
   background: var(--accent-soft);
   color: var(--accent-dark);
-  border-radius: 5px;
-  padding: 1px 7px;
-  font-weight: 600;
-  font-size: 12px;
 }
 .dlg-fade-group {
   border-top: 1px dashed var(--border-soft);
@@ -4351,9 +4363,6 @@ li {
 .abil-badge {
   display: inline-block;
   margin-left: 6px;
-  padding: 0 6px;
-  border-radius: 999px;
-  font-size: 0.72em;
   border: 1px solid var(--border);
   color: var(--muted);
   vertical-align: middle;
@@ -5158,20 +5167,12 @@ body.resizing-dice {
   opacity: 0.7;
 }
 .feed-vis-tag {
-  font-size: 11px;
   color: var(--warn-line);
   border: 1px solid var(--warn-line);
-  border-radius: 4px;
-  padding: 0 4px;
-  white-space: nowrap;
 }
 .feed-forced-tag {
-  font-size: 11px;
   color: var(--accent-dark);
   border: 1px solid var(--accent-dark);
-  border-radius: 4px;
-  padding: 0 4px;
-  white-space: nowrap;
 }
 .feed-roll-body {
   display: flex;
