@@ -172,9 +172,10 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   - Sheet header still sticks between 701px and 1100px (about 100-140px pinned);
     decide whether it should un-stick up to 1100px like the tab bar scrolls.
   - px to rem migration (rule is in CLAUDE.md, "CSS units & responsiveness"): done
-    for `.dialog-*`, `.dlg-*` and `.field`. Next areas, in this order: popups and
-    flyouts (the shared popup surface), buttons/inputs/tabs, panels and tables,
-    then the dice dock and VTT. One area per commit, converted mechanically
+    for `.dialog-*`, `.dlg-*`, `.field` and the popups/flyouts (nav, theme and
+    dice menus, VTT pickers/settings, colour picker, equipment presets, GM poll
+    and request lists). Next areas, in this order: buttons/inputs/tabs, panels
+    and tables, then the dice dock and VTT. One area per commit, converted mechanically
     (px / 16, skipping 1px and 0) and checked with a computed-style comparison
     at the default root size, plus a scaling check at 20px.
   - Not tried on a real phone or with touch input; the pending badge on
