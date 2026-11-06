@@ -185,7 +185,16 @@ export function useTableLayout(
     // BEIDE Richtungen und kann keine Beobachter-Schleife auslösen.
     const box = el?.parentElement;
     if (!el || !box || typeof ResizeObserver === 'undefined') return;
-    const update = () => setAvail(Math.max(0, box.clientWidth - fixedRef.current));
+    // Die Tabelle trägt ein Mindestmaß (min-width, Spaltenzahl × 64px) und ist
+    // dann breiter als ihr Rahmen — auf dem Telefon scrollt sie im Rahmen. Der
+    // Bezugsrahmen der Prozente ist dann dieses Mindestmaß, nicht die schmale
+    // Rahmenbreite: sonst summieren sich die Spalten auf ~315px in einer 576px
+    // breiten Tabelle (Ziffernspalten 14px breit, Köpfe abgeschnitten). Ist der
+    // Rahmen breiter als das Mindestmaß, ändert sich nichts.
+    const update = () => {
+      const minW = parseFloat(getComputedStyle(el).minWidth) || 0;
+      setAvail(Math.max(0, Math.max(box.clientWidth, minW) - fixedRef.current));
+    };
     update();
     const ro = new ResizeObserver(update);
     ro.observe(box);
@@ -197,8 +206,12 @@ export function useTableLayout(
   // Ändert sich der feste Anteil oder die Spaltenzahl, ohne dass die Tabelle
   // neu entsteht, muss trotzdem neu gerechnet werden.
   useEffect(() => {
-    const box = tableRef.current?.parentElement;
-    if (box) setAvail(Math.max(0, box.clientWidth - fixedPx));
+    const el = tableRef.current;
+    const box = el?.parentElement;
+    if (el && box) {
+      const minW = parseFloat(getComputedStyle(el).minWidth) || 0;
+      setAvail(Math.max(0, Math.max(box.clientWidth, minW) - fixedPx));
+    }
   }, [fixedPx, count]);
 
   const pxFor = (percent: number) => `${((avail * percent) / 100).toFixed(2)}px`;
