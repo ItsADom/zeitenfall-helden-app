@@ -75,8 +75,43 @@ export const useTopbarHeight = () => useMeasuredHeight(TOPBAR_VAR);
  */
 export const useCharHeadHeight = () => useMeasuredHeight(CHARHEAD_VAR);
 
-/** Referenz für die Reiterleiste — setzt `--tabs-h`. */
-export const useTabsHeight = () => useMeasuredHeight(TABS_VAR);
+/**
+ * Referenz für die Reiterleiste — setzt `--tabs-h`.
+ *
+ * Schmal läuft die Leiste einzeilig und scrollt seitwärts (siehe `.tabs` in
+ * styles.css). Dann muss der aktive Reiter sichtbar sein, auch wenn er per Link
+ * (?tab=…) oder Programm gewechselt wurde. Das macht dieselbe Referenz mit, damit
+ * Character, Group und Admin nichts einzeln verdrahten müssen: ein
+ * MutationObserver sieht den Wechsel der Klasse `active` und zentriert den
+ * Reiter. Gescrollt wird nur die Leiste selbst (scrollTo auf ihr), nie die Seite.
+ */
+export function useTabsHeight(): (el: HTMLElement | null) => void {
+  const measure = useMeasuredHeight(TABS_VAR);
+  const mo = useRef<MutationObserver | null>(null);
+
+  useEffect(() => () => mo.current?.disconnect(), []);
+
+  return useCallback(
+    (el: HTMLElement | null) => {
+      measure(el);
+      mo.current?.disconnect();
+      mo.current = null;
+      if (!el || typeof MutationObserver === 'undefined') return;
+      const reveal = () => {
+        if (el.scrollWidth <= el.clientWidth) return; // nichts abgeschnitten
+        const aktiv = el.querySelector<HTMLElement>('button.active');
+        if (!aktiv) return;
+        const ziel = aktiv.offsetLeft - (el.clientWidth - aktiv.offsetWidth) / 2;
+        if (Math.abs(el.scrollLeft - ziel) > 1) el.scrollTo({ left: Math.max(0, ziel) });
+      };
+      reveal();
+      const m = new MutationObserver(reveal);
+      m.observe(el, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+      mo.current = m;
+    },
+    [measure],
+  );
+}
 
 /**
  * Referenz für die Talent-Suchleiste — setzt `--search-h`. Die gibt es nur in

@@ -149,7 +149,7 @@ function CatalogPanel({
         </table>
       </div>
       <h4>Neuer Eintrag</h4>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {columns
           .filter((c) => c.key !== 'sort')
           .map((c) => (
@@ -399,7 +399,7 @@ function CurrencyCatalogPanel() {
       {error && <p className="error">{error}</p>}
       {systems.map((s) => (
         <div key={s.id} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
             <input
               defaultValue={s.name}
               style={{ fontWeight: 600, width: 160 }}
@@ -432,6 +432,7 @@ function CurrencyCatalogPanel() {
               ✕
             </button>
           </div>
+          <div className="table-wrap">
           <table className="sheet" style={{ marginTop: 6 }}>
             <thead>
               <tr>
@@ -541,10 +542,11 @@ function CurrencyCatalogPanel() {
               </tr>
             </tbody>
           </table>
+          </div>
         </div>
       ))}
       <h4>Neues Währungssystem</h4>
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         <input placeholder="Name (z. B. Aventurisch, Myranor, Titania)" value={neuSystem} onChange={(e) => setNeuSystem(e.target.value)} />
         <input
           type="number"
@@ -849,6 +851,7 @@ export default function AdminPage() {
       {aktiverTab === 'benutzer' && (
       <div className="panel">
         <h2>Benutzer</h2>
+        <div className="table-wrap">
         <table className="sheet">
           <thead>
             <tr>
@@ -930,6 +933,7 @@ export default function AdminPage() {
             })}
           </tbody>
         </table>
+        </div>
         <h4>Neuer Benutzer</h4>
         <div style={{ display: 'flex', gap: 8, maxWidth: 820, alignItems: 'center', flexWrap: 'wrap' }}>
           <input placeholder="Benutzername" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} />
@@ -976,6 +980,7 @@ export default function AdminPage() {
           <p className="muted" style={{ marginTop: 0 }}>
             Selbst angelegte Charaktere, die um Aufnahme in eine Gruppe bitten. Beim Annehmen wird der Besitzer zugleich Mitglied der Gruppe.
           </p>
+          <div className="table-wrap">
           <table className="sheet">
             <thead>
               <tr>
@@ -1005,6 +1010,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
@@ -1014,6 +1020,7 @@ export default function AdminPage() {
           bleibt der Spielleitung vorbehalten (Anti-Cheat). */}
       <div className="panel">
         <h2>Gruppen</h2>
+        <div className="table-wrap">
         <table className="sheet">
           <thead>
             <tr>
@@ -1044,6 +1051,7 @@ export default function AdminPage() {
             ))}
           </tbody>
         </table>
+        </div>
         <h4>Neue Gruppe</h4>
         <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
           <input placeholder="Name" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} />
@@ -1072,6 +1080,7 @@ export default function AdminPage() {
           <p className="muted" style={{ marginTop: 0 }}>
             Für einzelne Event-Sessions abseits der festen Gruppenzugehörigkeit — die feste Gruppe eines Charakters bleibt dabei unangetastet.
           </p>
+          <div className="table-wrap">
           <table className="sheet">
             <thead>
               <tr>
@@ -1116,6 +1125,7 @@ export default function AdminPage() {
               ))}
             </tbody>
           </table>
+          </div>
           <h4>Neue Event-Gruppe</h4>
           <div style={{ display: 'flex', gap: 8, maxWidth: 400 }}>
             <input placeholder="Name" value={newTempGroup} onChange={(e) => setNewTempGroup(e.target.value)} />
@@ -1154,6 +1164,7 @@ export default function AdminPage() {
             </button>
           ))}
         </div>
+        <div className="table-wrap">
         <table className="sheet">
           <thead>
             <tr>
@@ -1225,6 +1236,7 @@ export default function AdminPage() {
             ))}
           </tbody>
         </table>
+        </div>
         <h4>Neuer Charakter</h4>
         <div style={{ display: 'flex', gap: 8, maxWidth: 700 }}>
           <input placeholder="Name" value={newChar.name} onChange={(e) => setNewChar({ ...newChar, name: e.target.value })} />

@@ -945,6 +945,115 @@ header.topbar button.mode-toggle:disabled:hover {
   background: rgba(255, 255, 255, 0.12);
 }
 
+/* ---------- Kopfleiste: Aufklappfeld auf schmalen Fenstern ----------
+   Desktop: .topbar-panel verschwindet als Box (display: contents), seine Kinder
+   sind wieder Kinder der Leiste. Der Hell/Dunkel-Schalter steht im DOM außerhalb
+   des Feldes (er soll schmal auf der Leiste bleiben), gehört auf dem Desktop
+   aber zwischen Changelog und Profil — daher die `order`-Werte. */
+.topbar-panel {
+  display: contents;
+}
+header.topbar .topbar-panel > * {
+  position: relative;
+  z-index: 1;
+}
+header.topbar .topbar-changelog {
+  order: 1;
+}
+header.topbar > .mode-toggle {
+  order: 2;
+}
+header.topbar .topbar-panel > .profile-menu {
+  order: 3;
+}
+header.topbar .topbar-logout {
+  order: 4;
+}
+header.topbar .topbar-mobile-only,
+header.topbar button.topbar-burger {
+  display: none;
+}
+/* 1100px statt 700px: die volle Leiste braucht ~840px (Spielleiter mit
+   „Kataloge & Nutzer" und langem Namen mehr) und lief darunter über den Rand. */
+@media (max-width: 1100px) {
+  header.topbar {
+    gap: 12px;
+    padding: 10px 12px;
+  }
+  header.topbar .wordmark {
+    font-size: 16px;
+    letter-spacing: 0.08em;
+  }
+  header.topbar > .mode-toggle {
+    order: 0;
+    margin-left: auto;
+  }
+  header.topbar button.topbar-burger {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 12px;
+    font-size: 16px;
+    line-height: 1;
+  }
+  header.topbar .topbar-panel {
+    display: none;
+  }
+  header.topbar .topbar-panel.open {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    max-height: calc(100dvh - var(--topbar-h, 47px));
+    overflow-y: auto;
+    padding: 4px 12px 12px;
+    background: var(--header-grad-mid);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.25);
+  }
+  header.topbar .topbar-panel > * {
+    order: 0;
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  /* Gleiche Spezifität wie die Desktop-`order`-Regeln oben, sonst gewinnen
+     die (Profil landete hinter „Abmelden"). Im Feld gilt die DOM-Reihenfolge. */
+  header.topbar .topbar-panel > .topbar-changelog,
+  header.topbar .topbar-panel > .profile-menu,
+  header.topbar .topbar-panel > .topbar-logout {
+    order: 0;
+  }
+  header.topbar .topbar-panel > .spacer {
+    display: none;
+  }
+  header.topbar .topbar-panel > .topbar-mobile-only {
+    display: flex;
+  }
+  header.topbar .topbar-panel > button.topbar-logout {
+    width: auto;
+    min-height: 40px;
+    margin-top: 10px;
+    padding: 0 20px;
+    justify-content: center;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    align-self: flex-start;
+  }
+  /* Hover-Flyouts taugen nicht für Touch: das Feld listet stattdessen ganze
+     Zeilen, Charaktere/Gruppen führen zur vollen Liste. */
+  header.topbar .topbar-panel .nav-flyout {
+    display: none;
+  }
+  header.topbar .topbar-panel .nav-menu-label {
+    flex: 1;
+    min-height: 44px;
+  }
+}
+
 /* Die Seite nutzt die vorhandene Fensterbreite. Die Obergrenze verhindert nur,
    dass Fließtext auf sehr breiten Bildschirmen unlesbar lang wird; die Tabellen
    darin rechnen ihre Spalten in Prozent und wachsen einfach mit. Der
@@ -1011,10 +1120,15 @@ main {
   content: none;
 }
 .panel > h3 .panel-title {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
 }
+/* Darf schrumpfen und umbrechen: das Panel sitzt oft in einer schmalen Spalte
+   (nicht nur auf dem Telefon), und mit flex: none schob ein langer Infotext
+   Chevron und Knöpfe über den rechten Rand. */
 .panel > h3 .panel-info {
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   font-size: 13px;
   font-weight: 400;
 }
@@ -1277,6 +1391,30 @@ a.card.home-tile h3 {
   margin-inline: calc(-1 * var(--pad-x));
   padding: 8px var(--pad-x) 6px;
   background: var(--bg);
+  /* Bricht nur um, wenn der Inhalt nicht passt (lange Gruppennamen, Event-
+     Liste): ohne das lief die Zeile schon bei ~840px über den Rand. */
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
+/* Schmal: die Zeile (Name, Meta, Speicherstand, Knöpfe) bricht um und klebt
+   nicht mehr. Wrap allein machte sie auf dem Telefon über 120px hoch, und das
+   dauerhaft über den Inhalt gelegt, zusammen mit Kopf- und Reiterleiste. Läuft
+   sie mit der Seite weg, rechnet die Reiterleiste ihre Höhe nicht mehr ein:
+   --charhead-h wird per !important auf 0 gezwungen (schlägt den von
+   stickyChrome.ts inline gesetzten Wert), damit jede calc()-Kette darunter
+   (Reiter, Talentsuche, Seitenleiste, Dialoge) ohne Lücke mitzieht. */
+@media (max-width: 700px) {
+  :root {
+    --charhead-h: 0px !important;
+  }
+  .char-header {
+    position: static;
+  }
+  .char-header > .muted {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
 }
 
 /* ---------- Tabs ---------- */
@@ -1475,6 +1613,25 @@ button.small.active,
   border-color: var(--accent);
   color: var(--on-accent-fill);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+/* Schmal und halbes Fenster: eine Zeile, seitlich scrollbar. Umbrechend nahm die
+   Leiste auf dem Telefon drei Zeilen (116px) und bei ~960px noch zwei, und das
+   dauerhaft angeheftet. Der aktive Reiter wird per useTabsHeight sichtbar
+   gehalten. Bis zum Beschnittrand gezogen wie bisher (Polster bleibt). */
+@media (max-width: 1100px) {
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+  .tabs button {
+    flex: none;
+    white-space: nowrap;
+  }
 }
 /* Zahl-Abzeichen an einem Reiter (z. B. offene Charakter-Anfragen bei
    "Gruppen") — passt sich der Reiterfarbe an statt fest auf Akzent zu stehen. */
@@ -2804,32 +2961,71 @@ button.side-attr:active {
 @media (max-width: 1100px) {
   .char-body {
     flex-direction: column;
+    /* In a column, flex-start would size .char-main to its widest table (the
+       desktop rule's align-items), so min-width: 0 never applied and the
+       table scrollers never engaged. Stretch pins it to the viewport. */
+    align-items: stretch;
   }
-  .char-sidebar,
-  .char-sidebar.collapsed {
+  .char-body .char-sidebar,
+  .char-body .char-sidebar.collapsed {
     flex-basis: auto;
     width: 100%;
     position: static;
   }
-  .side-scroll {
+  .char-body .side-scroll {
     max-height: none;
   }
-  .side-resize {
+  .char-body .side-resize {
     display: none;
   }
   /* Gestapelt ist die Leiste voll breit — der eingeklappte Knopf liegt dann
      waagerecht, die Schrift wieder normal in einer Zeile. */
-  .char-sidebar.collapsed {
+  .char-body .char-sidebar.collapsed {
     flex-basis: auto;
     width: 100%;
   }
-  .side-expand {
+  .char-body .side-expand {
     flex-direction: row;
     justify-content: center;
     gap: 10px;
     border-radius: 11px;
   }
-  .side-expand-label {
+  .char-body .side-expand-label {
+    writing-mode: horizontal-tb;
+    text-orientation: mixed;
+  }
+}
+
+/* Dieselbe Klasse (.char-sidebar) trägt auch die Rosterleisten des Virtuellen
+   Tischs. Die stapeln erst unter 900px (.vtt-cols); gälte die 1100px-Regel oben
+   für sie, nähmen die Leisten zwischen 901 und 1100px je die volle Breite und
+   die Karte schrumpfte auf 2px. */
+@media (max-width: 900px) {
+  .vtt-cols .char-sidebar,
+  .vtt-cols .char-sidebar.collapsed {
+    flex-basis: auto;
+    width: 100%;
+    position: static;
+  }
+  .vtt-cols .side-scroll {
+    max-height: none;
+  }
+  .vtt-cols .side-resize {
+    display: none;
+  }
+  /* Gestapelt ist die Leiste voll breit — der eingeklappte Knopf liegt dann
+     waagerecht, die Schrift wieder normal in einer Zeile. */
+  .vtt-cols .char-sidebar.collapsed {
+    flex-basis: auto;
+    width: 100%;
+  }
+  .vtt-cols .side-expand {
+    flex-direction: row;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 11px;
+  }
+  .vtt-cols .side-expand-label {
     writing-mode: horizontal-tb;
     text-orientation: mixed;
   }
@@ -6260,6 +6456,12 @@ tr:hover .probe-roll,
   }
   .wpn-probes::before {
     display: none;
+  }
+  /* Die Proben dürfen nie schrumpfen (flex: none), liefen aber als eine Zeile
+     über den Rand. Auf der eigenen Zeile dürfen sie umbrechen. */
+  .wpn-probes {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
   }
 }
 

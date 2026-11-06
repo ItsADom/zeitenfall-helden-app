@@ -162,6 +162,26 @@ export default function App() {
   // Die Kopfleiste klebt oben; was darunter kleben soll, braucht ihre Höhe.
   const topbarRef = useTopbarHeight();
 
+  // Schmal (≤700px) steckt die Navigation hinter einem Menüknopf. Das Feld
+  // schließt sich bei jedem Seitenwechsel, per Escape und per Tipp daneben.
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: PointerEvent) => {
+      if (!(e.target as Element | null)?.closest('.topbar-panel, .topbar-burger')) setMenuOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
   const refresh = () => {
     apiGet<UserInfo>('/api/me')
       .then(setUser)
@@ -210,27 +230,49 @@ export default function App() {
         {/* Wortmarke → Startseite. „Zeitenkompass": der Kompass, der die aus
             ihrer Zeit gefallenen Helden von Zeitenfall orientiert. */}
         <Link to="/" className="wordmark">Zeitenkompass</Link>
-        <NavMenu kind="charaktere" />
-        <NavMenu kind="gruppen" />
-        {/* Inhalt zuerst, Verwaltung danach — das Wiki gehört zu den Inhalten. */}
-        <WikiNavLink />
-        {/* Spielleiter verwalten zusätzlich Kataloge & Nutzer. „Einstellungen"
-            liegt für alle Rollen im Profil-Flyout (unten) — und ist vom
-            Charakterbogen aus direkt erreichbar. Route bleibt intern /verwaltung. */}
-        {(user.isGm || user.isAdmin) && (
-          <Link to="/verwaltung" className="nav-badge-host">
-            Kataloge &amp; Nutzer
-            <PendingBadge />
-          </Link>
-        )}
-        <div className="spacer" />
-        <Link to="/changelog">Changelog</Link>
+        {/* Auf dem Desktop ist .topbar-panel `display: contents` — die Einträge
+            liegen dann wie früher direkt in der Leiste (Reihenfolge über `order`
+            in styles.css, weil der Hell/Dunkel-Schalter außerhalb sitzt). Schmal
+            wird es das Aufklappfeld unter der Leiste. */}
+        <div className={`topbar-panel${menuOpen ? ' open' : ''}`} id="topbar-panel">
+          <NavMenu kind="charaktere" />
+          <NavMenu kind="gruppen" />
+          {/* Inhalt zuerst, Verwaltung danach — das Wiki gehört zu den Inhalten. */}
+          <WikiNavLink />
+          {/* Spielleiter verwalten zusätzlich Kataloge & Nutzer. „Einstellungen"
+              liegt für alle Rollen im Profil-Flyout (unten) — und ist vom
+              Charakterbogen aus direkt erreichbar. Route bleibt intern /verwaltung. */}
+          {(user.isGm || user.isAdmin) && (
+            <Link to="/verwaltung" className="nav-badge-host">
+              Kataloge &amp; Nutzer
+              <PendingBadge />
+            </Link>
+          )}
+          <div className="spacer" />
+          <Link to="/changelog" className="topbar-changelog">Changelog</Link>
+          {/* Der Name: Profil + Einstellungen als Flyout. Im Aufklappfeld gibt es
+              keine Flyouts (Hover-Menüs taugen nicht für Touch); dort stehen
+              Einstellungen und Kaffeekasse als eigene Zeilen. */}
+          <ProfileMenu />
+          <Link to="/einstellungen" className="topbar-mobile-only">Einstellungen</Link>
+          <a className="topbar-mobile-only" href="https://paypal.me/ItsADom" target="_blank" rel="noopener noreferrer">
+            Kaffeekasse
+          </a>
+          <button className="topbar-logout" onClick={logout}>Abmelden</button>
+        </div>
         {/* Hell/Dunkel liegt für ALLE direkt in der Kopfleiste; die Farbwelt-
             Auswahl (Farbwelt + Animation) ist auf die Einstellungen-Seite gewandert. */}
         <ModeToggle />
-        {/* Der Name: Profil + Einstellungen als Flyout. */}
-        <ProfileMenu />
-        <button onClick={logout}>Abmelden</button>
+        <button
+          type="button"
+          className="topbar-burger"
+          aria-label="Menü"
+          aria-expanded={menuOpen}
+          aria-controls="topbar-panel"
+          onClick={() => setMenuOpen((o) => !o)}
+        >
+          {menuOpen ? '✕' : '☰'}
+        </button>
       </header>
       <main>
         <Routes>
