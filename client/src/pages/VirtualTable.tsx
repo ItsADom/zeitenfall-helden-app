@@ -1543,10 +1543,24 @@ function MapCanvas({
     }
     dragRef.current = null;
   };
-  const onWheel = (e: React.WheelEvent) => {
+  // Mausrad zoomt die Karte. Bewusst ein NATIVER Listener mit passive: false und
+  // kein React-onWheel: React hängt Wheel-Handler passiv an die Wurzel, dort
+  // wird preventDefault() ignoriert, und die Seite scrollte beim Zoomen mit
+  // (sichtbar, sobald die Seite überhaupt scrollbar ist, z. B. schmal gestapelt).
+  // Über eine Referenz auf die jeweils aktuelle Funktion, damit der Listener nur
+  // einmal angehängt wird.
+  const wheelZoom = useRef<(e: WheelEvent) => void>(() => {});
+  wheelZoom.current = (e: WheelEvent) => {
     e.preventDefault();
     zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15);
   };
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const onWheel = (e: WheelEvent) => wheelZoom.current(e);
+    wrap.addEventListener('wheel', onWheel, { passive: false });
+    return () => wrap.removeEventListener('wheel', onWheel);
+  }, []);
 
   // Welche Brett-Zelle unter diesem Zeiger liegt, oder null außerhalb des
   // Bretts. Absolute Position statt Versatz (Bemalen kennt keinen "Griff"-
@@ -2742,7 +2756,6 @@ function MapCanvas({
         onPointerMove={onWrapPointerMove}
         onPointerUp={onWrapPointerUp}
         onPointerCancel={onWrapPointerUp}
-        onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
         style={{
           cursor: pipetteArmed ? 'copy' : tool === 'paint' || tool === 'highlight' || tool === 'measure' || tool === 'fog' ? 'crosshair' : undefined,
