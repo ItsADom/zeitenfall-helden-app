@@ -40,6 +40,7 @@
   /* Erfolgs-Grün (Wurf-Feed, Zauber-Voraussetzungen): einmal hier, in beiden Modi gleich. */
   --good: #3f7d3f;
   --good-muted: #7d9a4a;
+  --fail: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%); /* Fehlschlag: gedämpftes Rot */
   /* Überladung: kühler „aufgeladener" Blauton, bewusst abseits von Warn/Krit
      (bernstein/rot) — ein überfüllter Wert liest sich als besonders, nicht als Fehler. */
   --over-soft: #dfe9fb;
@@ -446,7 +447,12 @@
 .vtt-context-menu,
 .vtt-tile-picker,
 .equip-preset-flyout,
-.color-picker-popover {
+.color-picker-popover,
+.dice-dock-tools-flyout,
+.dice-suggest,
+.vtt-token-editor,
+.vtt-settings-pop,
+.vtt-token-icon-picker {
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border-strong);
@@ -4554,25 +4560,23 @@ li {
 .dice-dock-tab:hover {
   background: var(--accent-dark);
 }
-.dice-dock-offline {
+.dice-dock-offline,
+.dice-dock-neu {
   display: inline-block;
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--warn-line);
   margin-left: 6px;
+}
+.dice-dock-offline {
+  background: var(--warn-line);
 }
 /* „Neues im Chat" — dieselbe Form und Stelle wie der Offline-Punkt daneben,
    damit der Reiter keine zweite Bildsprache lernt. --on-accent statt eines
    eigenen Tons: der Punkt sitzt auf der Akzentfläche und muss nur DORT
    auffallen, und dieses Paar ist in jeder Farbwelt als lesbar definiert. */
 .dice-dock-neu {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
   background: var(--on-accent);
-  margin-left: 6px;
 }
 
 /* Der Puls: etwas WILL beantwortet werden (Proben-/Gruppen-/Koop-Anfrage).
@@ -4825,10 +4829,6 @@ body.resizing-dice {
   grid-template-columns: repeat(2, auto);
   gap: 6px;
   padding: 8px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
 }
 /* Unter dieser Breite passen die vier Werkzeuge (im schlimmsten Fall inklusive
    Schicksalspunkte-Zähler eines Spielers) nicht mehr bequem neben Eingabefeld
@@ -4853,10 +4853,6 @@ body.resizing-dice {
   max-height: 220px;
   overflow-y: auto;
   padding: 4px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
 }
 .dice-dock-input input {
   flex: 1;
@@ -5103,7 +5099,7 @@ body.resizing-dice {
    eigenen Krit-Farbe des Themas gemischt statt fest verdrahtet, damit jedes
    Farbthema (rot/wald/königsblau/…) automatisch den passenden Ton bekommt. */
 .feed-roll--fail {
-  border-left-color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+  border-left-color: var(--fail);
 }
 /* Bestätigung steht noch aus — Ergebnis bewusst noch offen. */
 .feed-roll--open {
@@ -5215,7 +5211,7 @@ body.resizing-dice {
   color: var(--good);
 }
 .feed-part--over .feed-part-mark {
-  color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+  color: var(--fail);
 }
 .feed-dice {
   display: inline-flex;
@@ -5440,7 +5436,7 @@ body.resizing-dice {
   color: var(--good-muted);
 }
 .feed-roll--fail .feed-roll-outcome {
-  color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+  color: var(--fail);
 }
 .feed-roll--critsuccess .feed-roll-outcome,
 .feed-roll--crit .feed-roll-outcome {
@@ -5678,7 +5674,7 @@ tr:hover .probe-roll,
   color: var(--good);
 }
 .feed-coop-verdict--failure {
-  color: color-mix(in srgb, var(--crit-line) 55%, var(--muted) 45%);
+  color: var(--fail);
 }
 .feed-coop-verdict--provisional {
   color: var(--muted);
@@ -6595,10 +6591,6 @@ tr:hover .probe-roll,
   bottom: 12px;
   z-index: 6;
   width: 260px;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -6674,10 +6666,6 @@ tr:hover .probe-roll,
   width: 260px;
   max-height: 360px;
   overflow-y: auto;
-  background: var(--panel);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -6698,7 +6686,8 @@ tr:hover .probe-roll,
   background: var(--surface-sunken);
 }
 .vtt-token-icon-swatch.active,
-.vtt-tile-swatch.active {
+.vtt-tile-swatch.active,
+.vtt-measure-kind-tile.active {
   border-color: var(--accent);
   outline: 2px solid var(--accent-soft);
 }
@@ -7174,8 +7163,6 @@ tr:hover .probe-roll,
   cursor: pointer;
 }
 .vtt-measure-kind-tile.active {
-  border-color: var(--accent);
-  outline: 2px solid var(--accent-soft);
   color: var(--accent-dark);
 }
 .vtt-measure-kind-tile span {
@@ -7185,14 +7172,17 @@ tr:hover .probe-roll,
 /* ---------- VTT Phase 10: Initiative und Runden ---------- */
 /* Fester Streifen im normalen Fluss zwischen .vtt-toolbar und .vtt-map-wrap
    (kein position: absolute mehr — immer sichtbar, kein Auf-/Zuklappen). */
-.vtt-initiative-strip {
+.vtt-initiative-strip,
+.vtt-roundtracker-strip {
   display: flex;
-  align-items: stretch;
   gap: 10px;
   padding: 6px 10px;
   background: var(--panel);
   border-bottom: 1px solid var(--border-strong);
   font-size: 12px;
+}
+.vtt-initiative-strip {
+  align-items: stretch;
 }
 /* Runde/Kampf starten/beenden gestapelt in einem eigenen kleinen Block, statt
    inline in der Kartenreihe — eigene Steuerungsgruppe, kein Kämpfender. */
@@ -7331,13 +7321,7 @@ input.vtt-initiative-value {
    duration") — own strip below InitiativeStrip, same "row of small cards"
    idiom but always just the viewer's own (fully private, no isGm case). */
 .vtt-roundtracker-strip {
-  display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border-strong);
-  font-size: 12px;
   flex-wrap: wrap;
 }
 .vtt-roundtracker-cards {
