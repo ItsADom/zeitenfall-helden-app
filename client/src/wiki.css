@@ -13,7 +13,7 @@
   margin: 0 auto;
 }
 .wiki {
-  max-width: 1100px;
+  max-width: 68.75rem;
   margin: 0 auto;
 }
 
@@ -22,8 +22,8 @@
    Spalte sonst aufblähen und die Seite quer scrollen lassen. */
 .wiki-koerper {
   display: grid;
-  grid-template-columns: 190px minmax(0, 1fr);
-  gap: 0 32px;
+  grid-template-columns: 11.875rem minmax(0, 1fr);
+  gap: 0 2rem;
   align-items: start;
 }
 .wiki-spalte {
@@ -36,8 +36,8 @@
   top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px) + 14px);
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding-right: 14px;
+  gap: 1.125rem;
+  padding-right: 0.875rem;
   border-right: 1px solid var(--border);
   /* Ein langes Inhaltsverzeichnis darf nicht aus dem Fenster laufen; die
      Leiste ist der eine Kasten im Wiki, der scrollen DARF, weil er nichts
@@ -46,12 +46,12 @@
   overflow-y: auto;
 }
 .wiki-seitenleiste-titel {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
 }
 .wiki-seitenleiste-nav {
   display: flex;
@@ -59,8 +59,8 @@
   gap: 1px;
 }
 .wiki-seitenleiste-nav a {
-  font-size: 13px;
-  padding: 4px 8px;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.5rem;
   border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text);
@@ -90,13 +90,13 @@
   z-index: 14;
   display: flex;
   align-items: center;
-  gap: 8px 14px;
+  gap: 0.5rem 0.875rem;
   flex-wrap: wrap;
   /* Bis zum Beschnittrand ziehen wie .char-header: negativer Rand + gleiches
      Polster = Hintergrund voll bis zum Seitenrand, Inhalt bleibt im Kasten. */
   margin-inline: calc(-1 * var(--pad-x));
-  padding: 8px var(--pad-x);
-  margin-bottom: 14px;
+  padding: 0.5rem var(--pad-x);
+  margin-bottom: 0.875rem;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -116,7 +116,7 @@
    zuerst, wenn es eng wird. */
 .wiki-leiste-suche {
   flex: 1 1 160px;
-  min-width: 120px;
+  min-width: 7.5rem;
 }
 .wiki-leiste-suche input {
   width: 100%;
@@ -125,10 +125,10 @@
 .wiki-brotkrumen {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-wrap: wrap;
-  margin-bottom: 6px;
-  font-size: 12px;
+  margin-bottom: 0.375rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .wiki-brotkrumen a {
@@ -145,8 +145,8 @@
 }
 
 .wiki-weitergeleitet {
-  margin: 0 0 2px;
-  font-size: 13px;
+  margin: 0 0 0.125rem;
+  font-size: 0.8125rem;
   font-style: italic;
 }
 
@@ -154,7 +154,7 @@
 .wiki-wegweiser {
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 14px;
+  padding: 0.625rem 0.875rem;
   background: var(--panel);
 }
 
@@ -162,28 +162,28 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
 }
 .wiki-kopf h1 {
-  margin-bottom: 2px;
+  margin-bottom: 0.125rem;
 }
 .wiki-meta {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .wiki-kopf-aktionen {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 /* Pfeil am Wiki-Eintrag der Kopfleiste: der Link öffnet einen neuen Tab, und
    das soll man vorher sehen. */
 .wiki-neuertab {
-  margin-left: 3px;
-  font-size: 11px;
+  margin-left: 0.1875rem;
+  font-size: 0.6875rem;
   opacity: 0.7;
 }
 
@@ -192,9 +192,9 @@
 .wiki-filter {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 0.875rem;
 }
 /* „Alle gelesen" steht zwischen einem umrandeten Suchfeld und den umrandeten
    Kategorie-Pillen. Als blanker `.small`-Geisterknopf läse es sich dort wie eine
@@ -219,7 +219,7 @@
 .wiki-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.375rem;
 }
 .wiki-tag {
   background: var(--accent-soft);
@@ -241,7 +241,7 @@
 .wiki-karte h3 {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-wrap: wrap;
 }
 .wiki-marke {
@@ -280,20 +280,20 @@
   margin-top: 0;
 }
 .wiki-ueberschrift {
-  margin: 22px 0 8px;
+  margin: 1.375rem 0 0.5rem;
   /* Ankersprünge dürfen weder unter der Kopfleiste noch unter der Wiki-Leiste
      landen — beide kleben darüber, beide sind gemessen. */
   scroll-margin-top: calc(var(--topbar-h, 47px) + var(--wikikopf-h, 0px) + 12px);
 }
 .wiki-liste {
-  margin: 8px 0 8px 22px;
+  margin: 0.5rem 0 0.5rem 1.375rem;
 }
 .wiki-liste li {
-  margin: 3px 0;
+  margin: 0.1875rem 0;
 }
 .wiki-zitat {
-  margin: 12px 0;
-  padding: 6px 14px;
+  margin: 0.75rem 0;
+  padding: 0.375rem 0.875rem;
   border-left: 3px solid var(--accent);
   background: var(--surface-sunken);
   color: var(--muted);
@@ -301,22 +301,22 @@
 .wiki-trenner {
   border: 0;
   border-top: 1px solid var(--border);
-  margin: 20px 0;
+  margin: 1.25rem 0;
 }
 .wiki-code {
   background: var(--surface-sunken);
   border: 1px solid var(--border-soft);
   border-radius: 4px;
-  padding: 1px 5px;
+  padding: 1px 0.3125rem;
   font-size: 0.92em;
 }
 .wiki-codeblock {
   background: var(--surface-sunken);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
+  padding: 0.625rem 0.75rem;
   overflow-x: auto;
-  margin: 12px 0;
+  margin: 0.75rem 0;
 }
 
 .wiki-link {
@@ -332,7 +332,7 @@
 }
 
 .wiki-bild {
-  margin: 14px 0;
+  margin: 0.875rem 0;
 }
 .wiki-bild img {
   max-width: 100%;
@@ -347,8 +347,8 @@
   line-height: 0;
 }
 .wiki-bild figcaption {
-  margin-top: 4px;
-  font-size: 13px;
+  margin-top: 0.25rem;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 
@@ -359,13 +359,13 @@
    nicht am img, damit die Bildunterschrift genauso breit ist wie das Bild und
    nicht quer über die Spalte läuft. */
 .wiki-bild-klein {
-  width: 180px;
+  width: 11.25rem;
 }
 .wiki-bild-mittel {
-  width: 320px;
+  width: 20rem;
 }
 .wiki-bild-gross {
-  width: 520px;
+  width: 32.5rem;
 }
 .wiki-bild-voll {
   width: 100%;
@@ -388,11 +388,11 @@
 
 .wiki-bild-links {
   float: left;
-  margin: 6px 16px 10px 0;
+  margin: 0.375rem 1rem 0.625rem 0;
 }
 .wiki-bild-rechts {
   float: right;
-  margin: 6px 0 10px 16px;
+  margin: 0.375rem 0 0.625rem 1rem;
 }
 .wiki-bild-mitte {
   margin-left: auto;
@@ -440,7 +440,7 @@
   .wiki-bild-links,
   .wiki-bild-rechts {
     float: none;
-    margin: 14px 0;
+    margin: 0.875rem 0;
   }
   .wiki-bild-klein,
   .wiki-bild-mittel,
@@ -454,19 +454,19 @@
 .wiki-bild-aktionen {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
 }
 .wiki-bild-nursl {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
 }
 .wiki-bild-hinweis {
-  font-size: 13px;
-  margin-top: 8px;
+  font-size: 0.8125rem;
+  margin-top: 0.5rem;
 }
 
 .wiki-bildliste {
@@ -477,13 +477,13 @@
 .wiki-bildliste li {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 0;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
   border-top: 1px solid var(--border-soft);
 }
 .wiki-bildliste img {
-  width: 72px;
-  height: 72px;
+  width: 4.5rem;
+  height: 4.5rem;
   object-fit: cover;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border-soft);
@@ -492,17 +492,17 @@
 .wiki-bildliste-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   min-width: 0;
   flex: 1;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .wiki-bildliste-text .wiki-marke {
   align-self: flex-start;
 }
 .wiki-bildliste-aktionen {
   display: flex;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 /* GM-Block: erreicht ohnehin nur die Spielleitung — der Server entfernt diese
@@ -510,19 +510,19 @@
    sehen die Spieler nicht", sie schützt nichts. */
 .wiki-gm {
   position: relative;
-  margin: 14px 0;
-  padding: 12px 14px 10px;
+  margin: 0.875rem 0;
+  padding: 0.75rem 0.875rem 0.625rem;
   border: 1px dashed var(--accent);
   border-radius: var(--radius-md);
   background: var(--accent-soft);
 }
 .wiki-gm-marke {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent-dark);
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
 }
 .wiki-gm > :last-child {
   margin-bottom: 0;
@@ -540,11 +540,11 @@
 .wiki-rechte {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 14px;
-  padding: 8px 12px;
-  font-size: 13px;
+  margin-bottom: 0.875rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
   border: 1px dashed var(--border-strong);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
@@ -552,7 +552,7 @@
 .wiki-rechte label {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 /* --- Suchtreffer --- */
@@ -563,12 +563,12 @@
   padding: 0;
 }
 .wiki-treffer li {
-  padding: 10px 0;
+  padding: 0.625rem 0;
   border-top: 1px solid var(--border-soft);
 }
 .wiki-treffer p {
-  margin: 2px 0 0;
-  font-size: 13px;
+  margin: 0.125rem 0 0;
+  font-size: 0.8125rem;
 }
 .wiki-treffer mark {
   background: var(--accent-soft);
@@ -589,8 +589,8 @@
 }
 .wiki-toc-liste a {
   display: block;
-  padding: 3px 8px;
-  font-size: 13px;
+  padding: 0.1875rem 0.5rem;
+  font-size: 0.8125rem;
   line-height: 1.35;
   color: var(--muted);
   text-decoration: none;
@@ -603,15 +603,15 @@
 /* Die Ebene der Überschrift als Einrückung — mehr Auszeichnung braucht ein
    Verzeichnis aus höchstens drei Ebenen nicht. */
 .wiki-toc-e2 a {
-  padding-left: 20px;
+  padding-left: 1.25rem;
 }
 .wiki-toc-e3 a {
-  padding-left: 32px;
-  font-size: 12px;
+  padding-left: 2rem;
+  font-size: 0.75rem;
 }
 
 .wiki-verweise {
-  margin-top: 24px;
+  margin-top: 1.5rem;
 }
 
 /* --- Änderungsprotokoll & Verlauf --- */
@@ -619,9 +619,9 @@
 .wiki-logfilter {
   display: flex;
   align-items: flex-end;
-  gap: 12px;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  margin-bottom: 0.875rem;
 }
 .wiki-logfilter .field {
   margin: 0;
@@ -633,20 +633,20 @@
   padding: 0;
 }
 .wiki-log-zeile {
-  padding: 8px 0;
+  padding: 0.5rem 0;
   border-top: 1px solid var(--border-soft);
 }
 .wiki-log-kopf {
   display: flex;
   align-items: baseline;
-  gap: 10px;
+  gap: 0.625rem;
   flex-wrap: wrap;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 .wiki-log-kommentar,
 .wiki-log-feld {
-  font-size: 13px;
-  margin-top: 2px;
+  font-size: 0.8125rem;
+  margin-top: 0.125rem;
 }
 .wiki-log-kommentar {
   color: var(--muted);
@@ -654,18 +654,18 @@
 }
 .wiki-log-aktionen {
   display: flex;
-  gap: 8px;
-  margin-top: 6px;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
 }
 .wiki-log-link {
   display: inline-block;
-  margin-top: 4px;
+  margin-top: 0.25rem;
 }
 
 .wiki-bilanz {
   display: inline-flex;
-  gap: 6px;
-  font-size: 12px;
+  gap: 0.375rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
 }
 /* Hinzugefügt blau, entfernt rot — nicht grün/rot: die Farbwelten bringen kein
@@ -689,7 +689,7 @@
    um statt seitlich zu scrollen. */
 .wiki-diff {
   font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -705,8 +705,8 @@
 .wiki-diff-zeile {
   display: grid;
   grid-template-columns: 3.2em 3.2em 1.2em minmax(0, 1fr);
-  gap: 0 6px;
-  padding: 0 8px;
+  gap: 0 0.375rem;
+  padding: 0 0.5rem;
 }
 .wiki-diff-nr {
   color: var(--muted);
@@ -732,14 +732,14 @@
 .wiki-konflikt h3 {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   flex-wrap: wrap;
 }
 .wiki-konflikt-aktionen {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
 }
 
 /* --- Editor --- */
@@ -747,23 +747,23 @@
 /* Spickzettel: zweispaltiges Raster statt Tabelle — dieselbe Wirkung ohne die
    Tabellen-Maschinerie (klebender Kopf, Spaltenbreiten) mitzuschleppen. */
 .wiki-spick {
-  margin: 8px 0 0;
+  margin: 0.5rem 0 0;
 }
 .wiki-spick-zeile {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 4px 14px;
-  padding: 3px 0;
+  gap: 0.25rem 0.875rem;
+  padding: 0.1875rem 0;
   border-top: 1px solid var(--border-soft);
 }
 .wiki-spick-zeile dt code {
   /* Mehrzeilige Beispiele (Tabelle, gm-Block) sollen ihre Zeilen behalten. */
   white-space: pre-wrap;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .wiki-spick-zeile dd {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* Der ausgeblendete Nur-SL-Abschnitt im Editor: gestrichelt und blass — er
@@ -773,7 +773,7 @@
 }
 .wiki-gm-verborgen p {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 
@@ -786,10 +786,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;
   flex-wrap: wrap;
-  padding: 8px 0;
-  margin-bottom: 10px;
+  padding: 0.5rem 0;
+  margin-bottom: 0.625rem;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -797,7 +797,7 @@
 .wiki-editorleiste-rechts {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 
 .wiki-seg {
@@ -809,9 +809,9 @@
 .wiki-seg button {
   border: 0;
   border-radius: 0;
-  padding: 4px 12px;
+  padding: 0.25rem 0.75rem;
   background: var(--panel);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .wiki-seg button.active {
   background: var(--accent);
@@ -824,9 +824,9 @@
   /* Wächst ohnehin mit dem Inhalt (autosize) — das hier ist die Fläche, die
      man beim Anfangen VOR sich hat. 320px waren knapp zwei Absätze. */
   min-height: max(520px, 60vh);
-  padding: 12px 14px;
+  padding: 0.75rem 0.875rem;
   font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 15px;
+  font-size: 0.9375rem;
   line-height: 1.55;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -837,8 +837,8 @@
 }
 
 .wiki-vorschau {
-  min-height: 320px;
-  padding: 12px 14px;
+  min-height: 20rem;
+  padding: 0.75rem 0.875rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--panel);
@@ -848,12 +848,12 @@
   border: 1px dashed var(--accent);
   background: var(--accent-soft);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
 }
 .wiki-tipp {
-  margin: 4px 0 8px;
-  font-size: 12px;
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.75rem;
 }
 .wiki-hinweis-warn {
   border-color: var(--warn-line);
@@ -870,27 +870,27 @@
   padding: 0;
 }
 .wiki-kat-liste li {
-  padding: 3px 0;
+  padding: 0.1875rem 0;
 }
 /* Eingerückt und mit Faden, damit die Ebene ohne Zählen erkennbar bleibt. */
 .wiki-kat-liste .wiki-kat-liste {
-  margin-left: 10px;
-  padding-left: 12px;
+  margin-left: 0.625rem;
+  padding-left: 0.75rem;
   border-left: 1px solid var(--border);
 }
 .wiki-kat-wurzel {
-  margin-top: 8px;
+  margin-top: 0.5rem;
 }
 .wiki-kat-name {
   font-weight: 600;
 }
 .wiki-kat-zahl {
-  margin-left: 8px;
-  font-size: 12px;
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
 }
 .wiki-kat-ohne {
-  margin-left: 8px;
-  font-size: 11px;
+  margin-left: 0.5rem;
+  font-size: 0.6875rem;
   font-style: italic;
 }
 
@@ -898,8 +898,8 @@
    nebeneinander. */
 .wiki-tagwahl {
   align-items: center;
-  margin-top: 6px;
-  font-size: 12px;
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
 }
 
 /* Unter ~1000px bleibt neben einer 190px-Spalte kein lesbarer Artikel mehr
@@ -916,9 +916,9 @@
     overflow: visible;
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 6px 18px;
-    padding: 0 0 10px;
-    margin-bottom: 12px;
+    gap: 0.375rem 1.125rem;
+    padding: 0 0 0.625rem;
+    margin-bottom: 0.75rem;
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
@@ -928,7 +928,7 @@
   .wiki-seitenleiste-nav {
     flex-direction: row;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 0.25rem;
   }
   /* Quer gelegt wäre ein langes Verzeichnis eine Wand aus Verweisen — als
      Aufklapper bleibt es eine Zeile, bis jemand es braucht. */
@@ -938,11 +938,11 @@
   .wiki-toc-liste {
     display: flex;
     flex-wrap: wrap;
-    gap: 0 6px;
+    gap: 0 0.375rem;
   }
   .wiki-toc-e2 a,
   .wiki-toc-e3 a {
-    padding-left: 8px;
+    padding-left: 0.5rem;
   }
 }
 

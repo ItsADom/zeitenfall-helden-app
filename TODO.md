@@ -183,9 +183,11 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     size on about 80-99% of elements per page; the rest still carries its own px
     size. Also done: the character sidebar and sheet rules (`.side-*`, `.bio-*`,
     `.portrait*`, `.formel`, `.probe-roll*`; the `--sidebar-w` fallback and the
-    34px collapsed rail stay px because JS and `flex-basis` pair with them). Next
-    areas, in this order: the changelog and wiki stylesheet (`wiki.css`), the
-    remaining sheet tabs (`.wpn-*`, `.abil-*`, `.inv-*`, `.akt-*`), then the dice
+    34px collapsed rail stay px because JS and `flex-basis` pair with them), and
+    the wiki (`wiki.css`, whole file, incl. the 190px TOC column) with the
+    changelog rules. Next areas, in this order: the remaining sheet tabs
+    (`.wpn-*`, `.abil-*`, `.inv-*`, `.akt-*`), the leftovers
+    (`.changelog-version`, `.known-bugs-*`, easter-egg panels), then the dice
     dock and VTT. Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size

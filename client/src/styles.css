@@ -3184,9 +3184,9 @@ button.side-attr:active {
 .changelog-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: -2px 0 8px;
-  font-size: 12px;
+  gap: 0.625rem;
+  margin: -0.125rem 0 0.5rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .changelog-version {
@@ -3238,33 +3238,33 @@ button.side-attr:active {
 }
 .changelog-list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 1.125rem;
 }
 .changelog-list li {
-  margin: 4px 0;
+  margin: 0.25rem 0;
 }
 /* Funktions-Blöcke eines Eintrags, der ausnahmsweise mehrere große, unabhängig
    entstandene Funktionen bündelt (siehe ChangelogEntry.features) — deutlich
    stärker abgesetzt als eine bloße Kategorie-Überschrift, sonst verschwimmen
    die zwei Funktionen für die Leser ineinander. */
 .changelog-feature + .changelog-feature {
-  margin-top: 22px;
-  padding-top: 18px;
+  margin-top: 1.375rem;
+  padding-top: 1.125rem;
   border-top: 1px solid var(--border-strong);
 }
 .changelog-feature-title {
-  margin: 0 0 8px;
+  margin: 0 0 0.5rem;
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 16px;
+  font-size: 1rem;
   color: var(--accent-dark, var(--accent));
 }
 /* Kategorie-Abschnitte eines Eintrags (Neue Funktionen / Änderungen / Bugfixes) */
 .changelog-group + .changelog-group {
-  margin-top: 12px;
+  margin-top: 0.75rem;
 }
 .changelog-group-title {
-  margin: 0 0 4px;
-  font-size: 12px;
+  margin: 0 0 0.25rem;
+  font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
