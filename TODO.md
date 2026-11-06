@@ -176,8 +176,12 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     dice menus, VTT pickers/settings, colour picker, equipment presets, GM poll
     and request lists) and the base buttons, inputs and `.tabs` (the iOS 16px
     input size, 40px touch minimums and the 3px tab drop marker stay px on
-    purpose). Next areas, in this order: panels and tables, the top bar and
-    sheet header, then the dice dock and VTT. One area per commit, converted mechanically
+    purpose) and panels, cards, grids and table cells. Next areas, in this
+    order: the top bar and sheet header, then the dice dock and VTT. Known
+    loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
+    "fit column to content") assumes px cell padding, so at a larger root size
+    the fitted width comes out slightly narrow; derive it from the cell's
+    computed padding when this matters. One area per commit, converted mechanically
     (px / 16, skipping 1px and 0) and checked with a computed-style comparison
     at the default root size, plus a scaling check at 20px.
   - Not tried on a real phone or with touch input; the pending badge on

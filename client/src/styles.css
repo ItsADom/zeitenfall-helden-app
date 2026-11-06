@@ -1075,8 +1075,8 @@ main {
   background: linear-gradient(180deg, var(--panel-hi) 0%, var(--panel) 42%);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
-  margin-bottom: 16px;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
   box-shadow: var(--shadow-soft);
 }
 
@@ -1086,15 +1086,15 @@ main {
 .outlook-section > h3 {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
 }
 .panel > h3::before,
 .outlook-section > h3::before,
 .title-marker {
   content: '';
   flex: none;
-  width: 14px;
-  height: 14px;
+  width: 0.875rem;
+  height: 0.875rem;
   background-color: var(--accent);
   /* Form kommt aus dem Theme-Sigel; die Maske färbt es im Akzent ein */
   -webkit-mask: var(--sigil) center / contain no-repeat;
@@ -1129,14 +1129,14 @@ main {
 .panel > h3 .panel-info {
   flex: 0 1 auto;
   min-width: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 400;
 }
 .panel > h3 .panel-actions {
   flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   cursor: auto;
 }
 .panel > h3.collapsible:hover .chev,
@@ -1193,14 +1193,14 @@ tr.subtle-head.clickable:hover td {
 }
 .subtle-head .chev {
   color: var(--accent-dark);
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 
 .cardlist {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 14px;
-  margin-bottom: 24px;
+  gap: 0.875rem;
+  margin-bottom: 1.5rem;
 }
 .group-head {
   display: flex;
@@ -1220,7 +1220,7 @@ tr.subtle-head.clickable:hover td {
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 14px 16px;
+  padding: 0.875rem 1rem;
   box-shadow: var(--shadow);
   transition: transform 0.12s, box-shadow 0.12s;
 }
@@ -1250,13 +1250,13 @@ tr.subtle-head.clickable:hover td {
 .card--char {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 .card--char-ident {
   min-width: 0;
 }
 .card--char-ident h3 {
-  margin: 0 0 2px;
+  margin: 0 0 0.125rem;
 }
 
 /* ---------- Startseite (Hub) ---------- */
@@ -1752,7 +1752,7 @@ table.sheet th,
 table.sheet td {
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border-soft);
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   text-align: left;
   vertical-align: middle;
 }
@@ -1766,7 +1766,7 @@ table.sheet tr:last-child td {
 table.sheet th,
 .rules-table thead th {
   background: var(--surface-head);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1861,7 +1861,7 @@ table.sheet tbody tr:hover td.res-over {
 }
 .rules-table th,
 .rules-table td {
-  padding: 8px 12px;
+  padding: 0.5rem 0.75rem;
   text-align: left;
   vertical-align: middle;
   border-bottom: 1px solid var(--border-soft);
@@ -2041,7 +2041,7 @@ table.sheet th.sortable:hover {
   background: var(--accent-soft) !important;
   color: var(--accent-dark);
   font-weight: 700;
-  font-size: 12px;
+  font-size: 0.75rem;
   letter-spacing: 0.03em;
 }
 
@@ -2217,7 +2217,7 @@ input[type='file']::file-selector-button:hover {
    jede Zeile springen. */
 .static-value {
   display: block;
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   border: 1px solid transparent;
   line-height: 1.35;
   min-height: 0;
@@ -2232,7 +2232,7 @@ input[type='file']::file-selector-button:hover {
 }
 /* In Tabellen sind die Felder enger gesetzt — der feste Text folgt. */
 table.sheet .static-value {
-  padding: 3px 6px;
+  padding: 0.1875rem 0.375rem;
 }
 
 /* Automatisch mitwachsendes Textfeld: bricht um und dehnt sich nach unten,
@@ -2256,7 +2256,7 @@ table.sheet textarea.text-input {
   border: 1px solid var(--border);
   background: transparent;
   border-radius: 5px;
-  padding: 3px 6px;
+  padding: 0.1875rem 0.375rem;
 }
 table.sheet input[type='text']:hover,
 table.sheet input[type='number']:hover,
@@ -2373,8 +2373,8 @@ button.add-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-top: 14px;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
 }
 .subhead-row h4 {
   margin: 0;
@@ -2610,12 +2610,12 @@ input.char-title:focus {
 .grid2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0 20px;
+  gap: 0 1.25rem;
 }
 .grid3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 0 24px;
+  gap: 0 1.5rem;
 }
 /* Breite Tabellen scrollen im Panel statt die Seite zu verbreitern */
 .grid2 > *,
