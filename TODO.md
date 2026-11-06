@@ -187,11 +187,16 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     the wiki (`wiki.css`, whole file, incl. the 190px TOC column) with the
     changelog rules, and the remaining sheet tabs (`.wpn-*`, `.abil-*`,
     `.magier-*`, `.zone-*`, `.container-*`, `.coin`, `.pouch`, `.lang-*`,
-    `.einst-*` and friends). Next areas, in this order: the leftovers (shared
-    `.chev` rule, `legend`, `.viewas-tag`, `.changelog-version`, `.known-bugs-*`,
-    easter-egg panels and the page-level `.hero-*`, `.home-*`, `.login-*`,
-    `.marken-*`, `.crop-*`, `.print-*`, `.grp-*`, `.gm-*`), then the dice dock
-    (`.dice-*`, `.feed-*`, `.sp-*`, `.mod-*`) and VTT (`.vtt-*`). Known
+    `.einst-*` and friends), plus the leftovers and page-level rules (`.hero-*`,
+    `.home-*`, `.login-*`, `.marken-*`, `.crop-*`, `.print-*`, `.grp-*`, `.gm-*`,
+    `.known-bugs-*`, `.changelog-version`, `.notch`, `.seg`, global `ul`/`li`,
+    and `easterEggTracker.css`). Left on purpose in px: the touch minimums, the
+    16px coarse-pointer input size, the 3px tab drop marker, `main`'s 2200px cap,
+    the measured-height fallbacks and `kino.css`/`konamiParty.css` (animation
+    geometry). Only two areas remain, in this order: the dice dock (`.dice-*`,
+    `.feed-*`, `.sp-*`, `.mod-*`, about 137 values) and the VTT (`.vtt-*`, about
+    80). The dock is fixed-position and JS-resized, so check its resize and
+    drag behaviour, not only computed styles. Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size
     the fitted width comes out slightly narrow; derive it from the cell's
