@@ -174,8 +174,10 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   - px to rem migration (rule is in CLAUDE.md, "CSS units & responsiveness"): done
     for `.dialog-*`, `.dlg-*`, `.field` and the popups/flyouts (nav, theme and
     dice menus, VTT pickers/settings, colour picker, equipment presets, GM poll
-    and request lists). Next areas, in this order: buttons/inputs/tabs, panels
-    and tables, then the dice dock and VTT. One area per commit, converted mechanically
+    and request lists) and the base buttons, inputs and `.tabs` (the iOS 16px
+    input size, 40px touch minimums and the 3px tab drop marker stay px on
+    purpose). Next areas, in this order: panels and tables, the top bar and
+    sheet header, then the dice dock and VTT. One area per commit, converted mechanically
     (px / 16, skipping 1px and 0) and checked with a computed-style comparison
     at the default root size, plus a scaling check at 20px.
   - Not tried on a real phone or with touch input; the pending badge on

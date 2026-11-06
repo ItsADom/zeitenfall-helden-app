@@ -1422,7 +1422,7 @@ a.card.home-tile h3 {
 .tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 0.375rem;
   /* Bleibt beim Scrollen unter Kopfleiste UND Bogen-Kopfzeile griffbereit.
      Beider Höhe wird gemessen (components/stickyChrome.ts) — fest eingetragen
      war die Kopfleiste vier Pixel zu klein, wodurch der obere Rand der
@@ -1432,7 +1432,7 @@ a.card.home-tile h3 {
   z-index: 15;
   /* Wie .char-header bis zum Beschnittrand ziehen (siehe dort). */
   margin: 10px calc(-1 * var(--pad-x)) 14px;
-  padding: 8px var(--pad-x);
+  padding: 0.5rem var(--pad-x);
   background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
@@ -1570,10 +1570,10 @@ button.small.active,
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--panel);
-  padding: 6px 15px;
+  padding: 0.375rem 0.9375rem;
   cursor: pointer;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted);
   transition: all 0.13s;
   /* Beim Ziehen soll die Beschriftung nicht markiert werden */
@@ -1639,14 +1639,14 @@ button.small.active,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 16px;
-  height: 16px;
-  margin-left: 5px;
-  padding: 0 4px;
+  min-width: 1rem;
+  height: 1rem;
+  margin-left: 0.3125rem;
+  padding: 0 0.25rem;
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent-fill);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1;
   vertical-align: middle;
@@ -2135,7 +2135,7 @@ input, select, textarea {
   background: var(--input-bg);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   width: 100%;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
@@ -2198,8 +2198,8 @@ input[type='file'] {
 input[type='file']::file-selector-button {
   font: inherit;
   color: inherit;
-  padding: 4px 10px;
-  margin-right: 8px;
+  padding: 0.25rem 0.625rem;
+  margin-right: 0.5rem;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   background: var(--panel);
@@ -2293,7 +2293,7 @@ button.primary {
   color: var(--on-accent-fill);
   border: none;
   border-radius: 7px;
-  padding: 7px 16px;
+  padding: 0.4375rem 1rem;
   cursor: pointer;
   font-weight: 600;
   box-shadow: 0 1px 4px color-mix(in srgb, var(--accent) 30%, transparent);
@@ -2314,7 +2314,7 @@ button.danger {
   color: var(--error-text);
   border: 1px solid var(--error-text);
   border-radius: 7px;
-  padding: 7px 16px;
+  padding: 0.4375rem 1rem;
   cursor: pointer;
   font-weight: 600;
   transition: background 0.13s, color 0.13s;
@@ -2347,10 +2347,10 @@ a.small {
   background: transparent;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  padding: 2px 8px;
+  padding: 0.125rem 0.5rem;
   cursor: pointer;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
   text-decoration: none;
   transition: all 0.12s;
 }
@@ -2364,7 +2364,7 @@ button.confirm-armed:focus {
   color: #fff;
 }
 button.add-row {
-  margin-top: 6px;
+  margin-top: 0.375rem;
   font-weight: 600;
 }
 /* Zwischenüberschrift mit rechtsbündiger Aktion (z. B. Spezialenergien + „+ Zeile")
@@ -2405,7 +2405,7 @@ tr.note-row td {
 }
 textarea.note-area {
   resize: vertical;
-  min-height: 40px;
+  min-height: 2.5rem;
   background: var(--input-bg);
 }
 
@@ -2558,12 +2558,12 @@ tr.slot-row td {
 
 /* Klar erkennbarer Aktions-Button (auch ohne Hover) */
 button.btn-action {
-  min-width: 124px;
+  min-width: 7.75rem;
   background: var(--panel);
   color: var(--accent);
   border: 1.5px solid var(--accent);
   border-radius: 7px;
-  padding: 5px 14px;
+  padding: 0.3125rem 0.875rem;
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
@@ -2576,11 +2576,11 @@ button.btn-action:hover {
 
 input.section-title {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 700;
   border-color: transparent;
   background: transparent;
-  max-width: 420px;
+  max-width: 26.25rem;
   padding-left: 0;
 }
 input.section-title:hover {
@@ -2595,11 +2595,11 @@ input.section-title:focus {
 /* Charaktername in der Kopfzeile — sieht aus wie das <h1>, das es ersetzt */
 input.char-title {
   font-family: Georgia, 'Times New Roman', serif;
-  font-size: 26px;
+  font-size: 1.625rem;
   border-color: var(--border-strong);
   background: var(--input-bg);
-  max-width: 420px;
-  padding-left: 6px;
+  max-width: 26.25rem;
+  padding-left: 0.375rem;
 }
 input.char-title:focus {
   border-color: var(--accent);
@@ -7607,9 +7607,9 @@ tr:hover .probe-roll,
   font-size: 11px;
 }
 input.vtt-initiative-value {
-  width: 32px;
+  width: 2rem;
   text-align: center;
-  padding: 1px 2px;
+  padding: 1px 0.125rem;
 }
 .vtt-initiative-death {
   flex-shrink: 0;
