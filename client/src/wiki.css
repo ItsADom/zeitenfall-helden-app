@@ -416,6 +416,23 @@
   display: block;
   clear: both;
 }
+/* Eine zu breite Wiki-Tabelle scrollt seitwärts, statt vom Beschnittrand von
+   `main` abgeschnitten zu werden. Die Klasse setzt Markup.tsx nur, solange die
+   Tabelle wirklich überläuft: overflow macht den Kasten zum Scroll-Container in
+   beiden Achsen, und der klebende Tabellenkopf klebt dann am Kasten statt an der
+   Seite. Normale Tabellen behalten deshalb ihren seitenklebenden Kopf. */
+.wiki-tabelle--scrollt {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+.wiki-tabelle--scrollt table.sheet thead {
+  top: 0;
+}
+@media print {
+  .wiki-tabelle--scrollt {
+    overflow: visible;
+  }
+}
 
 @media (max-width: 700px) {
   /* Neben einem 180px-Bild bleibt auf einem Telefon keine lesbare Textspalte

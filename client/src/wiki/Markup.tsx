@@ -4,7 +4,7 @@
 // anywhere in this file, and there must never be. That is what makes markup
 // injection impossible by construction instead of by sanitising, and it is the
 // reason `dangerouslySetInnerHTML` does not appear anywhere in this app.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { WikiBlock, WikiDoc, WikiInline } from '@shared/wikiMarkup';
 
@@ -117,11 +117,36 @@ function WikiTabelle({ kopf, zeilen, ziele }: { kopf: WikiInline[][]; zeilen: Wi
     });
   }, [zeilen, sort]);
 
-  // Reuses the sheet table styling, and deliberately WITHOUT its own overflow:
-  // a box with overflow becomes a scroll container in both axes and steals
-  // the page's scrolling (see CLAUDE.md).
+  // A wiki table is author-written, so it can be arbitrarily wide. It is the one
+  // place the app allows sideways scrolling at any width. But overflow-x: auto
+  // makes the box a scroll container in both axes, which would also stop the
+  // sticky header sticking to the page (see CLAUDE.md), so it is switched on
+  // ONLY while the table really overflows. Normal tables stay overflow-free.
+  // scrollWidth is measured against clientWidth, which stays stable when the
+  // class flips (no feedback loop).
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [laeuftUeber, setLaeuftUeber] = useState(false);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const messen = () => setLaeuftUeber(el.scrollWidth > el.clientWidth + 1);
+    messen();
+    // Fensterbreite ändert sich -> neu messen (auch dort, wo kein
+    // ResizeObserver feuert, z. B. in einem nicht sichtbaren Fenster).
+    window.addEventListener('resize', messen);
+    if (typeof ResizeObserver === 'undefined') return () => window.removeEventListener('resize', messen);
+    const ro = new ResizeObserver(messen);
+    ro.observe(el);
+    const tabelle = el.firstElementChild;
+    if (tabelle) ro.observe(tabelle);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', messen);
+    };
+  }, [zeilen, kopf]);
+
   return (
-    <div className="table-wrap wiki-tabelle">
+    <div ref={wrapRef} className={`table-wrap wiki-tabelle${laeuftUeber ? ' wiki-tabelle--scrollt' : ''}`}>
       <table className="sheet">
         <thead>
           <tr>
