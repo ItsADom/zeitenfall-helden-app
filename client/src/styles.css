@@ -1463,10 +1463,10 @@ a.card.home-tile h3 {
 .wiki-marke,
 .dlg-badge,
 .feed-triple {
-  padding: 1px 5px;
+  padding: 1px 0.3125rem;
   border: 1px solid transparent;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1491,13 +1491,13 @@ a.card.home-tile h3 {
 .wiki-tag {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
+  gap: 0.375rem;
+  padding: 0.125rem 0.625rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--surface-sunken);
   font-family: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -3066,7 +3066,7 @@ button.side-attr:active {
   .vtt-cols .side-expand {
     flex-direction: row;
     justify-content: center;
-    gap: 10px;
+    gap: 0.625rem;
     border-radius: 11px;
   }
   .vtt-cols .side-expand-label {
@@ -6691,7 +6691,7 @@ tr:hover .probe-roll,
    VttRoster.tsx) — unverändert wiederverwendet, damit sie überall in der App
    gleich aussehen und sich gleich ziehen/einklappen lassen. */
 .vtt-page {
-  margin: -20px calc(-1 * var(--pad-x)) -60px;
+  margin: -1.25rem calc(-1 * var(--pad-x)) -3.75rem;
   padding: 0 var(--pad-x);
   height: calc(100dvh - var(--topbar-h, 47px));
   display: flex;
@@ -6702,19 +6702,19 @@ tr:hover .probe-roll,
   flex: 0 0 auto;
   display: flex;
   align-items: baseline;
-  gap: 14px;
-  padding: 10px 0;
+  gap: 0.875rem;
+  padding: 0.625rem 0;
 }
 .vtt-room-name {
   margin: 0;
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 .vtt-cols {
   flex: 1;
   min-height: 0;
   display: flex;
-  gap: 10px;
-  padding-bottom: 10px;
+  gap: 0.625rem;
+  padding-bottom: 0.625rem;
 }
 .vtt-map-col {
   flex: 1;
@@ -6740,8 +6740,8 @@ tr:hover .probe-roll,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   border-bottom: 1px solid var(--border);
 }
 .vtt-toolbar-spacer {
@@ -6782,7 +6782,7 @@ tr:hover .probe-roll,
   min-width: 3.5em;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .vtt-map-wrap {
   flex: 1;
@@ -6824,12 +6824,12 @@ tr:hover .probe-roll,
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 .vtt-scene-list li {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
 }
 .vtt-scene-list li.active .vtt-scene-name {
   border-color: var(--accent);
@@ -6844,7 +6844,7 @@ tr:hover .probe-roll,
   min-width: 0;
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 0.5rem;
   text-align: left;
 }
 .vtt-scene-picker .vtt-tile-picker-row input {
@@ -6955,8 +6955,8 @@ tr:hover .probe-roll,
 }
 .vtt-token-icon-current.has-image {
   padding: 0;
-  width: 28px;
-  height: 28px;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 .vtt-token-icon-current img,
 .vtt-token-icon-swatch img {
@@ -6989,13 +6989,13 @@ tr:hover .probe-roll,
 .vtt-tile-picker-swatches {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 0.3125rem;
 }
 .vtt-token-icon-swatch {
   aspect-ratio: 1;
   border-radius: 5px;
   border: 2px solid var(--border);
-  padding: 2px;
+  padding: 0.125rem;
   cursor: pointer;
   background: var(--surface-sunken);
 }
@@ -7007,13 +7007,13 @@ tr:hover .probe-roll,
 }
 .vtt-token-icon-empty {
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .vtt-token-icon-credit {
   margin: 0;
-  padding-top: 6px;
+  padding-top: 0.375rem;
   border-top: 1px solid var(--border-soft);
-  font-size: 11px;
+  font-size: 0.6875rem;
   text-align: center;
 }
 
@@ -7028,14 +7028,14 @@ tr:hover .probe-roll,
 .vtt-wound-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 0.5rem;
+  font-size: 0.75rem;
 }
 .vtt-wound-row span:first-child {
   flex: 1;
 }
 .vtt-wound-value {
-  min-width: 18px;
+  min-width: 1.125rem;
   text-align: center;
   font-weight: 700;
 }
@@ -7126,13 +7126,13 @@ tr:hover .probe-roll,
   z-index: 6;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   background: var(--panel);
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   box-shadow: var(--shadow);
-  padding: 6px 6px 6px 14px;
-  font-size: 12px;
+  padding: 0.375rem 0.375rem 0.375rem 0.875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   pointer-events: auto;
 }
@@ -7141,9 +7141,9 @@ tr:hover .probe-roll,
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1;
-  padding: 4px 6px;
+  padding: 0.25rem 0.375rem;
   border-radius: 999px;
 }
 .vtt-tool-badge button:hover {
@@ -7165,8 +7165,8 @@ tr:hover .probe-roll,
   background: var(--accent);
   border-radius: 999px;
   box-shadow: 0 4px 24px color-mix(in srgb, var(--accent) 45%, transparent);
-  padding: 12px 28px;
-  font-size: 16px;
+  padding: 0.75rem 1.75rem;
+  font-size: 1rem;
   font-weight: 700;
   color: var(--on-accent-fill);
   pointer-events: none;
@@ -7199,8 +7199,8 @@ tr:hover .probe-roll,
   z-index: 7;
   border-radius: 999px;
   box-shadow: var(--shadow);
-  padding: 10px 24px;
-  font-size: 15px;
+  padding: 0.625rem 1.5rem;
+  font-size: 0.9375rem;
   font-weight: 700;
   pointer-events: none;
   animation: vtt-view-toast-fade 4s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -7459,15 +7459,15 @@ tr:hover .probe-roll,
 .vtt-measure-kind-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  gap: 0.5rem;
 }
 .vtt-measure-kind-tile {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 10px 6px;
+  gap: 0.375rem;
+  padding: 0.625rem 0.375rem;
   border: 2px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
@@ -7478,7 +7478,7 @@ tr:hover .probe-roll,
   color: var(--accent-dark);
 }
 .vtt-measure-kind-tile span {
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 /* ---------- VTT Phase 10: Initiative und Runden ---------- */
@@ -7487,11 +7487,11 @@ tr:hover .probe-roll,
 .vtt-initiative-strip,
 .vtt-roundtracker-strip {
   display: flex;
-  gap: 10px;
-  padding: 6px 10px;
+  gap: 0.625rem;
+  padding: 0.375rem 0.625rem;
   background: var(--panel);
   border-bottom: 1px solid var(--border-strong);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .vtt-initiative-strip {
   align-items: stretch;
@@ -7503,9 +7503,9 @@ tr:hover .probe-roll,
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 0.25rem;
   flex-shrink: 0;
-  padding-right: 10px;
+  padding-right: 0.625rem;
   border-right: 1px solid var(--border-soft);
 }
 .vtt-initiative-strip-controls strong {
@@ -7516,16 +7516,16 @@ tr:hover .probe-roll,
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   overflow-x: auto;
 }
 .vtt-initiative-card {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-shrink: 0;
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   border: 2px solid var(--border-soft);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
@@ -7542,8 +7542,8 @@ tr:hover .probe-roll,
 }
 .vtt-initiative-portrait {
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 1.875rem;
+  height: 1.875rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   object-fit: cover;
@@ -7561,7 +7561,7 @@ tr:hover .probe-roll,
 .vtt-initiative-card-meta {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
 }
 .vtt-initiative-remove {
   flex-shrink: 0;
@@ -7576,19 +7576,19 @@ tr:hover .probe-roll,
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 999px;
   background: var(--accent-soft);
   border: 1px solid var(--accent);
   color: var(--accent-dark);
-  font-size: 13px;
+  font-size: 0.8125rem;
   line-height: 1;
 }
 .vtt-initiative-waiting-label {
   flex-shrink: 0;
-  font-size: 11px;
-  padding-left: 4px;
+  font-size: 0.6875rem;
+  padding-left: 0.25rem;
   border-left: 1px solid var(--border-soft);
 }
 .vtt-initiative-name {
@@ -7612,7 +7612,7 @@ tr:hover .probe-roll,
   min-width: 32px;
   text-align: left;
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
 }
 input.vtt-initiative-value {
   width: 2rem;
@@ -7621,7 +7621,7 @@ input.vtt-initiative-value {
 }
 .vtt-initiative-death {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--warn-line);
   white-space: nowrap;
 }
@@ -7639,41 +7639,41 @@ input.vtt-initiative-value {
 .vtt-roundtracker-cards {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-wrap: wrap;
 }
 .vtt-roundtracker-card {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   flex-shrink: 0;
-  padding: 4px 6px;
+  padding: 0.25rem 0.375rem;
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
   white-space: nowrap;
 }
 .vtt-roundtracker-label {
-  max-width: 140px;
+  max-width: 8.75rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .vtt-roundtracker-value {
-  min-width: 20px;
+  min-width: 1.25rem;
   text-align: center;
   font-weight: 700;
 }
 .vtt-roundtracker-add {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   margin-left: auto;
 }
 .vtt-roundtracker-add input[type='text'] {
-  width: 180px;
+  width: 11.25rem;
 }
 .vtt-roundtracker-start {
-  width: 48px;
+  width: 3rem;
   text-align: center;
 }
 /* Schwebender Knopf ÜBER der Karte statt im Streifen (developer's Layout-
@@ -7690,13 +7690,13 @@ input.vtt-initiative-value {
      on screen. It's a permanent fixture during combat; a flyout is
      transient and should always win. */
   z-index: 4;
-  padding: 8px 18px;
+  padding: 0.5rem 1.125rem;
   border: 1px solid var(--accent);
   border-radius: 999px;
   background: var(--accent);
   color: var(--on-accent-fill);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 0.8125rem;
   box-shadow: var(--shadow);
   cursor: pointer;
 }

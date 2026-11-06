@@ -167,44 +167,23 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     hover) and now close on `pointerdown`; the probe roll buttons get touch-size
     targets under `pointer: coarse`. Never tried on a real touch device; the VTT
     toolbar flyouts were not looked at.
-  - VTT below 900px stacks, but its toolbar/token editor/map pointer handling were
-    never tried on a phone.
+  - VTT below 900px stacks and its layout is checked, but finger input (pan,
+    token drag, token editor) was never tried on a real touch device.
   - Sheet header still sticks between 701px and 1100px (about 100-140px pinned);
     decide whether it should un-stick up to 1100px like the tab bar scrolls.
-  - px to rem migration (rule is in CLAUDE.md, "CSS units & responsiveness"): done
-    for `.dialog-*`, `.dlg-*`, `.field` and the popups/flyouts (nav, theme and
-    dice menus, VTT pickers/settings, colour picker, equipment presets, GM poll
-    and request lists) and the base buttons, inputs and `.tabs` (the iOS 16px
-    input size, 40px touch minimums and the 3px tab drop marker stay px on
-    purpose), panels, cards, grids and table cells, and the top bar, burger
-    panel and sheet header (the 47px `--topbar-h` fallback and the 44px/40px
-    touch rows stay px) and base typography (`body`, `h1`, `h3`, `button`,
-    `main` padding; `main`'s 2200px cap stays px). Text now follows the root
-    size on about 80-99% of elements per page; the rest still carries its own px
-    size. Also done: the character sidebar and sheet rules (`.side-*`, `.bio-*`,
-    `.portrait*`, `.formel`, `.probe-roll*`; the `--sidebar-w` fallback and the
-    34px collapsed rail stay px because JS and `flex-basis` pair with them), and
-    the wiki (`wiki.css`, whole file, incl. the 190px TOC column) with the
-    changelog rules, and the remaining sheet tabs (`.wpn-*`, `.abil-*`,
-    `.magier-*`, `.zone-*`, `.container-*`, `.coin`, `.pouch`, `.lang-*`,
-    `.einst-*` and friends), plus the leftovers and page-level rules (`.hero-*`,
-    `.home-*`, `.login-*`, `.marken-*`, `.crop-*`, `.print-*`, `.grp-*`, `.gm-*`,
-    `.known-bugs-*`, `.changelog-version`, `.notch`, `.seg`, global `ul`/`li`,
-    and `easterEggTracker.css`). Left on purpose in px: the touch minimums, the
-    16px coarse-pointer input size, the 3px tab drop marker, `main`'s 2200px cap,
-    the measured-height fallbacks and `kino.css`/`konamiParty.css` (animation
-    geometry). The dice dock (`.dice-*`, `.feed-*`, `.sp-*`, `.mod-*`) is done
-    too; its dragged size (`dice:w`/`dice:h`, and `MIN_W`/`MAX_W` in
-    `DicePanel.tsx`) stays JS px, so at a larger text size the dock does not grow
-    with its content unless dragged larger. Only the VTT (`.vtt-*`, about 80
-    values) remains; check its pointer/zoom behaviour, not only computed
-    styles. The VTT chat column reuses the dock's feed classes. Known
-    loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
-    "fit column to content") assumes px cell padding, so at a larger root size
-    the fitted width comes out slightly narrow; derive it from the cell's
-    computed padding when this matters. One area per commit, converted mechanically
-    (px / 16, skipping 1px and 0) and checked with a computed-style comparison
-    at the default root size, plus a scaling check at 20px.
+  - Text and spacing in the stylesheets are now rem-based (rule: CLAUDE.md,
+    "CSS units & responsiveness"); what is deliberately still px: touch minimums,
+    the 16px coarse-pointer input size, the 3px tab drop marker, `main`'s 2200px
+    cap, measured-height fallbacks (`--topbar-h` 47px etc.), the `--sidebar-w`
+    fallback, the 34px collapsed rail, the dock's viewport bounds and
+    `kino.css`/`konamiParty.css` (animation geometry). Residue to look at when it
+    matters at larger text sizes: JS-driven px geometry (dice dock `dice:w`/`dice:h`
+    and `MIN_W`/`MAX_W` in `DicePanel.tsx`, so the dock does not grow with its
+    content; inline `minWidth: heads.length * 64` on tables; a few inline `gap:
+    '4px'` styles in TSX) and `CELL_CHROME_PX = 30` in `components/tableLayout.tsx`
+    (double-click "fit column to content" assumes px cell padding). Roll
+    entries, requests and the Schicksalspunkte control in the dock were never
+    compared on screen (no roll history), nor the login page and print view.
   - Not tried on a real phone or with touch input; the pending badge on
     "Kataloge & Nutzer" was never seen in the burger panel.
   - Splitting `styles.css` (about 7,400 lines) into smaller files.
