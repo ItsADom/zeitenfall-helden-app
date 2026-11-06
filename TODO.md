@@ -163,12 +163,14 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   this is polish). Target range is about 960px (half of a 1080p screen) up to 4K;
   `main` stays capped at 2200px and centred, no scaling on big screens (decided).
   The clipping/overflow fixes and the burger top bar are in; what is left:
-  - Flyouts built on `useHoverFlyout` open by tap on touch (the browser emulates
-    hover) and now close on `pointerdown`; the probe roll buttons get touch-size
-    targets under `pointer: coarse`. Never tried on a real touch device; the VTT
-    toolbar flyouts were not looked at.
-  - VTT below 900px stacks and its layout is checked, but finger input (pan,
-    token drag, token editor) was never tried on a real touch device.
+  - Never tried on a real phone or with touch input (checked only in a desktop
+    browser at 386px to 3840px; the developer confirmed the half-screen notebook
+    view looks good). Touch-specific work to verify there: flyouts built on
+    `useHoverFlyout` open by tap (the browser emulates hover) and close on
+    `pointerdown`; the probe roll buttons get touch-size targets under `pointer:
+    coarse`; finger input on the VTT (pan, token drag, token editor, toolbar and
+    picker flyouts); the burger menu. The pending badge on "Kataloge & Nutzer" was
+    never seen in the burger panel (no open requests when tested).
   - Sheet header still sticks between 701px and 1100px (about 100-140px pinned);
     decide whether it should un-stick up to 1100px like the tab bar scrolls.
   - Text and spacing in the stylesheets are now rem-based (rule: CLAUDE.md,
@@ -184,9 +186,11 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     (double-click "fit column to content" assumes px cell padding). Roll
     entries, requests and the Schicksalspunkte control in the dock were never
     compared on screen (no roll history), nor the login page and print view.
-  - Not tried on a real phone or with touch input; the pending badge on
-    "Kataloge & Nutzer" was never seen in the burger panel.
-  - Splitting `styles.css` (about 7,400 lines) into smaller files.
+  - Small visual nits seen at 386px, not fixed: the "Spielleiter" label in the
+    Verwaltung > Benutzer role column is cut off (the table scrolls, so it is
+    reachable), and the floating "Bemalen" tool chip slightly overlaps the right
+    edge of an open VTT picker.
+  - Splitting `styles.css` (about 7,700 lines) into smaller files.
 - [sketch] **Look-up lists** (needs GM data; none yet): e.g. which attributes can be raised
   per weapon level / per spell level. Separate from the catalogues — a different
   kind of list.
