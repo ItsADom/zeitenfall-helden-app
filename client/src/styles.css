@@ -3040,8 +3040,11 @@ button.side-attr:active {
     width: 100%;
     position: static;
   }
+  /* Nicht `none`: aufgeklappt wurde die Gruppen-Leiste 2000px hoch, die Karte
+     schrumpfte auf 2px und rutschte aus dem Bildschirm. Gedeckelt scrollt sie
+     in sich. */
   .vtt-cols .side-scroll {
-    max-height: none;
+    max-height: 40dvh;
   }
   .vtt-cols .side-resize {
     display: none;
@@ -6866,6 +6869,17 @@ tr:hover .probe-roll,
   }
   .vtt-map-col {
     flex: 1 1 320px;
+    /* Rund 175px gehen für Toolbar und die übrigen Leisten der Spalte drauf;
+       480px lassen der Karte dann gut 300px. Ohne Untergrenze presste eine
+       aufgeklappte Seitenleiste sie auf nichts zusammen. */
+    min-height: 480px;
+  }
+  /* Die Seite darf hier wachsen (und normal scrollen), statt auf die
+     Fensterhöhe festgenagelt zu sein: mit beiden Leisten aufgeklappt passen
+     Karte und Leisten sonst nicht in eine Bildschirmhöhe. */
+  .vtt-page {
+    height: auto;
+    min-height: calc(100dvh - var(--topbar-h, 47px));
   }
 }
 
