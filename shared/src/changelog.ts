@@ -245,6 +245,25 @@ export const CHANGELOG: ChangelogEntry[] = [
           '(Spielleiter) Über „Szenen“ in der Werkzeugleiste des Tisches lassen sich Szenen anlegen, umbenennen, löschen und wechseln. Eine neue Szene ist leer, und der Tisch wechselt sofort dorthin. Die letzte Szene lässt sich nicht löschen.',
         ],
       },
+      {
+        title: 'Darstellung auf kleinen und halben Fenstern',
+        added: [
+          'Auf schmalen Fenstern (Telefon, halber Bildschirm) klappt die Kopfleiste zu einem Menü (☰) zusammen. Die Reiterleisten laufen in einer Zeile und scrollen seitwärts, der aktive Reiter bleibt sichtbar.',
+          'Breite Tabellen im Wiki scrollen jetzt seitwärts, statt über den Rand zu ragen.',
+          'Texte und Abstände folgen jetzt der Schriftgröße, die du im Browser eingestellt hast. Bei der Standardgröße sieht alles aus wie vorher.',
+        ],
+        changed: [
+          'Charakterbogen: Tabellen scrollen auf schmalen Fenstern in ihrem Kasten, statt abgeschnitten zu werden, die Spalten bleiben lesbar, und die Kopfzeile des Bogens bricht um. Auf Touch-Geräten sind die Würfel-Knöpfe neben den Proben dauerhaft sichtbar und größer.',
+          'Virtueller Tisch: Auf schmalen Fenstern ist die Werkzeugleiste einzeilig zum Scrollen, aufgeklappte Seitenleisten drücken die Karte nicht mehr weg, und die Auswahlfenster sitzen direkt unter der Leiste.',
+          'Das war ein großer Umbau der Darstellung. Wenn dir danach etwas komisch aussieht (abgeschnittene Texte, verrutschte Abstände, Elemente an der falschen Stelle), melde es bitte mit Seite und ungefährer Fenstergröße.',
+        ],
+        fixed: [
+          'Virtueller Tisch: Zoomen mit dem Mausrad hat zusätzlich die Seite gescrollt.',
+        ],
+        admin: [
+          '(Verwaltung) Tabellen und Formulare unter „Kataloge & Nutzer“ werden auf schmalen Fenstern nicht mehr abgeschnitten.',
+        ],
+      },
     ],
   },
   {
