@@ -6734,6 +6734,35 @@ tr:hover .probe-roll,
 .vtt-toolbar-spacer {
   flex: 1;
 }
+/* Schmal (die Ansicht stapelt ab 900px): eine Zeile, seitlich scrollbar, wie die
+   Reiterleiste. Umbrechend nahm die Leiste auf dem Telefon vier Zeilen (158px)
+   und ließ der Karte nur ein Drittel des Bildschirms; außerdem sitzen die
+   Auswahl-Flyouts (.vtt-tile-picker, .vtt-settings-pop: top: 52px) auf eine
+   einzeilige Leiste ausgelegt und überdeckten die unteren Zeilen. Die Flyouts
+   sind Geschwister der Leiste, nicht deren Kinder — das Scrollen schneidet sie
+   nicht ab. */
+@media (max-width: 900px) {
+  .vtt-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .vtt-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+  .vtt-toolbar > * {
+    flex: none;
+    white-space: nowrap;
+  }
+}
+/* Touch: 40px (Regel für .small oben) ließe die einzeilige Leiste höher werden
+   als die 52px, auf die die Flyouts darunter ausgelegt sind. */
+@media (pointer: coarse) {
+  .vtt-toolbar button.small {
+    min-height: 34px;
+  }
+}
 .vtt-zoom-level {
   display: inline-block;
   min-width: 3.5em;
