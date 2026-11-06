@@ -163,8 +163,10 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
   this is polish). Target range is about 960px (half of a 1080p screen) up to 4K;
   `main` stays capped at 2200px and centred, no scaling on big screens (decided).
   The clipping/overflow fixes and the burger top bar are in; what is left:
-  - Hover-only flyouts (`useHoverFlyout`: dice dock tools/favourites, VTT toolbar)
-    have no touch path yet; the top bar no longer depends on them.
+  - Flyouts built on `useHoverFlyout` open by tap on touch (the browser emulates
+    hover) and now close on `pointerdown`; the probe roll buttons get touch-size
+    targets under `pointer: coarse`. Never tried on a real touch device; the VTT
+    toolbar flyouts were not looked at.
   - VTT below 900px stacks, but its toolbar/token editor/map pointer handling were
     never tried on a phone.
   - Sheet header still sticks between 701px and 1100px (about 100-140px pinned);

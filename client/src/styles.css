@@ -5763,6 +5763,25 @@ tr:hover .probe-roll,
 .probe-roll-more:hover {
   color: var(--accent);
 }
+@media (pointer: coarse) {
+  /* Würfel-Knöpfe neben den Proben: ohne Maus gibt es kein Überfahren, das sie
+     aus ihren 25 % Deckkraft holt, und 12px/9px große Ziele trifft kein Daumen.
+     Dauerhaft deutlich und mit Trefferfläche; Flyouts öffnen per Tipp (Touch
+     ahmt Hover beim Antippen nach). */
+  .probe-roll {
+    opacity: 1;
+  }
+  .probe-roll-btn,
+  .probe-roll-more {
+    padding: 8px 8px;
+  }
+  .probe-roll-btn {
+    font-size: 16px;
+  }
+  .probe-roll-more {
+    font-size: 12px;
+  }
+}
 /* Klappt nach unten auf (anders als im Dock, der am Fensterboden klebt).
    Doppelte Klasse wie oben bei --rooms: `bottom` aus .dice-flyout muss weg,
    sonst wird der Kasten zwischen top und bottom plattgedrückt. */

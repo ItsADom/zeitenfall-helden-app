@@ -49,16 +49,18 @@ export function useHoverFlyout<T extends HTMLElement = HTMLDivElement>(onOpen?: 
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
+    // pointerdown statt mousedown: Touch und Stift lösen es direkt aus, ohne auf
+    // die nachgeschobenen Maus-Ereignisse zu warten (Tipp daneben schließt).
+    const onDown = (e: PointerEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
     };
-    document.addEventListener('mousedown', onDown);
+    document.addEventListener('pointerdown', onDown);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('pointerdown', onDown);
       document.removeEventListener('keydown', onKey);
     };
   }, [open]);
