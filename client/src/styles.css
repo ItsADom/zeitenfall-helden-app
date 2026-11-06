@@ -2147,6 +2147,29 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
 }
+/* Touch-Geräte: Maus-Maße (4px-Polster, 13px-Schrift) sind für einen Daumen zu
+   klein. 16px verhindert außerdem das automatische Hineinzoomen von iOS Safari
+   beim Fokussieren (alles unter 16px löst es aus). Bewusst über die Eingabeart
+   (pointer: coarse) statt über die Breite: ein halbes Fenster am PC bleibt
+   unverändert kompakt. Spezifischere Regeln einzelner Tabellen/Panels gewinnen
+   weiterhin. */
+@media (pointer: coarse) {
+  input, select, textarea {
+    font-size: 16px;
+  }
+  button.small,
+  .tabs button {
+    min-height: 40px;
+  }
+  button.small {
+    min-width: 40px;
+  }
+  .nav-flyout-item,
+  .dice-flyout-item,
+  .vtt-context-menu button {
+    padding-block: 10px;
+  }
+}
 input[type='number'] {
   text-align: center;
   font-variant-numeric: tabular-nums;
@@ -2621,6 +2644,16 @@ main {
   flex-shrink: 0;
   color: var(--muted);
   font-size: 13px;
+}
+/* Schmal: Beschriftung über dem Feld statt 160px davon abzuziehen. */
+@media (max-width: 540px) {
+  .field {
+    flex-wrap: wrap;
+    gap: 2px 10px;
+  }
+  .field label {
+    width: 100%;
+  }
 }
 
 /* ---------- Charakterseite: Inhalt + Seitenleiste ---------- */
@@ -4217,6 +4250,10 @@ li {
 .set-row select {
   flex: 0 1 auto;          /* Nimmt den restlichen Platz in der Zeile ein */
   width: auto;     /* Verhindert, dass die Browser-Standardbreite den Umbruch erzwingt */
+  /* Ein <select> ist so breit wie sein längster Eintrag; auf dem Telefon schob der
+     längste Klingelton die Zeile über den Rand. */
+  max-width: 100%;
+  min-width: 0;
   /* Auf dem weißen Panel verschwand das weiße Eingabefeld fast — Seitengrund
      statt Panelgrund plus kräftigerer Rahmen hebt es in beiden Modi ab. */
   background: var(--bg);
@@ -6476,7 +6513,7 @@ tr:hover .probe-roll,
   position: relative;
   overflow: hidden;
   isolation: isolate;
-  min-width: 22rem;
+  min-width: min(22rem, 100%);
   padding: 0.7rem 1.2rem;
   border: 1px solid var(--accent);
   border-radius: var(--radius-lg);
@@ -6792,6 +6829,7 @@ tr:hover .probe-roll,
   bottom: 12px;
   z-index: 6;
   width: 260px;
+  max-width: calc(100vw - 24px);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -6865,6 +6903,7 @@ tr:hover .probe-roll,
   margin-left: 8px;
   z-index: 6;
   width: 260px;
+  max-width: calc(100vw - 24px);
   max-height: 360px;
   overflow-y: auto;
   padding: 10px 12px;
@@ -7154,6 +7193,7 @@ tr:hover .probe-roll,
   top: 52px;
   z-index: 6;
   width: 280px;
+  max-width: calc(100vw - 24px);
   max-height: calc(100% - 64px);
   overflow-y: auto;
   padding: 10px 12px;

@@ -159,10 +159,22 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     wrapping (easier now that static text wraps where an input would not).
    - Sprachen has rendering issues (investigate).
    - Maybe clamp column widths to the minimum necessary in print for readability.
-- [sketch] **Mobile/tablet & general layout + responsiveness pass - PROBABLY OUTDATED FINDINGS** (most players are on PC — saved for
-  later): responsiveness and layout touch-up, testing across many resolutions,
-  and splitting `styles.css` into smaller files for maintenance. The below-700px
-  table scroller and the sidebar's narrow-screen reflow belong to this pass.
+- [sketch] **Responsiveness: remaining follow-ups** (most players are on PC, so
+  this is polish). Target range is about 960px (half of a 1080p screen) up to 4K;
+  `main` stays capped at 2200px and centred, no scaling on big screens (decided).
+  The clipping/overflow fixes and the burger top bar are in; what is left:
+  - Hover-only flyouts (`useHoverFlyout`: dice dock tools/favourites, VTT toolbar)
+    have no touch path yet; the top bar no longer depends on them.
+  - VTT below 900px stacks, but its toolbar/token editor/map pointer handling were
+    never tried on a phone.
+  - Sheet header still sticks between 701px and 1100px (about 100-140px pinned);
+    decide whether it should un-stick up to 1100px like the tab bar scrolls.
+  - Convention for new CSS (not written into CLAUDE.md yet): widths and font sizes
+    relative (`min()`/`clamp()`/`minmax()`/`rem`), hairlines and borders in px;
+    migrate the ~1,400 `px` values area by area, never as one blanket replace.
+  - Not tried on a real phone or with touch input; the pending badge on
+    "Kataloge & Nutzer" was never seen in the burger panel.
+  - Splitting `styles.css` (about 7,400 lines) into smaller files.
 - [sketch] **Look-up lists** (needs GM data; none yet): e.g. which attributes can be raised
   per weapon level / per spell level. Separate from the catalogues — a different
   kind of list.
