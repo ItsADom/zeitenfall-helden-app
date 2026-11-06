@@ -29,8 +29,8 @@
   --z-wartung-banner: 220; /* Hinweisleiste während eines Neustarts */
   --z-overlay: 250; /* Kino-Würfel, Konami-Party */
   --z-wartung: 300; /* Neustart-Schirm: über allem */
-  --radius: 10px; /* Karten, Banner */
-  --radius-panel: 8px; /* Panels, Popups, Eingabekästen */
+  --radius-lg: 10px; /* Karten, Banner */
+  --radius-md: 8px; /* Panels, Popups, Eingabekästen */
   --radius-sm: 6px; /* Knöpfe, Eingabefelder, Menüeinträge */
   /* Semantische Zehrungs-Töne, eigenständig neben dem Wein-Akzent */
   --warn-soft: #f6e7cf;
@@ -450,7 +450,7 @@
   background: var(--panel);
   color: var(--text);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 .theme-dd-menu .theme-dd-option,
@@ -501,7 +501,7 @@
   align-items: center;
   gap: 8px;
   padding: 5px 10px;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--bg);
   border: 1px solid var(--border-hover);
   color: var(--text);
@@ -954,7 +954,7 @@ main {
   /* zarter Pergament-Verlauf statt klinisch flachem Weiß */
   background: linear-gradient(180deg, var(--panel-hi) 0%, var(--panel) 42%);
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   padding: 14px 16px;
   margin-bottom: 16px;
   box-shadow: var(--shadow-soft);
@@ -1094,7 +1094,7 @@ tr.subtle-head.clickable:hover td {
 .card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   box-shadow: var(--shadow);
   transition: transform 0.12s, box-shadow 0.12s;
@@ -1146,7 +1146,7 @@ tr.subtle-head.clickable:hover td {
 .hero {
   position: relative;
   overflow: hidden;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   padding: clamp(28px, 5vw, 56px) clamp(20px, 4vw, 48px);
   margin-bottom: 28px;
   color: var(--on-accent);
@@ -1495,7 +1495,7 @@ button.small.active,
    Scroll-Container würde das Kleben an sich reißen. */
 .table-wrap {
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
 }
 /* Als Ganzes klebend statt Zeile für Zeile: der Energien-Kopf im Heldenbrief
    ist zweizeilig (rowSpan/colSpan), und einzeln geklebte Zeilen müssten ihre
@@ -1660,7 +1660,7 @@ table.sheet tbody tr:hover td.res-over {
 .rules-table {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   border-collapse: separate;
   border-spacing: 0;
   overflow: hidden;
@@ -1892,7 +1892,7 @@ table.sheet th.sortable:hover {
   margin: 0;
   padding: 10px 12px;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   cursor: pointer;
   font-style: italic;
 }
@@ -2268,7 +2268,7 @@ tr.slot-row td {
   /* Nur unten rund: die Box klebt oben an der Leiste darüber (Reiter- oder
      Wiki-Leiste) — eine runde Ecke dort ließe den Inhalt beim Scrollen durch
      die entstehende Lücke hindurchschimmern. */
-  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
 }
 .talent-search .notch {
   flex: 0 1 360px;
@@ -2289,7 +2289,7 @@ tr.slot-row td {
   gap: 18px;
   background: var(--accent-soft);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 10px 16px;
   margin-bottom: 16px;
 }
@@ -2302,7 +2302,7 @@ tr.slot-row td {
   padding: 6px 14px;
   background: var(--accent);
   color: var(--on-accent-fill);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .level-num {
@@ -2591,7 +2591,7 @@ body.resizing-col {
 }
 .side-pool {
   padding: 6px 6px 7px;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface-sunken);
 }
@@ -2823,7 +2823,7 @@ button.side-attr:active {
 /* ---------- Geld / Münzen (Geldbeutel, GM-Währungskatalog) ---------- */
 .pouch {
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   margin-bottom: 10px;
 }
@@ -2866,7 +2866,7 @@ button.side-attr:active {
   padding: 8px 12px;
   border: 1px solid var(--border);
   border-left: 4px solid var(--coin-edge, var(--border-strong));
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--coin-bg, var(--panel));
 }
 .coin > label {
@@ -3170,7 +3170,7 @@ li {
 .portrait-empty {
   width: 180px;
   height: 180px;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   object-fit: cover;
   background: var(--input-bg);
@@ -3245,7 +3245,7 @@ li {
 .portrait-lightbox-img {
   max-width: min(90vw, 800px);
   max-height: 85vh;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
 }
 @media (max-width: 700px) {
@@ -3263,7 +3263,7 @@ li {
   position: relative;
   overflow: hidden;
   margin: 0 auto;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-strong);
   background: var(--input-bg);
   touch-action: none;
@@ -3373,7 +3373,7 @@ li {
   min-height: 40px;
   padding: 6px;
   border: 1px dashed var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
 }
 .drop-zone.over {
@@ -3463,7 +3463,7 @@ li {
 }
 .container-panel {
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 8px;
   background: transparent;
 }
@@ -3505,7 +3505,7 @@ li {
   max-width: 100%;
   padding: 3px 6px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: transparent;
   font-size: 13px;
   cursor: grab;
@@ -3607,7 +3607,7 @@ li {
   align-items: flex-end;
   padding: 8px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
 }
 .chip-editor label {
@@ -3775,7 +3775,7 @@ li {
 .dialog-panel {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.16);
   box-sizing: border-box;
   width: 100%;
@@ -3894,7 +3894,7 @@ li {
 .dlg-seg {
   display: flex;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   overflow: hidden;
   margin-bottom: 16px;
 }
@@ -4191,7 +4191,7 @@ li {
   margin: 0;
   padding: 1px 9px 3px;
   border: 1px solid var(--border-strong, var(--border));
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: transparent;
 }
 .notch > legend {
@@ -4504,7 +4504,7 @@ li {
   padding: 4px;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 .grp-suggest-item {
@@ -4818,7 +4818,7 @@ body.resizing-dice {
   padding: 8px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 /* Unter dieser Breite passen die vier Werkzeuge (im schlimmsten Fall inklusive
@@ -4846,7 +4846,7 @@ body.resizing-dice {
   padding: 4px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
 }
 .dice-dock-input input {
@@ -5599,7 +5599,7 @@ tr:hover .probe-roll,
   margin: 6px 0;
   padding: 8px 10px;
   border: 1px solid var(--accent);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--accent-soft);
   font-size: 13px;
 }
@@ -5820,7 +5820,7 @@ tr:hover .probe-roll,
 .gm-card {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 14px 16px;
   box-shadow: var(--shadow);
   display: flex;
@@ -5836,7 +5836,7 @@ tr:hover .probe-roll,
   flex: none;
   width: 52px;
   height: 52px;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
   object-fit: cover;
   background: var(--input-bg);
@@ -6055,7 +6055,7 @@ tr:hover .probe-roll,
   margin-top: 8px;
   padding: 6px 8px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--input-bg);
   color: var(--text);
   font: inherit;
@@ -6080,7 +6080,7 @@ tr:hover .probe-roll,
 }
 .wpn-card {
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: var(--shadow-soft);
 }
@@ -6099,7 +6099,7 @@ tr:hover .probe-roll,
   padding: 9px 14px;
   cursor: pointer;
   user-select: none;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
 }
 .wpn-head:hover {
   background: var(--surface-hover);
@@ -6115,7 +6115,7 @@ tr:hover .probe-roll,
 .wpn-card.open .wpn-head {
   background: var(--surface-head);
   border-bottom: 1px solid var(--border-strong);
-  border-radius: var(--radius) var(--radius) 0 0;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .wpn-name {
   font-size: 15px;
@@ -6213,7 +6213,7 @@ tr:hover .probe-roll,
   /* Untere Ecken der Karte selbst nachbilden — ohne `overflow: hidden` auf
      `.wpn-card` (siehe dort) rundet die Karte ihre Ecken nicht mehr von
      alleine mit. */
-  border-radius: 0 0 var(--radius) var(--radius);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   align-items: start;
   gap: 12px 20px;
   padding: 12px 14px;
@@ -6281,7 +6281,7 @@ tr:hover .probe-roll,
   min-width: 22rem;
   padding: 0.7rem 1.2rem;
   border: 1px solid var(--accent);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--panel);
   color: var(--accent);
   font-weight: 600;
@@ -6333,7 +6333,7 @@ tr:hover .probe-roll,
   max-width: min(42rem, calc(100vw - 2rem));
   padding: 0.7rem 1.1rem;
   border: 1px solid var(--warn-line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--warn-soft);
   color: var(--text);
   box-shadow: var(--shadow);
@@ -6355,7 +6355,7 @@ tr:hover .probe-roll,
   width: min(34rem, 100%);
   padding: 1.6rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   background: var(--panel);
   box-shadow: var(--shadow);
   text-align: center;
@@ -6393,7 +6393,7 @@ tr:hover .probe-roll,
   overflow: auto;
   padding: 0.6rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--text);
   text-align: left;
@@ -6596,7 +6596,7 @@ tr:hover .probe-roll,
   width: 260px;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   padding: 10px 12px;
   display: flex;
@@ -6675,7 +6675,7 @@ tr:hover .probe-roll,
   overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   padding: 10px 12px;
   display: flex;
@@ -7167,7 +7167,7 @@ tr:hover .probe-roll,
   gap: 6px;
   padding: 10px 6px;
   border: 2px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
   color: var(--text);
   cursor: pointer;
@@ -7224,7 +7224,7 @@ tr:hover .probe-roll,
   flex-shrink: 0;
   padding: 4px 8px;
   border: 2px solid var(--border-soft);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
   white-space: nowrap;
 }
@@ -7352,7 +7352,7 @@ input.vtt-initiative-value {
   flex-shrink: 0;
   padding: 4px 6px;
   border: 1px solid var(--border-soft);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
   white-space: nowrap;
 }

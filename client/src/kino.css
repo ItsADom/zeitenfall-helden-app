@@ -110,7 +110,7 @@
   max-width: min(28rem, 88vw);
   padding: 1.4rem 1.6rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--panel);
   box-shadow: var(--shadow);
   text-align: center;
@@ -140,7 +140,7 @@
   min-width: 2rem;
   padding: 0.25rem 0.45rem;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-head);
   font-variant-numeric: tabular-nums;
   font-size: 1.05rem;

@@ -61,7 +61,7 @@
 .wiki-seitenleiste-nav a {
   font-size: 13px;
   padding: 4px 8px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   text-decoration: none;
   color: var(--text);
 }
@@ -153,7 +153,7 @@
 /* Man steht auf einem Wegweiser statt auf einem Artikel. */
 .wiki-wegweiser {
   border: 1px dashed var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   padding: 10px 14px;
   background: var(--panel);
 }
@@ -317,7 +317,7 @@
 .wiki-codeblock {
   background: var(--surface-sunken);
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   padding: 10px 12px;
   overflow-x: auto;
   margin: 12px 0;
@@ -341,7 +341,7 @@
 .wiki-bild img {
   max-width: 100%;
   height: auto;
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border-soft);
 }
 .wiki-bild a {
@@ -472,7 +472,7 @@
   width: 72px;
   height: 72px;
   object-fit: cover;
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-soft);
   background: var(--surface-sunken);
 }
@@ -500,7 +500,7 @@
   margin: 14px 0;
   padding: 12px 14px 10px;
   border: 1px dashed var(--accent);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--accent-soft);
 }
 .wiki-gm-marke {
@@ -533,7 +533,7 @@
   padding: 8px 12px;
   font-size: 13px;
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--surface-sunken);
 }
 .wiki-rechte label {
@@ -679,7 +679,7 @@
   font-size: 12px;
   line-height: 1.5;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 .wiki-diff-luecke {
@@ -790,7 +790,7 @@
 .wiki-seg {
   display: inline-flex;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   overflow: hidden;
 }
 .wiki-seg button {
@@ -816,7 +816,7 @@
   font-size: 15px;
   line-height: 1.55;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--input-bg);
   color: var(--text);
   resize: none;
@@ -827,14 +827,14 @@
   min-height: 320px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--panel);
 }
 
 .wiki-hinweis {
   border: 1px dashed var(--accent);
   background: var(--accent-soft);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   padding: 8px 12px;
   font-size: 13px;
 }

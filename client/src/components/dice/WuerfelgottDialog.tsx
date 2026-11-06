@@ -20,7 +20,7 @@ export default function WuerfelgottDialog({ open, onClose }: { open: boolean; on
       <img
         src="/easter-eggs/wuerfelgott.jpg"
         alt="Der Würfelgott"
-        style={{ display: 'block', maxWidth: '100%', borderRadius: 'var(--radius-panel)' }}
+        style={{ display: 'block', maxWidth: '100%', borderRadius: 'var(--radius-md)' }}
       />
     </Dialog>
   );

@@ -9,7 +9,7 @@
   margin-top: 48px;
   padding: 28px 26px;
   border: 2px solid var(--mastery);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: linear-gradient(160deg, color-mix(in srgb, var(--mastery) 14%, var(--panel)) 0%, var(--panel) 65%);
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--mastery) 40%, transparent),
@@ -34,7 +34,7 @@
 
 .egg-tracker-reveal {
   border: 1px solid var(--mastery);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--mastery) 16%, var(--panel));
   color: var(--mastery);
   font-weight: 600;
@@ -50,7 +50,7 @@
   margin: 0;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-md);
   background: var(--panel);
   overflow: hidden;
 }
