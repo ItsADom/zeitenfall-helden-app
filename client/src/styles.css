@@ -676,12 +676,20 @@ body {
   background-size: auto, 120px 120px, auto;
   background-attachment: fixed, fixed, scroll;
   color: var(--text);
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.45;
 }
 
 a {
   color: var(--accent);
+}
+
+/* Buttons erben die Schriftgröße nicht, der Browser gibt ihnen fest 13.333px.
+   Dieselbe Größe in rem: gleicher Auftritt bei 16px, folgt aber der
+   Textgröße, die jemand im Browser eingestellt hat. Jede Regel mit eigener
+   Größe (button.small, .tabs button, ...) gewinnt weiter. */
+button {
+  font-size: 0.83333333rem;
 }
 
 h1, h2, h3, h4 {
@@ -690,10 +698,10 @@ h1, h2, h3, h4 {
   letter-spacing: 0.01em;
 }
 h1 {
-  font-size: 26px;
+  font-size: 1.625rem;
 }
 h3 {
-  font-size: 17px;
+  font-size: 1.0625rem;
   margin-bottom: 0.6em;
 }
 
@@ -1065,7 +1073,7 @@ main {
   width: 100%;
   max-width: 2200px;
   margin: 0 auto;
-  padding: 20px var(--pad-x) 60px;
+  padding: 1.25rem var(--pad-x) 3.75rem;
 }
 
 /* ---------- Panels & Karten ---------- */

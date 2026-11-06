@@ -178,9 +178,12 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     input size, 40px touch minimums and the 3px tab drop marker stay px on
     purpose), panels, cards, grids and table cells, and the top bar, burger
     panel and sheet header (the 47px `--topbar-h` fallback and the 44px/40px
-    touch rows stay px). Next areas, in this order: base typography (`body`,
-    headings and the many inherited 13-14px sizes still in px, which is why most
-    text does not yet follow a larger root size), then the dice dock and VTT. Known
+    touch rows stay px) and base typography (`body`, `h1`, `h3`, `button`,
+    `main` padding; `main`'s 2200px cap stays px). Text now follows the root
+    size on about 80-99% of elements per page; the rest still carries its own px
+    size. Next areas, in this order: the character sidebar and sheet-specific
+    rules (`.side-*`, `.bio-*`, `.formel`, `.probe-roll-btn`), the changelog and
+    wiki stylesheet (`wiki.css`), then the dice dock and VTT. Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size
     the fitted width comes out slightly narrow; derive it from the cell's
