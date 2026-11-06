@@ -1540,8 +1540,8 @@ a.card.home-tile h3 {
 
 .form-chip {
   flex: 0 0 auto;
-  padding: 2px 11px;
-  font-size: 13px;
+  padding: 0.125rem 0.6875rem;
+  font-size: 0.8125rem;
   line-height: 18px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1675,7 +1675,7 @@ button.small.active,
 .kat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 1rem;
   align-items: start;
 }
 .kat-grid > details.panel[open] {
@@ -1995,22 +1995,22 @@ table.sheet tbody tr:hover td.res-over {
 .lang-script-picker {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 160px;
+  gap: 0.25rem;
+  min-width: 10rem;
 }
 .lang-script-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 3px;
+  gap: 0.1875rem;
 }
 .lang-script-picker input[type='text'] {
   font-size: 0.85em;
-  padding: 2px 4px;
+  padding: 0.125rem 0.25rem;
 }
 .lang-script-matches {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
   align-items: flex-start;
 }
 
@@ -2086,13 +2086,13 @@ table.sheet th.sortable:hover {
 .table-tools {
   display: flex;
   justify-content: flex-end;
-  gap: 6px;
-  margin-bottom: 6px;
+  gap: 0.375rem;
+  margin-bottom: 0.375rem;
 }
 
 .collapsed-note {
   margin: 0;
-  padding: 10px 12px;
+  padding: 0.625rem 0.75rem;
   border: 1px dashed var(--border);
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -2346,7 +2346,7 @@ button.small:disabled:hover {
 .werk-retire-confirm {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.625rem;
   flex-wrap: wrap;
 }
 button.small,
@@ -2428,7 +2428,7 @@ tr.slot-row td {
   padding: 4px 10px 8px;
 }
 .slots-cap {
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
 }
 .slots-cap input {
   width: 4em;
@@ -2437,8 +2437,8 @@ tr.slot-row td {
 .slot-line {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 0 2px 8px;
+  gap: 0.375rem;
+  padding: 0.125rem 0 0.125rem 0.5rem;
 }
 .slot-branch {
   color: var(--muted, #9a8f78);
@@ -2477,7 +2477,7 @@ tr.slot-row td {
   z-index: 12;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   /* In der Inhaltsspalte ausrichten — NICHT über den Beschnittrand ziehen.
      Die negativen Ränder stammen aus dem einspaltigen Layout von früher; seit
      die Seitenleiste rechts daneben sitzt, schob der Beschnitt den (deckenden)
@@ -2501,30 +2501,30 @@ tr.slot-row td {
 
 /* Meisterschaft (100 TaW) — Stern mit Tooltip */
 .mastery {
-  margin-left: 6px;
+  margin-left: 0.375rem;
   color: var(--mastery);
   cursor: help;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* ---------- Stufe & Punkte ---------- */
 .level-banner {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: 1.125rem;
   background: var(--accent-soft);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 10px 16px;
-  margin-bottom: 16px;
+  padding: 0.625rem 1rem;
+  margin-bottom: 1rem;
 }
 .level-badge {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 60px;
-  min-height: 60px;
-  padding: 6px 14px;
+  min-width: 3.75rem;
+  min-height: 3.75rem;
+  padding: 0.375rem 0.875rem;
   background: var(--accent);
   color: var(--on-accent-fill);
   border-radius: var(--radius-lg);
@@ -2532,31 +2532,31 @@ tr.slot-row td {
 }
 .level-num {
   font-family: 'Segoe UI', system-ui, sans-serif;
-  font-size: 32px;
+  font-size: 2rem;
   font-weight: 700;
   line-height: 1;
   /* Lining-Ziffern sitzen einheitlich 2px zu tief → optisch mittig ausgleichen */
   transform: translateY(-2px);
 }
 .level-next {
-  font-size: 14px;
+  font-size: 0.875rem;
   line-height: 1.55;
 }
 .points-grid {
   display: grid;
   grid-template-columns: 150px 120px 1fr;
   align-items: center;
-  row-gap: 10px;
-  column-gap: 14px;
+  row-gap: 0.625rem;
+  column-gap: 0.875rem;
 }
 .points-grid > label {
   color: var(--muted);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .points-grid .pctrl {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   flex-wrap: wrap;
 }
 .points-grid .pnum {
@@ -3079,16 +3079,16 @@ button.side-attr:active {
 .akt-stepper {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   align-items: flex-start;
 }
 .akt-delta {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 0.1875rem;
 }
 .akt-delta button {
-  padding: 0 7px;
+  padding: 0 0.4375rem;
   line-height: 1.5;
   font-weight: 700;
 }
@@ -3101,14 +3101,14 @@ button.side-attr:active {
 .pouch {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  padding: 10px 12px;
-  margin-bottom: 10px;
+  padding: 0.625rem 0.75rem;
+  margin-bottom: 0.625rem;
 }
 .pouch-head {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
 }
 .pouch-drag-handle {
   cursor: grab;
@@ -3139,8 +3139,8 @@ button.side-attr:active {
 .coin {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
+  gap: 0.625rem;
+  padding: 0.5rem 0.75rem;
   border: 1px solid var(--border);
   border-left: 4px solid var(--coin-edge, var(--border-strong));
   border-radius: var(--radius-md);
@@ -3150,20 +3150,20 @@ button.side-attr:active {
   flex: 1;
   min-width: 0;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--text);
 }
 .coin .coin-disc {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 30%, var(--coin-hi, #fff), var(--coin-edge, #ccc) 78%);
   border: 1px solid rgba(41, 32, 24, 0.18);
   box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.55), 0 1px 2px rgba(41, 32, 24, 0.12);
 }
 .coin input[type='number'] {
-  width: 92px;
+  width: 5.75rem;
   flex-shrink: 0;
   text-align: center;
 }
@@ -3564,13 +3564,13 @@ li {
 .last-meter {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
   flex-wrap: wrap;
 }
 .last-bar {
   flex: 1;
-  min-width: 160px;
-  height: 12px;
+  min-width: 10rem;
+  height: 0.75rem;
   border-radius: 999px;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
@@ -3592,8 +3592,8 @@ li {
 .last-bonus {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-left: 14px;
+  gap: 0.375rem;
+  margin-left: 0.875rem;
   color: var(--muted);
   font-weight: 400;
 }
@@ -3651,17 +3651,17 @@ li {
 }
 .zone-empty {
   color: var(--muted);
-  font-size: 13px;
-  padding: 4px 2px;
+  font-size: 0.8125rem;
+  padding: 0.25rem 0.125rem;
 }
 /* Schmaler Wurf-Streifen einer seitengetrennten Zone: hierher gezogen wird der
    Gegenstand beidseitig getragen. Bewusst knapp, keine eigene Zeile im Raster
    (siehe TODO.md — Platzgründe), lebt in der eigenen Zelle statt zwischen den
    beiden Zellen des Paars, damit die responsive Spaltenzahl egal ist. */
 .zone-both-strip {
-  margin-top: 4px;
-  padding: 2px 6px;
-  font-size: 11px;
+  margin-top: 0.25rem;
+  padding: 0.125rem 0.375rem;
+  font-size: 0.6875rem;
   text-align: center;
   color: var(--muted);
   border: 1px dashed var(--border);
@@ -3711,43 +3711,43 @@ li {
 .zone-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px;
+  gap: 0.625rem;
 }
 .zone-name {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  font-size: 13px;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   color: var(--accent);
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 /* Behälter: je ein Panel mit Kopf (Name + Füllung/Kapazität) und Inhalt. */
 .container-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  gap: 0.75rem;
 }
 .container-panel {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 8px;
+  padding: 0.5rem;
   background: transparent;
 }
 .container-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 6px 10px;
-  margin-bottom: 6px;
+  gap: 0.375rem 0.625rem;
+  margin-bottom: 0.375rem;
 }
 .container-name {
   font-weight: 600;
 }
 .container-cap {
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--muted);
 }
 .container-cap.over {
@@ -3757,8 +3757,8 @@ li {
 .container-cap-edit {
   display: flex;
   align-items: center;
-  gap: 4px;
-  font-size: 12px;
+  gap: 0.25rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .container-cap-edit input {
@@ -3769,13 +3769,13 @@ li {
 .item-chip {
   display: inline-flex;
   align-items: baseline;
-  gap: 2px;
+  gap: 0.125rem;
   max-width: 100%;
-  padding: 3px 6px;
+  padding: 0.1875rem 0.375rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: transparent;
-  font-size: 13px;
+  font-size: 0.8125rem;
   cursor: grab;
   user-select: none;
 }
@@ -3849,7 +3849,7 @@ li {
 .chip-wrap {
   display: inline-flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
   max-width: 100%;
 }
 .chip-wrap:has(> .quick-contents) {
@@ -3857,23 +3857,23 @@ li {
   width: 100%;
 }
 .quick-contents {
-  margin-left: 16px;
+  margin-left: 1rem;
 }
 .quick-cap {
   display: block;
-  margin-bottom: 3px;
+  margin-bottom: 0.1875rem;
 }
 .quick-contents .drop-zone {
-  min-height: 32px;
+  min-height: 2rem;
 }
 
 /* Inline-Editor eines Chips: kompakte, beschriftete Felder. */
 .chip-editor {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 10px;
+  gap: 0.375rem 0.625rem;
   align-items: flex-end;
-  padding: 8px;
+  padding: 0.5rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface-sunken);
@@ -3881,14 +3881,14 @@ li {
 .chip-editor label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 11px;
+  gap: 0.125rem;
+  font-size: 0.6875rem;
   color: var(--muted);
 }
 .chip-editor input,
 .chip-editor select,
 .chip-editor textarea {
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .chip-editor .chip-notiz {
   flex: 1 1 200px;
@@ -3900,7 +3900,7 @@ li {
 /* ---------- Inventar (Cluster 5b): Behälter-Gruppen + Ziehen ---------- */
 .inv-toolbar {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
   align-items: center;
 }
 /* Sprung-Navigation der Einstellungen-Seite: klebt unter der Kopfzeile
@@ -3911,10 +3911,10 @@ li {
   z-index: 11;
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 14px;
+  gap: 0.25rem 0.875rem;
   background: var(--bg);
   margin-inline: calc(-1 * var(--pad-x));
-  padding: 6px var(--pad-x);
+  padding: 0.375rem var(--pad-x);
   border-bottom: 1px solid var(--border);
   font-size: 0.88em;
 }
@@ -3962,11 +3962,11 @@ li {
 }
 /* Behälter-Name direkt in der (einklappbaren) Überschrift editierbar. */
 .cont-name {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 600;
   border: 1px solid transparent;
   background: transparent;
-  padding: 2px 4px;
+  padding: 0.125rem 0.25rem;
   border-radius: var(--radius-sm);
 }
 .cont-name:hover,
@@ -3977,14 +3977,14 @@ li {
 .cont-props {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
+  gap: 0.5rem;
+  font-size: 0.75rem;
   color: var(--muted);
 }
 .cont-props label {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 0.1875rem;
 }
 .cont-props input {
   width: 4.5em;
@@ -4003,7 +4003,7 @@ li {
 .cat-toggle {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 0.375rem;
   padding: 0;
   border: none;
   background: none;
@@ -4019,8 +4019,8 @@ li {
 /* Löst die Anlegen-Zeile ab: nur noch ein Auslöse-Knopf, das Sammeln der
    Felder passiert im Dialog (siehe .dialog-*). */
 .inv-add-trigger {
-  margin-top: 8px;
-  padding-top: 8px;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
   border-top: 1px dashed var(--border);
 }
 
@@ -4296,7 +4296,7 @@ li {
 .cat-row {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 .cat-row input {
   width: 18em;
@@ -4304,14 +4304,14 @@ li {
 .tabm-row {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 /* Auf größeren Bildschirmen übernimmt der Ziehgriff das Umsortieren; die
    Pfeile blieben daneben nur noch nutzlose Handarbeit. Unter 700px (Touch,
    kein zuverlässiges Drag) sind sie die einzige Bedienung und kommen wieder. */
 .tabm-arrows {
   display: none;
-  gap: 2px;
+  gap: 0.125rem;
 }
 @media (max-width: 700px) {
   .tabm-arrows {
@@ -4330,7 +4330,7 @@ li {
 .tabm-grip {
   cursor: grab;
   color: var(--muted);
-  padding: 0 2px;
+  padding: 0 0.125rem;
   user-select: none;
   font-size: 1.05em;
 }
@@ -4352,12 +4352,12 @@ li {
 .vis-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 6px 16px;
+  gap: 0.375rem 1rem;
 }
 .vis-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 /* ---------- Zauber-&-Fähigkeiten-Werkstatt (Cluster 6) ---------- */
@@ -4369,14 +4369,14 @@ li {
 .einst-head {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 0.875rem;
   flex-wrap: wrap;
   position: sticky;
   top: var(--topbar-h, 47px);
   z-index: 12;
   background: var(--bg);
   margin-inline: calc(-1 * var(--pad-x));
-  padding: 8px var(--pad-x);
+  padding: 0.5rem var(--pad-x);
 }
 .werk-head h1,
 .einst-head h1 {
@@ -4394,7 +4394,7 @@ li {
 .abil-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
 }
 .abil-row {
   border: 1px solid var(--border);
@@ -4405,8 +4405,8 @@ li {
 .abil-compact {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 8px;
+  gap: 0.5rem;
+  padding: 0.3125rem 0.5rem;
   flex-wrap: wrap;
 }
 .abil-compact .abil-name {
@@ -4427,15 +4427,15 @@ li {
 .werk-lists {
   display: flex;
   flex-wrap: wrap;
-  gap: 24px;
+  gap: 1.5rem;
 }
 
 /* ---------- Reiter „Zauber" / „Fähigkeiten" (Cluster 6) ---------- */
 .abil-toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
   flex-wrap: wrap;
 }
 /* Die globale Regel macht Eingaben 100 % breit — in der Werkzeugleiste sollen
@@ -4528,7 +4528,7 @@ li {
   /* Bis an die Panel-Ränder ziehen (Panel-Polster 16px): der Hintergrund deckt
      dann die volle Breite der Tabelle darunter, statt 16px früher aufzuhören. */
   margin-inline: -16px;
-  padding: 6px 16px 8px;
+  padding: 0.375rem 1rem 0.5rem;
 }
 /* Verwaltungsseite: Such-/Filterzeile klebt oben (nur die Kopfleiste steht
    darüber — dort gibt es keine Reiter). Bis an die Panel-Ränder ziehen, damit
@@ -4538,8 +4538,8 @@ li {
   top: var(--topbar-h, 47px);
   z-index: 6;
   background: var(--panel);
-  margin-inline: -16px;
-  padding: 8px 16px;
+  margin-inline: -1rem;
+  padding: 0.5rem 1rem;
 }
 /* Angehefteter Signatur-Zauber: immer die erste Zeile, dezent hervorgehoben. */
 .abil-tab tr.abil-pinned td {
@@ -4551,9 +4551,9 @@ li {
 .abil-grouprow {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   flex-wrap: wrap;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 /* Signatur-Zauber: Stern auf der Verwaltungsseite und im Reiter */
 .abil-sig {
@@ -4562,14 +4562,14 @@ li {
   cursor: pointer;
   font-size: 1.05em;
   color: var(--muted);
-  padding: 0 2px;
+  padding: 0 0.125rem;
 }
 .abil-sig.on {
   color: var(--accent, gold);
 }
 .abil-sig-star {
   color: var(--accent, gold);
-  margin-right: 4px;
+  margin-right: 0.25rem;
 }
 /* Würfel-Favorit: 📌-Umschalter auf Talent-/Ability-Zeilen (Talente.tsx,
    AbilityTable.tsx, AbilityManager.tsx) — grau/blass bis gesetzt, wie die
@@ -4596,14 +4596,14 @@ li {
   white-space: nowrap;
 }
 .abil-count {
-  margin-top: 6px;
+  margin-top: 0.375rem;
   font-size: 0.84em;
 }
 /* Umsortieren auf der Verwaltungsseite: Ziehen am Griff */
 .abil-grip {
   cursor: grab;
   color: var(--muted);
-  padding: 0 2px;
+  padding: 0 0.125rem;
   user-select: none;
   font-size: 1.05em;
 }
@@ -4618,7 +4618,7 @@ li {
 }
 .abil-badge {
   display: inline-block;
-  margin-left: 6px;
+  margin-left: 0.375rem;
   border: 1px solid var(--border);
   color: var(--muted);
   vertical-align: middle;
@@ -4632,7 +4632,7 @@ li {
 .abil-note {
   font-size: 0.86em;
   white-space: pre-wrap;
-  margin-top: 2px;
+  margin-top: 0.125rem;
 }
 
 /* Ein-/Ausklapp-Schalter für lange Notizen: „…" bzw. „weniger", inline im Text.
@@ -4655,13 +4655,13 @@ li {
 .magier-top {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
   flex-wrap: wrap;
 }
 .magier-stufe {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   font-weight: 600;
 }
 .magier-stufe :is(input) {
@@ -4670,14 +4670,14 @@ li {
 .magier-override {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 0.3125rem;
   font-size: 0.86em;
   color: var(--muted);
 }
 .magier-reichweite {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 0.25rem;
   font-size: 0.9em;
 }
 .magier-reichweite :is(input) {
@@ -4689,8 +4689,8 @@ li {
   font-size: 0.9em;
 }
 .magier-warn {
-  margin-top: 8px;
-  padding: 6px 10px;
+  margin-top: 0.5rem;
+  padding: 0.375rem 0.625rem;
   border: 1px solid var(--error-text);
   border-radius: var(--radius-sm);
   color: var(--error-text);
@@ -4701,15 +4701,15 @@ li {
   font-size: 1.1em;
 }
 .magier-ref {
-  margin-top: 8px;
+  margin-top: 0.5rem;
   font-size: 0.88em;
 }
 .magier-elig {
-  margin-top: 10px;
+  margin-top: 0.625rem;
 }
 .magier-elig-head {
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 0.375rem;
 }
 .magier-ok {
   color: var(--good);
@@ -4717,10 +4717,10 @@ li {
 .magier-conds {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
+  gap: 0.375rem 0.5rem;
 }
 .magier-cond {
-  padding: 1px 8px;
+  padding: 1px 0.5rem;
   border-radius: 999px;
   border: 1px solid var(--border);
   font-size: 0.84em;
@@ -6335,7 +6335,7 @@ tr:hover .probe-roll,
 .wpn-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.625rem;
 }
 .wpn-card {
   border: 1px solid var(--border-strong);
@@ -6354,8 +6354,8 @@ tr:hover .probe-roll,
 .wpn-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
+  gap: 0.625rem;
+  padding: 0.5625rem 0.875rem;
   cursor: pointer;
   user-select: none;
   border-radius: var(--radius-lg);
@@ -6377,7 +6377,7 @@ tr:hover .probe-roll,
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 .wpn-name {
-  font-size: 15px;
+  font-size: 0.9375rem;
   font-weight: 700;
   min-width: 0;
   white-space: nowrap;
@@ -6389,7 +6389,7 @@ tr:hover .probe-roll,
    nicht wie ein eigener Proben-Chip. */
 .wpn-count {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 700;
   color: var(--muted);
 }
@@ -6398,13 +6398,13 @@ tr:hover .probe-roll,
 .wpn-group-items {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px 12px 24px;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem 0.75rem 1.5rem;
 }
 /* Kampftalent und Stufe stehen klein hinter den Proben — Beiwerk, das Name und
    Zahlen überstimmen dürfen; bei Platzmangel verschwindet es zuerst. */
 .wpn-sub {
-  font-size: 13px;
+  font-size: 0.8125rem;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -6422,7 +6422,7 @@ tr:hover .probe-roll,
 }
 .wpn-note-flag {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   cursor: help;
 }
 /* Die Proben stehen direkt hinter dem Namen (Begründung in WaffenNeu.tsx) und
@@ -6431,15 +6431,15 @@ tr:hover .probe-roll,
   display: flex;
   align-items: center;
   flex: none;
-  gap: 5px;
+  gap: 0.3125rem;
 }
 .wpn-chip {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  min-width: 72px;
+  gap: 0.375rem;
+  min-width: 4.5rem;
   justify-content: center;
-  padding: 4px 12px;
+  padding: 0.25rem 0.75rem;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: var(--computed-bg);
@@ -6447,14 +6447,14 @@ tr:hover .probe-roll,
   white-space: nowrap;
 }
 .wpn-chip-label {
-  font-size: 10px;
+  font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   opacity: 0.75;
 }
 .wpn-chip-val {
-  font-size: 17px;
+  font-size: 1.0625rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -6474,14 +6474,14 @@ tr:hover .probe-roll,
      alleine mit. */
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   align-items: start;
-  gap: 12px 20px;
-  padding: 12px 14px;
+  gap: 0.75rem 1.25rem;
+  padding: 0.75rem 0.875rem;
 }
 /* Beschriftung: klein, aber kräftig — sie soll den Wert anführen, nicht mit ihm
    konkurrieren. Versalien und Sperrung trennen sie deutlich vom Inhalt. */
 .wpn-card .chip-editor > label {
-  gap: 3px;
-  font-size: 10px;
+  gap: 0.1875rem;
+  font-size: 0.625rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -6493,7 +6493,7 @@ tr:hover .probe-roll,
 .wpn-card .chip-editor input,
 .wpn-card .chip-editor select,
 .wpn-card .chip-editor textarea {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 400;
   text-transform: none;
   letter-spacing: normal;
@@ -6503,7 +6503,7 @@ tr:hover .probe-roll,
    eigenen Rahmen samt Innenabstand mit, der feste Text soll ihn nicht bloß
    nachahmen. */
 .wpn-card .chip-editor .static-value {
-  padding: 2px 0;
+  padding: 0.125rem 0;
 }
 /* Freitext bekommt eine eigene Zeile: „Besonderes" ist genau das Feld, das in
    der Tabelle immer zu schmal war. */

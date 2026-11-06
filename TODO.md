@@ -185,10 +185,13 @@ sorted into the priority sections above in a later pass. (Empty = all caught up.
     `.portrait*`, `.formel`, `.probe-roll*`; the `--sidebar-w` fallback and the
     34px collapsed rail stay px because JS and `flex-basis` pair with them), and
     the wiki (`wiki.css`, whole file, incl. the 190px TOC column) with the
-    changelog rules. Next areas, in this order: the remaining sheet tabs
-    (`.wpn-*`, `.abil-*`, `.inv-*`, `.akt-*`), the leftovers
-    (`.changelog-version`, `.known-bugs-*`, easter-egg panels), then the dice
-    dock and VTT. Known
+    changelog rules, and the remaining sheet tabs (`.wpn-*`, `.abil-*`,
+    `.magier-*`, `.zone-*`, `.container-*`, `.coin`, `.pouch`, `.lang-*`,
+    `.einst-*` and friends). Next areas, in this order: the leftovers (shared
+    `.chev` rule, `legend`, `.viewas-tag`, `.changelog-version`, `.known-bugs-*`,
+    easter-egg panels and the page-level `.hero-*`, `.home-*`, `.login-*`,
+    `.marken-*`, `.crop-*`, `.print-*`, `.grp-*`, `.gm-*`), then the dice dock
+    (`.dice-*`, `.feed-*`, `.sp-*`, `.mod-*`) and VTT (`.vtt-*`). Known
     loose end: `CELL_CHROME_PX = 30` in `components/tableLayout.tsx` (double-click
     "fit column to content") assumes px cell padding, so at a larger root size
     the fitted width comes out slightly narrow; derive it from the cell's
